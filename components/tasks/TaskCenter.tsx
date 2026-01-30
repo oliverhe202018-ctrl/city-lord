@@ -301,10 +301,10 @@ export function TaskCenter({
     }
   }
 
-  const tasks = activeTab === "daily" ? mockDailyTasks : cityTasks
+  const visibleTasks = activeTab === "daily" ? mockDailyTasks : cityTasks
 
   // 计算可领取的任务数量
-  const claimableCount = tasks.filter(t => t.status === "completed" && !claimedTasks.has(t.id)).length
+  const claimableCount = visibleTasks.filter(t => t.status === "completed" && !claimedTasks.has(t.id)).length
 
   return (
     <div className="h-full flex flex-col bg-gradient-to-br from-black/80 to-black/60 backdrop-blur-xl">
