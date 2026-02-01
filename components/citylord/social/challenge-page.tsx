@@ -108,15 +108,15 @@ export function ChallengePage({
         const mapped = data.map((c: any) => ({
           id: c.id,
           from: {
-            name: c.creator?.nickname || 'Unknown',
-            level: c.creator?.level || 1,
-            avatar: c.creator?.avatar_url
+            name: c.from?.name || 'Unknown',
+            level: c.from?.level || 1,
+            avatar: c.from?.avatar
           },
           type: c.type as ChallengeType,
           distance: c.distance,
           duration: c.duration || '24h',
-          reward: c.reward_xp,
-          expiresIn: '24h', // Todo: calculate real time
+          reward: c.rewardXp || 100,
+          expiresIn: c.expiresIn, 
           location: 'City'
         }))
         setPendingChallenges(mapped)

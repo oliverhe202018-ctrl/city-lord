@@ -1,7 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { getRecommendedUsers, sendFriendRequest, type RecommendedUser } from "@/app/actions/social"
+import { toast } from "sonner"
 import { 
+  Loader2,
   MapPin, 
   Trophy, 
   UserPlus, 
@@ -11,77 +14,12 @@ import {
   Zap
 } from "lucide-react"
 
-interface RecommendedUser {
-  id: string
-  name: string
-  avatar?: string
-  level: number
-  reason: "nearby" | "similar_level" | "similar_achievement" | "mutual_friends"
-  reasonDetail: string
-  hexCount: number
-  totalKm: number
-  distance?: number // meters for nearby
-  mutualFriends?: number
-  clan?: string
-  clanColor?: string
-}
 
-const recommendedUsers: RecommendedUser[] = [
-  {
-    id: "1",
-    name: "NearbyRunner",
-    level: 11,
-    reason: "nearby",
-    reasonDetail: "距离你 200m",
-    hexCount: 78,
-    totalKm: 120.5,
-    distance: 200,
-  },
-  {
-    id: "2",
-    name: "LevelPeer",
-    level: 10,
-    reason: "similar_level",
-    reasonDetail: "等级相近",
-    hexCount: 65,
-    totalKm: 98.2,
-    clan: "新手联盟",
-    clanColor: "#22c55e",
-  },
-  {
-    id: "3",
-    name: "AchievementBuddy",
-    level: 12,
-    reason: "similar_achievement",
-    reasonDetail: "都完成了「马拉松新手」成就",
-    hexCount: 92,
-    totalKm: 156.8,
-  },
-  {
-    id: "4",
-    name: "MutualConnect",
-    level: 14,
-    reason: "mutual_friends",
-    reasonDetail: "3位共同好友",
-    hexCount: 134,
-    totalKm: 201.4,
-    mutualFriends: 3,
-    clan: "闪电战队",
-    clanColor: "#f59e0b",
-  },
-  {
-    id: "5",
-    name: "AreaMaster",
-    level: 16,
-    reason: "nearby",
-    reasonDetail: "距离你 500m",
-    hexCount: 189,
-    totalKm: 267.3,
-    distance: 500,
-  },
-]
-
-const reasonConfig = {
+const reasonConfig: Record<string, {
+  icon: React.ElementType
+  label: string
+  color: string
+}> = {
   nearby: {
     icon: MapPin,
     label: "附近",
@@ -111,6 +49,23 @@ interface RecommendedFriendsProps {
 export function RecommendedFriends({ onAddFriend }: RecommendedFriendsProps) {
   const [addedUsers, setAddedUsers] = useState<Set<string>>(new Set())
   const [filter, setFilter] = useState<"all" | "nearby" | "similar">("all")
+  const [recommendedUsers, setRecommendedUsers] = useState<RecommendedUser[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        const data = await getRecommendedUsers()
+        setRecommendedUsers(data)
+      } catch (error) {
+        console.error("Failed to load recommended users:", error)
+        toast.error("加载推荐好友失败")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    loadUsers()
+  }, [])
 
   const filteredUsers = recommendedUsers.filter(user => {
     if (filter === "all") return true
@@ -118,9 +73,16 @@ export function RecommendedFriends({ onAddFriend }: RecommendedFriendsProps) {
     return user.reason === "similar_level" || user.reason === "similar_achievement"
   })
 
-  const handleAddFriend = (userId: string) => {
-    setAddedUsers(prev => new Set(prev).add(userId))
-    onAddFriend?.(userId)
+  const handleAddFriend = async (userId: string) => {
+    try {
+      await sendFriendRequest(userId)
+      setAddedUsers(prev => new Set(prev).add(userId))
+      onAddFriend?.(userId)
+      toast.success("好友请求已发送")
+    } catch (error) {
+      toast.error("发送好友请求失败")
+      console.error(error)
+    }
   }
 
   return (

@@ -67,13 +67,15 @@ export function useTerritoryCapture() {
 
         return { success: true, alreadyCaptured: false, result }
       }
-    } catch (error) {
-      console.error("Failed to capture territory:", error)
-      toast({
-        title: "占领失败",
-        description: error instanceof Error ? error.message : "请稍后再试",
-        variant: "destructive",
-      })
+    } catch (error: any) {
+      if (error?.name !== 'AbortError' && error?.digest !== 'NEXT_REDIRECT') {
+        console.error("Failed to capture territory:", error)
+        toast({
+          title: "占领失败",
+          description: error instanceof Error ? error.message : "请稍后再试",
+          variant: "destructive",
+        })
+      }
       return { success: false, alreadyCaptured: false, error }
     } finally {
       setIsCapturing(false)

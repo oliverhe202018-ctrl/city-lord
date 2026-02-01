@@ -6,6 +6,7 @@ import AMapLoader from "@amap/amap-jsapi-loader";
 import { useCity } from "@/contexts/CityContext";
 import FogLayer from "./FogLayer";
 import TerritoryLayer from "./TerritoryLayer";
+import { toast } from "sonner";
 
 const MapViewOrchestrator = () => {
   const { region } = useRegion();
@@ -35,6 +36,18 @@ const MapViewOrchestrator = () => {
     if (geoError) {
       console.error("Geolocation Error:", geoError.message);
       setGpsStatus('error', geoError.message);
+      
+      // Show user-friendly toast
+      if (geoError.message.includes("User denied") || geoError.message.includes("permission")) {
+        toast.error("定位失败：权限被拒绝", {
+          description: "请在浏览器设置中允许获取位置信息，以便开始探索。",
+          duration: 5000,
+        });
+      } else {
+        toast.error("定位失败", {
+          description: geoError.message || "无法获取当前位置",
+        });
+      }
     }
     if (geocodeError) {
       console.error("Reverse Geocode Error:", geocodeError);
@@ -71,7 +84,11 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(({ showTerritory }, r
   useEffect(() => {
     // 页面加载/组件挂载时，如果本地缓存显示我在房间里，立即同步一次最新状态
     if (currentRoom?.id) {
-      syncCurrentRoom();
+      syncCurrentRoom().catch((e: any) => {
+        if (e?.name !== 'AbortError' && e?.digest !== 'NEXT_REDIRECT') {
+          console.error("Failed to sync room", e)
+        }
+      });
     }
   }, []); // 空依赖数组，只在挂载时执行一次
 

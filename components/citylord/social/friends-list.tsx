@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { 
   Search, 
   UserPlus, 
@@ -10,74 +10,13 @@ import {
   Zap,
   MessageCircle,
   Swords,
-  Clock
+  Clock,
+  Loader2,
+  Check,
+  X
 } from "lucide-react"
-
-interface Friend {
-  id: string
-  name: string
-  avatar?: string
-  level: number
-  status: "online" | "running" | "offline"
-  lastActive?: string
-  hexCount: number
-  totalKm: number
-  clan?: string
-  clanColor?: string
-  nearbyDistance?: number // in meters
-}
-
-const sampleFriends: Friend[] = [
-  {
-    id: "1",
-    name: "CyberStride",
-    level: 15,
-    status: "running",
-    hexCount: 156,
-    totalKm: 234.5,
-    clan: "闪电战队",
-    clanColor: "#22c55e",
-  },
-  {
-    id: "2",
-    name: "NightRunner",
-    level: 12,
-    status: "online",
-    hexCount: 98,
-    totalKm: 187.2,
-    clan: "暗影军团",
-    clanColor: "#8b5cf6",
-    nearbyDistance: 500,
-  },
-  {
-    id: "3",
-    name: "GridMaster",
-    level: 18,
-    status: "online",
-    hexCount: 234,
-    totalKm: 312.8,
-  },
-  {
-    id: "4",
-    name: "SpeedDemon",
-    level: 10,
-    status: "offline",
-    lastActive: "2小时前",
-    hexCount: 67,
-    totalKm: 98.4,
-  },
-  {
-    id: "5",
-    name: "TerraHunter",
-    level: 14,
-    status: "offline",
-    lastActive: "昨天",
-    hexCount: 145,
-    totalKm: 201.3,
-    clan: "领地猎人",
-    clanColor: "#f59e0b",
-  },
-]
+import { fetchFriends, getFriendRequests, respondToFriendRequest, type Friend, type FriendRequest } from "@/app/actions/social"
+import { toast } from "sonner"
 
 interface FriendsListProps {
   onSelectFriend?: (friend: Friend) => void
@@ -89,8 +28,53 @@ export function FriendsList({ onSelectFriend, onChallenge, onMessage }: FriendsL
   const [searchQuery, setSearchQuery] = useState("")
   const [filter, setFilter] = useState<"all" | "online" | "nearby">("all")
   const [selectedFriend, setSelectedFriend] = useState<string | null>(null)
+  
+  const [friends, setFriends] = useState<Friend[]>([])
+  const [requests, setRequests] = useState<FriendRequest[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
-  const filteredFriends = sampleFriends.filter(friend => {
+  useEffect(() => {
+    loadData()
+  }, [])
+
+  const loadData = async () => {
+    try {
+      const [friendsData, requestsData] = await Promise.all([
+        fetchFriends(),
+        getFriendRequests()
+      ])
+      setFriends(friendsData)
+      setRequests(requestsData)
+    } catch (error) {
+      toast.error("加载数据失败")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleResponse = async (userId: string, action: 'accept' | 'reject') => {
+    try {
+      const result = await respondToFriendRequest(userId, action)
+      if (result.success) {
+        toast.success(action === 'accept' ? "已接受好友请求" : "已拒绝好友请求")
+        loadData()
+      } else {
+        toast.error("操作失败")
+      }
+    } catch (error) {
+      toast.error("操作出错")
+    }
+  }
+
+  const [now, setNow] = useState(Date.now())
+
+  // Update 'now' every minute to refresh relative time and online status
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 60000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const filteredFriends = friends.filter(friend => {
     const matchesSearch = friend.name.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesFilter = 
       filter === "all" ||
@@ -103,6 +87,24 @@ export function FriendsList({ onSelectFriend, onChallenge, onMessage }: FriendsL
     online: { color: "bg-[#22c55e]", label: "在线", animate: false },
     running: { color: "bg-cyan-400", label: "跑步中", animate: true },
     offline: { color: "bg-white/30", label: "离线", animate: false },
+  }
+
+  // Helper to determine real-time status
+  const getFriendStatus = (friend: Friend) => {
+    if (friend.status === 'running') return 'running'
+    if (!friend.lastActiveAt) return friend.status // Fallback to server status
+    
+    const diffMinutes = (now - new Date(friend.lastActiveAt).getTime()) / (1000 * 60)
+    return diffMinutes < 5 ? 'online' : 'offline'
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-[#22c55e]" />
+        <p className="mt-2 text-sm text-white/60">正在加载好友列表...</p>
+      </div>
+    )
   }
 
   return (
@@ -126,9 +128,9 @@ export function FriendsList({ onSelectFriend, onChallenge, onMessage }: FriendsL
           {(["all", "online", "nearby"] as const).map((f) => {
             const labels = { all: "全部", online: "在线", nearby: "附近" }
             const counts = {
-              all: sampleFriends.length,
-              online: sampleFriends.filter(fr => fr.status !== "offline").length,
-              nearby: sampleFriends.filter(fr => fr.nearbyDistance !== undefined).length,
+              all: friends.length,
+              online: friends.filter(fr => fr.status !== "offline").length,
+              nearby: friends.filter(fr => fr.nearbyDistance !== undefined).length,
             }
             return (
               <button
@@ -153,10 +155,47 @@ export function FriendsList({ onSelectFriend, onChallenge, onMessage }: FriendsL
         <span className="font-medium">添加新好友</span>
       </button>
 
+      {/* Friend Requests Section */}
+      {requests.length > 0 && (
+        <div className="mb-6 space-y-2">
+          <h3 className="px-1 text-xs font-semibold uppercase tracking-wider text-white/40">
+            好友请求 ({requests.length})
+          </h3>
+          {requests.map((req) => (
+            <div key={req.id} className="flex items-center justify-between rounded-xl border border-[#22c55e]/20 bg-[#22c55e]/5 p-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#22c55e]/30 to-cyan-500/30 text-sm font-bold text-white">
+                  {req.avatar || req.name[0]}
+                </div>
+                <div>
+                  <div className="font-semibold text-white">{req.name}</div>
+                  <div className="text-xs text-white/50">Lv.{req.level} • 请求添加好友</div>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleResponse(req.userId, 'reject')}
+                  className="rounded-lg bg-white/5 p-2 text-white/60 hover:bg-red-500/20 hover:text-red-500"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => handleResponse(req.userId, 'accept')}
+                  className="rounded-lg bg-[#22c55e] p-2 text-black hover:bg-[#22c55e]/90"
+                >
+                  <Check className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Friends List */}
       <div className="space-y-2">
         {filteredFriends.map((friend) => {
-          const status = statusConfig[friend.status]
+          const computedStatus = getFriendStatus(friend)
+          const status = statusConfig[computedStatus as keyof typeof statusConfig]
           const isSelected = selectedFriend === friend.id
 
           return (
@@ -226,7 +265,7 @@ export function FriendsList({ onSelectFriend, onChallenge, onMessage }: FriendsL
 
                 {/* Status / Last Active */}
                 <div className="text-right">
-                  {friend.status === "running" ? (
+                  {computedStatus === "running" ? (
                     <span className="flex items-center gap-1 text-xs text-cyan-400">
                       <span className="relative flex h-2 w-2">
                         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75" />
@@ -234,7 +273,7 @@ export function FriendsList({ onSelectFriend, onChallenge, onMessage }: FriendsL
                       </span>
                       跑步中
                     </span>
-                  ) : friend.status === "online" ? (
+                  ) : computedStatus === "online" ? (
                     <span className="text-xs text-[#22c55e]">在线</span>
                   ) : (
                     <span className="flex items-center gap-1 text-xs text-white/40">

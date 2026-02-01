@@ -1,8 +1,15 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
-import { Pause, Play, Square, ChevronUp, MapPin, Zap, Heart, Hexagon } from "lucide-react"
+import { useState, useEffect, useCallback, useRef } from "react"
+import { Pause, Play, Square, ChevronUp, MapPin, Zap, Heart, Hexagon, Trophy } from "lucide-react"
 import { hexCountToArea, formatArea, HEX_AREA_SQ_METERS } from "@/lib/citylord/area-utils"
+import { claimTerritory, fetchTerritories } from "@/app/actions/city"
+import { latLngToCell } from "h3-js"
+import { useCity } from "@/contexts/CityContext"
+import { toast } from "sonner"
+import { AchievementPopup } from "../achievement-popup"
+import { RunningHUD } from "@/components/running/RunningHUD"
+import { GaodeMap3D } from "@/components/map/GaodeMap3D"
 
 interface ImmersiveModeProps {
   isActive: boolean
@@ -17,6 +24,7 @@ interface ImmersiveModeProps {
   onResume: () => void
   onStop: () => void
   onExpand: () => void
+  currentLocation?: { lat: number; lng: number }
 }
 
 export function ImmersiveRunningMode({
@@ -32,17 +40,102 @@ export function ImmersiveRunningMode({
   onResume,
   onStop,
   onExpand,
+  currentLocation,
 }: ImmersiveModeProps) {
   const [isPaused, setIsPaused] = useState(false)
   const [showStopConfirm, setShowStopConfirm] = useState(false)
   const [displayedArea, setDisplayedArea] = useState(0)
   const [areaFlash, setAreaFlash] = useState(false)
+  const { currentCity } = useCity() // Removed refreshTerritories as it's not in context
+  const [lastClaimedHex, setLastClaimedHex] = useState<string | null>(null)
   
+  // Map Data State
+  const [mapHexagons, setMapHexagons] = useState<string[]>([])
+  const [exploredHexes, setExploredHexes] = useState<string[]>([])
+
+  // Load territories for map
+  const loadTerritories = useCallback(async () => {
+    if (!currentCity) return
+    try {
+      const territories = await fetchTerritories(currentCity.id)
+      setMapHexagons(territories.map(t => t.id))
+      setExploredHexes(territories.filter(t => t.ownerType === 'me').map(t => t.id))
+    } catch (e: any) {
+      if (e?.name !== 'AbortError' && e?.digest !== 'NEXT_REDIRECT') {
+        console.error("Failed to load territories", e)
+      }
+    }
+  }, [currentCity])
+
+  // Initial load
+  useEffect(() => {
+    loadTerritories()
+  }, [loadTerritories])
+
   // Calculate total captured area
   const totalCapturedArea = hexCountToArea(hexesCaptured)
   const currentPartialArea = Math.round((currentHexProgress / 100) * HEX_AREA_SQ_METERS)
   const totalArea = totalCapturedArea + currentPartialArea
   const formattedArea = formatArea(totalArea)
+
+  // Territory Capture Logic
+  const isClaimingRef = useRef(false)
+
+  useEffect(() => {
+    if (!isActive || isPaused || !currentLocation || !currentCity) return
+
+    const checkAndClaimTerritory = async () => {
+      try {
+        // Calculate H3 index (resolution 9 is standard for gameplay)
+        const h3Index = latLngToCell(currentLocation.lat, currentLocation.lng, 9)
+        
+        // Prevent spamming the same hex or if currently claiming
+        if (h3Index === lastClaimedHex || isClaimingRef.current) return
+
+        isClaimingRef.current = true
+
+        // Call server action
+        const result = await claimTerritory(currentCity.id, h3Index)
+        
+        if (result.success) {
+          setLastClaimedHex(h3Index)
+          toast.success("占领成功!", {
+            description: "获得 +50 XP",
+            icon: <Hexagon className="h-4 w-4 text-[#22c55e]" />,
+          })
+
+          // Show badge notifications
+          if (result.grantedBadges && result.grantedBadges.length > 0) {
+            result.grantedBadges.forEach(badgeName => {
+              toast.success(`解锁勋章: ${badgeName}`, {
+                icon: <Trophy className="h-4 w-4 text-yellow-400" />,
+                style: { 
+                  backgroundColor: 'rgba(0,0,0,0.8)', 
+                  color: 'white', 
+                  border: '1px solid rgba(250, 204, 21, 0.5)' 
+                }
+              })
+            })
+          }
+
+          // Refresh map overlay
+          loadTerritories()
+        }
+      } catch (error: any) {
+        if (error?.name !== 'AbortError' && error?.digest !== 'NEXT_REDIRECT') {
+          console.error("Auto-claim failed:", error)
+        }
+      } finally {
+        isClaimingRef.current = false
+      }
+    }
+
+    // Check every 10 seconds or when location updates significantly
+    // For simplicity, we just run this effect when currentLocation changes
+    // Debounce could be added if location updates are very frequent
+    checkAndClaimTerritory()
+    
+  }, [isActive, isPaused, currentLocation, currentCity, lastClaimedHex, loadTerritories])
   
   // Animate area counter with jumping effect
   useEffect(() => {
@@ -98,71 +191,50 @@ export function ImmersiveRunningMode({
   if (!isActive) return null
 
   return (
-    <div className="fixed inset-0 z-[9999] flex h-[100dvh] w-full flex-col bg-black">
+    <div className="fixed inset-0 z-[9999] flex h-[100dvh] w-full flex-col bg-black/60 backdrop-blur-sm">
+      {/* Map Background Layer */}
+      <div className="absolute inset-0 z-0">
+        {currentLocation && (
+          <GaodeMap3D 
+            hexagons={mapHexagons} 
+            exploredHexes={exploredHexes} 
+            userLocation={[currentLocation.lng, currentLocation.lat]} 
+          />
+        )}
+        {/* Gradient Overlay for text readability */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/80 pointer-events-none" />
+      </div>
+
       {/* Safe Area Top */}
-      <div className="h-[env(safe-area-inset-top)] bg-black" />
+      <div className="relative z-10 h-[env(safe-area-inset-top)] bg-transparent" />
 
-      {/* Main Stats - Ultra Large Display */}
-      <div className="flex flex-1 flex-col items-center justify-center px-6 pb-24">
-        {/* Current Pace - Largest */}
-        <div className="mb-2 text-center">
-          <p className="text-sm font-medium uppercase tracking-widest text-[#22c55e]/70">配速</p>
-          <p className="font-mono text-8xl font-bold tracking-tight text-[#22c55e]">
-            {pace}
-          </p>
-          <p className="text-lg text-white/40">/公里</p>
-        </div>
-
-        {/* Distance - Second Largest */}
-        <div className="mt-8 text-center">
-          <p className="text-sm font-medium uppercase tracking-widest text-white/50">距离</p>
-          <p className="font-mono text-6xl font-bold text-white">
-            {distance.toFixed(2)}
-          </p>
-          <p className="text-lg text-white/40">公里</p>
-        </div>
-
-        {/* Time */}
-        <div className="mt-6 text-center">
-          <p className="font-mono text-4xl font-medium text-white/70">{time}</p>
-        </div>
-      </div>
-
-      {/* Control Buttons */}
-      <div className="absolute bottom-12 left-0 right-0 z-50 flex items-center justify-center gap-12 pb-[env(safe-area-inset-bottom)]">
-        {/* Pause/Resume Button */}
-        <button
-          onClick={handlePauseToggle}
-          className={`flex h-20 w-20 items-center justify-center rounded-full border-2 transition-all active:scale-95 ${
-            isPaused
-              ? "border-[#22c55e] bg-[#22c55e] text-white shadow-[0_0_30px_rgba(34,197,94,0.4)]"
-              : "border-yellow-400 bg-yellow-400 text-black shadow-[0_0_30px_rgba(234,179,8,0.3)]"
-          }`}
-        >
-          {isPaused ? (
-            <Play className="h-8 w-8 translate-x-0.5" fill="currentColor" />
-          ) : (
-            <Pause className="h-8 w-8" fill="currentColor" />
-          )}
-        </button>
-
-        {/* Stop Button */}
-        <button
-          onClick={handleStop}
-          className={`flex h-20 w-20 items-center justify-center rounded-full border-2 border-red-500 bg-red-500 text-white shadow-[0_0_30px_rgba(239,68,68,0.4)] transition-all active:scale-95 ${
-            showStopConfirm ? "animate-pulse" : ""
-          }`}
-        >
-          <Square className="h-8 w-8" fill="currentColor" />
-        </button>
-      </div>
-
-      {/* Stop Confirmation Tooltip */}
-      {showStopConfirm && (
-        <div className="fixed bottom-36 left-1/2 -translate-x-1/2 z-50 animate-fade-in rounded-lg bg-red-500/90 px-4 py-2 text-sm font-medium text-white shadow-lg backdrop-blur-sm">
-          再次点击确认结束
-        </div>
-      )}
+      {/* New HUD Implementation */}
+      <RunningHUD 
+        distance={distance}
+        pace={pace}
+        duration={time}
+        calories={calories}
+        hexesCaptured={hexesCaptured}
+        isPaused={isPaused}
+        onPauseToggle={() => {
+          if (isPaused) {
+            setIsPaused(false)
+            onResume()
+          } else {
+            setIsPaused(true)
+            onPause()
+          }
+        }}
+        onStop={() => {
+          if (!showStopConfirm) {
+            setShowStopConfirm(true)
+            // Show toast instruction
+            toast.info("再次点击确认结束", { position: "bottom-center" })
+          } else {
+            onStop()
+          }
+        }}
+      />
     </div>
   )
 }

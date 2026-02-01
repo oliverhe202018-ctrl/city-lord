@@ -1,6 +1,6 @@
 "use client"
 
-import dynamic from "next/dynamic";
+import nextDynamic from 'next/dynamic';
 import { useState, useEffect, useRef } from "react"
 import { HexMap } from "@/components/citylord/hex-map"
 import { AdaptiveHexGrid } from "@/components/citylord/map/adaptive-hex-grid"
@@ -49,7 +49,7 @@ import ClubDetails from '@/components/mode/ClubDetails';
 
 import { AMapViewHandle } from "@/components/map/AMapView";
 
-const AMapView = dynamic(() => import("@/components/map/AMapViewWithProvider").then(mod => mod.AMapViewWithProvider), { ssr: false });
+const AMapView = nextDynamic(() => import("@/components/map/AMapViewWithProvider").then(mod => mod.AMapViewWithProvider), { ssr: false });
 
 
 export default function CityLordApp() {

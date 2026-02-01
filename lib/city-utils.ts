@@ -42,12 +42,12 @@ export function hydrateCity(base: BaseCity): City {
     return x - Math.floor(x);
   };
 
-  // 随机生成一些统计数据
-  const totalArea = Math.floor(2000 + random(1) * 15000);
-  const totalPlayers = Math.floor(1000 + random(2) * 50000);
-  const activePlayers = Math.floor(totalPlayers * (0.3 + random(3) * 0.4));
-  const totalTiles = Math.floor(totalArea / 2);
-  const capturedTiles = Math.floor(totalTiles * (0.1 + random(4) * 0.5));
+  // Initialize with empty stats - will be populated from DB
+  const totalArea = 0;
+  const totalPlayers = 0;
+  const activePlayers = 0;
+  const totalTiles = 0;
+  const capturedTiles = 0;
 
   // 随机选择主题色
   const themes = [

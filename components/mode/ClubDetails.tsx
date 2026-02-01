@@ -1,16 +1,26 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRegion } from '@/contexts/RegionContext';
-import { mockClub, type ClubMember } from '@/data/clubs';
 import { Crown, Users, Trophy, MapPin, Calendar, Activity, TrendingUp, LineChart, Clock, MapPin as LocationIcon, ExternalLink } from 'lucide-react';
+import { getClubLeaderboard, getClubTerritories, type Club } from '@/app/actions/club';
 
-interface ClubTerritory {
+interface UIClubMember {
+  id: string;
+  name: string;
+  avatarUrl: string;
+  isOnline: boolean;
+  contribution: string;
+  totalDistance: string;
+}
+
+// UI specific territory interface
+interface UIClubTerritory {
   id: string;
   name: string;
   area: number;
   date: string;
-  member: string;
+  member: string; // avatar url
   memberName: string;
   lastTime: string;
   pace?: string;
@@ -21,43 +31,88 @@ interface ClubTerritory {
   siege?: string;
 }
 
-function MemberCard({ member, onClick }: { member: ClubMember; onClick?: (member: ClubMember) => void }) {
-  return (
-    <div
-      onClick={() => onClick?.(member)}
-      className="flex items-center gap-3 p-2 rounded-lg bg-zinc-800/50 cursor-pointer hover:bg-zinc-700/50 transition-colors"
-    >
-      <div className="relative">
-        <img src={member.avatarUrl} alt={member.name} className="w-12 h-12 rounded-full" />
-        {member.isOnline && (
-          <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-zinc-800 rounded-full"></span>
-        )}
-      </div>
-      <div className="flex-1">
-        <span className="font-semibold">{member.name}</span>
-        <div className="text-xs text-white/50 mt-1">贡献: {member.contribution}</div>
-      </div>
-    </div>
-  );
-}
-
 export interface ClubDetailsProps {
-  club?: any;
+  club?: Club;
   onBack?: () => void;
 }
 
-export default function ClubDetails({ club, onBack }: ClubDetailsProps) {
+export default function ClubDetails({ club: propClub, onBack }: ClubDetailsProps) {
   const { region } = useRegion();
   const { province, cityName, countyName } = region || {};
   const [activeTab, setActiveTab] = useState<'leaderboard' | 'territories' | 'history'>('leaderboard');
   const [leaderboardSubTab, setLeaderboardSubTab] = useState<'club' | 'province' | 'national'>('club');
   const [territorySortBy, setTerritorySortBy] = useState<'date' | 'area'>('date');
+  
+  const [internalLeaderboard, setInternalLeaderboard] = useState<any[]>([]);
+  const [territories, setTerrories] = useState<UIClubTerritory[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleMemberClick = (member: ClubMember) => {
+  // Normalize club data
+  const displayClub = propClub || {
+    id: undefined,
+    name: `${province || ''}${cityName || countyName || ''}跑步俱乐部`,
+    territory: '0 mi²',
+    memberCount: 0,
+    members: 0,
+    member_count: 0
+  };
+
+  const clubName = displayClub.name || '我的俱乐部';
+  const clubId = displayClub.id;
+  const territorySize = displayClub.territory || '0 mi²';
+  const memberCount = (displayClub as any).member_count || (displayClub as any).memberCount || (displayClub as any).members || 0;
+
+  useEffect(() => {
+    if (clubId) {
+        const fetchData = async () => {
+            setIsLoading(true);
+            try {
+                const [lbData, terrData] = await Promise.all([
+                    getClubLeaderboard(clubId),
+                    getClubTerritories(clubId)
+                ]);
+                
+                // Map Leaderboard
+                // The action returns: { id, name, avatar, area, score, rank }
+                setInternalLeaderboard(lbData.map((item: any) => ({
+                    id: item.id,
+                    name: item.name,
+                    avatar: item.avatar,
+                    area: item.area,
+                    score: item.score
+                })));
+
+                // Map Territories
+                // The action returns: { id, name, area, date, member, memberName, lastTime, location }
+                setTerrories(terrData.map((t: any) => ({
+                    id: t.id,
+                    name: t.name,
+                    area: t.area,
+                    date: t.date,
+                    member: t.member || '',
+                    memberName: t.memberName || 'Unknown',
+                    lastTime: t.lastTime,
+                    pace: '5:30', // Mock
+                    location: t.location
+                })));
+
+            } catch (error: any) {
+                if (error?.name !== 'AbortError' && error?.digest !== 'NEXT_REDIRECT') {
+                    console.error("Failed to fetch club details", error);
+                }
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchData();
+    }
+  }, [clubId]);
+
+  const handleMemberClick = (member: UIClubMember) => {
     alert(`查看 ${member.name} 的个人资料\n总距离: ${member.totalDistance} km\n贡献: ${member.contribution} mi²`);
   };
 
-  const handleTerritoryClick = (territory: ClubTerritory) => {
+  const handleTerritoryClick = (territory: UIClubTerritory) => {
     alert(`查看 ${territory.name} 领地详情\n面积: ${territory.area} mi²\n占领者: ${territory.memberName}`);
   };
 
@@ -65,119 +120,13 @@ export default function ClubDetails({ club, onBack }: ClubDetailsProps) {
     alert('俱乐部活动详情页面开发中...');
   };
 
-  // Mock data for club internal leaderboard
-  const clubInternalLeaderboard = [
-    { id: '1', name: '李明', avatar: 'https://picsum.photos/id/64/40/40', area: 125.5, score: 5890 },
-    { id: '2', name: '王伟', avatar: 'https://picsum.photos/id/65/40/40', area: 98.3, score: 4230 },
-    { id: '3', name: '张芳', avatar: 'https://picsum.photos/id/66/40/40', area: 87.6, score: 3850 },
-    { id: '4', name: '刘洋', avatar: 'https://picsum.photos/id/67/40/40', area: 65.2, score: 2980 },
-    { id: '5', name: '陈静', avatar: 'https://picsum.photos/id/68/40/40', area: 52.8, score: 2150 },
-  ];
-
-  // Mock data for province leaderboard
-  const provinceLeaderboard = [
-    { id: '1', name: '闪电跑团', avatar: 'https://picsum.photos/id/70/40/40', area: 605.3 },
-    { id: '2', name: '夜跑俱乐部', avatar: 'https://picsum.photos/id/71/40/40', area: 482.1 },
-    { id: '3', name: '城市猎人', avatar: 'https://picsum.photos/id/72/40/40', area: 387.5 },
-  ];
-
-  // Mock data for national leaderboard
-  const nationalLeaderboard = [
-    { id: '1', name: '北京飞人队', avatar: 'https://picsum.photos/id/73/40/40', area: 1250.8 },
-    { id: '2', name: '上海领跑者', avatar: 'https://picsum.photos/id/74/40/40', area: 1180.3 },
-    { id: '3', name: '广州飞跑团', avatar: 'https://picsum.photos/id/75/40/40', area: 1056.7 },
-  ];
-
-  // Mock data for territories sorted by date
-  const territoriesByDate: ClubTerritory[] = [
-    {
-      id: '1',
-      name: 'Sas Nagar',
-      area: 2.28,
-      date: '2小时前',
-      member: 'https://picsum.photos/id/64/40/40',
-      memberName: '李明',
-      lastTime: '2小时前',
-      pace: '6:45',
-      location: '中心广场'
-    },
-    {
-      id: '2',
-      name: 'Cuttack',
-      area: 0.42,
-      date: '5小时前',
-      member: 'https://picsum.photos/id/65/40/40',
-      memberName: '王伟',
-      lastTime: '5小时前',
-      pace: '7:12',
-      location: '东部公园'
-    },
-    {
-      id: '3',
-      name: 'Lucknow',
-      area: 0.13,
-      date: '昨天',
-      member: 'https://picsum.photos/id/66/40/40',
-      memberName: '张芳',
-      lastTime: '昨天 15:30',
-      pace: '6:58',
-      location: '西部湖畔'
-    },
-  ];
-
-  // Mock data for territories sorted by area
-  const territoriesByArea: ClubTerritory[] = [
-    {
-      id: '1',
-      name: 'Sas Nagar',
-      area: 2.28,
-      date: '2小时前',
-      member: 'https://picsum.photos/id/64/40/40',
-      memberName: '李明',
-      lastTime: '在线',
-      totalDistance: '125.6 km',
-      totalTime: '48h 23min',
-      avgPace: '6:45',
-      siege: '2.28 mi²'
-    },
-    {
-      id: '2',
-      name: 'Cuttack',
-      area: 0.42,
-      date: '5小时前',
-      member: 'https://picsum.photos/id/65/40/40',
-      memberName: '王伟',
-      lastTime: '1小时前',
-      totalDistance: '98.3 km',
-      totalTime: '37h 15min',
-      avgPace: '7:12',
-      siege: '0.42 mi²'
-    },
-    {
-      id: '3',
-      name: 'Lucknow',
-      area: 0.13,
-      date: '昨天',
-      member: 'https://picsum.photos/id/66/40/40',
-      memberName: '张芳',
-      lastTime: '3小时前',
-      totalDistance: '87.6 km',
-      totalTime: '32h 45min',
-      avgPace: '6:58',
-      siege: '0.13 mi²'
-    },
-  ];
-
-  // Use passed club data or fallback to dynamic generation based on region
-  const displayClub = club || {
-    name: `${province}${cityName || countyName || ''}跑步俱乐部`,
-    territory: mockClub.territory,
-    memberCount: mockClub.memberCount
-  };
-
-  const clubName = displayClub.name;
-  const territorySize = displayClub.territory;
-  const memberCount = displayClub.memberCount || displayClub.members;
+  const clubInternalLeaderboard = internalLeaderboard;
+  // TODO: Implement province/national leaderboard fetching
+  const provinceLeaderboard: any[] = []; 
+  const nationalLeaderboard: any[] = [];
+  
+  const territoriesByDate = [...territories].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const territoriesByArea = [...territories].sort((a, b) => b.area - a.area);
 
   return (
     <div className="p-4 text-white w-full max-w-full mx-auto overflow-x-hidden">
@@ -263,7 +212,11 @@ export default function ClubDetails({ club, onBack }: ClubDetailsProps) {
                     <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center font-bold ${index === 0 ? 'bg-yellow-500 text-black' : 'bg-zinc-600 text-white'}`}>
                       {index + 1}
                     </div>
-                    <img src={item.avatar} alt={item.name} className="w-10 h-10 rounded-full flex-shrink-0" />
+                    {item.avatar ? (
+                      <img src={item.avatar} alt={item.name} className="w-10 h-10 rounded-full flex-shrink-0 object-cover" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full flex-shrink-0 bg-white/10 flex items-center justify-center">👤</div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <div className="font-semibold truncate">{item.name}</div>
                       <div className="text-sm text-white/60 truncate">{item.area} mi²</div>
@@ -289,7 +242,11 @@ export default function ClubDetails({ club, onBack }: ClubDetailsProps) {
                     <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center font-bold ${index === 0 ? 'bg-yellow-500 text-black' : 'bg-zinc-600 text-white'}`}>
                       {index + 1}
                     </div>
-                    <img src={item.avatar} alt={item.name} className="w-10 h-10 rounded-full flex-shrink-0" />
+                    {item.avatar ? (
+                      <img src={item.avatar} alt={item.name} className="w-10 h-10 rounded-full flex-shrink-0 object-cover" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full flex-shrink-0 bg-white/10 flex items-center justify-center">👤</div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <div className="font-semibold truncate">{item.name}</div>
                       <div className="text-sm text-white/60 truncate">{item.area} mi²</div>
@@ -315,7 +272,11 @@ export default function ClubDetails({ club, onBack }: ClubDetailsProps) {
                     <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center font-bold ${index === 0 ? 'bg-yellow-500 text-black' : 'bg-zinc-600 text-white'}`}>
                       {index + 1}
                     </div>
-                    <img src={item.avatar} alt={item.name} className="w-10 h-10 rounded-full flex-shrink-0" />
+                    {item.avatar ? (
+                      <img src={item.avatar} alt={item.name} className="w-10 h-10 rounded-full flex-shrink-0 object-cover" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full flex-shrink-0 bg-white/10 flex items-center justify-center">👤</div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <div className="font-semibold truncate">{item.name}</div>
                       <div className="text-sm text-white/60 truncate">{item.area} mi²</div>
@@ -360,7 +321,11 @@ export default function ClubDetails({ club, onBack }: ClubDetailsProps) {
                     className="p-3 rounded-lg bg-zinc-800/50 cursor-pointer hover:bg-zinc-700/50 transition-colors"
                   >
                     <div className="flex items-center gap-3">
-                      <img src={item.member} alt={item.memberName} className="w-10 h-10 rounded-full flex-shrink-0" />
+                      {item.member ? (
+                        <img src={item.member} alt={item.memberName} className="w-10 h-10 rounded-full flex-shrink-0 object-cover" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full flex-shrink-0 bg-white/10 flex items-center justify-center">👤</div>
+                      )}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="font-medium truncate">{item.name}</span>
@@ -397,7 +362,11 @@ export default function ClubDetails({ club, onBack }: ClubDetailsProps) {
                     className="p-3 rounded-lg bg-zinc-800/50 cursor-pointer hover:bg-zinc-700/50 transition-colors"
                   >
                     <div className="flex items-start gap-3">
-                      <img src={item.member} alt={item.memberName} className="w-10 h-10 rounded-full flex-shrink-0" />
+                      {item.member ? (
+                        <img src={item.member} alt={item.memberName} className="w-10 h-10 rounded-full flex-shrink-0 object-cover" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full flex-shrink-0 bg-white/10 flex items-center justify-center">👤</div>
+                      )}
                       <div className="flex-1 min-w-0">
                         <div className="font-medium truncate">{item.memberName}</div>
                         <div className="flex items-center gap-1 mt-1 text-sm text-white/60 truncate">

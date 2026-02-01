@@ -208,10 +208,7 @@ export function SocialPage({ onShowDemo }: SocialPageProps) {
 
         {activeTab === "activity" && (
            <div className="space-y-4">
-              <FriendActivityFeed 
-                onLoadMore={handleLoadMoreActivities}
-                hasMore={hasMoreActivities}
-              />
+              <FriendActivityFeed />
            </div>
         )}
 

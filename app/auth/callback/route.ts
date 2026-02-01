@@ -17,33 +17,11 @@ export async function GET(request: Request) {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         try {
-          // 1. Check if initialized
-          const { count } = await supabase
-            .from('user_missions')
-            .select('*', { count: 'exact', head: true })
-            .eq('user_id', user.id)
-
-          if (count === 0) {
-            // 2. Fetch all missions
-            const { data: missions } = await supabase
-              .from('missions')
-              .select('id')
-            
-            if (missions && missions.length > 0) {
-              // 3. Insert initial records
-              const initialMissions = missions.map((m: any) => ({
-                user_id: user.id,
-                mission_id: m.id,
-                status: 'active', // Initial status
-                progress: 0,
-                updated_at: new Date().toISOString()
-              }))
-
-              await supabase
-                .from('user_missions')
-                .insert(initialMissions)
-            }
-          }
+          // Call the initialization RPC function
+          // This will set up missions and badges if they don't exist
+          await supabase.rpc('init_user_game_data', { 
+            target_user_id: user.id 
+          })
         } catch (e) {
           console.error('Mission initialization failed:', e)
         }

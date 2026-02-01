@@ -5,6 +5,7 @@ import { Room } from '@/types/room';
 
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
+import { touchUserActivity } from '@/app/actions/user';
 
 // ==================== Types ====================
 
@@ -16,6 +17,7 @@ export interface UserState {
   level: number;
   currentExp: number;
   maxExp: number;
+  coins: number;
   stamina: number;
   maxStamina: number;
   lastStaminaUpdate: number;
@@ -39,6 +41,8 @@ export interface LocationState {
   gpsStatus: 'locating' | 'success' | 'error';
   gpsError?: string;
   hasDismissedGeolocationPrompt: boolean;
+  runStartTime: number | null;
+  currentRunPath: [number, number][];
 }
 
 export interface InventoryItem {
@@ -101,6 +105,7 @@ export interface UserActions {
   setNickname: (nickname: string) => void;
   setUnreadMessageCount: (count: number) => void;
   addExperience: (amount: number) => void;
+  addCoins: (amount: number) => void;
   levelUp: () => void;
   consumeStamina: (amount: number) => void;
   restoreStamina: (amount: number) => void;
@@ -109,6 +114,8 @@ export interface UserActions {
   setAvatar: (avatar: string) => void;
   claimAchievement: (id: string) => void;
   resetUser: () => void;
+  syncUserProfile: () => Promise<void>;
+  touchActivity: () => Promise<void>;
 }
 
 export interface LocationActions {
@@ -123,6 +130,7 @@ export interface LocationActions {
   setGpsStatus: (status: 'locating' | 'success' | 'error', error?: string) => void;
   clearGpsError: () => void;
   dismissGeolocationPrompt: () => void;
+  resetRunState: () => void;
 }
 
 export interface InventoryActions {
@@ -165,6 +173,7 @@ const initialUserState: UserState = {
   level: 1,
   currentExp: 0,
   maxExp: 1000,
+  coins: 0,
   stamina: 100,
   maxStamina: 100,
   lastStaminaUpdate: Date.now(),
@@ -187,6 +196,8 @@ const initialLocationState: LocationState = {
   duration: 0,
   gpsStatus: 'locating',
   hasDismissedGeolocationPrompt: false,
+  runStartTime: null,
+  currentRunPath: [],
 };
 
 const initialInventoryState: InventoryState = {
@@ -242,7 +253,8 @@ const createModeSlice: StateCreator<GameStore, [], [], ModeActions> = (set, get)
 
       // 3. Handle Result
       if (error || !room) {
-        if (!room || error.code === 'PGRST116') {
+        // Safe check for error code using optional chaining
+        if (!room || (error as any)?.code === 'PGRST116') {
            // Room not found (PGRST116 is JSON/Single row error, often means 0 rows)
            console.warn('Sync Room: Room not found, clearing state');
            set({ currentRoom: null });
@@ -255,7 +267,8 @@ const createModeSlice: StateCreator<GameStore, [], [], ModeActions> = (set, get)
       }
 
       // Transform participants
-      const participants = (room as any).participants.map((p: any) => ({
+      const roomData = room as any;
+      const participants = roomData.participants.map((p: any) => ({
            id: p.user_id,
            nickname: p.profile?.nickname || 'Unknown',
            avatar_url: p.profile?.avatar_url,
@@ -274,22 +287,22 @@ const createModeSlice: StateCreator<GameStore, [], [], ModeActions> = (set, get)
       // Update State
       set({
         currentRoom: {
-          id: room.id,
-          name: room.name,
-          host_id: room.host_id,
-          host_name: (room as any).host?.nickname || 'Unknown',
-          target_distance_km: room.target_distance_km,
-          target_duration_minutes: room.target_duration_minutes,
-          max_participants: room.max_participants,
+          id: roomData.id,
+          name: roomData.name,
+          host_id: roomData.host_id,
+          host_name: roomData.host?.nickname || 'Unknown',
+          target_distance_km: roomData.target_distance_km,
+          target_duration_minutes: roomData.target_duration_minutes,
+          max_participants: roomData.max_participants,
           participants_count: participants.length,
-          is_private: room.is_private,
-          is_locked: room.is_private,
-          status: room.status,
-          created_at: room.created_at,
+          is_private: roomData.is_private,
+          is_locked: roomData.is_private,
+          status: roomData.status,
+          created_at: roomData.created_at,
           participants: participants
         } as Room
       });
-      console.log('Sync Room: Success', room.name);
+      console.log('Sync Room: Success', roomData.name);
 
     } catch (e) {
       console.error('Sync Room Exception:', e);
@@ -300,55 +313,115 @@ const createModeSlice: StateCreator<GameStore, [], [], ModeActions> = (set, get)
 const createUserSlice: StateCreator<GameStore, [], [], UserActions> = (set, get) => ({
   setNickname: (nickname) => set({ nickname }),
   setUnreadMessageCount: (count) => set({ unreadMessageCount: count }),
-  addExperience: (amount) => {
-    const state = get();
-    let newExp = state.currentExp + amount;
-    let newLevel = state.level;
-    const expPerLevel = 1000;
-    while (newExp >= expPerLevel) {
-      newExp -= expPerLevel;
-      newLevel += 1;
+  addExperience: (amount) => set((state) => {
+    const newExp = state.currentExp + amount;
+    const newLevel = Math.floor(newExp / 1000) + 1; // Simplified leveling
+    
+    if (newLevel > state.level) {
+      get().levelUp();
     }
-    set({ currentExp: newExp, level: newLevel, maxExp: expPerLevel });
-  },
+    
+    return { currentExp: newExp, level: newLevel };
+  }),
+  addCoins: (amount) => set((state) => ({ coins: (state.coins || 0) + amount })),
   levelUp: () => {
     const state = get();
-    set({ level: state.level + 1, currentExp: 0, maxExp: 1000 });
+    const newLevel = state.level + 1;
+    
+    toast.success(`升级啦！达到等级 ${newLevel}`, {
+      description: "获得体力上限 +10",
+      icon: "🎉"
+    });
+    
+    set({ 
+      level: newLevel,
+      maxStamina: 100 + (newLevel * 10),
+      stamina: state.stamina + 20 // Bonus stamina on level up
+    });
   },
-  consumeStamina: (amount) => {
-    const state = get();
-    set({ stamina: Math.max(0, state.stamina - amount) });
-  },
-  restoreStamina: (amount) => {
-    const state = get();
-    set({ stamina: Math.min(state.maxStamina, state.stamina + amount) });
-  },
-  checkStaminaRecovery: () => {
+  consumeStamina: (amount) => set((state) => {
+    if (state.stamina < amount) return state;
+    return { stamina: state.stamina - amount };
+  }),
+  restoreStamina: (amount) => set((state) => ({
+    stamina: Math.min(state.stamina + amount, state.maxStamina)
+  })),
+  checkStaminaRecovery: () => set((state) => {
     const now = Date.now();
-    const { lastStaminaUpdate, stamina, maxStamina } = get();
-    const recoveryInterval = 3 * 60 * 1000;
-    if (now - lastStaminaUpdate >= recoveryInterval && stamina < maxStamina) {
-      const recoveryPoints = Math.floor((now - lastStaminaUpdate) / recoveryInterval);
-      const newStamina = Math.min(maxStamina, stamina + recoveryPoints);
-      set({ stamina: newStamina, lastStaminaUpdate: now });
+    const timeDiff = now - state.lastStaminaUpdate;
+    const recoveryInterval = 5 * 60 * 1000; // 5 minutes
+    
+    if (timeDiff >= recoveryInterval && state.stamina < state.maxStamina) {
+      const recoveredAmount = Math.floor(timeDiff / recoveryInterval);
+      const newStamina = Math.min(state.stamina + recoveredAmount, state.maxStamina);
+      
+      return {
+        stamina: newStamina,
+        lastStaminaUpdate: now - (timeDiff % recoveryInterval)
+      };
+    }
+    return state;
+  }),
+  addTotalArea: (amount) => set((state) => ({
+    totalArea: state.totalArea + amount
+  })),
+  setAvatar: (avatar) => set({ avatar }),
+  claimAchievement: (id) => set((state) => ({
+    achievements: { ...state.achievements, [id]: true }
+  })),
+  resetUser: () => set(initialUserState),
+  syncUserProfile: async () => {
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      if (profile) {
+        const profileData = profile as any;
+        set((state) => ({
+          level: profileData.level,
+          currentExp: profileData.current_exp || state.currentExp,
+          coins: profileData.coins || state.coins,
+          totalArea: profileData.total_area || state.totalArea,
+        }));
+      }
+    } catch (error) {
+      console.error("Failed to sync user profile:", error);
     }
   },
-  addTotalArea: (amount) => {
-    const state = get();
-    set({ totalArea: state.totalArea + amount });
+  touchActivity: async () => {
+    try {
+      await touchUserActivity();
+    } catch (error: any) {
+      if (error?.name !== 'AbortError' && error?.digest !== 'NEXT_REDIRECT') {
+        console.error('Failed to touch user activity:', error);
+      }
+    }
   },
-  setAvatar: (avatar) => set({ avatar }),
-  claimAchievement: (id) => {
-    const state = get();
-    set({ achievements: { ...state.achievements, [id]: true } });
-  },
-  resetUser: () => set(initialUserState),
 });
 
 const createLocationSlice: StateCreator<GameStore, [], [], LocationActions> = (set, get) => ({
-  updateLocation: (lat, lng) => set({ latitude: lat, longitude: lng, lastUpdate: Date.now() }),
+  updateLocation: (lat, lng) => set((state) => {
+    const newPath = state.isRunning ? [...state.currentRunPath, [lat, lng] as [number, number]] : state.currentRunPath;
+    // Limit to 1000 points to prevent storage issues
+    if (newPath.length > 1000) {
+        newPath.splice(0, newPath.length - 1000);
+    }
+    return {
+        latitude: lat,
+        longitude: lng,
+        lastUpdate: Date.now(),
+        currentRunPath: newPath
+    };
+  }),
   setRegion: (adcode, cityName, countyName) => set({ adcode, cityName, countyName }),
-  startRunning: () => set({ isRunning: true, lastUpdate: Date.now() }),
+  startRunning: () => set({ isRunning: true, lastUpdate: Date.now(), runStartTime: Date.now(), currentRunPath: [] }),
   stopRunning: () => set({ isRunning: false, speed: 0 }),
   updateSpeed: (speed) => set({ speed }),
   addDistance: (distance) => {
@@ -369,6 +442,14 @@ const createLocationSlice: StateCreator<GameStore, [], [], LocationActions> = (s
   setGpsStatus: (status, error) => set({ gpsStatus: status, gpsError: error }),
   clearGpsError: () => set({ gpsError: undefined }),
   dismissGeolocationPrompt: () => set({ hasDismissedGeolocationPrompt: true, gpsError: undefined }),
+  resetRunState: () => set({
+    isRunning: false,
+    runStartTime: null,
+    distance: 0,
+    duration: 0,
+    currentRunPath: [],
+    speed: 0,
+  }),
 });
 
 const createInventorySlice: StateCreator<GameStore, [], [], InventoryActions> = (set, get) => ({
@@ -531,6 +612,14 @@ export const useGameStore = create<GameStore>()(
         currentRoom: state.currentRoom,
         // App Settings
         appSettings: state.appSettings,
+        // Running Session Recovery
+        isRunning: state.isRunning,
+        runStartTime: state.runStartTime,
+        distance: state.distance,
+        duration: state.duration,
+        currentRunPath: state.currentRunPath,
+        latitude: state.latitude,
+        longitude: state.longitude,
       } as unknown as GameStore),
     },
   ),
@@ -552,6 +641,7 @@ export const useGameActions = () => {
       setNickname: state.setNickname,
       setUnreadMessageCount: state.setUnreadMessageCount,
       addExperience: state.addExperience,
+      addCoins: state.addCoins,
       levelUp: state.levelUp,
       consumeStamina: state.consumeStamina,
       restoreStamina: state.restoreStamina,
@@ -559,6 +649,7 @@ export const useGameActions = () => {
       addTotalArea: state.addTotalArea,
       setAvatar: state.setAvatar,
       claimAchievement: state.claimAchievement,
+      syncUserProfile: state.syncUserProfile,
       resetUser: state.resetUser,
 
       // Location Actions
@@ -573,6 +664,7 @@ export const useGameActions = () => {
       setGpsStatus: state.setGpsStatus,
       clearGpsError: state.clearGpsError,
       dismissGeolocationPrompt: state.dismissGeolocationPrompt,
+      resetRunState: state.resetRunState,
 
       // Inventory Actions
       addItem: state.addItem,

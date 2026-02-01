@@ -3,6 +3,9 @@
 import React, { useState, useEffect } from "react"
 import { MapPin, Trophy, Zap, Award, X, Minus } from "lucide-react"
 import { useCity } from "@/contexts/CityContext"
+import { useShallow } from "zustand/react/shallow"
+import { useGameStore } from "@/store/useGameStore"
+import { fetchFriendActivities, type FriendActivity } from "@/app/actions/social"
 
 export interface SocialFeedItem {
   id: string
@@ -12,6 +15,8 @@ export interface SocialFeedItem {
   userLevel: number
   action: "capture" | "achievement" | "challenge" | "levelup"
   actionText: string
+  description?: string
+  stats?: { label: string; value: string }[]
   location?: string
   timestamp: Date
   cityName?: string
@@ -26,63 +31,6 @@ export interface SocialFeedProps {
   onCollapse?: () => void
 }
 
-const mockFeedItems: SocialFeedItem[] = [
-  {
-    id: "1",
-    userId: "user1",
-    userName: "小明",
-    userAvatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=xiaoming",
-    userLevel: 15,
-    action: "capture",
-    actionText: "刚刚占领了",
-    location: "海淀公园",
-    timestamp: new Date(Date.now() - 2 * 60 * 1000),
-  },
-  {
-    id: "2",
-    userId: "user2",
-    userName: "运动达人",
-    userAvatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=runner",
-    userLevel: 23,
-    action: "achievement",
-    actionText: "解锁了成就",
-    cityName: "北京",
-    timestamp: new Date(Date.now() - 5 * 60 * 1000),
-  },
-  {
-    id: "3",
-    userId: "user3",
-    userName: "探险家",
-    userAvatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=explorer",
-    userLevel: 18,
-    action: "challenge",
-    actionText: "完成了挑战",
-    location: "故宫征服者",
-    timestamp: new Date(Date.now() - 8 * 60 * 1000),
-  },
-  {
-    id: "4",
-    userId: "user4",
-    userName: "夜跑王",
-    userAvatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=nightrunner",
-    userLevel: 31,
-    action: "levelup",
-    actionText: "升到了等级",
-    timestamp: new Date(Date.now() - 12 * 60 * 1000),
-  },
-  {
-    id: "5",
-    userId: "user5",
-    userName: "城市征服者",
-    userAvatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=conqueror",
-    userLevel: 42,
-    action: "capture",
-    actionText: "刚刚占领了",
-    location: "外滩观景台",
-    timestamp: new Date(Date.now() - 15 * 60 * 1000),
-  },
-]
-
 export function SocialFeed({
   position = "bottom-left",
   maxItems = 3,
@@ -94,7 +42,52 @@ export function SocialFeed({
   const [visible, setVisible] = useState(true)
   const [collapsed, setCollapsed] = useState(false)
   const [currentItemIndex, setCurrentItemIndex] = useState(0)
+  const [feedItems, setFeedItems] = useState<SocialFeedItem[]>([])
   const { currentCity } = useCity()
+  // Use selector to avoid re-renders on every store update
+  const touchActivity = useGameStore(useShallow(state => state.touchActivity))
+
+  useEffect(() => {
+    // Heartbeat: update activity status
+    touchActivity().catch((e) => {
+        // Ignore abort errors during navigation/unmount
+        if (e?.name !== 'AbortError' && e?.digest !== 'NEXT_REDIRECT') {
+          console.error(e)
+        }
+    })
+  }, [touchActivity])
+
+  useEffect(() => {
+    const loadActivities = async () => {
+      try {
+        const activities = await fetchFriendActivities()
+        
+        // Transform FriendActivity to SocialFeedItem
+        const items: SocialFeedItem[] = activities.map(act => {
+            return {
+                id: act.id,
+                userId: act.user.id, 
+                userName: act.user.name,
+                userAvatar: act.user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${act.user.name}`,
+                userLevel: act.user.level,
+                action: act.type as SocialFeedItem['action'],
+                actionText: act.content.title,
+                description: act.content.description,
+                stats: act.content.stats,
+                location: act.content.location,
+                timestamp: new Date(act.timestamp),
+                cityName: currentCity?.name
+            }
+        })
+
+        setFeedItems(items)
+      } catch (error) {
+        console.error("Failed to load social feed:", error)
+      }
+    }
+
+    loadActivities()
+  }, [currentCity])
 
   const positionClasses = {
     "bottom-left": "left-4 bottom-24",
@@ -105,21 +98,22 @@ export function SocialFeed({
 
   // 自动滚动
   useEffect(() => {
-    if (!autoScroll || collapsed) return
+    if (!autoScroll || collapsed || feedItems.length === 0) return
 
     const interval = setInterval(() => {
-      setCurrentItemIndex((prev) => (prev + 1) % mockFeedItems.length)
+      setCurrentItemIndex((prev) => (prev + 1) % feedItems.length)
     }, scrollInterval)
 
     return () => clearInterval(interval)
-  }, [autoScroll, scrollInterval, collapsed])
+  }, [autoScroll, scrollInterval, collapsed, feedItems.length])
 
   // 手动滑动
   const handleSwipe = (direction: "left" | "right") => {
+    if (feedItems.length === 0) return
     if (direction === "left") {
-      setCurrentItemIndex((prev) => (prev + 1) % mockFeedItems.length)
+      setCurrentItemIndex((prev) => (prev + 1) % feedItems.length)
     } else {
-      setCurrentItemIndex((prev) => (prev - 1 + mockFeedItems.length) % mockFeedItems.length)
+      setCurrentItemIndex((prev) => (prev - 1 + feedItems.length) % feedItems.length)
     }
   }
 
@@ -157,15 +151,17 @@ export function SocialFeed({
   }
 
   const getCurrentItems = () => {
-    if (collapsed) return []
-    const items = [...mockFeedItems].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+    if (collapsed || feedItems.length === 0) return []
+    const items = [...feedItems].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
     return items.slice(0, maxItems)
   }
 
-  if (!visible) return null
+  if (!visible || feedItems.length === 0) return null
 
   const items = getCurrentItems()
   const currentItem = items[currentItemIndex]
+
+  if (!currentItem) return null
 
   return (
     <div
@@ -229,19 +225,20 @@ export function SocialFeed({
                   <p className="text-xs text-white/70 truncate">
                     <span className="font-semibold text-white">{currentItem.userName}</span>
                     <span className="mx-1">{currentItem.actionText}</span>
-                    {currentItem.action === "capture" && currentItem.location && (
-                      <span className="font-semibold text-white">{currentItem.location}</span>
-                    )}
-                    {currentItem.action === "achievement" && currentItem.cityName && (
-                      <span className="font-semibold text-white">{currentItem.cityName}</span>
-                    )}
-                    {currentItem.action === "challenge" && currentItem.location && (
-                      <span className="font-semibold text-white">{currentItem.location}</span>
-                    )}
-                    {currentItem.action === "levelup" && (
-                      <span className="font-semibold text-white">{currentItem.userLevel}</span>
-                    )}
                   </p>
+                  
+                  {currentItem.description && (
+                      <p className="text-[10px] text-white/60 truncate">{currentItem.description}</p>
+                  )}
+                  {currentItem.stats && currentItem.stats.length > 0 && (
+                      <div className="flex gap-2 mt-0.5">
+                          {currentItem.stats.map((s, i) => (
+                              <span key={i} className="text-[10px] bg-white/10 px-1 rounded text-white/80">
+                                  {s.label}: {s.value}
+                              </span>
+                          ))}
+                      </div>
+                  )}
 
                   {/* 时间和位置 */}
                   <div className="mt-1 flex items-center gap-2 text-[10px] text-white/50">

@@ -1,8 +1,6 @@
 "use client"
 
-import React from "react"
-
-import { useState } from "react"
+import React, { useEffect, useState } from "react"
 import {
   Trophy,
   Star,
@@ -19,10 +17,9 @@ import {
   Medal,
   Gift,
 } from "lucide-react"
-import { formatArea, getAreaEquivalent, hexCountToArea } from "@/lib/citylord/area-utils"
-
-type AchievementCategory = "all" | "running" | "territory" | "social" | "special"
-type AchievementRarity = "common" | "rare" | "epic" | "legendary"
+import { formatArea, getAreaEquivalent } from "@/lib/citylord/area-utils"
+import { ACHIEVEMENT_DEFINITIONS, AchievementCategory, AchievementRarity } from "@/lib/achievements"
+import { fetchUserAchievements, UserAchievementProgress } from "@/app/actions/achievement"
 
 interface Achievement {
   id: string
@@ -73,132 +70,6 @@ const rarityConfig: Record<
   },
 }
 
-const sampleAchievements: Achievement[] = [
-  {
-    id: "1",
-    title: "初出茅庐",
-    description: "完成你的第一次跑步",
-    icon: Footprints,
-    category: "running",
-    rarity: "common",
-    progress: 1,
-    maxProgress: 1,
-    unlocked: true,
-    unlockedAt: "2025-01-15",
-    rewards: { xp: 50, coins: 20 },
-  },
-  {
-    id: "2",
-    title: "马拉松英雄",
-    description: "累计跑步距离达到42.195公里",
-    icon: Medal,
-    category: "running",
-    rarity: "epic",
-    progress: 35,
-    maxProgress: 42,
-    unlocked: false,
-    rewards: { xp: 500, coins: 200, badge: "马拉松徽章" },
-  },
-  {
-    id: "3",
-    title: "领地先锋",
-    description: "占领超过 2,600 m² 的领地",
-    icon: Hexagon,
-    category: "territory",
-    rarity: "common",
-    progress: 2600,
-    maxProgress: 2600,
-    unlocked: true,
-    unlockedAt: "2025-01-18",
-    rewards: { xp: 100, coins: 50 },
-  },
-  {
-    id: "4",
-    title: "城市霸主",
-    description: "同时拥有超过 130,000 m² (0.13 km²) 的领地",
-    icon: Crown,
-    category: "territory",
-    rarity: "legendary",
-    progress: 40560,
-    maxProgress: 130000,
-    unlocked: false,
-    rewards: { xp: 2000, coins: 1000, title: "城市霸主", badge: "王冠徽章" },
-  },
-  {
-    id: "5",
-    title: "战斗大师",
-    description: "赢得100场领地争夺战",
-    icon: Swords,
-    category: "territory",
-    rarity: "rare",
-    progress: 52,
-    maxProgress: 100,
-    unlocked: false,
-    rewards: { xp: 300, coins: 150 },
-  },
-  {
-    id: "6",
-    title: "社交达人",
-    description: "添加20个好友",
-    icon: Users,
-    category: "social",
-    rarity: "rare",
-    progress: 12,
-    maxProgress: 20,
-    unlocked: false,
-    rewards: { xp: 200, coins: 100 },
-  },
-  {
-    id: "7",
-    title: "连续7天",
-    description: "连续7天完成跑步",
-    icon: Flame,
-    category: "running",
-    rarity: "rare",
-    progress: 4,
-    maxProgress: 7,
-    unlocked: false,
-    rewards: { xp: 250, badge: "火焰徽章" },
-  },
-  {
-    id: "8",
-    title: "探险家",
-    description: "探索50%的地图迷雾",
-    icon: MapPin,
-    category: "territory",
-    rarity: "epic",
-    progress: 34,
-    maxProgress: 50,
-    unlocked: false,
-    rewards: { xp: 400, coins: 200, title: "探险家" },
-  },
-  {
-    id: "9",
-    title: "挑战之王",
-    description: "完成50次好友挑战",
-    icon: Target,
-    category: "social",
-    rarity: "epic",
-    progress: 23,
-    maxProgress: 50,
-    unlocked: false,
-    rewards: { xp: 500, coins: 250, badge: "挑战者徽章" },
-  },
-  {
-    id: "10",
-    title: "创世先驱",
-    description: "成为前1000名注册用户",
-    icon: Star,
-    category: "special",
-    rarity: "legendary",
-    progress: 1,
-    maxProgress: 1,
-    unlocked: true,
-    unlockedAt: "2025-01-01",
-    rewards: { xp: 1000, coins: 500, title: "创世先驱", badge: "创世徽章" },
-  },
-]
-
 interface AchievementCardProps {
   achievement: Achievement
   onSelect?: (achievement: Achievement) => void
@@ -207,7 +78,7 @@ interface AchievementCardProps {
 function AchievementCard({ achievement, onSelect }: AchievementCardProps) {
   const config = rarityConfig[achievement.rarity]
   const Icon = achievement.icon
-  const progressPercent = (achievement.progress / achievement.maxProgress) * 100
+  const progressPercent = Math.min(100, (achievement.progress / achievement.maxProgress) * 100)
 
   return (
     <button
@@ -292,7 +163,7 @@ function AchievementCard({ achievement, onSelect }: AchievementCardProps) {
             {/* Unlocked date */}
             {achievement.unlocked && achievement.unlockedAt && (
               <p className="mt-1 text-[10px] text-white/30">
-                解锁于 {achievement.unlockedAt}
+                解锁于 {new Date(achievement.unlockedAt).toLocaleDateString()}
               </p>
             )}
           </div>
@@ -331,16 +202,49 @@ function AchievementCard({ achievement, onSelect }: AchievementCardProps) {
 }
 
 interface AchievementWallProps {
-  achievements?: Achievement[]
   onSelectAchievement?: (achievement: Achievement) => void
 }
 
 export function AchievementWall({
-  achievements = sampleAchievements,
   onSelectAchievement,
 }: AchievementWallProps) {
+  const [achievements, setAchievements] = useState<Achievement[]>([])
+  const [loading, setLoading] = useState(true)
   const [activeCategory, setActiveCategory] = useState<AchievementCategory>("all")
   const [showUnlocked, setShowUnlocked] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    async function loadAchievements() {
+      try {
+        const userProgress = await fetchUserAchievements()
+        const merged: Achievement[] = ACHIEVEMENT_DEFINITIONS.map(def => {
+          const progress = userProgress.find(p => p.achievementId === def.id)
+          return {
+            ...def,
+            progress: progress?.progress || 0,
+            unlocked: progress?.isCompleted || false,
+            unlockedAt: progress?.completedAt,
+          }
+        })
+        setAchievements(merged)
+      } catch (error: any) {
+        if (error?.name !== 'AbortError' && error?.digest !== 'NEXT_REDIRECT') {
+          console.error("Failed to load achievements", error)
+        }
+        // Fallback to definitions with 0 progress
+        const fallback: Achievement[] = ACHIEVEMENT_DEFINITIONS.map(def => ({
+          ...def,
+          progress: 0,
+          unlocked: false,
+          maxProgress: def.maxProgress
+        }))
+        setAchievements(fallback)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadAchievements()
+  }, [])
 
   const categories = [
     { id: "all" as const, label: "全部", icon: Trophy },
@@ -359,11 +263,10 @@ export function AchievementWall({
 
   const unlockedCount = achievements.filter((a) => a.unlocked).length
   const totalCount = achievements.length
-  
-  // Calculate total territory area from territory achievements
-  const totalTerritoryArea = 100620 // Example: user's total territory area in m²
-  const formattedTerritoryArea = formatArea(totalTerritoryArea)
-  const territoryEquivalent = getAreaEquivalent(totalTerritoryArea)
+
+  if (loading) {
+    return <div className="p-8 text-center text-white/50">加载成就数据中...</div>
+  }
 
   return (
     <div className="flex flex-col">
@@ -380,18 +283,13 @@ export function AchievementWall({
             <Trophy className="h-8 w-8 text-yellow-400" />
           </div>
         </div>
-<div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
-  <div
-  className="h-full rounded-full bg-gradient-to-r from-yellow-500 to-orange-500"
-  style={{ width: `${(unlockedCount / totalCount) * 100}%` }}
-  />
-  </div>
-  {territoryEquivalent && (
-  <p className="mt-3 text-center text-xs text-cyan-400">
-  已占领 {formattedTerritoryArea.fullText}，{territoryEquivalent}
-  </p>
-  )}
-  </div>
+        <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-yellow-500 to-orange-500"
+            style={{ width: `${(unlockedCount / Math.max(totalCount, 1)) * 100}%` }}
+          />
+        </div>
+      </div>
 
       {/* Category Tabs */}
       <div className="mb-4 flex gap-1 overflow-x-auto rounded-xl bg-white/5 p-1">
@@ -402,13 +300,13 @@ export function AchievementWall({
             <button
               key={cat.id}
               onClick={() => setActiveCategory(cat.id)}
-              className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+              className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
                 isActive
-                  ? "bg-[#22c55e] text-black"
-                  : "text-white/60 hover:text-white"
+                  ? "bg-white/20 text-white shadow-sm"
+                  : "text-white/50 hover:bg-white/10 hover:text-white"
               }`}
             >
-              <Icon className="h-4 w-4" />
+              <Icon className="h-3.5 w-3.5" />
               {cat.label}
             </button>
           )
@@ -418,9 +316,9 @@ export function AchievementWall({
       {/* Filter Tabs */}
       <div className="mb-4 flex gap-2">
         {[
-          { value: null, label: "全部" },
-          { value: true, label: "已解锁" },
-          { value: false, label: "未解锁" },
+          { label: "全部", value: null },
+          { label: "已解锁", value: true },
+          { label: "未解锁", value: false },
         ].map((filter) => (
           <button
             key={String(filter.value)}

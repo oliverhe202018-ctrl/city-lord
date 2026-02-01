@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client"
 import { useGameStore } from "@/store/useGameStore"
 import { toast } from "sonner"
 import { Database } from "@/types/supabase"
+import { touchUserActivity } from "@/app/actions/user"
 
 export function AuthSync() {
   const setNickname = useGameStore((state) => state.setNickname)
@@ -12,19 +13,38 @@ export function AuthSync() {
   
   useEffect(() => {
     const supabase = createClient()
+    let heartbeatInterval: NodeJS.Timeout
 
     // 检查初始 Session
     const initSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session?.user) {
-        // 如果有有效 Session，立即同步用户数据
-        await syncUserProfile(session.user.id)
-      } else {
-        // 如果没有 Session，可能是 Token 过期或未登录
-        // Supabase Client 会自动尝试从 Storage 恢复 Session
-        // 如果恢复失败，我们可以尝试 refreshSession 或者 redirect
-        // 但通常 supabase-js 会自动处理 autoRefreshToken
-        console.log("No active session found on init")
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession()
+        if (error) throw error
+        
+        if (session?.user) {
+          // 如果有有效 Session，立即同步用户数据
+          await syncUserProfile(session.user.id)
+          
+          // Start heartbeat immediately and then interval
+          touchUserActivity().catch((e) => {
+            if (e?.name !== 'AbortError' && e?.digest !== 'NEXT_REDIRECT') {
+              console.error(e)
+            }
+          })
+          heartbeatInterval = setInterval(() => {
+            touchUserActivity().catch((e) => {
+              if (e?.name !== 'AbortError' && e?.digest !== 'NEXT_REDIRECT') {
+                console.error(e)
+              }
+            })
+          }, 2 * 60 * 1000) // 2 minutes
+        } else {
+          console.log("No active session found on init")
+        }
+      } catch (error: any) {
+        if (error?.name !== 'AbortError' && error?.digest !== 'NEXT_REDIRECT') {
+          console.error("Session init error:", error)
+        }
       }
     }
     
@@ -39,15 +59,35 @@ export function AuthSync() {
         toast.success("登录成功", {
           description: "正在同步游戏数据..."
         })
+        
+        // Clear existing interval if any
+        if (heartbeatInterval) clearInterval(heartbeatInterval)
+        
+        // Start heartbeat
+        touchUserActivity().catch((e) => {
+           if (e?.name !== 'AbortError' && e?.digest !== 'NEXT_REDIRECT') {
+             console.error(e)
+           }
+        })
+        heartbeatInterval = setInterval(() => {
+          touchUserActivity().catch((e) => {
+             if (e?.name !== 'AbortError' && e?.digest !== 'NEXT_REDIRECT') {
+               console.error(e)
+             }
+          })
+        }, 2 * 60 * 1000)
+        
       } else if (event === "SIGNED_OUT") {
         // 可选：重置 Store
         // useGameStore.getState().resetUser()
         toast.info("已退出登录")
+        if (heartbeatInterval) clearInterval(heartbeatInterval)
       }
     })
 
     return () => {
       subscription.unsubscribe()
+      if (heartbeatInterval) clearInterval(heartbeatInterval)
     }
   }, [])
 
@@ -89,8 +129,10 @@ export function AuthSync() {
         
         console.log("User profile synced:", profile)
       }
-    } catch (error) {
-      console.error("Failed to sync profile:", error)
+    } catch (error: any) {
+      if (error?.name !== 'AbortError' && error?.digest !== 'NEXT_REDIRECT') {
+        console.error("Failed to sync profile:", error)
+      }
     }
   }
 

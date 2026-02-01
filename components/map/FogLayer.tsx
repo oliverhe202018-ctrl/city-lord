@@ -1,7 +1,14 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { territories, Territory } from "@/lib/mock-data";
+
+// TODO: Fetch real territories from API/Context
+const territories: Territory[] = [];
+
+interface Territory {
+  id: string;
+  path: [number, number][];
+}
 
 interface FogLayerProps {
   map: any | null;
@@ -37,39 +44,52 @@ const FogLayer: React.FC<FogLayerProps> = ({ map }) => {
   const updateFog = useCallback(() => {
     if (!map) return;
 
-    const bounds = map.getBounds();
+    try {
+      // Check if map is destroyed or invalid
+      // AMap doesn't have a standard public isDestroyed check, but checking for getBounds usually works
+      // or checking internal properties if known. 
+      // For safety, we wrap in try-catch.
+      if (typeof map.getBounds !== 'function') return;
 
-    // 获取需要挖洞的领土（视口内或全部，取决于数量）
-    let territoriesToShow: Territory[];
+      const bounds = map.getBounds();
+      if (!bounds) return;
 
-    if (territories.length > 300) {
-      // 性能优化：只显示视口内的领土
-      territoriesToShow = territories.filter(t => isTerritoryInViewport(t, bounds));
-    } else {
-      // 领土数量较少时显示全部
-      territoriesToShow = territories;
-    }
+      // 获取需要挖洞的领土（视口内或全部，取决于数量）
+      let territoriesToShow: Territory[];
 
-    // 构建多环路径：外环 + 内环（洞）
-    const path = [GLOBAL_OUTER_RING, ...territoriesToShow.map(t => t.path)];
+      if (territories.length > 300) {
+        // 性能优化：只显示视口内的领土
+        territoriesToShow = territories.filter(t => isTerritoryInViewport(t, bounds));
+      } else {
+        // 领土数量较少时显示全部
+        territoriesToShow = territories;
+      }
 
-    if (fogPolygonRef.current) {
-      // 更新现有雾层
-      fogPolygonRef.current.setPath(path as any);
-    } else {
-      // 创建新的雾层
-      const newFogPolygon = new (window as any).AMap.Polygon({
-        path: path,
-        fillColor: "#000000",      // 黑色雾层
-        fillOpacity: 0.85,          // 85% 透明度 (High opacity to mask green landuse while keeping outlines visible)
-        strokeWeight: 0,            // 无边框
-        strokeColor: "transparent",
-        bubble: true,               // 允许事件穿透
-        zIndex: 100,                // 确保在底图之上
-      });
+      // 构建多环路径：外环 + 内环（洞）
+      const path = [GLOBAL_OUTER_RING, ...territoriesToShow.map(t => t.path)];
 
-      fogPolygonRef.current = newFogPolygon;
-      map.add(newFogPolygon);
+      if (fogPolygonRef.current) {
+        // 更新现有雾层
+        fogPolygonRef.current.setPath(path as any);
+      } else {
+        // 创建新的雾层
+        if (!(window as any).AMap) return;
+        
+        const newFogPolygon = new (window as any).AMap.Polygon({
+          path: path,
+          fillColor: "#000000",      // 黑色雾层
+          fillOpacity: 0.4,          // 降低透明度以便在手机上可见地图内容
+          strokeWeight: 0,            // 无边框
+          strokeColor: "transparent",
+          bubble: true,               // 允许事件穿透
+          zIndex: 100,                // 确保在底图之上
+        });
+
+        fogPolygonRef.current = newFogPolygon;
+        map.add(newFogPolygon);
+      }
+    } catch (error) {
+      console.warn('Error updating FogLayer:', error);
     }
   }, [map]);
 

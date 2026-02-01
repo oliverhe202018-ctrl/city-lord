@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Send, User, Bell, AlertCircle, Check, X } from "lucide-react"
+import { Send, User, Bell, AlertCircle, Check, X, Swords, Clock, MapPin } from "lucide-react"
 import { getMessages, sendMessage, markAsRead } from "@/app/actions/message"
 import { toast } from "sonner"
 import { GlassCard } from "@/components/ui/GlassCard"
@@ -61,9 +61,53 @@ export function MessageList({ initialFriendId }: MessageListProps) {
       toast.error("发送失败")
     }
   }
-
-  // Group messages by conversation (user or system) - REMOVED unused code
-
+  
+  const renderMessageContent = (msg: Message) => {
+    if (msg.type === 'challenge') {
+      try {
+        const challengeData = JSON.parse(msg.content)
+        // challengeData: { type: 'distance' | 'time', target: number, duration?: number }
+        
+        const isDistance = challengeData.type === 'distance'
+        const value = isDistance ? `${challengeData.target}km` : `${challengeData.duration}分钟`
+        
+        return (
+          <div className="mt-1 rounded-lg bg-black/20 p-3 border border-white/10">
+            <div className="flex items-center gap-2 mb-2">
+              <Swords className="h-4 w-4 text-orange-400" />
+              <span className="font-bold text-orange-400">发起挑战</span>
+            </div>
+            <div className="text-sm text-white/90">
+              {isDistance ? (
+                 <div className="flex items-center gap-2">
+                    <MapPin className="h-3 w-3 text-white/60" />
+                    目标距离: <span className="font-mono font-bold text-white">{value}</span>
+                 </div>
+              ) : (
+                 <div className="flex items-center gap-2">
+                    <Clock className="h-3 w-3 text-white/60" />
+                    目标时长: <span className="font-mono font-bold text-white">{value}</span>
+                 </div>
+              )}
+            </div>
+            {/* Action Buttons (Demo only for now) */}
+            <div className="mt-3 flex gap-2">
+               <button className="flex-1 bg-[#22c55e] text-black text-xs font-bold py-1.5 rounded-lg hover:bg-[#22c55e]/90 transition-colors">
+                 接受
+               </button>
+               <button className="flex-1 bg-white/10 text-white text-xs font-bold py-1.5 rounded-lg hover:bg-white/20 transition-colors">
+                 拒绝
+               </button>
+            </div>
+          </div>
+        )
+      } catch (e) {
+        return <p className="text-sm text-white/80 pl-7">收到一个挑战 (解析错误)</p>
+      }
+    }
+    
+    return <p className="text-sm text-white/80 pl-7">{msg.content}</p>
+  }
 
   if (loading) return <div className="text-center text-white/50 py-10">加载消息中...</div>
 
@@ -75,15 +119,19 @@ export function MessageList({ initialFriendId }: MessageListProps) {
           <div className="text-center text-white/30 py-10">暂无消息</div>
         ) : (
           messages.map((msg) => (
-            <GlassCard key={msg.id} className={`p-3 border-l-4 ${msg.type === 'system' ? 'border-l-blue-500' : 'border-l-green-500'}`}>
+            <GlassCard key={msg.id} className={`p-3 border-l-4 ${
+              msg.type === 'system' ? 'border-l-blue-500' : 
+              msg.type === 'challenge' ? 'border-l-orange-500' :
+              'border-l-green-500'
+            }`}>
               <div className="flex justify-between items-start mb-1">
                 <div className="flex items-center gap-2">
                   {msg.type === 'system' ? (
                     <Bell className="w-4 h-4 text-blue-400" />
                   ) : (
-                    <div className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center">
+                    <div className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center overflow-hidden">
                        {msg.sender?.avatar_url ? (
-                         <img src={msg.sender.avatar_url} className="w-full h-full rounded-full" />
+                         <img src={msg.sender.avatar_url} className="w-full h-full object-cover" />
                        ) : (
                          <User className="w-3 h-3 text-white/70" />
                        )}
@@ -97,7 +145,7 @@ export function MessageList({ initialFriendId }: MessageListProps) {
                   {formatDistanceToNow(new Date(msg.created_at), { addSuffix: true, locale: zhCN })}
                 </span>
               </div>
-              <p className="text-sm text-white/80 pl-7">{msg.content}</p>
+              {renderMessageContent(msg)}
             </GlassCard>
           ))
         )}

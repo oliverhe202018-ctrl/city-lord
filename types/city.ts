@@ -124,6 +124,20 @@ export interface Challenge {
 }
 
 /**
+ * 领地信息接口
+ */
+export interface Territory {
+  id: string // H3 index
+  cityId: string
+  ownerId: string
+  ownerType: 'me' | 'enemy' | 'neutral' // Computed on client or returned by API
+  capturedAt: string
+  // Optional display properties
+  path?: [number, number][] // Polygon coordinates for map rendering
+  color?: string
+}
+
+/**
  * 成就接口
  */
 export interface Achievement {

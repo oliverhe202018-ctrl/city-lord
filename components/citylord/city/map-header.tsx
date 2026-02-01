@@ -18,6 +18,35 @@ import {
   type Language,
 } from "@/lib/citylord/city-config"
 
+import { createClient } from "@/lib/supabase/client"
+import Link from "next/link"
+import { LogIn } from "lucide-react"
+import { useEffect } from "react"
+
+function LoginStatusPrompt() {
+  const [isLoggedIn, setIsLoggedIn] = useState(true) // Assume logged in to prevent flash
+  
+  useEffect(() => {
+    const checkUser = async () => {
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      setIsLoggedIn(!!session)
+    }
+    checkUser()
+  }, [])
+
+  if (isLoggedIn) return null
+
+  return (
+    <Link href="/login" className="absolute top-3 left-1/2 -translate-x-1/2 z-50">
+      <div className="flex items-center gap-2 bg-[#22c55e] text-black px-4 py-2 rounded-full font-bold shadow-lg animate-pulse hover:animate-none hover:scale-105 transition-transform">
+        <LogIn className="w-4 h-4" />
+        <span className="text-xs">登录保存进度</span>
+      </div>
+    </Link>
+  )
+}
+
 interface MapHeaderProps {
   cityId: string
   language?: Language
@@ -59,6 +88,18 @@ export function MapHeader({
   const daysRemaining = getDaysRemaining()
   const seasonProgress = season ? ((90 - daysRemaining) / 90) * 100 : 0
 
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  
+  // Simple check for login status (could be replaced with context or props)
+  // For MapHeader, we can check localStorage or props. 
+  // Let's use a simpler approach: assume MapHeader is used in contexts where AuthSync is running.
+  // But to be reactive, we should probably fetch auth state.
+  // For now, let's add a "Login" button if we detect no session.
+  
+  // Note: Since this is a client component, we can use createClient.
+  // However, MapHeader is often updated rapidly. 
+  // Let's add a "Login" prompt if not running.
+
   return (
     <div className="absolute left-0 right-0 top-0 z-30 pt-[env(safe-area-inset-top)]">
       {/* Main Header Bar */}
@@ -81,6 +122,11 @@ export function MapHeader({
           </div>
           <ChevronRight className="h-4 w-4 text-white/40" />
         </button>
+
+        {/* Login Prompt (if not running) */}
+        {!isRunning && (
+           <LoginStatusPrompt />
+        )}
 
         {/* Running Stats (when running) */}
         {isRunning && runningStats && (

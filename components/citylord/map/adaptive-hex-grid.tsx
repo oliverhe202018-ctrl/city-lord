@@ -353,7 +353,7 @@ export function AdaptiveHexGrid({
     <div className="relative h-full w-full overflow-hidden">
       {/* Transparent Fog of War Overlay - Light overlay for better map visibility */}
       <div className="pointer-events-none absolute inset-0 z-10">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_40%,rgba(10,10,15,0.3)_70%,rgba(10,10,15,0.5)_100%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_40%,rgba(10,10,15,0.2)_70%,rgba(10,10,15,0.3)_100%)]" />
       </div>
 
       {/* Grid Background - Removed to show real map */}

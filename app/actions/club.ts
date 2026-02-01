@@ -2,6 +2,11 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { cookies } from 'next/headers'
+import { Database } from '@/types/supabase'
+
+type ClubRow = Database['public']['Tables']['clubs']['Row']
+type ClubMemberRow = Database['public']['Tables']['club_members']['Row']
+type ProfileRow = Database['public']['Tables']['profiles']['Row']
 
 export type Club = {
   id: string
@@ -30,29 +35,33 @@ export async function createClub(data: { name: string; description?: string; ava
   
   const { data: { user: authUser } } = await supabase.auth.getUser()
   
-  let user: { id: string } | null = authUser
+  let userId = authUser?.id
+
   // Fallback to first profile if no auth user (Dev/Demo mode)
-  if (!user) {
+  if (!userId) {
     const { data: profiles } = await supabase.from('profiles').select('id').limit(1)
     if (profiles && profiles.length > 0) {
-      user = { id: (profiles[0] as any).id } as any
+      userId = profiles[0].id
     }
   }
 
-  if (!user) throw new Error('Unauthorized')
+  if (!userId) throw new Error('Unauthorized')
 
   // Prepare insert data based on actual schema
-  // Note: level, rating, member_count, territory are not in DB schema yet
-  const insertData: any = {
+  const insertData = {
     name: data.name,
-    description: data.description,
-    owner_id: user.id,
-    avatar_url: data.avatar_url, 
+    description: data.description || null,
+    owner_id: userId,
+    avatar_url: data.avatar_url || null, 
+    level: '1', // Default level
+    rating: 0,
+    member_count: 1,
+    territory: '0'
   }
 
   try {
-    const { data: club, error } = await (supabase
-      .from('clubs' as any) as any)
+    const { data: club, error } = await supabase
+      .from('clubs')
       .insert(insertData)
       .select()
       .single()
@@ -62,13 +71,12 @@ export async function createClub(data: { name: string; description?: string; ava
       throw error
     }
 
-    // Return with default values for missing DB columns to satisfy UI types
     return {
-      ...(club as any),
-      level: '初级',
-      rating: 5.0,
-      member_count: 1,
-      territory: '0 mi²'
+      ...club,
+      level: club.level || '初级',
+      rating: club.rating || 5.0,
+      member_count: club.member_count || 1,
+      territory: club.territory || '0 mi²'
     }
   } catch (err) {
     console.error('Create Club Exception:', err)
@@ -80,9 +88,15 @@ export async function updateClub(clubId: string, data: Partial<Club>) {
     const cookieStore = await cookies()
     const supabase = createClient(cookieStore)
     
-    const { error } = await (supabase
-        .from('clubs' as any) as any)
-        .update(data)
+    // Map frontend Club type to DB columns if needed
+    const updateData: any = { ...data }
+    // Remove fields that shouldn't be updated directly or don't exist
+    delete updateData.member_count
+    delete updateData.territory
+    
+    const { error } = await supabase
+        .from('clubs')
+        .update(updateData)
         .eq('id', clubId)
         
     if (error) throw error
@@ -93,24 +107,61 @@ export async function getClubs() {
   const cookieStore = await cookies()
   const supabase = createClient(cookieStore)
   
-  // 模拟从数据库获取
+  const { data: { user } } = await supabase.auth.getUser()
+
   const { data, error } = await supabase
-    .from('clubs' as any)
-    .select('*')
+    .from('clubs')
+    .select(`
+      *,
+      club_members (count)
+    `)
+    .order('created_at', { ascending: false })
     
-  // 由于数据库可能还没有 clubs 表，这里暂时返回空或 Mock 数据
   if (error) {
-    console.warn('Fetching clubs failed, returning mock data', error)
+    console.error('Error fetching clubs:', error)
     return []
   }
+
+  interface ClubResult {
+    id: string
+    name: string
+    description: string | null
+    owner_id: string | null
+    avatar_url: string | null
+    level: string
+    rating: number
+    member_count: number
+    territory: string
+    created_at: string
+    club_members: { count: number }[] | null
+  }
+
+  const typedData = data as unknown as ClubResult[]
+
+  // Get user memberships if logged in
+  const userMemberships = new Set<string>()
+  if (user) {
+      const { data: memberships } = await supabase
+          .from('club_members')
+          .select('club_id')
+          .eq('user_id', user.id)
+      
+      if (memberships) {
+          memberships.forEach((m) => userMemberships.add(m.club_id))
+      }
+  }
   
-  // Return with default values for missing DB columns to satisfy UI types
-  return data.map((club: any) => ({
-    ...club,
-    level: club.level || '初级',
-    rating: club.rating || 5.0,
-    member_count: club.member_count || 1,
-    territory: club.territory || '0 mi²'
+  return typedData.map((club) => ({
+    id: club.id,
+    name: club.name,
+    description: club.description,
+    owner_id: club.owner_id,
+    avatar: club.avatar_url || `https://api.dicebear.com/7.x/shapes/svg?seed=${club.id}`,
+    members: club.club_members?.[0]?.count || 0,
+    territory: club.territory || '0 mi²', 
+    level: club.level || '初级', 
+    rating: club.rating || 5.0, 
+    isJoined: userMemberships.has(club.id)
   }))
 }
 
@@ -123,20 +174,20 @@ export async function joinClub(clubId: string) {
   
   // 1. 检查是否已经加入
   const { data: existing } = await supabase
-    .from('club_members' as any)
+    .from('club_members')
     .select('status')
     .eq('club_id', clubId)
     .eq('user_id', user.id)
     .single()
     
   if (existing) {
-    if ((existing as any).status === 'pending') throw new Error('申请审核中')
-    if ((existing as any).status === 'active') throw new Error('已加入该俱乐部')
+    if (existing.status === 'pending') throw new Error('申请审核中')
+    if (existing.status === 'active') throw new Error('已加入该俱乐部')
   }
   
   // 2. 插入申请记录 (status = pending)
-  const { error } = await (supabase
-    .from('club_members' as any) as any)
+  const { error } = await supabase
+    .from('club_members')
     .insert({
       club_id: clubId,
       user_id: user.id,
@@ -148,17 +199,17 @@ export async function joinClub(clubId: string) {
   
   // 3. 通知 Owner (获取 Owner ID)
   const { data: club } = await supabase
-    .from('clubs' as any)
+    .from('clubs')
     .select('owner_id, name')
     .eq('id', clubId)
     .single()
     
-  if (club && (club as any).owner_id) {
-     await (supabase.from('messages' as any) as any).insert({
+  if (club && club.owner_id) {
+     await supabase.from('messages').insert({
        sender_id: user.id,
-       receiver_id: (club as any).owner_id,
+       receiver_id: club.owner_id,
        type: 'system',
-       content: `用户申请加入您的俱乐部 "${(club as any).name}"`,
+       content: `用户申请加入您的俱乐部 "${club.name}"`,
        is_read: false
      })
    }
@@ -175,17 +226,17 @@ export async function leaveClub(clubId: string) {
 
   // Check if owner
   const { data: club } = await supabase
-    .from('clubs' as any)
+    .from('clubs')
     .select('owner_id')
     .eq('id', clubId)
     .single()
 
-  if (club && (club as any).owner_id === user.id) {
+  if (club && club.owner_id === user.id) {
     throw new Error('会长无法退出俱乐部，请先转让会长或解散俱乐部')
   }
 
   const { error } = await supabase
-    .from('club_members' as any)
+    .from('club_members')
     .delete()
     .eq('club_id', clubId)
     .eq('user_id', user.id)
@@ -219,12 +270,11 @@ export async function updateClubInfo(clubId: string, data: { name?: string, desc
   if (!user) return { success: false, error: '未登录' }
   
   // 2. 验证俱乐部权限 (仅会长)
-  const { data: clubData } = await (supabase
-    .from('clubs' as any) as any)
+  const { data: club } = await supabase
+    .from('clubs')
     .select('owner_id')
     .eq('id', clubId)
     .single()
-  const club = clubData as { owner_id: string } | null
     
   if (!club) return { success: false, error: '俱乐部不存在' }
   if (club.owner_id !== user.id) return { success: false, error: '权限不足：仅会长可修改信息' }
@@ -240,8 +290,8 @@ export async function updateClubInfo(clubId: string, data: { name?: string, desc
   }
 
   try {
-    const { error } = await (supabase
-      .from('clubs' as any) as any)
+    const { error } = await supabase
+      .from('clubs')
       .update(updateData)
       .eq('id', clubId)
       
@@ -263,55 +313,61 @@ export async function getClubJoinRequests(clubId: string) {
   if (!user) return { success: false, error: '未登录' }
   
   // 2. 验证俱乐部权限 (仅会长/管理员)
-  // 这里我们暂时只允许会长，或者检查 club_members 表中的 role
-  // 为了保持一致性，先检查 Owner，如果不是 Owner，检查是否是 Admin
-  const { data: clubData } = await (supabase.from('clubs' as any) as any).select('owner_id').eq('id', clubId).single()
-  const club = clubData as { owner_id: string } | null
+  const { data: club } = await supabase.from('clubs').select('owner_id').eq('id', clubId).single()
   if (!club) return { success: false, error: '俱乐部不存在' }
 
   let hasPermission = club.owner_id === user.id
   if (!hasPermission) {
-    const { data: memberData } = await (supabase
-      .from('club_members' as any) as any)
+    const { data: memberData } = await supabase
+      .from('club_members')
       .select('role')
       .eq('club_id', clubId)
       .eq('user_id', user.id)
       .single()
-    const member = memberData as { role: string } | null
-    if (member && member.role === 'admin') hasPermission = true
+      
+    if (!memberData || !['admin', 'owner'].includes(memberData.role)) {
+      return { success: false, error: '权限不足' }
+    }
+  }
+  
+  // 3. 获取申请列表
+  const { data: requests, error } = await supabase
+    .from('club_members')
+    .select(`
+      user_id,
+      joined_at,
+      profiles (
+        nickname,
+        avatar_url,
+        level
+      )
+    `)
+    .eq('club_id', clubId)
+    .eq('status', 'pending')
+    
+  if (error) return { success: false, error: error.message }
+  
+  interface JoinRequestResult {
+    user_id: string
+    joined_at: string
+    profiles: {
+      nickname: string
+      avatar_url: string
+      level: number
+    } | null
   }
 
-  if (!hasPermission) return { success: false, error: '权限不足' }
-  
-  try {
-    // Assuming club_members has a foreign key to profiles via user_id
-    const { data, error } = await (supabase
-      .from('club_members' as any) as any)
-      .select(`
-        *,
-        profiles:user_id (
-          id,
-          nickname,
-          avatar_url,
-          level
-        )
-      `)
-      .eq('club_id', clubId)
-      .eq('status', 'pending')
-      
-    if (error) throw error
-    
-    // Flatten the structure for easier consumption
-    const requests = data.map((item: any) => ({
-      requestId: item.user_id, // Using user_id as request ID since it's unique per club
-      user: item.profiles,
-      appliedAt: item.joined_at || item.created_at // Fallback
+  const typedRequests = requests as unknown as JoinRequestResult[]
+
+  return {
+    success: true,
+    requests: typedRequests.map((r) => ({
+      userId: r.user_id,
+      name: r.profiles?.nickname || 'Unknown',
+      avatar: r.profiles?.avatar_url,
+      level: r.profiles?.level || 1,
+      appliedAt: r.joined_at
     }))
-    
-    return { success: true, data: requests }
-  } catch (error: any) {
-    console.error('Get join requests error:', error)
-    return { success: false, error: error.message }
   }
 }
 
@@ -335,11 +391,11 @@ export async function getClubMembers(clubId: string) {
   if (!member) return { success: false, error: '您不是该俱乐部成员' }
   
   try {
-    const { data, error } = await (supabase
-      .from('club_members' as any) as any)
+    const { data, error } = await supabase
+      .from('club_members')
       .select(`
         *,
-        profiles:user_id (
+        profiles (
           id,
           nickname,
           avatar_url,
@@ -351,7 +407,16 @@ export async function getClubMembers(clubId: string) {
       
     if (error) throw error
     
-    const members = data.map((item: any) => ({
+    interface ClubMemberResult {
+      user_id: string
+      role: 'owner' | 'admin' | 'member'
+      joined_at: string
+      profiles: ProfileRow | null
+    }
+
+    const typedData = data as unknown as ClubMemberResult[]
+
+    const members = typedData.map((item) => ({
       userId: item.user_id,
       role: item.role,
       joinedAt: item.joined_at,
@@ -374,41 +439,38 @@ export async function processJoinRequest(clubId: string, requestId: string, acti
   if (!user) return { success: false, error: '未登录' }
   
   // 2. 验证俱乐部权限 (会长或管理员)
-  const { data: clubData } = await (supabase.from('clubs' as any) as any).select('owner_id').eq('id', clubId).single()
-  const club = clubData as { owner_id: string } | null
+  const { data: club } = await supabase.from('clubs').select('owner_id').eq('id', clubId).single()
   if (!club) return { success: false, error: '俱乐部不存在' }
 
   let hasPermission = club.owner_id === user.id
   if (!hasPermission) {
-    const { data: memberData } = await (supabase
-      .from('club_members' as any) as any)
+    const { data: memberData } = await supabase
+      .from('club_members')
       .select('role')
       .eq('club_id', clubId)
       .eq('user_id', user.id)
       .single()
-    const member = memberData as { role: string } | null
-    if (member && member.role === 'admin') hasPermission = true
+    if (memberData && memberData.role === 'admin') hasPermission = true
   }
 
   if (!hasPermission) return { success: false, error: '权限不足' }
   
   // 3. 验证请求有效性
   const applicantId = requestId 
-  const { data: requestData } = await (supabase
-    .from('club_members' as any) as any)
+  const { data: request } = await supabase
+    .from('club_members')
     .select('status')
     .eq('club_id', clubId)
     .eq('user_id', applicantId)
     .single()
-  const request = requestData as { status: string } | null
 
   if (!request) return { success: false, error: '申请不存在' }
   if (request.status !== 'pending') return { success: false, error: '该申请已被处理' }
 
   try {
     if (action === 'approve') {
-      const { error } = await (supabase
-        .from('club_members' as any) as any)
+      const { error } = await supabase
+        .from('club_members')
         .update({ status: 'active', joined_at: new Date().toISOString() })
         .eq('club_id', clubId)
         .eq('user_id', applicantId)
@@ -416,7 +478,7 @@ export async function processJoinRequest(clubId: string, requestId: string, acti
       if (error) throw error
       
       // Send notification (optional)
-       await (supabase.from('messages' as any) as any).insert({
+       await supabase.from('messages').insert({
          sender_id: user.id,
          receiver_id: applicantId,
          type: 'system',
@@ -426,8 +488,8 @@ export async function processJoinRequest(clubId: string, requestId: string, acti
 
     } else {
       // Reject: delete the request
-      const { error } = await (supabase
-        .from('club_members' as any) as any)
+      const { error } = await supabase
+        .from('club_members')
         .delete()
         .eq('club_id', clubId)
         .eq('user_id', applicantId)
@@ -451,21 +513,19 @@ export async function kickMember(clubId: string, memberId: string) {
   if (!user) return { success: false, error: '未登录' }
   
   // 2. 验证俱乐部权限 (会长或管理员)
-  const { data: clubData } = await (supabase.from('clubs' as any) as any).select('owner_id').eq('id', clubId).single()
-  const club = clubData as { owner_id: string } | null
+  const { data: club } = await supabase.from('clubs').select('owner_id').eq('id', clubId).single()
   if (!club) return { success: false, error: '俱乐部不存在' }
 
   const isOwner = club.owner_id === user.id
   let isAdmin = false
   if (!isOwner) {
-    const { data: memberData } = await (supabase
-      .from('club_members' as any) as any)
+    const { data: memberData } = await supabase
+      .from('club_members')
       .select('role')
       .eq('club_id', clubId)
       .eq('user_id', user.id)
       .single()
-    const member = memberData as { role: string } | null
-    if (member && member.role === 'admin') isAdmin = true
+    if (memberData && memberData.role === 'admin') isAdmin = true
   }
 
   if (!isOwner && !isAdmin) return { success: false, error: '权限不足' }
@@ -476,21 +536,20 @@ export async function kickMember(clubId: string, memberId: string) {
   
   // 如果操作者是管理员，不能移除其他管理员
   if (isAdmin) {
-    const { data: targetMemberData } = await (supabase
-      .from('club_members' as any) as any)
+    const { data: targetMember } = await supabase
+      .from('club_members')
       .select('role')
       .eq('club_id', clubId)
       .eq('user_id', memberId)
       .single()
-    const targetMember = targetMemberData as { role: string } | null
     if (targetMember && (targetMember.role === 'admin' || targetMember.role === 'owner')) {
         return { success: false, error: '管理员权限不足以移除该成员' }
     }
   }
 
   try {
-    const { error } = await (supabase
-      .from('club_members' as any) as any)
+    const { error } = await supabase
+      .from('club_members')
       .delete()
       .eq('club_id', clubId)
       .eq('user_id', memberId)
@@ -513,12 +572,11 @@ export async function disbandClub(clubId: string) {
   if (!user) return { success: false, error: '未登录' }
   
   // 2. 验证俱乐部权限 (仅会长)
-  const { data: clubData } = await (supabase
-    .from('clubs' as any) as any)
+  const { data: club } = await supabase
+    .from('clubs')
     .select('owner_id')
     .eq('id', clubId)
     .single()
-  const club = clubData as { owner_id: string } | null
     
   if (!club) return { success: false, error: '俱乐部不存在' }
   if (club.owner_id !== user.id) return { success: false, error: '权限不足：仅会长可解散俱乐部' }
@@ -528,13 +586,13 @@ export async function disbandClub(clubId: string) {
     // Transaction-like deletion
     
     // 1. Delete members
-    await (supabase.from('club_members' as any) as any)
+    await supabase.from('club_members')
       .delete()
       .eq('club_id', clubId)
       
     // 2. Delete club
-    const { error } = await (supabase
-      .from('clubs' as any) as any)
+    const { error } = await supabase
+      .from('clubs')
       .delete()
       .eq('id', clubId)
       
@@ -545,6 +603,106 @@ export async function disbandClub(clubId: string) {
     console.error('Disband club error:', error)
     return { success: false, error: error.message }
   }
+}
+
+// ==================== Data Fetching for View ====================
+
+export async function getClubLeaderboard(clubId: string) {
+  const cookieStore = await cookies()
+  const supabase = createClient(cookieStore)
+
+  // Get all club members first
+  const { data: members, error } = await supabase
+    .from('club_members')
+    .select('user_id')
+    .eq('club_id', clubId)
+    .eq('status', 'active')
+
+  if (error || !members) return []
+
+  const memberIds = members.map((m) => m.user_id)
+
+  if (memberIds.length === 0) return []
+
+  // Get profiles with stats
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, nickname, avatar_url, total_area, level')
+    .in('id', memberIds)
+    .order('total_area', { ascending: false })
+
+  if (!profiles) return []
+
+  return profiles.map((p) => ({
+    id: p.id,
+    name: p.nickname || 'Unknown',
+    avatar: p.avatar_url,
+    area: p.total_area || 0,
+    score: (p.total_area || 0) * 10 // Simple score formula
+  }))
+}
+
+export async function getClubTerritories(clubId: string) {
+  const cookieStore = await cookies()
+  const supabase = createClient(cookieStore)
+
+  // Get all club members
+  const { data: members } = await supabase
+    .from('club_members')
+    .select('user_id')
+    .eq('club_id', clubId)
+    .eq('status', 'active')
+
+  if (!members || members.length === 0) return []
+
+  const memberIds = members.map((m) => m.user_id)
+
+  // Get territories owned by members
+  // Limit to recent 50 for performance
+  const { data: territories } = await supabase
+    .from('territories')
+    .select(`
+      id,
+      city_id,
+      owner_id,
+      captured_at,
+      profiles (
+        nickname,
+        avatar_url
+      )
+    `)
+    .in('owner_id', memberIds)
+    .order('captured_at', { ascending: false })
+    .limit(50)
+
+  if (!territories) return []
+
+  interface ClubTerritoryResult {
+    id: string
+    city_id: string
+    owner_id: string
+    captured_at: string
+    profiles: {
+      nickname: string
+      avatar_url: string
+    } | null
+  }
+
+  const typedTerritories = territories as unknown as ClubTerritoryResult[]
+
+  // Map to expected format
+  // Note: Territory table doesn't have name/area directly usually, or id is H3 index.
+  // We'll mock name/area based on ID or city.
+  return typedTerritories.map((t) => ({
+    id: t.id,
+    name: `Territory ${t.id.substring(0, 6)}...`,
+    area: 1, // Single hex
+    date: t.captured_at,
+    member: t.profiles?.avatar_url,
+    memberName: t.profiles?.nickname || 'Unknown',
+    lastTime: new Date(t.captured_at).toLocaleDateString(),
+    location: t.city_id
+  }))
 }
 
 

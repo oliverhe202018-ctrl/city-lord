@@ -1,202 +1,174 @@
-'use server';
+'use server'
 
-import { createClient } from '@/lib/supabase/server';
-import { cookies } from 'next/headers';
+import { createClient } from '@/lib/supabase/server'
+import { cookies } from 'next/headers'
 
-export interface Task {
-  id: string;
-  title: string;
-  description: string;
-  type: 'daily' | 'city' | 'weekly' | 'special';
-  icon: string;
-  target: number;
-  current: number;
-  reward: {
-    points: number;
-    experience: number;
-  };
-  status: 'todo' | 'in-progress' | 'completed' | 'claimed';
+import { calculateLevel } from '@/lib/game-logic/level-system'
+
+export interface Mission {
+  id: string
+  title: string
+  description: string
+  type: string
+  target: number
+  reward_coins: number
+  reward_experience: number
+  frequency: 'one_time' | 'daily' | 'weekly' | 'achievement'
 }
 
-export interface ClaimRewardResult {
-  success: boolean;
-  message: string;
-  newStatus?: 'claimed';
+export interface UserMission {
+  mission_id: string
+  status: 'todo' | 'ongoing' | 'in-progress' | 'completed' | 'claimed'
+  progress: number
+  missions: Mission
 }
 
-/**
- * 获取用户的所有任务
- */
-export async function getUserMissions() {
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
+export async function fetchUserMissions() {
+  const cookieStore = await cookies()
+  const supabase = createClient(cookieStore)
+  const { data: { user } } = await supabase.auth.getUser()
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return { success: false, error: '未登录' };
-  }
+  if (!user) return []
 
   const { data, error } = await supabase
     .from('user_missions')
-    .select('*')
-    .eq('user_id', user.id);
-
-  if (error) {
-    console.error('获取任务失败:', error);
-    return { success: false, error: error.message };
-  }
-
-  return { success: true, data: data || [] };
-}
-
-/**
- * 领取单个任务奖励
- */
-export async function claimMissionReward(missionId: string, taskTitle: string, rewardType: 'xp' | 'coins', rewardAmount: number): Promise<ClaimRewardResult> {
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return { success: false, message: '未登录' };
-  }
-
-  try {
-    // 2. Perform UPSERT (Insert if new, Update if exists) to ensure persistence
-    // This handles cases where the user has the task in frontend (defaults) but not in DB yet.
-    const { error: upsertError } = await (supabase
-      .from('user_missions') as any)
-      .upsert({
-        user_id: user.id,
-        mission_id: missionId,
-        status: 'claimed',
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'user_id, mission_id'
-      });
-
-    if (upsertError) {
-      console.error('Claim UPSERT failed:', upsertError);
-      return { success: false, message: '领取失败: ' + upsertError.message };
-    }
-
-    return { success: true, message: '领取成功', newStatus: 'claimed' };
-
-  } catch (error: any) {
-    console.error('Claim exception:', error);
-    return { success: false, message: error.message || '领取失败' };
-  }
-}
-
-/**
- * 批量领取所有可领取的奖励（一键领取）
- */
-export async function claimAllMissionsRewards(tasks: Task[]): Promise<{ success: boolean; claimed: string[]; failed: string[]; message: string }> {
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return { success: false, claimed: [], failed: [], message: '未登录' };
-  }
-
-  const claimed: string[] = [];
-  const failed: string[] = [];
-
-  // 筛选出已完成但未领取的任务
-  const completedTasks = tasks.filter(t => t.status === 'completed');
-
-  if (completedTasks.length === 0) {
-    return { success: false, claimed: [], failed: [], message: '没有可领取的奖励' };
-  }
-
-  // 循环处理每个任务
-  for (const task of completedTasks) {
-    try {
-      const result = await claimMissionReward(
-        task.id,
-        task.title,
-        'xp', // 假设都是经验奖励
-        task.reward.experience
-      );
-
-      if (result.success) {
-        claimed.push(task.id);
-      } else {
-        failed.push(task.id);
-      }
-    } catch (error: any) {
-      console.error(`领取任务 ${task.id} 失败:`, error);
-      failed.push(task.id);
-    }
-  }
-
-  const message = claimed.length > 0
-    ? `成功领取 ${claimed.length} 个任务的奖励`
-    : '没有成功领取的奖励';
-
-  return {
-    success: claimed.length > 0,
-    claimed,
-    failed,
-    message
-  };
-}
-
-/**
- * 更新任务进度
- */
-export async function updateMissionProgress(missionId: string, progress: number) {
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return { success: false, error: '未登录' };
-  }
-
-  const { error } = await (supabase
-    .from('user_missions') as any)
-    .update({
+    .select(`
+      mission_id,
+      status,
       progress,
-      updated_at: new Date().toISOString()
-    })
+      missions (
+        id,
+        title,
+        description,
+        type,
+        target,
+        reward_coins,
+        reward_experience,
+        frequency
+      )
+    `)
     .eq('user_id', user.id)
-    .eq('mission_id', missionId);
 
   if (error) {
-    console.error('更新任务进度失败:', error);
-    return { success: false, error: error.message };
+    console.error('Error fetching user missions:', error)
+    return []
   }
 
-  return { success: true };
+  interface UserMissionResult {
+    mission_id: string
+    status: 'todo' | 'ongoing' | 'in-progress' | 'completed' | 'claimed'
+    progress: number
+    missions: {
+      id: string
+      title: string
+      description: string
+      type: string
+      target: number
+      reward_coins: number
+      reward_experience: number
+      frequency: 'one_time' | 'daily' | 'weekly' | 'achievement'
+    } | null
+  }
+
+  const typedData = data as unknown as UserMissionResult[]
+
+  // Helper to filter out valid missions
+  const isValidMission = (item: UserMissionResult): boolean => {
+    return !!item.missions
+  }
+
+  return (typedData || []).filter(isValidMission).map((item) => ({
+    id: item.missions!.id,
+    title: item.missions!.title,
+    description: item.missions!.description,
+    type: item.missions!.frequency === 'achievement' ? 'achievement' : item.missions!.type,
+    frequency: item.missions!.frequency,
+    target: item.missions!.target,
+    current: item.progress,
+    reward: {
+      reward_coins: item.missions!.reward_coins,
+      reward_experience: item.missions!.reward_experience
+    },
+    status: item.status
+  }))
 }
 
-/**
- * 完成任务（标记为 completed）
- */
-export async function completeMission(missionId: string) {
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
+export async function claimMissionReward(missionId: string) {
+  const cookieStore = await cookies()
+  const supabase = createClient(cookieStore)
+  const { data: { user } } = await supabase.auth.getUser()
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return { success: false, error: '未登录' };
-  }
+  if (!user) return { success: false, error: 'Unauthorized' }
 
-  const { error } = await (supabase
-    .from('user_missions') as any)
-    .update({
-      status: 'completed',
-      updated_at: new Date().toISOString()
-    })
+  // 1. Check if mission is completed but not claimed
+  const { data: userMission, error: fetchError } = await supabase
+    .from('user_missions')
+    .select('status, missions(reward_coins, reward_experience)')
     .eq('user_id', user.id)
-    .eq('mission_id', missionId);
+    .eq('mission_id', missionId)
+    .single()
 
-  if (error) {
-    console.error('完成任务失败:', error);
-    return { success: false, error: error.message };
+  if (fetchError || !userMission) {
+    return { success: false, error: 'Mission not found' }
   }
 
-  return { success: true };
+  if (userMission.status !== 'completed') {
+    return { success: false, error: 'Mission not ready to claim' }
+  }
+
+  // 2. Update status to claimed
+  const { error: updateError } = await supabase
+    .from('user_missions')
+    .update({ status: 'claimed', claimed_at: new Date().toISOString() })
+    .eq('user_id', user.id)
+    .eq('mission_id', missionId)
+
+  if (updateError) {
+    return { success: false, error: updateError.message }
+  }
+
+  // 3. Award rewards to user profile
+  // Note: Ideally this should be a transaction or an RPC to ensure atomicity.
+  // For now, we do it sequentially. If this fails, the user might lose rewards but mission is claimed.
+  // A better approach: create an RPC 'claim_mission(user_id, mission_id)'
+  
+  // @ts-ignore - missions is an object due to single join, but types might be array/null
+  const missionData = userMission.missions as any
+  const { reward_coins, reward_experience } = missionData
+
+  if ((reward_coins && reward_coins > 0) || (reward_experience && reward_experience > 0)) {
+    // Fetch current profile first to increment (or use RPC if available)
+    // We'll use the rpc 'increment_user_stats' if we had one, or just update.
+    // Let's use a simple update for now, but handle the read-modify-write.
+    
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('coins, current_exp, level')
+      .eq('id', user.id)
+      .single()
+      
+    if (profile) {
+      const newCoins = (profile.coins || 0) + (reward_coins || 0)
+      const newExp = (profile.current_exp || 0) + (reward_experience || 0)
+      
+      const newLevel = calculateLevel(newExp)
+      
+      const updates: { coins: number; current_exp: number; updated_at: string; level?: number } = { 
+        coins: newCoins,
+        current_exp: newExp,
+        updated_at: new Date().toISOString()
+      }
+      
+      if (newLevel > (profile.level || 1)) {
+        updates.level = newLevel
+      }
+
+      await supabase
+        .from('profiles')
+        .update(updates)
+        .eq('id', user.id)
+    }
+  }
+
+  return { success: true }
 }

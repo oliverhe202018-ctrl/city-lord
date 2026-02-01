@@ -54,7 +54,7 @@ export function HexLayer({ cells, onCellClick }: HexLayerProps) {
         return {
           strokeColor: "#1e293b", // Dark Slate
           fillColor: "#0f172a",
-          fillOpacity: 0.8,
+          fillOpacity: 0.4,
           strokeOpacity: 0,
           strokeWeight: 0,
         }

@@ -10,6 +10,8 @@ import { ClubManageDrawer } from './ClubManageDrawer';
 import { AvatarUploader } from '@/components/ui/AvatarUploader';
 import { useRouter } from 'next/navigation';
 
+import { getClubLeaderboard, getClubTerritories } from '@/app/actions/club';
+
 interface Club {
   id: string;
   name: string;
@@ -85,40 +87,12 @@ export function ClubDetailView({ clubId }: { clubId: string }) {
 
   if (!club) return <div className="p-8 text-center">加载中...</div>;
 
-  const territoriesByDate: ClubTerritory[] = [
-    {
-      id: '1',
-      name: '中心广场',
-      area: 2.28,
-      date: '2小时前',
-      member: 'https://picsum.photos/id/64/40/40',
-      memberName: '李明',
-      lastTime: '2小时前',
-      pace: '6:45',
-      location: '中心广场'
-    }
-  ];
+  const territoriesByDate: ClubTerritory[] = territories;
 
-  const territoriesByArea: ClubTerritory[] = [
-    {
-      id: '1',
-      name: '中心广场',
-      area: 2.28,
-      date: '2小时前',
-      member: 'https://picsum.photos/id/64/40/40',
-      memberName: '李明',
-      lastTime: '在线',
-      totalDistance: '125.6 km',
-      totalTime: '48h 23min',
-      avgPace: '6:45',
-      siege: '2.28 mi²'
-    }
-  ];
+  // Simplified sort for demo
+  const territoriesByArea: ClubTerritory[] = [...territories].sort((a, b) => b.area - a.area);
 
-  const clubInternalLeaderboard: LeaderboardItem[] = [
-    { id: '1', name: '李明', avatar: 'https://picsum.photos/id/64/40/40', area: 125.5, score: 5890 },
-    { id: '2', name: '王伟', avatar: 'https://picsum.photos/id/65/40/40', area: 98.3, score: 4230 }
-  ];
+  const clubInternalLeaderboard: LeaderboardItem[] = leaderboard;
 
   return (
     <div className="flex flex-col min-h-screen bg-background pb-20 overflow-x-hidden">

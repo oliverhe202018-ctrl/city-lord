@@ -11,17 +11,18 @@ import { useGameStore, useGameActions } from "@/store/useGameStore"
 import { useHydration } from "@/hooks/useHydration"
 import { GlassCard } from "@/components/ui/GlassCard"
 import { CyberButton } from "@/components/ui/CyberButton"
-import { getUserMissions, claimMissionReward, claimAllMissionsRewards } from "@/app/actions/mission"
+import { fetchUserMissions, claimMissionReward } from "@/app/actions/mission"
 
 // --- Types ---
 
-type MissionType = "daily" | "weekly" | "achievement"
-type MissionStatus = "locked" | "active" | "completed" | "claimed"
+type MissionType = "daily" | "weekly" | "achievement" | "one_time"
+type MissionStatus = "locked" | "active" | "completed" | "claimed" | "todo" | "ongoing" | "in-progress"
 type MissionDifficulty = "easy" | "medium" | "hard" | "legendary"
 
 interface MissionReward {
-  type: "xp" | "coins" | "badge"
-  amount: number
+  type: "xp" | "coins" | "both" | "badge"
+  xpAmount?: number
+  coinsAmount?: number
   label: string
 }
 
@@ -70,17 +71,19 @@ export function MissionCard({
 }: MissionCardProps) {
   const [isClaiming, setIsClaiming] = useState(false)
 
-  const progressPercent = Math.min((progress / maxProgress) * 100, 100)
+  const progressPercent = maxProgress > 0 ? Math.min((progress / maxProgress) * 100, 100) : 0
   const isCompleted = status === "completed" || status === "claimed"
   const isLocked = status === "locked"
   const canClaim = status === "completed"
+  // Treat todo/ongoing/in-progress as active (not locked, not completed)
+  const isActive = status === "active" || status === "ongoing" || status === "todo" || status === "in-progress"
 
   const handleClaim = async (e: React.MouseEvent) => {
     e.stopPropagation()
     if (!canClaim || isClaiming) return
 
     setIsClaiming(true)
-    await new Promise(resolve => setTimeout(resolve, 500))
+    // await new Promise(resolve => setTimeout(resolve, 500)) // Remove artificial delay
     onClaim?.(id, reward)
     setIsClaiming(false)
   }
@@ -191,12 +194,22 @@ export function MissionCard({
           <div className="mt-3 flex items-center justify-between">
             {/* Reward */}
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1 rounded-full bg-[#22c55e]/10 px-2.5 py-1">
-                <RewardIcon className="h-3.5 w-3.5 text-[#22c55e]" />
-                <span className="text-xs font-medium text-[#22c55e]">
-                  +{reward.amount} {reward.label}
-                </span>
-              </div>
+              {(reward.type === "xp" || reward.type === "both") && (
+                <div className="flex items-center gap-1 rounded-full bg-[#22c55e]/10 px-2.5 py-1">
+                  <Zap className="h-3.5 w-3.5 text-[#22c55e]" />
+                  <span className="text-xs font-medium text-[#22c55e]">
+                    +{reward.xpAmount} 经验
+                  </span>
+                </div>
+              )}
+              {(reward.type === "coins" || reward.type === "both") && (
+                <div className="flex items-center gap-1 rounded-full bg-yellow-400/10 px-2.5 py-1">
+                  <Sparkles className="h-3.5 w-3.5 text-yellow-400" />
+                  <span className="text-xs font-medium text-yellow-400">
+                    +{reward.coinsAmount} 金币
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Action button */}
@@ -228,95 +241,67 @@ export function MissionCard({
 
 // --- Mission Center Page Component ---
 
-const sampleMissions: MissionData[] = [
-  {
-    id: "1",
-    title: "占领5个边缘领地",
-    description: "将你的领地扩展到城市边界",
-    type: "daily",
-    status: "active",
-    progress: 3,
-    maxProgress: 5,
-    reward: { type: "xp", amount: 150, label: "经验" },
-    difficulty: "medium",
-    timeRemaining: "8小时23分",
-    icon: Hexagon,
-  },
-  {
-    id: "2",
-    title: "跑步5公里",
-    description: "完成5公里的跑步距离",
-    type: "daily",
-    status: "completed",
-    progress: 5,
-    maxProgress: 5,
-    reward: { type: "xp", amount: 100, label: "经验" },
-    difficulty: "easy",
-    icon: Footprints,
-  },
-  {
-    id: "3",
-    title: "连续7天跑步",
-    description: "连续一周每天跑步",
-    type: "weekly",
-    status: "active",
-    progress: 4,
-    maxProgress: 7,
-    reward: { type: "badge", amount: 1, label: "徽章" },
-    difficulty: "hard",
-    icon: Flame,
-  },
-  {
-    id: "4",
-    title: "领地霸主",
-    description: "同时拥有100个领地格",
-    type: "achievement",
-    status: "active",
-    progress: 67,
-    maxProgress: 100,
-    reward: { type: "xp", amount: 500, label: "经验" },
-    difficulty: "legendary",
-    icon: Target,
-  },
-  {
-    id: "5",
-    title: "首战告捷",
-    description: "赢得你的第一场领地战斗",
-    type: "achievement",
-    status: "claimed",
-    progress: 1,
-    maxProgress: 1,
-    reward: { type: "xp", amount: 50, label: "经验" },
-    difficulty: "easy",
-    icon: Trophy,
-  },
-]
-
 export function MissionCenter() {
-  const [missions, setMissions] = useState(sampleMissions)
+  const [missions, setMissions] = useState<MissionData[]>([])
   const [activeFilter, setActiveFilter] = useState<"daily" | "weekly" | "all">("all")
-  const { addExperience } = useGameActions()
+  const { addExperience, addCoins } = useGameActions()
   const isHydrated = useHydration()
+  const router = useRouter()
+  const [loading, setLoading] = useState(true)
 
   React.useEffect(() => {
     async function fetchMissions() {
       try {
-        const { data: userMissions } = await getUserMissions()
-        if (userMissions?.length) {
-          setMissions(prev => prev.map(m => {
-            const userMission = userMissions.find((um: any) => um.mission_id === m.id) as any
-            if (userMission) {
-              return {
-                ...m,
-                status: userMission.status as MissionStatus,
-                progress: userMission.progress
-              }
+        setLoading(true)
+        const userMissions = await fetchUserMissions()
+        
+        if (userMissions) {
+          const formattedMissions: MissionData[] = userMissions.map((m: any) => {
+            const hasXp = m.reward.experience > 0
+            const hasCoins = m.reward.coins > 0
+            
+            let rewardType: "xp" | "coins" | "both" = "xp"
+            let rewardLabel = "经验"
+            let rewardAmount = m.reward.experience
+
+            if (hasXp && hasCoins) {
+              rewardType = "both"
+              rewardLabel = "奖励"
+              rewardAmount = 0 // Not used for display in simple view
+            } else if (hasCoins) {
+              rewardType = "coins"
+              rewardLabel = "金币"
+              rewardAmount = m.reward.coins
             }
-            return m
-          }))
+
+            return {
+              id: m.id,
+              title: m.title,
+              description: m.description,
+              type: m.frequency === 'achievement' ? 'achievement' : (m.frequency || m.type) as MissionType,
+              status: m.status as MissionStatus,
+              progress: m.current,
+              maxProgress: m.target,
+              reward: { 
+                type: rewardType,
+                xpAmount: m.reward.experience,
+                coinsAmount: m.reward.coins,
+                amount: rewardAmount, // For simple display
+                label: rewardLabel 
+              },
+              difficulty: "medium", // Default
+              icon: Hexagon, // Default
+            }
+          })
+          setMissions(formattedMissions)
         }
-      } catch (error) {
-        console.error("Failed to fetch missions", error)
+      } catch (error: any) {
+        if (error?.name !== 'AbortError' && error?.digest !== 'NEXT_REDIRECT') {
+          console.error("Failed to fetch missions", error)
+          toast.error("获取任务列表失败")
+        }
+      } finally {
+        setLoading(false)
       }
     }
     fetchMissions()
@@ -340,11 +325,7 @@ export function MissionCenter() {
 
   const claimableCount = missions.filter(m => m.status === "completed").length
 
-  const router = useRouter()
-
   const handleTaskClick = (id: string) => {
-    // Navigate based on task type or ID if needed, 
-    // for now default to map/home for gameplay tasks
     router.push('/')
     toast.info("前往完成任务")
   }
@@ -354,10 +335,10 @@ export function MissionCenter() {
     if (!mission) return
 
     try {
-      const result = await claimMissionReward(id, mission.title, "xp", reward.amount) // Fixed args: title, type, amount
+      const result = await claimMissionReward(id)
 
       if (!result.success) {
-        toast.error(result.message || "领取失败")
+        toast.error(result.error || "领取失败")
         return
       }
 
@@ -365,12 +346,19 @@ export function MissionCenter() {
         prev.map(m => (m.id === id ? { ...m, status: "claimed" as MissionStatus } : m))
       )
 
-      // Add XP locally for immediate feedback (optional, since DB is updated)
-      if (reward.type === "xp") {
-        addExperience(reward.amount)
+      // Add XP and Coins locally for immediate feedback
+      if (reward.type === "xp" || reward.type === "both") {
+        addExperience(reward.xpAmount || 0)
+      }
+      if (reward.type === "coins" || reward.type === "both") {
+        addCoins(reward.coinsAmount || 0)
       }
 
-      toast.success(`领取成功！获得 ${reward.amount} ${reward.label}`, {
+      const rewardText = reward.type === "both" 
+        ? `${reward.xpAmount} 经验 + ${reward.coinsAmount} 金币`
+        : `${reward.type === 'coins' ? reward.coinsAmount : reward.xpAmount} ${reward.label}`
+
+      toast.success(`领取成功！获得 ${rewardText}`, {
         icon: <Gift className="text-green-400" />,
         style: { background: 'rgba(0,0,0,0.8)', color: 'white', border: '1px solid rgba(255,255,255,0.1)' }
       })
@@ -382,55 +370,37 @@ export function MissionCenter() {
     }
   }
 
+  // Simplified Claim All (Sequential for now as backend bulk claim is missing)
   const handleClaimAll = async () => {
     const claimable = missions.filter(m => m.status === "completed")
     if (claimable.length === 0) return
 
-    try {
-      // 调用后端聚合接口
-      // Map to correct Task structure if needed, or update claimAllMissionsRewards signature
-      // Current usage seems to match expected backend type broadly
-      const tasksToClaim = claimable.map(m => ({
-        id: m.id,
-        title: m.title,
-        description: m.description,
-        type: m.type as any,
-        icon: '',
-        target: m.maxProgress,
-        current: m.progress,
-        reward: {
-          points: m.reward.type === 'coins' ? m.reward.amount : 0,
-          experience: m.reward.type === 'xp' ? m.reward.amount : 0
-        },
-        status: m.status as any
-      }))
+    let claimedCount = 0
+    let totalXp = 0
+    let totalCoins = 0
 
-      const results = await claimAllMissionsRewards(tasksToClaim)
+    for (const mission of claimable) {
+      try {
+        const result = await claimMissionReward(mission.id)
+        if (result.success) {
+           claimedCount++
+           totalXp += mission.reward.xpAmount || 0
+           totalCoins += mission.reward.coinsAmount || 0
+           setMissions(prev => prev.map(m => m.id === mission.id ? { ...m, status: "claimed" } : m))
+        }
+      } catch (e) {
+        console.error(`Failed to claim mission ${mission.id}`, e)
+      }
+    }
 
-      // 根据返回结果更新本地状态
-      setMissions(prev =>
-        prev.map(prevM => {
-          if (results.claimed.includes(prevM.id)) {
-            return { ...prevM, status: "claimed" as MissionStatus }
-          }
-          return prevM
-        })
-      )
+    if (totalXp > 0) addExperience(totalXp)
+    if (totalCoins > 0) addCoins(totalCoins)
 
-      const totalXp = claimable.reduce((sum, m) => m.reward.type === "xp" ? sum + m.reward.amount : sum, 0)
-      if (totalXp > 0) addExperience(totalXp)
-
-      if (results.claimed.length > 0) {
-        toast.success(`一键领取成功！共领取 ${results.claimed.length} 个任务`, {
+    if (claimedCount > 0) {
+        toast.success(`一键领取成功！共领取 ${claimedCount} 个任务`, {
           icon: <Gift className="text-green-400" />,
           style: { background: 'rgba(0,0,0,0.8)', color: 'white', border: '1px solid rgba(255,255,255,0.1)' }
         })
-      } else if (results.failed.length > 0) {
-        toast.error("部分任务领取失败，请重试")
-      }
-    } catch (error) {
-      console.error("Failed to claim all missions", error)
-      toast.error("一键领取失败，请稍后重试")
     }
   }
 
@@ -481,16 +451,22 @@ export function MissionCenter() {
       </div>
 
       {/* Mission Cards */}
-      <div className="space-y-4">
-        {filteredMissions.map((mission) => (
-          <MissionCard
-            key={mission.id}
-            {...mission}
-            onClaim={handleClaim}
-            onClick={handleTaskClick}
-          />
-        ))}
-      </div>
+      {loading ? (
+        <div className="py-10 text-center text-white/50">加载中...</div>
+      ) : filteredMissions.length === 0 ? (
+        <div className="py-10 text-center text-white/50">暂无任务</div>
+      ) : (
+        <div className="space-y-4">
+          {filteredMissions.map((mission) => (
+            <MissionCard
+              key={mission.id}
+              {...mission}
+              onClaim={handleClaim}
+              onClick={handleTaskClick}
+            />
+          ))}
+        </div>
+      )}
     </div>
   )
 }

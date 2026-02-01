@@ -76,7 +76,13 @@ export const useGeolocation = ({
       setState((prev) => ({
         ...prev,
         loading: false,
-        error: new GeolocationPositionError(),
+        error: {
+          code: 0,
+          message: "Geolocation is not supported by this browser.",
+          PERMISSION_DENIED: 1,
+          POSITION_UNAVAILABLE: 2,
+          TIMEOUT: 3,
+        } as GeolocationPositionError,
       }));
     }
   }, [enableHighAccuracy, timeout, maximumAge]);

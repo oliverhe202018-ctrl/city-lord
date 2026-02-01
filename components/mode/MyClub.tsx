@@ -1,11 +1,20 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRegion } from '@/contexts/RegionContext';
-import { mockClub, type ClubMember } from '@/data/clubs';
+import { getClubs } from '@/app/actions/club';
 import { Crown, Users, MapPin, Trophy, LineChart, TrendingUp, CheckCircle2 } from 'lucide-react';
 import ClubDetails from './ClubDetails';
+
+interface ClubMember {
+  id: string;
+  name: string;
+  avatarUrl: string;
+  isOnline: boolean;
+  contribution: string;
+  totalDistance: string;
+}
 
 function MemberCard({ member }: { member: ClubMember }) {
   return (
@@ -25,48 +34,25 @@ function ClubList() {
   const { region } = useRegion();
   const { province, cityName, countyName } = region || {};
   const [joinedClubs, setJoinedClubs] = useState<Set<string>>(new Set());
+  const [availableClubs, setAvailableClubs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   // 获取位置名称，避免 undefined
   const locationName = cityName || countyName || '城市';
 
-  // Mock club data for demonstration
-  const availableClubs = [
-    {
-      id: '1',
-      name: `${province || ''}${locationName}跑步俱乐部`,
-      members: 7633,
-      territory: '605.3 mi²',
-      avatar: 'https://picsum.photos/id/64/40/40'
-    },
-    {
-      id: '2',
-      name: `${province || ''}快闪跑团`,
-      members: 1500,
-      territory: '61.0 mi²',
-      avatar: 'https://picsum.photos/id/65/40/40'
-    },
-    {
-      id: '3',
-      name: `${locationName}晨跑俱乐部`,
-      members: 1200,
-      territory: '52.8 mi²',
-      avatar: 'https://picsum.photos/id/66/40/40'
-    },
-    {
-      id: '4',
-      name: `${province || ''}夜跑团队`,
-      members: 900,
-      territory: '27.3 mi²',
-      avatar: 'https://picsum.photos/id/67/40/40'
-    },
-    {
-      id: '5',
-      name: `${locationName}马拉松跑团`,
-      members: 750,
-      territory: '22.1 mi²',
-      avatar: 'https://picsum.photos/id/68/40/40'
+  useEffect(() => {
+    async function loadClubs() {
+      try {
+        const clubs = await getClubs();
+        setAvailableClubs(clubs);
+      } catch (error) {
+        console.error('Failed to load clubs:', error);
+      } finally {
+        setLoading(false);
+      }
     }
-  ];
+    loadClubs();
+  }, []);
 
   const handleJoinClub = (clubId: string, clubName: string) => {
     if (joinedClubs.has(clubId)) {
@@ -80,6 +66,7 @@ function ClubList() {
       alert(`成功加入 ${clubName}！`);
     }
   };
+
 
   const handleViewClub = (clubId: string, clubName: string) => {
     alert(`查看 ${clubName} 详情功能开发中...`);

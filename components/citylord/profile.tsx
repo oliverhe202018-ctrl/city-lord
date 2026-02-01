@@ -9,9 +9,12 @@ import { useGameStore } from "@/store/useGameStore"
 import { useHydration } from "@/hooks/useHydration";
 import { formatAreaFromHexCount, getAreaEquivalentFromHexCount } from "@/lib/citylord/area-utils"
 import { createClient } from "@/lib/supabase/client"
+import { getUserProfileStats } from "@/app/actions/user"
+import { fetchUserAchievements } from "@/app/actions/achievement"
 import { toast } from "sonner"
-import {
-  Dialog,
+import { calculateLevel, getNextLevelProgress, getTitle } from "@/lib/game-logic/level-system"
+import { BadgeGrid } from "@/components/citylord/achievements/BadgeGrid"
+import { Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -19,8 +22,8 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-
 export function Profile({ onOpenSettings }: { onOpenSettings: () => void }) {
+  const hydrated = useHydration();
   const {
     nickname,
     userId,
@@ -33,24 +36,109 @@ export function Profile({ onOpenSettings }: { onOpenSettings: () => void }) {
     avatar,
     setNickname,
     setAvatar,
-    resetUser
+    resetUser,
+    syncUserProfile
   } = useGameStore()
 
   const [isEditing, setIsEditing] = React.useState(false)
   const [editName, setEditName] = React.useState("")
   const [editAvatar, setEditAvatar] = React.useState("")
   const [userEmail, setUserEmail] = React.useState<string | null>(null)
+  const [isLoggedIn, setIsLoggedIn] = React.useState(false)
+  const [loading, setLoading] = React.useState(true)
+  const [statsLoading, setStatsLoading] = React.useState(true)
+  const [userStats, setUserStats] = React.useState({
+    totalTiles: 0,
+    totalArea: 0,
+    totalDistance: 0,
+    battlesWon: 0
+  })
+  const [userAchievements, setUserAchievements] = React.useState<any[]>([])
 
   React.useEffect(() => {
     const checkUser = async () => {
         const supabase = createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user?.email) {
-            setUserEmail(user.email)
+        // Use getSession instead of getUser for faster client-side check
+        const { data: { session } } = await supabase.auth.getSession()
+        const user = session?.user
+        
+        if (user) {
+            setIsLoggedIn(true)
+            if (user.email) setUserEmail(user.email)
+            
+            // Immediate UI render
+            setLoading(false)
+
+            // Sync global store in background
+            syncUserProfile()
+            
+            // Fetch stats and achievements in parallel
+            try {
+                const [stats, ach] = await Promise.all([
+                    getUserProfileStats(),
+                    fetchUserAchievements()
+                ])
+                
+                if (stats) setUserStats(stats)
+                if (ach) setUserAchievements(ach)
+            } catch (e: any) {
+                if (e?.name !== 'AbortError' && e?.digest !== 'NEXT_REDIRECT') {
+                    console.error("Failed to load profile stats", e)
+                }
+            } finally {
+                setStatsLoading(false)
+            }
+        } else {
+            setIsLoggedIn(false)
+            setLoading(false)
+            setStatsLoading(false)
         }
     }
     checkUser()
   }, [])
+
+  // If we have store data (nickname/level), we can show the UI immediately
+  // while "loading" might still be true for the session check.
+  // But to be safe, we use the local loading state for the auth check.
+  if (loading) {
+     // Show skeleton or simple loading
+     return (
+        <div className="flex h-full flex-col bg-[#1a1a1a] animate-pulse">
+            <div className="border-b border-white/10 bg-black/40 px-4 pb-6 pt-6 shrink-0 h-[280px]">
+               <div className="w-32 h-32 rounded-full bg-white/10 mx-auto mt-4"/>
+               <div className="w-32 h-8 rounded bg-white/10 mx-auto mt-4"/>
+            </div>
+            <div className="p-4 space-y-4">
+                <div className="h-20 bg-white/5 rounded-xl"/>
+                <div className="h-20 bg-white/5 rounded-xl"/>
+                <div className="h-20 bg-white/5 rounded-xl"/>
+            </div>
+        </div>
+     )
+  }
+
+  if (!isLoggedIn) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full px-4 pt-20 space-y-6">
+        <div className="relative w-24 h-24 rounded-full bg-white/5 flex items-center justify-center border-2 border-white/10">
+          <LogIn className="w-10 h-10 text-white/30" />
+        </div>
+        
+        <div className="text-center space-y-2">
+          <h2 className="text-xl font-bold text-white">未登录</h2>
+          <p className="text-sm text-white/50">登录后查看您的个人档案、成就和领地数据</p>
+        </div>
+
+        <Link href="/login" className="w-full max-w-xs">
+          <Button 
+            className="w-full bg-[#22c55e] hover:bg-[#16a34a] text-black font-bold h-12 rounded-full"
+          >
+            立即登录 / 注册
+          </Button>
+        </Link>
+      </div>
+    )
+  }
 
   const handleSaveProfile = async () => {
     if (!editName.trim()) {
@@ -97,8 +185,6 @@ export function Profile({ onOpenSettings }: { onOpenSettings: () => void }) {
     toast.success("已退出登录")
   }
 
-  const hydrated = useHydration();
-
   if (!hydrated) {
     return <div className="flex h-full items-center justify-center bg-[#1a1a1a] text-white/60">加载中...</div>;
   }
@@ -106,8 +192,8 @@ export function Profile({ onOpenSettings }: { onOpenSettings: () => void }) {
   // 计算经验进度百分比
   const xpProgress = Math.floor((currentExp / maxExp) * 100)
 
-  // 模拟的统计数据（这些可以后续从 API 获取）
-  const territoryHexCount = Math.floor(totalArea / 129) // 假设每个六边形约 129m²
+  // Real stats from DB
+  const territoryHexCount = userStats.totalTiles
   const territoryArea = formatAreaFromHexCount(territoryHexCount)
   const areaEquivalent = getAreaEquivalentFromHexCount(territoryHexCount)
 
@@ -256,7 +342,7 @@ export function Profile({ onOpenSettings }: { onOpenSettings: () => void }) {
             <StatCard
               icon={<Footprints className="h-6 w-6" />}
               label="总里程"
-              value="127.4"
+              value={userStats.totalDistance.toString()}
               unit="公里"
               color="text-[#39ff14]"
             />
@@ -271,14 +357,14 @@ export function Profile({ onOpenSettings }: { onOpenSettings: () => void }) {
             <StatCard
               icon={<Swords className="h-6 w-6" />}
               label="战斗胜利"
-              value="52"
+              value={userStats.battlesWon.toString()}
               unit="胜"
               color="text-purple-400"
             />
             <StatCard
               icon={<Eye className="h-6 w-6" />}
               label="迷雾探索"
-              value="34"
+              value="0" 
               unit="%"
               color="text-yellow-400"
             />
@@ -291,36 +377,19 @@ export function Profile({ onOpenSettings }: { onOpenSettings: () => void }) {
             />
             <StatCard
               icon={<Target className="h-6 w-6" />}
-              label="总占领面积"
-              value={totalArea.toLocaleString()}
-              unit="m²"
+              label="总占领地块"
+              value={userStats.totalTiles.toLocaleString()}
+              unit="块"
               color="text-pink-400"
             />
           </div>
         </div>
 
-        {/* Achievements Preview */}
+        {/* Badges Grid */}
         <div className="px-4 pb-4">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-white/40">最近成就</h2>
-          <div className="space-y-2">
-            <AchievementRow
-              icon="🏃"
-              title="马拉松跑者"
-              description="累计跑步100公里"
-              progress={100}
-            />
-            <AchievementRow
-              icon="⚔️"
-              title="领地战士"
-              description="赢得50场领地战斗"
-              progress={96}
-            />
-            <AchievementRow
-              icon="🗺️"
-              title="探索者"
-              description="揭开50%的迷雾"
-              progress={68}
-            />
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-white/40">勋章墙</h2>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+            <BadgeGrid />
           </div>
         </div>
 

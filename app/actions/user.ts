@@ -2,87 +2,142 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { cookies } from 'next/headers'
-import { Database } from '@/types/supabase'
 
-export async function getProfile() {
+export async function getUserProfileStats() {
   const cookieStore = await cookies()
   const supabase = createClient(cookieStore)
-  
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
 
-  const { data: profile, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single()
-
-  if (error) {
-    console.error('Error fetching profile:', error)
-    return null
+  if (!user) {
+    return {
+      totalTiles: 0,
+      totalArea: 0,
+      totalDistance: 0,
+      battlesWon: 0,
+      level: 1,
+      xp: 0,
+      coins: 0
+    }
   }
-  
-  return profile
-}
 
-export async function updateProfile(data: Database['public']['Tables']['profiles']['Update']) {
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
-  
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Unauthorized')
-
-  const { data: profile, error } = await (supabase
-    .from('profiles' as any) as any)
-    .update(data)
+  // Get Profile Data
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('level, current_exp, total_distance_km, coins')
     .eq('id', user.id)
-    .select()
     .single()
 
-  if (error) throw error
-  return profile
+  // Get User City Progress for Area/Tiles
+  const { data: progress } = await supabase
+    .from('user_city_progress')
+    .select('tiles_captured, area_controlled')
+    .eq('user_id', user.id)
+
+  let totalTiles = 0
+  let totalArea = 0
+  
+  if (progress) {
+    progress.forEach((p) => {
+      totalTiles += (p.tiles_captured || 0)
+      totalArea += Number(p.area_controlled || 0)
+    })
+  }
+
+  return {
+    totalTiles,
+    totalArea,
+    totalDistance: profile?.total_distance_km || 0,
+    battlesWon: 0, // Future: fetch from battle logs
+    level: profile?.level || 1,
+    xp: profile?.current_exp || 0,
+    coins: profile?.coins || 0
+  }
 }
 
-// ==================== Atomic Operations ====================
+export async function touchUserActivity() {
+  const cookieStore = await cookies()
+  const supabase = createClient(cookieStore)
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  if (!user) return
+
+  await supabase
+    .from('profiles')
+    .update({ updated_at: new Date().toISOString() })
+    .eq('id', user.id)
+}
+
+import { calculateLevel } from '@/lib/game-logic/level-system'
 
 export async function addExperience(amount: number) {
   const cookieStore = await cookies()
   const supabase = createClient(cookieStore)
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) return { success: false, error: 'Not authenticated' }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('level, current_exp')
+    .eq('id', user.id)
+    .single()
+
+  if (!profile) return { success: false, error: 'Profile not found' }
+
+  const newExp = (profile.current_exp || 0) + amount
+  const newLevel = calculateLevel(newExp)
   
-  const { data, error } = await supabase.rpc('add_user_experience' as any, { amount } as any)
-  
-  if (error) throw error
-  return data
+  const updates: { current_exp: number; updated_at: string; level?: number } = {
+    current_exp: newExp,
+    updated_at: new Date().toISOString()
+  }
+
+  if (newLevel > (profile.level || 1)) {
+    updates.level = newLevel
+    // Here we could also trigger level up notification or rewards
+  }
+
+  const { error } = await supabase
+    .from('profiles')
+    .update(updates)
+    .eq('id', user.id)
+
+  if (error) return { success: false, error: error.message }
+
+  return { 
+    success: true, 
+    newLevel, 
+    levelUp: newLevel > (profile.level || 1),
+    newExp 
+  }
 }
 
-export async function consumeStamina(amount: number) {
+export async function addCoins(amount: number) {
   const cookieStore = await cookies()
   const supabase = createClient(cookieStore)
-  
-  const { data: success, error } = await supabase.rpc('consume_user_stamina' as any, { amount } as any)
-  
-  if (error) throw error
-  if (!success) throw new Error('Not enough stamina')
-  
-  return success
-}
+  const { data: { user } } = await supabase.auth.getUser()
 
-export async function restoreStamina(amount: number) {
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
-  
-  const { data: newStamina, error } = await supabase.rpc('restore_user_stamina' as any, { amount } as any)
-  
-  if (error) throw error
-  return newStamina
-}
+  if (!user) return { success: false, error: 'Not authenticated' }
 
-export async function addTotalArea(amount: number) {
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
-  
-  const { data: newArea, error } = await supabase.rpc('add_user_area' as any, { amount } as any)
-  
-  if (error) throw error
-  return newArea
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('coins')
+    .eq('id', user.id)
+    .single()
+
+  if (!profile) return { success: false, error: 'Profile not found' }
+
+  const newCoins = (profile.coins || 0) + amount
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({ 
+      coins: newCoins,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', user.id)
+
+  if (error) return { success: false, error: error.message }
+
+  return { success: true, newCoins }
 }

@@ -1,11 +1,13 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
+import Link from "next/link"
+import { createClient } from "@/lib/supabase/client"
 import { useCity } from "@/contexts/CityContext";
 import { useRegion } from "@/contexts/RegionContext";
 import { useGameStore } from "@/store/useGameStore"
 import { useHydration } from "@/hooks/useHydration";
-import { ChevronDown, Calendar, Activity, MapPin, Navigation, User, Zap, Palette, Trophy } from "lucide-react"
+import { ChevronDown, Calendar, Activity, MapPin, Navigation, User, Zap, Palette, Trophy, LogIn, X } from "lucide-react"
 import { CityDrawer } from "./CityDrawer"
 import { LoadingSpinner } from "@/components/citylord/loading-screen"
 
@@ -53,6 +55,51 @@ function formatDuration(seconds: number): string {
 }
 
 import { GlassCard } from "@/components/ui/GlassCard"
+import { Button } from "@/components/ui/button"
+
+function LoginModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+  if (!isOpen) return null
+
+  return (
+    <div className="fixed inset-0 z-[500] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-300">
+      <div className="relative w-full max-w-sm">
+        <GlassCard className="p-6 flex flex-col items-center gap-4 border border-[#22c55e]/30 shadow-[0_0_30px_rgba(34,197,94,0.2)]">
+          <button 
+            onClick={onClose}
+            className="absolute right-4 top-4 p-1 rounded-full hover:bg-white/10 transition-colors"
+          >
+            <X className="w-4 h-4 text-white/60" />
+          </button>
+          
+          <div className="w-16 h-16 rounded-full bg-[#22c55e]/20 flex items-center justify-center mb-2">
+            <LogIn className="w-8 h-8 text-[#22c55e]" />
+          </div>
+          
+          <div className="text-center space-y-2">
+            <h3 className="text-xl font-bold text-white">欢迎加入 City Lord</h3>
+            <p className="text-sm text-white/60 leading-relaxed">
+              登录账号以保存您的领地探索进度、<br/>
+              积累成就并与好友一较高下！
+            </p>
+          </div>
+
+          <Link href="/login" className="w-full mt-2">
+            <Button className="w-full bg-[#22c55e] hover:bg-[#16a34a] text-black font-bold h-11 rounded-xl shadow-lg shadow-green-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]">
+              立即登录 / 注册
+            </Button>
+          </Link>
+          
+          <button 
+            onClick={onClose}
+            className="text-xs text-white/40 hover:text-white/60 transition-colors mt-2"
+          >
+            暂不登录，以游客身份试玩
+          </button>
+        </GlassCard>
+      </div>
+    </div>
+  )
+}
 
 /**
  * 地图头部状态栏组件
@@ -65,6 +112,31 @@ export function MapHeader({ isCityDrawerOpen, setIsCityDrawerOpen, setShowThemeS
 
   const { gpsStatus, level, currentExp, maxExp, stamina, maxStamina, lastStaminaUpdate } = useGameStore();
   const hydrated = useHydration();
+
+  const [isLoggedIn, setIsLoggedIn] = useState(true)
+  const [showLoginModal, setShowLoginModal] = useState(false)
+
+  useEffect(() => {
+    const checkUser = async () => {
+      try {
+        const supabase = createClient()
+        const { data: { session }, error } = await supabase.auth.getSession()
+        if (error) throw error
+        
+        const hasSession = !!session
+        setIsLoggedIn(hasSession)
+        if (!hasSession) {
+          // 延迟一点显示弹窗，避免加载时的闪烁
+          setTimeout(() => setShowLoginModal(true), 500)
+        }
+      } catch (e: any) {
+        if (e?.name !== 'AbortError' && e?.digest !== 'NEXT_REDIRECT') {
+            console.error("Failed to check session", e)
+        }
+      }
+    }
+    checkUser()
+  }, [])
 
   // GPS Status Config
   const getGpsStatusConfig = () => {
@@ -138,7 +210,11 @@ export function MapHeader({ isCityDrawerOpen, setIsCityDrawerOpen, setShowThemeS
             </button>
 
             {/* 中间：用户等级进度与体力 */}
-            <div className="flex-1 px-2 border-l border-r border-white/5 mx-1 flex flex-col gap-2">
+            <div className={`flex-1 px-2 border-l border-r border-white/5 mx-1 flex flex-col ${!isLoggedIn ? 'justify-center items-center opacity-0' : 'gap-2'}`}>
+              {!isLoggedIn ? (
+                null
+              ) : (
+                <>
               {/* Level & EXP */}
               <div className="flex flex-col gap-0.5">
                 <div className="flex items-center justify-between">
@@ -202,6 +278,8 @@ export function MapHeader({ isCityDrawerOpen, setIsCityDrawerOpen, setShowThemeS
                   </div>
                 </div>
               )}
+              </>
+              )}
             </div>
 
             {/* 右侧：GPS 状态 */}
@@ -223,6 +301,9 @@ export function MapHeader({ isCityDrawerOpen, setIsCityDrawerOpen, setShowThemeS
 
       {/* 城市切换抽屉 */}
       <CityDrawer isOpen={isCityDrawerOpen} onClose={() => setIsCityDrawerOpen(false)} />
+
+      {/* 登录提示弹窗 */}
+      <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} />
     </>
   )
 }

@@ -1,9 +1,11 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { useCity } from "@/contexts/CityContext"
-import { getChallengesByCityId, getAchievementsByCityId } from "@/lib/mock-data"
+import { fetchUserMissions, claimMissionReward } from "@/app/actions/mission"
+import { fetchUserAchievements } from "@/app/actions/achievement"
 import type { Challenge, Achievement } from "@/types/city"
+import { toast } from "sonner"
 import {
   ChallengeCard,
   ChallengeList,
@@ -29,10 +31,68 @@ export default function ChallengesPage() {
   const [selectedChallenge, setSelectedChallenge] = useState<Challenge | null>(null)
   const [showChallengeStart, setShowChallengeStart] = useState(false)
   const [showChallengeComplete, setShowChallengeComplete] = useState(false)
-  const [unlockedAchievement, setUnlockedAchievement] = useState<Achievement | null>(false as any)
+  const [unlockedAchievement, setUnlockedAchievement] = useState<Achievement | null>(null)
+  
+  const [challenges, setChallenges] = useState<Challenge[]>([])
+  const [achievements, setAchievements] = useState<Achievement[]>([])
 
-  const challenges = currentCity ? getChallengesByCityId(currentCity.id) : []
-  const achievements = currentCity ? getAchievementsByCityId(currentCity.id) : []
+  useEffect(() => {
+    async function loadData() {
+      if (!currentCity) return
+
+      try {
+        // Load Missions
+        const missionsData = await fetchUserMissions()
+        const mappedChallenges: Challenge[] = missionsData.map((m) => ({
+          id: m.id,
+          cityId: currentCity.id,
+          name: m.title,
+          description: m.description,
+          type: (['conquest', 'defense', 'exploration', 'social', 'daily'].includes(m.type) ? m.type : 'conquest') as any,
+          objective: { type: 'tiles', target: m.target, current: m.current }, // Default to 'tiles' if unknown
+          rewards: {
+            experience: m.reward.reward_experience || 0,
+            points: m.reward.reward_coins || 0
+          },
+          status: (m.status === 'completed' || m.status === 'claimed') ? 'completed' : 'available',
+          startDate: new Date().toISOString(), // Default to now
+          endDate: new Date(Date.now() + 86400000 * 7).toISOString(), // Default to 7 days later
+          progress: { current: m.current || 0, max: m.target || 100 },
+          isMainQuest: m.type === 'main',
+          isTimeLimited: false,
+          priority: 1
+        }))
+        setChallenges(mappedChallenges)
+
+        // Load Achievements
+        const achievementsData = await fetchUserAchievements()
+        const mappedAchievements: Achievement[] = achievementsData.map((a) => ({
+          id: a.achievementId,
+          cityId: currentCity.id,
+          name: a.name,
+          description: a.description,
+          type: (['milestone', 'collection', 'dominance', 'social', 'special'].includes(a.type) ? a.type : 'special') as any,
+          tier: (['bronze', 'silver', 'gold', 'platinum', 'diamond'].includes(a.tier) ? a.tier : 'bronze') as any,
+          conditions: { type: 'tiles_captured', threshold: a.condition.threshold }, // Simplified mapping
+          rewards: {
+            badge: a.rewards.badge || "default_badge",
+            experience: a.rewards.experience || 0,
+            points: a.rewards.points || 0,
+            title: undefined
+          },
+          isCompleted: a.isCompleted,
+          completedAt: a.completedAt || undefined,
+          progress: { current: a.progress, max: a.condition.threshold }
+        }))
+        setAchievements(mappedAchievements)
+      } catch (error: any) {
+        if (error?.name !== 'AbortError' && error?.digest !== 'NEXT_REDIRECT') {
+          console.error("Failed to load challenges/achievements:", error)
+        }
+      }
+    }
+    loadData()
+  }, [currentCity])
 
   // 等待 hydration 和城市加载完成
   if (!hydrated || isCityLoading) {
