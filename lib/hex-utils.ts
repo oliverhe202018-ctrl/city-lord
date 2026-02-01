@@ -74,4 +74,5 @@ export function h3SetToFeatureCollection(h3Indexes: string[]) {
 }
 
 // Alias for compatibility
+// GaodeMap3D expects a function that takes string[] and returns FeatureCollection
 export const h3ToAmapGeoJSON = h3SetToFeatureCollection;
