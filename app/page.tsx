@@ -51,7 +51,7 @@ import { AMapViewHandle } from "@/components/map/AMapView";
 
 const AMapView = nextDynamic(() => import("@/components/map/AMapViewWithProvider").then(mod => mod.AMapViewWithProvider), { ssr: false });
 
-
+export const dynamic = 'force-dynamic';
 export default function CityLordApp() {
   const { isLoading: isCityLoading, currentCity } = useCity()
   const { checkStaminaRecovery, dismissGeolocationPrompt, claimAchievement } = useGameActions()
