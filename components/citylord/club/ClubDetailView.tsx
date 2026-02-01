@@ -48,6 +48,8 @@ interface LeaderboardItem {
 export function ClubDetailView({ clubId }: { clubId: string }) {
   const [club, setClub] = useState<Club | null>(null);
   const [isOwner, setIsOwner] = useState(false);
+  const [territories, setTerritories] = useState<ClubTerritory[]>([]);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardItem[]>([]);
   const [manageOpen, setManageOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'info' | 'leaderboard' | 'territories' | 'history'>('info');
   const [leaderboardSubTab, setLeaderboardSubTab] = useState<'club' | 'province' | 'national'>('club');

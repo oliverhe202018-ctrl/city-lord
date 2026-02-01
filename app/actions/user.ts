@@ -84,7 +84,7 @@ export async function addExperience(amount: number) {
 
   if (!profile) return { success: false, error: 'Profile not found' }
 
-  const newExp = (profile.current_exp || 0) + amount
+  const newExp = ((profile as any).current_exp || 0) + amount
   const newLevel = calculateLevel(newExp)
   
   const updates: { current_exp: number; updated_at: string; level?: number } = {
@@ -92,7 +92,7 @@ export async function addExperience(amount: number) {
     updated_at: new Date().toISOString()
   }
 
-  if (newLevel > (profile.level || 1)) {
+  if (newLevel > ((profile as any).level || 1)) {
     updates.level = newLevel
     // Here we could also trigger level up notification or rewards
   }
@@ -127,14 +127,14 @@ export async function addCoins(amount: number) {
 
   if (!profile) return { success: false, error: 'Profile not found' }
 
-  const newCoins = (profile.coins || 0) + amount
+  const newCoins = ((profile as any).coins || 0) + amount
 
   const { error } = await supabase
     .from('profiles')
-    .update({ 
+    .update({
       coins: newCoins,
       updated_at: new Date().toISOString()
-    })
+    } as any)
     .eq('id', user.id)
 
   if (error) return { success: false, error: error.message }

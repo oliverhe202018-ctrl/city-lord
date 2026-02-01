@@ -124,7 +124,7 @@ export function ClubManageDrawer({ isOpen, onClose, club }: ClubManageDrawerProp
       try {
         if (view === 'requests') {
           const res = await getClubJoinRequests(targetClub.id)
-          if (res.success) setRequests(res.data)
+          if (res.success && res.requests) setRequests(res.requests)
           else toast({ title: '加载失败', description: res.error, variant: 'destructive' })
         } else if (view === 'members') {
           const res = await getClubMembers(targetClub.id)
@@ -145,10 +145,10 @@ export function ClubManageDrawer({ isOpen, onClose, club }: ClubManageDrawerProp
     if (!targetClub) return
     setIsLoading(true)
     try {
-      const result = await updateClub(targetClub.id, {
+      const result = await updateClubInfo(targetClub.id, {
         name: formData.name,
         description: formData.description,
-        avatar_url: formData.avatarUrl
+        avatarUrl: formData.avatarUrl
       })
 
       if (result.success) {

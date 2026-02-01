@@ -26,10 +26,13 @@ import { CounterAttackPage, CounterAttackProgressView } from "@/components/cityl
 import { NotificationProvider, NotificationPanel, sampleNotifications } from "@/components/citylord/notifications/notification-center"
 import { WelcomeScreen, InteractiveTutorial, QuickNavPopup, MapInteractionGuide } from "@/components/citylord/onboarding/complete-onboarding"
 import { HexCaptureEffect, AnimatedButton, GpsIndicator, PaceIndicator } from "@/components/citylord/animations"
-import { ImmersiveRunningMode, RunningFAB } from "@/components/citylord/running/immersive-mode"
 import { MapHeader } from "@/components/map/MapHeader"
 import { CityActivityBanner } from "@/components/map/CityActivityBanner"
 import { LoadingScreen } from "@/components/citylord/loading-screen"
+
+const ImmersiveRunningMode = nextDynamic(() => import("@/components/citylord/running/immersive-mode").then(mod => mod.ImmersiveRunningMode), { ssr: false });
+const RunningFAB = nextDynamic(() => import("@/components/citylord/running/immersive-mode").then(mod => mod.RunningFAB), { ssr: false });
+
 import { useCity } from "@/contexts/CityContext"
 import {
   GpsWeakPopup,

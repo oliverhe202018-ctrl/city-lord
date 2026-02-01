@@ -550,6 +550,7 @@ export interface Database {
           }
         ]
       }
+    }
     Functions: {
       increment_user_tiles: {
         Args: {
@@ -576,8 +577,4 @@ export interface Database {
     }
   }
 }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
-}
+

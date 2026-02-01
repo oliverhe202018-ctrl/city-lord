@@ -172,3 +172,25 @@ export async function claimMissionReward(missionId: string) {
 
   return { success: true }
 }
+
+export async function claimAllMissionsRewards(missionIds: string[]) {
+  // Parallel execution might be faster but could hit rate limits or race conditions on profile updates.
+  // Sequential is safer for profile updates (read-modify-write pattern in claimMissionReward).
+  let successCount = 0;
+  let failures = [];
+
+  for (const id of missionIds) {
+    const result = await claimMissionReward(id);
+    if (result.success) {
+      successCount++;
+    } else {
+      failures.push({ id, error: result.error });
+    }
+  }
+
+  return {
+    success: true,
+    claimedCount: successCount,
+    failures
+  };
+}
