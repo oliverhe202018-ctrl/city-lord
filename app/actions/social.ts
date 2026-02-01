@@ -194,7 +194,7 @@ export async function fetchFriendActivities(): Promise<FriendActivity[]> {
     .select('id, nickname, avatar_url, level')
     .in('id', friendIds)
 
-  const profileMap = new Map(friendProfiles?.map((p) => [p.id, p]) || [])
+  const profileMap = new Map((friendProfiles as any[])?.map((p) => [p.id, p]) || [])
 
   const captureActivities: FriendActivity[] = (territories || []).map((t) => {
     const profile = profileMap.get(t.owner_id)

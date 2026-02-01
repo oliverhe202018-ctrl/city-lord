@@ -71,12 +71,14 @@ export async function createClub(data: { name: string; description?: string; ava
       throw error
     }
 
+    const clubAny = club as any;
+
     return {
-      ...club,
-      level: club.level || '初级',
-      rating: club.rating || 5.0,
-      member_count: club.member_count || 1,
-      territory: club.territory || '0 mi²'
+      ...clubAny,
+      level: clubAny.level || '初级',
+      rating: clubAny.rating || 5.0,
+      member_count: clubAny.member_count || 1,
+      territory: clubAny.territory || '0 mi²'
     }
   } catch (err) {
     console.error('Create Club Exception:', err)
@@ -256,7 +258,7 @@ async function checkClubOwner(supabase: any, clubId: string, userId: string) {
     .single()
     
   if (error || !club) return false
-  return club.owner_id === userId
+  return (club as any).owner_id === userId
 }
 
 // ==================== New Management Actions ====================
