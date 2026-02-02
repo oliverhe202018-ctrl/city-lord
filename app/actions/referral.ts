@@ -29,7 +29,7 @@ export async function processReferral(newUserId: string, referrerId: string) {
   const { data, error } = await supabase.rpc('process_referral', {
     new_user_id: newUserId,
     referrer_id: referrerId
-  })
+  } as any)
 
   if (error) {
     console.error('Error processing referral:', error)

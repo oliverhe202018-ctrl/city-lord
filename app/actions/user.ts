@@ -81,17 +81,21 @@ export async function getUserProfileStats() {
   }
 
   // Get Profile Data
-  const { data: profile } = await supabase
+  const { data: profileData } = await supabase
     .from('profiles')
     .select('level, current_exp, total_distance_km, coins')
     .eq('id', user.id)
     .single()
+    
+  const profile = profileData as any;
 
   // Get User City Progress for Area/Tiles
-  const { data: progress } = await supabase
+  const { data: progressData } = await supabase
     .from('user_city_progress')
     .select('tiles_captured, area_controlled')
     .eq('user_id', user.id)
+    
+  const progress = progressData as any;
 
   let totalTiles = 0
   let totalArea = 0

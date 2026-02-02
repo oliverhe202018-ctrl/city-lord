@@ -58,8 +58,8 @@ export function ModeSwitcher({ onDrawerOpenChange }: ModeSwitcherProps) {
 
   return (
     <>
-      {/* Adjusted top position to avoid collision with status bar (top-32 instead of top-[...]+70px) */}
-      <div className="fixed top-32 left-1/2 -translate-x-1/2 z-[40] bg-black/40 backdrop-blur-xl p-1.5 rounded-2xl flex items-center gap-1 shadow-lg border border-white/5 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
+      {/* Adjusted top position to be closer to MapHeader (approx 60px height for header) */}
+      <div className="fixed top-[calc(env(safe-area-inset-top)+60px)] left-1/2 -translate-x-1/2 z-[40] bg-black/40 backdrop-blur-xl p-1.5 rounded-2xl flex items-center gap-1 shadow-lg border border-white/5 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
         {modes.map((mode) => {
           const isActive = gameMode === mode.id;
           return (

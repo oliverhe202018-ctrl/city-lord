@@ -30,21 +30,38 @@ function MemberCard({ member }: { member: ClubMember }) {
   );
 }
 
+// Cache outside component to persist across unmounts
+let cachedClubs: any[] | null = null;
+let lastFetchTime = 0;
+const CACHE_DURATION = 60 * 1000; // 1 minute cache
+
 function ClubList() {
   const { region } = useRegion();
   const { province, cityName, countyName } = region || {};
   const [joinedClubs, setJoinedClubs] = useState<Set<string>>(new Set());
-  const [availableClubs, setAvailableClubs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [availableClubs, setAvailableClubs] = useState<any[]>(cachedClubs || []);
+  const [loading, setLoading] = useState(!cachedClubs);
 
   // 获取位置名称，避免 undefined
   const locationName = cityName || countyName || '城市';
 
   useEffect(() => {
     async function loadClubs() {
+      // Use cache if valid
+      if (cachedClubs && Date.now() - lastFetchTime < CACHE_DURATION) {
+        setAvailableClubs(cachedClubs);
+        setLoading(false);
+        return;
+      }
+
       try {
+        setLoading(true);
         const clubs = await getClubs();
         setAvailableClubs(clubs);
+        
+        // Update cache
+        cachedClubs = clubs;
+        lastFetchTime = Date.now();
       } catch (error) {
         console.error('Failed to load clubs:', error);
       } finally {

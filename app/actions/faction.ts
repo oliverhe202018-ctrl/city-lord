@@ -42,11 +42,13 @@ export async function joinFaction(faction: Faction) {
   }
 
   // 1. Get current profile to check restrictions
-  const { data: profile, error: fetchError } = await supabase
+  const { data: profileData, error: fetchError } = await supabase
     .from('profiles')
     .select('faction, last_faction_change_at')
     .eq('id', user.id)
     .single()
+  
+  const profile = profileData as any;
 
   if (fetchError || !profile) {
     return { success: false, error: 'Profile not found' }

@@ -59,6 +59,7 @@ import { FactionSelector } from "@/components/social/FactionSelector"
 import { ReferralWelcome } from "@/components/social/ReferralWelcome"
 import { useSearchParams } from 'next/navigation'
 import { processReferral } from "@/app/actions/referral"
+import { fetchUserMissions } from "@/app/actions/mission"
 
 export const dynamic = 'force-dynamic';
 
@@ -67,8 +68,34 @@ function CityLordContent() {
   const { isLoading: isCityLoading, currentCity } = useCity()
   const { checkStaminaRecovery, dismissGeolocationPrompt, claimAchievement } = useGameActions()
   const { achievements } = useGameUser()
+  const hydrated = useHydration();
   const mapViewRef = useRef<AMapViewHandle>(null);
   const [showTerritory, setShowTerritory] = useState(true);
+
+  // Mission Count
+  const [missionCount, setMissionCount] = useState(0)
+
+  // Fetch mission count on load
+  useEffect(() => {
+    async function loadMissions() {
+      try {
+        const missions = await fetchUserMissions()
+        // Count missions that are 'completed' (claimable)
+        // Or if we want to show 'Active' count, we can filter by 'active'/'in-progress'
+        // User asked for "real mission counts" to replace "hardcoded 3".
+        // Usually badge = claimable.
+        const claimable = missions.filter((m: any) => m.status === 'completed').length
+        setMissionCount(claimable)
+      } catch (e) {
+        console.error("Failed to load missions", e)
+      }
+    }
+    // Only fetch if we have a city loaded (implies user is somewhat ready/auth)
+    // Or just check hydration
+    if (hydrated) {
+      loadMissions()
+    }
+  }, [hydrated])
 
   // 全屏加载状态 - 必须在所有 hooks 之后 return
   const [activeTab, setActiveTab] = useState<TabType>("play")
@@ -132,8 +159,7 @@ function CityLordContent() {
   const gameMode = useGameStore((state) => state.gameMode);
   const gpsError = useGameStore((state) => state.gpsError);
   const hasDismissedGeolocationPrompt = useGameStore((state) => state.hasDismissedGeolocationPrompt);
-  const hydrated = useHydration();
-
+  
   // Check if first visit - 只在首次挂载时执行
   useEffect(() => {
     const hasVisited = localStorage.getItem('hasVisited')
@@ -236,6 +262,7 @@ function CityLordContent() {
         isOpen={showQuickNav}
         onClose={() => setShowQuickNav(false)}
         onNavigate={(tab) => setActiveTab(tab as TabType)}
+        missionCount={missionCount}
       />
 
       {/* Map Interaction Guide */}
@@ -295,7 +322,7 @@ function CityLordContent() {
               {/* Bottom controls container - 只在 gameMode === 'map' 时显示今日任务、开始跑步、好友，且抽屉关闭时 */}
               {gameMode === 'map' && !shouldHideButtons && (
                 <div className="pointer-events-auto absolute bottom-24 left-4 right-4 z-20 flex justify-center">
-                  <QuickEntry onNavigate={handleQuickNavigate} />
+                  <QuickEntry onNavigate={handleQuickNavigate} missionCount={missionCount} />
                 </div>
               )}
 
