@@ -7,6 +7,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { ChevronDown } from "lucide-react";
 import { X, Search, MapPin, Users, TrendingUp, Sparkles, ArrowRight, Check } from "lucide-react"
 import { LoadingSpinner } from "@/components/citylord/loading-screen"
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from "@/components/ui/drawer"
+import { cn } from "@/lib/utils"
 
 /**
  * 城市切换抽屉组件
@@ -95,45 +97,31 @@ export function CityDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () =
     return text;
   };
 
-  if (!isOpen) return null
-
   return (
-    <>
-      {/* 背景遮罩 */}
-      <div
-        className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm transition-opacity duration-300"
-        onClick={onClose}
-      />
-
-      {/* 抽屉容器 */}
-      <div
-        className={`fixed top-0 right-0 bottom-0 z-[201] w-full max-w-md bg-slate-900/95 backdrop-blur-xl border-l border-white/10 flex flex-col transform transition-transform duration-300 ease-in-out ${
-          isOpen ? "translate-x-0" : "translate-x-full"
-        }`}>
-        {/* 抽屉头部 */}
-        <div className="sticky top-0 z-10 border-b border-white/10 bg-slate-900/95 backdrop-blur-xl">
-          {/* 标题栏 */}
-          <div className="flex items-center justify-between px-5 py-4">
+    <Drawer open={isOpen} onOpenChange={(open) => !open && onClose()} snapPoints={[0.4, 0.95]}>
+      <DrawerContent className="max-h-[96vh] flex flex-col bg-slate-900/95 border-t border-white/10 backdrop-blur-xl">
+        <div className="flex justify-center pt-4 pb-2">
+            <div className="w-12 h-1.5 bg-white/20 rounded-full" />
+        </div>
+        
+        <DrawerHeader className="px-5 pt-0 pb-4">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-white/10 to-white/5 flex items-center justify-center">
                 <MapPin className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-white">切换城市</h2>
+                <DrawerTitle className="text-lg font-bold text-white">切换城市</DrawerTitle>
                 <p className="text-xs text-white/50">选择一个城市开始征服</p>
               </div>
             </div>
-            <button
-              onClick={onClose}
-              className="p-2 rounded-lg hover:bg-white/10 transition-colors"
-            >
+            <DrawerClose className="p-2 rounded-lg hover:bg-white/10 transition-colors">
               <X className="w-5 h-5 text-white/60" />
-            </button>
+            </DrawerClose>
           </div>
 
           {/* 搜索框 */}
-          <div className="px-5 pb-4">
-            <div className="relative">
+          <div className="mt-4 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
               <input
                 type="text"
@@ -142,11 +130,10 @@ export function CityDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () =
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/40 text-sm focus:outline-none focus:border-white/30 focus:bg-white/10 transition-all"
               />
-            </div>
           </div>
-        </div>
+        </DrawerHeader>
 
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 pb-24">
+        <div className="flex-1 overflow-y-auto px-5 py-2 space-y-3 pb-8">
           {filteredData.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <MapPin className="w-12 h-12 text-white/20 mb-3" />
@@ -163,7 +150,10 @@ export function CityDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () =
                 );
               }}>
                 <CollapsibleTrigger className="w-full flex items-center justify-between p-4 rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 transition-all">
-                  <div onClick={() => handleSelectRegion(city, 'city')} className="flex-1 text-left">
+                  <div onClick={(e) => {
+                     e.stopPropagation(); // Prevent toggling when clicking name
+                     handleSelectRegion(city, 'city');
+                  }} className="flex-1 text-left cursor-pointer">
                     <h3 className="font-bold">{highlightText(city.name, searchQuery)}</h3>
                   </div>
                   {city.districts && city.districts.length > 0 && (
@@ -183,7 +173,7 @@ export function CityDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () =
         </div>
 
         {/* 底部提示 */}
-        <div className="sticky bottom-0 border-t border-white/10 bg-slate-900/95 backdrop-blur-xl px-5 py-4">
+        <div className="border-t border-white/10 bg-slate-900/50 px-5 py-4 pb-8">
           <div className="flex items-start gap-3 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20">
             <Sparkles className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
@@ -194,8 +184,7 @@ export function CityDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () =
             </div>
           </div>
         </div>
-      </div>
-    </>
+      </DrawerContent>
+    </Drawer>
   )
 }
-

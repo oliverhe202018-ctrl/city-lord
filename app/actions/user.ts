@@ -101,7 +101,7 @@ export async function getUserProfileStats() {
   let totalArea = 0
   
   if (progress) {
-    progress.forEach((p) => {
+    (progress as any[]).forEach((p: any) => {
       totalTiles += (p.tiles_captured || 0)
       totalArea += Number(p.area_controlled || 0)
     })

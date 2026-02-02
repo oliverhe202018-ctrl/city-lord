@@ -198,10 +198,9 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
   };
 
   return (
-    <Drawer open={isOpen} onOpenChange={onClose}>
+    <Drawer open={isOpen} onOpenChange={onClose} snapPoints={[0.4, 0.95]}>
       <DrawerContent
-        className="bg-zinc-900/90 border-t border-white/10 rounded-t-[32px] w-full overflow-x-hidden"
-        style={{ maxHeight: '85dvh' }}
+        className="bg-zinc-900/90 border-t border-white/10 rounded-t-[32px] w-full overflow-x-hidden flex flex-col h-full max-h-[96vh]"
       >
         {/* 顶部拖拽手柄 */}
         <div className="flex justify-center pt-4 pb-2">

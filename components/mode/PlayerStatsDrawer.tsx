@@ -39,8 +39,8 @@ export function PlayerStatsDrawer({ isOpen, onClose, player }: PlayerStatsDrawer
   if (!player) return null;
 
   return (
-    <Drawer open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DrawerContent className="bg-zinc-900/95 border-t border-white/10 rounded-t-[32px] max-h-[90vh] max-w-[100vw] overflow-x-hidden">
+    <Drawer open={isOpen} onOpenChange={(open) => !open && onClose()} snapPoints={[0.4, 0.95]}>
+      <DrawerContent className="bg-zinc-900/95 border-t border-white/10 rounded-t-[32px] max-h-[96vh] max-w-[100vw] overflow-x-hidden flex flex-col h-full">
         <div className="flex justify-center pt-4 pb-2">
           <div className="w-12 h-1.5 bg-white/20 rounded-full" />
         </div>

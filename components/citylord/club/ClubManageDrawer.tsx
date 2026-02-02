@@ -435,8 +435,8 @@ export function ClubManageDrawer({ isOpen, onClose, club }: ClubManageDrawerProp
   }
 
   return (
-    <Drawer open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DrawerContent>
+    <Drawer open={isOpen} onOpenChange={(open) => !open && onClose()} snapPoints={[0.4, 0.95]}>
+      <DrawerContent className="max-h-[96vh] flex flex-col h-full">
         <DrawerHeader className="border-b pb-4">
           <div className="flex items-center gap-2">
             {view !== 'menu' && (
