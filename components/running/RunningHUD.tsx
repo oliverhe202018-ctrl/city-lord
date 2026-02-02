@@ -445,3 +445,5 @@ export function RunningHUD({
       </div>
     </div>
     </>
+  )
+}
