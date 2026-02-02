@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useGeolocation } from './useGeolocation';
 import gcoord from 'gcoord';
 
-interface Location {
+export interface Location {
   lat: number;
   lng: number;
   timestamp: number;

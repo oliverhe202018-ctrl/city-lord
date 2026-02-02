@@ -11,6 +11,17 @@ import { AchievementPopup } from "../achievement-popup"
 import { RunningHUD } from "@/components/running/RunningHUD"
 import { GaodeMap3D } from "@/components/map/GaodeMap3D"
 import { RunSummaryView } from "@/components/running/RunSummaryView"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Location } from "@/hooks/useRunningTracker"
 
 interface ImmersiveModeProps {
   isActive: boolean
@@ -26,7 +37,22 @@ interface ImmersiveModeProps {
   onStop: () => void
   onExpand: () => void
   currentLocation?: { lat: number; lng: number }
+  path?: Location[]
   onHexClaimed?: () => void
+}
+
+// Helper: Calculate distance between two points in meters
+function getDistanceFromLatLonInMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const R = 6371e3; // Radius of the earth in meters
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const d = R * c; // Distance in meters
+  return d;
 }
 
 export function ImmersiveRunningMode({
@@ -43,6 +69,7 @@ export function ImmersiveRunningMode({
   onStop,
   onExpand,
   currentLocation,
+  path = [],
   onHexClaimed,
 }: ImmersiveModeProps) {
   const [isPaused, setIsPaused] = useState(false)
@@ -50,6 +77,9 @@ export function ImmersiveRunningMode({
   const [showSummary, setShowSummary] = useState(false)
   const [displayedArea, setDisplayedArea] = useState(0)
   const [areaFlash, setAreaFlash] = useState(false)
+  const [showLoopWarning, setShowLoopWarning] = useState(false)
+  const [effectiveHexes, setEffectiveHexes] = useState(0)
+  
   const { currentCity } = useCity() // Removed refreshTerritories as it's not in context
   const [lastClaimedHex, setLastClaimedHex] = useState<string | null>(null)
   
@@ -182,13 +212,37 @@ export function ImmersiveRunningMode({
   }, [isPaused, onPause, onResume])
 
   const handleStop = useCallback(() => {
-    if (!showStopConfirm) {
-      setShowStopConfirm(true)
+    // Logic moved to handleAttemptStop
+  }, [])
+
+  const handleAttemptStop = () => {
+    // If no path data or very short path, just proceed
+    if (!path || path.length < 2) {
+      setEffectiveHexes(hexesCaptured)
+      setShowSummary(true)
       return
     }
-    onStop()
-    setShowStopConfirm(false)
-  }, [showStopConfirm, onStop])
+
+    const startPoint = path[0]
+    const endPoint = path[path.length - 1]
+    
+    // Calculate gap between start and end
+    const gap = getDistanceFromLatLonInMeters(
+        startPoint.lat, startPoint.lng,
+        endPoint.lat, endPoint.lng
+    )
+
+    const LOOP_THRESHOLD = 50 // meters
+
+    if (gap <= LOOP_THRESHOLD) {
+        // Closed loop
+        setEffectiveHexes(hexesCaptured)
+        setShowSummary(true)
+    } else {
+        // Open loop - Warn user
+        setShowLoopWarning(true)
+    }
+  }
 
   // Reset stop confirm after 3s
   useEffect(() => {
@@ -205,7 +259,7 @@ export function ImmersiveRunningMode({
         duration={time}
         pace={pace}
         calories={calories}
-        hexesCaptured={hexesCaptured}
+        hexesCaptured={effectiveHexes}
         onClose={() => {
           setShowSummary(false)
           onStop()
@@ -221,6 +275,38 @@ export function ImmersiveRunningMode({
 
   return (
     <div className="fixed inset-0 z-[9999] flex h-[100dvh] w-full flex-col bg-black/60 backdrop-blur-sm">
+      {/* Loop Warning Dialog */}
+      <AlertDialog open={showLoopWarning} onOpenChange={setShowLoopWarning}>
+        <AlertDialogContent className="w-[90%] rounded-xl bg-[#1a1a1a] text-white border-white/10">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-bold text-center">未形成闭环</AlertDialogTitle>
+            <AlertDialogDescription className="text-white/60 text-center text-base">
+              当前跑步路径未回到起点附近，无法形成有效领地闭环。
+              <br/><br/>
+              如果现在结束，<span className="text-red-400 font-bold">将不会计算</span>本次圈地面积。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-row gap-3 sm:gap-0 mt-4">
+            <AlertDialogCancel 
+              className="flex-1 bg-white/10 border-0 text-white hover:bg-white/20 h-12 rounded-full"
+              onClick={() => setShowLoopWarning(false)}
+            >
+              继续跑步
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              className="flex-1 bg-red-500 text-white hover:bg-red-600 h-12 rounded-full border-0"
+              onClick={() => {
+                setShowLoopWarning(false)
+                setEffectiveHexes(0)
+                setShowSummary(true)
+              }}
+            >
+              确认结束
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Map Background Layer */}
       <div className="absolute inset-0 z-0">
         {currentLocation && (
@@ -254,7 +340,7 @@ export function ImmersiveRunningMode({
             onPause()
           }
         }}
-        onStop={() => setShowSummary(true)}
+        onStop={handleAttemptStop}
       />
     </div>
   )
