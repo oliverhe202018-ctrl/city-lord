@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { cookies } from 'next/headers'
 
-import { ensureDailyMissions } from '@/lib/game-logic/mission-service'
+import { ensureUserMissions } from '@/lib/game-logic/mission-service'
 
 export interface Mission {
   id: string
@@ -30,8 +30,8 @@ export async function fetchUserMissions() {
 
   if (!user) return []
 
-  // Ensure daily missions are reset if needed (Lazy Load)
-  await ensureDailyMissions(user.id)
+  // Ensure user missions are assigned/reset if needed (Lazy Load)
+  await ensureUserMissions(user.id)
 
   const { data, error } = await supabase
     .from('user_missions')
@@ -107,7 +107,7 @@ export async function claimMissionReward(missionId: string) {
   const { data, error } = await supabase.rpc('claim_mission_reward_rpc', {
     p_user_id: user.id,
     p_mission_id: missionId
-  })
+  } as any)
 
   if (error) {
     console.error('Error claiming mission:', error)

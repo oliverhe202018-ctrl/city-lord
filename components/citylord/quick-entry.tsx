@@ -8,7 +8,7 @@ interface QuickEntryProps {
   rank?: number
 }
 
-export function QuickEntry({ onNavigate, missionCount = 3, rank = 42 }: QuickEntryProps) {
+export function QuickEntry({ onNavigate, missionCount = 0, rank = 42 }: QuickEntryProps) {
   return (
     <div className="grid grid-cols-3 gap-3">
       {/* Missions Entry */}

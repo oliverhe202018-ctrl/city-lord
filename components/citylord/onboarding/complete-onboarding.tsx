@@ -423,9 +423,10 @@ interface QuickNavPopupProps {
   isOpen: boolean
   onClose: () => void
   onNavigate: (tab: string) => void
+  missionCount?: number
 }
 
-export function QuickNavPopup({ isOpen, onClose, onNavigate }: QuickNavPopupProps) {
+export function QuickNavPopup({ isOpen, onClose, onNavigate, missionCount }: QuickNavPopupProps) {
   if (!isOpen) return null
 
   const navOptions = [
@@ -435,7 +436,7 @@ export function QuickNavPopup({ isOpen, onClose, onNavigate }: QuickNavPopupProp
       description: "完成任务获取奖励",
       icon: Target,
       color: "#22c55e",
-      badge: "3个可领取",
+      badge: missionCount !== undefined && missionCount > 0 ? `${missionCount}个可领取` : undefined,
     },
     {
       id: "leaderboard",

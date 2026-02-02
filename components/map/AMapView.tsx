@@ -99,6 +99,16 @@ const MapViewOrchestrator = () => {
   // Handle and log errors
   useEffect(() => {
     if (geoError) {
+      // Filter out common "Network service" errors in dev/China without VPN
+      const isNetworkServiceError = geoError.message?.includes("network service") || geoError.message?.includes("Network location provider");
+      
+      if (isNetworkServiceError) {
+        console.warn("Geolocation network service failed (likely due to network/proxy). Falling back to default location.");
+        setGpsStatus('weak', "网络定位服务不可用，使用默认位置");
+        // Don't toast for this common dev environment issue, just fallback
+        return;
+      }
+
       console.error("Geolocation Error:", geoError.message);
       setGpsStatus('error', geoError.message);
       
@@ -137,9 +147,10 @@ export type AMapViewHandle = {
 
 export interface AMapViewProps {
   showTerritory: boolean;
+  onMapLoad?: () => void;
 }
 
-const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(({ showTerritory }, ref) => {
+const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(({ showTerritory, onMapLoad }, ref) => {
   const mapDomRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any | null>(null);
   const { setMap } = useAMap();
@@ -209,6 +220,11 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(({ showTerritory }, r
 
         // Set the map in the context
         setMap(mapRef.current);
+        
+        // Notify parent that map is loaded
+        if (onMapLoad) {
+          onMapLoad();
+        }
 
         const updateMapState = () => {
           if (!mapRef.current) return;
