@@ -257,12 +257,12 @@ export function MissionCenter() {
         
         if (userMissions) {
           const formattedMissions: MissionData[] = userMissions.map((m: any) => {
-            const hasXp = m.reward.experience > 0
-            const hasCoins = m.reward.coins > 0
+            const hasXp = m.reward.reward_experience > 0
+            const hasCoins = m.reward.reward_coins > 0
             
             let rewardType: "xp" | "coins" | "both" = "xp"
             let rewardLabel = "经验"
-            let rewardAmount = m.reward.experience
+            let rewardAmount = m.reward.reward_experience
 
             if (hasXp && hasCoins) {
               rewardType = "both"
@@ -271,7 +271,7 @@ export function MissionCenter() {
             } else if (hasCoins) {
               rewardType = "coins"
               rewardLabel = "金币"
-              rewardAmount = m.reward.coins
+              rewardAmount = m.reward.reward_coins
             }
 
             return {
@@ -284,8 +284,8 @@ export function MissionCenter() {
               maxProgress: m.target,
               reward: { 
                 type: rewardType,
-                xpAmount: m.reward.experience,
-                coinsAmount: m.reward.coins,
+                xpAmount: m.reward.reward_experience,
+                coinsAmount: m.reward.reward_coins,
                 amount: rewardAmount, // For simple display
                 label: rewardLabel 
               },
@@ -321,6 +321,65 @@ export function MissionCenter() {
         </div>
       </div>
     )
+  }
+
+  // Debug: Manual Initialization
+  const handleDebugInit = async () => {
+    setLoading(true)
+    try {
+      toast.info("正在尝试初始化任务...")
+      // Force re-fetch which triggers initialization
+      const userMissions = await fetchUserMissions()
+      if (userMissions && userMissions.length > 0) {
+        toast.success(`初始化成功！找到 ${userMissions.length} 个任务`)
+        // Update local state
+        const formattedMissions: MissionData[] = userMissions.map((m: any) => {
+            const hasXp = m.reward.reward_experience > 0
+            const hasCoins = m.reward.reward_coins > 0
+            
+            let rewardType: "xp" | "coins" | "both" = "xp"
+            let rewardLabel = "经验"
+            let rewardAmount = m.reward.reward_experience
+
+            if (hasXp && hasCoins) {
+              rewardType = "both"
+              rewardLabel = "奖励"
+              rewardAmount = 0 // Not used for display in simple view
+            } else if (hasCoins) {
+              rewardType = "coins"
+              rewardLabel = "金币"
+              rewardAmount = m.reward.reward_coins
+            }
+
+            return {
+              id: m.id,
+              title: m.title,
+              description: m.description,
+              type: m.frequency === 'achievement' ? 'achievement' : (m.frequency || m.type) as MissionType,
+              status: m.status as MissionStatus,
+              progress: m.current,
+              maxProgress: m.target,
+              reward: { 
+                type: rewardType,
+                xpAmount: m.reward.reward_experience,
+                coinsAmount: m.reward.reward_coins,
+                amount: rewardAmount, // For simple display
+                label: rewardLabel 
+              },
+              difficulty: "medium", // Default
+              icon: Hexagon, // Default
+            }
+          })
+          setMissions(formattedMissions)
+      } else {
+        toast.warning("初始化完成，但未找到任务。请检查数据库 RLS 策略。")
+      }
+    } catch (e) {
+      console.error("Debug Init Failed:", e)
+      toast.error("初始化失败，请查看控制台日志")
+    } finally {
+      setLoading(false)
+    }
   }
 
   const claimableCount = missions.filter(m => m.status === "completed").length
@@ -454,7 +513,18 @@ export function MissionCenter() {
       {loading ? (
         <div className="py-10 text-center text-white/50">加载中...</div>
       ) : filteredMissions.length === 0 ? (
-        <div className="py-10 text-center text-white/50">暂无任务</div>
+        <div className="flex flex-col items-center justify-center py-10 gap-4">
+          <div className="text-white/50">暂无任务</div>
+          <CyberButton 
+            variant="secondary" 
+            size="sm" 
+            onClick={handleDebugInit}
+            className="border-white/20 hover:bg-white/10"
+          >
+            <Sparkles className="mr-2 h-4 w-4 text-cyan-400" />
+            手动初始化任务
+          </CyberButton>
+        </div>
       ) : (
         <div className="space-y-4">
           {filteredMissions.map((mission) => (

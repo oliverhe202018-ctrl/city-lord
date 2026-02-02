@@ -1,27 +1,148 @@
+
 import { createClient } from '@/lib/supabase/server'
 import { cookies } from 'next/headers'
+
+// Define the default missions structure
+export const DEFAULT_MISSIONS = [
+  // Daily Missions
+  {
+    id: 'daily_run_1',
+    title: '每日开跑',
+    description: '完成一次任意距离的跑步',
+    type: 'RUN_COUNT',
+    target: 1,
+    reward_coins: 10,
+    reward_experience: 50,
+    frequency: 'daily'
+  },
+  {
+    id: 'daily_dist_3',
+    title: '每日3公里',
+    description: '单日累计跑步距离达到3公里',
+    type: 'DISTANCE',
+    target: 3000, // meters
+    reward_coins: 30,
+    reward_experience: 100,
+    frequency: 'daily'
+  },
+  {
+    id: 'daily_hex_10',
+    title: '领地扩张',
+    description: '单日占领或访问10个地块',
+    type: 'HEX_COUNT',
+    target: 10,
+    reward_coins: 20,
+    reward_experience: 80,
+    frequency: 'daily'
+  },
+  
+  // Weekly Missions
+  {
+    id: 'weekly_dist_15',
+    title: '周跑者',
+    description: '本周累计跑步15公里',
+    type: 'DISTANCE',
+    target: 15000,
+    reward_coins: 100,
+    reward_experience: 500,
+    frequency: 'weekly'
+  },
+  {
+    id: 'weekly_night_3',
+    title: '夜行侠',
+    description: '本周完成3次夜跑（22:00-04:00）',
+    type: 'NIGHT_RUN',
+    target: 3,
+    reward_coins: 80,
+    reward_experience: 400,
+    frequency: 'weekly'
+  },
+  {
+    id: 'weekly_active_3',
+    title: '活跃跑者',
+    description: '本周累计跑步3天',
+    type: 'ACTIVE_DAYS',
+    target: 3,
+    reward_coins: 50,
+    reward_experience: 300,
+    frequency: 'weekly'
+  },
+
+  // Achievements
+  {
+    id: 'ach_first_run',
+    title: '初次启程',
+    description: '完成你的第一次跑步',
+    type: 'RUN_COUNT',
+    target: 1,
+    reward_coins: 50,
+    reward_experience: 200,
+    frequency: 'achievement'
+  },
+  {
+    id: 'ach_marathon',
+    title: '累计马拉松',
+    description: '累计跑步距离达到42.195公里',
+    type: 'DISTANCE',
+    target: 42195,
+    reward_coins: 500,
+    reward_experience: 2000,
+    frequency: 'achievement'
+  },
+  {
+    id: 'ach_landlord',
+    title: '大地主',
+    description: '累计拥有100个地块',
+    type: 'HEX_TOTAL', // Check total owned hexes
+    target: 100,
+    reward_coins: 1000,
+    reward_experience: 5000,
+    frequency: 'achievement'
+  }
+] as const;
 
 /**
  * Ensures that user has all required missions assigned and resets them if needed.
  * This implements the "Lazy Load" strategy.
- * 
- * Logic:
- * 1. Fetch all 'daily' and 'weekly' mission templates.
- * 2. Fetch existing user_missions.
- * 3. Create missing missions.
- * 4. Reset stale missions (Daily: different day; Weekly: different week).
  */
-export async function ensureUserMissions(userId: string) {
+export async function initializeUserMissions(userId: string) {
   const cookieStore = await cookies()
   const supabase = createClient(cookieStore)
   const now = new Date()
 
-  // 1. Fetch all auto-assign templates
+  // 0. Ensure Mission Templates Exist (Auto-Seeding)
+  // We check if the 'daily_run_1' exists as a proxy for initialization
+  const { data: checkTemplate } = await supabase
+    .from('missions')
+    .select('id')
+    .eq('id', 'daily_run_1')
+    .single()
+
+  if (!checkTemplate) {
+    console.log('[MissionService] Seeding default missions...')
+    const { error: seedError } = await supabase
+      .from('missions')
+      .upsert(DEFAULT_MISSIONS.map(m => ({
+        id: m.id,
+        title: m.title,
+        description: m.description,
+        type: m.type,
+        target: m.target,
+        reward_coins: m.reward_coins,
+        reward_experience: m.reward_experience,
+        frequency: m.frequency
+      })))
+    
+    if (seedError) {
+      console.error('[MissionService] Failed to seed missions:', seedError)
+    }
+  }
+
+  // 1. Fetch all 'daily', 'weekly', and 'achievement' mission templates
   const { data: templates, error: templatesError } = await supabase
     .from('missions')
-    .select('id, frequency')
-    .in('frequency', ['daily', 'weekly'])
-
+    .select('*')
+  
   if (templatesError || !templates) {
     console.error('[MissionService] Failed to fetch mission templates:', templatesError)
     return
@@ -30,7 +151,7 @@ export async function ensureUserMissions(userId: string) {
   // 2. Fetch existing user missions
   const { data: existingMissions, error: userMissionsError } = await supabase
     .from('user_missions')
-    .select('mission_id, updated_at, status')
+    .select('mission_id, updated_at, status, progress, claimed_at')
     .eq('user_id', userId)
 
   if (userMissionsError) {
@@ -40,8 +161,7 @@ export async function ensureUserMissions(userId: string) {
 
   const existingMap = new Map(existingMissions?.map(m => [m.mission_id, m]))
   const missionsToInsert: any[] = []
-  const idsToReset: string[] = []
-
+  
   // 3. Identify missing and stale missions
   for (const template of templates) {
     const existing = existingMap.get(template.id)
@@ -51,89 +171,72 @@ export async function ensureUserMissions(userId: string) {
       missionsToInsert.push({
         user_id: userId,
         mission_id: template.id,
-        status: 'active', // 'todo' in UI but 'active' might be default in DB? Check constraints.
-        // DB constraint: check (status in ('locked', 'active', 'completed', 'claimed')) OR ('todo', 'in-progress', ...)
-        // Let's check the constraint in previous tool output. 
-        // RPC sql said: check (status in ('locked', 'active', 'completed', 'claimed'))
-        // Types/Supabase.ts said: status: 'todo' | 'in-progress' | 'completed' | 'claimed'
-        // This is a conflict. I should check the DB constraint again or stick to one.
-        // app/actions/mission.ts uses 'todo'.
-        // Let's use 'active' if that's what the SQL says, or 'todo' if TypeScript says so.
-        // Wait, seed.sql init_user_game_data uses 'in-progress'.
-        // Let's use 'active' for now, or check DB. 
-        // Actually, looking at `mission_rpc.sql`: check (status in ('locked', 'active', 'completed', 'claimed'))
-        // Looking at `types/supabase.ts`: status: 'todo' | 'in-progress' | 'completed' | 'claimed'
-        // This suggests the TS types might be out of sync or the DB constraint was updated.
-        // Safest bet: 'active' seems standard in SQL, but UI maps it. 
-        // Let's try 'active'. If it fails, I'll fix it. 
-        // Actually, `mission-checker.ts` uses 'active' in `ensureDailyMissions` (previous code): `status: 'active'`.
-        // So I will stick with 'active'.
-        status: 'active',
+        status: 'in-progress', 
         progress: 0,
         updated_at: now.toISOString()
       })
     } else {
       // Exists: Check if reset needed
+      // Achievements never reset
+      if (template.frequency === 'achievement') continue;
+
       const lastUpdate = new Date(existing.updated_at)
       let shouldReset = false
 
       if (template.frequency === 'daily') {
-        // Reset if last update was not today (UTC)
-        if (
-          lastUpdate.getUTCDate() !== now.getUTCDate() ||
-          lastUpdate.getUTCMonth() !== now.getUTCMonth() ||
-          lastUpdate.getUTCFullYear() !== now.getUTCFullYear()
-        ) {
+        // Reset if last update was not today (local time or UTC? Using UTC for consistency)
+        // Ideally we use user's timezone, but server usually uses UTC.
+        // Let's use simple Day check.
+        const isSameDay = lastUpdate.getDate() === now.getDate() && 
+                          lastUpdate.getMonth() === now.getMonth() && 
+                          lastUpdate.getFullYear() === now.getFullYear()
+        
+        if (!isSameDay) {
           shouldReset = true
         }
       } else if (template.frequency === 'weekly') {
-        // Reset if last update was before this week's start (Monday)
-        const day = now.getUTCDay() // 0 (Sun) - 6 (Sat)
-        const diff = now.getUTCDate() - day + (day === 0 ? -6 : 1) // Adjust to Monday
-        const monday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), diff))
-        // If last update is before this week's Monday 00:00
-        if (lastUpdate < monday) {
-          shouldReset = true
+        // Reset if it's a new week. 
+        // Simple check: Get Monday of current week and compare.
+        const getMonday = (d: Date) => {
+          d = new Date(d);
+          const day = d.getDay(),
+              diff = d.getDate() - day + (day == 0 ? -6 : 1); 
+          return new Date(d.setDate(diff));
+        }
+        
+        const currentMonday = getMonday(now)
+        const lastUpdateMonday = getMonday(lastUpdate)
+        
+        // If the Mondays are different, it's a new week
+        if (currentMonday.getTime() !== lastUpdateMonday.getTime()) {
+           shouldReset = true
         }
       }
 
       if (shouldReset) {
-        idsToReset.push(template.id)
+        // Reset progress and status
+        await supabase
+          .from('user_missions')
+          .update({
+            status: 'in-progress',
+            progress: 0,
+            claimed_at: null,
+            updated_at: now.toISOString()
+          })
+          .eq('user_id', userId)
+          .eq('mission_id', template.id)
       }
     }
   }
 
-  // 4. Perform Insertions
+  // 4. Batch Insert Missing
   if (missionsToInsert.length > 0) {
-    console.log(`[MissionService] Creating ${missionsToInsert.length} new missions for user ${userId}`)
-    const { error } = await supabase
+    const { error: insertError } = await supabase
       .from('user_missions')
       .insert(missionsToInsert)
     
-    if (error) {
-      console.error('[MissionService] Failed to create missions:', error)
-    }
-  }
-
-  // 5. Perform Resets
-  if (idsToReset.length > 0) {
-    console.log(`[MissionService] Resetting ${idsToReset.length} stale missions for user ${userId}`)
-    const { error } = await supabase
-      .from('user_missions')
-      .update({
-        progress: 0,
-        status: 'active',
-        updated_at: now.toISOString(),
-        claimed_at: null // Clear claimed status
-      })
-      .eq('user_id', userId)
-      .in('mission_id', idsToReset)
-
-    if (error) {
-      console.error('[MissionService] Failed to reset missions:', error)
+    if (insertError) {
+      console.error('[MissionService] Failed to insert new missions:', insertError)
     }
   }
 }
-
-// Alias for backward compatibility if needed, but we'll update callers.
-export const ensureDailyMissions = ensureUserMissions

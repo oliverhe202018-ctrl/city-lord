@@ -34,19 +34,45 @@ export function FriendsList({ onSelectFriend, onChallenge, onMessage }: FriendsL
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
+    // 1. Load from cache first
+    const cached = localStorage.getItem('citylord_friends_list')
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached)
+        // Cache validity (e.g. 1 minute for friends status)
+        if (Date.now() - parsed.timestamp < 60 * 1000) {
+          setFriends(parsed.data)
+          setIsLoading(false)
+        }
+      } catch (e) {
+        console.error("Cache parse error", e)
+      }
+    }
+    
+    // 2. Load fresh data
     loadData()
   }, [])
 
-  const loadData = async () => {
+  async function loadData() {
     try {
+      // Keep loading state if no cache
+      if (friends.length === 0) setIsLoading(true)
+      
       const [friendsData, requestsData] = await Promise.all([
         fetchFriends(),
         getFriendRequests()
       ])
       setFriends(friendsData)
       setRequests(requestsData)
+
+      // Update cache
+      localStorage.setItem('citylord_friends_list', JSON.stringify({
+        timestamp: Date.now(),
+        data: friendsData
+      }))
     } catch (error) {
-      toast.error("加载数据失败")
+      toast.error("加载好友列表失败")
+      console.error(error)
     } finally {
       setIsLoading(false)
     }

@@ -79,6 +79,7 @@ function CityLordContent() {
   useEffect(() => {
     async function loadMissions() {
       try {
+        console.log('[Page] Loading missions...')
         const missions = await fetchUserMissions()
         // Count missions that are 'completed' (claimable)
         // Or if we want to show 'Active' count, we can filter by 'active'/'in-progress'
