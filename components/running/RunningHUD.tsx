@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from "react"
 import { motion, AnimatePresence, useSpring, useTransform } from "framer-motion"
-import { Play, Pause, Square, Lock, Unlock, Zap, Flame, Map, Trophy, CheckCircle2 } from "lucide-react"
+import { Play, Pause, Square, Lock, Unlock, Zap, Flame, Map as MapIcon, Trophy, CheckCircle2, Settings } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { fetchUserMissions } from "@/app/actions/mission"
 import { toast } from "sonner"
+import { RunningSettings } from "./RunningSettings"
 
 // ----------------------------------------------------------------------------
 // Sub-component: Mission Tracker

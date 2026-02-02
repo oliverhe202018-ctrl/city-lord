@@ -45,10 +45,10 @@ export function HexDetailSheet({ isOpen, onClose, cell, onNavigate, onAction }: 
   const StatusIcon = info.icon
 
   return (
-    <Drawer.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Drawer.Root open={isOpen} onOpenChange={(open) => !open && onClose()} snapPoints={[0.4, 0.8]}>
       <Drawer.Portal>
         <Drawer.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[200]" />
-        <Drawer.Content className="bg-slate-900 border-t border-white/10 flex flex-col rounded-t-[20px] h-[40vh] fixed bottom-0 left-0 right-0 z-[201] outline-none">
+        <Drawer.Content className="bg-slate-900 border-t border-white/10 flex flex-col rounded-t-[20px] fixed bottom-0 left-0 right-0 z-[201] outline-none h-full max-h-[80vh]">
           {/* Handle */}
           <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-white/20 mt-4" />
           

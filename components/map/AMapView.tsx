@@ -32,8 +32,8 @@ const MapViewOrchestrator = () => {
     watch: true,
     options: {
       enableHighAccuracy: true,
-      maximumAge: 5000,
-      timeout: 10000,
+      maximumAge: 10000, // Increased to 10s
+      timeout: 20000,    // Increased to 20s
     }
   });
 
