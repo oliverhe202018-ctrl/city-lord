@@ -20,12 +20,14 @@ import {
 import { formatArea, getAreaEquivalent } from "@/lib/citylord/area-utils"
 import { ACHIEVEMENT_DEFINITIONS, AchievementCategory, AchievementRarity } from "@/lib/achievements"
 import { fetchUserAchievements, UserAchievementProgress } from "@/app/actions/achievement"
+import Image from "next/image"
 
 interface Achievement {
   id: string
   title: string
   description: string
   icon: React.ElementType
+  image?: string // Added image support
   category: AchievementCategory
   rarity: AchievementRarity
   progress: number
@@ -98,19 +100,38 @@ function AchievementCard({ achievement, onSelect }: AchievementCardProps) {
         <div className="flex items-start gap-3">
           {/* Icon */}
           <div
-            className={`relative flex h-14 w-14 shrink-0 items-center justify-center rounded-xl ${
+            className={`relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl ${
               achievement.unlocked ? config.bg : "bg-white/5"
             }`}
           >
-            <Icon
-              className={`h-7 w-7 ${
-                achievement.unlocked ? config.color : "text-white/30"
-              }`}
-            />
-            {!achievement.unlocked && (
-              <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/60">
-                <Lock className="h-5 w-5 text-white/40" />
+            {achievement.image ? (
+              <div className={`relative h-full w-full ${!achievement.unlocked ? 'grayscale opacity-60' : ''}`}>
+                <Image
+                  src={achievement.image}
+                  alt={achievement.title}
+                  fill
+                  className="object-contain p-1"
+                />
               </div>
+            ) : (
+              <>
+                <Icon
+                  className={`h-7 w-7 ${
+                    achievement.unlocked ? config.color : "text-white/30"
+                  }`}
+                />
+                {!achievement.unlocked && (
+                  <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/60">
+                    <Lock className="h-5 w-5 text-white/40" />
+                  </div>
+                )}
+              </>
+            )}
+            
+            {!achievement.unlocked && achievement.image && (
+               <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/20">
+                 <Lock className="h-5 w-5 text-white/60 drop-shadow-md" />
+               </div>
             )}
           </div>
 

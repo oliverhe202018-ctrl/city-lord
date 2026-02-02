@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { cookies } from 'next/headers'
 
-import { ensureUserMissions } from '@/lib/game-logic/mission-service'
+import { initializeUserMissions } from '@/lib/game-logic/mission-service'
 
 export interface Mission {
   id: string
@@ -31,7 +31,12 @@ export async function fetchUserMissions() {
   if (!user) return []
 
   // Ensure user missions are assigned/reset if needed (Lazy Load)
-  await ensureUserMissions(user.id)
+  try {
+    console.log('[MissionAction] Initializing user missions for', user.id)
+    await initializeUserMissions(user.id)
+  } catch (e) {
+    console.error('[MissionAction] Failed to initialize missions:', e)
+  }
 
   const { data, error } = await supabase
     .from('user_missions')

@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { cookies } from 'next/headers'
 
 import { checkAndRewardMissions, RunContext } from '@/lib/game-logic/mission-checker'
-import { ensureDailyMissions } from '@/lib/game-logic/mission-service'
+import { initializeUserMissions } from '@/lib/game-logic/mission-service'
 
 export async function stopRunningAction(context: RunContext) {
   const cookieStore = await cookies()
@@ -18,7 +18,7 @@ export async function stopRunningAction(context: RunContext) {
   context.endTime = new Date(context.endTime)
 
   // Ensure daily missions are valid before processing run
-  await ensureDailyMissions(user.id)
+  await initializeUserMissions(user.id)
 
   // Calculate newHexCount for UNIQUE_HEX mission
   // We filter the capturedHexIds to ensure they are valid and owned by the user (or just captured in this run)
@@ -125,8 +125,8 @@ export async function touchUserActivity() {
   
   if (!user) return
 
-  await supabase
-    .from('profiles')
+  await (supabase
+    .from('profiles') as any)
     .update({ updated_at: new Date().toISOString() })
     .eq('id', user.id)
 }
@@ -171,7 +171,7 @@ export async function addExperience(amount: number) {
   return { 
     success: true, 
     newLevel, 
-    levelUp: newLevel > (profile.level || 1),
+    levelUp: newLevel > ((profile as any).level || 1),
     newExp 
   }
 }
@@ -193,8 +193,8 @@ export async function addCoins(amount: number) {
 
   const newCoins = ((profile as any).coins || 0) + amount
 
-  const { error } = await supabase
-    .from('profiles')
+  const { error } = await (supabase
+    .from('profiles') as any)
     .update({
       coins: newCoins,
       updated_at: new Date().toISOString()
