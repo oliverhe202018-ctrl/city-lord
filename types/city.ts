@@ -132,6 +132,8 @@ export interface Territory {
   ownerId: string
   ownerType: 'me' | 'enemy' | 'neutral' // Computed on client or returned by API
   capturedAt: string
+  health?: number // 0-100
+  lastMaintainedAt?: string
   // Optional display properties
   path?: [number, number][] // Polygon coordinates for map rendering
   color?: string

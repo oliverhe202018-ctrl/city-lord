@@ -44,7 +44,9 @@ export async function fetchTerritories(cityId: string): Promise<Territory[]> {
     cityId: t.city_id,
     ownerId: t.owner_id,
     ownerType: currentUserId ? (t.owner_id === currentUserId ? 'me' : 'enemy') : 'neutral',
-    capturedAt: t.captured_at
+    capturedAt: t.captured_at,
+    health: t.health,
+    lastMaintainedAt: t.last_maintained_at
   }))
 }
 
@@ -59,30 +61,30 @@ export async function claimTerritory(cityId: string, cellId: string): Promise<{ 
     return { success: false, error: 'Unauthorized' }
   }
 
-  // 1. Upsert territory
-  const { error: territoryError } = await supabase
-    .from('territories')
-    .upsert({
-      id: cellId,
-      city_id: cityId,
-      owner_id: user.id,
-      captured_at: new Date().toISOString()
-    } as any)
+  // 1. Call claim_territory RPC (Handles capture, repair, and decay logic)
+  const { data: claimResult, error: claimError } = await supabase.rpc('claim_territory', {
+    p_city_id: cityId,
+    p_cell_id: cellId
+  })
 
-  if (territoryError) {
-    console.error('Error claiming territory:', territoryError)
-    return { success: false, error: territoryError.message }
+  if (claimError) {
+    console.error('Error claiming territory:', claimError)
+    return { success: false, error: claimError.message }
   }
 
-  // 2. Update user progress (increment tiles captured)
-  const { error: progressError } = await supabase.rpc('increment_user_tiles', { 
-    p_user_id: user.id, 
-    p_city_id: cityId 
-  } as any)
+  const result = claimResult as any
 
-  if (progressError) {
-    console.error('Error incrementing user tiles:', progressError)
-    // We still consider the claim successful if the territory row was inserted
+  // 2. Update user progress (increment tiles captured) - Only if NEW capture
+  if (result && result.action === 'captured') {
+    const { error: progressError } = await supabase.rpc('increment_user_tiles', { 
+      p_user_id: user.id, 
+      p_city_id: cityId 
+    } as any)
+
+    if (progressError) {
+      console.error('Error incrementing user tiles:', progressError)
+      // We still consider the claim successful if the territory row was inserted/updated
+    }
   }
 
   // 3. Check for Hidden Badges (Night Owl, Early Bird)

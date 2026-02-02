@@ -25,6 +25,7 @@ interface ImmersiveModeProps {
   onStop: () => void
   onExpand: () => void
   currentLocation?: { lat: number; lng: number }
+  onHexClaimed?: () => void
 }
 
 export function ImmersiveRunningMode({
@@ -41,6 +42,7 @@ export function ImmersiveRunningMode({
   onStop,
   onExpand,
   currentLocation,
+  onHexClaimed,
 }: ImmersiveModeProps) {
   const [isPaused, setIsPaused] = useState(false)
   const [showStopConfirm, setShowStopConfirm] = useState(false)
@@ -81,6 +83,9 @@ export function ImmersiveRunningMode({
   // Territory Capture Logic
   const isClaimingRef = useRef(false)
 
+  // Auto-pause if location is not updating or speed is too low?
+  // For now, rely on parent component props.
+
   useEffect(() => {
     if (!isActive || isPaused || !currentLocation || !currentCity) return
 
@@ -120,6 +125,9 @@ export function ImmersiveRunningMode({
 
           // Refresh map overlay
           loadTerritories()
+          
+          // Notify parent
+          onHexClaimed?.()
         }
       } catch (error: any) {
         if (error?.name !== 'AbortError' && error?.digest !== 'NEXT_REDIRECT') {

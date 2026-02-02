@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,6 +18,32 @@ export default function LoginPage() {
   const [submitted, setSubmitted] = useState(false)
   const router = useRouter()
   const supabase = createClient()
+
+  // 检查登录状态，如果已登录则自动跳转
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        toast.success("您已登录，正在跳转...")
+        window.location.href = "/"
+      }
+    }
+    
+    checkSession()
+
+    // 监听 Auth 状态变化 (例如 Magic Link 完成后)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN" && session) {
+        toast.success("登录成功")
+        // 使用 window.location.href 确保完全重载
+        window.location.href = "/"
+      }
+    })
+
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [router, supabase])
 
   const handleMagicLinkLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -64,8 +90,9 @@ export default function LoginPage() {
       }
 
       toast.success("登录成功")
-      router.push("/")
-      router.refresh()
+      
+      // 强制重定向，确保状态同步
+      window.location.href = "/"
     } catch (error) {
       console.error("Login error:", error)
       toast.error("登录失败", {

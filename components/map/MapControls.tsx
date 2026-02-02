@@ -4,10 +4,11 @@ import React from 'react';
 import { useAMap } from '@/components/map/AMapProvider';
 import { useRegion } from '@/contexts/RegionContext';
 import { Button } from '@/components/ui/button';
-import { LocateFixedIcon, Plus, Minus } from 'lucide-react';
+import { LocateFixedIcon, Plus, Minus, Gamepad2, Users, User } from 'lucide-react';
+import Link from 'next/link';
 
 export const MapControls = () => {
-  const { map } = useAMap();
+  const { map, viewMode, setViewMode } = useAMap();
   const { region } = useRegion();
 
   const handleLocate = () => {
@@ -24,9 +25,24 @@ export const MapControls = () => {
   const handleZoomOut = () => {
     map?.zoomOut();
   };
+  
+  const toggleViewMode = () => {
+      setViewMode(viewMode === 'individual' ? 'faction' : 'individual');
+  };
 
   return (
     <div className="absolute bottom-60 right-4 z-10 flex flex-col gap-4 items-center">
+      <Button
+        variant="outline"
+        size="icon"
+        onClick={toggleViewMode}
+        className={`h-12 w-12 rounded-full backdrop-blur-sm shadow-lg transition-all border-white/20 ${viewMode === 'faction' ? 'bg-purple-500/50 text-white hover:bg-purple-500/70' : 'bg-background/30 text-white hover:bg-background/50'}`}
+        title={viewMode === 'individual' ? "切换至阵营视图" : "切换至个人视图"}
+      >
+        {viewMode === 'individual' ? <User className="h-6 w-6" /> : <Users className="h-6 w-6" />}
+        <span className="sr-only">切换视图</span>
+      </Button>
+
       <Button
         variant="outline"
         size="icon"
@@ -39,6 +55,16 @@ export const MapControls = () => {
       </Button>
 
       <div className="flex flex-col gap-2 items-center">
+        <Link href="/game/runner">
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-10 w-10 rounded-full bg-cyan-500/20 backdrop-blur-sm shadow-lg transition-all hover:bg-cyan-500/40 border-cyan-500/50 text-cyan-400"
+          >
+            <Gamepad2 className="h-5 w-5" />
+            <span className="sr-only">Mini Game</span>
+          </Button>
+        </Link>
         <Button
           variant="outline"
           size="icon"
