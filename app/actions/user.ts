@@ -53,7 +53,7 @@ export async function stopRunningAction(context: RunContext) {
       const { data: profile } = await supabase.from('profiles').select('total_distance_km').eq('id', user.id).single()
       if (profile) {
           const newDistance = (profile.total_distance_km || 0) + context.distance
-          await supabase.from('profiles').update({ total_distance_km: newDistance }).eq('id', user.id)
+          await supabase.from('profiles').update({ total_distance_km: newDistance } as any).eq('id', user.id)
       }
   }
 
@@ -127,7 +127,7 @@ export async function touchUserActivity() {
 
   await supabase
     .from('profiles')
-    .update({ updated_at: new Date().toISOString() } as any)
+    .update({ updated_at: new Date().toISOString() })
     .eq('id', user.id)
 }
 

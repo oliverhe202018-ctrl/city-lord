@@ -38,7 +38,7 @@ export interface LocationState {
   speed: number;
   distance: number;
   duration: number;
-  gpsStatus: 'locating' | 'success' | 'error';
+  gpsStatus: 'locating' | 'success' | 'error' | 'weak';
   gpsError?: string;
   hasDismissedGeolocationPrompt: boolean;
   runStartTime: number | null;
