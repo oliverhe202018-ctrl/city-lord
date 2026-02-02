@@ -135,6 +135,38 @@ export function useRunningTracker(isRunning: boolean): RunningStats {
 
   }, [geoData, isRunning, isPaused]);
 
+  // Wake Lock for screen
+  useEffect(() => {
+    let wakeLock: any = null;
+
+    const requestWakeLock = async () => {
+      if (typeof navigator !== 'undefined' && 'wakeLock' in navigator && isRunning && !isPaused) {
+        try {
+          wakeLock = await (navigator as any).wakeLock.request('screen');
+        } catch (err: any) {
+          console.error(`Wake Lock error: ${err.name}, ${err.message}`);
+        }
+      }
+    };
+
+    requestWakeLock();
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && isRunning && !isPaused) {
+        requestWakeLock();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      if (wakeLock) {
+        wakeLock.release();
+      }
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isRunning, isPaused]);
+
   // Reset when stopping or starting fresh
   useEffect(() => {
     if (!isRunning) {

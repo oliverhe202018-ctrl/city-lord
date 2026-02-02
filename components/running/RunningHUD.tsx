@@ -69,32 +69,29 @@ function AnimatedCounter({ value, className, decimals = 2 }: { value: number, cl
 }
 
 // ----------------------------------------------------------------------------
-// Sub-component: Slide to Unlock/Stop Button
+// Sub-component: Slide to Pause Button (New Design)
 // ----------------------------------------------------------------------------
-function SlideButton({ onSlideComplete, isPaused }: { onSlideComplete: () => void, isPaused: boolean }) {
+function SlideToPause({ onPause }: { onPause: () => void }) {
   const [dragX, setDragX] = useState(0)
-  const constraintsRef = useRef(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const SLIDE_THRESHOLD = 200 // pixels to slide to trigger action
 
   return (
-    <div className="relative w-full max-w-[280px] h-16 bg-white/10 backdrop-blur-md rounded-full overflow-hidden border border-white/20" ref={constraintsRef}>
-      {/* Track Text */}
-      <div className="absolute inset-0 flex items-center justify-center text-white/50 text-sm font-medium pointer-events-none uppercase tracking-widest">
-        {isPaused ? "滑动结束跑步" : "滑动暂停跑步"} <span className="ml-2">{">>>"}</span>
+    <div className="relative w-full max-w-[320px] h-14 bg-[#22c55e] rounded-full overflow-hidden shadow-lg shadow-[#22c55e]/20" ref={containerRef}>
+      {/* Background Text */}
+      <div className="absolute inset-0 flex items-center justify-center text-black/60 text-sm font-bold pointer-events-none tracking-widest pl-8">
+        {"> 向右滑动暂停"}
       </div>
 
-      {/* Progress Fill (Optional visual feedback) */}
+      {/* Progress Overlay (Darken as we slide) */}
       <motion.div 
-        className="absolute inset-y-0 left-0 bg-white/10" 
-        style={{ width: dragX + 32 }} // +32 for half button width
+        className="absolute inset-y-0 left-0 bg-black/10" 
+        style={{ width: dragX + 48 }} 
       />
 
       {/* Draggable Knob */}
       <motion.div
-        className={cn(
-          "absolute top-1 left-1 bottom-1 w-14 rounded-full flex items-center justify-center shadow-lg cursor-grab active:cursor-grabbing z-10",
-          isPaused ? "bg-red-500 text-white" : "bg-[#22c55e] text-black"
-        )}
+        className="absolute top-1 left-1 bottom-1 w-12 bg-white rounded-full flex items-center justify-center shadow-md cursor-grab active:cursor-grabbing z-10"
         drag="x"
         dragConstraints={{ left: 0, right: SLIDE_THRESHOLD }}
         dragElastic={0.1}
@@ -103,16 +100,60 @@ function SlideButton({ onSlideComplete, isPaused }: { onSlideComplete: () => voi
           setDragX(info.point.x)
         }}
         onDragEnd={(event, info) => {
-          if (info.offset.x > SLIDE_THRESHOLD - 20) {
-            onSlideComplete()
+          if (info.offset.x > SLIDE_THRESHOLD - 50) {
+            onPause()
           }
           setDragX(0)
         }}
-        animate={{ x: 0 }} // Snap back if not completed
+        animate={{ x: 0 }} // Snap back
         transition={{ type: "spring", stiffness: 400, damping: 30 }}
       >
-        {isPaused ? <Square size={20} fill="currentColor" /> : <Pause size={20} fill="currentColor" />}
+        <Pause size={20} className="text-[#22c55e] fill-current" />
       </motion.div>
+    </div>
+  )
+}
+
+// ----------------------------------------------------------------------------
+// Sub-component: Paused Controls (Split Buttons)
+// ----------------------------------------------------------------------------
+function PausedControls({ onResume, onFinish }: { onResume: () => void, onFinish: () => void }) {
+  const [confirmFinish, setConfirmFinish] = useState(false)
+
+  const handleFinishClick = () => {
+    if (!confirmFinish) {
+      setConfirmFinish(true)
+      toast.error("再次点击结束跑步", { duration: 2000 })
+      setTimeout(() => setConfirmFinish(false), 2000)
+    } else {
+      onFinish()
+    }
+  }
+
+  return (
+    <div className="flex w-full max-w-[320px] h-14 gap-3">
+      {/* Finish Button (Left 2/5) */}
+      <motion.button
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        onClick={handleFinishClick}
+        className={cn(
+          "flex-[2] rounded-full flex items-center justify-center font-bold text-white shadow-lg transition-all active:scale-95",
+          confirmFinish ? "bg-red-600" : "bg-red-500"
+        )}
+      >
+        {confirmFinish ? "确认结束" : "结束"}
+      </motion.button>
+
+      {/* Resume Button (Right 3/5) */}
+      <motion.button
+        initial={{ opacity: 0, x: 20 }}
+        animate={{ opacity: 1, x: 0 }}
+        onClick={onResume}
+        className="flex-[3] bg-[#22c55e] rounded-full flex items-center justify-center font-bold text-white shadow-lg shadow-[#22c55e]/20 transition-all active:scale-95"
+      >
+        继续运动
+      </motion.button>
     </div>
   )
 }
@@ -145,15 +186,6 @@ export function RunningHUD({
   const [isMapMode, setIsMapMode] = useState(false)
   const [isLocked, setIsLocked] = useState(false)
   const [showUnlockHint, setShowUnlockHint] = useState(false)
-
-  // Handle slide action
-  const handleSlideAction = () => {
-    if (isPaused) {
-      onStop()
-    } else {
-      onPauseToggle()
-    }
-  }
 
   // Handle Unlock (Long Press or Slide)
   const unlockTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -439,9 +471,31 @@ export function RunningHUD({
           </button>
         </div>
 
-        {/* Slide to Pause/Stop */}
-        <div className="mb-4">
-          <SlideButton onSlideComplete={handleSlideAction} isPaused={isPaused} />
+        {/* Controls */}
+        <div className="mb-4 w-full flex justify-center px-4">
+          <AnimatePresence mode="wait">
+            {isPaused ? (
+              <motion.div
+                key="paused-controls"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 20 }}
+                className="w-full flex justify-center"
+              >
+                <PausedControls onResume={onPauseToggle} onFinish={onStop} />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="running-controls"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 20 }}
+                className="w-full flex justify-center"
+              >
+                <SlideToPause onPause={onPauseToggle} />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </div>

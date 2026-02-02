@@ -30,6 +30,7 @@ interface SocialPageProps {
 
 export function SocialPage({ onShowDemo }: SocialPageProps) {
   const [activeTab, setActiveTab] = useState<SocialTab>("friends")
+  const [activityFilter, setActivityFilter] = useState<"friends" | "all">("friends")
   const [subView, setSubView] = useState<SubView>("none")
   const [selectedFriend, setSelectedFriend] = useState<{
     id: string
@@ -124,10 +125,10 @@ export function SocialPage({ onShowDemo }: SocialPageProps) {
         </div>
 
         {/* Main Tab Bar - Simplified */}
-        <div className="flex gap-4 border-b border-white/5">
+        <div className="grid w-full grid-cols-3 border-b border-white/5">
           <button
             onClick={() => setActiveTab("friends")}
-            className={`pb-2 text-sm font-medium transition-all ${
+            className={`flex flex-col items-center justify-center pb-2 text-sm font-medium transition-all ${
               activeTab === "friends"
                 ? "border-b-2 border-[#39ff14] text-[#39ff14]"
                 : "text-white/60 hover:text-white"
@@ -137,7 +138,7 @@ export function SocialPage({ onShowDemo }: SocialPageProps) {
           </button>
           <button
             onClick={() => setActiveTab("activity")}
-            className={`pb-2 text-sm font-medium transition-all ${
+            className={`flex flex-col items-center justify-center pb-2 text-sm font-medium transition-all ${
               activeTab === "activity"
                 ? "border-b-2 border-[#39ff14] text-[#39ff14]"
                 : "text-white/60 hover:text-white"
@@ -147,7 +148,7 @@ export function SocialPage({ onShowDemo }: SocialPageProps) {
           </button>
           <button
             onClick={() => setActiveTab("messages")}
-            className={`pb-2 text-sm font-medium transition-all ${
+            className={`flex flex-col items-center justify-center pb-2 text-sm font-medium transition-all ${
               activeTab === "messages"
                 ? "border-b-2 border-[#39ff14] text-[#39ff14]"
                 : "text-white/60 hover:text-white"
@@ -208,6 +209,30 @@ export function SocialPage({ onShowDemo }: SocialPageProps) {
 
         {activeTab === "activity" && (
            <div className="space-y-4">
+              {/* Activity Sub-tabs */}
+              <div className="grid w-full grid-cols-2 rounded-lg bg-white/5 p-1">
+                <button
+                  onClick={() => setActivityFilter("friends")}
+                  className={`rounded-md py-1.5 text-xs font-medium transition-all ${
+                    activityFilter === "friends"
+                      ? "bg-white/10 text-white shadow-sm"
+                      : "text-white/50 hover:text-white"
+                  }`}
+                >
+                  好友动态
+                </button>
+                <button
+                  onClick={() => setActivityFilter("all")}
+                  className={`rounded-md py-1.5 text-xs font-medium transition-all ${
+                    activityFilter === "all"
+                      ? "bg-white/10 text-white shadow-sm"
+                      : "text-white/50 hover:text-white"
+                  }`}
+                >
+                  所有动态
+                </button>
+              </div>
+
               <FriendActivityFeed />
            </div>
         )}

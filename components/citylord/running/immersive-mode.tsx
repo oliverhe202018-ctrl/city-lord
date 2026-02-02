@@ -10,6 +10,7 @@ import { toast } from "sonner"
 import { AchievementPopup } from "../achievement-popup"
 import { RunningHUD } from "@/components/running/RunningHUD"
 import { GaodeMap3D } from "@/components/map/GaodeMap3D"
+import { RunSummaryView } from "@/components/running/RunSummaryView"
 
 interface ImmersiveModeProps {
   isActive: boolean
@@ -46,6 +47,7 @@ export function ImmersiveRunningMode({
 }: ImmersiveModeProps) {
   const [isPaused, setIsPaused] = useState(false)
   const [showStopConfirm, setShowStopConfirm] = useState(false)
+  const [showSummary, setShowSummary] = useState(false)
   const [displayedArea, setDisplayedArea] = useState(0)
   const [areaFlash, setAreaFlash] = useState(false)
   const { currentCity } = useCity() // Removed refreshTerritories as it's not in context
@@ -196,6 +198,25 @@ export function ImmersiveRunningMode({
     }
   }, [showStopConfirm])
 
+  if (showSummary) {
+    return (
+      <RunSummaryView 
+        distance={distance}
+        duration={time}
+        pace={pace}
+        calories={calories}
+        hexesCaptured={hexesCaptured}
+        onClose={() => {
+          setShowSummary(false)
+          onStop()
+        }}
+        onShare={() => {
+          toast.success("分享图片已生成 (模拟)")
+        }}
+      />
+    )
+  }
+
   if (!isActive) return null
 
   return (
@@ -233,15 +254,7 @@ export function ImmersiveRunningMode({
             onPause()
           }
         }}
-        onStop={() => {
-          if (!showStopConfirm) {
-            setShowStopConfirm(true)
-            // Show toast instruction
-            toast.info("再次点击确认结束", { position: "bottom-center" })
-          } else {
-            onStop()
-          }
-        }}
+        onStop={() => setShowSummary(true)}
       />
     </div>
   )
