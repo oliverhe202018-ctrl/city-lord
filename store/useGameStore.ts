@@ -127,7 +127,7 @@ export interface LocationActions {
   addDistance: (distance: number) => void;
   updateDuration: () => void;
   resetLocation: () => void;
-  setGpsStatus: (status: 'locating' | 'success' | 'error', error?: string) => void;
+  setGpsStatus: (status: 'locating' | 'success' | 'error' | 'weak', error?: string) => void;
   clearGpsError: () => void;
   dismissGeolocationPrompt: () => void;
   resetRunState: () => void;
