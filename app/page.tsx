@@ -1,7 +1,7 @@
 "use client"
 
 import nextDynamic from 'next/dynamic';
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, Suspense } from "react"
 import { HexMap } from "@/components/citylord/hex-map"
 import { AdaptiveHexGrid } from "@/components/citylord/map/adaptive-hex-grid"
 
@@ -61,7 +61,8 @@ import { useSearchParams } from 'next/navigation'
 import { processReferral } from "@/app/actions/referral"
 
 export const dynamic = 'force-dynamic';
-export default function CityLordApp() {
+
+function CityLordContent() {
   const searchParams = useSearchParams()
   const { isLoading: isCityLoading, currentCity } = useCity()
   const { checkStaminaRecovery, dismissGeolocationPrompt, claimAchievement } = useGameActions()
@@ -507,5 +508,13 @@ export default function CityLordApp() {
         }}
       />
     </div>
+  )
+}
+
+export default function CityLordApp() {
+  return (
+    <Suspense fallback={<LoadingScreen />}>
+      <CityLordContent />
+    </Suspense>
   )
 }
