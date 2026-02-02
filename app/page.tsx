@@ -105,6 +105,7 @@ function CityLordContent() {
   const [showOnboarding, setShowOnboarding] = useState(false)
 
   // Running Tracker
+  // Destructuring path to pass to ImmersiveRunningMode for loop detection
   const { 
     distance, 
     pace, 
