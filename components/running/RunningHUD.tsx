@@ -140,12 +140,44 @@ export function RunningHUD({
   onPauseToggle,
   onStop
 }: RunningHUDProps) {
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isMapMode, setIsMapMode] = useState(false)
+  const [isLocked, setIsLocked] = useState(false)
+  const [showUnlockHint, setShowUnlockHint] = useState(false)
+
   // Handle slide action
   const handleSlideAction = () => {
     if (isPaused) {
       onStop()
     } else {
       onPauseToggle()
+    }
+  }
+
+  // Handle Unlock (Long Press or Slide)
+  const unlockTimerRef = useRef<NodeJS.Timeout | null>(null)
+  
+  const handleLockPressStart = () => {
+    if (!isLocked) {
+      setIsLocked(true)
+      toast.info("屏幕已锁定", { duration: 2000, icon: <Lock className="w-4 h-4" /> })
+    }
+  }
+
+  const handleUnlockPressStart = () => {
+    setShowUnlockHint(true)
+    unlockTimerRef.current = setTimeout(() => {
+      setIsLocked(false)
+      setShowUnlockHint(false)
+      toast.success("屏幕已解锁", { duration: 2000, icon: <Unlock className="w-4 h-4" /> })
+    }, 1500) // 1.5s long press to unlock
+  }
+
+  const handleUnlockPressEnd = () => {
+    if (unlockTimerRef.current) {
+      clearTimeout(unlockTimerRef.current)
+      unlockTimerRef.current = null
+      setShowUnlockHint(false)
     }
   }
 
@@ -227,7 +259,34 @@ export function RunningHUD({
   }, [distance, hexesCaptured, activeMissions, completedMissionIds])
 
   return (
-    <div className="absolute inset-0 pointer-events-none flex flex-col justify-between z-20">
+    <>
+      <RunningSettings isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      
+      {/* Locked Overlay */}
+      {isLocked && (
+        <div 
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/20 backdrop-blur-[2px] touch-none select-none"
+          onTouchStart={handleUnlockPressStart}
+          onTouchEnd={handleUnlockPressEnd}
+          onMouseDown={handleUnlockPressStart}
+          onMouseUp={handleUnlockPressEnd}
+          onMouseLeave={handleUnlockPressEnd}
+        >
+          <div className="flex flex-col items-center gap-4 p-8 rounded-full bg-black/60 backdrop-blur-md border border-white/10 animate-pulse">
+            <Lock className="h-12 w-12 text-white" />
+            <span className="text-sm font-medium text-white">长按解锁</span>
+          </div>
+          
+          {/* Unlock Progress Ring could go here */}
+          {showUnlockHint && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="h-32 w-32 rounded-full border-4 border-[#22c55e] animate-ping opacity-50" />
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="absolute inset-0 pointer-events-none flex flex-col justify-between z-20">
       
       {/* TOP SECTION: Secondary Metrics */}
       <div className="pt-[calc(env(safe-area-inset-top)+20px)] px-6 flex justify-between items-start w-full">
@@ -235,17 +294,18 @@ export function RunningHUD({
         <div className="flex flex-col items-start gap-4">
           <div className="flex flex-col items-start">
             <span className="text-xs font-bold text-white/40 uppercase tracking-widest">时长</span>
-            <span className="font-mono text-2xl font-medium text-white tabular-nums">
+            <span className="font-mono text-3xl font-medium text-white tabular-nums">
               {duration}
             </span>
           </div>
 
           {/* Mission Widget (Left Side) */}
           <AnimatePresence>
-            {activeMissions.length > 0 && (
+            {!isMapMode && activeMissions.length > 0 && (
               <motion.div 
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
                 className="flex flex-col gap-1 pointer-events-auto"
               >
                 {activeMissions.map(mission => {
@@ -287,97 +347,101 @@ export function RunningHUD({
           </AnimatePresence>
         </div>
 
-        {/* Right: Calories & Hexes */}
-        <div className="flex flex-col items-end gap-4">
+        {/* Right: Calories & Hexes - BIGGER as requested */}
+        <div className="flex flex-col items-end gap-6">
           <div className="flex flex-col items-end">
-            <span className="text-xs font-bold text-white/40 uppercase tracking-widest flex items-center gap-1">
-              <Flame size={10} /> 卡路里
+            <span className="text-xs font-bold text-white/40 uppercase tracking-widest flex items-center gap-1 mb-1">
+              <Flame size={12} /> 卡路里
             </span>
-            <span className="font-mono text-xl font-medium text-white tabular-nums">
+            <span className="font-mono text-4xl font-bold text-white tabular-nums drop-shadow-md">
               <AnimatedCounter value={calories} decimals={0} />
             </span>
           </div>
           <div className="flex flex-col items-end">
-            <span className="text-xs font-bold text-[#22c55e]/60 uppercase tracking-widest flex items-center gap-1">
-              <Map size={10} /> 领地
+            <span className="text-xs font-bold text-[#22c55e]/60 uppercase tracking-widest flex items-center gap-1 mb-1">
+              <MapIcon size={12} /> 领地
             </span>
-            <span className="font-mono text-xl font-medium text-[#22c55e] tabular-nums">
-              <AnimatedCounter value={hexesCaptured} decimals={0} />
+            <span className="font-mono text-4xl font-bold text-[#22c55e] tabular-nums drop-shadow-[0_0_10px_rgba(34,197,94,0.5)]">
+              {hexesCaptured}
             </span>
           </div>
         </div>
       </div>
 
-      {/* CENTER AREA: Status Messages (AnimatePresence) */}
-      <div className="flex-1 flex items-center justify-center">
-        <AnimatePresence>
-          {isPaused && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-black/60 backdrop-blur-xl px-6 py-3 rounded-full border border-yellow-500/30 flex items-center gap-3"
-            >
-              <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
-              <span className="text-yellow-500 font-bold uppercase tracking-wider text-sm">已暂停</span>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* BOTTOM SECTION: Primary Metric & Controls */}
-      <div className="pb-[calc(env(safe-area-inset-bottom)+40px)] px-6 w-full bg-gradient-to-t from-black/90 via-black/40 to-transparent flex flex-col items-center gap-8">
-        
-        {/* Primary Metric: Distance (Huge) */}
-        <div className="flex flex-col items-center">
+      {/* CENTER SECTION: Main Metrics (Hidden in Map Mode) */}
+      {!isMapMode && (
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-[60%] flex flex-col items-center">
           <div className="flex items-baseline gap-2">
-            <AnimatedCounter value={distance} className="text-8xl font-black text-white italic drop-shadow-2xl" decimals={2} />
-            <span className="text-xl font-bold text-white/50 uppercase italic">公里</span>
+            <span className="font-mono text-[6rem] font-black italic tracking-tighter text-white drop-shadow-2xl leading-none">
+              <AnimatedCounter value={distance} />
+            </span>
+            <span className="text-xl font-bold text-white/60 italic">公里</span>
           </div>
           
-          {/* Pace (Secondary Large) */}
-          <div className="flex items-center gap-2 mt-[-10px]">
-            <Zap size={16} className="text-[#22c55e]" />
-            <span className="font-mono text-3xl font-bold text-white tabular-nums">{pace}</span>
-            <span className="text-xs font-bold text-white/40 uppercase">/公里</span>
+          <div className="mt-4 flex items-center gap-2 px-4 py-2 rounded-full bg-black/20 backdrop-blur-sm border border-white/5">
+            <Zap className="h-4 w-4 text-[#22c55e] animate-pulse" />
+            <span className="font-mono text-2xl font-bold text-white">{pace}</span>
+            <span className="text-xs text-white/40">/公里</span>
           </div>
         </div>
+      )}
 
-        {/* Controls: Slide Button */}
-        <div className="pointer-events-auto w-full flex flex-col items-center gap-4">
-          {/* Resume Button (Only visible when paused) */}
-          <AnimatePresence>
-            {isPaused && (
-              <motion.button
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 10 }}
-                onClick={onPauseToggle}
-                className="w-full max-w-[280px] h-14 bg-[#22c55e] text-black font-bold uppercase tracking-widest rounded-full shadow-[0_0_30px_rgba(34,197,94,0.4)] flex items-center justify-center gap-2 hover:scale-105 active:scale-95 transition-transform"
-              >
-                <Play size={20} fill="currentColor" /> 继续跑步
-              </motion.button>
+      {/* BOTTOM SECTION: Controls */}
+      <div className="pb-[calc(env(safe-area-inset-bottom)+20px)] w-full flex flex-col items-center gap-8 pointer-events-auto bg-gradient-to-t from-black/90 via-black/40 to-transparent pt-12">
+        
+        {/* Three Buttons Row: Lock | Map | Settings */}
+        <div className="flex items-center gap-12">
+          {/* Lock Button */}
+          <button 
+            onClick={handleLockPressStart}
+            className="flex flex-col items-center gap-2 group"
+          >
+            <div className="h-12 w-12 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center transition-all group-active:scale-95 group-active:bg-white/20">
+              <Lock className="h-5 w-5 text-white" />
+            </div>
+            <span className="text-[10px] text-white/60 font-medium">锁定</span>
+          </button>
+
+          {/* Map Button (Center) */}
+          <button 
+            onClick={() => setIsMapMode(!isMapMode)}
+            className={cn(
+              "flex flex-col items-center gap-2 group transition-all",
+              isMapMode ? "scale-110" : ""
             )}
-          </AnimatePresence>
+          >
+            <div className={cn(
+              "h-16 w-16 rounded-full flex items-center justify-center transition-all shadow-lg border",
+              isMapMode 
+                ? "bg-[#22c55e] border-[#22c55e] text-black shadow-[0_0_20px_rgba(34,197,94,0.4)]" 
+                : "bg-white/10 backdrop-blur-md border-white/20 text-white"
+            )}>
+              <MapIcon className={cn("h-7 w-7", isMapMode ? "fill-current" : "")} />
+            </div>
+            <span className={cn(
+              "text-xs font-medium transition-colors",
+              isMapMode ? "text-[#22c55e]" : "text-white/60"
+            )}>
+              {isMapMode ? "数据" : "地图"}
+            </span>
+          </button>
 
-          {/* Slide to Stop/Pause */}
-          {!isPaused && (
-             <div className="pointer-events-auto w-full flex justify-center">
-               <SlideButton onSlideComplete={handleSlideAction} isPaused={isPaused} />
-             </div>
-          )}
+          {/* Settings Button */}
+          <button 
+            onClick={() => setIsSettingsOpen(true)}
+            className="flex flex-col items-center gap-2 group"
+          >
+            <div className="h-12 w-12 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center transition-all group-active:scale-95 group-active:bg-white/20">
+              <Settings className="h-5 w-5 text-white" />
+            </div>
+            <span className="text-[10px] text-white/60 font-medium">设置</span>
+          </button>
+        </div>
 
-          {/* Stop Button (Only visible when paused, alternative to slide) */}
-          {isPaused && (
-             <button 
-               onClick={onStop}
-               className="text-white/40 text-xs font-medium uppercase tracking-widest hover:text-white transition-colors"
-             >
-               长按结束跑步
-             </button>
-          )}
+        {/* Slide to Pause/Stop */}
+        <div className="mb-4">
+          <SlideButton onSlideComplete={handleSlideAction} isPaused={isPaused} />
         </div>
       </div>
     </div>
-  )
-}
+    </>
