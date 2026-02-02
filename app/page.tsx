@@ -111,6 +111,7 @@ function CityLordContent() {
     duration, 
     calories, 
     currentLocation, 
+    path,
     togglePause: toggleTrackerPause, 
     stop: stopTracker 
   } = useRunningTracker(isRunning)
@@ -431,7 +432,11 @@ function CityLordContent() {
         }}
         onExpand={() => {}}
         currentLocation={currentLocation || undefined}
-        onHexClaimed={() => setSessionHexes(prev => prev + 1)}
+        path={path}
+        onHexClaimed={() => {
+          setSessionHexes(prev => prev + 1)
+          setShowCaptureEffect(true)
+        }}
       />
 
       {/* Bottom Navigation */}
