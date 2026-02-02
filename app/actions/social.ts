@@ -11,7 +11,7 @@ export interface FriendRequest {
   id: string
   userId: string
   name: string
-  avatar?: string
+  avatar?: string | null
   level: number
   timestamp: string
 }
@@ -19,7 +19,7 @@ export interface FriendRequest {
 export interface Friend {
   id: string
   name: string
-  avatar?: string
+  avatar?: string | null
   level: number
   status: "online" | "running" | "offline"
   lastActive?: string
