@@ -30,6 +30,7 @@ export function FriendsList({ onSelectFriend, onChallenge, onMessage }: FriendsL
   const [selectedFriend, setSelectedFriend] = useState<string | null>(null)
   
   const [friends, setFriends] = useState<Friend[]>([])
+  // Type explicitly to handle null/undefined avatar differences
   const [requests, setRequests] = useState<FriendRequest[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
