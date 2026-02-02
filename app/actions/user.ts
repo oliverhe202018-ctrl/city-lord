@@ -52,8 +52,8 @@ export async function stopRunningAction(context: RunContext) {
       // Use RPC if available or simple update
       const { data: profile } = await supabase.from('profiles').select('total_distance_km').eq('id', user.id).single()
       if (profile) {
-          const newDistance = (profile.total_distance_km || 0) + context.distance
-          await supabase.from('profiles').update({ total_distance_km: newDistance } as any).eq('id', user.id)
+          const newDistance = ((profile as any).total_distance_km || 0) + context.distance
+          await (supabase.from('profiles') as any).update({ total_distance_km: newDistance }).eq('id', user.id)
       }
   }
 
@@ -161,8 +161,8 @@ export async function addExperience(amount: number) {
     // Here we could also trigger level up notification or rewards
   }
 
-  const { error } = await supabase
-    .from('profiles')
+  const { error } = await (supabase
+    .from('profiles') as any)
     .update(updates)
     .eq('id', user.id)
 
