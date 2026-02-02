@@ -4,19 +4,72 @@ import { useEffect, useRef } from "react"
 import { useMap } from "./MapContext"
 import { HexCellData } from "./HexDetailSheet"
 import { toast } from "sonner"
+import { useTheme } from "next-themes"
 
 interface HexLayerProps {
   cells: HexCellData[]
   onCellClick: (cell: HexCellData) => void
 }
 
+// Deterministic color generator based on string
+const stringToColor = (str: string) => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const c = (hash & 0x00ffffff).toString(16).toUpperCase();
+  return '#' + '00000'.substring(0, 6 - c.length) + c;
+}
+
 export function HexLayer({ cells, onCellClick }: HexLayerProps) {
-  const { map, AMap } = useMap()
+  const { map, AMap, viewMode } = useMap()
   const polygonsRef = useRef<any[]>([])
   
   // Style config
-  const getStyle = (status: string) => {
-    switch (status) {
+  const getStyle = (cell: HexCellData) => {
+    // Faction Mode
+    if (viewMode === 'faction') {
+       if (cell.status === 'owned') {
+         // My tiles in faction mode - distinct highlight
+         return {
+            strokeColor: "#ffffff",
+            fillColor: "#22c55e", // Keep green for self
+            fillOpacity: 0.6,
+            strokeOpacity: 1,
+            strokeWeight: 3,
+         }
+       }
+       
+       if (cell.faction === 'RED') {
+          return {
+            strokeColor: "#ef4444",
+            fillColor: "#ef4444",
+            fillOpacity: 0.4,
+            strokeOpacity: 0.8,
+            strokeWeight: 1,
+          }
+       } else if (cell.faction === 'BLUE') {
+          return {
+            strokeColor: "#3b82f6",
+            fillColor: "#3b82f6",
+            fillOpacity: 0.4,
+            strokeOpacity: 0.8,
+            strokeWeight: 1,
+          }
+       } else {
+         // Neutral/Unknown
+          return {
+            strokeColor: "#94a3b8",
+            fillColor: "#94a3b8",
+            fillOpacity: 0.1,
+            strokeOpacity: 0.3,
+            strokeWeight: 1,
+          }
+       }
+    }
+
+    // Individual Mode (Default)
+    switch (cell.status) {
       case "owned":
         return {
           strokeColor: "#22c55e", // Green
@@ -26,9 +79,11 @@ export function HexLayer({ cells, onCellClick }: HexLayerProps) {
           strokeWeight: 2,
         }
       case "enemy":
+        // Generate color from owner_id if available, else red
+        const color = cell.ownerId ? stringToColor(cell.ownerId) : "#ef4444";
         return {
-          strokeColor: "#ef4444", // Red
-          fillColor: "#ef4444",
+          strokeColor: color,
+          fillColor: color,
           fillOpacity: 0.3,
           strokeOpacity: 0.8,
           strokeWeight: 2,
@@ -77,27 +132,45 @@ export function HexLayer({ cells, onCellClick }: HexLayerProps) {
       map.remove(polygonsRef.current)
       polygonsRef.current = []
     }
-
-    // Performance warning
-    if (cells.length > 500) {
-      console.warn("HexLayer: High number of polygons may affect performance. Consider clustering or culling.")
-    }
-
+    
+    // ...
+    
     const newPolygons: any[] = []
 
     cells.forEach((cell) => {
-      const style = getStyle(cell.status)
+      const style = getStyle(cell)
       
       const polygon = new AMap.Polygon({
         path: cell.coordinates,
         ...style,
-        bubble: false, // Stop event propagation if needed, but 'false' usually means it consumes the event
+        bubble: false, 
         cursor: 'pointer',
-        extData: cell, // Store cell data for event handlers
+        extData: cell, 
       })
-
+      // ...
+      newPolygons.push(polygon);
+      
       // Hover effects
       polygon.on("mouseover", () => {
+         // ... existing logic ...
+         // For now just keep it simple or reimplement hover
+         polygon.setOptions({ fillOpacity: (style.fillOpacity || 0.3) + 0.2 })
+      })
+      polygon.on("mouseout", () => {
+         polygon.setOptions({ fillOpacity: style.fillOpacity })
+      })
+      polygon.on("click", () => {
+         onCellClick(cell)
+      })
+    })
+    
+    map.add(newPolygons)
+    polygonsRef.current = newPolygons
+
+  }, [map, AMap, cells, viewMode]) // Re-render when viewMode changes
+
+  return null
+}
         if (cell.status !== 'fog') {
           polygon.setOptions({
             fillOpacity: style.fillOpacity + 0.2,

@@ -10,6 +10,8 @@ export interface HexCellData {
   coordinates: number[][] // [lng, lat][]
   level?: number
   ownerName?: string
+  ownerId?: string // For deterministic coloring
+  faction?: 'RED' | 'BLUE' | null // For faction mode
   lastActivity?: string
 }
 

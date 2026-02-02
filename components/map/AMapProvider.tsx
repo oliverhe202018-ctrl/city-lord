@@ -6,6 +6,8 @@ interface AMapContextType {
   map: any | null;
   setMap: (map: any | null) => void;
   isLoaded: boolean;
+  viewMode: 'individual' | 'faction';
+  setViewMode: (mode: 'individual' | 'faction') => void;
 }
 
 const AMapContext = createContext<AMapContextType | undefined>(undefined);
@@ -13,6 +15,7 @@ const AMapContext = createContext<AMapContextType | undefined>(undefined);
 export function AMapProvider({ children }: { children: ReactNode }) {
   const [map, setMap] = useState<any | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [viewMode, setViewMode] = useState<'individual' | 'faction'>('individual');
 
   useEffect(() => {
     // Check if AMap is available globally
@@ -29,7 +32,7 @@ export function AMapProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AMapContext.Provider value={{ map, setMap, isLoaded }}>
+    <AMapContext.Provider value={{ map, setMap, isLoaded, viewMode, setViewMode }}>
       {children}
     </AMapContext.Provider>
   );

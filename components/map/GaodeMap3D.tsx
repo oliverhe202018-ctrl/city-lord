@@ -20,6 +20,8 @@ interface GaodeMap3DProps {
   exploredHexes: string[]
   userLocation: [number, number]
   initialZoom?: number
+  // Optional: Pass full territory objects to render health
+  territories?: { id: string; health?: number; ownerType: 'me' | 'enemy' | 'neutral' }[]
 }
 
 // Security Config
@@ -30,7 +32,8 @@ export function GaodeMap3D({
   hexagons, 
   exploredHexes, 
   userLocation,
-  initialZoom = 17 
+  initialZoom = 17,
+  territories = []
 }: GaodeMap3DProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
@@ -199,6 +202,20 @@ export function GaodeMap3D({
     // Convert Real Data
     const realGeoJSON = h3ToAmapGeoJSON(hexagons)
     
+    // Enrich with Health Data if available
+    if (territories.length > 0) {
+      realGeoJSON.features.forEach((feature: any) => {
+        const t = territories.find(t => t.id === feature.properties.h3Index)
+        if (t) {
+          feature.properties.health = t.health ?? 100
+          feature.properties.ownerType = t.ownerType
+        } else {
+          feature.properties.health = 100
+          feature.properties.ownerType = 'neutral'
+        }
+      })
+    }
+
     // Merge Debug Data if list is empty
     let finalFeatures = realGeoJSON.features
     if (finalFeatures.length === 0) {
@@ -224,24 +241,83 @@ export function GaodeMap3D({
       sideColor: (index: number, feature: any) => {
          const props = feature.properties
          if (props.h3Index === 'DEBUG_HEX') return 'rgba(255, 0, 0, 0.5)'
-         const isExplored = exploredHexes.includes(props.h3Index)
-         return isExplored ? 'rgba(34, 197, 94, 0.6)' : 'rgba(100, 100, 100, 0.3)'
+         
+         const health = props.health ?? 100
+         const ownerType = props.ownerType || (exploredHexes.includes(props.h3Index) ? 'me' : 'neutral')
+         
+         // Base color by faction
+         let baseColor = 'rgba(100, 100, 100, 0.3)'
+         if (ownerType === 'me') baseColor = 'rgba(34, 197, 94, 0.6)' // Green
+         else if (ownerType === 'enemy') baseColor = 'rgba(168, 85, 247, 0.6)' // Purple
+         
+         // Health Modifier (Darker/Greyer as health drops)
+         if (health < 40) {
+            // Critical: Flashing Red/Grey look (simulated by low opacity or red tint)
+            return 'rgba(239, 68, 68, 0.4)' 
+         } else if (health < 80) {
+            // Damaged: Yellow tint
+            return 'rgba(234, 179, 8, 0.5)'
+         }
+         
+         return baseColor
       },
       topColor: (index: number, feature: any) => {
          const props = feature.properties
          if (props.h3Index === 'DEBUG_HEX') return '#ff0000'
-         const isExplored = exploredHexes.includes(props.h3Index)
-         return isExplored ? '#22c55e' : '#3f3f46'
+         
+         const health = props.health ?? 100
+         const ownerType = props.ownerType || (exploredHexes.includes(props.h3Index) ? 'me' : 'neutral')
+
+         // Base color
+         let color = '#3f3f46'
+         if (ownerType === 'me') color = '#22c55e'
+         else if (ownerType === 'enemy') color = '#a855f7'
+         
+         // Health Modifier
+         if (health < 40) {
+            return '#ef4444' // Red for critical
+         } else if (health < 80) {
+            return '#eab308' // Yellow for damaged
+         }
+         
+         return color
       },
       height: (index: number, feature: any) => {
-         return feature.properties.height || 100
+         // Lower height for low health?
+         const health = feature.properties.health ?? 100
+         const baseHeight = feature.properties.height || 100
+         return baseHeight * (0.5 + (health / 200)) // 50% to 100% height based on health
       },
       altitude: 0
     })
 
+    // Add Click Interaction for Health Status
+    // Loca doesn't have direct 'click' on layer in 2.0 the same way as 1.3 sometimes, 
+    // but usually pickFeature works.
+    // Let's try adding a click listener to the map and using queryFeature (if supported) or rely on layer events.
+    // Loca 2.0 PrismLayer usually supports events if configured? 
+    // Actually Loca is for visualization. Interaction is often done via picking.
+    // For simplicity, we just log health on click if we can.
+    
+    // Note: Loca 2.0 requires manual picking often.
+    mapInstanceRef.current.on('click', (e: any) => {
+        const feat = layer.queryFeature(e.pixel)
+        if (feat) {
+            const props = feat.properties
+            const health = props.health ?? 100
+            let status = "Healthy"
+            if (health < 40) status = "Critical (Lost in <4 days)"
+            else if (health < 80) status = "Damaged"
+            
+            toast(`Hex ${props.h3Index.substring(0,6)}...`, {
+                description: `Health: ${health}% (${status})`
+            })
+        }
+    })
+
     addLog("Layer Style Set & Rendered")
     
-  }, [isMapReady, hexagons, exploredHexes])
+  }, [isMapReady, hexagons, exploredHexes, territories])
 
   // Update User Marker Position
   useEffect(() => {

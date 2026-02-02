@@ -119,3 +119,53 @@ begin
   return new_area;
 end;
 $$;
+
+-- 5. 增加用户属性 (原子操作 - 通用)
+-- 用于任务奖励发放，同时增加经验和金币
+create or replace function increment_user_stats(
+  p_user_id uuid,
+  p_xp int,
+  p_coins int
+)
+returns void
+language plpgsql
+security definer
+as $$
+declare
+  current_exp int;
+  current_level int;
+  current_max_exp int;
+  user_profile profiles%ROWTYPE;
+begin
+  -- 锁定行
+  select * into user_profile from profiles where id = p_user_id for update;
+  
+  if not found then
+    return;
+  end if;
+
+  -- 1. 更新金币
+  update profiles 
+  set coins = coalesce(coins, 0) + p_coins
+  where id = p_user_id;
+
+  -- 2. 更新经验并升级
+  if p_xp > 0 then
+    current_exp := user_profile.current_exp + p_xp;
+    current_level := user_profile.level;
+    current_max_exp := user_profile.max_exp;
+    
+    while current_exp >= current_max_exp loop
+      current_exp := current_exp - current_max_exp;
+      current_level := current_level + 1;
+    end loop;
+    
+    update profiles 
+    set 
+      current_exp = current_exp,
+      level = current_level,
+      updated_at = now()
+    where id = p_user_id;
+  end if;
+end;
+$$;

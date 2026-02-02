@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { cookies } from 'next/headers'
 
-import { calculateLevel } from '@/lib/game-logic/level-system'
+import { ensureDailyMissions } from '@/lib/game-logic/mission-service'
 
 export interface Mission {
   id: string
@@ -29,6 +29,9 @@ export async function fetchUserMissions() {
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) return []
+
+  // Ensure daily missions are reset if needed (Lazy Load)
+  await ensureDailyMissions(user.id)
 
   const { data, error } = await supabase
     .from('user_missions')
@@ -100,77 +103,22 @@ export async function claimMissionReward(missionId: string) {
 
   if (!user) return { success: false, error: 'Unauthorized' }
 
-  // 1. Check if mission is completed but not claimed
-  const { data: userMission, error: fetchError } = await supabase
-    .from('user_missions')
-    .select('status, missions(reward_coins, reward_experience)')
-    .eq('user_id', user.id)
-    .eq('mission_id', missionId)
-    .single()
+  // Use RPC for atomic claiming
+  const { data, error } = await supabase.rpc('claim_mission_reward_rpc', {
+    p_user_id: user.id,
+    p_mission_id: missionId
+  })
 
-  if (fetchError || !userMission) {
-    return { success: false, error: 'Mission not found' }
+  if (error) {
+    console.error('Error claiming mission:', error)
+    return { success: false, error: error.message }
   }
 
-  if (userMission.status !== 'completed') {
-    return { success: false, error: 'Mission not ready to claim' }
+  // The RPC returns a JSON object on success
+  return { 
+    success: true, 
+    data // contains new_coins, new_experience, etc.
   }
-
-  // 2. Update status to claimed
-  const { error: updateError } = await supabase
-    .from('user_missions')
-    .update({ status: 'claimed', claimed_at: new Date().toISOString() })
-    .eq('user_id', user.id)
-    .eq('mission_id', missionId)
-
-  if (updateError) {
-    return { success: false, error: updateError.message }
-  }
-
-  // 3. Award rewards to user profile
-  // Note: Ideally this should be a transaction or an RPC to ensure atomicity.
-  // For now, we do it sequentially. If this fails, the user might lose rewards but mission is claimed.
-  // A better approach: create an RPC 'claim_mission(user_id, mission_id)'
-  
-  // @ts-ignore - missions is an object due to single join, but types might be array/null
-  const missionData = userMission.missions as any
-  const { reward_coins, reward_experience } = missionData
-
-  if ((reward_coins && reward_coins > 0) || (reward_experience && reward_experience > 0)) {
-    // Fetch current profile first to increment (or use RPC if available)
-    // We'll use the rpc 'increment_user_stats' if we had one, or just update.
-    // Let's use a simple update for now, but handle the read-modify-write.
-    
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('coins, current_exp, level')
-      .eq('id', user.id)
-      .single()
-      
-    if (profile) {
-      const newCoins = (profile.coins || 0) + (reward_coins || 0)
-      const newExp = (profile.current_exp || 0) + (reward_experience || 0)
-      
-      const newLevel = calculateLevel(newExp)
-      
-      const updates: { coins: number; current_exp: number; updated_at: string; level?: number } = { 
-        coins: newCoins,
-        current_exp: newExp,
-        updated_at: new Date().toISOString()
-      }
-      
-      if (newLevel > (profile.level || 1)) {
-        updates.level = newLevel
-      }
-
-      await supabase
-        .from('profiles')
-        .update(updates)
-        .eq('id', user.id)
-    }
-  }
-
-  return { success: true }
 }
 
 export async function claimAllMissionsRewards(missionIds: string[]) {

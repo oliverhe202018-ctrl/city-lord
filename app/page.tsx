@@ -29,6 +29,7 @@ import { HexCaptureEffect, AnimatedButton, GpsIndicator, PaceIndicator } from "@
 import { MapHeader } from "@/components/map/MapHeader"
 import { CityActivityBanner } from "@/components/map/CityActivityBanner"
 import { LoadingScreen } from "@/components/citylord/loading-screen"
+import { useRunningTracker } from "@/hooks/useRunningTracker"
 
 const ImmersiveRunningMode = nextDynamic(() => import("@/components/citylord/running/immersive-mode").then(mod => mod.ImmersiveRunningMode), { ssr: false });
 const RunningFAB = nextDynamic(() => import("@/components/citylord/running/immersive-mode").then(mod => mod.RunningFAB), { ssr: false });
@@ -54,8 +55,14 @@ import { AMapViewHandle } from "@/components/map/AMapView";
 
 const AMapView = nextDynamic(() => import("@/components/map/AMapViewWithProvider").then(mod => mod.AMapViewWithProvider), { ssr: false });
 
+import { FactionSelector } from "@/components/social/FactionSelector"
+import { ReferralWelcome } from "@/components/social/ReferralWelcome"
+import { useSearchParams } from 'next/navigation'
+import { processReferral } from "@/app/actions/referral"
+
 export const dynamic = 'force-dynamic';
 export default function CityLordApp() {
+  const searchParams = useSearchParams()
   const { isLoading: isCityLoading, currentCity } = useCity()
   const { checkStaminaRecovery, dismissGeolocationPrompt, claimAchievement } = useGameActions()
   const { achievements } = useGameUser()
@@ -67,6 +74,26 @@ export default function CityLordApp() {
   const [isRunning, setIsRunning] = useState(false)
   const [showImmersiveMode, setShowImmersiveMode] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
+
+  // Running Tracker
+  const { 
+    distance, 
+    pace, 
+    duration, 
+    calories, 
+    currentLocation, 
+    togglePause: toggleTrackerPause, 
+    stop: stopTracker 
+  } = useRunningTracker(isRunning)
+
+  const [sessionHexes, setSessionHexes] = useState(0)
+
+  // Reset hexes when starting run
+  useEffect(() => {
+    if (isRunning) {
+      setSessionHexes(0)
+    }
+  }, [isRunning])
 
   // Interactive popup states
   const [showTerritoryAlert, setShowTerritoryAlert] = useState(false)
@@ -117,6 +144,21 @@ export default function CityLordApp() {
       return () => clearTimeout(timer)
     }
   }, [])
+
+  useEffect(() => {
+    // Check for referral code in URL
+    const refId = searchParams.get('ref')
+    if (refId) {
+      // Store in cookie for registration flow (if user is new)
+      document.cookie = `referral_id=${refId}; path=/; max-age=86400` // 1 day
+      
+      // If user is already logged in, we could try to process it immediately, 
+      // but usually we wait for explicit "Accept" or just handle it during signup/first login.
+      // For this MVP, let's assume we handle it if they are logged in now.
+      // Note: We need the current user ID, which we get from Supabase auth state or store.
+      // Since this is a client component, we might need to trigger a server action if we have the user.
+    }
+  }, [searchParams])
 
   // Stamina Recovery Timer
   useEffect(() => {
@@ -224,8 +266,18 @@ export default function CityLordApp() {
         <main className="relative flex-1 overflow-hidden">
         {activeTab === "play" && (
           <div className="relative h-dvh w-full overflow-hidden">
-            {/* 高德地图背景 */}
-            <AMapView ref={mapViewRef} showTerritory={showTerritory} />
+            {/* Core Map Layer */}
+      <div className="absolute inset-0 z-0">
+        <AMapView 
+          ref={mapViewRef} 
+          showTerritory={showTerritory}
+          onMapLoad={() => {
+            // Map loaded
+          }}
+        />
+        <FactionSelector />
+        <ReferralWelcome />
+      </div>
 
             {/* UI Layer */}
             <div className="relative z-10 h-full w-full pointer-events-none">
@@ -331,16 +383,17 @@ export default function CityLordApp() {
       {/* Immersive Running Mode - Full screen overlay */}
       <ImmersiveRunningMode
         isActive={showImmersiveMode}
-        distance={1.87}
-        pace="6:42"
-        time="00:12:34"
-        calories={156}
-        heartRate={142}
-        hexesCaptured={3}
-        currentHexProgress={67}
-        onPause={() => {}}
-        onResume={() => {}}
+        distance={distance}
+        pace={pace}
+        time={duration}
+        calories={calories}
+        heartRate={0}
+        hexesCaptured={sessionHexes}
+        currentHexProgress={0}
+        onPause={toggleTrackerPause}
+        onResume={toggleTrackerPause}
         onStop={() => {
+          stopTracker()
           setIsRunning(false)
           setShowImmersiveMode(false)
           if (!localStorage.getItem('achievement_marathon-hero_claimed')) {
@@ -348,6 +401,8 @@ export default function CityLordApp() {
           }
         }}
         onExpand={() => {}}
+        currentLocation={currentLocation || undefined}
+        onHexClaimed={() => setSessionHexes(prev => prev + 1)}
       />
 
       {/* Bottom Navigation */}

@@ -3,6 +3,66 @@
 import { createClient } from '@/lib/supabase/server'
 import { cookies } from 'next/headers'
 
+import { checkAndRewardMissions, RunContext } from '@/lib/game-logic/mission-checker'
+import { ensureDailyMissions } from '@/lib/game-logic/mission-service'
+
+export async function stopRunningAction(context: RunContext) {
+  const cookieStore = await cookies()
+  const supabase = createClient(cookieStore)
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) return { success: false, error: 'Not authenticated' }
+
+  // Ensure dates are proper Date objects (Server Actions serialize Dates to strings)
+  context.startTime = new Date(context.startTime)
+  context.endTime = new Date(context.endTime)
+
+  // Ensure daily missions are valid before processing run
+  await ensureDailyMissions(user.id)
+
+  // Calculate newHexCount for UNIQUE_HEX mission
+  // We filter the capturedHexIds to ensure they are valid and owned by the user (or just captured in this run)
+  if (context.capturedHexIds && context.capturedHexIds.length > 0) {
+    // Dedup IDs first
+    const uniqueIds = Array.from(new Set(context.capturedHexIds))
+    
+    // Verify these hexes are actually owned by the user now (claimed during run)
+    // This prevents cheating by sending random hex IDs
+    const { count, error } = await supabase
+      .from('territories')
+      .select('*', { count: 'exact', head: true })
+      .eq('owner_id', user.id)
+      .in('id', uniqueIds)
+      // Optional: Check if captured_at is recent (during the run) to ensure it's from this session
+      .gte('captured_at', new Date(new Date(context.startTime).getTime() - 60000).toISOString()) // 1 min buffer
+
+    if (!error) {
+      context.newHexCount = count || 0
+    }
+  }
+
+  // 1. Check and reward missions
+  const completedMissionIds = await checkAndRewardMissions(user.id, context)
+
+  // 2. Update total distance in profile (if not already handled by client sync)
+  // Usually client syncs incrementally, but let's ensure consistency here or skip if client handles it.
+  // Assuming client handles distance updates via `updateLocation` or similar. 
+  // BUT we should update `total_distance_km` in profile if it's a persistent stat.
+  if (context.distance > 0) {
+      // Use RPC if available or simple update
+      const { data: profile } = await supabase.from('profiles').select('total_distance_km').eq('id', user.id).single()
+      if (profile) {
+          const newDistance = (profile.total_distance_km || 0) + context.distance
+          await supabase.from('profiles').update({ total_distance_km: newDistance }).eq('id', user.id)
+      }
+  }
+
+  return { 
+    success: true, 
+    completedMissionIds 
+  }
+}
+
 export async function getUserProfileStats() {
   const cookieStore = await cookies()
   const supabase = createClient(cookieStore)
