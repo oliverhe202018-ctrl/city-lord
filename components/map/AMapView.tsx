@@ -8,6 +8,14 @@ import FogLayer from "./FogLayer";
 import TerritoryLayer from "./TerritoryLayer";
 import { toast } from "sonner";
 
+// Declare AMap globally
+declare global {
+  interface Window {
+    _AMapSecurityConfig: any;
+    AMap: any;
+  }
+}
+
 const MapViewOrchestrator = () => {
   const { region } = useRegion();
   const { map, setMap } = useAMap();
@@ -16,9 +24,18 @@ const MapViewOrchestrator = () => {
     (state) => state.hasDismissedGeolocationPrompt
   );
   const hydrated = useHydration();
+  const markerRef = useRef<any>(null);
 
-  // 1. One-time geolocation on startup
-  const { data: geoData, error: geoError } = useGeolocation({ disabled: !hydrated || hasDismissedGeolocationPrompt });
+  // 1. Geolocation with watch enabled
+  const { data: geoData, error: geoError } = useGeolocation({ 
+    disabled: !hydrated || hasDismissedGeolocationPrompt,
+    watch: true,
+    options: {
+      enableHighAccuracy: true,
+      maximumAge: 5000,
+      timeout: 10000,
+    }
+  });
 
   // 2. Reverse geocode when geolocation data is available
   const { address, error: geocodeError } = useReverseGeocode(geoData);
@@ -30,6 +47,54 @@ const MapViewOrchestrator = () => {
       map.setZoom(14, false, 500);
     }
   }, [map, region]);
+
+  // 4. Manage User Location Marker
+  useEffect(() => {
+    if (!map || !window.AMap) return;
+
+    // Clean up existing marker if any (just in case)
+    if (markerRef.current) {
+      map.remove(markerRef.current);
+      markerRef.current = null;
+    }
+
+    // Create a new marker
+    // We use a custom content for a nice pulsing effect
+    const markerContent = `
+      <div style="position: relative; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;">
+        <div style="position: absolute; width: 100%; height: 100%; border-radius: 50%; background-color: rgba(74, 222, 128, 0.5); animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+        <div style="position: relative; width: 12px; height: 12px; border-radius: 50%; background-color: #22c55e; border: 2px solid white; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);"></div>
+      </div>
+    `;
+
+    markerRef.current = new window.AMap.Marker({
+      content: markerContent,
+      offset: new window.AMap.Pixel(-12, -12), // Center the 24x24 div
+      zIndex: 200, // Ensure it's above the FogLayer (zIndex: 100)
+      anchor: 'center',
+    });
+
+    if (geoData) {
+      markerRef.current.setPosition([geoData.longitude, geoData.latitude]);
+    }
+
+    map.add(markerRef.current);
+
+    return () => {
+      if (markerRef.current) {
+        map.remove(markerRef.current);
+        markerRef.current = null;
+      }
+    };
+  }, [map]);
+
+  // Update marker position when geoData changes
+  useEffect(() => {
+    if (markerRef.current && geoData) {
+      const newPos = [geoData.longitude, geoData.latitude];
+      markerRef.current.setPosition(newPos);
+    }
+  }, [geoData]);
 
   // Handle and log errors
   useEffect(() => {
