@@ -127,7 +127,7 @@ export async function touchUserActivity() {
 
   await supabase
     .from('profiles')
-    .update({ updated_at: new Date().toISOString() })
+    .update({ updated_at: new Date().toISOString() } as any)
     .eq('id', user.id)
 }
 
