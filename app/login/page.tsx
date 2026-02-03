@@ -168,7 +168,14 @@ export default function LoginPage() {
         isHash: data.isHash 
       });
 
-      if (verifyType === 'email') {
+      if (verifyType === 'recovery') {
+        // Recovery type (Password Reset) - extremely robust for force-login
+        authResult = await supabase.auth.verifyOtp({
+          email,
+          token: data.token,
+          type: 'recovery'
+        })
+      } else if (verifyType === 'email') {
         // For PKCE token_hash, we use type: 'email'
         authResult = await supabase.auth.verifyOtp({
           email,
