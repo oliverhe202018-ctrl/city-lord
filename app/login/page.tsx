@@ -156,9 +156,20 @@ export default function LoginPage() {
       // 2. Use the token to sign in via Supabase
       // Check if it's a token_hash (PKCE) or a raw token
       let authResult;
-      if (data.isHash) {
-        // For PKCE token_hash, we use type: 'email' (oddly enough, per Supabase docs/behavior for magic links via hash)
-        // or potentially verifyOtp({ token_hash: ..., type: 'email' })
+      
+      // If the API explicitly returned a type (email vs magiclink), use it
+      // Otherwise fallback to isHash logic
+      const verifyType = data.type || (data.isHash ? 'email' : 'magiclink');
+
+      console.log('Verifying OTP with:', { 
+        email, 
+        token: data.token, 
+        type: verifyType,
+        isHash: data.isHash 
+      });
+
+      if (verifyType === 'email') {
+        // For PKCE token_hash, we use type: 'email'
         authResult = await supabase.auth.verifyOtp({
           email,
           token_hash: data.token,
