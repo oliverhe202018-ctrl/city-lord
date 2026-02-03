@@ -97,11 +97,17 @@ export async function POST(request: Request) {
       }
 
       // Return the token to the client so they can exchange it for a session
+      // If it is a token_hash (PKCE), we MUST return email redirect link logic or handle it on client differently.
+      // Actually, verifyOtp with token_hash requires type 'email' (or 'signup'/'recovery' etc).
+      // But for 'magiclink' type generation, it usually returns a token_hash that corresponds to 'email' verification type in new PKCE flow.
+      
       return NextResponse.json({ 
         success: true, 
         token: magicLinkToken,
         isHash: isHash,
-        type: 'magiclink'
+        // Important: If it's a hash, the client needs to know to use type: 'email'
+        // If it's a raw token (legacy), use type: 'magiclink'
+        type: isHash ? 'email' : 'magiclink'
       });
 
     } catch (err: any) {
