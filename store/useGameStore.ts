@@ -22,6 +22,7 @@ export interface UserState {
   maxStamina: number;
   lastStaminaUpdate: number;
   totalArea: number;
+  totalDistance: number; // in meters
   avatar: string;
   achievements: Record<string, boolean>; // id -> claimed
   unreadMessageCount: number;
@@ -111,6 +112,7 @@ export interface UserActions {
   restoreStamina: (amount: number) => void;
   checkStaminaRecovery: () => void;
   addTotalArea: (amount: number) => void;
+  addTotalDistance: (amount: number) => void;
   setAvatar: (avatar: string) => void;
   claimAchievement: (id: string) => void;
   resetUser: () => void;
@@ -178,6 +180,7 @@ const initialUserState: UserState = {
   maxStamina: 100,
   lastStaminaUpdate: Date.now(),
   totalArea: 0,
+  totalDistance: 0,
   avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=default',
   achievements: {},
   unreadMessageCount: 0,
@@ -365,6 +368,9 @@ const createUserSlice: StateCreator<GameStore, [], [], UserActions> = (set, get)
   addTotalArea: (amount) => set((state) => ({
     totalArea: state.totalArea + amount
   })),
+  addTotalDistance: (amount) => set((state) => ({
+    totalDistance: (state.totalDistance || 0) + amount
+  })),
   setAvatar: (avatar) => set({ avatar }),
   claimAchievement: (id) => set((state) => ({
     achievements: { ...state.achievements, [id]: true }
@@ -389,6 +395,7 @@ const createUserSlice: StateCreator<GameStore, [], [], UserActions> = (set, get)
           currentExp: profileData.current_exp || state.currentExp,
           coins: profileData.coins || state.coins,
           totalArea: profileData.total_area || state.totalArea,
+          totalDistance: (profileData.total_distance_km * 1000) || state.totalDistance,
         }));
       }
     } catch (error) {
@@ -599,10 +606,12 @@ export const useGameStore = create<GameStore>()(
         level: state.level,
         currentExp: state.currentExp,
         maxExp: state.maxExp,
+        coins: state.coins,
         stamina: state.stamina,
         maxStamina: state.maxStamina,
         lastStaminaUpdate: state.lastStaminaUpdate,
         totalArea: state.totalArea,
+        totalDistance: state.totalDistance,
         avatar: state.avatar,
         achievements: state.achievements,
         unreadMessageCount: state.unreadMessageCount,
@@ -647,6 +656,7 @@ export const useGameActions = () => {
       restoreStamina: state.restoreStamina,
       checkStaminaRecovery: state.checkStaminaRecovery,
       addTotalArea: state.addTotalArea,
+      addTotalDistance: state.addTotalDistance,
       setAvatar: state.setAvatar,
       claimAchievement: state.claimAchievement,
       syncUserProfile: state.syncUserProfile,
@@ -692,6 +702,7 @@ export const useGameUser = () =>
       maxStamina: state.maxStamina,
       lastStaminaUpdate: state.lastStaminaUpdate,
       totalArea: state.totalArea,
+      totalDistance: state.totalDistance,
       avatar: state.avatar,
       achievements: state.achievements,
       unreadMessageCount: state.unreadMessageCount,

@@ -1,0 +1,52 @@
+name: Build iOS App
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build iOS IPA
+    runs-on: macos-latest
+    
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Next.js App
+        run: npm run build
+        env:
+          # 如果你的项目依赖某些环境变量，请在这里配置或使用 GitHub Secrets
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+
+      - name: Sync Capacitor
+        run: |
+          npx cap add ios
+          npx cap sync ios
+
+      # 注意：iOS 构建必须需要签名证书。
+      # 以下步骤假设你已经在 GitHub Secrets 中配置了相关证书信息。
+      # 如果没有开发者账号，这一步会失败。
+      # 这里的示例仅展示基本流程，实际签名需要更复杂的配置。
+      
+      # - name: Build IPA with Xcode
+      #   run: |
+      #     cd ios/App
+      #     xcodebuild -workspace App.xcworkspace -scheme App -sdk iphoneos -configuration Release archive -archivePath $PWD/build/App.xcarchive
+      #     xcodebuild -exportArchive -archivePath $PWD/build/App.xcarchive -exportOptionsPlist App/exportOptions.plist -exportPath $PWD/build
+
+      # - name: Upload IPA
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: ios-app
+      #     path: ios/App/build/*.ipa

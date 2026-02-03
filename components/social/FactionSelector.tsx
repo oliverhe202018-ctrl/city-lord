@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils'
 
 export function FactionSelector() {
   const [isOpen, setIsOpen] = useState(false)
-  const [stats, setStats] = useState({ RED: 0, BLUE: 0 })
+  const [stats, setStats] = useState({ RED: 0, BLUE: 0, bonus: { RED: 0, BLUE: 0 } })
   const [loading, setLoading] = useState(false)
   const [selectedFaction, setSelectedFaction] = useState<Faction | null>(null)
 
@@ -126,9 +126,9 @@ export function FactionSelector() {
                   </p>
                 </div>
 
-                {recommendedFaction === 'RED' && (
+                {stats.bonus.RED > 0 && (
                   <div className="absolute top-2 right-2 bg-yellow-500/20 text-yellow-500 text-[10px] px-1.5 py-0.5 rounded border border-yellow-500/30 animate-pulse">
-                    +20% 加成
+                    +{stats.bonus.RED}% 加成
                   </div>
                 )}
               </CardContent>
@@ -163,9 +163,9 @@ export function FactionSelector() {
                   </p>
                 </div>
 
-                {recommendedFaction === 'BLUE' && (
+                {stats.bonus.BLUE > 0 && (
                   <div className="absolute top-2 right-2 bg-yellow-500/20 text-yellow-500 text-[10px] px-1.5 py-0.5 rounded border border-yellow-500/30 animate-pulse">
-                    +20% 加成
+                    +{stats.bonus.BLUE}% 加成
                   </div>
                 )}
               </CardContent>

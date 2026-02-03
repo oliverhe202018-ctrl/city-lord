@@ -183,6 +183,13 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(({ showTerritory, onM
   }));
 
   useEffect(() => {
+    // Force security config again before load
+    if (typeof window !== "undefined") {
+        (window as any)._AMapSecurityConfig = { 
+            securityJsCode: 'e827ba611fad4802c48dd900d01eb4bf',
+        };
+    }
+
     const key = process.env.NEXT_PUBLIC_AMAP_KEY;
 
     if (!key) {

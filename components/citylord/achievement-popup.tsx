@@ -28,7 +28,7 @@ interface AchievementPopupProps {
     id: string
     title: string
     description: string
-    icon?: string
+    icon?: string | React.ElementType
     rarity: AchievementRarity
     unlockedAt?: string
   }
@@ -196,7 +196,11 @@ export function AchievementPopup({
               <div className={`absolute inset-0 animate-pulse rounded-full ${config.bg} blur-2xl`} />
               <div className={`relative mx-auto flex h-28 w-28 items-center justify-center rounded-full border-2 ${config.border} ${config.bg}`}>
                 {achievement.icon ? (
-                  <span className="text-5xl">{achievement.icon}</span>
+                  typeof achievement.icon === 'string' ? (
+                    <span className="text-5xl">{achievement.icon}</span>
+                  ) : (
+                    <achievement.icon className={`h-16 w-16 ${config.color}`} />
+                  )
                 ) : achievement.rarity === "legendary" ? (
                   <Crown className={`h-14 w-14 ${config.color}`} />
                 ) : (

@@ -14,6 +14,7 @@ import { fetchUserAchievements } from "@/app/actions/achievement"
 import { toast } from "sonner"
 import { calculateLevel, getNextLevelProgress, getTitle } from "@/lib/game-logic/level-system"
 import { BadgeGrid } from "@/components/citylord/achievements/BadgeGrid"
+import { FactionComparison } from "@/components/citylord/FactionComparison"
 import { Dialog,
   DialogContent,
   DialogHeader,
@@ -51,7 +52,8 @@ export function Profile({ onOpenSettings }: { onOpenSettings: () => void }) {
     totalTiles: 0,
     totalArea: 0,
     totalDistance: 0,
-    battlesWon: 0
+    battlesWon: 0,
+    faction: null as 'RED' | 'BLUE' | null
   })
   const [userAchievements, setUserAchievements] = React.useState<any[]>([])
 
@@ -239,15 +241,26 @@ export function Profile({ onOpenSettings }: { onOpenSettings: () => void }) {
               </defs>
             </svg>
             {/* Avatar */}
-            <div className="absolute inset-4 flex items-center justify-center rounded-full bg-gradient-to-br from-[#39ff14] to-[#39ff14]/50 overflow-hidden">
+            <button 
+              className="absolute inset-4 flex items-center justify-center rounded-full bg-gradient-to-br from-[#39ff14] to-[#39ff14]/50 overflow-hidden group cursor-pointer transition-transform active:scale-95 z-10"
+              onClick={() => {
+                setEditName(nickname)
+                setEditAvatar(avatar)
+                setIsEditing(true)
+              }}
+            >
                {avatar ? (
                  <img src={avatar} alt="Avatar" className="w-full h-full object-cover" />
                ) : (
                  <span className="text-5xl">🎯</span>
                )}
-            </div>
+               {/* Edit Overlay */}
+               <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Edit2 className="w-8 h-8 text-white drop-shadow-md" />
+               </div>
+            </button>
             {/* Level Badge */}
-            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-full border border-[#39ff14]/50 bg-[#1a1a1a] px-3 py-1">
+            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 rounded-full border border-[#39ff14]/50 bg-[#1a1a1a] px-3 py-1 z-20">
               <span className="text-sm font-bold text-[#39ff14]">LVL {level}</span>
             </div>
           </div>
@@ -387,6 +400,7 @@ export function Profile({ onOpenSettings }: { onOpenSettings: () => void }) {
 
         {/* Badges Grid */}
         <div className="px-4 pb-4">
+          <FactionComparison userFaction={userStats.faction} />
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-white/40">勋章墙</h2>
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
             <BadgeGrid />

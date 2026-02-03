@@ -38,6 +38,68 @@ interface CityContextType {
 export const CityContext = createContext<CityContextType | undefined>(undefined)
 
 /**
+ * Helper: Convert AMap data to City object
+ */
+const convertAMapDataToCity = (data: any, parentAdcode?: string): City => {
+  // Calculate bounds
+  let north = -90, south = 90, east = -180, west = 180;
+  if (data.boundaries && data.boundaries.length > 0) {
+    data.boundaries.forEach((boundary: any[]) => {
+      boundary.forEach((point: any) => {
+        // Point can be object {lng, lat} or array [lng, lat]
+        const lng = point.lng || point[0];
+        const lat = point.lat || point[1];
+        if (lat > north) north = lat;
+        if (lat < south) south = lat;
+        if (lng > east) east = lng;
+        if (lng < west) west = lng;
+      });
+    });
+  } else {
+    // Fallback bounds if no boundaries returned (rare with extensions: all)
+    const centerLng = data.center.lng || data.center[0];
+    const centerLat = data.center.lat || data.center[1];
+    north = centerLat + 0.1;
+    south = centerLat - 0.1;
+    east = centerLng + 0.1;
+    west = centerLng - 0.1;
+  }
+
+  return {
+    id: `city_${data.adcode}`,
+    adcode: data.adcode,
+    name: data.name,
+    pinyin: '', // AMap doesn't return pinyin easily in this call, leave empty or TODO
+    abbr: '',
+    province: (data.province && typeof data.province === 'string') ? data.province : undefined, // Capture province
+    level: data.level === 'district' ? 'district' : (data.level === 'city' ? 'city' : 'county'),
+    parentAdcode: parentAdcode,
+    coordinates: {
+      lng: data.center.lng || data.center[0],
+      lat: data.center.lat || data.center[1]
+    },
+    bounds: { north, south, east, west },
+    // Default Theme
+    theme: { primary: "#3b82f6", secondary: "#06b6d4", accent: "#8b5cf6", glow: "#3b82f6" },
+    themeColors: { primary: "#3b82f6", secondary: "#06b6d4" },
+    seasonStatus: {
+      currentSeason: 1,
+      startDate: new Date().toISOString(),
+      endDate: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
+      isActive: true
+    },
+    stats: {
+      totalArea: 0, // Should be calculated or fetched
+      totalPlayers: 0,
+      activePlayers: 0,
+      totalTiles: 0,
+      capturedTiles: 0
+    },
+    description: `${data.name}欢迎你！`
+  };
+};
+
+/**
  * CityContext Provider 组件
  */
 export function CityProvider({ children }: { children: React.ReactNode }) {
@@ -76,9 +138,23 @@ export function CityProvider({ children }: { children: React.ReactNode }) {
    */
   const switchCity = useCallback(
     async (adcode: string) => {
-      const targetCityBase = getCityByAdcode(adcode)
+      let targetCityBase = getCityByAdcode(adcode)
+      
+      // If not found in static data, try fetching dynamically
       if (!targetCityBase) {
-        console.error(`City with adcode ${adcode} not found`)
+        console.log(`City ${adcode} not found in static data, fetching from AMap...`);
+        try {
+          const dynamicCity = await fetchCityFromAMap(adcode);
+          if (dynamicCity) {
+            targetCityBase = dynamicCity;
+          }
+        } catch (err) {
+          console.error('Error fetching dynamic city data:', err);
+        }
+      }
+
+      if (!targetCityBase) {
+        console.error(`City with adcode ${adcode} not found (static or dynamic)`)
         return
       }
 

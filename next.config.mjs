@@ -8,7 +8,21 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  // 3. 其它已有配置保持不变...
+  // 3. 图片域名配置
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'api.dicebear.com',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.supabase.co',
+      },
+    ],
+    dangerouslyAllowSVG: true,
+    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
+  },
 };
 
 export default nextConfig;

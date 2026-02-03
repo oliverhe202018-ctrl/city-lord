@@ -14,6 +14,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [verificationCode, setVerificationCode] = useState("")
+  const [verificationToken, setVerificationToken] = useState("")
+  const [codeSent, setCodeSent] = useState(false)
+  const [countdown, setCountdown] = useState(0)
   const [loading, setLoading] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const router = useRouter()
@@ -44,6 +48,86 @@ export default function LoginPage() {
       subscription.unsubscribe()
     }
   }, [router, supabase])
+
+  // Countdown timer for verification code
+  useEffect(() => {
+    if (countdown > 0) {
+      const timer = setTimeout(() => setCountdown(countdown - 1), 1000)
+      return () => clearTimeout(timer)
+    }
+  }, [countdown])
+
+  const handleSendCode = async () => {
+    if (!email) {
+      toast.error("请输入邮箱")
+      return
+    }
+    if (countdown > 0) return
+
+    setLoading(true)
+    try {
+      const res = await fetch('/api/auth/send-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      })
+      
+      const data = await res.json()
+      
+      if (!res.ok) throw new Error(data.error || '发送失败')
+      
+      setVerificationToken(data.token)
+      setCodeSent(true)
+      setCountdown(60) // 60s cooldown
+      toast.success("验证码已发送", { description: "请查看您的邮箱 (citylord@126.com 发送)" })
+    } catch (error: any) {
+      toast.error("发送失败", { description: error.message })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!email || !password || !verificationCode) {
+      toast.error("请填写完整信息")
+      return
+    }
+
+    setLoading(true)
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          email, 
+          password, 
+          code: verificationCode, 
+          token: verificationToken 
+        })
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) throw new Error(data.error || '注册失败')
+
+      if (data.requiresEmailConfirmation) {
+        toast.success("注册成功！", { 
+          description: "账号已创建。由于 Supabase 项目开启了邮箱验证，请前往邮箱点击确认链接以激活账户，或者在 Supabase 后台关闭 'Confirm email' 选项。",
+          duration: 8000
+        })
+      } else {
+        toast.success("注册成功", { description: "正在登录..." })
+        // Use router.push first, then fallback to window.location
+        // window.location is safer for full reload to ensure auth state sync
+        window.location.href = "/"
+      }
+    } catch (error: any) {
+      toast.error("注册失败", { description: error.message })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleMagicLinkLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -104,130 +188,204 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen w-full bg-[#0f172a] flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-md space-y-4">
-        <Link 
-          href="/" 
-          className="inline-flex items-center text-sm text-white/60 hover:text-white transition-colors mb-4"
-        >
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          返回游戏
-        </Link>
-        
-        <Card className="bg-black/40 border-white/10 backdrop-blur-xl">
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-bold text-white text-center">登录 CityLord</CardTitle>
-            <CardDescription className="text-center text-white/60">
-              选择您喜欢的登录方式
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="magic-link" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 bg-white/5 mb-4">
-                <TabsTrigger value="magic-link">邮箱链接</TabsTrigger>
-                <TabsTrigger value="password">账号密码</TabsTrigger>
-              </TabsList>
+    <div className="flex min-h-screen items-center justify-center bg-[#0a0f1a] p-4 relative overflow-hidden">
+      {/* Background Effects */}
+      <div className="absolute inset-0 z-0">
+        <div className="absolute top-0 -left-1/4 w-1/2 h-1/2 bg-green-500/10 rounded-full blur-[128px]" />
+        <div className="absolute bottom-0 -right-1/4 w-1/2 h-1/2 bg-blue-500/10 rounded-full blur-[128px]" />
+      </div>
 
-              <TabsContent value="magic-link">
-                {submitted ? (
-                  <div className="text-center space-y-4 py-4 animate-in fade-in zoom-in duration-300">
-                    <div className="mx-auto w-12 h-12 bg-[#39ff14]/20 rounded-full flex items-center justify-center">
-                      <Mail className="w-6 h-6 text-[#39ff14]" />
-                    </div>
-                    <div className="space-y-2">
-                      <h3 className="text-lg font-medium text-white">邮件已发送</h3>
-                      <p className="text-sm text-white/60">
-                        请检查您的邮箱 {email}
-                        <br />
-                        点击邮件中的链接即可登录
-                      </p>
-                    </div>
-                    <Button 
-                      variant="outline" 
-                      className="w-full border-white/10 text-white hover:bg-white/5 hover:text-white"
-                      onClick={() => setSubmitted(false)}
-                    >
-                      使用其他邮箱
-                    </Button>
-                  </div>
-                ) : (
-                  <form onSubmit={handleMagicLinkLogin} className="space-y-4">
-                    <div className="space-y-2">
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-3 h-4 w-4 text-white/40" />
-                        <Input
-                          type="email"
-                          placeholder="name@example.com"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          required
-                          className="pl-9 bg-white/5 border-white/10 text-white placeholder:text-white/40 focus:border-[#39ff14]/50 focus:ring-[#39ff14]/20"
-                        />
+      <div className="w-full max-w-md animate-in fade-in zoom-in duration-500 z-10">
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-emerald-600 mb-2 font-mono tracking-tighter">
+            CITY LORD
+          </h1>
+          <p className="text-white/60 text-sm">用脚步丈量城市，用汗水铸就领地</p>
+        </div>
+
+        <Tabs defaultValue="login" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-4 bg-black/40 border border-white/10">
+            <TabsTrigger value="login">登录</TabsTrigger>
+            <TabsTrigger value="register">注册</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="login">
+            <Card className="border-white/10 bg-black/40 backdrop-blur-xl shadow-2xl">
+              <CardHeader>
+                <CardTitle className="text-xl text-white">欢迎回来</CardTitle>
+                <CardDescription className="text-white/40">
+                  选择登录方式进入游戏
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Tabs defaultValue="password" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2 mb-4 bg-white/5">
+                    <TabsTrigger value="password">密码登录</TabsTrigger>
+                    <TabsTrigger value="magic">邮箱链接</TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="password">
+                    <form onSubmit={handlePasswordLogin} className="space-y-4">
+                      <div className="space-y-2">
+                        <div className="relative">
+                          <Mail className="absolute left-3 top-3 h-4 w-4 text-white/40" />
+                          <Input
+                            type="email"
+                            placeholder="邮箱地址"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-green-500/50"
+                            required
+                          />
+                        </div>
+                        <div className="relative">
+                          <Lock className="absolute left-3 top-3 h-4 w-4 text-white/40" />
+                          <Input
+                            type="password"
+                            placeholder="密码"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-green-500/50"
+                            required
+                          />
+                        </div>
                       </div>
-                    </div>
-                    <Button 
-                      type="submit" 
-                      className="w-full bg-[#39ff14] text-black hover:bg-[#39ff14]/90 font-bold"
-                      disabled={loading}
-                    >
-                      {loading ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          发送中...
-                        </>
-                      ) : (
-                        "发送登录链接"
-                      )}
-                    </Button>
-                  </form>
-                )}
-              </TabsContent>
+                      <Button 
+                        type="submit" 
+                        className="w-full bg-green-600 hover:bg-green-700 text-white"
+                        disabled={loading}
+                      >
+                        {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        登录
+                      </Button>
+                    </form>
+                  </TabsContent>
 
-              <TabsContent value="password">
-                <form onSubmit={handlePasswordLogin} className="space-y-4">
+                  <TabsContent value="magic">
+                    {submitted ? (
+                      <div className="text-center py-8 space-y-4 animate-in fade-in slide-in-from-bottom-4">
+                        <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto">
+                          <Mail className="w-8 h-8 text-green-500" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-medium text-white">邮件已发送</h3>
+                          <p className="text-sm text-white/60 mt-2">
+                            请检查您的邮箱 {email}，点击链接完成登录
+                          </p>
+                        </div>
+                        <Button 
+                          variant="outline" 
+                          className="mt-4 border-white/10 text-white hover:bg-white/10"
+                          onClick={() => setSubmitted(false)}
+                        >
+                          <ArrowLeft className="mr-2 h-4 w-4" />
+                          返回
+                        </Button>
+                      </div>
+                    ) : (
+                      <form onSubmit={handleMagicLinkLogin} className="space-y-4">
+                        <div className="space-y-2">
+                          <div className="relative">
+                            <Mail className="absolute left-3 top-3 h-4 w-4 text-white/40" />
+                            <Input
+                              type="email"
+                              placeholder="邮箱地址"
+                              value={email}
+                              onChange={(e) => setEmail(e.target.value)}
+                              className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-green-500/50"
+                              required
+                            />
+                          </div>
+                        </div>
+                        <Button 
+                          type="submit" 
+                          className="w-full bg-green-600 hover:bg-green-700 text-white"
+                          disabled={loading}
+                        >
+                          {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2 h-4 w-4" />}
+                          发送登录链接
+                        </Button>
+                      </form>
+                    )}
+                  </TabsContent>
+                </Tabs>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="register">
+            <Card className="border-white/10 bg-black/40 backdrop-blur-xl shadow-2xl">
+              <CardHeader>
+                <CardTitle className="text-xl text-white">注册账号</CardTitle>
+                <CardDescription className="text-white/40">
+                  使用邮箱验证码注册
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleRegister} className="space-y-4">
                   <div className="space-y-2">
                     <div className="relative">
                       <Mail className="absolute left-3 top-3 h-4 w-4 text-white/40" />
                       <Input
                         type="email"
-                        placeholder="name@example.com"
+                        placeholder="邮箱地址"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
+                        className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-green-500/50"
                         required
-                        className="pl-9 bg-white/5 border-white/10 text-white placeholder:text-white/40 focus:border-cyan-400/50 focus:ring-cyan-400/20"
                       />
                     </div>
+                    
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <KeyRound className="absolute left-3 top-3 h-4 w-4 text-white/40" />
+                        <Input
+                          type="text"
+                          placeholder="验证码"
+                          value={verificationCode}
+                          onChange={(e) => setVerificationCode(e.target.value)}
+                          className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-green-500/50"
+                          required
+                          maxLength={6}
+                        />
+                      </div>
+                      <Button 
+                        type="button"
+                        variant="outline"
+                        onClick={handleSendCode}
+                        disabled={loading || countdown > 0 || !email}
+                        className="w-24 border-white/10 bg-white/5 text-white hover:bg-white/20 hover:text-white disabled:opacity-50"
+                      >
+                        {countdown > 0 ? `${countdown}s` : (loading && !codeSent ? <Loader2 className="h-4 w-4 animate-spin" /> : "获取")}
+                      </Button>
+                    </div>
+
                     <div className="relative">
-                      <KeyRound className="absolute left-3 top-3 h-4 w-4 text-white/40" />
+                      <Lock className="absolute left-3 top-3 h-4 w-4 text-white/40" />
                       <Input
                         type="password"
-                        placeholder="请输入密码"
+                        placeholder="设置密码"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
+                        className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-green-500/50"
                         required
-                        className="pl-9 bg-white/5 border-white/10 text-white placeholder:text-white/40 focus:border-cyan-400/50 focus:ring-cyan-400/20"
+                        minLength={6}
                       />
                     </div>
                   </div>
                   <Button 
                     type="submit" 
-                    className="w-full bg-cyan-400 text-black hover:bg-cyan-400/90 font-bold"
+                    className="w-full bg-green-600 hover:bg-green-700 text-white"
                     disabled={loading}
                   >
-                    {loading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        登录中...
-                      </>
-                    ) : (
-                      "登录"
-                    )}
+                    {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    注册并登录
                   </Button>
                 </form>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   )
