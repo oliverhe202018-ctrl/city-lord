@@ -48,48 +48,57 @@ export async function POST(request: Request) {
       }, { status: 500 });
     }
 
-    const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
-    });
-
-    // Generate a Magic Link to get a valid token
-    // We use try-catch specifically for the Supabase call
-    let linkData;
+    // Use raw fetch instead of supabase-js to avoid "ByteString" errors with headers
+    // (This error happens if supabase-js sends any header with non-ASCII chars)
     try {
-        const { data, error } = await supabaseAdmin.auth.admin.generateLink({
-            type: 'magiclink',
-            email,
-        });
-        if (error) throw error;
-        linkData = data;
+      const adminUrl = `${SUPABASE_URL}/auth/v1/admin/generate_link`;
+      const response = await fetch(adminUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SERVICE_ROLE_KEY,
+          'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
+          // Explicitly set User-Agent to ASCII to avoid any issues
+          'User-Agent': 'city-lord-auth-service'
+        },
+        body: JSON.stringify({
+          type: 'magiclink',
+          email: email
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error_description || errorData.msg || 'Failed to generate session link');
+      }
+
+      const linkData = await response.json();
+      const actionLink = linkData.properties?.action_link || linkData.action_link; // Check both structures
+
+      if (!actionLink) {
+        return NextResponse.json({ error: 'Failed to generate login link' }, { status: 500 });
+      }
+
+      // Extract token from action_link
+      // Format: https://.../verify?token=XYZ&type=magiclink&redirect_to=...
+      const url = new URL(actionLink);
+      const magicLinkToken = url.searchParams.get('token_hash') || url.searchParams.get('token');
+
+      if (!magicLinkToken) {
+        return NextResponse.json({ error: 'Failed to extract login token' }, { status: 500 });
+      }
+
+      // Return the token to the client so they can exchange it for a session
+      return NextResponse.json({ 
+        success: true, 
+        token: magicLinkToken,
+        type: 'magiclink'
+      });
+
     } catch (err: any) {
-        console.error('Supabase generateLink error:', err);
-        return NextResponse.json({ error: err.message || 'Failed to generate session' }, { status: 500 });
+      console.error('Supabase raw fetch error:', err);
+      return NextResponse.json({ error: err.message || 'Failed to generate session' }, { status: 500 });
     }
-
-    const actionLink = linkData.properties?.action_link;
-    if (!actionLink) {
-      return NextResponse.json({ error: 'Failed to generate login link' }, { status: 500 });
-    }
-
-    // Extract token from action_link
-    // Format: https://.../verify?token=XYZ&type=magiclink&redirect_to=...
-    const url = new URL(actionLink);
-    const magicLinkToken = url.searchParams.get('token_hash') || url.searchParams.get('token');
-
-    if (!magicLinkToken) {
-      return NextResponse.json({ error: 'Failed to extract login token' }, { status: 500 });
-    }
-
-    // Return the token to the client so they can exchange it for a session
-    return NextResponse.json({ 
-      success: true, 
-      token: magicLinkToken,
-      type: 'magiclink'
-    });
 
   } catch (error: any) {
     console.error('Login error:', error);
