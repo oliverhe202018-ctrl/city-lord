@@ -10,7 +10,7 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 export async function POST(request: Request) {
   try {
     const { email: rawEmail, code, token } = await request.json();
-    const email = rawEmail?.trim();
+    const email = rawEmail?.trim().toLowerCase();
 
     if (!email || !code || !token) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -55,6 +55,8 @@ export async function POST(request: Request) {
     // Use raw fetch instead of supabase-js to avoid "ByteString" errors with headers
     // (This error happens if supabase-js sends any header with non-ASCII chars)
     try {
+      // Use 'recovery' type instead of 'magiclink' because it is more robust for programmatic logins
+      // and less likely to hit PKCE/Hash mismatch issues in verifyOtp
       const adminUrl = `${SUPABASE_URL}/auth/v1/admin/generate_link`;
       const response = await fetch(adminUrl, {
         method: 'POST',
@@ -66,7 +68,7 @@ export async function POST(request: Request) {
           'User-Agent': 'city-lord-auth-service'
         },
         body: JSON.stringify({
-          type: 'magiclink',
+          type: 'recovery', // CHANGED FROM magiclink TO recovery
           email: email
         })
       });
@@ -84,7 +86,7 @@ export async function POST(request: Request) {
       }
 
       // Extract token from action_link
-      // Format: https://.../verify?token=XYZ&type=magiclink&redirect_to=...
+      // Format: https://.../verify?token=XYZ&type=recovery&redirect_to=...
       const url = new URL(actionLink);
       const tokenHash = url.searchParams.get('token_hash');
       const tokenRaw = url.searchParams.get('token');
@@ -97,17 +99,12 @@ export async function POST(request: Request) {
       }
 
       // Return the token to the client so they can exchange it for a session
-      // If it is a token_hash (PKCE), we MUST return email redirect link logic or handle it on client differently.
-      // Actually, verifyOtp with token_hash requires type 'email' (or 'signup'/'recovery' etc).
-      // But for 'magiclink' type generation, it usually returns a token_hash that corresponds to 'email' verification type in new PKCE flow.
-      
       return NextResponse.json({ 
         success: true, 
         token: magicLinkToken,
         isHash: isHash,
-        // Important: If it's a hash, the client needs to know to use type: 'email'
-        // If it's a raw token (legacy), use type: 'magiclink'
-        type: isHash ? 'email' : 'magiclink'
+        // Using 'recovery' type for robust login
+        type: 'recovery'
       });
 
     } catch (err: any) {
