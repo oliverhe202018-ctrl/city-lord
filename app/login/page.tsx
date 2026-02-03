@@ -138,14 +138,15 @@ export default function LoginPage() {
 
     setLoading(true)
     try {
-      // 1. Verify code on server and get Supabase Magic Link token
+      // 1. Verify code on server and get Supabase Magic Link URL
       const res = await fetch('/api/auth/login-with-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           email, 
           code: verificationCode, 
-          token: verificationToken 
+          token: verificationToken,
+          redirectTo: window.location.origin // Pass current origin for redirect
         })
       })
 
@@ -153,57 +154,20 @@ export default function LoginPage() {
 
       if (!res.ok) throw new Error(data.error || '验证失败')
 
-      // 2. Use the token to sign in via Supabase
-      // Check if it's a token_hash (PKCE) or a raw token
-      let authResult;
-      
-      // If the API explicitly returned a type (email vs magiclink), use it
-      // Otherwise fallback to isHash logic
-      const verifyType = data.type || (data.isHash ? 'email' : 'magiclink');
-
-      console.log('Verifying OTP with:', { 
-        email, 
-        token: data.token, 
-        type: verifyType,
-        isHash: data.isHash 
-      });
-
-      if (verifyType === 'recovery') {
-        // Recovery type (Password Reset) - extremely robust for force-login
-        authResult = await supabase.auth.verifyOtp({
-          email,
-          token: data.token,
-          type: 'recovery'
-        })
-      } else if (verifyType === 'email') {
-        // For PKCE token_hash, we use type: 'email'
-        authResult = await supabase.auth.verifyOtp({
-          email,
-          token_hash: data.token,
-          type: 'email'
-        })
-      } else {
-        // Classic magic link token
-        authResult = await supabase.auth.verifyOtp({
-          email,
-          token: data.token,
-          type: 'magiclink'
-        })
+      // 2. Redirect to the Magic Link URL to let Supabase handle the session
+      if (data.redirectUrl) {
+        toast.success("验证成功", { description: "正在登录..." })
+        window.location.href = data.redirectUrl
+        return
       }
-
-      const { error: authError } = authResult;
-
-      if (authError) throw authError
-
-      toast.success("登录成功", { description: "正在跳转..." })
-      window.location.href = "/"
+      
+      throw new Error("Login failed: No redirect URL received")
 
     } catch (error: any) {
       console.error("Login error:", error)
       toast.error("登录失败", {
         description: error.message || "请稍后重试"
       })
-    } finally {
       setLoading(false)
     }
   }
