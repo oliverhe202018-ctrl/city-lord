@@ -11,7 +11,12 @@ export async function GET(request: Request) {
   if (code) {
     const cookieStore = await cookies()
     const supabase = createClient(cookieStore)
+    
+    // Exchange the code for a session
+    // This will set the session cookies on the response implicitly if using middleware/server-client correctly,
+    // but here in a Route Handler, we rely on the cookieStore manipulation.
     const { error } = await supabase.auth.exchangeCodeForSession(code)
+    
     if (!error) {
       // Initialize User Missions
       const { data: { user } } = await supabase.auth.getUser()
