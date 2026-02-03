@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { cookies } from 'next/headers'
+import { getFactionStats } from '@/app/actions/faction'
 
 import { initializeUserMissions } from '@/lib/game-logic/mission-service'
 
@@ -109,7 +110,7 @@ export async function claimMissionReward(missionId: string) {
   if (!user) return { success: false, error: 'Unauthorized' }
 
   // Use RPC for atomic claiming
-  const { data, error } = await supabase.rpc('claim_mission_reward_rpc', {
+  const { data: rpcResult, error } = await supabase.rpc('claim_mission_reward_rpc', {
     p_user_id: user.id,
     p_mission_id: missionId
   } as any)
@@ -119,10 +120,62 @@ export async function claimMissionReward(missionId: string) {
     return { success: false, error: error.message }
   }
 
+  const resultData = rpcResult as any;
+  let bonusApplied = false;
+  let bonusDetails = { xp: 0, coins: 0, percentage: 0 };
+
+  // --- FACTION BONUS LOGIC ---
+  try {
+    // 1. Get user's faction
+    const { data: profile } = await supabase.from('profiles').select('faction').eq('id', user.id).single();
+    const userFaction = profile?.faction;
+
+    if (userFaction) {
+      // 2. Get Faction Stats & Bonus
+      const factionStats = await getFactionStats();
+      const bonusPercent = userFaction === 'RED' ? factionStats.bonus.RED : factionStats.bonus.BLUE;
+
+      if (bonusPercent > 0) {
+        // 3. Calculate Extra Rewards based on Base Rewards
+        const baseXp = resultData.reward_experience || 0;
+        const baseCoins = resultData.reward_coins || 0;
+
+        const extraXp = Math.floor(baseXp * (bonusPercent / 100));
+        const extraCoins = Math.floor(baseCoins * (bonusPercent / 100));
+
+        if (extraXp > 0 || extraCoins > 0) {
+          // 4. Grant Extra Rewards
+          await supabase.rpc('increment_user_stats', {
+            p_user_id: user.id,
+            p_xp: extraXp,
+            p_coins: extraCoins
+          });
+
+          bonusApplied = true;
+          bonusDetails = {
+            xp: extraXp,
+            coins: extraCoins,
+            percentage: bonusPercent
+          };
+          
+          // Update return data to reflect totals
+          resultData.new_experience += extraXp;
+          resultData.new_coins += extraCoins;
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Error applying faction bonus:', e);
+    // Do not fail the claim if bonus fails
+  }
+
   // The RPC returns a JSON object on success
   return { 
     success: true, 
-    data // contains new_coins, new_experience, etc.
+    data: {
+      ...resultData,
+      bonus: bonusApplied ? bonusDetails : undefined
+    } 
   }
 }
 

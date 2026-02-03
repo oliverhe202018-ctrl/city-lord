@@ -8,6 +8,7 @@ import { RegionProvider } from '@/contexts/RegionContext'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { Toaster } from "@/components/ui/sonner"
 import { AuthSync } from "@/components/auth/AuthSync"
+import Script from 'next/script'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] });
@@ -18,6 +19,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false, // 禁止用户缩放，防止组件撑开屏幕
+  viewportFit: 'cover',
   // 针对 iOS 的特殊处理
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: 'white' },
@@ -56,6 +58,13 @@ export default function RootLayout({
   return (
     <html lang="zh-CN" suppressHydrationWarning className="h-full">
       <body className={`font-sans antialiased h-full overflow-hidden overflow-x-hidden w-full relative`}>
+        <Script id="amap-security" strategy="beforeInteractive">
+          {`
+            window._AMapSecurityConfig = {
+              securityJsCode: 'e827ba611fad4802c48dd900d01eb4bf',
+            }
+          `}
+        </Script>
         <ErrorBoundary>
           <ThemeProvider defaultTheme="cyberpunk">
             <RegionProvider>

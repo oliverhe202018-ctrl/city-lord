@@ -83,7 +83,7 @@ export async function getUserProfileStats() {
   // Get Profile Data
   const { data: profileData } = await supabase
     .from('profiles')
-    .select('level, current_exp, total_distance_km, coins')
+    .select('level, current_exp, total_distance_km, coins, faction')
     .eq('id', user.id)
     .single()
     
@@ -114,7 +114,8 @@ export async function getUserProfileStats() {
     battlesWon: 0, // Future: fetch from battle logs
     level: profile?.level || 1,
     xp: profile?.current_exp || 0,
-    coins: profile?.coins || 0
+    coins: profile?.coins || 0,
+    faction: profile?.faction || null
   }
 }
 

@@ -75,7 +75,8 @@ export const useReverseGeocode = (options: ReverseGeocodeOptions | null) => {
             lastFixCenter: lngLat, // Save as last fix
           });
         } else {
-          setState({ loading: false, error: 'Reverse geocode failed', address: null });
+          console.error('[ReverseGeocode] Failed:', status, result);
+          setState({ loading: false, error: result || 'Reverse geocode failed', address: null });
         }
       });
     });

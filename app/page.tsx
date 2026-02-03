@@ -60,14 +60,15 @@ import { ReferralWelcome } from "@/components/social/ReferralWelcome"
 import { useSearchParams } from 'next/navigation'
 import { processReferral } from "@/app/actions/referral"
 import { fetchUserMissions } from "@/app/actions/mission"
+import { ACHIEVEMENT_DEFINITIONS } from "@/lib/achievements"
 
 export const dynamic = 'force-dynamic';
 
 function CityLordContent() {
   const searchParams = useSearchParams()
   const { isLoading: isCityLoading, currentCity } = useCity()
-  const { checkStaminaRecovery, dismissGeolocationPrompt, claimAchievement } = useGameActions()
-  const { achievements } = useGameUser()
+  const { checkStaminaRecovery, dismissGeolocationPrompt, claimAchievement, addTotalDistance } = useGameActions()
+  const { achievements, totalDistance } = useGameUser()
   const hydrated = useHydration();
   const mapViewRef = useRef<AMapViewHandle>(null);
   const [showTerritory, setShowTerritory] = useState(true);
@@ -130,6 +131,7 @@ function CityLordContent() {
   const [showTerritoryAlert, setShowTerritoryAlert] = useState(false)
   const [showChallengeInvite, setShowChallengeInvite] = useState(false)
   const [showAchievement, setShowAchievement] = useState(false)
+  const [currentUnlockedAchievement, setCurrentUnlockedAchievement] = useState<any>(null)
 
   // New onboarding states
   const [showWelcome, setShowWelcome] = useState(false)
@@ -427,8 +429,34 @@ function CityLordContent() {
           stopTracker()
           setIsRunning(false)
           setShowImmersiveMode(false)
-          if (!localStorage.getItem('achievement_marathon-hero_claimed')) {
-            setShowAchievement(true)
+          
+          // Update total distance
+          const currentRunDistance = distance || 0
+          addTotalDistance(currentRunDistance)
+          
+          const newTotalDistance = (totalDistance || 0) + currentRunDistance
+          
+          // Check for Achievements
+          // Priority: Marathon Hero (endurance_3) > Endurance 1 (endurance_1)
+          
+          // 1. Marathon Hero (42.195 km)
+          // We check both the legacy key and the new key for backward compatibility
+          if (!achievements?.['endurance_3'] && !localStorage.getItem('achievement_marathon-hero_claimed') && newTotalDistance >= 42195) {
+             const def = ACHIEVEMENT_DEFINITIONS.find(a => a.id === 'endurance_3');
+             if (def) {
+                 setCurrentUnlockedAchievement(def);
+                 setShowAchievement(true);
+                 return;
+             }
+          }
+
+          // 2. Endurance 1 (1 km)
+          if (!achievements?.['endurance_1'] && newTotalDistance >= 1000) {
+             const def = ACHIEVEMENT_DEFINITIONS.find(a => a.id === 'endurance_1');
+             if (def) {
+                 setCurrentUnlockedAchievement(def);
+                 setShowAchievement(true);
+             }
           }
         }}
         onExpand={() => {}}
@@ -495,22 +523,32 @@ function CityLordContent() {
       <AchievementPopup
         isOpen={showAchievement}
         onClose={() => setShowAchievement(false)}
-        achievement={{
+        achievement={currentUnlockedAchievement || {
           id: "marathon-hero",
           title: "马拉松英雄",
           description: "累计跑步距离达到42.195公里，你已成为真正的长跑者！",
           icon: "🏅",
           rarity: "epic",
-          unlockedAt: "2025年1月25日",
+          unlockedAt: new Date().toLocaleDateString('zh-CN'),
         }}
-        rewards={[
+        rewards={currentUnlockedAchievement ? [
+          currentUnlockedAchievement.rewards.xp && { type: "xp", amount: currentUnlockedAchievement.rewards.xp, label: "经验值" },
+          currentUnlockedAchievement.rewards.coins && { type: "coins", amount: currentUnlockedAchievement.rewards.coins, label: "金币" },
+          currentUnlockedAchievement.rewards.badge && { type: "badge", amount: 1, label: "专属徽章" },
+          currentUnlockedAchievement.rewards.title && { type: "title", amount: 1, label: "专属称号" },
+        ].filter(Boolean) : [
           { type: "xp", amount: 500, label: "经验值" },
           { type: "coins", amount: 200, label: "金币" },
           { type: "badge", amount: 1, label: "专属徽章" },
         ]}
         onClaim={() => {
-          localStorage.setItem('achievement_marathon-hero_claimed', 'true')
-          claimAchievement('marathon-hero')
+          if (currentUnlockedAchievement) {
+            localStorage.setItem(`achievement_${currentUnlockedAchievement.id}_claimed`, 'true')
+            claimAchievement(currentUnlockedAchievement.id)
+          } else {
+            localStorage.setItem('achievement_marathon-hero_claimed', 'true')
+            claimAchievement('marathon-hero')
+          }
           setShowAchievement(false)
         }}
         onShare={() => {

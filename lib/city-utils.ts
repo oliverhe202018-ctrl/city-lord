@@ -73,6 +73,8 @@ export function hydrateCity(base: BaseCity): City {
     name: base.name,
     pinyin: base.pinyin,
     abbr: base.abbr,
+    province: base.province, // Pass province
+    level: 'city', // Default to city for base cities
     coordinates: {
       lng: base.center[0],
       lat: base.center[1],

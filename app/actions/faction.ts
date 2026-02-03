@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { cookies } from 'next/headers'
+import { calculateFactionBonus } from '@/lib/game-logic/faction-balance'
 
 export type Faction = 'RED' | 'BLUE'
 
@@ -9,26 +10,53 @@ export async function getFactionStats() {
   const cookieStore = await cookies()
   const supabase = createClient(cookieStore)
 
-  // We can do two queries or one with aggregation. 
-  // Since we have an index on faction, simple counts are fast.
-  const { count: redCount, error: redError } = await supabase
-    .from('profiles')
-    .select('*', { count: 'exact', head: true })
-    .eq('faction', 'RED')
+  // Try to use RPC for efficiency
+  const { data: rpcData, error: rpcError } = await supabase.rpc('get_faction_stats_rpc')
+  
+  let redCount = 0
+  let blueCount = 0
+  let redArea = 0
+  let blueArea = 0
 
-  const { count: blueCount, error: blueError } = await supabase
-    .from('profiles')
-    .select('*', { count: 'exact', head: true })
-    .eq('faction', 'BLUE')
+  if (!rpcError && rpcData) {
+    // Parse RPC result
+    const redStats = (rpcData as any[]).find((r: any) => r.faction === 'RED')
+    const blueStats = (rpcData as any[]).find((r: any) => r.faction === 'BLUE')
+    
+    redCount = redStats?.member_count || 0
+    blueCount = blueStats?.member_count || 0
+    redArea = Number(redStats?.total_area || 0)
+    blueArea = Number(blueStats?.total_area || 0)
+  } else {
+    // Fallback to simple count if RPC fails (e.g. migration not run)
+    // Note: This fallback won't get Area sum efficiently, so we default area to 0 or try separate queries if critical.
+    // For now, let's just do the counts as before to keep basic functionality.
+    
+    const { count: rCount } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true })
+        .eq('faction', 'RED')
+    
+    const { count: bCount } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true })
+        .eq('faction', 'BLUE')
 
-  if (redError || blueError) {
-    console.error('Error fetching faction stats:', redError, blueError)
-    return { RED: 0, BLUE: 0 }
+    redCount = rCount || 0
+    blueCount = bCount || 0
+    // Area remains 0 in fallback
   }
 
+  const bonus = calculateFactionBonus(redCount, blueCount)
+
   return {
-    RED: redCount || 0,
-    BLUE: blueCount || 0
+    RED: redCount,
+    BLUE: blueCount,
+    area: {
+        RED: redArea,
+        BLUE: blueArea
+    },
+    bonus
   }
 }
 
@@ -42,15 +70,44 @@ export async function joinFaction(faction: Faction) {
   }
 
   // 1. Get current profile to check restrictions
-  const { data: profileData, error: fetchError } = await supabase
+  let { data: profileData, error: fetchError } = await supabase
     .from('profiles')
     .select('faction, last_faction_change_at')
     .eq('id', user.id)
     .single()
   
+  // Self-healing: If profile doesn't exist, create it
+  if (!profileData || fetchError) {
+    console.log('Profile missing or error for user, attempting to create...', user.id)
+    
+    const { error: insertError } = await supabase.from('profiles').insert({
+      id: user.id,
+      nickname: user.email?.split('@')[0] || `Runner_${user.id.substring(0, 4)}`,
+      avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`,
+      level: 1
+    })
+
+    // If insert failed and it wasn't because it already exists (race condition), return error
+    if (insertError && insertError.code !== '23505') {
+      console.error('Error creating profile during faction join:', insertError)
+      return { success: false, error: 'Failed to initialize profile: ' + insertError.message }
+    }
+
+    // Retry fetch
+    const retry = await supabase
+      .from('profiles')
+      .select('faction, last_faction_change_at')
+      .eq('id', user.id)
+      .single()
+      
+    profileData = retry.data
+    fetchError = retry.error
+  }
+
   const profile = profileData as any;
 
   if (fetchError || !profile) {
+    console.error('Profile fetch error:', fetchError)
     return { success: false, error: 'Profile not found' }
   }
 

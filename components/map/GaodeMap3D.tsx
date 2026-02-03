@@ -52,12 +52,12 @@ export function GaodeMap3D({
   useEffect(() => {
     if (!mapContainerRef.current) return
 
-    // Ensure Security Config is set BEFORE loading
-    if (!(window as any)._AMapSecurityConfig) {
+    // Ensure Security Config is set BEFORE loading (Force hardcoded key for safety)
+    if (typeof window !== "undefined") {
       (window as any)._AMapSecurityConfig = {
-        securityJsCode: AMAP_SECURITY_CODE,
+        securityJsCode: 'e827ba611fad4802c48dd900d01eb4bf',
       }
-      addLog("Security Config Set")
+      addLog("Security Config Set (Hardcoded)")
     }
 
     AMapLoader.load({

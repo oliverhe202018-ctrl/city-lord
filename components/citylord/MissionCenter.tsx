@@ -417,10 +417,31 @@ export function MissionCenter() {
         ? `${reward.xpAmount} 经验 + ${reward.coinsAmount} 金币`
         : `${reward.type === 'coins' ? reward.coinsAmount : reward.xpAmount} ${reward.label}`
 
-      toast.success(`领取成功！获得 ${rewardText}`, {
-        icon: <Gift className="text-green-400" />,
-        style: { background: 'rgba(0,0,0,0.8)', color: 'white', border: '1px solid rgba(255,255,255,0.1)' }
-      })
+      // Check for bonus in result
+      if (result.data?.bonus) {
+        const bonus = result.data.bonus;
+        toast.success(
+          <div className="flex flex-col gap-1">
+            <span className="font-bold">领取成功！</span>
+            <span className="text-sm opacity-90">获得 {rewardText}</span>
+            <span className="text-xs text-yellow-300 font-bold bg-yellow-500/20 px-2 py-1 rounded w-fit">
+              阵营加成 +{bonus.percentage}%: 额外获得 {bonus.xp} 经验, {bonus.coins} 金币
+            </span>
+          </div>
+        , {
+          icon: <Gift className="text-green-400" />,
+          style: { background: 'rgba(0,0,0,0.9)', color: 'white', border: '1px solid rgba(255,255,255,0.1)' }
+        })
+        
+        // Add Bonus locally
+        if (bonus.xp > 0) addExperience(bonus.xp)
+        if (bonus.coins > 0) addCoins(bonus.coins)
+      } else {
+        toast.success(`领取成功！获得 ${rewardText}`, {
+          icon: <Gift className="text-green-400" />,
+          style: { background: 'rgba(0,0,0,0.8)', color: 'white', border: '1px solid rgba(255,255,255,0.1)' }
+        })
+      }
     } catch (error) {
       toast.error("领取失败", {
         description: error instanceof Error ? error.message : "未知错误",

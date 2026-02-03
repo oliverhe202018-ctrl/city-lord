@@ -17,6 +17,12 @@ export interface City {
   pinyin: string
   /** 缩写 */
   abbr: string
+  /** 省份 */
+  province?: string
+  /** 行政级别 */
+  level?: 'province' | 'city' | 'district' | 'county'
+  /** 父级城市代码 */
+  parentAdcode?: string
   /** 城市中心坐标（经度，纬度） */
   coordinates: {
     lat: number
