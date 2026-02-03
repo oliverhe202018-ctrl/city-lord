@@ -146,7 +146,7 @@ export default function LoginPage() {
           email, 
           code: verificationCode, 
           token: verificationToken,
-          redirectTo: window.location.origin // Pass current origin for redirect
+          redirectTo: `${window.location.origin}/auth/callback` // Point to the callback route that handles code exchange
         })
       })
 
