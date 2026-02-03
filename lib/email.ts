@@ -16,15 +16,18 @@ export const transporter = nodemailer.createTransport({
   },
 });
 
-export async function sendVerificationCode(to: string, code: string) {
+export async function sendVerificationCode(to: string, code: string, type: 'register' | 'login' = 'register') {
+  const subject = type === 'login' ? '【City Lord】登录验证码' : '【City Lord】注册验证码';
+  const title = type === 'login' ? 'City Lord 登录验证' : 'City Lord 注册验证';
+
   const info = await transporter.sendMail({
     from: `"City Lord Game" <${SMTP_USER}>`,
     to,
-    subject: '【City Lord】注册验证码',
+    subject,
     text: `您的验证码是：${code}。有效期5分钟，请勿泄露给他人。`,
     html: `
       <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
-        <h2 style="color: #22c55e;">City Lord 注册验证</h2>
+        <h2 style="color: #22c55e;">${title}</h2>
         <p>您好！</p>
         <p>您的验证码是：</p>
         <div style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #0f172a; margin: 20px 0;">

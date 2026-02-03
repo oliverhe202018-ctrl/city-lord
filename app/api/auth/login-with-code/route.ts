@@ -9,7 +9,8 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
 export async function POST(request: Request) {
   try {
-    const { email, code, token } = await request.json();
+    const { email: rawEmail, code, token } = await request.json();
+    const email = rawEmail?.trim();
 
     if (!email || !code || !token) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -21,6 +22,7 @@ export async function POST(request: Request) {
       const json = Buffer.from(token, 'base64').toString('utf-8');
       payload = JSON.parse(json);
     } catch (e) {
+      console.error('Token parsing error:', e);
       return NextResponse.json({ error: 'Invalid token format' }, { status: 400 });
     }
 
@@ -42,7 +44,7 @@ export async function POST(request: Request) {
     // 2. Generate Supabase Session
     if (!SERVICE_ROLE_KEY || !SUPABASE_URL) {
       return NextResponse.json({ 
-        error: 'Server misconfiguration: Missing Service Role Key. Cannot perform custom login.' 
+        error: 'Server misconfiguration: Missing Service Role Key' 
       }, { status: 500 });
     }
 
@@ -54,13 +56,18 @@ export async function POST(request: Request) {
     });
 
     // Generate a Magic Link to get a valid token
-    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'magiclink',
-      email,
-    });
-
-    if (linkError) {
-      return NextResponse.json({ error: linkError.message }, { status: 400 });
+    // We use try-catch specifically for the Supabase call
+    let linkData;
+    try {
+        const { data, error } = await supabaseAdmin.auth.admin.generateLink({
+            type: 'magiclink',
+            email,
+        });
+        if (error) throw error;
+        linkData = data;
+    } catch (err: any) {
+        console.error('Supabase generateLink error:', err);
+        return NextResponse.json({ error: err.message || 'Failed to generate session' }, { status: 500 });
     }
 
     const actionLink = linkData.properties?.action_link;
@@ -81,13 +88,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ 
       success: true, 
       token: magicLinkToken,
-      type: 'magiclink' // Client should use verifyOtp({ token, type: 'magiclink', email })
-      // Note: If Supabase uses PKCE (token_hash), the client flow might be different.
-      // verifyOtp with type 'magiclink' usually expects the token string.
+      type: 'magiclink'
     });
 
   } catch (error: any) {
     console.error('Login error:', error);
-    return NextResponse.json({ error: error.message || 'Login failed' }, { status: 500 });
+    // Ensure error message is safe
+    const safeError = error.message ? error.message.replace(/[^\x00-\x7F]/g, "") : 'Login failed';
+    return NextResponse.json({ error: safeError }, { status: 500 });
   }
 }
