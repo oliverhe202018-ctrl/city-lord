@@ -86,7 +86,11 @@ export async function POST(request: Request) {
       // Extract token from action_link
       // Format: https://.../verify?token=XYZ&type=magiclink&redirect_to=...
       const url = new URL(actionLink);
-      const magicLinkToken = url.searchParams.get('token_hash') || url.searchParams.get('token');
+      const tokenHash = url.searchParams.get('token_hash');
+      const tokenRaw = url.searchParams.get('token');
+      
+      const magicLinkToken = tokenHash || tokenRaw;
+      const isHash = !!tokenHash;
 
       if (!magicLinkToken) {
         return NextResponse.json({ error: 'Failed to extract login token' }, { status: 500 });
@@ -96,6 +100,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ 
         success: true, 
         token: magicLinkToken,
+        isHash: isHash,
         type: 'magiclink'
       });
 
