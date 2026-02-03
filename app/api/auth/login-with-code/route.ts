@@ -9,7 +9,7 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
 export async function POST(request: Request) {
   try {
-    const { email: rawEmail, code, token } = await request.json();
+    const { email: rawEmail, code, token, redirectTo } = await request.json();
     const email = rawEmail?.trim().toLowerCase();
 
     if (!email || !code || !token) {
@@ -69,7 +69,10 @@ export async function POST(request: Request) {
         },
         body: JSON.stringify({
           type: 'recovery', // CHANGED FROM magiclink TO recovery
-          email: email
+          email: email,
+          options: {
+            redirectTo: redirectTo || undefined
+          }
         })
       });
 
@@ -85,26 +88,13 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Failed to generate login link' }, { status: 500 });
       }
 
-      // Extract token from action_link
-      // Format: https://.../verify?token=XYZ&type=recovery&redirect_to=...
-      const url = new URL(actionLink);
-      const tokenHash = url.searchParams.get('token_hash');
-      const tokenRaw = url.searchParams.get('token');
+      // Instead of extracting token and verifying manually (which fails due to PKCE/Hash mismatch),
+      // we return the full actionLink and let the frontend redirect the user to it.
+      // This ensures Supabase handles the session creation and cookie setting correctly.
       
-      const magicLinkToken = tokenHash || tokenRaw;
-      const isHash = !!tokenHash;
-
-      if (!magicLinkToken) {
-        return NextResponse.json({ error: 'Failed to extract login token' }, { status: 500 });
-      }
-
-      // Return the token to the client so they can exchange it for a session
       return NextResponse.json({ 
         success: true, 
-        token: magicLinkToken,
-        isHash: isHash,
-        // Using 'recovery' type for robust login
-        type: 'recovery'
+        redirectUrl: actionLink
       });
 
     } catch (err: any) {
