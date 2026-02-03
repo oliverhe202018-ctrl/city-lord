@@ -167,8 +167,36 @@ function CityLordContent() {
   
   // Check if first visit - 只在首次挂载时执行
   useEffect(() => {
+    // Only show Welcome if NOT logged in or explicitly reset
+    // But since this page is protected or user state is managed, 
+    // we should check if we actually want to show this.
+    // The user issue is: "Login success, but still shows this popup".
+    // This popup is `WelcomeScreen` controlled by `showWelcome`.
+    // It defaults to false, but this useEffect sets it to true if localStorage is empty.
+    
+    // Fix: Don't show welcome screen if we have a valid session/user, 
+    // or if we just redirected from login.
     const hasVisited = localStorage.getItem('hasVisited')
-    if (!hasVisited) {
+    
+    // We can check if user is logged in via Supabase session
+    // But here we rely on localStorage flag. 
+    // If the user just logged in, they might have cleared storage or it's a new device.
+    // However, the Welcome Screen is "Welcome to City Lord... Login/Register".
+    // If they are already logged in, we should NOT show this.
+    
+    // Let's check for the supabase session cookie or some indicator.
+    // Actually, `useGameUser` hook might tell us if we have a user.
+    // But `useGameUser` is from zustand store, which might be hydrated later.
+    
+    // Simple fix: If we are on this page, it means we are likely authenticated (if middleware enforces it),
+    // OR this is a public landing page.
+    // If the user sees "Login Success" toast, they are authenticated.
+    // The `WelcomeScreen` seems to be an "Onboarding / First Time" screen that prompts to login.
+    
+    // If we detect a session (e.g. from cookies), we should suppress this.
+    const hasSession = document.cookie.includes('sb-access-token') || document.cookie.includes('supabase-auth-token');
+    
+    if (!hasVisited && !hasSession) {
       const timer = setTimeout(() => {
         setShowWelcome(true)
         localStorage.setItem('hasVisited', 'true')
