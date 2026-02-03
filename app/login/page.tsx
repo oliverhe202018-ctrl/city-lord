@@ -154,11 +154,26 @@ export default function LoginPage() {
       if (!res.ok) throw new Error(data.error || '验证失败')
 
       // 2. Use the token to sign in via Supabase
-      const { data: authData, error: authError } = await supabase.auth.verifyOtp({
-        email,
-        token: data.token,
-        type: 'magiclink'
-      })
+      // Check if it's a token_hash (PKCE) or a raw token
+      let authResult;
+      if (data.isHash) {
+        // For PKCE token_hash, we use type: 'email' (oddly enough, per Supabase docs/behavior for magic links via hash)
+        // or potentially verifyOtp({ token_hash: ..., type: 'email' })
+        authResult = await supabase.auth.verifyOtp({
+          email,
+          token_hash: data.token,
+          type: 'email'
+        })
+      } else {
+        // Classic magic link token
+        authResult = await supabase.auth.verifyOtp({
+          email,
+          token: data.token,
+          type: 'magiclink'
+        })
+      }
+
+      const { error: authError } = authResult;
 
       if (authError) throw authError
 
