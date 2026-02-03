@@ -48,6 +48,10 @@ export async function POST(request: Request) {
       }, { status: 500 });
     }
 
+    // SANITIZE THE KEY: Remove any whitespace or non-ASCII characters that might have been pasted in
+    // This is critical to prevent "ByteString" errors if the env var has comments or hidden chars
+    const cleanServiceRoleKey = SERVICE_ROLE_KEY.trim().split(/\s+/)[0];
+
     // Use raw fetch instead of supabase-js to avoid "ByteString" errors with headers
     // (This error happens if supabase-js sends any header with non-ASCII chars)
     try {
@@ -56,8 +60,8 @@ export async function POST(request: Request) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'apikey': SERVICE_ROLE_KEY,
-          'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
+          'apikey': cleanServiceRoleKey,
+          'Authorization': `Bearer ${cleanServiceRoleKey}`,
           // Explicitly set User-Agent to ASCII to avoid any issues
           'User-Agent': 'city-lord-auth-service'
         },
