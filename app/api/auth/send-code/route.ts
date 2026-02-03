@@ -8,7 +8,7 @@ const SECRET_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'temp-secret-key
 
 export async function POST(request: Request) {
   try {
-    const { email } = await request.json();
+    const { email, type } = await request.json();
 
     if (!email) {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 });
@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     const signature = crypto.createHmac('sha256', SECRET_KEY).update(data).digest('hex');
 
     // Send email
-    await sendVerificationCode(email, code);
+    await sendVerificationCode(email, code, type || 'register');
 
     // Return token to client (stateless verification)
     // Client must send this token back along with the code and email for verification

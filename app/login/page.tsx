@@ -57,7 +57,7 @@ export default function LoginPage() {
     }
   }, [countdown])
 
-  const handleSendCode = async () => {
+  const handleSendCode = async (type: 'register' | 'login' = 'register') => {
     if (!email) {
       toast.error("请输入邮箱")
       return
@@ -69,7 +69,7 @@ export default function LoginPage() {
       const res = await fetch('/api/auth/send-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
+        body: JSON.stringify({ email, type })
       })
       
       const data = await res.json()
@@ -129,30 +129,46 @@ export default function LoginPage() {
     }
   }
 
-  const handleMagicLinkLogin = async (e: React.FormEvent) => {
+  const handleCodeLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!email || !verificationCode) {
+      toast.error("请输入邮箱和验证码")
+      return
+    }
+
     setLoading(true)
-
     try {
-      const { error } = await supabase.auth.signInWithOtp({
+      // 1. Verify code on server and get Supabase Magic Link token
+      const res = await fetch('/api/auth/login-with-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          email, 
+          code: verificationCode, 
+          token: verificationToken 
+        })
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) throw new Error(data.error || '验证失败')
+
+      // 2. Use the token to sign in via Supabase
+      const { data: authData, error: authError } = await supabase.auth.verifyOtp({
         email,
-        options: {
-          emailRedirectTo: `${location.origin}/auth/callback`,
-        },
+        token: data.token,
+        type: 'magiclink'
       })
 
-      if (error) {
-        throw error
-      }
+      if (authError) throw authError
 
-      setSubmitted(true)
-      toast.success("登录链接已发送", {
-        description: "请前往邮箱点击链接完成登录"
-      })
-    } catch (error) {
+      toast.success("登录成功", { description: "正在跳转..." })
+      window.location.href = "/"
+
+    } catch (error: any) {
       console.error("Login error:", error)
-      toast.error("发送失败", {
-        description: error instanceof Error ? error.message : "请稍后重试"
+      toast.error("登录失败", {
+        description: error.message || "请稍后重试"
       })
     } finally {
       setLoading(false)
@@ -262,51 +278,53 @@ export default function LoginPage() {
                   </TabsContent>
 
                   <TabsContent value="magic">
-                    {submitted ? (
-                      <div className="text-center py-8 space-y-4 animate-in fade-in slide-in-from-bottom-4">
-                        <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto">
-                          <Mail className="w-8 h-8 text-green-500" />
+                    <form onSubmit={handleCodeLogin} className="space-y-4">
+                      <div className="space-y-2">
+                        <div className="relative">
+                          <Mail className="absolute left-3 top-3 h-4 w-4 text-white/40" />
+                          <Input
+                            type="email"
+                            placeholder="邮箱地址"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-green-500/50"
+                            required
+                          />
                         </div>
-                        <div>
-                          <h3 className="text-lg font-medium text-white">邮件已发送</h3>
-                          <p className="text-sm text-white/60 mt-2">
-                            请检查您的邮箱 {email}，点击链接完成登录
-                          </p>
-                        </div>
-                        <Button 
-                          variant="outline" 
-                          className="mt-4 border-white/10 text-white hover:bg-white/10"
-                          onClick={() => setSubmitted(false)}
-                        >
-                          <ArrowLeft className="mr-2 h-4 w-4" />
-                          返回
-                        </Button>
-                      </div>
-                    ) : (
-                      <form onSubmit={handleMagicLinkLogin} className="space-y-4">
-                        <div className="space-y-2">
-                          <div className="relative">
-                            <Mail className="absolute left-3 top-3 h-4 w-4 text-white/40" />
+
+                        <div className="flex gap-2">
+                          <div className="relative flex-1">
+                            <KeyRound className="absolute left-3 top-3 h-4 w-4 text-white/40" />
                             <Input
-                              type="email"
-                              placeholder="邮箱地址"
-                              value={email}
-                              onChange={(e) => setEmail(e.target.value)}
+                              type="text"
+                              placeholder="验证码"
+                              value={verificationCode}
+                              onChange={(e) => setVerificationCode(e.target.value)}
                               className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-green-500/50"
                               required
+                              maxLength={6}
                             />
                           </div>
+                          <Button 
+                            type="button"
+                            variant="outline"
+                            onClick={() => handleSendCode('login')}
+                            disabled={loading || countdown > 0 || !email}
+                            className="w-24 border-white/10 bg-white/5 text-white hover:bg-white/20 hover:text-white disabled:opacity-50"
+                          >
+                            {countdown > 0 ? `${countdown}s` : (loading && !codeSent ? <Loader2 className="h-4 w-4 animate-spin" /> : "获取")}
+                          </Button>
                         </div>
-                        <Button 
-                          type="submit" 
-                          className="w-full bg-green-600 hover:bg-green-700 text-white"
-                          disabled={loading}
-                        >
-                          {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2 h-4 w-4" />}
-                          发送登录链接
-                        </Button>
-                      </form>
-                    )}
+                      </div>
+                      <Button 
+                        type="submit" 
+                        className="w-full bg-green-600 hover:bg-green-700 text-white"
+                        disabled={loading}
+                      >
+                        {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        登录
+                      </Button>
+                    </form>
                   </TabsContent>
                 </Tabs>
               </CardContent>
@@ -352,7 +370,7 @@ export default function LoginPage() {
                       <Button 
                         type="button"
                         variant="outline"
-                        onClick={handleSendCode}
+                        onClick={() => handleSendCode('register')}
                         disabled={loading || countdown > 0 || !email}
                         className="w-24 border-white/10 bg-white/5 text-white hover:bg-white/20 hover:text-white disabled:opacity-50"
                       >

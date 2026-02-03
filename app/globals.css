@@ -115,6 +115,19 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+/* Native App Feel */
+html, body {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+input, textarea {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
