@@ -1,21 +1,28 @@
-import type { CapacitorConfig } from '@capacitor/cli';
+import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.citylord.game',
   appName: 'CityLord',
-  webDir: 'out', // 或者 'public'，这取决于你的构建输出，但在server模式下这个不太重要
+  webDir: 'out', 
   server: {
-    // ✅ 这里填你 Vercel 的真实线上地址
-    url: 'https://city-lord.vercel.app', 
+    // ---------------------------------------------------
+    // 模式 A：本地开发 (需要 npm run dev + adb reverse)
+    // url: 'http://localhost:3000',
+    // cleartext: true,
+    // ---------------------------------------------------
+
+    // ---------------------------------------------------
+    // 模式 B：远程测试/生产 (不需要本地电脑运行项目)
+    // ✅ 这里填你的真实线上域名
+    url: 'https://cl.4567666.xyz',
     
-    // ❌ 删掉 cleartext: true，或者设为 false，因为我们要用 HTTPS
-    // cleartext: true 
-    
-    // ✅ 建议加上这个，允许 App 导航到该域名
+    // ✅ 允许 App 跳转到这些域名 (非常重要，否则可能会白屏或跳出到浏览器)
     allowNavigation: [
       'city-lord.vercel.app',
-      'cl.4567666.xyz'
+      'cl.4567666.xyz',
+      '*.vercel.app' 
     ]
+    // ---------------------------------------------------
   }
 };
 
