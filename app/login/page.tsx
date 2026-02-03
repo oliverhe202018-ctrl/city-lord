@@ -198,7 +198,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md animate-in fade-in zoom-in duration-500 z-10">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-emerald-600 mb-2 font-mono tracking-tighter">
-            CITY LORD
+            城市领主
           </h1>
           <p className="text-white/60 text-sm">用脚步丈量城市，用汗水铸就领地</p>
         </div>
@@ -221,7 +221,7 @@ export default function LoginPage() {
                 <Tabs defaultValue="password" className="w-full">
                   <TabsList className="grid w-full grid-cols-2 mb-4 bg-white/5">
                     <TabsTrigger value="password">密码登录</TabsTrigger>
-                    <TabsTrigger value="magic">邮箱链接</TabsTrigger>
+                    <TabsTrigger value="magic">验证码登录</TabsTrigger>
                   </TabsList>
 
                   <TabsContent value="password">

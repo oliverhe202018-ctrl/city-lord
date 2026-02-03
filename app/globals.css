@@ -123,6 +123,22 @@
     overflow-x: hidden !important;
     width: 100% !important;
     position: relative !important;
+    -webkit-touch-callout: none; /* iOS Safari */
+    -webkit-user-select: none; /* Safari */
+    -khtml-user-select: none; /* Konqueror HTML */
+    -moz-user-select: none; /* Old versions of Firefox */
+    -ms-user-select: none; /* Internet Explorer/Edge */
+    user-select: none; /* Non-prefixed version, currently supported by Chrome, Edge, Opera and Firefox */
+    -webkit-tap-highlight-color: transparent; /* Disable highlight on tap */
+  }
+  
+  /* Allow selection in inputs and textareas */
+  input, textarea {
+    -webkit-user-select: text;
+    -khtml-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+    user-select: text;
   }
   body {
     @apply bg-background text-foreground;
