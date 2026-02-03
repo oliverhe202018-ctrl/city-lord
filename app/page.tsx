@@ -194,8 +194,13 @@ function CityLordContent() {
     // The `WelcomeScreen` seems to be an "Onboarding / First Time" screen that prompts to login.
     
     // If we detect a session (e.g. from cookies), we should suppress this.
-    const hasSession = document.cookie.includes('sb-access-token') || document.cookie.includes('supabase-auth-token');
-    
+    // Also check localStorage for 'supabase-auth-token' which is used by the client-side auth
+    const hasSession = 
+      document.cookie.includes('sb-') || 
+      document.cookie.includes('supabase-') ||
+      !!localStorage.getItem('sb-access-token') || // Check standard Supabase local storage keys
+      !!localStorage.getItem('supabase.auth.token');
+
     if (!hasVisited && !hasSession) {
       const timer = setTimeout(() => {
         setShowWelcome(true)
