@@ -4,6 +4,29 @@ City Lord 是一款结合真实地理位置（LBS）的跑步领地争夺游戏�
 
 ## 📅 更新日志 (Changelog)
 
+### 2026-02-05: 🎮 核心玩法落地与 PWA 升级 (Core Gameplay & PWA)
+
+**核心玩法升级：**
+
+1.  **🖌️ 实时轨迹与领地闭环 (Path & Territory)**
+    *   **轨迹绘制**：`GaodeMap3D` 现在支持实时绘制跑步轨迹 (Polyline)，并根据用户偏好设置颜色。
+    *   **闭环检测**：`useRunningTracker` 新增闭环检测算法。当跑步路径首尾距离小于 20 米时，自动识别为闭环并生成多边形领地。
+    *   **个性化领地**：支持从 `profiles` 表读取用户自定义的 `path_color` 和 `fill_color`，让每个人的领地独一无二。
+
+2.  **📱 PWA 与离线支持 (Progressive Web App)**
+    *   **原生级体验**：集成了 `next-pwa`，支持添加到主屏幕，提供类原生 App 的全屏体验。
+    *   **离线能力**：配置了 Service Worker，支持离线访问核心页面。新增 `NetworkStatus` 组件，在网络断开时显示优雅的提示 Banner。
+    *   **Manifest**：完整的 `manifest.json` 配置，包含多尺寸图标和主题色设置。
+
+3.  **🏠 房间系统优化 (Room System)**
+    *   **我的房间**：重构了 `RoomDrawer`，解决了“加载失败”的误报问题。
+    *   **SWR 集成**：全面接入 SWR 状态管理，`useMyRoomData` 自动处理数据预取和缓存更新，房间状态切换更加丝滑。
+    *   **无限循环修复**：修复了 `ClubDrawer` 中因依赖项不稳定导致的 `Maximum update depth exceeded` 无限渲染问题。
+
+4.  **🔐 体验打磨**
+    *   **登录优化**：重构登录页交互，使用 AJAX (`fetch`) 替代表单提交，错误提示从“页面跳转”改为“原地 Toast”，大幅提升流畅度。
+    *   **UI 细节**：调整了 `RunningHUD` 布局，优化了移动端触摸区域。
+
 ### 2026-02-04: ⚡️ 极致性能优化与 SWR 架构重构 (Performance & SWR)
 
 **核心目标**：彻底解决页面加载慢、骨架屏闪烁、以及高并发下的数据库压力问题。
