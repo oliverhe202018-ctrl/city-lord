@@ -132,6 +132,58 @@ export async function touchUserActivity() {
     .eq('id', user.id)
 }
 
+import { cache } from 'react'
+
+export const ensureUserProfile = cache(async (userId: string) => {
+  const cookieStore = await cookies()
+  const supabase = createClient(cookieStore)
+
+  // 🚀 Fast Path: Check ID existence only (<50ms)
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('id', userId)
+    .single()
+
+  // If profile exists, return immediately (Read-only path)
+  if (data && !error) {
+    return { success: true, isExisting: true }
+  }
+
+  // 🐢 Slow Path: Create new profile (Only for new users)
+  console.log('[UserProfile] Creating new profile for:', userId)
+  
+  // We assume the user is authenticated in auth.users
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  if (!user || user.id !== userId) {
+      return { success: false, error: 'Unauthorized or ID mismatch' }
+  }
+
+  // Insert default profile
+  const { error: insertError } = await (supabase
+    .from('profiles') as any)
+    .upsert({
+      id: userId,
+      nickname: user.email?.split('@')[0] || `Runner_${userId.slice(0, 6)}`,
+      avatar_url: '',
+      level: 1,
+      current_exp: 0,
+      max_exp: 100,
+      stamina: 100,
+      max_stamina: 100,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    })
+
+  if (insertError) {
+    console.error('Failed to create profile:', insertError)
+    return { success: false, error: insertError.message }
+  }
+
+  return { success: true, isNew: true }
+})
+
 import { calculateLevel } from '@/lib/game-logic/level-system'
 
 export async function addExperience(amount: number) {

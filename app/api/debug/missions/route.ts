@@ -1,0 +1,63 @@
+import { NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+import { cookies } from 'next/headers'
+
+export async function GET() {
+  const cookieStore = await cookies()
+  const supabase = createClient(cookieStore)
+
+  try {
+    // 1. 检查 missions 表
+    const { data: missions, error: missionsError } = await supabase
+      .from('missions')
+      .select('*')
+      .limit(10)
+
+    // 2. 检查用户认证状态
+    const { data: { user } } = await supabase.auth.getUser()
+
+    // 3. 检查 user_missions 表
+    let userMissions = null
+    let userMissionsError = null
+    if (user) {
+      const result = await supabase
+        .from('user_missions')
+        .select('*')
+        .eq('user_id', user.id)
+      userMissions = result.data
+      userMissionsError = result.error
+    }
+
+    // 4. 检查 profiles 表
+    const { data: profile, error: profileError } = user
+      ? await supabase.from('profiles').select('*').eq('id', user.id).single()
+      : { data: null, error: null }
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        user: user ? { id: user.id, email: user.email } : null,
+        missions: {
+          count: missions?.length || 0,
+          sample: missions || [],
+          error: missionsError?.message
+        },
+        userMissions: {
+          count: userMissions?.length || 0,
+          sample: userMissions || [],
+          error: userMissionsError?.message
+        },
+        profile: {
+          exists: !!profile,
+          data: profile,
+          error: profileError?.message
+        }
+      }
+    })
+  } catch (error: any) {
+    return NextResponse.json({
+      success: false,
+      error: error.message
+    }, { status: 500 })
+  }
+}

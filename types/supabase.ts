@@ -297,7 +297,7 @@ export interface Database {
         Row: {
           user_id: string
           mission_id: string
-          status: 'todo' | 'in-progress' | 'completed' | 'claimed'
+          status: 'locked' | 'active' | 'todo' | 'in-progress' | 'ongoing' | 'completed' | 'claimed'
           progress: number
           updated_at: string
           claimed_at: string | null
@@ -305,7 +305,7 @@ export interface Database {
         Insert: {
           user_id: string
           mission_id: string
-          status?: 'todo' | 'in-progress' | 'completed' | 'claimed'
+          status?: 'locked' | 'active' | 'todo' | 'in-progress' | 'ongoing' | 'completed' | 'claimed'
           progress?: number
           updated_at?: string
           claimed_at?: string | null
@@ -313,7 +313,7 @@ export interface Database {
         Update: {
           user_id?: string
           mission_id?: string
-          status?: 'todo' | 'in-progress' | 'completed' | 'claimed'
+          status?: 'locked' | 'active' | 'todo' | 'in-progress' | 'ongoing' | 'completed' | 'claimed'
           progress?: number
           updated_at?: string
           claimed_at?: string | null

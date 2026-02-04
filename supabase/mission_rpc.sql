@@ -63,7 +63,7 @@ begin
     return false; -- 任务未完成
   end if;
   
-  -- 2. 更新任务状态为 'claimed'
+  -- 2. Update Mission Status
   update user_missions 
   set status = 'claimed', updated_at = now()
   where user_id = current_user_id and mission_id = target_mission_id;

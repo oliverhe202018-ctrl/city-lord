@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useMemo } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRegion } from '@/contexts/RegionContext'
 import { Users, MapPin, CheckCircle2, Loader2 } from 'lucide-react'
 import { joinClub, getClubs } from '@/app/actions/club'
@@ -10,41 +11,44 @@ import { Button } from '@/components/ui/button'
 export function ClubList() {
   const { region } = useRegion()
   const { province, cityName, countyName } = region || {}
-  const [joinedClubs, setJoinedClubs] = useState<Set<string>>(new Set())
-  const [clubs, setClubs] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
   const { toast } = useToast()
+  const queryClient = useQueryClient()
 
   // 获取位置名称，避免 undefined
   const locationName = cityName || countyName || '城市'
 
-  useEffect(() => {
-    const fetchClubs = async () => {
-      try {
-        setLoading(true)
-        const data = await getClubs()
-        setClubs(data)
-        
-        // Update joined clubs set
-        const joined = new Set<string>()
-        data.forEach((club: any) => {
-          if (club.isJoined) joined.add(club.id)
-        })
-        setJoinedClubs(joined)
-      } catch (error) {
-        console.error('Failed to fetch clubs:', error)
-        toast({ 
-          title: '加载失败', 
-          description: '无法获取俱乐部列表，请稍后重试',
-          variant: 'destructive'
-        })
-      } finally {
-        setLoading(false)
+  const { data: clubs = [], isLoading } = useQuery({
+    queryKey: ['clubs'],
+    queryFn: getClubs,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  })
+
+  // Derive joined status from clubs data
+  const joinedClubs = useMemo(() => {
+    const set = new Set<string>()
+    clubs.forEach((club: any) => {
+      if (club.isJoined) set.add(club.id)
+    })
+    return set
+  }, [clubs])
+
+  const joinMutation = useMutation({
+    mutationFn: joinClub,
+    onSuccess: (res, clubId) => {
+      if (res.success) {
+        toast({ title: '申请已提交', description: '已申请加入俱乐部，请等待审核。' })
+        // Invalidate to refetch and get updated isJoined status
+        queryClient.invalidateQueries({ queryKey: ['clubs'] })
       }
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: '申请失败', 
+        description: error.message || '未知错误',
+        variant: 'destructive'
+      })
     }
-    
-    fetchClubs()
-  }, [toast])
+  })
 
   const handleJoinClub = async (clubId: string, clubName: string) => {
     if (joinedClubs.has(clubId)) {
@@ -54,19 +58,7 @@ export function ClubList() {
 
     const confirm = window.confirm(`确定要申请加入 ${clubName} 吗？`)
     if (confirm) {
-      try {
-          const res = await joinClub(clubId)
-          if (res.success) {
-             setJoinedClubs(new Set([...joinedClubs, clubId]))
-             toast({ title: '申请已提交', description: `已申请加入 ${clubName}，请等待审核。` })
-          } 
-      } catch (error: any) {
-          toast({ 
-            title: '申请失败', 
-            description: error.message || '未知错误',
-            variant: 'destructive'
-          })
-      }
+       joinMutation.mutate(clubId)
     }
   }
 
@@ -74,7 +66,7 @@ export function ClubList() {
     toast({ title: '提示', description: `查看 ${clubName} 详情功能开发中...` })
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full text-white/50">
         <Loader2 className="w-8 h-8 animate-spin" />
@@ -93,7 +85,7 @@ export function ClubList() {
         </div>
       ) : (
         <div className="space-y-3 pb-20">
-          {clubs.map(club => (
+          {clubs.map((club: any) => (
             <div
               key={club.id}
               onClick={() => handleViewClub(club.id, club.name)}
@@ -128,12 +120,12 @@ export function ClubList() {
                   e.stopPropagation()
                   handleJoinClub(club.id, club.name)
                 }}
-                disabled={joinedClubs.has(club.id)}
+                disabled={joinedClubs.has(club.id) || joinMutation.isPending}
                 className={`h-8 text-xs ${
                    !joinedClubs.has(club.id) ? "border-yellow-500/50 text-yellow-500 hover:bg-yellow-500/10" : ""
                 }`}
               >
-                {joinedClubs.has(club.id) ? '已申请' : '加入'}
+                {joinedClubs.has(club.id) ? '已申请' : (joinMutation.isPending && joinMutation.variables === club.id ? '...' : '加入')}
               </Button>
             </div>
           ))}

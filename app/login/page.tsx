@@ -20,6 +20,7 @@ export default function LoginPage() {
   const [countdown, setCountdown] = useState(0)
   const [loading, setLoading] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [loginMethod, setLoginMethod] = useState<"password" | "code">("password")
   const router = useRouter()
   const supabase = createClient()
 
@@ -79,8 +80,24 @@ export default function LoginPage() {
       setVerificationToken(data.token)
       setCodeSent(true)
       setCountdown(60) // 60s cooldown
-      toast.success("验证码已发送", { description: "请查看您的邮箱 (citylord@126.com 发送)" })
+
+      // 如果后端返回了 devCode (开发模式 fallback)，直接提示用户
+      if (data.devCode) {
+        toast.success("验证码已生成 (开发模式)", { 
+          description: `您的验证码是：${data.devCode} (邮件发送可能失败)`,
+          duration: 10000, // 显示久一点
+          action: {
+            label: "填入",
+            onClick: () => setVerificationCode(data.devCode)
+          }
+        })
+        // 自动填入（可选，这里为了方便直接填入）
+        setVerificationCode(data.devCode)
+      } else {
+        toast.success("验证码已发送", { description: "请查看您的邮箱 (citylord@126.com 发送)" })
+      }
     } catch (error: any) {
+      console.error('Send code error:', error)
       toast.error("发送失败", { description: error.message })
     } finally {
       setLoading(false)
@@ -138,33 +155,46 @@ export default function LoginPage() {
 
     setLoading(true)
     try {
-      // 1. Verify code on server and get Supabase Magic Link URL
-      const res = await fetch('/api/auth/login-with-code', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          email, 
-          code: verificationCode, 
-          token: verificationToken,
-          redirectTo: `${window.location.origin}/auth/callback` // Point to the callback route that handles code exchange
-        })
-      })
+      console.log('[Login Page] ===== Starting code login =====')
+      console.log('[Login Page] Email:', email)
+      console.log('[Login Page] Code:', verificationCode)
+      console.log('[Login Page] Token:', verificationToken ? 'present' : 'missing')
 
-      const data = await res.json()
+      // Create a form with all the required inputs
+      const form = document.createElement('form')
+      form.method = 'POST'
+      form.action = '/api/auth/login-with-code-direct'
+      // form.enctype = 'application/x-www-form-urlencoded' // Default
 
-      if (!res.ok) throw new Error(data.error || '验证失败')
+      // We need to send JSON data, but standard form submission sends form-data.
+      // However, our backend now handles form-data correctly.
+      // Let's stick to standard form submission which is most reliable for redirects.
 
-      // 2. Redirect to the Magic Link URL to let Supabase handle the session
-      if (data.redirectUrl) {
-        toast.success("验证成功", { description: "正在登录..." })
-        window.location.href = data.redirectUrl
-        return
+      const emailInput = document.createElement('input')
+      emailInput.type = 'hidden'
+      emailInput.name = 'email'
+      emailInput.value = email
+      form.appendChild(emailInput)
+
+      const codeInput = document.createElement('input')
+      codeInput.type = 'hidden'
+      codeInput.name = 'code'
+      codeInput.value = verificationCode
+      form.appendChild(codeInput)
+
+      if (verificationToken) {
+        const tokenInput = document.createElement('input')
+        tokenInput.type = 'hidden'
+        tokenInput.name = 'token'
+        tokenInput.value = verificationToken
+        form.appendChild(tokenInput)
       }
-      
-      throw new Error("Login failed: No redirect URL received")
+
+      document.body.appendChild(form)
+      form.submit()
 
     } catch (error: any) {
-      console.error("Login error:", error)
+      console.error("[Login Page] Login error:", error)
       toast.error("登录失败", {
         description: error.message || "请稍后重试"
       })
@@ -227,103 +257,124 @@ export default function LoginPage() {
               <CardHeader>
                 <CardTitle className="text-xl text-white">欢迎回来</CardTitle>
                 <CardDescription className="text-white/40">
-                  选择登录方式进入游戏
+                  {loginMethod === "password" ? "使用账号密码登录游戏" : "使用邮箱验证码登录"}
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Tabs defaultValue="password" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2 mb-4 bg-white/5">
-                    <TabsTrigger value="password">密码登录</TabsTrigger>
-                    <TabsTrigger value="magic">验证码登录</TabsTrigger>
-                  </TabsList>
+                {/* 登录方式切换 */}
+                <div className="flex gap-2 mb-4 p-1 bg-white/5 rounded-lg">
+                  <button
+                    type="button"
+                    onClick={() => setLoginMethod("password")}
+                    className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${
+                      loginMethod === "password"
+                        ? "bg-green-600 text-white shadow-lg"
+                        : "text-white/60 hover:text-white hover:bg-white/5"
+                    }`}
+                  >
+                    密码登录
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLoginMethod("code")}
+                    className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${
+                      loginMethod === "code"
+                        ? "bg-green-600 text-white shadow-lg"
+                        : "text-white/60 hover:text-white hover:bg-white/5"
+                    }`}
+                  >
+                    验证码登录
+                  </button>
+                </div>
 
-                  <TabsContent value="password">
-                    <form onSubmit={handlePasswordLogin} className="space-y-4">
-                      <div className="space-y-2">
-                        <div className="relative">
-                          <Mail className="absolute left-3 top-3 h-4 w-4 text-white/40" />
-                          <Input
-                            type="email"
-                            placeholder="邮箱地址"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-green-500/50"
-                            required
-                          />
-                        </div>
-                        <div className="relative">
-                          <Lock className="absolute left-3 top-3 h-4 w-4 text-white/40" />
-                          <Input
-                            type="password"
-                            placeholder="密码"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-green-500/50"
-                            required
-                          />
-                        </div>
+                {/* 密码登录表单 */}
+                {loginMethod === "password" && (
+                  <form onSubmit={handlePasswordLogin} className="space-y-4">
+                    <div className="space-y-2">
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-3 h-4 w-4 text-white/40" />
+                        <Input
+                          type="email"
+                          placeholder="邮箱地址"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-green-500/50"
+                          required
+                        />
                       </div>
-                      <Button 
-                        type="submit" 
-                        className="w-full bg-green-600 hover:bg-green-700 text-white"
-                        disabled={loading}
-                      >
-                        {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                        登录
-                      </Button>
-                    </form>
-                  </TabsContent>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-3 h-4 w-4 text-white/40" />
+                        <Input
+                          type="password"
+                          placeholder="密码"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-green-500/50"
+                          required
+                        />
+                      </div>
+                    </div>
+                    <Button 
+                      type="submit" 
+                      className="w-full bg-green-600 hover:bg-green-700 text-white"
+                      disabled={loading}
+                    >
+                      {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      登录
+                    </Button>
+                  </form>
+                )}
 
-                  <TabsContent value="magic">
-                    <form onSubmit={handleCodeLogin} className="space-y-4">
-                      <div className="space-y-2">
-                        <div className="relative">
-                          <Mail className="absolute left-3 top-3 h-4 w-4 text-white/40" />
+                {/* 验证码登录表单 */}
+                {loginMethod === "code" && (
+                  <form onSubmit={handleCodeLogin} className="space-y-4">
+                    <div className="space-y-2">
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-3 h-4 w-4 text-white/40" />
+                        <Input
+                          type="email"
+                          placeholder="邮箱地址"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-green-500/50"
+                          required
+                        />
+                      </div>
+                      
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <KeyRound className="absolute left-3 top-3 h-4 w-4 text-white/40" />
                           <Input
-                            type="email"
-                            placeholder="邮箱地址"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
+                            type="text"
+                            placeholder="验证码"
+                            value={verificationCode}
+                            onChange={(e) => setVerificationCode(e.target.value)}
                             className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-green-500/50"
                             required
+                            maxLength={6}
                           />
                         </div>
-
-                        <div className="flex gap-2">
-                          <div className="relative flex-1">
-                            <KeyRound className="absolute left-3 top-3 h-4 w-4 text-white/40" />
-                            <Input
-                              type="text"
-                              placeholder="验证码"
-                              value={verificationCode}
-                              onChange={(e) => setVerificationCode(e.target.value)}
-                              className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-green-500/50"
-                              required
-                              maxLength={6}
-                            />
-                          </div>
-                          <Button 
-                            type="button"
-                            variant="outline"
-                            onClick={() => handleSendCode('login')}
-                            disabled={loading || countdown > 0 || !email}
-                            className="w-24 border-white/10 bg-white/5 text-white hover:bg-white/20 hover:text-white disabled:opacity-50"
-                          >
-                            {countdown > 0 ? `${countdown}s` : (loading && !codeSent ? <Loader2 className="h-4 w-4 animate-spin" /> : "获取")}
-                          </Button>
-                        </div>
+                        <Button 
+                          type="button"
+                          variant="outline"
+                          onClick={() => handleSendCode('login')}
+                          disabled={loading || countdown > 0 || !email}
+                          className="w-24 border-white/10 bg-white/5 text-white hover:bg-white/20 hover:text-white disabled:opacity-50"
+                        >
+                          {countdown > 0 ? `${countdown}s` : (loading && !codeSent ? <Loader2 className="h-4 w-4 animate-spin" /> : "获取")}
+                        </Button>
                       </div>
-                      <Button 
-                        type="submit" 
-                        className="w-full bg-green-600 hover:bg-green-700 text-white"
-                        disabled={loading}
-                      >
-                        {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                        登录
-                      </Button>
-                    </form>
-                  </TabsContent>
-                </Tabs>
+                    </div>
+                    <Button 
+                      type="submit" 
+                      className="w-full bg-green-600 hover:bg-green-700 text-white"
+                      disabled={loading}
+                    >
+                      {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      登录
+                    </Button>
+                  </form>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

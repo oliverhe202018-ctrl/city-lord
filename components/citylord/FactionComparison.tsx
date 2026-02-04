@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import useSWR from 'swr'
 import { getFactionStats } from '@/app/actions/faction'
 import { Hexagon, Shield, Zap } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -9,40 +9,40 @@ import { formatAreaFromHexCount } from "@/lib/citylord/area-utils"
 
 interface FactionComparisonProps {
   userFaction: 'RED' | 'BLUE' | null
+  initialData?: any
 }
 
-export function FactionComparison({ userFaction }: FactionComparisonProps) {
-  const [stats, setStats] = useState({ 
+export function FactionComparison({ userFaction, initialData }: FactionComparisonProps) {
+  const { data: stats, isLoading } = useSWR('factionStats', getFactionStats, {
+    fallbackData: initialData,
+    refreshInterval: 60000, // Refresh every minute
+    revalidateOnFocus: true
+  })
+
+  // Use default stats if undefined
+  const safeStats = stats || { 
     RED: 0, 
     BLUE: 0, 
     area: { RED: 0, BLUE: 0 }, 
     bonus: { RED: 0, BLUE: 0 } 
-  })
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    getFactionStats().then(data => {
-      // @ts-ignore
-      setStats(data)
-      setLoading(false)
-    })
-  }, [])
+  }
 
   // Calculate boosted areas
-  const boostedRedArea = stats.area?.RED * (1 + (stats.bonus?.RED || 0) / 100)
-  const boostedBlueArea = stats.area?.BLUE * (1 + (stats.bonus?.BLUE || 0) / 100)
+  const boostedRedArea = (safeStats.area?.RED || 0) * (1 + (safeStats.bonus?.RED || 0) / 100)
+  const boostedBlueArea = (safeStats.area?.BLUE || 0) * (1 + (safeStats.bonus?.BLUE || 0) / 100)
 
   // Member percentages
-  const total = stats.RED + stats.BLUE
-  const redPercent = total > 0 ? (stats.RED / total) * 100 : 50
-  const bluePercent = total > 0 ? (stats.BLUE / total) * 100 : 50
+  const total = safeStats.RED + safeStats.BLUE
+  const redPercent = total > 0 ? (safeStats.RED / total) * 100 : 50
+  const bluePercent = total > 0 ? (safeStats.BLUE / total) * 100 : 50
   
   // Area percentages (for visual bar if we wanted, or just display value)
   const totalArea = boostedRedArea + boostedBlueArea
   const redAreaPercent = totalArea > 0 ? (boostedRedArea / totalArea) * 100 : 50
   const blueAreaPercent = totalArea > 0 ? (boostedBlueArea / totalArea) * 100 : 50
 
-  if (loading) return (
+  // Show skeleton ONLY if we have no data at all (no initialData and still loading)
+  if (!stats && isLoading) return (
     <div className="rounded-2xl border border-white/10 bg-white/5 p-4 mb-4 animate-pulse">
         <div className="h-4 w-24 bg-white/10 rounded mb-4" />
         <div className="h-4 w-full bg-white/10 rounded-full mb-4" />
@@ -94,27 +94,39 @@ export function FactionComparison({ userFaction }: FactionComparisonProps) {
         <div className={cn("text-left transition-all", userFaction === 'RED' ? "opacity-100" : "opacity-70")}>
           <div className="flex items-center gap-1.5 text-red-500 mb-0.5">
             <Shield className="w-4 h-4 fill-red-500/20" />
-            <span className="font-bold text-lg leading-none">{stats.RED.toLocaleString()}</span>
+            <span className="font-bold text-lg leading-none">{safeStats.RED.toLocaleString()}</span>
           </div>
           <div className="text-xs text-red-400/50 font-mono flex items-center gap-2">
             <span>赤红先锋 {redPercent.toFixed(1)}%</span>
-            {stats.bonus?.RED > 0 && (
-                <span className="text-yellow-500 font-bold bg-yellow-500/10 px-1 rounded text-[10px]">+{stats.bonus.RED}% 收益</span>
+            {(safeStats.bonus?.RED || 0) > 0 && (
+              <span className="flex items-center text-[10px] text-yellow-400 bg-yellow-400/10 px-1 rounded">
+                <Zap className="w-3 h-3 mr-0.5" />
+                +{safeStats.bonus.RED}% 
+              </span>
             )}
+          </div>
+          <div className="text-[10px] text-white/20 mt-1">
+             领土: {formatAreaFromHexCount(safeStats.area?.RED || 0).fullText}
           </div>
         </div>
 
         {/* Blue Stats */}
         <div className={cn("text-right transition-all", userFaction === 'BLUE' ? "opacity-100" : "opacity-70")}>
           <div className="flex items-center justify-end gap-1.5 text-blue-500 mb-0.5">
-            <span className="font-bold text-lg leading-none">{stats.BLUE.toLocaleString()}</span>
-            <Zap className="w-4 h-4 fill-blue-500/20" />
+            <span className="font-bold text-lg leading-none">{safeStats.BLUE.toLocaleString()}</span>
+            <Hexagon className="w-4 h-4 fill-blue-500/20" />
           </div>
           <div className="text-xs text-blue-400/50 font-mono flex items-center justify-end gap-2">
-            {stats.bonus?.BLUE > 0 && (
-                <span className="text-yellow-500 font-bold bg-yellow-500/10 px-1 rounded text-[10px]">+{stats.bonus.BLUE}% 收益</span>
+            {(safeStats.bonus?.BLUE || 0) > 0 && (
+              <span className="flex items-center text-[10px] text-yellow-400 bg-yellow-400/10 px-1 rounded">
+                <Zap className="w-3 h-3 mr-0.5" />
+                +{safeStats.bonus.BLUE}%
+              </span>
             )}
             <span>蔚蓝联盟 {bluePercent.toFixed(1)}%</span>
+          </div>
+          <div className="text-[10px] text-white/20 mt-1">
+             领土: {formatAreaFromHexCount(safeStats.area?.BLUE || 0).fullText}
           </div>
         </div>
       </div>

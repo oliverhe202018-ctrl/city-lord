@@ -12,6 +12,12 @@ import { useHydration } from "@/hooks/useHydration"
 import { GlassCard } from "@/components/ui/GlassCard"
 import { CyberButton } from "@/components/ui/CyberButton"
 import { fetchUserMissions, claimMissionReward } from "@/app/actions/mission"
+import { createClient } from "@/lib/supabase/client"
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
+import { LogIn } from "lucide-react"
+import useSWR from 'swr'
+import { useMutation, useQueryClient } from "@tanstack/react-query"
 
 // --- Types ---
 
@@ -241,253 +247,151 @@ export function MissionCard({
 
 // --- Mission Center Page Component ---
 
-export function MissionCenter() {
-  const [missions, setMissions] = useState<MissionData[]>([])
+export function MissionCenter({ initialData }: { initialData?: any[] }) {
   const [activeFilter, setActiveFilter] = useState<"daily" | "weekly" | "all">("all")
-  const { addExperience, addCoins } = useGameActions()
+  const { addExperience, addCoins, userId } = useGameStore()
   const isHydrated = useHydration()
   const router = useRouter()
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
 
-  React.useEffect(() => {
-    async function fetchMissions() {
-      try {
-        setLoading(true)
-        const userMissions = await fetchUserMissions()
+  // Use SWR for fetching missions
+  const { data: rawMissions, isLoading: loading } = useSWR(
+    userId ? ['userMissions', userId] : null,
+    () => fetchUserMissions(),
+    {
+      fallbackData: initialData,
+      revalidateOnFocus: true,
+      refreshInterval: 0 // Missions don't change that often unless user acts
+    }
+  )
+
+  // Format missions data
+  const missions = React.useMemo(() => {
+    if (!rawMissions) return []
+    
+    return rawMissions.map((m: any) => {
+      const hasXp = m.reward.reward_experience > 0
+      const hasCoins = m.reward.reward_coins > 0
+      
+      let rewardType: "xp" | "coins" | "both" = "xp"
+      let rewardLabel = "经验"
+      let rewardAmount = m.reward.reward_experience
+
+      if (hasXp && hasCoins) {
+        rewardType = "both"
+        rewardLabel = "奖励"
+        rewardAmount = 0 
+      } else if (hasCoins) {
+        rewardType = "coins"
+        rewardLabel = "金币"
+        rewardAmount = m.reward.reward_coins
+      }
+
+      return {
+        id: m.id,
+        title: m.title,
+        description: m.description,
+        type: m.type as MissionType,
+        status: m.status as MissionStatus,
+        progress: m.current,
+        maxProgress: m.target,
+        reward: {
+          type: rewardType,
+          xpAmount: m.reward.reward_experience,
+          coinsAmount: m.reward.reward_coins,
+          label: rewardLabel
+        },
+        difficulty: "medium",
+        icon: m.type === 'DISTANCE' ? Footprints :
+              m.type === 'HEX_COUNT' ? Hexagon :
+              m.type === 'RUN_COUNT' ? Trophy : Target
+      } as MissionData
+    })
+  }, [rawMissions])
+
+  const claimMutation = useMutation({
+    mutationFn: async ({ id, reward }: { id: string, reward: MissionReward }) => {
+      return await claimMissionReward(id)
+    },
+    onSuccess: (result, variables) => {
+      if (result.success) {
+        const { reward } = variables
         
-        if (userMissions) {
-          const formattedMissions: MissionData[] = userMissions.map((m: any) => {
-            const hasXp = m.reward.reward_experience > 0
-            const hasCoins = m.reward.reward_coins > 0
-            
-            let rewardType: "xp" | "coins" | "both" = "xp"
-            let rewardLabel = "经验"
-            let rewardAmount = m.reward.reward_experience
+        // Optimistic Update or Invalidate
+        queryClient.invalidateQueries({ queryKey: ['userMissions', userId] })
 
-            if (hasXp && hasCoins) {
-              rewardType = "both"
-              rewardLabel = "奖励"
-              rewardAmount = 0 // Not used for display in simple view
-            } else if (hasCoins) {
-              rewardType = "coins"
-              rewardLabel = "金币"
-              rewardAmount = m.reward.reward_coins
-            }
-
-            return {
-              id: m.id,
-              title: m.title,
-              description: m.description,
-              type: m.frequency === 'achievement' ? 'achievement' : (m.frequency || m.type) as MissionType,
-              status: m.status as MissionStatus,
-              progress: m.current,
-              maxProgress: m.target,
-              reward: { 
-                type: rewardType,
-                xpAmount: m.reward.reward_experience,
-                coinsAmount: m.reward.reward_coins,
-                amount: rewardAmount, // For simple display
-                label: rewardLabel 
-              },
-              difficulty: "medium", // Default
-              icon: Hexagon, // Default
-            }
-          })
-          setMissions(formattedMissions)
+        // Show toast
+        if (result.data?.bonus) {
+             const bonus = result.data.bonus
+             toast.success(
+               <div className="flex flex-col gap-1">
+                 <span className="font-bold">领取成功！</span>
+                 <span className="text-sm opacity-90">获得 +{result.data.new_experience - (result.data.reward_experience || 0)} 经验, +{result.data.new_coins - (result.data.reward_coins || 0)} 金币</span>
+                 <span className="text-xs text-yellow-300 font-bold bg-yellow-500/20 px-2 py-1 rounded w-fit">
+                   阵营加成 +{bonus.percentage}%
+                 </span>
+               </div>
+             )
+        } else {
+             toast.success("任务完成！", {
+               description: `获得 ${reward.label}`
+             })
         }
-      } catch (error: any) {
-        if (error?.name !== 'AbortError' && error?.digest !== 'NEXT_REDIRECT') {
-          console.error("Failed to fetch missions", error)
-          toast.error("获取任务列表失败")
-        }
-      } finally {
-        setLoading(false)
-      }
-    }
-    fetchMissions()
-  }, [])
 
-  if (!isHydrated) {
-    return (
-      <div className="h-full overflow-y-auto bg-[#0f172a] px-4 pb-24 pt-6">
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-white">任务中心</h1>
-            <p className="text-sm text-white/60">完成挑战获取奖励</p>
-          </div>
-        </div>
-        <div className="flex items-center justify-center h-32">
-          <div className="text-white/60">加载中...</div>
-        </div>
-      </div>
-    )
-  }
-
-  // Debug: Manual Initialization
-  const handleDebugInit = async () => {
-    setLoading(true)
-    try {
-      toast.info("正在尝试初始化任务...")
-      // Force re-fetch which triggers initialization
-      const userMissions = await fetchUserMissions()
-      if (userMissions && userMissions.length > 0) {
-        toast.success(`初始化成功！找到 ${userMissions.length} 个任务`)
-        // Update local state
-        const formattedMissions: MissionData[] = userMissions.map((m: any) => {
-            const hasXp = m.reward.reward_experience > 0
-            const hasCoins = m.reward.reward_coins > 0
-            
-            let rewardType: "xp" | "coins" | "both" = "xp"
-            let rewardLabel = "经验"
-            let rewardAmount = m.reward.reward_experience
-
-            if (hasXp && hasCoins) {
-              rewardType = "both"
-              rewardLabel = "奖励"
-              rewardAmount = 0 // Not used for display in simple view
-            } else if (hasCoins) {
-              rewardType = "coins"
-              rewardLabel = "金币"
-              rewardAmount = m.reward.reward_coins
-            }
-
-            return {
-              id: m.id,
-              title: m.title,
-              description: m.description,
-              type: m.frequency === 'achievement' ? 'achievement' : (m.frequency || m.type) as MissionType,
-              status: m.status as MissionStatus,
-              progress: m.current,
-              maxProgress: m.target,
-              reward: { 
-                type: rewardType,
-                xpAmount: m.reward.reward_experience,
-                coinsAmount: m.reward.reward_coins,
-                amount: rewardAmount, // For simple display
-                label: rewardLabel 
-              },
-              difficulty: "medium", // Default
-              icon: Hexagon, // Default
-            }
-          })
-          setMissions(formattedMissions)
+        // Update local store
+        if (reward.xpAmount) addExperience(reward.xpAmount)
+        if (reward.coinsAmount) addCoins(reward.coinsAmount)
       } else {
-        toast.warning("初始化完成，但未找到任务。请检查数据库 RLS 策略。")
+        toast.error("领取失败", { description: result.error })
       }
-    } catch (e) {
-      console.error("Debug Init Failed:", e)
-      toast.error("初始化失败，请查看控制台日志")
-    } finally {
-      setLoading(false)
+    },
+    onError: () => {
+      toast.error("领取失败", { description: "网络错误，请稍后重试" })
     }
+  })
+
+  const handleClaimReward = (id: string, reward: MissionReward) => {
+    claimMutation.mutate({ id, reward })
   }
 
-  const claimableCount = missions.filter(m => m.status === "completed").length
-
-  const handleTaskClick = (id: string) => {
-    router.push('/')
-    toast.info("前往完成任务")
-  }
-
-  const handleClaim = async (id: string, reward: MissionReward) => {
-    const mission = missions.find(m => m.id === id)
-    if (!mission) return
-
-    try {
-      const result = await claimMissionReward(id)
-
-      if (!result.success) {
-        toast.error(result.error || "领取失败")
-        return
-      }
-
-      setMissions(prev =>
-        prev.map(m => (m.id === id ? { ...m, status: "claimed" as MissionStatus } : m))
-      )
-
-      // Add XP and Coins locally for immediate feedback
-      if (reward.type === "xp" || reward.type === "both") {
-        addExperience(reward.xpAmount || 0)
-      }
-      if (reward.type === "coins" || reward.type === "both") {
-        addCoins(reward.coinsAmount || 0)
-      }
-
-      const rewardText = reward.type === "both" 
-        ? `${reward.xpAmount} 经验 + ${reward.coinsAmount} 金币`
-        : `${reward.type === 'coins' ? reward.coinsAmount : reward.xpAmount} ${reward.label}`
-
-      // Check for bonus in result
-      if (result.data?.bonus) {
-        const bonus = result.data.bonus;
-        toast.success(
-          <div className="flex flex-col gap-1">
-            <span className="font-bold">领取成功！</span>
-            <span className="text-sm opacity-90">获得 {rewardText}</span>
-            <span className="text-xs text-yellow-300 font-bold bg-yellow-500/20 px-2 py-1 rounded w-fit">
-              阵营加成 +{bonus.percentage}%: 额外获得 {bonus.xp} 经验, {bonus.coins} 金币
-            </span>
-          </div>
-        , {
-          icon: <Gift className="text-green-400" />,
-          style: { background: 'rgba(0,0,0,0.9)', color: 'white', border: '1px solid rgba(255,255,255,0.1)' }
-        })
-        
-        // Add Bonus locally
-        if (bonus.xp > 0) addExperience(bonus.xp)
-        if (bonus.coins > 0) addCoins(bonus.coins)
-      } else {
-        toast.success(`领取成功！获得 ${rewardText}`, {
-          icon: <Gift className="text-green-400" />,
-          style: { background: 'rgba(0,0,0,0.8)', color: 'white', border: '1px solid rgba(255,255,255,0.1)' }
-        })
-      }
-    } catch (error) {
-      toast.error("领取失败", {
-        description: error instanceof Error ? error.message : "未知错误",
-        style: { background: 'rgba(0,0,0,0.8)', color: 'white', border: '1px solid rgba(255,255,255,0.1)' }
-      })
-    }
-  }
-
-  // Simplified Claim All (Sequential for now as backend bulk claim is missing)
+  // Simplified Claim All
   const handleClaimAll = async () => {
     const claimable = missions.filter(m => m.status === "completed")
     if (claimable.length === 0) return
 
-    let claimedCount = 0
-    let totalXp = 0
-    let totalCoins = 0
-
     for (const mission of claimable) {
-      try {
-        const result = await claimMissionReward(mission.id)
-        if (result.success) {
-           claimedCount++
-           totalXp += mission.reward.xpAmount || 0
-           totalCoins += mission.reward.coinsAmount || 0
-           setMissions(prev => prev.map(m => m.id === mission.id ? { ...m, status: "claimed" } : m))
-        }
-      } catch (e) {
-        console.error(`Failed to claim mission ${mission.id}`, e)
-      }
-    }
-
-    if (totalXp > 0) addExperience(totalXp)
-    if (totalCoins > 0) addCoins(totalCoins)
-
-    if (claimedCount > 0) {
-        toast.success(`一键领取成功！共领取 ${claimedCount} 个任务`, {
-          icon: <Gift className="text-green-400" />,
-          style: { background: 'rgba(0,0,0,0.8)', color: 'white', border: '1px solid rgba(255,255,255,0.1)' }
-        })
+       handleClaimReward(mission.id, mission.reward)
     }
   }
 
   const filteredMissions = missions.filter(m => {
     if (activeFilter === "all") return true
-    return m.type === activeFilter
+    if (activeFilter === "daily") return m.type === "daily" || (m.type as any) === "RUN_COUNT" || (m.type as any) === "DISTANCE"
+    if (activeFilter === "weekly") return m.type === "weekly"
+    return true
   })
+
+  if (!isHydrated) return null
+
+  // Check login state via userId from store
+  if (!userId) {
+     return (
+        <div className="flex h-64 flex-col items-center justify-center gap-4 text-center">
+          <p className="text-white/60">请先登录以查看任务</p>
+          <Button asChild className="bg-[#39ff14] text-black hover:bg-[#39ff14]/90">
+             <Link href="/login"><LogIn className="mr-2 h-4 w-4" /> 去登录</Link>
+          </Button>
+        </div>
+     )
+  }
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#39ff14] border-t-transparent" />
+      </div>
+    )
+  }
 
   return (
     <div className="h-full overflow-y-auto bg-[#0f172a] px-4 pb-24 pt-6">
@@ -497,69 +401,67 @@ export function MissionCenter() {
           <h1 className="text-2xl font-bold text-white">任务中心</h1>
           <p className="text-sm text-white/60">完成挑战获取奖励</p>
         </div>
-
-        {claimableCount > 0 && (
-          <CyberButton
-            variant="primary"
-            size="sm"
-            onClick={handleClaimAll}
-            className="animate-pulse shadow-[0_0_15px_rgba(34,197,94,0.4)] border-green-500/50 bg-green-500 hover:bg-green-400 text-black"
-          >
-            <Sparkles className="mr-1 h-4 w-4" />
-            一键领取 ({claimableCount})
-          </CyberButton>
-        )}
-      </div>
-
-      {/* Filter Tabs */}
-      <div className="mb-6 flex gap-2 rounded-xl border border-white/10 bg-black/40 p-1 backdrop-blur-xl">
-        {(["all", "daily", "weekly"] as const).map((f) => {
-          const labels = { all: "全部", daily: "每日", weekly: "每周" }
-          return (
-            <button
-              key={f}
-              onClick={() => setActiveFilter(f)}
-              className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-all ${activeFilter === f
-                ? "bg-[#22c55e] text-black shadow-lg shadow-green-500/20"
-                : "text-white/60 hover:text-white hover:bg-white/10"
-                }`}
+        
+        {/* Quick Actions */}
+        <div className="flex gap-2">
+          {/* Claim All Button */}
+          {missions.some(m => m.status === "completed") && (
+            <CyberButton 
+              size="sm" 
+              onClick={handleClaimAll}
+              className="bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 border-yellow-500/50"
             >
-              {labels[f]}
-            </button>
-          )
-        })}
+              <Gift className="w-4 h-4 mr-1" />
+              一键领取
+            </CyberButton>
+          )}
+        </div>
       </div>
 
-      {/* Mission Cards */}
-      {loading ? (
-        <div className="py-10 text-center text-white/50">加载中...</div>
-      ) : filteredMissions.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-10 gap-4">
-          <div className="text-white/50">暂无任务</div>
-          <CyberButton 
-            variant="secondary" 
-            size="sm" 
-            onClick={handleDebugInit}
-            className="border-white/20 hover:bg-white/10"
+      {/* Filters */}
+      <div className="mb-6 flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+        {(["all", "daily", "weekly"] as const).map((filter) => (
+          <button
+            key={filter}
+            onClick={() => setActiveFilter(filter)}
+            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all whitespace-nowrap ${
+              activeFilter === filter
+                ? "bg-[#39ff14] text-black shadow-[0_0_10px_rgba(57,255,20,0.4)]"
+                : "bg-white/5 text-white/60 hover:bg-white/10"
+            }`}
           >
-            <Sparkles className="mr-2 h-4 w-4 text-cyan-400" />
-            手动初始化任务
-          </CyberButton>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {filteredMissions.map((mission) => (
+            {filter === "all" ? "全部" : filter === "daily" ? "每日任务" : "每周挑战"}
+          </button>
+        ))}
+      </div>
+
+      {/* Mission List */}
+      <div className="space-y-4">
+        {filteredMissions.length > 0 ? (
+          filteredMissions.map((mission) => (
             <MissionCard
               key={mission.id}
               {...mission}
-              onClaim={handleClaim}
-              onClick={handleTaskClick}
+              onClaim={handleClaimReward}
+              onClick={() => {
+                if (mission.status === "completed") {
+                  handleClaimReward(mission.id, mission.reward)
+                } else if (mission.status !== "claimed") {
+                  router.push('/')
+                  toast.info("前往地图完成任务")
+                }
+              }}
             />
-          ))}
-        </div>
-      )}
+          ))
+        ) : (
+          <div className="flex h-48 flex-col items-center justify-center text-center">
+            <div className="mb-4 rounded-full bg-white/5 p-4">
+              <Trophy className="h-8 w-8 text-white/20" />
+            </div>
+            <p className="text-white/40">暂无任务</p>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
-
-export default MissionCenter

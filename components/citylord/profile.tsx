@@ -8,9 +8,9 @@ import Link from "next/link"
 import { useGameStore } from "@/store/useGameStore"
 import { useHydration } from "@/hooks/useHydration";
 import { formatAreaFromHexCount, getAreaEquivalentFromHexCount } from "@/lib/citylord/area-utils"
+import { useQuery } from '@tanstack/react-query'
 import { createClient } from "@/lib/supabase/client"
 import { getUserProfileStats } from "@/app/actions/user"
-import { fetchUserAchievements } from "@/app/actions/achievement"
 import { toast } from "sonner"
 import { calculateLevel, getNextLevelProgress, getTitle } from "@/lib/game-logic/level-system"
 import { BadgeGrid } from "@/components/citylord/achievements/BadgeGrid"
@@ -23,7 +23,13 @@ import { Dialog,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-export function Profile({ onOpenSettings }: { onOpenSettings: () => void }) {
+interface ProfileProps {
+  onOpenSettings: () => void
+  initialFactionStats?: any
+  initialBadges?: any[]
+}
+
+export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: ProfileProps) {
   const hydrated = useHydration();
   const {
     nickname,
@@ -47,15 +53,23 @@ export function Profile({ onOpenSettings }: { onOpenSettings: () => void }) {
   const [userEmail, setUserEmail] = React.useState<string | null>(null)
   const [isLoggedIn, setIsLoggedIn] = React.useState(false)
   const [loading, setLoading] = React.useState(true)
-  const [statsLoading, setStatsLoading] = React.useState(true)
-  const [userStats, setUserStats] = React.useState({
+  
+  // Use React Query for stats
+  const { data: stats, isLoading: statsLoading } = useQuery({
+    queryKey: ['userProfileStats', userId],
+    queryFn: getUserProfileStats,
+    enabled: !!userId,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  // Derive stats from query data or fallback
+  const userStats = stats || {
     totalTiles: 0,
     totalArea: 0,
     totalDistance: 0,
     battlesWon: 0,
     faction: null as 'RED' | 'BLUE' | null
-  })
-  const [userAchievements, setUserAchievements] = React.useState<any[]>([])
+  }
 
   React.useEffect(() => {
     const checkUser = async () => {
@@ -73,27 +87,9 @@ export function Profile({ onOpenSettings }: { onOpenSettings: () => void }) {
 
             // Sync global store in background
             syncUserProfile()
-            
-            // Fetch stats and achievements in parallel
-            try {
-                const [stats, ach] = await Promise.all([
-                    getUserProfileStats(),
-                    fetchUserAchievements()
-                ])
-                
-                if (stats) setUserStats(stats)
-                if (ach) setUserAchievements(ach)
-            } catch (e: any) {
-                if (e?.name !== 'AbortError' && e?.digest !== 'NEXT_REDIRECT') {
-                    console.error("Failed to load profile stats", e)
-                }
-            } finally {
-                setStatsLoading(false)
-            }
         } else {
             setIsLoggedIn(false)
             setLoading(false)
-            setStatsLoading(false)
         }
     }
     checkUser()
@@ -400,7 +396,10 @@ export function Profile({ onOpenSettings }: { onOpenSettings: () => void }) {
 
         {/* Badges Grid */}
         <div className="px-4 pb-4">
-          <FactionComparison userFaction={userStats.faction} />
+          <FactionComparison 
+            userFaction={userStats.faction} 
+            initialData={initialFactionStats}
+          />
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-white/40">勋章墙</h2>
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
             <BadgeGrid />

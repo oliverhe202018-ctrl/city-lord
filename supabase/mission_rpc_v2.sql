@@ -50,8 +50,7 @@ BEGIN
   UPDATE user_missions
   SET 
     status = 'claimed', 
-    updated_at = NOW(), 
-    claimed_at = NOW() -- Ensure you have this column or remove if not exists
+    updated_at = NOW()
   WHERE user_id = p_user_id 
   AND mission_id = p_mission_id;
 

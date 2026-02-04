@@ -3,64 +3,37 @@
 import React, { useEffect, useState } from "react"
 import { Lock, Award } from "lucide-react"
 import { fetchAllBadges, fetchUserBadges, Badge, UserBadge } from "@/app/actions/badge"
-import { checkAndGrantAchievements } from "@/app/actions/check-achievements"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { BadgeIcon } from "./badge-icon"
 import { ACHIEVEMENT_DEFINITIONS } from "@/lib/achievements"
 import Image from "next/image"
 import { toast } from "sonner"
+import { useQuery } from "@tanstack/react-query" // Keep for legacy if needed, but we use SWR now
+import useSWR from 'swr'
+import { useGameStore } from "@/store/useGameStore"
 
-export function BadgeGrid() {
+interface BadgeGridProps {
+  initialData?: any[]
+}
+
+export function BadgeGrid({ initialData }: BadgeGridProps) {
   // Use ACHIEVEMENT_DEFINITIONS as the source of truth for badges list
   const badges = ACHIEVEMENT_DEFINITIONS
-  const [userBadges, setUserBadges] = useState<UserBadge[]>([])
-  const [selectedBadge, setSelectedBadge] = useState<any | null>(null) // Use any to allow mixing types if needed, or update Badge type
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    async function loadData() {
-      // 1. Try to load from localStorage first
-      const cached = localStorage.getItem('citylord_user_badges')
-      if (cached) {
-        try {
-          const parsed = JSON.parse(cached)
-          // Simple cache validity check (e.g. 5 minutes)
-          if (Date.now() - parsed.timestamp < 5 * 60 * 1000) {
-             setUserBadges(parsed.data)
-             setLoading(false)
-          }
-        } catch (e) {
-          console.error("Cache parse error", e)
-        }
-      }
-
-      // 2. Fetch fresh data & Check for new achievements
-      try {
-        // Trigger background check
-        const checkResult = await checkAndGrantAchievements()
-        if (checkResult.newBadges.length > 0) {
-          toast.success(`解锁了 ${checkResult.newBadges.length} 个新勋章!`)
-        }
-
-        const myBadges = await fetchUserBadges()
-        setUserBadges(myBadges)
-        
-        // Update cache
-        localStorage.setItem('citylord_user_badges', JSON.stringify({
-          timestamp: Date.now(),
-          data: myBadges
-        }))
-      } catch (e) {
-        console.error("Failed to load badges", e)
-      } finally {
-        setLoading(false)
-      }
+  const { userId } = useGameStore()
+  
+  const { data: userBadges, isLoading: loading } = useSWR(
+    userId ? ['userBadges', userId] : null,
+    () => fetchUserBadges(),
+    {
+      fallbackData: initialData,
+      revalidateOnFocus: true
     }
-    loadData()
-  }, [])
+  )
+
+  const [selectedBadge, setSelectedBadge] = useState<any | null>(null) // Use any to allow mixing types if needed, or update Badge type
 
   const isUnlocked = (badgeId: string) => {
-    return userBadges.some(ub => ub.badge_id === badgeId)
+    return (userBadges || []).some(ub => ub.badge_id === badgeId)
   }
 
   const getTierLabel = (tier: string) => {
@@ -252,6 +225,26 @@ export function BadgeGrid() {
                 <h4 className="text-sm font-semibold text-white/80 mb-1">达成条件</h4>
                 <p className="text-sm text-white/60">{selectedBadge?.description}</p>
              </div>
+             
+             <div>
+                <h4 className="text-sm font-semibold text-white/80 mb-1">获取时间</h4>
+                <p className="text-sm text-white/60">
+                  {(() => {
+                    const userBadge = (userBadges || []).find(ub => ub.badge_id === selectedBadge?.id)
+                    if (userBadge?.earned_at) {
+                      return new Date(userBadge.earned_at).toLocaleString('zh-CN', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })
+                    }
+                    return "未获得"
+                  })()}
+                </p>
+             </div>
+
              <div className="flex justify-between items-center text-xs text-white/40 border-t border-white/10 pt-4">
                 <span>等级: {getTierLabel(selectedBadge?.rarity || '')}</span>
                 <span>类别: {getCategoryLabel(selectedBadge?.category || '')}</span>

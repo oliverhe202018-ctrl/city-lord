@@ -9,6 +9,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { Toaster } from "@/components/ui/sonner"
 import { AuthSync } from "@/components/auth/AuthSync"
 import Script from 'next/script'
+import { Providers } from '@/components/Providers'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] });
@@ -66,15 +67,17 @@ export default function RootLayout({
           `}
         </Script>
         <ErrorBoundary>
-          <ThemeProvider defaultTheme="cyberpunk">
-            <RegionProvider>
-              <CityProvider>
-                <AuthSync />
-                {children}
-                <Toaster />
-              </CityProvider>
-            </RegionProvider>
-          </ThemeProvider>
+          <Providers>
+            <ThemeProvider defaultTheme="cyberpunk">
+              <RegionProvider>
+                <CityProvider>
+                  <AuthSync />
+                  {children}
+                  <Toaster />
+                </CityProvider>
+              </RegionProvider>
+            </ThemeProvider>
+          </Providers>
         </ErrorBoundary>
         <Analytics />
       </body>

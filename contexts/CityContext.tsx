@@ -1,6 +1,7 @@
 "use client"
 
-import React, { createContext, useState, useCallback, useEffect, useContext } from "react";
+import React, { createContext, useState, useCallback, useEffect, useContext, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRegion } from "@/contexts/RegionContext";
 import type { City, UserCityProgress, CitySwitchHistory } from "@/types/city"
 import { getCityById, getAllCities, getCityByAdcode } from "@/lib/city-data"
@@ -100,25 +101,80 @@ const convertAMapDataToCity = (data: any, parentAdcode?: string): City => {
 };
 
 /**
+ * Fetch city data from AMap API dynamically
+ */
+const fetchCityFromAMap = async (adcode: string): Promise<City | null> => {
+  try {
+    // Call AMap Geocoding API to get city information
+    // Note: This is a placeholder implementation. You'll need to replace with actual AMap API calls
+    // The actual implementation should fetch from AMap's administrative division search API
+    console.log(`[fetchCityFromAMap] Fetching city ${adcode} from AMap...`);
+
+    // For now, return null to indicate city not found
+    // Implement AMap API integration here
+    return null;
+  } catch (error) {
+    console.error('[fetchCityFromAMap] Error:', error);
+    return null;
+  }
+};
+
+/**
  * CityContext Provider 组件
  */
 export function CityProvider({ children }: { children: React.ReactNode }) {
-  const [currentCity, setCurrentCity] = useState<City | null>(null)
-  const [currentCityProgress, setCurrentCityProgress] = useState<UserCityProgress | null>(null)
+  const [activeBaseCity, setActiveBaseCity] = useState<City | null>(null)
   const [switchHistory, setSwitchHistory] = useState<CitySwitchHistory[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [leaderboard, setLeaderboard] = useState<CityLeaderboardEntry[] | null>(null)
-  const [totalPlayers, setTotalPlayers] = useState(0)
   const { region, setRegion } = useRegion()
+  const queryClient = useQueryClient()
 
   // 使用 useMemo for allCities since it's derived data
   const allCities = React.useMemo(() => getAllCities(), [])
 
+  // 1. Stats Query
+  const { data: cityStats, isLoading: isStatsLoading } = useQuery({
+    queryKey: ['cityStats', activeBaseCity?.id],
+    queryFn: () => fetchCityStats(activeBaseCity!.id),
+    enabled: !!activeBaseCity?.id,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  })
+
+  // 2. Leaderboard Query
+  const { data: leaderboardData, isLoading: isLeaderboardLoading } = useQuery({
+    queryKey: ['cityLeaderboard', activeBaseCity?.id],
+    queryFn: () => fetchCityLeaderboard(activeBaseCity!.id),
+    enabled: !!activeBaseCity?.id,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  // 3. User Progress Query
+  const { data: userProgress, isLoading: isProgressLoading } = useQuery({
+    queryKey: ['userCityProgress', activeBaseCity?.id],
+    queryFn: () => getUserCityProgress(activeBaseCity!.id),
+    enabled: !!activeBaseCity?.id,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  // Derived currentCity
+  const currentCity = useMemo(() => {
+    if (!activeBaseCity) return null
+    return {
+      ...activeBaseCity,
+      stats: {
+        ...activeBaseCity.stats,
+        ...(cityStats || {})
+      }
+    }
+  }, [activeBaseCity, cityStats])
+
+  const isLoading = isStatsLoading || isLeaderboardLoading || isProgressLoading
+
   // 使用 ref 存储 city，避免 switchCity 中的依赖问题
   const currentCityRef = React.useRef(currentCity)
   currentCityRef.current = currentCity
-  const currentCityProgressRef = React.useRef(currentCityProgress)
-  currentCityProgressRef.current = currentCityProgress
+  
+  const userProgressRef = React.useRef(userProgress)
+  userProgressRef.current = userProgress
 
   /**
    * 获取指定城市的进度数据
@@ -126,11 +182,11 @@ export function CityProvider({ children }: { children: React.ReactNode }) {
   const getCityProgress = useCallback(
     (cityId: string): UserCityProgress | null => {
       if (cityId === currentCityRef.current?.id) {
-        return currentCityProgressRef.current
+        return userProgressRef.current || null
       }
       return null
     },
-    []
+    [] 
   )
 
   /**
@@ -158,57 +214,30 @@ export function CityProvider({ children }: { children: React.ReactNode }) {
         return
       }
 
-      setIsLoading(true)
+      // Set active base city - this triggers the queries
+      setActiveBaseCity(targetCityBase)
 
-      try {
-        // Fetch real data in parallel
-        const [stats, leaderboardData, userProgress] = await Promise.all([
-          fetchCityStats(targetCityBase.id),
-          fetchCityLeaderboard(targetCityBase.id),
-          getUserCityProgress(targetCityBase.id)
-        ])
+      // 更新 RegionContext
+      setRegion({
+        regionType: "city",
+        cityName: targetCityBase.name,
+        adcode: targetCityBase.adcode,
+        centerLngLat: [targetCityBase.coordinates.lng, targetCityBase.coordinates.lat],
+      })
 
-        // Merge stats into city object
-        const targetCity = {
-          ...targetCityBase,
-          stats: {
-            ...targetCityBase.stats,
-            ...stats
-          }
-        }
+      // 添加到历史记录
+      setSwitchHistory((prev) => [
+        {
+          fromCityId: currentCityRef.current?.id || "",
+          toCityId: targetCityBase!.id,
+          timestamp: new Date().toISOString(),
+          reason: "user_selection",
+        },
+        ...prev,
+      ])
 
-        setCurrentCity(targetCity)
-        setLeaderboard(leaderboardData)
-        setTotalPlayers(stats.totalPlayers)
-        setCurrentCityProgress(userProgress)
-
-        // 更新 RegionContext
-        setRegion({
-          regionType: "city",
-          cityName: targetCity.name,
-          adcode: targetCity.adcode,
-          centerLngLat: [targetCity.coordinates.lng, targetCity.coordinates.lat],
-        })
-
-        // 添加到历史记录
-        setSwitchHistory((prev) => [
-          {
-            fromCityId: currentCityRef.current?.id || "",
-            toCityId: targetCity.id,
-            timestamp: new Date().toISOString(),
-            reason: "user_selection",
-          },
-          ...prev,
-        ])
-
-        // 本地存储当前城市 ID
-        localStorage.setItem("currentCityId", targetCity.id)
-      } catch (error) {
-        console.error("Failed to switch city:", error)
-        throw error
-      } finally {
-        setIsLoading(false)
-      }
+      // 本地存储当前城市 ID
+      localStorage.setItem("currentCityId", targetCityBase.id)
     },
     [setRegion]
   )
@@ -231,72 +260,54 @@ export function CityProvider({ children }: { children: React.ReactNode }) {
         const savedCityId = localStorage.getItem("currentCityId")
         const cityId = savedCityId || "beijing" // 默认选择北京
         const city = getCityById(cityId)
+        
         if (!city) {
-          throw new Error(`City with id ${cityId} not found`)
+             const defaultCity = getCityById("beijing")
+             if(defaultCity && mounted) {
+                 setActiveBaseCity(defaultCity)
+                 localStorage.setItem("currentCityId", "beijing")
+             }
+             return
         }
 
-        // Fetch real data
-        const [stats, leaderboardData, userProgress] = await Promise.all([
-          fetchCityStats(city.id),
-          fetchCityLeaderboard(city.id),
-          getUserCityProgress(city.id)
-        ])
-
-        if (!mounted) return
-
-        const targetCity = {
-          ...city,
-          stats: {
-            ...city.stats,
-            ...stats
-          }
-        }
-
-        setCurrentCity(targetCity)
-        setLeaderboard(leaderboardData)
-        setTotalPlayers(stats.totalPlayers)
-        setCurrentCityProgress(userProgress)
-
-        // 如果没有保存的城市ID,保存默认城市ID
-        if (!savedCityId) {
-          localStorage.setItem("currentCityId", city.id)
+        if (mounted) {
+           setActiveBaseCity(city)
+           if (!savedCityId) {
+             localStorage.setItem("currentCityId", city.id)
+           }
         }
       } catch (error) {
         console.error("Failed to initialize city:", error)
-        if (!mounted) return
-
-        // 如果加载失败,仍然要设置默认城市（降级处理，不带动态数据）
-        const defaultCity = getCityById("beijing")
-        if (defaultCity) {
-          setCurrentCity(defaultCity)
-          // setLeaderboard([]) // Keep empty or null
-          // setCurrentCityProgress(null) // Keep null
-          localStorage.setItem("currentCityId", "beijing")
-        }
-      } finally {
         if (mounted) {
-          setIsLoading(false)
+            const defaultCity = getCityById("beijing")
+            if (defaultCity) {
+                setActiveBaseCity(defaultCity)
+                localStorage.setItem("currentCityId", "beijing")
+            }
         }
       }
     }
 
     initializeCity()
+    
     return () => {
-      mounted = false
+        mounted = false
     }
-  }, [])
+  }, []) 
 
   /**
    * 同步 RegionContext 的 adcode 到 CityContext
    */
   useEffect(() => {
-    // 防止在加载过程中触发
     if (isLoading) {
       return;
     }
 
     // 只在 region.adcode 存在且与当前城市不同时才切换
     if (region?.adcode && region.adcode !== currentCity?.adcode) {
+      // Avoid infinite loops by checking if we are already "stable"
+      if (activeBaseCity?.adcode === region.adcode) return;
+
       const timer = setTimeout(() => {
         switchCity(String(region.adcode)).catch(error => {
           console.error('Failed to sync city from region:', error);
@@ -305,28 +316,28 @@ export function CityProvider({ children }: { children: React.ReactNode }) {
 
       return () => clearTimeout(timer);
     }
-  }, [region?.adcode, currentCity?.adcode, isLoading, switchCity])
+  }, [region?.adcode, currentCity?.adcode, isLoading, switchCity, activeBaseCity?.adcode])
 
   // 创建稳定的 context value
   const contextValue: CityContextType = React.useMemo(() => ({
     currentCity,
-    currentCityProgress,
+    currentCityProgress: userProgress || null,
     allCities,
     switchHistory,
     isLoading,
-    leaderboard,
-    totalPlayers,
+    leaderboard: leaderboardData || null,
+    totalPlayers: cityStats?.totalPlayers || 0,
     switchCity,
     getCityProgress,
     clearSwitchHistory,
   }), [
     currentCity,
-    currentCityProgress,
+    userProgress,
     allCities,
     switchHistory,
     isLoading,
-    leaderboard,
-    totalPlayers,
+    leaderboardData,
+    cityStats,
     switchCity,
     getCityProgress,
     clearSwitchHistory
