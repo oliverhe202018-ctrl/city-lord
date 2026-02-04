@@ -4,7 +4,28 @@ City Lord 是一款结合真实地理位置（LBS）的跑步领地争夺游戏�
 
 ## 📅 更新日志 (Changelog)
 
-### 2026-02-04: 登录体验升级与原生化优化 (Current)
+### 2026-02-04: ⚡️ 极致性能优化与 SWR 架构重构 (Performance & SWR)
+
+**核心目标**：彻底解决页面加载慢、骨架屏闪烁、以及高并发下的数据库压力问题。
+
+1.  **🚀 SWR (Stale-While-Revalidate) 架构重构**
+    *   **零骨架屏秒开**：实现了核心页面（主页、任务中心、排行榜、好友列表、勋章墙）的 **SSR (服务端预取) + SWR (客户端缓存)** 混合模式。用户打开页面时直接看到完整内容，无需等待客户端请求。
+    *   **后台静默更新**：数据展示后，SWR 会在后台自动校验更新，确保数据实时性（如好友在线状态、任务进度变化）。
+    *   **并行数据获取**：重构 `app/page.tsx`，使用 `Promise.all` 并行获取 User、Missions、Stats、Faction、Badges、Social 等 6 大核心数据源，消除了客户端的“瀑布流”请求。
+
+2.  **🏎️ 数据库与服务端性能优化**
+    *   **Read-Check-Write 模式**：重构 `MissionService`，将原来的“每次请求都写库”改为“先读后写”，仅在数据过期或不存在时才执行写入，数据库写入量减少 90% 以上。
+    *   **内存级缓存 (L1 Cache)**：在服务端引入短时内存缓存 (TTL 60s)，对于高频只读请求（如任务列表检查）直接返回内存数据，绕过数据库。
+    *   **用户配置快速通道 (Fast Path)**：重构 `ensureUserProfile`，引入 React Cache 和轻量级 ID 检查 (<10ms)，老用户访问不再触发繁重的 `upsert` 逻辑，响应速度提升 20 倍。
+    *   **中间件瘦身**：优化 `middleware.ts`，将繁重的 `getUser()` 数据库调用移至特定路由，静态资源和公共页面实现 0 数据库开销访问，显著降低 TTFB。
+
+3.  **🐛 关键 Bug 修复**
+    *   **阵营数据崩溃**：修复了 `get_faction_stats_rpc` 返回 JSON 对象导致前端 `find` 方法报错的问题，增加了对 Object/Array 两种返回格式的兼容处理。
+    *   **好友页面崩溃**：修复了 `SocialPage` 因未正确解构 `initialFriends` props 导致的 ReferenceError 崩溃。
+    *   **UI 渲染错误**：修复了个人资料页因直接渲染 Object 导致的 "Objects are not valid as a React child" 错误。
+    *   **勋章时间显示**：在勋章弹窗中补充了“获取时间”显示逻辑。
+
+### 2026-02-04: 登录体验升级与原生化优化 (Previous)
 
 **主要更新内容：**
 

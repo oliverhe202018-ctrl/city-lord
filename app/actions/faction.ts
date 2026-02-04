@@ -7,45 +7,78 @@ import { calculateFactionBonus } from '@/lib/game-logic/faction-balance'
 export type Faction = 'RED' | 'BLUE'
 
 export async function getFactionStats() {
+  const startTime = performance.now()
   const cookieStore = await cookies()
   const supabase = createClient(cookieStore)
 
-  // Try to use RPC for efficiency
-  const { data: rpcData, error: rpcError } = await supabase.rpc('get_faction_stats_rpc')
-  
   let redCount = 0
   let blueCount = 0
   let redArea = 0
   let blueArea = 0
 
-  if (!rpcError && rpcData) {
-    // Parse RPC result
-    const redStats = (rpcData as any[]).find((r: any) => r.faction === 'RED')
-    const blueStats = (rpcData as any[]).find((r: any) => r.faction === 'BLUE')
+  // Try to use RPC for efficiency with a timeout protection
+  try {
+    const rpcPromise = supabase.rpc('get_faction_stats_rpc')
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('RPC timeout')), 3000))
     
-    redCount = redStats?.member_count || 0
-    blueCount = blueStats?.member_count || 0
-    redArea = Number(redStats?.total_area || 0)
-    blueArea = Number(blueStats?.total_area || 0)
-  } else {
-    // Fallback to simple count if RPC fails (e.g. migration not run)
-    // Note: This fallback won't get Area sum efficiently, so we default area to 0 or try separate queries if critical.
-    // For now, let's just do the counts as before to keep basic functionality.
+    // Race RPC against 3s timeout
+    const { data: rpcData, error: rpcError } = await Promise.race([rpcPromise, timeoutPromise]) as any
     
-    const { count: rCount } = await supabase
-        .from('profiles')
-        .select('*', { count: 'exact', head: true })
-        .eq('faction', 'RED')
-    
-    const { count: bCount } = await supabase
-        .from('profiles')
-        .select('*', { count: 'exact', head: true })
-        .eq('faction', 'BLUE')
-
-    redCount = rCount || 0
-    blueCount = bCount || 0
-    // Area remains 0 in fallback
+    if (!rpcError && rpcData) {
+      // Parse RPC result
+      // The RPC now returns a JSON object like { "RED": 10, "BLUE": 5 } or { "RED": { "count": 10, "area": 500 } }
+      // Based on the migration, it returns { "RED": count, "BLUE": count }
+      // Let's support both formats for safety
+      
+      let rpcRedCount = 0
+      let rpcBlueCount = 0
+      
+      if (!Array.isArray(rpcData)) {
+          // Object format (New Optimized RPC)
+          rpcRedCount = Number(rpcData['RED'] || 0)
+          rpcBlueCount = Number(rpcData['BLUE'] || 0)
+      } else {
+          // Array format (Legacy RPC)
+          const redStats = (rpcData as any[]).find((r: any) => r.faction === 'RED')
+          const blueStats = (rpcData as any[]).find((r: any) => r.faction === 'BLUE')
+          rpcRedCount = redStats?.member_count || redStats?.count || 0
+          rpcBlueCount = blueStats?.member_count || blueStats?.count || 0
+      }
+      
+      redCount = rpcRedCount
+      blueCount = rpcBlueCount
+      
+      // Area is not yet returned by simple count RPC, keep 0 or implement separate area aggregation if critical
+      
+      console.log(`[FactionStats] RPC success in ${(performance.now() - startTime).toFixed(2)}ms`)
+      const bonus = calculateFactionBonus(redCount, blueCount)
+      return {
+        RED: redCount,
+        BLUE: blueCount,
+        area: { RED: redArea, BLUE: blueArea },
+        bonus
+      }
+    } else if (rpcError) {
+      console.warn('[FactionStats] RPC Error:', rpcError)
+    }
+  } catch (e) {
+    console.warn('[FactionStats] RPC Failed/Timed out:', e)
   }
+
+  // Fallback to simple count if RPC fails
+  console.log('[FactionStats] Using fallback count queries...')
+  const fallbackStart = performance.now()
+  
+  const [redResult, blueResult] = await Promise.all([
+    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('faction', 'RED'),
+    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('faction', 'BLUE')
+  ])
+  
+  redCount = redResult.count || 0
+  blueCount = blueResult.count || 0
+  // Area remains 0 in fallback
+  
+  console.log(`[FactionStats] Fallback completed in ${(performance.now() - fallbackStart).toFixed(2)}ms`)
 
   const bonus = calculateFactionBonus(redCount, blueCount)
 

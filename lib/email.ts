@@ -14,6 +14,11 @@ export const transporter = nodemailer.createTransport({
     user: SMTP_USER,
     pass: SMTP_PASS,
   },
+  // 优化连接设置
+  connectionTimeout: 10000, // 10秒连接超时
+  greetingTimeout: 5000,    // 5秒握手超时
+  socketTimeout: 10000,     // 10秒 Socket 超时
+  dnsTimeout: 5000,         // 5秒 DNS 超时
 });
 
 export async function sendVerificationCode(to: string, code: string, type: 'register' | 'login' = 'register') {

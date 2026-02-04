@@ -1,16 +1,18 @@
-
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 
 const SECRET_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'temp-secret-key';
-const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
 export async function POST(request: Request) {
+  const origin = new URL(request.url).origin;
+
   try {
-    const { email: rawEmail, code, token, redirectTo } = await request.json();
+    const { email: rawEmail, code, token } = await request.json();
     const email = rawEmail?.trim().toLowerCase();
+
+    console.log('[Login with Code] Processing request for:', email);
 
     if (!email || !code || !token) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -22,7 +24,7 @@ export async function POST(request: Request) {
       const json = Buffer.from(token, 'base64').toString('utf-8');
       payload = JSON.parse(json);
     } catch (e) {
-      console.error('Token parsing error:', e);
+      console.error('[Login with Code] Token parsing error:', e);
       return NextResponse.json({ error: 'Invalid token format' }, { status: 400 });
     }
 
@@ -41,71 +43,81 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid verification code' }, { status: 400 });
     }
 
-    // 2. Generate Supabase Session
-    if (!SERVICE_ROLE_KEY || !SUPABASE_URL) {
-      return NextResponse.json({ 
-        error: 'Server misconfiguration: Missing Service Role Key' 
-      }, { status: 500 });
+    console.log('[Login with Code] Signature verified successfully');
+
+    // 2. Use Service Role Key to generate magic link
+    const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!SERVICE_ROLE_KEY) {
+      console.error('[Login with Code] Service Role Key not configured');
+      return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 });
     }
 
-    // SANITIZE THE KEY: Remove any whitespace or non-ASCII characters that might have been pasted in
-    // This is critical to prevent "ByteString" errors if the env var has comments or hidden chars
     const cleanServiceRoleKey = SERVICE_ROLE_KEY.trim().split(/\s+/)[0];
+    const supabaseAdmin = createSupabaseClient(SUPABASE_URL, cleanServiceRoleKey);
 
-    // Use raw fetch instead of supabase-js to avoid "ByteString" errors with headers
-    // (This error happens if supabase-js sends any header with non-ASCII chars)
-    try {
-      // Use 'recovery' type instead of 'magiclink' because it is more robust for programmatic logins
-      // and less likely to hit PKCE/Hash mismatch issues in verifyOtp
-      const adminUrl = `${SUPABASE_URL}/auth/v1/admin/generate_link`;
-      const response = await fetch(adminUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': cleanServiceRoleKey,
-          'Authorization': `Bearer ${cleanServiceRoleKey}`,
-          // Explicitly set User-Agent to ASCII to avoid any issues
-          'User-Agent': 'city-lord-auth-service'
-        },
-        body: JSON.stringify({
-          type: 'recovery', // CHANGED FROM magiclink TO recovery
-          email: email,
-          options: {
-            redirectTo: redirectTo || undefined
-          }
-        })
-      });
+    // Get user by email
+    console.log('[Login with Code] Looking up user by email...');
+    const { data: { users }, error: userError } = await supabaseAdmin.auth.admin.listUsers();
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error_description || errorData.msg || 'Failed to generate session link');
-      }
-
-      const linkData = await response.json();
-      const actionLink = linkData.properties?.action_link || linkData.action_link; // Check both structures
-
-      if (!actionLink) {
-        return NextResponse.json({ error: 'Failed to generate login link' }, { status: 500 });
-      }
-
-      // Instead of extracting token and verifying manually (which fails due to PKCE/Hash mismatch),
-      // we return the full actionLink and let the frontend redirect the user to it.
-      // This ensures Supabase handles the session creation and cookie setting correctly.
-      
-      return NextResponse.json({ 
-        success: true, 
-        redirectUrl: actionLink
-      });
-
-    } catch (err: any) {
-      console.error('Supabase raw fetch error:', err);
-      return NextResponse.json({ error: err.message || 'Failed to generate session' }, { status: 500 });
+    if (userError) {
+      throw new Error(`Failed to lookup user: ${userError.message}`);
     }
+
+    const user = users.find(u => u.email?.toLowerCase() === email.toLowerCase());
+
+    if (!user) {
+      console.log('[Login with Code] User not found for email:', email);
+      return NextResponse.json({ error: 'User not found. Please register first.' }, { status: 404 });
+    }
+
+    console.log('[Login with Code] User found:', user.id);
+
+    // Generate a magic link using admin API
+    const adminUrl = `${SUPABASE_URL}/auth/v1/admin/generate_link`;
+    console.log('[Login with Code] Calling admin API:', adminUrl);
+
+    const response = await fetch(adminUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': cleanServiceRoleKey,
+        'Authorization': `Bearer ${cleanServiceRoleKey}`,
+        'User-Agent': 'city-lord-auth-service'
+      },
+      body: JSON.stringify({
+        type: 'magiclink',
+        email: email,
+        options: {
+          redirectTo: `${origin}/auth/callback`
+        }
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('[Login with Code] Admin API error:', errorData);
+      throw new Error(errorData.error_description || errorData.msg || 'Failed to generate session link');
+    }
+
+    const linkData = await response.json();
+    const actionLink = linkData.properties?.action_link || linkData.action_link;
+
+    if (!actionLink) {
+      throw new Error('Failed to generate login link');
+    }
+
+    console.log('[Login with Code] Magic link generated successfully');
+    console.log('[Login with Code] Action link:', actionLink);
+
+    return NextResponse.json({
+      success: true,
+      redirectUrl: actionLink
+    });
 
   } catch (error: any) {
-    console.error('Login error:', error);
-    // Ensure error message is safe
+    console.error('[Login with Code] Error:', error);
     const safeError = error.message ? error.message.replace(/[^\x00-\x7F]/g, "") : 'Login failed';
-    return NextResponse.json({ error: safeError }, { status: 500 });
+    return NextResponse.json({ safeError }, { status: 500 });
   }
 }

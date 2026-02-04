@@ -67,6 +67,26 @@ export const DEFAULT_MISSIONS = [
     reward_experience: 300,
     frequency: 'weekly'
   },
+  {
+    id: 'weekly_hex_50',
+    title: '领地大亨',
+    description: '本周占领或访问50个地块',
+    type: 'HEX_COUNT',
+    target: 50,
+    reward_coins: 150,
+    reward_experience: 600,
+    frequency: 'weekly'
+  },
+  {
+    id: 'weekly_calories_1000',
+    title: '燃烧吧卡路里',
+    description: '本周累计消耗1000千卡',
+    type: 'CALORIES',
+    target: 1000,
+    reward_coins: 120,
+    reward_experience: 500,
+    frequency: 'weekly'
+  },
 
   // Achievements
   {
@@ -101,142 +121,165 @@ export const DEFAULT_MISSIONS = [
   }
 ] as const;
 
+// Simple in-memory cache to avoid redundant checks per request
+// Map<userId, lastCheckTimestamp>
+const missionCheckCache = new Map<string, number>()
+const CACHE_TTL_MS = 60 * 1000 // 60 seconds
+
 /**
  * Ensures that user has all required missions assigned and resets them if needed.
- * This implements the "Lazy Load" strategy.
+ * This implements the "Lazy Load" strategy with READ-FIRST optimization.
+ * 
+ * Strategy:
+ * 1. READ: Fetch all user missions first.
+ * 2. MEMORY CHECK: Determine if any mission is missing or stale (needs daily/weekly reset).
+ * 3. WRITE: Only perform DB writes if absolutely necessary.
+ * 4. CACHE: Skip entire process if checked recently (60s).
  */
 export async function initializeUserMissions(userId: string) {
+  const now = Date.now()
+  const lastCheck = missionCheckCache.get(userId)
+
+  // 1. Caching Strategy: Skip if checked recently
+  if (lastCheck && (now - lastCheck < CACHE_TTL_MS)) {
+    // console.log(`[MissionService] Skipping initialization for ${userId.slice(0, 8)} (cached)`)
+    return
+  }
+
+  const startTime = performance.now()
   const cookieStore = await cookies()
   const supabase = createClient(cookieStore)
-  const now = new Date()
+  const nowDate = new Date()
 
-  // 0. Ensure Mission Templates Exist (Auto-Seeding)
-  // We check if the 'daily_run_1' exists as a proxy for initialization
-  const { data: checkTemplate } = await supabase
-    .from('missions')
-    .select('id')
-    .eq('id', 'daily_run_1')
-    .single()
+  // console.log(`[MissionService] Starting initialization for user ${userId.slice(0, 8)}...`)
 
-  if (!checkTemplate) {
-    console.log('[MissionService] Seeding default missions...')
-    const { error: seedError } = await supabase
-      .from('missions')
-      .upsert(DEFAULT_MISSIONS.map(m => ({
-        id: m.id,
-        title: m.title,
-        description: m.description,
-        type: m.type,
-        target: m.target,
-        reward_coins: m.reward_coins,
-        reward_experience: m.reward_experience,
-        frequency: m.frequency
-      })))
-    
-    if (seedError) {
-      console.error('[MissionService] Failed to seed missions:', seedError)
+  try {
+    // 2. READ FIRST: Fetch existing user missions
+    const { data: existingMissions, error: userMissionsError } = await supabase
+      .from('user_missions')
+      .select('mission_id, updated_at, status, progress')
+      .eq('user_id', userId)
+
+    if (userMissionsError) {
+      console.error('[MissionService] Failed to fetch user missions:', userMissionsError)
+      return
     }
-  }
 
-  // 1. Fetch all 'daily', 'weekly', and 'achievement' mission templates
-  const { data: templates, error: templatesError } = await supabase
-    .from('missions')
-    .select('*')
-  
-  if (templatesError || !templates) {
-    console.error('[MissionService] Failed to fetch mission templates:', templatesError)
-    return
-  }
+    // Update cache timestamp after successful fetch
+    missionCheckCache.set(userId, now)
 
-  // 2. Fetch existing user missions
-  const { data: existingMissions, error: userMissionsError } = await supabase
-    .from('user_missions')
-    .select('mission_id, updated_at, status, progress, claimed_at')
-    .eq('user_id', userId)
+    // 3. MEMORY CHECK
+    const existingMap = new Map(existingMissions?.map(m => [m.mission_id, m]) || [])
+    
+    const missionsToInsert: any[] = []
+    const missionsToReset: string[] = []
+    
+    // Check every template against existing data
+    for (const template of DEFAULT_MISSIONS) {
+      const existing = existingMap.get(template.id)
 
-  if (userMissionsError) {
-    console.error('[MissionService] Failed to fetch user missions:', userMissionsError)
-    return
-  }
+      // A. Check for Missing
+      if (!existing) {
+        missionsToInsert.push({
+          user_id: userId,
+          mission_id: template.id,
+          status: 'in-progress', 
+          progress: 0,
+          updated_at: nowDate.toISOString()
+        })
+        continue
+      }
 
-  const existingMap = new Map(existingMissions?.map(m => [m.mission_id, m]))
-  const missionsToInsert: any[] = []
-  
-  // 3. Identify missing and stale missions
-  for (const template of templates) {
-    const existing = existingMap.get(template.id)
-
-    if (!existing) {
-      // Missing: Add to insert list
-      missionsToInsert.push({
-        user_id: userId,
-        mission_id: template.id,
-        status: 'in-progress', 
-        progress: 0,
-        updated_at: now.toISOString()
-      })
-    } else {
-      // Exists: Check if reset needed
-      // Achievements never reset
-      if (template.frequency === 'achievement') continue;
+      // B. Check for Stale (Reset Logic)
+      if (template.frequency === 'achievement') continue
+      if (!existing.updated_at) continue // Defensive
 
       const lastUpdate = new Date(existing.updated_at)
       let shouldReset = false
 
       if (template.frequency === 'daily') {
-        // Reset if last update was not today (local time or UTC? Using UTC for consistency)
-        // Ideally we use user's timezone, but server usually uses UTC.
-        // Let's use simple Day check.
-        const isSameDay = lastUpdate.getDate() === now.getDate() && 
-                          lastUpdate.getMonth() === now.getMonth() && 
-                          lastUpdate.getFullYear() === now.getFullYear()
-        
-        if (!isSameDay) {
-          shouldReset = true
-        }
+        const isSameDay = lastUpdate.getDate() === nowDate.getDate() && 
+                          lastUpdate.getMonth() === nowDate.getMonth() && 
+                          lastUpdate.getFullYear() === nowDate.getFullYear()
+        if (!isSameDay) shouldReset = true
       } else if (template.frequency === 'weekly') {
-        // Reset if it's a new week. 
-        // Simple check: Get Monday of current week and compare.
         const getMonday = (d: Date) => {
-          d = new Date(d);
-          const day = d.getDay(),
-              diff = d.getDate() - day + (day == 0 ? -6 : 1); 
-          return new Date(d.setDate(diff));
+          d = new Date(d)
+          const day = d.getDay()
+          const diff = d.getDate() - day + (day === 0 ? -6 : 1)
+          return new Date(d.setDate(diff))
         }
-        
-        const currentMonday = getMonday(now)
+        const currentMonday = getMonday(nowDate)
         const lastUpdateMonday = getMonday(lastUpdate)
-        
-        // If the Mondays are different, it's a new week
-        if (currentMonday.getTime() !== lastUpdateMonday.getTime()) {
-           shouldReset = true
-        }
+        // Reset if the last update was in a previous week
+        if (currentMonday.getTime() !== lastUpdateMonday.getTime()) shouldReset = true
       }
 
       if (shouldReset) {
-        // Reset progress and status
-        await supabase
-          .from('user_missions')
-          .update({
-            status: 'in-progress',
-            progress: 0,
-            claimed_at: null,
-            updated_at: now.toISOString()
-          })
-          .eq('user_id', userId)
-          .eq('mission_id', template.id)
+        missionsToReset.push(template.id)
       }
     }
-  }
 
-  // 4. Batch Insert Missing
-  if (missionsToInsert.length > 0) {
-    const { error: insertError } = await supabase
-      .from('user_missions')
-      .insert(missionsToInsert)
+    // 4. WRITE ONLY IF NEEDED
     
-    if (insertError) {
-      console.error('[MissionService] Failed to insert new missions:', insertError)
+    // Handle Inserts (Missing Missions)
+    if (missionsToInsert.length > 0) {
+      console.log(`[MissionService] Inserting ${missionsToInsert.length} missing missions...`)
+      
+      // Auto-seed templates first just in case
+      const { error: seedError } = await supabase
+        .from('missions')
+        .upsert(DEFAULT_MISSIONS.map(m => ({
+          id: m.id,
+          title: m.title,
+          description: m.description,
+          type: m.type,
+          target: m.target,
+          reward_coins: m.reward_coins,
+          reward_experience: m.reward_experience,
+          frequency: m.frequency
+        })), { onConflict: 'id' })
+        
+      if (!seedError) {
+         const { error: insertError } = await supabase
+           .from('user_missions')
+           .insert(missionsToInsert)
+         
+         if (insertError) console.error('[MissionService] Failed to insert new missions:', insertError)
+      } else {
+         console.error('[MissionService] Failed to seed missions:', seedError)
+      }
     }
+
+    // Handle Resets (Stale Missions)
+    if (missionsToReset.length > 0) {
+      console.log(`[MissionService] Resetting ${missionsToReset.length} stale missions...`)
+      
+      // Bulk update is tricky without a stored procedure for multiple IDs with same values
+      // But here we set all to same 'in-progress', 0, now()
+      const { error: updateError } = await supabase
+        .from('user_missions')
+        .update({
+          status: 'in-progress',
+          progress: 0,
+          updated_at: nowDate.toISOString()
+        })
+        .eq('user_id', userId)
+        .in('mission_id', missionsToReset)
+
+      if (updateError) {
+        console.error('[MissionService] Failed to reset missions:', updateError)
+      }
+    }
+
+    if (missionsToInsert.length === 0 && missionsToReset.length === 0) {
+      // console.log('[MissionService] No changes needed.')
+    } else {
+       const duration = (performance.now() - startTime).toFixed(2)
+       console.log(`[MissionService] Initialization (Writes performed) completed in ${duration}ms`)
+    }
+
+  } catch (error) {
+    console.error('[MissionService] Unexpected error during initialization:', error)
   }
 }

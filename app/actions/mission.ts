@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { cookies } from 'next/headers'
 import { getFactionStats } from '@/app/actions/faction'
+import { ensureUserProfile } from '@/app/actions/user'
 
 import { initializeUserMissions } from '@/lib/game-logic/mission-service'
 
@@ -19,26 +20,56 @@ export interface Mission {
 
 export interface UserMission {
   mission_id: string
-  status: 'todo' | 'ongoing' | 'in-progress' | 'completed' | 'claimed'
+  status: 'locked' | 'active' | 'todo' | 'in-progress' | 'ongoing' | 'completed' | 'claimed'
   progress: number
   missions: Mission
 }
 
+interface UserMissionResult {
+  mission_id: string
+  status: 'locked' | 'active' | 'todo' | 'in-progress' | 'ongoing' | 'completed' | 'claimed'
+  progress: number
+  missions: {
+    id: string
+    title: string
+    description: string
+    type: string
+    target: number
+    reward_coins: number
+    reward_experience: number
+    frequency: 'one_time' | 'daily' | 'weekly' | 'achievement'
+  } | null
+}
+
 export async function fetchUserMissions() {
+  const startTime = performance.now()
   const cookieStore = await cookies()
   const supabase = createClient(cookieStore)
   const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user) return []
+  if (!user) {
+    console.log('[MissionAction] No user found, returning empty missions')
+    return []
+  }
+
+  console.log(`[MissionAction] Starting fetch for user ${user.id.slice(0, 8)}...`)
 
   // Ensure user missions are assigned/reset if needed (Lazy Load)
   try {
-    console.log('[MissionAction] Initializing user missions for', user.id)
+    // Ensure profile exists first to avoid FK violations
+    const profileStart = performance.now()
+    await ensureUserProfile(user.id)
+    console.log(`[MissionAction] ensureUserProfile took ${(performance.now() - profileStart).toFixed(2)}ms`)
+
+    const initStart = performance.now()
+    console.log('[MissionAction] Initializing user missions...')
     await initializeUserMissions(user.id)
+    console.log(`[MissionAction] initializeUserMissions took ${(performance.now() - initStart).toFixed(2)}ms`)
   } catch (e) {
     console.error('[MissionAction] Failed to initialize missions:', e)
   }
 
+  const fetchStart = performance.now()
   const { data, error } = await supabase
     .from('user_missions')
     .select(`
@@ -58,25 +89,17 @@ export async function fetchUserMissions() {
     `)
     .eq('user_id', user.id)
 
+  console.log(`[MissionAction] Supabase fetch took ${(performance.now() - fetchStart).toFixed(2)}ms`)
+
   if (error) {
     console.error('Error fetching user missions:', error)
     return []
   }
-
-  interface UserMissionResult {
-    mission_id: string
-    status: 'todo' | 'ongoing' | 'in-progress' | 'completed' | 'claimed'
-    progress: number
-    missions: {
-      id: string
-      title: string
-      description: string
-      type: string
-      target: number
-      reward_coins: number
-      reward_experience: number
-      frequency: 'one_time' | 'daily' | 'weekly' | 'achievement'
-    } | null
+  
+  if (!data || data.length === 0) {
+    console.log('[MissionAction] No user missions found after initialization.')
+  } else {
+    console.log(`[MissionAction] Found ${data.length} user missions`)
   }
 
   const typedData = data as unknown as UserMissionResult[]
@@ -86,7 +109,7 @@ export async function fetchUserMissions() {
     return !!item.missions
   }
 
-  return (typedData || []).filter(isValidMission).map((item) => ({
+  const result = (typedData || []).filter(isValidMission).map((item) => ({
     id: item.missions!.id,
     title: item.missions!.title,
     description: item.missions!.description,
@@ -100,6 +123,11 @@ export async function fetchUserMissions() {
     },
     status: item.status
   }))
+
+  const totalDuration = (performance.now() - startTime).toFixed(2)
+  console.log(`[MissionAction] Total fetchUserMissions took ${totalDuration}ms`)
+
+  return result
 }
 
 export async function claimMissionReward(missionId: string) {
@@ -109,18 +137,22 @@ export async function claimMissionReward(missionId: string) {
 
   if (!user) return { success: false, error: 'Unauthorized' }
 
-  // Use RPC for atomic claiming
-  const { data: rpcResult, error } = await supabase.rpc('claim_mission_reward_rpc', {
-    p_user_id: user.id,
-    p_mission_id: missionId
-  } as any)
+  // Invalidate cache immediately
+  invalidateMissionCache(user.id)
 
-  if (error) {
-    console.error('Error claiming mission:', error)
-    return { success: false, error: error.message }
-  }
+  try {
+    // Use RPC for atomic claiming
+    const { data: rpcResult, error } = await supabase.rpc('claim_mission_reward_rpc', {
+      p_user_id: user.id,
+      p_mission_id: missionId
+    } as any)
 
-  const resultData = rpcResult as any;
+    if (error) {
+      console.error('Error claiming mission:', error)
+      return { success: false, error: error.message }
+    }
+
+    const resultData = rpcResult as any;
   let bonusApplied = false;
   let bonusDetails = { xp: 0, coins: 0, percentage: 0 };
 
@@ -176,6 +208,10 @@ export async function claimMissionReward(missionId: string) {
       ...resultData,
       bonus: bonusApplied ? bonusDetails : undefined
     } 
+  }
+  } catch (error: any) {
+    console.error('Unexpected error in claimMissionReward:', error)
+    return { success: false, error: error.message || 'Unknown error' }
   }
 }
 

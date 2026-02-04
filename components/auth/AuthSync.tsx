@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client"
 import { useGameStore } from "@/store/useGameStore"
 import { toast } from "sonner"
 import { Database } from "@/types/supabase"
-import { touchUserActivity } from "@/app/actions/user"
+import { touchUserActivity, ensureUserProfile } from "@/app/actions/user"
 
 export function AuthSync() {
   const setNickname = useGameStore((state) => state.setNickname)
@@ -18,13 +18,15 @@ export function AuthSync() {
     // 检查初始 Session
     const initSession = async () => {
       try {
+        console.log('[AuthSync] Checking initial session...')
         const { data: { session }, error } = await supabase.auth.getSession()
         if (error) throw error
-        
+
         if (session?.user) {
+          console.log('[AuthSync] Session found, user:', session.user.id)
           // 如果有有效 Session，立即同步用户数据
           await syncUserProfile(session.user.id)
-          
+
           // Start heartbeat immediately and then interval
           touchUserActivity().catch((e) => {
             if (e?.name !== 'AbortError' && e?.digest !== 'NEXT_REDIRECT') {
@@ -39,15 +41,15 @@ export function AuthSync() {
             })
           }, 2 * 60 * 1000) // 2 minutes
         } else {
-          console.log("No active session found on init")
+          console.log("[AuthSync] No active session found on init")
         }
       } catch (error: any) {
         if (error?.name !== 'AbortError' && error?.digest !== 'NEXT_REDIRECT') {
-          console.error("Session init error:", error)
+          console.error("[AuthSync] Session init error:", error)
         }
       }
     }
-    
+
     initSession()
 
     // 监听 Auth 变化
@@ -102,6 +104,18 @@ export function AuthSync() {
         .single()
 
       if (error) {
+        if (error.code === 'PGRST116') {
+          console.log("Profile missing, attempting to create...")
+          const result = await ensureUserProfile(userId)
+          if (result.success) {
+            // Retry fetch after small delay
+            setTimeout(() => syncUserProfile(userId), 500)
+            return
+          } else {
+            console.error("Failed to create profile:", result.error)
+            return
+          }
+        }
         console.error("Error fetching profile:", error)
         return
       }

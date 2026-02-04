@@ -1,6 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import useSWR from 'swr'
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { 
   Search, 
   UserPlus, 
@@ -22,75 +24,60 @@ interface FriendsListProps {
   onSelectFriend?: (friend: Friend) => void
   onChallenge?: (friend: Friend) => void
   onMessage?: (friend: Friend) => void
+  initialFriends?: Friend[]
+  initialRequests?: FriendRequest[]
 }
 
-export function FriendsList({ onSelectFriend, onChallenge, onMessage }: FriendsListProps) {
+export function FriendsList({ 
+  onSelectFriend, 
+  onChallenge, 
+  onMessage,
+  initialFriends = [],
+  initialRequests = []
+}: FriendsListProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [filter, setFilter] = useState<"all" | "online" | "nearby">("all")
   const [selectedFriend, setSelectedFriend] = useState<string | null>(null)
-  
-  const [friends, setFriends] = useState<Friend[]>([])
-  // Type explicitly to handle null/undefined avatar differences
-  const [requests, setRequests] = useState<FriendRequest[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const queryClient = useQueryClient()
 
-  useEffect(() => {
-    // 1. Load from cache first
-    const cached = localStorage.getItem('citylord_friends_list')
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached)
-        // Cache validity (e.g. 1 minute for friends status)
-        if (Date.now() - parsed.timestamp < 60 * 1000) {
-          setFriends(parsed.data)
-          setIsLoading(false)
-        }
-      } catch (e) {
-        console.error("Cache parse error", e)
-      }
+  const { data: friends = [], isLoading: isFriendsLoading, mutate: mutateFriends } = useSWR(
+    'friends',
+    fetchFriends,
+    {
+      fallbackData: initialFriends,
+      revalidateOnFocus: true
     }
-    
-    // 2. Load fresh data
-    loadData()
-  }, [])
+  )
 
-  async function loadData() {
-    try {
-      // Keep loading state if no cache
-      if (friends.length === 0) setIsLoading(true)
-      
-      const [friendsData, requestsData] = await Promise.all([
-        fetchFriends(),
-        getFriendRequests()
-      ])
-      setFriends(friendsData)
-      setRequests(requestsData)
-
-      // Update cache
-      localStorage.setItem('citylord_friends_list', JSON.stringify({
-        timestamp: Date.now(),
-        data: friendsData
-      }))
-    } catch (error) {
-      toast.error("加载好友列表失败")
-      console.error(error)
-    } finally {
-      setIsLoading(false)
+  const { data: requests = [], isLoading: isRequestsLoading, mutate: mutateRequests } = useSWR(
+    'friendRequests',
+    getFriendRequests,
+    {
+      fallbackData: initialRequests,
+      revalidateOnFocus: true
     }
-  }
+  )
 
-  const handleResponse = async (userId: string, action: 'accept' | 'reject') => {
-    try {
-      const result = await respondToFriendRequest(userId, action)
+  const respondMutation = useMutation({
+    mutationFn: ({ userId, action }: { userId: string, action: 'accept' | 'reject' }) => 
+      respondToFriendRequest(userId, action),
+    onSuccess: (result, { action }) => {
       if (result.success) {
         toast.success(action === 'accept' ? "已接受好友请求" : "已拒绝好友请求")
-        loadData()
+        // SWR mutation
+        mutateFriends()
+        mutateRequests()
       } else {
         toast.error("操作失败")
       }
-    } catch (error) {
+    },
+    onError: () => {
       toast.error("操作出错")
     }
+  })
+
+  const handleResponse = (userId: string, action: 'accept' | 'reject') => {
+    respondMutation.mutate({ userId, action })
   }
 
   const [now, setNow] = useState(Date.now())
@@ -125,7 +112,7 @@ export function FriendsList({ onSelectFriend, onChallenge, onMessage }: FriendsL
     return diffMinutes < 5 ? 'online' : 'offline'
   }
 
-  if (isLoading) {
+  if (isFriendsLoading || isRequestsLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-[#22c55e]" />

@@ -64,10 +64,20 @@ export function Leaderboard() {
     return <div className="p-8 text-center text-white/60">Loading...</div>
   }
 
-  const { leaderboard, currentCity, currentCityProgress } = context
+  const { currentCity, currentCityProgress } = context
   
-  // Use real data from context, fallback to empty array
-  const leaderboardData = leaderboard || []
+  // SWR Optimization: Fetch leaderboard independently with caching
+  // We use context.leaderboard as fallbackData if available (from initial context load)
+  const { data: leaderboardData = [] } = useSWR(
+    currentCity?.id ? ['cityLeaderboard', currentCity.id] : null,
+    () => fetchCityLeaderboard(currentCity!.id),
+    {
+      fallbackData: context.leaderboard || [],
+      revalidateOnFocus: true,
+      dedupingInterval: 60000 // 1 minute dedupe
+    }
+  )
+
   const title = currentCity ? `${currentCity.name} 排行榜` : "全球 排行榜"
 
   const top3 = leaderboardData.filter(e => e.rank <= 3)

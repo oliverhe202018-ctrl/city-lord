@@ -2,10 +2,18 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function updateSession(request: NextRequest) {
+  // 1. Basic Token Check (Lightweight)
+  // Just check if the cookie exists. Do NOT call supabase.auth.getUser() here.
+  // This avoids a database round-trip on every single request.
+  const hasAuthCookie = request.cookies.getAll().some(c => c.name.startsWith('sb-') && c.name.endsWith('-auth-token'))
+
   let supabaseResponse = NextResponse.next({
     request,
   })
 
+  // 2. Create client ONLY for cookie management (refreshing tokens)
+  // We still need this to allow Supabase to refresh cookies if needed,
+  // but we won't block on getUser() unless necessary for protection.
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -29,22 +37,21 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  // IMPORTANT: Avoid writing any logic between createServerClient and
-  // supabase.auth.getUser(). A simple mistake could make it very hard to debug
-  // issues with users being randomly logged out.
+  // 3. Protected Routes Logic
+  // Only check auth status strictly if we are on a protected route.
+  // This reduces latency for static assets and public pages.
+  const isProtectedRoute = request.nextUrl.pathname.startsWith('/city-lord') || 
+                           request.nextUrl.pathname.startsWith('/profile')
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  if (isProtectedRoute) {
+    // Check user only when necessary
+    const { data: { user } } = await supabase.auth.getUser()
 
-  if (
-    !user &&
-    !request.nextUrl.pathname.startsWith('/login') &&
-    !request.nextUrl.pathname.startsWith('/auth')
-  ) {
-    // no user, potentially redirect to login
-    // BUT since we have public pages, we might not want to force redirect everywhere.
-    // However, refreshing the session is key.
+    if (!user) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/login'
+      return NextResponse.redirect(url)
+    }
   }
 
   return supabaseResponse
