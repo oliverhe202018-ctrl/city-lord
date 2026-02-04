@@ -60,6 +60,7 @@ export function ClubDrawer({ isOpen, onClose }: ClubDrawerProps) {
 
   // Sync SWR data to local state
   React.useEffect(() => {
+      // 1. Hook logic must be unconditional
       if (allClubs) {
           const mappedClubs = allClubs.map((c: any) => ({
             id: c.id,
@@ -74,16 +75,6 @@ export function ClubDrawer({ isOpen, onClose }: ClubDrawerProps) {
             description: c.description
           }));
           
-          // Use a functional update or comparison to prevent infinite loop
-          // But actually, mapping creates new objects every time 'allClubs' changes reference.
-          // SWR keeps 'allClubs' stable if data doesn't change, but if it does...
-          
-          // Since mappedClubs is a new array every time, setClubs(mappedClubs) triggers re-render.
-          // If the dependencies [allClubs] are stable, this runs once.
-          // But if something else in dependencies changes, it runs again.
-          
-          // Let's optimize by checking if we really need to update.
-          // For now, just set it.
           setClubs(mappedClubs);
           setIsLoading(false);
           
@@ -118,7 +109,10 @@ export function ClubDrawer({ isOpen, onClose }: ClubDrawerProps) {
     }
   };
 
-  const handleCreateClub = async () => {
+  const handleCreateClub = async (e?: React.FormEvent) => {
+    // 1. Prevent default form submission if triggered by form
+    if (e) e.preventDefault();
+
     if (!createForm.name.trim()) {
       toast.error('请输入俱乐部名称');
       return;
@@ -282,12 +276,14 @@ export function ClubDrawer({ isOpen, onClose }: ClubDrawerProps) {
 
           <div className="pt-4">
             <button
+              type="button"
               onClick={handleCreateClub}
               className="w-full py-4 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 text-white font-bold text-lg hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/20 transition-all active:scale-95"
             >
               立即创建
             </button>
             <button
+              type="button"
               onClick={() => setViewMode('list')}
               className="w-full mt-3 py-3 rounded-xl bg-white/5 text-white/60 font-medium hover:bg-white/10 transition-all"
             >

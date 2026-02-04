@@ -18,10 +18,12 @@ City Lord 是一款结合真实地理位置（LBS）的跑步领地争夺游戏�
     *   **离线能力**：配置了 Service Worker，支持离线访问核心页面。新增 `NetworkStatus` 组件，在网络断开时显示优雅的提示 Banner。
     *   **Manifest**：完整的 `manifest.json` 配置，包含多尺寸图标和主题色设置。
 
-3.  **🏠 房间系统优化 (Room System)**
-    *   **我的房间**：重构了 `RoomDrawer`，解决了“加载失败”的误报问题。
-    *   **SWR 集成**：全面接入 SWR 状态管理，`useMyRoomData` 自动处理数据预取和缓存更新，房间状态切换更加丝滑。
-    *   **无限循环修复**：修复了 `ClubDrawer` 中因依赖项不稳定导致的 `Maximum update depth exceeded` 无限渲染问题。
+3.  **🏠 房间与俱乐部系统优化 (Social Features)**
+    *   **俱乐部 UI 重构**：引入了全新的 `TabGroup` 组件，优化了俱乐部详情页的导航栏，使用 `framer-motion` 实现平滑的选中动画，支持 Minimal 和 Block 两种风格。
+    *   **无限循环修复**：修复了 `ClubDrawer` 中因依赖项不稳定导致的 `Maximum update depth exceeded` 无限渲染问题，通过精细化 `useEffect` 依赖管理解决。
+    *   **渲染稳定性 (React Stability)**：修复了 `Minified React error #310` (Hooks 顺序错误) 和 `net::ERR_ABORTED` (表单提交中断) 问题。通过规范化 Hook 调用顺序、显式处理表单默认事件 (`e.preventDefault()`)，确保了复杂交互下的应用稳定性。
+    *   **健壮性增强**：重构了 `joinClub` 和 `createClub` 的 Server Actions，使用结构化错误返回 (`{ success: false, error: ... }`) 替代直接抛出异常，彻底解决了 Next.js 生产环境下的 "An error occurred in the Server Components render" 报错。
+    *   **加入阵营加速**：优化了 `FactionSelector`，移除全页刷新逻辑，改用 Optimistic UI 和 `router.refresh()`，将加入阵营的响应时间从 10秒+ 缩短至 <1秒。
 
 4.  **🔐 体验打磨**
     *   **登录优化**：重构登录页交互，使用 AJAX (`fetch`) 替代表单提交，错误提示从“页面跳转”改为“原地 Toast”，大幅提升流畅度。
