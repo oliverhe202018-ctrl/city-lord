@@ -20,6 +20,17 @@
 > 1. 高德地图的 Security Code 是必需的，因为本项目使用了 JS API Loader。
 > 2. `SUPABASE_SERVICE_ROLE_KEY` 是必需的，因为本项目使用了自定义的“验证码登录”流程，需要后端管理员权限来校验用户。请在 Supabase Dashboard -> Project Settings -> API -> Service Role Secret 中找到它。
 
+### 可选的环境变量 (SMTP 邮件服务)
+
+默认情况下，项目使用内置的测试用 126 邮箱发送验证码。如果你想使用自己的邮件服务器（推荐生产环境使用），请配置以下变量：
+
+| 变量名 | 说明 | 示例值 |
+| :--- | :--- | :--- |
+| `SMTP_HOST` | SMTP 服务器地址 | `smtp.qq.com` 或 `smtp.gmail.com` |
+| `SMTP_PORT` | 端口号 | `465` (SSL) 或 `587` (TLS) |
+| `SMTP_USER` | 发件人邮箱账号 | `your-email@qq.com` |
+| `SMTP_PASS` | 邮箱授权码/密码 | `abcdefg1234` |
+
 ## 2. 部署步骤
 
 ### 方法 A: 使用 Vercel Dashboard (推荐)
