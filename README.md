@@ -25,6 +25,11 @@ City Lord 是一款结合真实地理位置（LBS）的跑步领地争夺游戏�
     *   **UI 渲染错误**：修复了个人资料页因直接渲染 Object 导致的 "Objects are not valid as a React child" 错误。
     *   **勋章时间显示**：在勋章弹窗中补充了“获取时间”显示逻辑。
 
+4.  **🛡️ 认证流程与稳定性升级 (Auth & Stability)**
+    *   **智能账号校验 (Smart Auth Check)**：实现了 `checkEmailExists` 预检机制。在发送验证码前先判断邮箱状态，精准引导用户进入“注册”或“登录”流程，避免了重复发送 OTP 和注册冲突。
+    *   **退出登录修复 (Logout Consistency)**：修复了退出登录后页面状态残留的问题。引入 `router.refresh()` 强制清除服务端组件缓存，确保用户点击退出后立即看到未登录状态的主页。
+    *   **构建修复 (Build Fixes)**：修复了 Vercel 部署时的 `useSearchParams` 错误，通过 `<Suspense>` 边界正确处理了认证回调页面的客户端挂钩。
+
 ### 2026-02-04: 登录体验升级与原生化优化 (Previous)
 
 **主要更新内容：**
