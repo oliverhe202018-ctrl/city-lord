@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button"
 import { LogIn } from "lucide-react"
 import useSWR from 'swr'
 import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useUserMissions } from "@/hooks/useGameData"
 
 // --- Types ---
 
@@ -255,22 +256,18 @@ export function MissionCenter({ initialData }: { initialData?: any[] }) {
   const router = useRouter()
   const queryClient = useQueryClient()
 
-  // Use SWR for fetching missions
-  const { data: rawMissions, isLoading: loading } = useSWR(
-    userId ? ['userMissions', userId] : null,
-    () => fetchUserMissions(),
-    {
-      fallbackData: initialData,
-      revalidateOnFocus: true,
-      refreshInterval: 0 // Missions don't change that often unless user acts
-    }
-  )
+  // Use standardized hook
+  const { data: rawMissions, isLoading: loading, mutate } = useUserMissions()
+  
+  // Coalesce
+  const currentRawMissions = rawMissions || initialData || []
+  const isLoading = loading && !rawMissions && !initialData
 
   // Format missions data
   const missions = React.useMemo(() => {
-    if (!rawMissions) return []
+    if (!currentRawMissions) return []
     
-    return rawMissions.map((m: any) => {
+    return currentRawMissions.map((m: any) => {
       const hasXp = m.reward.reward_experience > 0
       const hasCoins = m.reward.reward_coins > 0
       
@@ -309,7 +306,7 @@ export function MissionCenter({ initialData }: { initialData?: any[] }) {
               m.type === 'RUN_COUNT' ? Trophy : Target
       } as MissionData
     })
-  }, [rawMissions])
+  }, [currentRawMissions])
 
   const claimMutation = useMutation({
     mutationFn: async ({ id, reward }: { id: string, reward: MissionReward }) => {
@@ -320,7 +317,9 @@ export function MissionCenter({ initialData }: { initialData?: any[] }) {
         const { reward } = variables
         
         // Optimistic Update or Invalidate
-        queryClient.invalidateQueries({ queryKey: ['userMissions', userId] })
+        // queryClient.invalidateQueries({ queryKey: ['userMissions', userId] })
+        // Revalidate SWR
+        mutate()
 
         // Show toast
         if (result.data?.bonus) {
@@ -395,7 +394,7 @@ export function MissionCenter({ initialData }: { initialData?: any[] }) {
      )
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#39ff14] border-t-transparent" />

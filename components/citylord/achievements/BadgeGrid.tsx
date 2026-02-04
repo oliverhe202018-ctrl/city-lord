@@ -2,15 +2,14 @@
 
 import React, { useEffect, useState } from "react"
 import { Lock, Award } from "lucide-react"
-import { fetchAllBadges, fetchUserBadges, Badge, UserBadge } from "@/app/actions/badge"
+import { Badge, UserBadge } from "@/app/actions/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { BadgeIcon } from "./badge-icon"
 import { ACHIEVEMENT_DEFINITIONS } from "@/lib/achievements"
 import Image from "next/image"
 import { toast } from "sonner"
-import { useQuery } from "@tanstack/react-query" // Keep for legacy if needed, but we use SWR now
-import useSWR from 'swr'
 import { useGameStore } from "@/store/useGameStore"
+import { useUserBadges } from "@/hooks/useGameData"
 
 interface BadgeGridProps {
   initialData?: any[]
@@ -21,19 +20,16 @@ export function BadgeGrid({ initialData }: BadgeGridProps) {
   const badges = ACHIEVEMENT_DEFINITIONS
   const { userId } = useGameStore()
   
-  const { data: userBadges, isLoading: loading } = useSWR(
-    userId ? ['userBadges', userId] : null,
-    () => fetchUserBadges(),
-    {
-      fallbackData: initialData,
-      revalidateOnFocus: true
-    }
-  )
+  const { data: userBadges, isLoading: loading } = useUserBadges()
+  
+  // Manual coalesce with initialData
+  const currentBadges = userBadges || initialData || []
+  const isLoading = loading && !userBadges && !initialData
 
   const [selectedBadge, setSelectedBadge] = useState<any | null>(null) // Use any to allow mixing types if needed, or update Badge type
 
   const isUnlocked = (badgeId: string) => {
-    return (userBadges || []).some(ub => ub.badge_id === badgeId)
+    return (currentBadges || []).some((ub: any) => ub.badge_id === badgeId)
   }
 
   const getTierLabel = (tier: string) => {
@@ -86,7 +82,7 @@ export function BadgeGrid({ initialData }: BadgeGridProps) {
     }
   }
 
-  if (loading) {
+  if (isLoading) {
     return <div className="text-center text-white/50 py-8">加载徽章中...</div>
   }
 
