@@ -6,7 +6,16 @@ const SECRET_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'temp-secret-key
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
 export async function POST(request: Request) {
-  const origin = new URL(request.url).origin;
+  // Determine the correct origin for redirection
+  let origin = process.env.NEXT_PUBLIC_SITE_URL;
+  if (!origin && process.env.VERCEL_URL) {
+      origin = `https://${process.env.VERCEL_URL}`;
+  }
+  if (!origin) {
+      origin = new URL(request.url).origin;
+  }
+  
+  console.log('[Login with Code] Resolved Origin:', origin);
 
   try {
     const { email: rawEmail, code, token } = await request.json();

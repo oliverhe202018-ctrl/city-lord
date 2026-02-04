@@ -8,7 +8,22 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
 export async function POST(request: Request) {
   const cookieStore = await cookies();
-  const origin = new URL(request.url).origin;
+  
+  // Determine the correct origin for redirection
+  // Priority: 
+  // 1. NEXT_PUBLIC_SITE_URL (e.g., set in Vercel env)
+  // 2. VERCEL_URL (automatically set by Vercel, but needs https:// prefix)
+  // 3. request.url origin (fallback, might be internal network in some cases)
+  
+  let origin = process.env.NEXT_PUBLIC_SITE_URL;
+  if (!origin && process.env.VERCEL_URL) {
+      origin = `https://${process.env.VERCEL_URL}`;
+  }
+  if (!origin) {
+      origin = new URL(request.url).origin;
+  }
+  
+  console.log('[Login with Code Direct] Resolved Origin:', origin);
 
   try {
     // Parse request body - could be JSON or form data
