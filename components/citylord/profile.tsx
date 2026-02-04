@@ -5,6 +5,7 @@ import { AvatarUploader } from "@/components/ui/AvatarUploader"
 
 import { MapPin, Swords, Footprints, Eye, Settings, ChevronRight, Hexagon, Zap, Target, LogIn, LogOut, Edit2 } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useGameStore } from "@/store/useGameStore"
 import { useHydration } from "@/hooks/useHydration";
 import { formatAreaFromHexCount, getAreaEquivalentFromHexCount } from "@/lib/citylord/area-utils"
@@ -31,6 +32,7 @@ interface ProfileProps {
 
 export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: ProfileProps) {
   const hydrated = useHydration();
+  const router = useRouter()
   const {
     nickname,
     userId,
