@@ -342,7 +342,7 @@ export function GamePageContent({
                 showTerritory={showTerritory}
                 onMapLoad={() => {}}
               />
-              <FactionSelector />
+              <FactionSelector initialUser={initialUser} />
               <ReferralWelcome />
             </div>
 

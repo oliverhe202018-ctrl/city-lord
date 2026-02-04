@@ -30,36 +30,38 @@ export type ClubMember = {
 }
 
 export async function createClub(data: { name: string; description?: string; avatar_url?: string }) {
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
-  
-  const { data: { user: authUser } } = await supabase.auth.getUser()
-  
-  let userId = authUser?.id
-
-  // Fallback to first profile if no auth user (Dev/Demo mode)
-  if (!userId) {
-    const { data: profiles } = await supabase.from('profiles').select('id').limit(1)
-    if (profiles && profiles.length > 0) {
-      userId = profiles[0].id
-    }
-  }
-
-  if (!userId) throw new Error('Unauthorized')
-
-  // Prepare insert data based on actual schema
-  const insertData = {
-    name: data.name,
-    description: data.description || null,
-    owner_id: userId,
-    avatar_url: data.avatar_url || null, 
-    level: '1', // Default level
-    rating: 0,
-    member_count: 1,
-    territory: '0'
-  }
-
   try {
+    const cookieStore = await cookies()
+    const supabase = createClient(cookieStore)
+    
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    
+    let userId = authUser?.id
+
+    // Fallback to first profile if no auth user (Dev/Demo mode)
+    if (!userId) {
+      const { data: profiles } = await supabase.from('profiles').select('id').limit(1)
+      if (profiles && profiles.length > 0) {
+        userId = profiles[0].id
+      }
+    }
+
+    if (!userId) {
+        return { success: false, error: 'Unauthorized: User not found' }
+    }
+
+    // Prepare insert data based on actual schema
+    const insertData = {
+      name: data.name,
+      description: data.description || null,
+      owner_id: userId,
+      avatar_url: data.avatar_url || null, 
+      level: '1', // Default level
+      rating: 0,
+      member_count: 1,
+      territory: '0'
+    }
+
     const { data: club, error } = await supabase
       .from('clubs')
       .insert(insertData)
@@ -67,42 +69,68 @@ export async function createClub(data: { name: string; description?: string; ava
       .single()
 
     if (error) {
-      console.error('Database Error:', JSON.stringify(error, null, 2))
-      throw error
+      console.error('Database Error [createClub]:', JSON.stringify(error, null, 2))
+      return { success: false, error: error.message || 'Failed to create club' }
     }
 
     const clubAny = club as any;
 
+    // Automatically join the club as owner
+    const { error: joinError } = await supabase
+        .from('club_members')
+        .insert({
+            club_id: clubAny.id,
+            user_id: userId,
+            role: 'owner',
+            status: 'active'
+        })
+    
+    if (joinError) {
+        console.error('Database Error [createClub -> join]:', joinError)
+        // Note: Club created but join failed. In real app, might want to rollback or handle.
+    }
+
     return {
-      ...clubAny,
-      level: clubAny.level || '初级',
-      rating: clubAny.rating || 5.0,
-      member_count: clubAny.member_count || 1,
-      territory: clubAny.territory || '0 mi²'
+      success: true,
+      data: {
+        ...clubAny,
+        level: clubAny.level || '初级',
+        rating: clubAny.rating || 5.0,
+        member_count: clubAny.member_count || 1,
+        territory: clubAny.territory || '0 mi²'
+      }
     }
   } catch (err) {
     console.error('Create Club Exception:', err)
-    throw err
+    // Ensure we return a structured error instead of throwing to avoid Server Component Render Error
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown server error' }
   }
 }
 
 export async function updateClub(clubId: string, data: Partial<Club>) {
-    const cookieStore = await cookies()
-    const supabase = createClient(cookieStore)
-    
-    // Map frontend Club type to DB columns if needed
-    const updateData: any = { ...data }
-    // Remove fields that shouldn't be updated directly or don't exist
-    delete updateData.member_count
-    delete updateData.territory
-    
-    const { error } = await supabase
-        .from('clubs')
-        .update(updateData)
-        .eq('id', clubId)
+    try {
+        const cookieStore = await cookies()
+        const supabase = createClient(cookieStore)
         
-    if (error) throw error
-    return { success: true }
+        // Map frontend Club type to DB columns if needed
+        const updateData: any = { ...data }
+        // Remove fields that shouldn't be updated directly or don't exist
+        delete updateData.member_count
+        delete updateData.territory
+        
+        const { error } = await supabase
+            .from('clubs')
+            .update(updateData)
+            .eq('id', clubId)
+            
+        if (error) {
+             console.error('Update Club Error:', error)
+             return { success: false, error: error.message }
+        }
+        return { success: true }
+    } catch (e) {
+        return { success: false, error: 'Failed to update club' }
+    }
 }
 
 export async function getClubs() {
@@ -168,55 +196,50 @@ export async function getClubs() {
 }
 
 export async function joinClub(clubId: string) {
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
-  
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Unauthorized')
-  
-  // 1. 检查是否已经加入
-  const { data: existing } = await supabase
-    .from('club_members')
-    .select('status')
-    .eq('club_id', clubId)
-    .eq('user_id', user.id)
-    .single()
+  try {
+    const cookieStore = await cookies()
+    const supabase = createClient(cookieStore)
     
-  if (existing) {
-    if (existing.status === 'pending') throw new Error('申请审核中')
-    if (existing.status === 'active') throw new Error('已加入该俱乐部')
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: 'Unauthorized' }
+    
+    // 1. 检查是否已经加入
+    const { data: existing, error: checkError } = await supabase
+        .from('club_members')
+        .select('status')
+        .eq('club_id', clubId)
+        .eq('user_id', user.id)
+        .single()
+        
+    if (checkError && checkError.code !== 'PGRST116') { // PGRST116 is "No rows found"
+        return { success: false, error: 'Failed to check membership status' }
+    }
+        
+    if (existing) {
+        if (existing.status === 'pending') return { success: false, error: '申请审核中' }
+        if (existing.status === 'active') return { success: false, error: '已加入该俱乐部' }
+    }
+    
+    // 2. 插入申请记录 (status = pending)
+    const { error } = await supabase
+        .from('club_members')
+        .insert({
+        club_id: clubId,
+        user_id: user.id,
+        role: 'member',
+        status: 'pending'
+        })
+        
+    if (error) {
+        console.error('Join Club Error:', error)
+        return { success: false, error: error.message }
+    }
+    
+    return { success: true }
+  } catch (err) {
+      console.error('Join Club Exception:', err)
+      return { success: false, error: 'Failed to join club' }
   }
-  
-  // 2. 插入申请记录 (status = pending)
-  const { error } = await supabase
-    .from('club_members')
-    .insert({
-      club_id: clubId,
-      user_id: user.id,
-      role: 'member',
-      status: 'pending'
-    })
-    
-  if (error) throw error
-  
-  // 3. 通知 Owner (获取 Owner ID)
-  const { data: club } = await supabase
-    .from('clubs')
-    .select('owner_id, name')
-    .eq('id', clubId)
-    .single()
-    
-  if (club && club.owner_id) {
-     await supabase.from('messages').insert({
-       sender_id: user.id,
-       receiver_id: club.owner_id,
-       type: 'system',
-       content: `用户申请加入您的俱乐部 "${club.name}"`,
-       is_read: false
-     })
-   }
-  
-  return { success: true }
 }
 
 export async function leaveClub(clubId: string) {

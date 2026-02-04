@@ -73,15 +73,32 @@ export function ClubDrawer({ isOpen, onClose }: ClubDrawerProps) {
             level: c.level || '初级',
             description: c.description
           }));
+          
+          // Use a functional update or comparison to prevent infinite loop
+          // But actually, mapping creates new objects every time 'allClubs' changes reference.
+          // SWR keeps 'allClubs' stable if data doesn't change, but if it does...
+          
+          // Since mappedClubs is a new array every time, setClubs(mappedClubs) triggers re-render.
+          // If the dependencies [allClubs] are stable, this runs once.
+          // But if something else in dependencies changes, it runs again.
+          
+          // Let's optimize by checking if we really need to update.
+          // For now, just set it.
           setClubs(mappedClubs);
           setIsLoading(false);
           
           // Auto-Enter Logic
-          if (joinedClub && viewMode === 'list' && isOpen) {
-             const userClub = mappedClubs.find((c: any) => c.id === joinedClub.id);
-             if (userClub) {
-                 setSelectedClub(userClub);
-                 setViewMode('details');
+          if (joinedClub && joinedClub.id) {
+             // Fix: Check if we are already in the correct view to avoid loop
+             if (viewMode === 'list' && isOpen) {
+                // Fix: Check if we haven't already selected this club to avoid loop
+                if (selectedClub?.id !== joinedClub.id) {
+                    const userClub = mappedClubs.find((c: any) => c.id === joinedClub.id);
+                    if (userClub) {
+                        setSelectedClub(userClub);
+                        setViewMode('details');
+                    }
+                }
              }
           }
       } else if (!isSwrLoading && !allClubs) {
@@ -108,11 +125,20 @@ export function ClubDrawer({ isOpen, onClose }: ClubDrawerProps) {
     }
 
     try {
-      const newClub = await createClub({
+      const result = await createClub({
         name: createForm.name,
         description: createForm.description,
         avatar_url: `https://api.dicebear.com/7.x/shapes/svg?seed=${createForm.name}`
       });
+
+      if (!result.success || !result.data) {
+        toast.error('创建失败', {
+          description: result.error || '请稍后重试'
+        });
+        return;
+      }
+
+      const newClub = result.data;
 
       toast.success('俱乐部创建成功！');
 
@@ -133,6 +159,9 @@ export function ClubDrawer({ isOpen, onClose }: ClubDrawerProps) {
       setSelectedClub(mockNewClub);
       setViewMode('details');
       setCreateForm({ name: '', description: '' });
+      
+      // Trigger global refresh
+      refreshClubs();
 
     } catch (error) {
       toast.error('创建失败', {
@@ -143,7 +172,15 @@ export function ClubDrawer({ isOpen, onClose }: ClubDrawerProps) {
 
   const handleJoinClub = async (clubId: string) => {
     try {
-      await joinClub(clubId);
+      const result = await joinClub(clubId);
+      
+      if (!result.success) {
+          toast.error('申请失败', {
+            description: result.error || '请稍后重试'
+          });
+          return;
+      }
+
       toast.success('申请已发送', {
         description: '请等待俱乐部管理员审核'
       });

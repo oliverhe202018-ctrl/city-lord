@@ -11,18 +11,24 @@ import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
-export function FactionSelector() {
+import { useRouter } from 'next/navigation'
+
+interface FactionSelectorProps {
+  initialUser?: any
+}
+
+export function FactionSelector({ initialUser }: FactionSelectorProps) {
+  const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
   const [stats, setStats] = useState({ RED: 0, BLUE: 0, bonus: { RED: 0, BLUE: 0 } })
   const [loading, setLoading] = useState(false)
   const [selectedFaction, setSelectedFaction] = useState<Faction | null>(null)
 
   useEffect(() => {
-    // 监听用户状态变化，或者依赖某个全局上下文（如果有的话）
-    // 但在这个组件中，我们直接在组件挂载时检查
-    checkFactionStatus()
+    // 优先使用传入的 initialUser 避免重复请求
+    checkFactionStatus(initialUser)
     
-    // 如果需要监听登录事件，可以使用 Supabase 的 onAuthStateChange
+    // 监听登录事件，如果用户之前未登录现在登录了，再次检查
     const supabase = createClient()
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
@@ -35,18 +41,20 @@ export function FactionSelector() {
     return () => {
         subscription.unsubscribe()
     }
-  }, [])
+  }, [initialUser])
 
   const checkFactionStatus = async (currentUser?: any) => {
     const supabase = createClient()
     let user = currentUser
     
+    // 只有当 currentUser 为空时才发起请求
     if (!user) {
         const { data } = await supabase.auth.getUser()
         user = data.user
     }
     
     if (user) {
+      // 检查 profiles 表
       const { data: profile } = await supabase.from('profiles').select('faction').eq('id', user.id).single()
       if (!profile?.faction) {
         setIsOpen(true)
@@ -65,10 +73,14 @@ export function FactionSelector() {
     try {
       const result = await joinFaction(faction)
       if (result.success) {
-        toast.success(`欢迎加入 ${faction === 'RED' ? '赤红先锋' : '蔚蓝联盟'} 阵营！`)
+        // 1. 立即关闭弹窗 (Optimistic UI)
         setIsOpen(false)
-        // Optionally refresh page or context
-        window.location.reload()
+        
+        // 2. 显示成功提示
+        toast.success(`欢迎加入 ${faction === 'RED' ? '赤红先锋' : '蔚蓝联盟'} 阵营！`)
+        
+        // 3. 刷新路由以更新服务端数据 (如个人资料卡片中的阵营图标)
+        router.refresh()
       } else {
         toast.error(result.error || '加入阵营失败')
       }

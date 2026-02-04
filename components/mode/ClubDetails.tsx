@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRegion } from '@/contexts/RegionContext';
 import { Crown, Users, Trophy, MapPin, Calendar, Activity, TrendingUp, LineChart, Clock, MapPin as LocationIcon, ExternalLink } from 'lucide-react';
 import { getClubLeaderboard, getClubTerritories, type Club } from '@/app/actions/club';
+import { TabGroup } from '@/components/ui/TabGroup';
 
 interface UIClubMember {
   id: string;
@@ -146,56 +147,34 @@ export default function ClubDetails({ club: propClub, onBack }: ClubDetailsProps
       </div>
 
       {/* Tab Navigation */}
-      <div className="flex gap-2 mb-6 border-b border-white/10 overflow-x-auto scrollbar-hide">
-        <button
-          onClick={() => setActiveTab('leaderboard')}
-          className={`pb-2 px-1 font-medium whitespace-nowrap transition-colors ${activeTab === 'leaderboard' ? 'text-yellow-400 border-b-2 border-yellow-400' : 'text-white/60'
-            }`}
-        >
-          排行榜
-        </button>
-        <button
-          onClick={() => setActiveTab('territories')}
-          className={`pb-2 px-1 font-medium whitespace-nowrap transition-colors ${activeTab === 'territories' ? 'text-yellow-400 border-b-2 border-yellow-400' : 'text-white/60'
-            }`}
-        >
-          跑步俱乐部领地
-        </button>
-        <button
-          onClick={() => setActiveTab('history')}
-          className={`pb-2 px-1 font-medium whitespace-nowrap transition-colors ${activeTab === 'history' ? 'text-yellow-400 border-b-2 border-yellow-400' : 'text-white/60'
-            }`}
-        >
-          历史
-        </button>
+      <div className="mb-6">
+        <TabGroup
+          variant="minimal"
+          activeId={activeTab}
+          onChange={(id) => setActiveTab(id as any)}
+          items={[
+            { id: 'leaderboard', label: '排行榜' },
+            { id: 'territories', label: '跑步俱乐部领地' },
+            { id: 'history', label: '历史' },
+          ]}
+        />
       </div>
 
       {/* Content based on active tab */}
       {activeTab === 'leaderboard' && (
         <div>
           {/* Leaderboard Sub-tabs */}
-          <div className="flex gap-2 mb-4 border-b border-white/10 overflow-x-auto scrollbar-hide">
-            <button
-              onClick={() => setLeaderboardSubTab('club')}
-              className={`pb-2 px-3 text-sm font-medium whitespace-nowrap transition-colors ${leaderboardSubTab === 'club' ? 'text-yellow-400 border-b-2 border-yellow-400' : 'text-white/60'
-                }`}
-            >
-              俱乐部内部
-            </button>
-            <button
-              onClick={() => setLeaderboardSubTab('province')}
-              className={`pb-2 px-3 text-sm font-medium whitespace-nowrap transition-colors ${leaderboardSubTab === 'province' ? 'text-yellow-400 border-b-2 border-yellow-400' : 'text-white/60'
-                }`}
-            >
-              省排行榜
-            </button>
-            <button
-              onClick={() => setLeaderboardSubTab('national')}
-              className={`pb-2 px-3 text-sm font-medium whitespace-nowrap transition-colors ${leaderboardSubTab === 'national' ? 'text-yellow-400 border-b-2 border-yellow-400' : 'text-white/60'
-                }`}
-            >
-              全国排行榜
-            </button>
+          <div className="mb-4">
+            <TabGroup
+              variant="block"
+              activeId={leaderboardSubTab}
+              onChange={(id) => setLeaderboardSubTab(id as any)}
+              items={[
+                { id: 'club', label: '俱乐部内部' },
+                { id: 'province', label: '省排行榜' },
+                { id: 'national', label: '全国排行榜' },
+              ]}
+            />
           </div>
 
           {/* Club Internal Leaderboard */}
