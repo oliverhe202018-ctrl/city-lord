@@ -77,11 +77,18 @@ export async function POST(request: Request) {
     console.log('[Login with Code Direct] Signature verified successfully');
 
     // 2. Look up user with Service Role Key
+    // NOTE: This route requires the Service Role Key because it needs to list users by email (admin action)
+    // to find the user ID, which is not possible with the anon key.
     const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+    if (!SUPABASE_URL) {
+      console.error('[Login with Code Direct] NEXT_PUBLIC_SUPABASE_URL not configured');
+      return NextResponse.json({ error: 'Server misconfiguration: Missing Supabase URL' }, { status: 500 });
+    }
+
     if (!SERVICE_ROLE_KEY) {
-      console.error('[Login with Code Direct] Service Role Key not configured');
-      return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 });
+      console.error('[Login with Code Direct] SUPABASE_SERVICE_ROLE_KEY not configured. This is required for verify-code-login.');
+      return NextResponse.json({ error: 'Server misconfiguration: Missing Service Role Key' }, { status: 500 });
     }
 
     const cleanServiceRoleKey = SERVICE_ROLE_KEY.trim().split(/\s+/)[0];
