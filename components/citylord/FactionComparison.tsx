@@ -1,7 +1,6 @@
 'use client'
 
-import useSWR from 'swr'
-import { getFactionStats } from '@/app/actions/faction'
+import { useFactionStats } from '@/hooks/useGameData'
 import { Hexagon, Shield, Zap } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
@@ -13,14 +12,20 @@ interface FactionComparisonProps {
 }
 
 export function FactionComparison({ userFaction, initialData }: FactionComparisonProps) {
-  const { data: stats, isLoading } = useSWR('factionStats', getFactionStats, {
-    fallbackData: initialData,
-    refreshInterval: 60000, // Refresh every minute
-    revalidateOnFocus: true
-  })
+  const { data: stats, isLoading, error } = useFactionStats()
+
+  // Prioritize SWR data, fall back to initialData if available (and loading)
+  // But SWR handles initialData/fallbackData better if we pass it to the hook.
+  // However, our hook is standardized without arguments.
+  // We can use SWRConfig or mutate global cache with initialData, 
+  // OR just manually coalesce here.
+  // Given the hook doesn't accept options, we'll manually coalesce.
+  
+  const currentStats = stats || initialData
+  const showSkeleton = isLoading && !currentStats
 
   // Use default stats if undefined
-  const safeStats = stats || { 
+  const safeStats = currentStats || { 
     RED: 0, 
     BLUE: 0, 
     area: { RED: 0, BLUE: 0 }, 
@@ -42,7 +47,7 @@ export function FactionComparison({ userFaction, initialData }: FactionCompariso
   const blueAreaPercent = totalArea > 0 ? (boostedBlueArea / totalArea) * 100 : 50
 
   // Show skeleton ONLY if we have no data at all (no initialData and still loading)
-  if (!stats && isLoading) return (
+  if (showSkeleton) return (
     <div className="rounded-2xl border border-white/10 bg-white/5 p-4 mb-4 animate-pulse">
         <div className="h-4 w-24 bg-white/10 rounded mb-4" />
         <div className="h-4 w-full bg-white/10 rounded-full mb-4" />

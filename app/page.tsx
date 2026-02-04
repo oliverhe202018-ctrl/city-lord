@@ -9,6 +9,7 @@ import { fetchUserBadges } from "@/app/actions/badge"
 import { fetchFriends, getFriendRequests } from "@/app/actions/social"
 import { GamePageContent } from "@/components/citylord/game-page-content"
 import { LoadingScreen } from "@/components/citylord/loading-screen"
+import { DataPrefetcher } from "@/components/citylord/DataPrefetcher"
 
 export const dynamic = 'force-dynamic';
 
@@ -59,6 +60,12 @@ export default async function CityLordApp() {
 
   return (
     <Suspense fallback={<LoadingScreen />}>
+      {/* 
+        Prefetch data in background for instant transitions.
+        Only render if user is logged in to avoid 401s on API routes.
+      */}
+      {session && <DataPrefetcher />}
+      
       <GamePageContent 
           initialMissions={initialMissions} 
           initialStats={initialStats} 
