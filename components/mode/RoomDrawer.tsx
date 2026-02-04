@@ -3,10 +3,11 @@
 import React from 'react';
 import { Users, Plus, Search, Lock, Unlock, TrendingUp, MapPin, LogOut, BarChart3, Scale, Swords, Target, Rocket, TrendingDown, CheckCircle2 } from 'lucide-react';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from '@/components/ui/drawer';
-import { getRooms, createRoom, joinRoom, leaveRoom, getCurrentRoom, dev_simulateGameUpdate, type Room } from '@/app/actions/room';
+import { getRooms, createRoom, joinRoom, leaveRoom, type Room } from '@/app/actions/room';
 import { toast } from 'sonner';
 import { PlayerStatsDrawer } from './PlayerStatsDrawer';
 import { useGameStore, useGameActions, useGameUser } from '@/store/useGameStore';
+import { useMyRoomData } from '@/hooks/useGameData'; // Import SWR hook
 
 // Mock Extended Types
 interface ExtendedParticipant {
@@ -34,8 +35,10 @@ interface RoomDrawerProps {
 
 export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
   const userId = useGameStore(state => state.userId);
-  const currentRoom = useGameStore(state => state.currentRoom) as any;
   const { setCurrentRoom } = useGameActions();
+  
+  // Use SWR Hook for Current Room
+  const { data: currentRoom, mutate: refreshRoom } = useMyRoomData();
 
   if (!userId) return null;
 
@@ -176,6 +179,7 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
     try {
       await joinRoom(room.id, password);
       toast.success(`成功加入：${room.name}`);
+      refreshRoom(); // Refetch SWR
       loadRooms();
     } catch (e) {
       toast.error('加入失败: ' + (e instanceof Error ? e.message : '未知错误'));

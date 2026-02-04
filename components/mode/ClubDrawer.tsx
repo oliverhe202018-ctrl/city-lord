@@ -4,12 +4,13 @@ import React from 'react';
 import { useRegion } from '@/contexts/RegionContext';
 import { Users, MapPin, TrendingUp, Crown, CheckCircle2, Search, Star, Plus, Settings, Shield, UserX, AlertTriangle, Loader2 } from 'lucide-react';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from '@/components/ui/drawer';
-import { joinClub, leaveClub, createClub, getClubs } from '@/app/actions/club';
+import { joinClub, leaveClub, createClub } from '@/app/actions/club';
 import { toast } from 'sonner';
 import { useGameStore } from '@/store/useGameStore';
 import { createClient } from "@/lib/supabase/client";
 import { ClubManageDrawer } from '@/components/citylord/club/ClubManageDrawer';
 import ClubDetails from './ClubDetails';
+import { useClubData } from '@/hooks/useGameData'; // Import SWR hook
 
 interface ClubDrawerProps {
   isOpen: boolean;
@@ -30,7 +31,10 @@ export function ClubDrawer({ isOpen, onClose }: ClubDrawerProps) {
   const { userId } = useGameStore();
   const [currentUserId, setCurrentUserId] = React.useState<string | null>(null);
   const [isManageOpen, setIsManageOpen] = React.useState(false);
-  const [isLoading, setIsLoading] = React.useState(true);
+  
+  // Use SWR Hook
+  const { data: clubData, isLoading: isSwrLoading, mutate: refreshClubs } = useClubData();
+  const { joinedClub, allClubs } = clubData || { joinedClub: null, allClubs: [] };
 
   React.useEffect(() => {
     const checkUser = async () => {
@@ -51,85 +55,41 @@ export function ClubDrawer({ isOpen, onClose }: ClubDrawerProps) {
 
   const [clubs, setClubs] = React.useState<any[]>([]);
   const [selectedClub, setSelectedClub] = React.useState<any | null>(null);
+  const [isLoading, setIsLoading] = React.useState(true); // Keep local loading state for smooth UX
 
-  // Load cache and fetch data
+  // Sync SWR data to local state
   React.useEffect(() => {
-    if (!isOpen) {
-      // Reset when closed
-      return;
-    }
-
-    setIsLoading(true);
-
-    const loadData = async () => {
-      // 1. Try to load from local cache first
-      let loadedClubs: any[] = [];
-      const cached = localStorage.getItem('club_list_cache');
-
-      if (cached) {
-        try {
-          loadedClubs = JSON.parse(cached);
-          // Don't set state yet if we want to wait for server to avoid stale flash,
-          // but usually cache first is better for UX.
-          // setClubs(loadedClubs); 
-          // We will setClubs after server fetch or using cache if server fails, 
-          // OR we can use cache immediately but we need to resolve the "Jump to Details" logic.
-        } catch (e) {
-          console.error('Failed to parse club cache', e);
-        }
-      }
-
-      // 2. Fetch fresh data from server
-      try {
-        const serverClubs = await getClubs();
-        if (serverClubs && serverClubs.length > 0) {
-          // Map server data to UI format
-          const mappedClubs = serverClubs.map((c: any) => ({
+      if (allClubs) {
+          const mappedClubs = allClubs.map((c: any) => ({
             id: c.id,
             name: c.name,
             members: c.member_count || 1,
             territory: c.territory || '0 mi²',
             avatar: c.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${c.name}`,
             rating: c.rating || 5.0,
-            isJoined: c.owner_id === currentUserId || (c.members_ids && c.members_ids.includes(currentUserId)), // Needs robust check
+            isJoined: c.id === joinedClub?.id, 
             owner_id: c.owner_id,
             level: c.level || '初级',
             description: c.description
           }));
-
-          loadedClubs = mappedClubs;
-          localStorage.setItem('club_list_cache', JSON.stringify(mappedClubs));
-        }
-      } catch (err) {
-        console.error('Failed to fetch clubs, using cache or mock', err);
+          setClubs(mappedClubs);
+          setIsLoading(false);
+          
+          // Auto-Enter Logic
+          if (joinedClub && viewMode === 'list' && isOpen) {
+             const userClub = mappedClubs.find((c: any) => c.id === joinedClub.id);
+             if (userClub) {
+                 setSelectedClub(userClub);
+                 setViewMode('details');
+             }
+          }
+      } else if (!isSwrLoading && !allClubs) {
+          setIsLoading(false); // No data but loaded
       }
+  }, [allClubs, joinedClub, isOpen, isSwrLoading]); // Depend on SWR data
 
-      setClubs(loadedClubs);
+  // Old loadData effect removed (replaced by SWR)
 
-      // 3. Logic: Auto-Enter Details if user is in a club
-      // We check the *freshly loaded* clubs.
-      // Note: `currentUserId` dependency might cause re-run, so ensure it's stable or handle inside.
-      // Here we assume currentUserId is already set (it runs on mount).
-      // If currentUserId is null (async), we might miss this. 
-      // Ideally we wait for currentUserId too. But let's check what we have.
-
-      const userClub = loadedClubs.find((c: any) => c.isJoined || c.owner_id === currentUserId);
-      if (userClub) {
-        setSelectedClub(userClub);
-        setViewMode('details');
-      } else {
-        setViewMode('list');
-      }
-
-      setIsLoading(false);
-    };
-
-    // Slight delay to ensure `currentUserId` is ready if it's racing, 
-    // but better to just run loadData and if userId updates, we re-run?
-    // Added currentUserId to dependency array.
-    loadData();
-
-  }, [isOpen, currentUserId]);
 
 
   const handleClubClick = (clubName: string) => {
