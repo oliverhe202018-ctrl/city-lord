@@ -420,7 +420,7 @@ export function RunningHUD({
       )}
 
       {/* BOTTOM SECTION: Controls */}
-      <div className="pb-[calc(env(safe-area-inset-bottom)+20px)] w-full flex flex-col items-center gap-8 pointer-events-auto bg-gradient-to-t from-black/90 via-black/40 to-transparent pt-12">
+      <div className="pb-[calc(env(safe-area-inset-bottom)+50px)] w-full flex flex-col items-center gap-8 pointer-events-auto bg-gradient-to-t from-black/90 via-black/40 to-transparent pt-12">
         
         {/* Three Buttons Row: Lock | Map | Settings */}
         <div className="flex items-center gap-12">

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getCurrentRoom } from '@/app/actions/room'
+import { getCurrentRoom, createRoom } from '@/app/actions/room'
 
 export async function GET() {
   try {
@@ -9,5 +9,16 @@ export async function GET() {
   } catch (error) {
     console.error('API Error [UserRoom]:', error)
     return NextResponse.json({ error: 'Failed to fetch room data' }, { status: 500 })
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json()
+    const room = await createRoom(body)
+    return NextResponse.json(room)
+  } catch (error: any) {
+    console.error('API Error [CreateRoom]:', error)
+    return NextResponse.json({ error: error.message || 'Failed to create room' }, { status: 500 })
   }
 }

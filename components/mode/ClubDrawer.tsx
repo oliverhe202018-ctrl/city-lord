@@ -34,7 +34,8 @@ export function ClubDrawer({ isOpen, onClose }: ClubDrawerProps) {
   
   // Use SWR Hook
   const { data: clubData, isLoading: isSwrLoading, mutate: refreshClubs } = useClubData();
-  const { joinedClub, allClubs } = clubData || { joinedClub: null, allClubs: [] };
+  const joinedClub = clubData?.joinedClub;
+  const allClubs = clubData?.allClubs;
 
   React.useEffect(() => {
     const checkUser = async () => {

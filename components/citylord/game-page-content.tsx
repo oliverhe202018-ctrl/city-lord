@@ -41,9 +41,11 @@ const AMapView = nextDynamic(() => import("@/components/map/AMapViewWithProvider
 
 import { FactionSelector } from "@/components/social/FactionSelector"
 import { ReferralWelcome } from "@/components/social/ReferralWelcome"
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { ACHIEVEMENT_DEFINITIONS } from "@/lib/achievements"
 import { createClient } from "@/lib/supabase/client"
+import { useAuth } from "@/hooks/useAuth"
+import { toast } from "sonner"
 
 interface GamePageContentProps {
   initialMissions?: any[]
@@ -63,7 +65,10 @@ export function GamePageContent({
   initialFriends = [],
   initialFriendRequests = [],
   initialUser 
-}: GamePageContentProps) { const searchParams = useSearchParams()
+}: GamePageContentProps) {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const { isAuthenticated } = useAuth(initialUser)
   const { isLoading: isCityLoading, currentCity } = useCity()
   const { checkStaminaRecovery, dismissGeolocationPrompt, claimAchievement, addTotalDistance } = useGameActions()
   const { achievements, totalDistance } = useGameUser()
@@ -96,6 +101,7 @@ export function GamePageContent({
     calories, 
     currentLocation, 
     path,
+    closedPolygons,
     togglePause: toggleTrackerPause, 
     stop: stopTracker 
   } = useRunningTracker(isRunning)
@@ -253,6 +259,11 @@ export function GamePageContent({
 
   const handleQuickNavigate = (tab: "missions" | "social" | "running") => {
     if (tab === "running") {
+      if (!isAuthenticated) {
+        toast.warning('请先登录才能开始占领领地！')
+        router.push('/login')
+        return
+      }
       setIsRunning(true)
       setShowImmersiveMode(true)
       triggerCaptureEffect()
@@ -464,6 +475,7 @@ export function GamePageContent({
         onExpand={() => {}}
         currentLocation={currentLocation || undefined}
         path={path}
+        closedPolygons={closedPolygons}
         onHexClaimed={() => {
           setSessionHexes(prev => prev + 1)
           setShowCaptureEffect(true)
