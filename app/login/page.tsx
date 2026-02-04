@@ -354,15 +354,15 @@ export default function LoginPage() {
                             maxLength={6}
                           />
                         </div>
-                        <Button 
-                          type="button"
-                          variant="outline"
-                          onClick={() => handleSendCode('login')}
-                          disabled={loading || countdown > 0 || !email}
-                          className="w-24 border-white/10 bg-white/5 text-white hover:bg-white/20 hover:text-white disabled:opacity-50"
-                        >
-                          {countdown > 0 ? `${countdown}s` : (loading && !codeSent ? <Loader2 className="h-4 w-4 animate-spin" /> : "获取")}
-                        </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-[120px] bg-white/5 border-white/10 text-white hover:bg-white/10 hover:text-white"
+                      disabled={loading || countdown > 0}
+                      onClick={() => handleSendCode('login')}
+                    >
+                      {countdown > 0 ? `${countdown}s` : "获取验证码"}
+                    </Button>
                       </div>
                     </div>
                     <Button 

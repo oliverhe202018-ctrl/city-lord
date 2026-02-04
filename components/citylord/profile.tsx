@@ -176,11 +176,23 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
   }
 
   const handleLogout = async () => {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    resetUser()
-    setUserEmail(null)
-    toast.success("已退出登录")
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.signOut()
+      if (error) throw error
+
+      resetUser()
+      setUserEmail(null)
+      toast.success("已退出登录")
+      
+      // Force refresh to update server components (like avatar in header)
+      router.refresh()
+      // Replace to prevent back navigation
+      router.replace('/')
+    } catch (error) {
+      console.error('Logout failed:', error)
+      toast.error('退出登录失败，请重试')
+    }
   }
 
   if (!hydrated) {
