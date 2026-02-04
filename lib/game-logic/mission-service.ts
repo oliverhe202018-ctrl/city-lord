@@ -44,7 +44,27 @@ export const DEFAULT_MISSIONS = [
     type: 'DISTANCE',
     target: 15000,
     reward_coins: 100,
-    reward_experience: 500,
+    reward_experience: 800,
+    frequency: 'weekly'
+  },
+  {
+    id: 'weekly_run_5',
+    title: '坚持不懈',
+    description: '本周累计完成5次跑步',
+    type: 'RUN_COUNT',
+    target: 5,
+    reward_coins: 80,
+    reward_experience: 600,
+    frequency: 'weekly'
+  },
+  {
+    id: 'weekly_explorer_20',
+    title: '城市探险',
+    description: '本周探索20个新地块',
+    type: 'UNIQUE_HEX',
+    target: 20,
+    reward_coins: 150,
+    reward_experience: 700,
     frequency: 'weekly'
   },
   {
@@ -226,29 +246,15 @@ export async function initializeUserMissions(userId: string) {
     if (missionsToInsert.length > 0) {
       console.log(`[MissionService] Inserting ${missionsToInsert.length} missing missions...`)
       
-      // Auto-seed templates first just in case
-      const { error: seedError } = await supabase
-        .from('missions')
-        .upsert(DEFAULT_MISSIONS.map(m => ({
-          id: m.id,
-          title: m.title,
-          description: m.description,
-          type: m.type,
-          target: m.target,
-          reward_coins: m.reward_coins,
-          reward_experience: m.reward_experience,
-          frequency: m.frequency
-        })), { onConflict: 'id' })
-        
-      if (!seedError) {
-         const { error: insertError } = await supabase
-           .from('user_missions')
-           .insert(missionsToInsert)
-         
-         if (insertError) console.error('[MissionService] Failed to insert new missions:', insertError)
-      } else {
-         console.error('[MissionService] Failed to seed missions:', seedError)
-      }
+      // NOTE: We do NOT auto-seed the 'missions' table here because it requires admin privileges (RLS).
+      // New missions must be added via SQL migration.
+      // We assume the 'missions' table already contains the definition.
+      
+      const { error: insertError } = await supabase
+        .from('user_missions')
+        .insert(missionsToInsert)
+      
+      if (insertError) console.error('[MissionService] Failed to insert new missions:', insertError)
     }
 
     // Handle Resets (Stale Missions)

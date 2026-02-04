@@ -36,7 +36,8 @@ interface MissionData {
   id: string
   title: string
   description: string
-  type: MissionType
+  type: MissionType | string
+  frequency?: string
   status: MissionStatus
   progress: number
   maxProgress: number
@@ -291,7 +292,8 @@ export function MissionCenter({ initialData }: { initialData?: any[] }) {
         id: m.id,
         title: m.title,
         description: m.description,
-        type: m.type as MissionType,
+        type: m.type,
+        frequency: m.frequency,
         status: m.status as MissionStatus,
         progress: m.current,
         maxProgress: m.target,
@@ -366,6 +368,14 @@ export function MissionCenter({ initialData }: { initialData?: any[] }) {
 
   const filteredMissions = missions.filter(m => {
     if (activeFilter === "all") return true
+    
+    // Prefer using frequency field if available
+    if (m.frequency) {
+        if (activeFilter === "daily") return m.frequency === "daily"
+        if (activeFilter === "weekly") return m.frequency === "weekly"
+    }
+
+    // Fallback for legacy/missing frequency
     if (activeFilter === "daily") return m.type === "daily" || (m.type as any) === "RUN_COUNT" || (m.type as any) === "DISTANCE"
     if (activeFilter === "weekly") return m.type === "weekly"
     return true
