@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useGeolocation } from './useGeolocation';
 import gcoord from 'gcoord';
+import * as turf from '@turf/turf';
 
 export interface Location {
   lat: number;
@@ -19,6 +20,7 @@ interface RunningStats {
   togglePause: () => void;
   stop: () => void;
   rawDuration: number; // seconds
+  closedPolygons: Location[][]; // New: Array of closed polygons
 }
 
 // Haversine formula to calculate distance between two points in meters
@@ -61,6 +63,7 @@ export function useRunningTracker(isRunning: boolean): RunningStats {
   const [duration, setDuration] = useState(0); // seconds
   const [distance, setDistance] = useState(0); // meters
   const [path, setPath] = useState<Location[]>([]);
+  const [closedPolygons, setClosedPolygons] = useState<Location[][]>([]);
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
   
   // Use high accuracy geolocation with watching
@@ -124,8 +127,37 @@ export function useRunningTracker(isRunning: boolean): RunningStats {
       // Accumulate distance
       if (dist > 2) { // Minimum threshold to reduce stationary jitter
         setDistance(prev => prev + dist);
-        setPath(prev => [...prev, newLoc]);
+        
+        // Loop Detection Logic
+        // We check if the new point closes a loop with the start of the current active path
+        const currentPath = [...path, newLoc];
+        setPath(currentPath);
         lastLocationRef.current = newLoc;
+
+        if (currentPath.length > 5) { // Need at least a few points to form a polygon
+           const startPoint = currentPath[0];
+           const endPoint = newLoc;
+           
+           // Use Turf to calculate distance (more robust for geo)
+           const from = turf.point([startPoint.lng, startPoint.lat]);
+           const to = turf.point([endPoint.lng, endPoint.lat]);
+           const gap = turf.distance(from, to, { units: 'meters' });
+
+           // Threshold for closing loop: 20 meters
+           if (gap < 20) {
+               // Loop Closed!
+               console.log("Loop Closed! Gap:", gap);
+               
+               // Add to closed polygons
+               setClosedPolygons(prev => [...prev, currentPath]);
+               
+               // Reset path for new loop, but keep the current point as start of new path
+               // so the runner can continue seamlessly
+               setPath([newLoc]);
+               
+               // Optional: Trigger haptic feedback or sound here if we had access to native APIs
+           }
+        }
       }
     } else {
       // First point
@@ -178,6 +210,7 @@ export function useRunningTracker(isRunning: boolean): RunningStats {
     } else if (isRunning && duration === 0 && distance === 0) {
        // Just started
        setPath([]);
+       setClosedPolygons([]);
        lastLocationRef.current = null;
     }
   }, [isRunning]);
@@ -207,6 +240,7 @@ export function useRunningTracker(isRunning: boolean): RunningStats {
     isPaused,
     togglePause,
     stop,
-    rawDuration: duration
+    rawDuration: duration,
+    closedPolygons
   };
 }

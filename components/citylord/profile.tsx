@@ -52,6 +52,8 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
   const [isEditing, setIsEditing] = React.useState(false)
   const [editName, setEditName] = React.useState("")
   const [editAvatar, setEditAvatar] = React.useState("")
+  const [pathColor, setPathColor] = React.useState("#3B82F6")
+  const [fillColor, setFillColor] = React.useState("#3B82F6")
   const [userEmail, setUserEmail] = React.useState<string | null>(null)
   const [isLoggedIn, setIsLoggedIn] = React.useState(false)
   const [loading, setLoading] = React.useState(true)
@@ -155,7 +157,11 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
     // 如果已登录，同步到 Supabase
     if (userEmail) {
         const supabase = createClient()
-        const updates: any = { nickname: editName }
+        const updates: any = { 
+            nickname: editName,
+            path_color: pathColor,
+            fill_color: fillColor
+        }
         if (editAvatar) {
             updates.avatar_url = editAvatar
         }
@@ -176,6 +182,26 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
     }
     setIsEditing(false)
   }
+
+  // Load colors when editing starts
+  React.useEffect(() => {
+    if (isEditing && userId) {
+        const loadColors = async () => {
+            const supabase = createClient()
+            const { data } = await (supabase
+                .from('profiles' as any) as any)
+                .select('path_color, fill_color')
+                .eq('id', userId)
+                .single()
+            
+            if (data) {
+                if (data.path_color) setPathColor(data.path_color)
+                if (data.fill_color) setFillColor(data.fill_color)
+            }
+        }
+        loadColors()
+    }
+  }, [isEditing, userId])
 
   const handleLogout = async () => {
     try {
@@ -315,6 +341,32 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
                                 onChange={(e) => setEditName(e.target.value)}
                                 className="bg-black/40 border-white/10 text-white"
                             />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-white/70">路径颜色</label>
+                                <div className="flex items-center gap-2">
+                                    <Input 
+                                        type="color"
+                                        value={pathColor}
+                                        onChange={(e) => setPathColor(e.target.value)}
+                                        className="h-10 w-full p-1 bg-black/40 border-white/10 cursor-pointer"
+                                    />
+                                    <span className="text-xs text-white/40 font-mono">{pathColor}</span>
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-white/70">领地填充</label>
+                                <div className="flex items-center gap-2">
+                                    <Input 
+                                        type="color"
+                                        value={fillColor}
+                                        onChange={(e) => setFillColor(e.target.value)}
+                                        className="h-10 w-full p-1 bg-black/40 border-white/10 cursor-pointer"
+                                    />
+                                    <span className="text-xs text-white/40 font-mono">{fillColor}</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div className="flex justify-end gap-3">

@@ -1,3 +1,5 @@
+import withPWA from 'next-pwa';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // ESLint 配置已移除，Next.js 16+ 不再支持在 next.config.mjs 中配置 eslint
@@ -24,4 +26,9 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+export default withPWA({
+  dest: 'public', // 编译后的 worker 放在 public 目录
+  register: true,
+  skipWaiting: true,
+  disable: process.env.NODE_ENV === 'development', // 开发环境不启用
+})(nextConfig);

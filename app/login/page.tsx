@@ -155,48 +155,82 @@ export default function LoginPage() {
 
     setLoading(true)
     try {
-      console.log('[Login Page] ===== Starting code login =====')
-      console.log('[Login Page] Email:', email)
-      console.log('[Login Page] Code:', verificationCode)
-      console.log('[Login Page] Token:', verificationToken ? 'present' : 'missing')
+      // 1. 发起 Fetch 请求，而不是提交表单
+      const response = await fetch('/api/auth/login-with-code-direct', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          code: verificationCode,
+          token: verificationToken // 可选，如果前端有token
+        }),
+      })
 
-      // Create a form with all the required inputs
-      const form = document.createElement('form')
-      form.method = 'POST'
-      form.action = '/api/auth/login-with-code-direct'
-      // form.enctype = 'application/x-www-form-urlencoded' // Default
+      // 2. 解析响应
+      // 注意：如果后端成功，会返回 303 Redirect，fetch 默认会跟随重定向
+      // 但如果是 303 跳转到 Magic Link，我们需要拿到那个 URL 吗？
+      // 不，我们的 API 设计是：验证成功后，后端生成 magic link 并直接 redirect 浏览器。
+      // 但是 fetch 请求如果跟随 redirect，最终会拿到 redirect 后的页面内容（比如首页 HTML）。
+      // 这会导致我们在 data 中拿到一堆 HTML，而不是 JSON。
+      
+      // 修正策略：
+      // 我们的后端目前是 `return NextResponse.redirect(actionLink, 303)`。
+      // 对于 Fetch 请求，如果设置 `redirect: 'manual'`，我们可以拿到 opaqueredirect，但拿不到 URL。
+      // 如果后端返回 JSON { success: true, redirectUrl: '...' } 可能会更好。
+      
+      // 但是用户要求 "后端 API 格式统一"，且 "验证码错误的时候就直接跳转到...页面显示...Invalid verification code"。
+      // 这说明后端目前是在出错时直接渲染了错误信息或者返回了 JSON。
+      
+      // 如果我们用 fetch，我们需要后端：
+      // 1. 出错时返回 JSON (status 400/401)
+      // 2. 成功时返回 JSON (status 200)，包含 redirectUrl，由前端进行跳转。
+      //    或者成功时保持 Redirect，前端 fetch 会自动跟随，最终 response.ok = true (但 url 变了)。
+      
+      // 让我们先假设后端会修改为返回 JSON 错误。
+      // 如果后端验证成功，它目前是做 303 跳转。
+      // Fetch 默认 `redirect: 'follow'`。
+      // 如果验证成功，fetch 会跟随跳转到 `/auth/callback` -> `/`。
+      // 最终 response.url 会是首页。response.ok 是 true。
+      // 这时我们手动 window.location.href = '/' 即可。
+      
+      // 如果验证失败，后端目前可能返回 JSON { error: ... } (status 500/400)。
+      // 这时 response.ok 是 false。我们读取 response.json() 拿到错误信息。
 
-      // We need to send JSON data, but standard form submission sends form-data.
-      // However, our backend now handles form-data correctly.
-      // Let's stick to standard form submission which is most reliable for redirects.
-
-      const emailInput = document.createElement('input')
-      emailInput.type = 'hidden'
-      emailInput.name = 'email'
-      emailInput.value = email
-      form.appendChild(emailInput)
-
-      const codeInput = document.createElement('input')
-      codeInput.type = 'hidden'
-      codeInput.name = 'code'
-      codeInput.value = verificationCode
-      form.appendChild(codeInput)
-
-      if (verificationToken) {
-        const tokenInput = document.createElement('input')
-        tokenInput.type = 'hidden'
-        tokenInput.name = 'token'
-        tokenInput.value = verificationToken
-        form.appendChild(tokenInput)
+      const contentType = response.headers.get("content-type");
+      
+      if (!response.ok) {
+        let errorMessage = "登录失败";
+        if (contentType && contentType.indexOf("application/json") !== -1) {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorMessage;
+        } else {
+            errorMessage = await response.text();
+        }
+        
+        toast.error(errorMessage, { duration: 3000 });
+        setLoading(false);
+        return;
       }
 
-      document.body.appendChild(form)
-      form.submit()
+      // 如果成功，fetch 可能会跟随重定向最终到达首页或其他页面
+      // 或者如果后端改成了返回 JSON，我们也处理
+      if (contentType && contentType.indexOf("application/json") !== -1) {
+          const data = await response.json();
+          if (data.redirectUrl) {
+              window.location.href = data.redirectUrl;
+              return;
+          }
+      }
+
+      // 如果是重定向跟随成功 (response.ok = true)
+      // 我们可以认为登录成功，直接刷新页面或跳转
+      toast.success("登录成功！");
+      window.location.href = "/";
 
     } catch (error: any) {
       console.error("[Login Page] Login error:", error)
       toast.error("登录失败", {
-        description: error.message || "请稍后重试"
+        description: error.message || "网络请求失败，请稍后重试"
       })
       setLoading(false)
     }

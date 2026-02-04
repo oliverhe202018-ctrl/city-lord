@@ -22,6 +22,8 @@ export interface Database {
           total_area: number
           coins: number
           total_distance_km: number
+          path_color: string
+          fill_color: string
           created_at: string
           updated_at: string
         }
@@ -37,6 +39,8 @@ export interface Database {
           total_area?: number
           coins?: number
           total_distance_km?: number
+          path_color?: string
+          fill_color?: string
           created_at?: string
           updated_at?: string
         }
@@ -52,6 +56,8 @@ export interface Database {
           total_area?: number
           coins?: number
           total_distance_km?: number
+          path_color?: string
+          fill_color?: string
           created_at?: string
           updated_at?: string
         }

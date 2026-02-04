@@ -8,6 +8,7 @@ import { RegionProvider } from '@/contexts/RegionContext'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { Toaster } from "@/components/ui/sonner"
 import { AuthSync } from "@/components/auth/AuthSync"
+import { NetworkStatus } from "@/components/NetworkStatus"
 import Script from 'next/script'
 import { Providers } from '@/components/Providers'
 import './globals.css'
@@ -71,6 +72,7 @@ export default function RootLayout({
             <ThemeProvider defaultTheme="cyberpunk">
               <RegionProvider>
                 <CityProvider>
+                  <NetworkStatus />
                   <AuthSync />
                   {children}
                   <Toaster />

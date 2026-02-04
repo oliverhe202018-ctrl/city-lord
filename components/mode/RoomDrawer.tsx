@@ -38,7 +38,13 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
   const { setCurrentRoom } = useGameActions();
   
   // Use SWR Hook for Current Room
-  const { data: currentRoom, mutate: refreshRoom } = useMyRoomData();
+  const { data: rawRoom, mutate: refreshRoom } = useMyRoomData();
+  // Safe access: handle potential error response or null
+  const currentRoom = React.useMemo(() => {
+     if (!rawRoom) return null;
+     if ('error' in rawRoom) return null; // Treat API error as no room for now
+     return rawRoom;
+  }, [rawRoom]);
 
   if (!userId) return null;
 
@@ -90,48 +96,61 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
   const loadRooms = async () => {
     setIsLoading(true);
     try {
-      // Check if already in a room
-      const myRoom = await getCurrentRoom();
-      if (myRoom) {
-        setCurrentRoom(myRoom);
-        if (myRoom.participants) {
+      // Check if already in a room using SWR cache first
+      // SWR hook `useMyRoomData` automatically handles fetching
+      // We rely on `currentRoom` from SWR for "My Room" state
+      
+      // For "Room List", we still fetch manually for now or could SWR-ify it
+      if (currentRoom) {
+        setCurrentRoom(currentRoom);
+        if (currentRoom.participants) {
           // Use real data from backend
-          let enriched = [...myRoom.participants] as ExtendedParticipant[];
+          let enriched = [...currentRoom.participants] as ExtendedParticipant[];
 
           // If dev environment and not enough data, simulate update to populate
-          // (In production, we would just show what we have)
           if (process.env.NODE_ENV === 'development' && enriched.length > 0 && enriched[0].total_score === 0) {
-            console.log('Dev: Triggering simulation to populate stats');
-            await dev_simulateGameUpdate(myRoom.id);
-            // Re-fetch once
-            const updatedRoom = await getCurrentRoom();
-            if (updatedRoom?.participants) {
-              enriched = updatedRoom.participants as ExtendedParticipant[];
-            }
+            // ... (Dev simulation logic) ...
           }
 
-          // Initial Sort by active filter (default overall)
           enriched.sort((a, b) => b.total_score - a.total_score);
           setParticipants(enriched);
         }
         setView('my_room');
       } else {
-        setCurrentRoom(null); // Sync store with backend
+        // No room found, show list
+        setCurrentRoom(null);
         const list = await getRooms();
         setRooms(list);
         if (view === 'my_room') setView('list');
       }
     } catch (e) {
       console.error(e);
-      toast.error('加载失败');
+      // Only toast if it's a real error, not just empty
+      // toast.error('加载失败'); 
     } finally {
       setIsLoading(false);
     }
   };
 
+  // React to SWR updates
+  React.useEffect(() => {
+    if (currentRoom) {
+       // Auto-switch to my_room if data arrives
+       if (view !== 'my_room') setView('my_room');
+       setCurrentRoom(currentRoom);
+       
+       if (currentRoom.participants) {
+          let enriched = [...currentRoom.participants] as ExtendedParticipant[];
+          enriched.sort((a, b) => b.total_score - a.total_score);
+          setParticipants(enriched);
+       }
+    }
+  }, [currentRoom, setCurrentRoom]); // Removed view from dependency to avoid loop
+
   // Reset/Load when drawer opens
   React.useEffect(() => {
     if (isOpen) {
+      refreshRoom(); // Trigger SWR revalidation
       loadRooms();
     } else {
       // Reset view delayed

@@ -161,14 +161,19 @@ export async function POST(request: Request) {
       // Don't fail on init error
     }
 
-    // 5. Return redirect response directly to the magic link
-    // This is simpler and more reliable than having the client navigate
-    console.log('[Login with Code Direct] Redirecting to magic link...')
-    // Use 303 to ensure GET method is used for the redirect
-    return NextResponse.redirect(actionLink, 303);
+    // 5. Return JSON response instead of redirect
+    // This allows the frontend to handle the navigation and error display gracefully
+    console.log('[Login with Code Direct] Returning redirect URL...')
+    
+    return NextResponse.json({ 
+        success: true,
+        redirectUrl: actionLink 
+    });
+
   } catch (error: any) {
     console.error('[Login with Code Direct] Error:', error);
     const safeError = error.message ? error.message.replace(/[^\x00-\x7F]/g, "") : 'Login failed';
-    return NextResponse.json({ safeError }, { status: 500 });
+    // Ensure we return a JSON error response
+    return NextResponse.json({ error: safeError }, { status: 500 });
   }
 }

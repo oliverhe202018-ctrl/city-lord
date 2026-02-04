@@ -2,9 +2,11 @@
 
 import { useEffect, useRef, useState } from "react"
 import AMapLoader from "@amap/amap-jsapi-loader"
-import { h3ToAmapGeoJSON } from "@/lib/hex-utils"
+import { h3ToAmapGeoJSON } from "@/lib/citylord/map-utils"
 import { useTheme } from "next-themes"
 import { toast } from "sonner"
+import { createClient } from "@/lib/supabase/client"
+import { Location } from "@/hooks/useRunningTracker"
 
 // Define global AMap types to avoid TS errors
 declare global {
@@ -22,10 +24,12 @@ interface GaodeMap3DProps {
   initialZoom?: number
   // Optional: Pass full territory objects to render health
   territories?: { id: string; health?: number; ownerType: 'me' | 'enemy' | 'neutral' }[]
+  path?: Location[]
+  closedPolygons?: Location[][]
 }
 
 // Security Config
-const AMAP_KEY = process.env.NEXT_PUBLIC_AMAP_KEY || "68c9df43499703673c683777265a7f92"
+const AMAP_KEY = process.env.NEXT_PUBLIC_AMAP_KEY || "2f65c697074e0d4c8270195561578e06"
 const AMAP_SECURITY_CODE = process.env.NEXT_PUBLIC_AMAP_SECURITY_CODE || "37887556a31362e92c2810e742886e29"
 
 export function GaodeMap3D({ 
@@ -33,7 +37,9 @@ export function GaodeMap3D({
   exploredHexes, 
   userLocation,
   initialZoom = 17,
-  territories = []
+  territories = [],
+  path = [],
+  closedPolygons = []
 }: GaodeMap3DProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
@@ -42,6 +48,34 @@ export function GaodeMap3D({
   const markerRef = useRef<any>(null)
   const [isMapReady, setIsMapReady] = useState(false)
   const [debugLog, setDebugLog] = useState<string[]>([])
+  
+  // Path & Polygon Refs
+  const polylineRef = useRef<any>(null)
+  const polygonRefs = useRef<any[]>([])
+
+  // User Color Preferences
+  const [pathColor, setPathColor] = useState('#3B82F6')
+  const [fillColor, setFillColor] = useState('#3B82F6')
+
+  // Load user colors
+  useEffect(() => {
+    const loadColors = async () => {
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+            const { data } = await supabase
+                .from('profiles')
+                .select('path_color, fill_color')
+                .eq('id', user.id)
+                .single()
+            if (data) {
+                if (data.path_color) setPathColor(data.path_color)
+                if (data.fill_color) setFillColor(data.fill_color)
+            }
+        }
+    }
+    loadColors()
+  }, [])
 
   const addLog = (msg: string) => {
     console.log(`[GaodeMap3D] ${msg}`)
@@ -319,6 +353,63 @@ export function GaodeMap3D({
     
   }, [isMapReady, hexagons, exploredHexes, territories])
 
+  // Path & Polygon Rendering
+  useEffect(() => {
+    if (!mapInstanceRef.current || !isMapReady) return
+    const map = mapInstanceRef.current
+
+    // 1. Draw Path (Polyline)
+    if (path.length > 0) {
+      const pathCoords = path.map(p => [p.lng, p.lat])
+      
+      if (!polylineRef.current) {
+        polylineRef.current = new AMap.Polyline({
+          path: pathCoords,
+          strokeColor: pathColor, 
+          strokeOpacity: 1,
+          strokeWeight: 6,
+          strokeStyle: "solid",
+          lineJoin: 'round',
+          lineCap: 'round',
+          zIndex: 50,
+        })
+        map.add(polylineRef.current)
+      } else {
+        polylineRef.current.setPath(pathCoords)
+        polylineRef.current.setOptions({ strokeColor: pathColor })
+      }
+    } else if (polylineRef.current) {
+       map.remove(polylineRef.current)
+       polylineRef.current = null
+    }
+
+    // 2. Draw Closed Polygons
+    // Remove old polygons
+    if (polygonRefs.current.length > 0) {
+        map.remove(polygonRefs.current)
+        polygonRefs.current = []
+    }
+
+    if (closedPolygons.length > 0) {
+        const newPolygons = closedPolygons.map(polyPath => {
+            const coords = polyPath.map(p => [p.lng, p.lat])
+            return new AMap.Polygon({
+                path: coords,
+                strokeColor: pathColor,
+                strokeWeight: 2,
+                strokeOpacity: 0.8,
+                fillColor: fillColor,
+                fillOpacity: 0.4,
+                zIndex: 40,
+            })
+        })
+        
+        map.add(newPolygons)
+        polygonRefs.current = newPolygons
+    }
+
+  }, [isMapReady, path, closedPolygons, pathColor, fillColor])
+
   // Update User Marker Position
   useEffect(() => {
     if (markerRef.current) {
@@ -329,6 +420,60 @@ export function GaodeMap3D({
         }
     }
   }, [userLocation])
+
+  // 3. Render Path (Polyline)
+  useEffect(() => {
+    if (!mapInstanceRef.current || !window.AMap) return
+
+    const pathCoordinates = path.map(p => [p.lng, p.lat])
+
+    if (polylineRef.current) {
+        // Update existing polyline
+        polylineRef.current.setPath(pathCoordinates)
+        polylineRef.current.setOptions({ strokeColor: pathColor })
+    } else {
+        // Create new polyline
+        polylineRef.current = new window.AMap.Polyline({
+            path: pathCoordinates,
+            strokeColor: pathColor,
+            strokeWeight: 6,
+            strokeOpacity: 0.9,
+            zIndex: 100,
+            showDir: true
+        })
+        mapInstanceRef.current.add(polylineRef.current)
+    }
+  }, [path, pathColor, isMapReady])
+
+  // 4. Render Closed Polygons
+  useEffect(() => {
+    if (!mapInstanceRef.current || !window.AMap) return
+
+    // Clear existing polygons
+    if (polygonRefs.current.length > 0) {
+        mapInstanceRef.current.remove(polygonRefs.current)
+        polygonRefs.current = []
+    }
+
+    // Add new polygons
+    const newPolygons = closedPolygons.map(poly => {
+        const coords = poly.map(p => [p.lng, p.lat])
+        return new window.AMap.Polygon({
+            path: coords,
+            strokeColor: pathColor,
+            strokeWeight: 2,
+            strokeOpacity: 0.8,
+            fillColor: fillColor,
+            fillOpacity: 0.4,
+            zIndex: 90
+        })
+    })
+
+    if (newPolygons.length > 0) {
+        mapInstanceRef.current.add(newPolygons)
+        polygonRefs.current = newPolygons
+    }
+  }, [closedPolygons, pathColor, fillColor, isMapReady])
 
   return (
     <div className="w-full h-full relative bg-black">

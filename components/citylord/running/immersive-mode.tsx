@@ -38,6 +38,7 @@ interface ImmersiveModeProps {
   onExpand: () => void
   currentLocation?: { lat: number; lng: number }
   path?: Location[]
+  closedPolygons?: Location[][]
   onHexClaimed?: () => void
 }
 
@@ -70,6 +71,7 @@ export function ImmersiveRunningMode({
   onExpand,
   currentLocation,
   path = [],
+  closedPolygons = [],
   onHexClaimed,
 }: ImmersiveModeProps) {
   const [isPaused, setIsPaused] = useState(false)
@@ -314,6 +316,8 @@ export function ImmersiveRunningMode({
             hexagons={mapHexagons} 
             exploredHexes={exploredHexes} 
             userLocation={[currentLocation.lng, currentLocation.lat]} 
+            path={path}
+            closedPolygons={closedPolygons}
           />
         )}
         {/* Gradient Overlay for text readability */}
