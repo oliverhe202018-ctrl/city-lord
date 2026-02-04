@@ -1,12 +1,12 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, Suspense } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
 
-export default function AuthCallbackPage() {
+function AuthCallbackContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [status, setStatus] = useState("正在验证登录...")
@@ -121,5 +121,18 @@ export default function AuthCallbackPage() {
       <Loader2 className="h-10 w-10 animate-spin text-green-500 mb-4" />
       <p className="text-white/60">{status}</p>
     </div>
+  )
+}
+
+export default function AuthCallbackPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen flex-col items-center justify-center bg-[#0a0f1a] text-white">
+        <Loader2 className="h-10 w-10 animate-spin text-green-500 mb-4" />
+        <p className="text-white/60">加载中...</p>
+      </div>
+    }>
+      <AuthCallbackContent />
+    </Suspense>
   )
 }
