@@ -1,6 +1,12 @@
 'use client'
 
-import { useFactionStats, useUserBadges, useUserMissions } from '@/hooks/useGameData'
+import { 
+  useFactionStats, 
+  useUserBadges, 
+  useUserMissions,
+  useMyRoomData,
+  useClubData 
+} from '@/hooks/useGameData'
 import { useEffect } from 'react'
 
 export function DataPrefetcher() {
@@ -10,6 +16,10 @@ export function DataPrefetcher() {
   useFactionStats()
   useUserBadges()
   useUserMissions()
+  
+  // Prefetch Room and Club data
+  useMyRoomData()
+  useClubData()
 
   // This component renders nothing
   return null

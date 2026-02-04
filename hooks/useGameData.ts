@@ -28,3 +28,19 @@ export function useUserMissions() {
     dedupingInterval: 10000, // 10 seconds deduping
   })
 }
+
+// Hook 4: User Room Data
+export function useMyRoomData() {
+  return useSWR('/api/user/room', fetcher, { 
+    revalidateOnFocus: false, // Room decor/status doesn't change often
+    dedupingInterval: 300000, // 5 minutes cache
+  })
+}
+
+// Hook 5: Club Data
+export function useClubData() {
+  return useSWR('/api/club/info', fetcher, { 
+    revalidateOnFocus: true,  // Club messages/members might update
+    dedupingInterval: 60000,  // 1 minute cache
+  })
+}
