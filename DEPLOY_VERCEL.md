@@ -12,10 +12,13 @@
 | :--- | :--- | :--- |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase 项目 URL | `https://your-project.supabase.co` |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase 匿名 API 密钥 | `eyJhbGciOiJIUzI1NiIsInR5c...` |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase 服务端管理员密钥 (用于验证码登录) | `eyJhbGciOiJIUzI1NiIsInR5c...` (不要泄露给客户端) |
 | `NEXT_PUBLIC_AMAP_KEY` | 高德地图 Web 端 (JS API) Key | `a1b2c3d4e5f6...` |
 | `NEXT_PUBLIC_AMAP_SECURITY_CODE` | 高德地图安全密钥 (Web 服务) | `f6e5d4c3b2a1...` |
 
-> **注意**: 高德地图的 Security Code 是必需的，因为本项目使用了 JS API Loader，为了确保在生产环境中地图能正常加载，请务必配置。
+> **注意**: 
+> 1. 高德地图的 Security Code 是必需的，因为本项目使用了 JS API Loader。
+> 2. `SUPABASE_SERVICE_ROLE_KEY` 是必需的，因为本项目使用了自定义的“验证码登录”流程，需要后端管理员权限来校验用户。请在 Supabase Dashboard -> Project Settings -> API -> Service Role Secret 中找到它。
 
 ## 2. 部署步骤
 
