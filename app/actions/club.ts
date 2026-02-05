@@ -292,6 +292,17 @@ export async function joinClub(clubId: string) {
     
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { success: false, error: 'Unauthorized' }
+
+    // 0. Get Club Info to check is_public
+    const { data: club, error: clubError } = await supabase
+        .from('clubs')
+        .select('is_public')
+        .eq('id', clubId)
+        .single()
+    
+    if (clubError) {
+        return { success: false, error: 'Club not found' }
+    }
     
     // 1. 检查是否已经加入
     const { data: existing, error: checkError } = await supabase
@@ -299,10 +310,14 @@ export async function joinClub(clubId: string) {
         .select('status')
         .eq('club_id', clubId)
         .eq('user_id', user.id)
-        .single()
+        .maybeSingle()
         
-    if (checkError && checkError.code !== 'PGRST116') { // PGRST116 is "No rows found"
-        return { success: false, error: 'Failed to check membership status' }
+    if (checkError) {
+        console.error('Check Membership Error:', checkError)
+        return { 
+            success: false, 
+            error: `查询成员状态失败: ${checkError.message} (Code: ${checkError.code})` 
+        }
     }
         
     if (existing) {
@@ -310,22 +325,32 @@ export async function joinClub(clubId: string) {
         if (existing.status === 'active') return { success: false, error: '已加入该俱乐部' }
     }
     
-    // 2. 插入申请记录 (status = pending)
+    // 2. 决定初始状态
+    // Default to true if null, matching the DB default
+    const isPublic = club.is_public ?? true
+    const initialStatus = isPublic ? 'active' : 'pending'
+    
+    // 3. 插入申请记录
     const { error } = await supabase
         .from('club_members')
         .insert({
         club_id: clubId,
         user_id: user.id,
         role: 'member',
-        status: 'pending'
+        status: initialStatus
         })
         
     if (error) {
         console.error('Join Club Error:', error)
         return { success: false, error: error.message }
     }
+
+    // 4. 如果直接加入，更新成员计数
+    if (initialStatus === 'active') {
+        await supabase.rpc('increment_club_member_count', { row_id: clubId })
+    }
     
-    return { success: true }
+    return { success: true, status: initialStatus }
   } catch (err) {
       console.error('Join Club Exception:', err)
       return { success: false, error: 'Failed to join club' }
@@ -357,6 +382,9 @@ export async function leaveClub(clubId: string) {
     .eq('user_id', user.id)
 
   if (error) throw error
+
+  // Decrement member count
+  await supabase.rpc('decrement_club_member_count', { row_id: clubId })
   
   return { success: true }
 }

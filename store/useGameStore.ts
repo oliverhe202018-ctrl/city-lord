@@ -93,6 +93,11 @@ export interface MyClub {
   audit_reason?: string | null;
 }
 
+export interface RoomState {
+  currentRoom: Room | null;
+  joinedRooms: Room[];
+}
+
 // ==================== Actions ====================
 
 export interface ModeActions {
@@ -100,7 +105,12 @@ export interface ModeActions {
   setMyClub: (club: MyClub | null) => void;
   updateMyClubInfo: (info: Partial<MyClub>) => void;
   updateAppSettings: (settings: Partial<AppSettings>) => void;
+  
+  // Room Actions
   setCurrentRoom: (room: Room | null) => void;
+  setJoinedRooms: (rooms: Room[]) => void;
+  addJoinedRoom: (room: Room) => void;
+  removeJoinedRoom: (roomId: string) => void;
   syncCurrentRoom: () => Promise<void>;
 }
 
@@ -152,11 +162,10 @@ export interface WorldActions {
 }
 
 // Combined State and Actions
-export interface GameState extends UserState, LocationState, InventoryState, WorldState {
+export interface GameState extends UserState, LocationState, InventoryState, WorldState, RoomState {
   gameMode: GameMode;
   myClub: MyClub | null;
   appSettings: AppSettings;
-  currentRoom: Room | null;
 }
 
 export interface GameActions extends ModeActions, UserActions, LocationActions, InventoryActions, WorldActions {}
@@ -225,7 +234,21 @@ const createModeSlice: StateCreator<GameStore, [], [], ModeActions> = (set, get)
     })),
   updateAppSettings: (settings) =>
     set((state) => ({ appSettings: { ...state.appSettings, ...settings } })),
+  
+  // Room Actions Implementation
   setCurrentRoom: (room) => set({ currentRoom: room }),
+  setJoinedRooms: (rooms) => set({ joinedRooms: rooms }),
+  addJoinedRoom: (room) => set((state) => {
+    // Avoid duplicates
+    if (state.joinedRooms.some(r => r.id === room.id)) return state;
+    return { joinedRooms: [...state.joinedRooms, room] };
+  }),
+  removeJoinedRoom: (roomId) => set((state) => ({ 
+    joinedRooms: state.joinedRooms.filter(r => r.id !== roomId),
+    // If we are currently in the room being removed, leave it
+    currentRoom: state.currentRoom?.id === roomId ? null : state.currentRoom
+  })),
+
   syncCurrentRoom: async () => {
     const { currentRoom } = get();
     if (!currentRoom?.id) return;
@@ -304,7 +327,11 @@ const createModeSlice: StateCreator<GameStore, [], [], ModeActions> = (set, get)
           is_locked: roomData.is_private,
           status: roomData.status,
           created_at: roomData.created_at,
-          participants: participants
+          participants: participants,
+          invite_code: roomData.invite_code,
+          allow_chat: roomData.allow_chat,
+          allow_imports: roomData.allow_imports,
+          avatar_url: roomData.avatar_url
         } as Room
       });
       console.log('Sync Room: Success', roomData.name);
@@ -572,6 +599,7 @@ export const useGameStore = create<GameStore>()(
       gameMode: 'map',
       myClub: null,
       currentRoom: null,
+      joinedRooms: [],
       appSettings: initialAppSettings,
       ...initialUserState,
       ...initialLocationState,
@@ -621,6 +649,7 @@ export const useGameStore = create<GameStore>()(
         myClub: state.myClub,
         // Current Room
         currentRoom: state.currentRoom,
+        joinedRooms: state.joinedRooms,
         // App Settings
         appSettings: state.appSettings,
         // Running Session Recovery
@@ -646,6 +675,9 @@ export const useGameActions = () => {
       updateMyClubInfo: state.updateMyClubInfo,
       updateAppSettings: state.updateAppSettings,
       setCurrentRoom: state.setCurrentRoom,
+      setJoinedRooms: state.setJoinedRooms,
+      addJoinedRoom: state.addJoinedRoom,
+      removeJoinedRoom: state.removeJoinedRoom,
       syncCurrentRoom: state.syncCurrentRoom,
       
       // User Actions

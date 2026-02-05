@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { Loader2, Upload, Camera } from 'lucide-react'
 import Image from 'next/image'
 import { cn } from '@/lib/utils'
+import { ImageCropperModal } from './ImageCropperModal'
 
 interface AvatarUploaderProps {
   currentAvatarUrl?: string | null
@@ -14,6 +15,7 @@ interface AvatarUploaderProps {
   className?: string
   loading?: boolean
   children?: React.ReactNode
+  cropShape?: 'round' | 'rect'
 }
 
 export function AvatarUploader({
@@ -22,9 +24,13 @@ export function AvatarUploader({
   size = 100,
   className,
   loading = false,
-  children
+  children,
+  cropShape = 'round'
 }: AvatarUploaderProps) {
   const [isUploading, setIsUploading] = useState(false)
+  const [cropperOpen, setCropperOpen] = useState(false)
+  const [selectedImage, setSelectedImage] = useState<string | null>(null)
+  
   const fileInputRef = useRef<HTMLInputElement>(null)
   const supabase = createClient()
 
@@ -37,20 +43,34 @@ export function AvatarUploader({
       return
     }
 
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error('图片大小不能超过 2MB')
-      return
-    }
+    // Read file as data URL for the cropper
+    const reader = new FileReader()
+    reader.addEventListener('load', () => {
+      setSelectedImage(reader.result as string)
+      setCropperOpen(true)
+    })
+    reader.readAsDataURL(file)
+    
+    // Reset input value so the same file can be selected again
+    event.target.value = ''
+  }
 
+  const handleCropComplete = async (croppedBlob: Blob) => {
     try {
       setIsUploading(true)
-      const fileExt = file.name.split('.').pop()
+      
+      // Convert blob to file-like object for upload path
+      // Note: we just need a unique name
+      const fileExt = 'jpg' // canvasUtils exports as jpeg
       const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`
       const filePath = `${fileName}`
 
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(filePath, file)
+        .upload(filePath, croppedBlob, {
+            contentType: 'image/jpeg',
+            upsert: true
+        })
 
       if (uploadError) {
         throw uploadError
@@ -65,9 +85,8 @@ export function AvatarUploader({
       toast.error('上传失败，请重试')
     } finally {
       setIsUploading(false)
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
-      }
+      setCropperOpen(false)
+      setSelectedImage(null)
     }
   }
 
@@ -99,31 +118,42 @@ export function AvatarUploader({
           style={{ width: size, height: size }}
           onClick={() => !isLoading && fileInputRef.current?.click()}
         >
-          {currentAvatarUrl ? (
-            <Image
-              src={currentAvatarUrl}
-              alt="Avatar"
-              fill
-              className="object-cover"
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center bg-secondary/50">
-              <Camera className="h-1/3 w-1/3 text-muted-foreground" />
-            </div>
-          )}
+           {currentAvatarUrl ? (
+             <img 
+               src={currentAvatarUrl} 
+               alt="Avatar" 
+               className="w-full h-full object-cover transition-opacity group-hover:opacity-75"
+             />
+           ) : (
+             <div className="flex h-full w-full items-center justify-center bg-muted text-muted-foreground">
+               <Camera className="h-1/3 w-1/3" />
+             </div>
+           )}
+           
+           <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
+             <Camera className="h-6 w-6 text-white" />
+           </div>
 
-          {/* Overlay */}
-          <div className={cn(
-            "absolute inset-0 flex items-center justify-center bg-black/50 transition-opacity",
-            isLoading ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-          )}>
-            {isLoading ? (
-              <Loader2 className="h-6 w-6 animate-spin text-white" />
-            ) : (
-              <Upload className="h-6 w-6 text-white" />
-            )}
-          </div>
+           {isLoading && (
+             <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                <Loader2 className="h-6 w-6 animate-spin text-white" />
+             </div>
+           )}
         </div>
+      )}
+
+      {selectedImage && (
+        <ImageCropperModal
+            isOpen={cropperOpen}
+            onClose={() => {
+                setCropperOpen(false)
+                setSelectedImage(null)
+            }}
+            imageSrc={selectedImage}
+            onCropComplete={handleCropComplete}
+            cropShape={cropShape}
+            aspect={1}
+        />
       )}
     </div>
   )
