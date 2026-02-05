@@ -89,6 +89,8 @@ export interface MyClub {
   level: string;
   description?: string | null;
   avatar_url?: string | null;
+  status?: 'active' | 'pending' | 'rejected';
+  audit_reason?: string | null;
 }
 
 // ==================== Actions ====================

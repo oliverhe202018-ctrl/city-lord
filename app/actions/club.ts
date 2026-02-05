@@ -19,6 +19,11 @@ export type Club = {
   member_count: number
   territory: string
   created_at: string
+  status?: 'active' | 'pending' | 'rejected'
+  audit_reason?: string | null
+  province?: string
+  total_area?: number
+  is_public?: boolean
 }
 
 export type ClubMember = {
@@ -29,7 +34,13 @@ export type ClubMember = {
   joined_at: string
 }
 
-export async function createClub(data: { name: string; description?: string; avatar_url?: string }) {
+export async function createClub(data: { 
+  name: string; 
+  description?: string; 
+  avatar_url?: string;
+  province?: string;
+  is_public?: boolean;
+}) {
   try {
     const cookieStore = await cookies()
     const supabase = createClient(cookieStore)
@@ -55,7 +66,10 @@ export async function createClub(data: { name: string; description?: string; ava
       name: data.name,
       description: data.description || null,
       owner_id: userId,
-      avatar_url: data.avatar_url || null, 
+      avatar_url: data.avatar_url || null,
+      province: data.province || null,
+      is_public: data.is_public ?? true, 
+      status: 'pending', // Pending audit
       level: '1', // Default level
       rating: 0,
       member_count: 1,
@@ -133,6 +147,81 @@ export async function updateClub(clubId: string, data: Partial<Club>) {
     }
 }
 
+export async function getPendingClubs() {
+  const cookieStore = await cookies()
+  const supabase = createClient(cookieStore)
+  
+  const { data, error } = await supabase
+    .from('clubs')
+    .select('*')
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false })
+    
+  if (error) {
+    console.error('Error fetching pending clubs:', error)
+    return []
+  }
+
+  return data as Club[]
+}
+
+export async function approveClub(clubId: string) {
+    const cookieStore = await cookies()
+    const supabase = createClient(cookieStore)
+    
+    // 1. Update club status
+    const { data: club, error } = await supabase
+        .from('clubs')
+        .update({ status: 'active' })
+        .eq('id', clubId)
+        .select('owner_id, name')
+        .single()
+        
+    if (error) return { success: false, error: error.message }
+    
+    // 2. Send notification
+    if (club && club.owner_id) {
+        await supabase.from('notifications').insert({
+            user_id: club.owner_id,
+            title: '俱乐部审核通过',
+            message: `恭喜！您创建的俱乐部“${club.name}”已通过审核，快去管理您的俱乐部吧。`,
+            type: 'system'
+        })
+    }
+    
+    return { success: true }
+}
+
+export async function rejectClub(clubId: string, reason: string) {
+    const cookieStore = await cookies()
+    const supabase = createClient(cookieStore)
+    
+    // 1. Update club status
+    const { data: club, error } = await supabase
+        .from('clubs')
+        .update({ 
+            status: 'rejected',
+            audit_reason: reason 
+        })
+        .eq('id', clubId)
+        .select('owner_id, name')
+        .single()
+        
+    if (error) return { success: false, error: error.message }
+    
+    // 2. Send notification
+    if (club && club.owner_id) {
+        await supabase.from('notifications').insert({
+            user_id: club.owner_id,
+            title: '俱乐部审核未通过',
+            message: `很遗憾，您的俱乐部“${club.name}”申请未通过。原因：${reason}`,
+            type: 'system'
+        })
+    }
+    
+    return { success: true }
+}
+
 export async function getClubs() {
   const cookieStore = await cookies()
   const supabase = createClient(cookieStore)
@@ -145,6 +234,7 @@ export async function getClubs() {
       *,
       club_members (count)
     `)
+    .eq('status', 'active')
     .order('created_at', { ascending: false })
     
   if (error) {
@@ -630,104 +720,242 @@ export async function disbandClub(clubId: string) {
   }
 }
 
-// ==================== Data Fetching for View ====================
+// ==================== Data Fetching for View (Refactored) ====================
 
-export async function getClubLeaderboard(clubId: string) {
+// 1. Get Club Rankings (Province/National)
+export async function getClubRankings(type: 'province' | 'national', province?: string) {
+  const cookieStore = await cookies()
+  const supabase = createClient(cookieStore)
+  const { data: { user } } = await supabase.auth.getUser()
+
+  let query = supabase.from('clubs')
+    .select('id, name, avatar_url, total_area, province, member_count')
+    .eq('status', 'active')
+    .order('total_area', { ascending: false })
+    .limit(100)
+
+  if (type === 'province' && province) {
+    query = query.eq('province', province)
+  }
+
+  const { data: clubs, error } = await query
+
+  if (error) {
+    console.error('Fetch Rankings Error:', error)
+    return { data: [], myClub: null }
+  }
+
+  // Calculate my rank (simplified: if in top 100, return it. If not, separate query)
+  let myClubRank = null
+  let myClubData = null
+  
+  if (user) {
+    // Get my club id
+    const { data: membership } = await supabase
+        .from('club_members')
+        .select('club_id')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .single()
+        
+    if (membership) {
+        const myClubId = membership.club_id
+        const rankIndex = (clubs as any[]).findIndex((c: any) => c.id === myClubId)
+        
+        if (rankIndex !== -1) {
+            myClubRank = rankIndex + 1
+            myClubData = clubs[rankIndex]
+        } else {
+            // Fetch my club data specifically if not in top 100
+             const { data: myClub, error: myClubError } = await supabase
+                .from('clubs')
+                .select('id, name, avatar_url, total_area, province, member_count')
+                .eq('id', myClubId)
+                .single()
+             
+             if (myClub && !myClubError) {
+                // Count how many have more area to get rank
+                let rankQuery = supabase.from('clubs').select('id', { count: 'exact', head: true }).gt('total_area', myClub.total_area || 0).eq('status', 'active')
+                if (type === 'province' && province) {
+                    rankQuery = rankQuery.eq('province', province)
+                }
+                const { count } = await rankQuery
+                myClubRank = (count || 0) + 1
+                myClubData = myClub
+             }
+        }
+    }
+  }
+
+  return {
+    data: (clubs as any[]).map((c: any, i: number) => ({
+      ...c,
+      rank: i + 1,
+      score: c.total_area || 0
+    })),
+    myClub: myClubData ? { ...(myClubData as any), rank: myClubRank, score: (myClubData as any).total_area || 0 } : null
+  }
+}
+
+// 2. Get Internal Members (Sorted by Contribution)
+export async function getInternalMembers(clubId: string) {
   const cookieStore = await cookies()
   const supabase = createClient(cookieStore)
 
-  // Get all club members first
-  const { data: members, error } = await supabase
+  // Join club_members with profiles to get name, avatar, and total_area (contribution)
+  const { data, error } = await supabase
     .from('club_members')
-    .select('user_id')
+    .select(`
+      user_id,
+      role,
+      joined_at,
+      profiles:user_id (
+        id, nickname, avatar_url, total_area
+      )
+    `)
     .eq('club_id', clubId)
     .eq('status', 'active')
+  
+  if (error) {
+    console.error('Fetch Members Error:', error)
+    return []
+  }
 
-  if (error || !members) return []
-
-  const memberIds = members.map((m) => m.user_id)
-
-  if (memberIds.length === 0) return []
-
-  // Get profiles with stats
-  const { data: profiles } = await supabase
-    .from('profiles')
-    .select('id, nickname, avatar_url, total_area, level')
-    .in('id', memberIds)
-    .order('total_area', { ascending: false })
-
-  if (!profiles) return []
-
-  return profiles.map((p) => ({
-    id: p.id,
-    name: p.nickname || 'Unknown',
-    avatar: p.avatar_url,
-    area: p.total_area || 0,
-    score: (p.total_area || 0) * 10 // Simple score formula
+  // Sort by total_area desc
+  const members = (data || []).map((m: any) => ({
+    id: m.profiles?.id,
+    name: m.profiles?.nickname || 'Unknown',
+    avatar: m.profiles?.avatar_url,
+    area: m.profiles?.total_area || 0,
+    role: m.role
   }))
+
+  return members.sort((a: any, b: any) => b.area - a.area).map((m: any, i: number) => ({ ...m, rank: i + 1 }))
+}
+
+// 3. Get Club Territories (Runs)
+export async function getClubTerritoriesReal(clubId: string, sortBy: 'date' | 'area') {
+  const cookieStore = await cookies()
+  const supabase = createClient(cookieStore)
+
+  let query = supabase
+    .from('runs')
+    .select(`
+      id,
+      area,
+      duration,
+      created_at,
+      province,
+      profiles:user_id (
+        nickname, avatar_url
+      )
+    `)
+    .eq('club_id', clubId)
+    
+  if (sortBy === 'date') {
+    query = query.order('created_at', { ascending: false })
+  } else {
+    query = query.order('area', { ascending: false })
+  }
+
+  const { data, error } = await query.limit(50) // Limit to 50 for performance
+
+  if (error) {
+    console.error('Fetch Territories Error:', error)
+    return []
+  }
+
+  return (data || []).map((run: any) => ({
+    id: run.id,
+    name: `Run ${run.id.substring(0,6)}`,
+    area: run.area,
+    date: new Date(run.created_at).toLocaleDateString(),
+    member: run.profiles?.avatar_url,
+    memberName: run.profiles?.nickname,
+    lastTime: new Date(run.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    location: run.province || 'Unknown',
+    totalTime: `${Math.floor(run.duration / 60)}:${(run.duration % 60).toString().padStart(2, '0')}`,
+    totalDistance: 'N/A', 
+    avgPace: 'N/A'
+  }))
+}
+
+// 4. Get Club History
+export async function getClubHistory(clubId: string) {
+   // Fetch last 30 days runs
+   const cookieStore = await cookies()
+   const supabase = createClient(cookieStore)
+   
+   const thirtyDaysAgo = new Date()
+   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+   
+   const { data, error } = await supabase
+     .from('runs')
+     .select('created_at, area')
+     .eq('club_id', clubId)
+     .gte('created_at', thirtyDaysAgo.toISOString())
+     .order('created_at', { ascending: true })
+
+   if (error) return []
+
+   // Aggregate by date
+   const historyMap = new Map<string, number>()
+   
+   // Pre-fill last 30 days with 0
+   for (let i = 29; i >= 0; i--) {
+       const d = new Date()
+       d.setDate(d.getDate() - i)
+       const key = d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' })
+       historyMap.set(key, 0)
+   }
+
+   (data || []).forEach((run: any) => {
+      const date = new Date(run.created_at).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' })
+      if (historyMap.has(date)) {
+          historyMap.set(date, (historyMap.get(date) || 0) + Number(run.area))
+      }
+   })
+
+   // Convert to array
+   const history = Array.from(historyMap.entries()).map(([date, area]) => ({ date, area }))
+   return history
+}
+
+// Kept for compatibility if needed, but replaced by specific calls in new UI
+export async function getClubLeaderboard(clubId: string) {
+    return getInternalMembers(clubId)
 }
 
 export async function getClubTerritories(clubId: string) {
+    return getClubTerritoriesReal(clubId, 'date')
+}
+
+// 5. Get Distinct Provinces (Source of Truth for Filter)
+export async function getAvailableProvinces() {
   const cookieStore = await cookies()
   const supabase = createClient(cookieStore)
 
-  // Get all club members
-  const { data: members } = await supabase
-    .from('club_members')
-    .select('user_id')
-    .eq('club_id', clubId)
+  // Fetch all active clubs with non-null provinces
+  // Supabase doesn't have a direct 'distinct' select modifier like Prisma, 
+  // so we fetch the 'province' column and deduplicate in application logic.
+  // This is efficient enough for < 10,000 clubs.
+  
+  const { data, error } = await supabase
+    .from('clubs')
+    .select('province')
     .eq('status', 'active')
-
-  if (!members || members.length === 0) return []
-
-  const memberIds = members.map((m) => m.user_id)
-
-  // Get territories owned by members
-  // Limit to recent 50 for performance
-  const { data: territories } = await supabase
-    .from('territories')
-    .select(`
-      id,
-      city_id,
-      owner_id,
-      captured_at,
-      profiles (
-        nickname,
-        avatar_url
-      )
-    `)
-    .in('owner_id', memberIds)
-    .order('captured_at', { ascending: false })
-    .limit(50)
-
-  if (!territories) return []
-
-  interface ClubTerritoryResult {
-    id: string
-    city_id: string
-    owner_id: string
-    captured_at: string
-    profiles: {
-      nickname: string
-      avatar_url: string
-    } | null
+    .not('province', 'is', null)
+    
+  if (error) {
+    console.error('[getAvailableProvinces] Error:', error)
+    return []
   }
 
-  const typedTerritories = territories as unknown as ClubTerritoryResult[]
-
-  // Map to expected format
-  // Note: Territory table doesn't have name/area directly usually, or id is H3 index.
-  // We'll mock name/area based on ID or city.
-  return typedTerritories.map((t) => ({
-    id: t.id,
-    name: `Territory ${t.id.substring(0, 6)}...`,
-    area: 1, // Single hex
-    date: t.captured_at,
-    member: t.profiles?.avatar_url,
-    memberName: t.profiles?.nickname || 'Unknown',
-    lastTime: new Date(t.captured_at).toLocaleDateString(),
-    location: t.city_id
-  }))
+  // Deduplicate using Set and Sort alphabetically/pinyin
+  // Filtering Boolean ensures no empty strings or nulls remain
+  const provinces = Array.from(new Set(data.map(d => d.province).filter(Boolean))).sort((a, b) => {
+      return (a || '').localeCompare(b || '', 'zh-CN')
+  })
+  
+  return provinces
 }
-
-

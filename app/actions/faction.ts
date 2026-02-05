@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { cookies } from 'next/headers'
-import { calculateFactionBonus } from '@/lib/game-logic/faction-balance'
+import { calculateFactionBalance } from '@/utils/faction-balance'
 
 export type Faction = 'RED' | 'BLUE'
 
@@ -15,43 +15,51 @@ export async function getFactionStats() {
   let blueCount = 0
   let redArea = 0
   let blueArea = 0
+  
+  // 1. Get Config for auto-balance status
+  let isAutoBalanceEnabled = true
+  try {
+     const { data: config } = await supabase
+        .from('faction_balance_configs')
+        .select('auto_balance_enabled')
+        .limit(1)
+        .single()
+     
+     if (config) {
+        // Handle both old and new field names defensively or just new
+        isAutoBalanceEnabled = (config as any).auto_balance_enabled ?? (config as any).is_auto_balance_enabled ?? true
+     }
+  } catch (e) {
+     // Ignore config fetch error, default to true
+  }
 
   // Try to use RPC for efficiency with a timeout protection
   try {
-    const rpcPromise = supabase.rpc('get_faction_stats_rpc')
+    const rpcPromise = supabase.rpc('get_dashboard_summary')
     const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('RPC timeout')), 3000))
     
     // Race RPC against 3s timeout
     const { data: rpcData, error: rpcError } = await Promise.race([rpcPromise, timeoutPromise]) as any
     
     if (!rpcError && rpcData) {
-      // Parse RPC result
-      // The RPC now returns a JSON object like { "RED": 10, "BLUE": 5 } or { "RED": { "count": 10, "area": 500 } }
-      // Based on the migration, it returns { "RED": count, "BLUE": count }
-      // Let's support both formats for safety
-      
-      let rpcRedCount = 0
-      let rpcBlueCount = 0
-      
-      if (!Array.isArray(rpcData)) {
-          // Object format (New Optimized RPC)
-          rpcRedCount = Number(rpcData['RED'] || 0)
-          rpcBlueCount = Number(rpcData['BLUE'] || 0)
-      } else {
-          // Array format (Legacy RPC)
-          const redStats = (rpcData as any[]).find((r: any) => r.faction === 'RED')
-          const blueStats = (rpcData as any[]).find((r: any) => r.faction === 'BLUE')
-          rpcRedCount = redStats?.member_count || redStats?.count || 0
-          rpcBlueCount = blueStats?.member_count || blueStats?.count || 0
-      }
-      
-      redCount = rpcRedCount
-      blueCount = rpcBlueCount
-      
-      // Area is not yet returned by simple count RPC, keep 0 or implement separate area aggregation if critical
+      redCount = Number(rpcData.red_faction || 0)
+      blueCount = Number(rpcData.blue_faction || 0)
       
       console.log(`[FactionStats] RPC success in ${(performance.now() - startTime).toFixed(2)}ms`)
-      const bonus = calculateFactionBonus(redCount, blueCount)
+      
+      const balanceResult = calculateFactionBalance(redCount, blueCount, isAutoBalanceEnabled)
+      const bonus = { RED: 0, BLUE: 0 }
+      
+      if (balanceResult.underdog) {
+         // Convert multiplier (e.g. 1.5) to percentage (50)
+         const percentage = Math.round((balanceResult.multiplier - 1) * 100)
+         if (balanceResult.underdog === 'red') {
+             bonus.RED = percentage
+         } else {
+             bonus.BLUE = percentage
+         }
+      }
+
       return {
         RED: redCount,
         BLUE: blueCount,
@@ -80,7 +88,17 @@ export async function getFactionStats() {
   
   console.log(`[FactionStats] Fallback completed in ${(performance.now() - fallbackStart).toFixed(2)}ms`)
 
-  const bonus = calculateFactionBonus(redCount, blueCount)
+  const balanceResult = calculateFactionBalance(redCount, blueCount, isAutoBalanceEnabled)
+  const bonus = { RED: 0, BLUE: 0 }
+  
+  if (balanceResult.underdog) {
+     const percentage = Math.round((balanceResult.multiplier - 1) * 100)
+     if (balanceResult.underdog === 'red') {
+         bonus.RED = percentage
+     } else {
+         bonus.BLUE = percentage
+     }
+  }
 
   return {
     RED: redCount,

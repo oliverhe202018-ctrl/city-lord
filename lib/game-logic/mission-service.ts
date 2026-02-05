@@ -254,7 +254,9 @@ export async function initializeUserMissions(userId: string) {
         .from('user_missions')
         .insert(missionsToInsert)
       
-      if (insertError) console.error('[MissionService] Failed to insert new missions:', insertError)
+      if (insertError) {
+        console.error('[MissionService] Failed to insert new missions:', JSON.stringify(insertError, null, 2))
+      }
     }
 
     // Handle Resets (Stale Missions)

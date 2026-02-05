@@ -5,6 +5,7 @@ import { Hexagon, Shield, Zap } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
 import { formatAreaFromHexCount } from "@/lib/citylord/area-utils"
+import { calculateFactionBalance } from '@/utils/faction-balance'
 
 interface FactionComparisonProps {
   userFaction: 'RED' | 'BLUE' | null
@@ -32,9 +33,25 @@ export function FactionComparison({ userFaction, initialData }: FactionCompariso
     bonus: { RED: 0, BLUE: 0 } 
   }
 
+  // Calculate bonus on frontend (Real-time calculation)
+  const balance = calculateFactionBalance(safeStats.RED, safeStats.BLUE)
+  const frontendBonus = { RED: 0, BLUE: 0 }
+  
+  if (balance.underdog) {
+      const percentage = Math.round((balance.multiplier - 1) * 100)
+      if (balance.underdog === 'red') {
+          frontendBonus.RED = percentage
+      } else {
+          frontendBonus.BLUE = percentage
+      }
+  }
+
+  // Use frontend calculated bonus
+  const activeBonus = frontendBonus
+
   // Calculate boosted areas
-  const boostedRedArea = (safeStats.area?.RED || 0) * (1 + (safeStats.bonus?.RED || 0) / 100)
-  const boostedBlueArea = (safeStats.area?.BLUE || 0) * (1 + (safeStats.bonus?.BLUE || 0) / 100)
+  const boostedRedArea = (safeStats.area?.RED || 0) * (1 + (activeBonus.RED || 0) / 100)
+  const boostedBlueArea = (safeStats.area?.BLUE || 0) * (1 + (activeBonus.BLUE || 0) / 100)
 
   // Member percentages
   const total = safeStats.RED + safeStats.BLUE
@@ -103,10 +120,10 @@ export function FactionComparison({ userFaction, initialData }: FactionCompariso
           </div>
           <div className="text-xs text-red-400/50 font-mono flex items-center gap-2">
             <span>赤红先锋 {redPercent.toFixed(1)}%</span>
-            {(safeStats.bonus?.RED || 0) > 0 && (
+            {(activeBonus.RED || 0) > 0 && (
               <span className="flex items-center text-[10px] text-yellow-400 bg-yellow-400/10 px-1 rounded">
                 <Zap className="w-3 h-3 mr-0.5" />
-                +{safeStats.bonus.RED}% 
+                +{activeBonus.RED}% 
               </span>
             )}
           </div>
@@ -122,10 +139,10 @@ export function FactionComparison({ userFaction, initialData }: FactionCompariso
             <Hexagon className="w-4 h-4 fill-blue-500/20" />
           </div>
           <div className="text-xs text-blue-400/50 font-mono flex items-center justify-end gap-2">
-            {(safeStats.bonus?.BLUE || 0) > 0 && (
+            {(activeBonus.BLUE || 0) > 0 && (
               <span className="flex items-center text-[10px] text-yellow-400 bg-yellow-400/10 px-1 rounded">
                 <Zap className="w-3 h-3 mr-0.5" />
-                +{safeStats.bonus.BLUE}%
+                +{activeBonus.BLUE}%
               </span>
             )}
             <span>蔚蓝联盟 {bluePercent.toFixed(1)}%</span>
@@ -139,7 +156,11 @@ export function FactionComparison({ userFaction, initialData }: FactionCompariso
       {/* Area Comparison */}
       <div className="mt-4 pt-4 border-t border-white/5">
          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-[10px] uppercase tracking-wider text-white/40">领地势力 (含加成)</h3>
+            <h3 className="text-[10px] uppercase tracking-wider text-white/40">
+              领地势力
+              {(activeBonus.RED || 0) > 0 && <span className="text-red-400 ml-1">(红方 +{activeBonus.RED}%)</span>}
+              {(activeBonus.BLUE || 0) > 0 && <span className="text-blue-400 ml-1">(蓝方 +{activeBonus.BLUE}%)</span>}
+            </h3>
          </div>
 
          {/* Area Bars */}
@@ -165,17 +186,27 @@ export function FactionComparison({ userFaction, initialData }: FactionCompariso
          <div className="flex justify-between items-start mt-2 text-[10px]">
             {/* Red Area */}
             <div className={cn("text-left", userFaction === 'RED' ? "opacity-100" : "opacity-60")}>
-               <div className="flex items-center gap-1 text-red-300">
-                  <Hexagon className="w-3 h-3" />
-                  <span className="font-mono">{formatAreaFromHexCount(boostedRedArea).value} {formatAreaFromHexCount(boostedRedArea).unit}</span>
+               <div className="flex flex-col items-start gap-0.5 text-red-300">
+                  <div className="flex items-center gap-1">
+                    <Hexagon className="w-3 h-3" />
+                    <span className="font-mono">{formatAreaFromHexCount(boostedRedArea).value} {formatAreaFromHexCount(boostedRedArea).unit}</span>
+                  </div>
+                  {(activeBonus.RED || 0) > 0 && (
+                    <span className="text-red-400/70 text-[9px]">(含{activeBonus.RED}%加成)</span>
+                  )}
                </div>
             </div>
 
             {/* Blue Area */}
             <div className={cn("text-right", userFaction === 'BLUE' ? "opacity-100" : "opacity-60")}>
-               <div className="flex items-center justify-end gap-1 text-blue-300">
-                  <span className="font-mono">{formatAreaFromHexCount(boostedBlueArea).value} {formatAreaFromHexCount(boostedBlueArea).unit}</span>
-                  <Hexagon className="w-3 h-3" />
+               <div className="flex flex-col items-end gap-0.5 text-blue-300">
+                  <div className="flex items-center justify-end gap-1">
+                    <span className="font-mono">{formatAreaFromHexCount(boostedBlueArea).value} {formatAreaFromHexCount(boostedBlueArea).unit}</span>
+                    <Hexagon className="w-3 h-3" />
+                  </div>
+                  {(activeBonus.BLUE || 0) > 0 && (
+                    <span className="text-blue-400/70 text-[9px]">(含{activeBonus.BLUE}%加成)</span>
+                  )}
                </div>
             </div>
          </div>

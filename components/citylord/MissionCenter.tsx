@@ -18,12 +18,12 @@ import { Button } from "@/components/ui/button"
 import { LogIn } from "lucide-react"
 import useSWR from 'swr'
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { useUserMissions } from "@/hooks/useGameData"
+import { useMissions, MissionWithStatus } from "@/hooks/useMissions"
 
 // --- Types ---
 
-type MissionType = "daily" | "weekly" | "achievement" | "one_time"
-type MissionStatus = "locked" | "active" | "completed" | "claimed" | "todo" | "ongoing" | "in-progress"
+type MissionType = "daily" | "weekly" | "achievement" | "one_time" | "once" | "infinite"
+type MissionStatus = "locked" | "active" | "completed" | "claimed" | "todo" | "ongoing" | "in-progress" | "pending"
 type MissionDifficulty = "easy" | "medium" | "hard" | "legendary"
 
 interface MissionReward {
@@ -46,6 +46,7 @@ interface MissionData {
   difficulty?: MissionDifficulty
   timeRemaining?: string
   icon?: React.ElementType
+  isCompleted: boolean
 }
 
 const difficultyConfig: Record<MissionDifficulty, { color: string; bg: string; label: string }> = {
@@ -230,13 +231,23 @@ export function MissionCard({
                 className="bg-[#22c55e] hover:bg-[#22c55e]/90 border-transparent shadow-[0_0_10px_rgba(34,197,94,0.4)]"
               >
                 <Gift className="h-4 w-4 mr-1" />
-                领取
+                领取奖励
               </CyberButton>
             ) : status === "claimed" ? (
               <span className="flex items-center gap-1 text-sm text-[#22c55e]">
                 <CheckCircle2 className="h-4 w-4" />
-                已领取
+                已完成
               </span>
+            ) : isActive ? (
+               <CyberButton
+                size="sm"
+                variant="default"
+                onClick={handleClaim}
+                className="bg-[#39ff14]/10 text-[#39ff14] hover:bg-[#39ff14]/20 border-[#39ff14]/50"
+              >
+                <Target className="h-4 w-4 mr-1" />
+                去完成
+              </CyberButton>
             ) : !isLocked ? (
               <ChevronRight className="h-5 w-5 text-white/30 transition-transform group-hover:translate-x-1" />
             ) : null}
@@ -257,85 +268,90 @@ export function MissionCenter({ initialData }: { initialData?: any[] }) {
   const queryClient = useQueryClient()
 
   // Use standardized hook
-  const { data: rawMissions, isLoading: loading, mutate } = useUserMissions()
+  const { missions: rawMissions, loading, refresh } = useMissions()
   
   // Coalesce
-  const currentRawMissions = rawMissions || initialData || []
-  const isLoading = loading && !rawMissions && !initialData
+  const currentRawMissions = rawMissions || []
+  const isLoading = loading && rawMissions.length === 0
 
   // Format missions data
   const missions = React.useMemo(() => {
     if (!currentRawMissions) return []
     
     return currentRawMissions.map((m: any) => {
-      const hasXp = m.reward.reward_experience > 0
-      const hasCoins = m.reward.reward_coins > 0
+      const hasXp = false // m.reward_experience > 0 (TODO: check if these fields exist in config)
+      const hasCoins = m.points_reward > 0
       
-      let rewardType: "xp" | "coins" | "both" = "xp"
-      let rewardLabel = "经验"
-      let rewardAmount = m.reward.reward_experience
+      let rewardType: "xp" | "coins" | "both" = "coins"
+      let rewardLabel = "积分"
+      let rewardAmount = m.points_reward
 
+      // TODO: If we add XP back to mission_configs, uncomment this
+      /*
       if (hasXp && hasCoins) {
         rewardType = "both"
         rewardLabel = "奖励"
         rewardAmount = 0 
-      } else if (hasCoins) {
-        rewardType = "coins"
-        rewardLabel = "金币"
-        rewardAmount = m.reward.reward_coins
+      } else if (hasXp) {
+        rewardType = "xp"
+        rewardLabel = "经验"
+        rewardAmount = m.reward_experience
       }
+      */
 
       return {
         id: m.id,
         title: m.title,
         description: m.description,
-        type: m.type,
+        type: m.frequency, // Use frequency as type for now or map it
         frequency: m.frequency,
         status: m.status as MissionStatus,
-        progress: m.current,
-        maxProgress: m.target,
+        progress: m.progress?.progress || 0, // Use progress from joined user_mission
+        maxProgress: 1, // Default to 1 if no target in config (TODO: add target to config?)
         reward: {
           type: rewardType,
-          xpAmount: m.reward.reward_experience,
-          coinsAmount: m.reward.reward_coins,
+          xpAmount: 0, // m.reward_experience
+          coinsAmount: m.points_reward,
           label: rewardLabel
         },
         difficulty: "medium",
-        icon: m.type === 'DISTANCE' ? Footprints :
-              m.type === 'HEX_COUNT' ? Hexagon :
-              m.type === 'RUN_COUNT' ? Trophy : Target
+        icon: m.frequency === 'daily' ? Footprints : Trophy,
+        isCompleted: m.isCompleted
       } as MissionData
     })
   }, [currentRawMissions])
 
   const claimMutation = useMutation({
     mutationFn: async ({ id, reward }: { id: string, reward: MissionReward }) => {
-      return await claimMissionReward(id)
+      // Use the actual server action
+      const result = await claimMissionReward(id)
+      if (!result.success) throw new Error(result.error)
+      return { success: true, data: result.data }
     },
     onSuccess: (result, variables) => {
       if (result.success) {
         const { reward } = variables
         
-        // Optimistic Update or Invalidate
-        // queryClient.invalidateQueries({ queryKey: ['userMissions', userId] })
         // Revalidate SWR
-        mutate()
+        refresh()
 
         // Show toast
-        if (result.data?.bonus) {
-             const bonus = result.data.bonus
+        const data = result.data as any
+        
+        if (data?.bonus) {
+             const bonus = data.bonus
              toast.success(
                <div className="flex flex-col gap-1">
                  <span className="font-bold">领取成功！</span>
-                 <span className="text-sm opacity-90">获得 +{result.data.new_experience - (result.data.reward_experience || 0)} 经验, +{result.data.new_coins - (result.data.reward_coins || 0)} 金币</span>
+                 <span className="text-sm opacity-90">获得 +{reward.coinsAmount} 积分</span>
                  <span className="text-xs text-yellow-300 font-bold bg-yellow-500/20 px-2 py-1 rounded w-fit">
                    阵营加成 +{bonus.percentage}%
                  </span>
                </div>
              )
         } else {
-             toast.success("任务完成！", {
-               description: `获得 ${reward.label}`
+             toast.success("领取成功！", {
+               description: `获得 +${reward.coinsAmount} 积分`
              })
         }
 
@@ -343,11 +359,11 @@ export function MissionCenter({ initialData }: { initialData?: any[] }) {
         if (reward.xpAmount) addExperience(reward.xpAmount)
         if (reward.coinsAmount) addCoins(reward.coinsAmount)
       } else {
-        toast.error("领取失败", { description: result.error })
+        toast.error("领取失败")
       }
     },
-    onError: () => {
-      toast.error("领取失败", { description: "网络错误，请稍后重试" })
+    onError: (error: any) => {
+      toast.error("领取失败", { description: error.message || "网络错误，请稍后重试" })
     }
   })
 
