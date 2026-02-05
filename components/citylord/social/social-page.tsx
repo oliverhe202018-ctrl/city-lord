@@ -30,6 +30,8 @@ type SubView = "none" | "invite" | "discover" | "challenge"
 
 interface SocialPageProps {
   onShowDemo?: (type: "territory" | "challenge" | "achievement") => void
+  initialFriends?: any[]
+  initialRequests?: any[]
 }
 
 export function SocialPage({ onShowDemo, initialFriends, initialRequests }: SocialPageProps) {

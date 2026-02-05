@@ -39,6 +39,7 @@ export async function getRooms() {
       participants:room_participants(count)
     `)
     .in('status', ['waiting', 'active'])
+    .eq('is_banned', false)
     .order('created_at', { ascending: false })
 
   if (error) {

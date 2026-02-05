@@ -21,14 +21,27 @@ export function calculateFactionBonus(redCount: number, blueCount: number) {
   let redBonus = 0;
   let blueBonus = 0;
 
+  const total = safeRed + safeBlue;
+
   if (safeRed > safeBlue) {
-    // Blue is minority
-    const ratio = safeRed / safeBlue;
-    blueBonus = Math.min(200, Math.floor((ratio - 1) * 100));
+    // Blue is minority (Underdog)
+    const gap = (safeRed - safeBlue) / total; 
+    
+    if (gap >= 0.8) blueBonus = 200;
+    else if (gap >= 0.6) blueBonus = 150;
+    else if (gap >= 0.4) blueBonus = 100;
+    else if (gap >= 0.2) blueBonus = 50;
+    else blueBonus = 0;
+
   } else if (safeBlue > safeRed) {
-    // Red is minority
-    const ratio = safeBlue / safeRed;
-    redBonus = Math.min(200, Math.floor((ratio - 1) * 100));
+    // Red is minority (Underdog)
+    const gap = (safeBlue - safeRed) / total;
+
+    if (gap >= 0.8) redBonus = 200;
+    else if (gap >= 0.6) redBonus = 150;
+    else if (gap >= 0.4) redBonus = 100;
+    else if (gap >= 0.2) redBonus = 50;
+    else redBonus = 0;
   }
 
   return {

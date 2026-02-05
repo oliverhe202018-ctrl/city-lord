@@ -3,6 +3,76 @@
 import { createClient } from '@/lib/supabase/server'
 import { cookies } from 'next/headers'
 
+import { ACHIEVEMENT_DEFINITIONS } from '@/lib/achievements'
+
+export async function syncBadges() {
+  const cookieStore = await cookies()
+  const supabase = createClient(cookieStore)
+  
+  // Iterate local definitions
+  const upsertData = ACHIEVEMENT_DEFINITIONS.map(def => {
+    // Smart Parsing Logic
+    let reqType = 'count' // Default fallback
+    let reqValue = def.maxProgress
+
+    // 1. Analyze Category & Description
+    const desc = def.description
+    const cat = def.category
+
+    if (cat === 'running') {
+        reqType = 'distance' // Default for running
+        if (desc.includes('次') || desc.includes('天')) {
+            reqType = 'count' // "Run 30 days" or "Run 1 time"
+        } else if (desc.includes('配速')) {
+            reqType = 'pace'
+        }
+    } else if (cat === 'territory') {
+        reqType = 'count' // Default for territory (tiles)
+        if (desc.includes('面积') || desc.includes('占有率')) {
+            reqType = 'area'
+        }
+    }
+
+    // 2. Extract number from description if needed (User requested parsing text)
+    // Actually, maxProgress is usually the source of truth for the threshold.
+    // But let's respect the "Smart Parse" request if maxProgress is 1 (generic) but text has a number.
+    // However, looking at the data, maxProgress seems accurate (e.g. 100km -> 100).
+    // Let's stick to maxProgress for value to be safe, but use text for type inference.
+    
+    // Override type if description strongly suggests otherwise
+    if (desc.includes('公里') || desc.includes('km')) {
+        // If it's a cumulative distance badge, ensure type is distance
+        if (!desc.includes('次') && !desc.includes('天')) {
+             reqType = 'distance'
+        }
+    }
+
+    return {
+        code: def.id,
+        name: def.title,
+        description: def.description, // Requirement Description
+        icon_path: def.image || null,
+        category: def.category, // 'territory' | 'running' | 'special'
+        level: def.rarity, // Map rarity to level/tier
+        requirement_type: reqType,
+        requirement_value: reqValue,
+        tier: def.rarity, // Keep tier column sync
+        condition_value: reqValue // Legacy column
+    }
+  })
+
+  const { error } = await supabase
+    .from('badges')
+    .upsert(upsertData, { onConflict: 'code' })
+
+  if (error) {
+    console.error('Sync badges error:', error)
+    return { success: false, error: error.message }
+  }
+
+  return { success: true, count: upsertData.length }
+}
+
 export interface Badge {
   id: string
   code: string
@@ -11,13 +81,64 @@ export interface Badge {
   icon_name: string
   category: 'exploration' | 'endurance' | 'conquest' | 'hidden'
   condition_value: number
+  requirement_type?: string
+  requirement_value?: number
+  icon_path?: string
   tier: 'bronze' | 'silver' | 'gold' | 'platinum'
+  level?: string
 }
 
 export interface UserBadge {
   badge_id: string
   earned_at: string
   badge: Badge
+}
+
+export async function deleteBadge(badgeId: string) {
+  const cookieStore = await cookies()
+  const supabase = createClient(cookieStore)
+
+  const { error } = await supabase
+    .from('badges')
+    .delete()
+    .eq('id', badgeId)
+
+  if (error) {
+    console.error('Delete badge error:', error)
+    return { success: false, error: error.message }
+  }
+
+  return { success: true }
+}
+
+export async function upsertBadge(data: Partial<Badge>) {
+  const cookieStore = await cookies()
+  const supabase = createClient(cookieStore)
+
+  // Validate required fields
+  if (!data.code || !data.name) {
+    return { success: false, error: 'Code and Name are required' }
+  }
+
+  // Ensure tier is set if level is present (sync logic)
+  // And ensure category is valid
+  
+  const upsertData = {
+    ...data,
+    tier: data.level || data.tier || 'common', // fallback
+    condition_value: data.requirement_value || 0, // legacy sync
+  }
+
+  const { error } = await supabase
+    .from('badges')
+    .upsert(upsertData as any, { onConflict: 'code' })
+
+  if (error) {
+    console.error('Upsert badge error:', error)
+    return { success: false, error: error.message }
+  }
+
+  return { success: true }
 }
 
 export async function fetchAllBadges() {

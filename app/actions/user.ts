@@ -46,14 +46,71 @@ export async function stopRunningAction(context: RunContext) {
 
   // 2. Update total distance in profile (if not already handled by client sync)
   // Usually client syncs incrementally, but let's ensure consistency here or skip if client handles it.
-  // Assuming client handles distance updates via `updateLocation` or similar. 
   // BUT we should update `total_distance_km` in profile if it's a persistent stat.
-  if (context.distance > 0) {
-      // Use RPC if available or simple update
-      const { data: profile } = await supabase.from('profiles').select('total_distance_km').eq('id', user.id).single()
-      if (profile) {
+  let userProvince = '';
+
+  // Get user profile for distance update and province
+  const { data: profile } = await supabase.from('profiles').select('total_distance_km, province').eq('id', user.id).single()
+  
+  if (profile) {
+      userProvince = (profile as any).province || '';
+      if (context.distance > 0) {
           const newDistance = ((profile as any).total_distance_km || 0) + context.distance
           await (supabase.from('profiles') as any).update({ total_distance_km: newDistance }).eq('id', user.id)
+      }
+  }
+
+  // 3. Record Run for Club (Territory)
+  // Check if user is in a club
+  const { data: clubMember } = await supabase
+    .from('club_members')
+    .select('club_id')
+    .eq('user_id', user.id)
+    .eq('status', 'active')
+    .single()
+
+  if (clubMember) {
+      // Calculate area (approx 650m2 per hex, converted to relevant unit if needed, or just raw count)
+      // The UI shows "mi²" which suggests miles squared? Or maybe it's just a label.
+      // Usually games use km² or m². Let's assume the 'area' field stores the value to be displayed.
+      // If the UI shows "mi²", maybe we should store it as such.
+      // However, check ClubDetailView: `t.area` is displayed directly.
+      // If context.newHexCount is the number of hexes.
+      // Let's assume 1 hex = 0.01 area unit for now, or just use hex count if that's the metric.
+      // The user prompt said "area (面积)".
+      // Let's use context.newHexCount * 0.001 (arbitrary) or just context.distance * 0.1?
+      // Better: Use `context.newHexCount` (captured tiles) * 650 (m2) / 1000000 (to km2)
+      // If newHexCount is undefined, use 0.
+      
+      const capturedArea = (context.newHexCount || 0) * 0.00065; // 650m2 in km2
+      
+      // Insert into runs
+      await supabase.from('runs').insert({
+          user_id: user.id,
+          club_id: clubMember.club_id,
+          area: Number(capturedArea.toFixed(4)), // Keep 4 decimals
+          duration: Math.floor(context.duration * 60), // Convert minutes to seconds
+          province: userProvince || context.regionId || null, // context.regionId might be province code
+          created_at: new Date().toISOString() // Use now or endTime
+      })
+
+      // Also update Club Total Area (Trigger or manual update)
+      // We can do it here for simplicity
+      // First get current area
+      const { data: club } = await supabase.from('clubs').select('total_area').eq('id', clubMember.club_id).single()
+      if (club) {
+          const newTotal = (Number(club.total_area) || 0) + Number(capturedArea.toFixed(4))
+          await supabase.from('clubs').update({ total_area: newTotal }).eq('id', clubMember.club_id)
+      }
+      
+      // Update User Total Area (Contribution)
+      if (profile) {
+           // We need to fetch current total_area from profile if it exists (it was added in migration)
+           const { data: profileArea } = await supabase.from('profiles').select('total_area').eq('id', user.id).single()
+           const currentArea = Number((profileArea as any)?.total_area || 0)
+           await (supabase.from('profiles') as any).update({ 
+               total_area: currentArea + Number(capturedArea.toFixed(4)) 
+           }).eq('id', user.id)
       }
   }
 

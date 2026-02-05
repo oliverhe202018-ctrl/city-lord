@@ -209,8 +209,28 @@ export function CityProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
+      // Fallback Logic: Try parent city (xx00) if specific district/county not found
+      if (!targetCityBase && adcode.length === 6) {
+          const parentAdcode = adcode.substring(0, 4) + '00';
+          console.log(`City ${adcode} not found, trying parent city ${parentAdcode}...`);
+          
+          targetCityBase = getCityByAdcode(parentAdcode);
+          
+          // Try fetching parent dynamic if static failed
+          if (!targetCityBase) {
+              try {
+                  const dynamicParent = await fetchCityFromAMap(parentAdcode);
+                  if (dynamicParent) {
+                      targetCityBase = dynamicParent;
+                  }
+              } catch (err) {
+                  console.error('Error fetching dynamic parent city:', err);
+              }
+          }
+      }
+
       if (!targetCityBase) {
-        console.error(`City with adcode ${adcode} not found (static or dynamic)`)
+        console.warn(`City with adcode ${adcode} (and parent) not found. Switch aborted.`)
         return
       }
 

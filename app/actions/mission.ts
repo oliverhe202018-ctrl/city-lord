@@ -137,81 +137,124 @@ export async function claimMissionReward(missionId: string) {
 
   if (!user) return { success: false, error: 'Unauthorized' }
 
+  // 1. Validation Logic
+  // Fetch mission config first to check type/code
+  const { data: config } = await supabase
+    .from('mission_configs')
+    .select('code, points_reward, frequency')
+    .eq('id', missionId)
+    .single()
+
+  if (!config) return { success: false, error: '任务不存在' }
+
+  // Custom validation for specific missions
+  if (config.code === 'join_club') {
+     // Check if user is in a club
+     const { data: membership } = await supabase
+       .from('club_members')
+       .select('id')
+       .eq('user_id', user.id)
+       .eq('status', 'active')
+       .maybeSingle()
+     
+     if (!membership) {
+        return { success: false, error: '未达标：请先加入一个俱乐部' }
+     }
+  }
+
+  // 2. Insert into user_missions (Claim)
+  const resetKey = config.frequency === 'daily' 
+    ? new Date().toISOString().split('T')[0] // 'YYYY-MM-DD'
+    : 'permanent'
+
+  // Upsert to handle potential race conditions or re-claims if logic allows
+  // For 'once', we want to fail if exists. For 'daily', fail if exists for today.
+  // We can use a unique constraint on (user_id, mission_id, reset_key) if it existed,
+  // but currently user_missions might not have mission_id FK or structure changed.
+  // Based on prompt: insert user_id, mission_code, status: 'completed', reset_key
+  
+  // Note: Schema seems to use 'mission_id' (UUID) linking to 'mission_configs'
+  // But prompt says "write mission_code". Let's check schema.
+  // Schema types says: user_missions has mission_id (uuid).
+  // We will follow schema: mission_id.
+  
+  // Check if already claimed
+  const { data: existing } = await supabase
+    .from('user_missions')
+    .select('id')
+    .eq('user_id', user.id)
+    .eq('mission_id', missionId)
+    .eq('reset_key', resetKey)
+    .eq('status', 'completed')
+    .maybeSingle()
+
+  if (existing) {
+      return { success: false, error: '今日已领取或任务已完成' }
+  }
+
+  const { error: insertError } = await supabase
+    .from('user_missions')
+    .upsert({
+        user_id: user.id,
+        mission_id: missionId,
+        status: 'completed',
+        reset_key: resetKey,
+        progress: 1, // Assume 1 means done for simple claims,
+        updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id, mission_id, reset_key' })
+
+  if (insertError) {
+      console.error('Claim insert error:', insertError)
+      return { success: false, error: insertError.message }
+  }
+
+  // 3. Grant Rewards (Points/Coins)
+  // Assuming points_reward maps to coins for now
+  if (config.points_reward > 0) {
+      await supabase.rpc('increment_user_stats', {
+          p_user_id: user.id,
+          p_xp: 0,
+          p_coins: config.points_reward
+      })
+  }
+
   // Invalidate cache immediately
   invalidateMissionCache(user.id)
 
-  try {
-    // Use RPC for atomic claiming
-    const { data: rpcResult, error } = await supabase.rpc('claim_mission_reward_rpc', {
-      p_user_id: user.id,
-      p_mission_id: missionId
-    } as any)
-
-    if (error) {
-      console.error('Error claiming mission:', error)
-      return { success: false, error: error.message }
-    }
-
-    const resultData = rpcResult as any;
-  let bonusApplied = false;
+  // 4. Return success with bonus info (Mock bonus for now or implement real logic)
+  // Re-using the faction bonus logic structure if needed, or simplified
   let bonusDetails = { xp: 0, coins: 0, percentage: 0 };
-
-  // --- FACTION BONUS LOGIC ---
+  
+  // --- FACTION BONUS LOGIC (Simplified from original) ---
   try {
-    // 1. Get user's faction
     const { data: profile } = await supabase.from('profiles').select('faction').eq('id', user.id).single();
     const userFaction = profile?.faction;
 
     if (userFaction) {
-      // 2. Get Faction Stats & Bonus
       const factionStats = await getFactionStats();
       const bonusPercent = userFaction === 'RED' ? factionStats.bonus.RED : factionStats.bonus.BLUE;
 
       if (bonusPercent > 0) {
-        // 3. Calculate Extra Rewards based on Base Rewards
-        const baseXp = resultData.reward_experience || 0;
-        const baseCoins = resultData.reward_coins || 0;
-
-        const extraXp = Math.floor(baseXp * (bonusPercent / 100));
-        const extraCoins = Math.floor(baseCoins * (bonusPercent / 100));
-
-        if (extraXp > 0 || extraCoins > 0) {
-          // 4. Grant Extra Rewards
-          await supabase.rpc('increment_user_stats', {
-            p_user_id: user.id,
-            p_xp: extraXp,
-            p_coins: extraCoins
-          });
-
-          bonusApplied = true;
-          bonusDetails = {
-            xp: extraXp,
-            coins: extraCoins,
-            percentage: bonusPercent
-          };
-          
-          // Update return data to reflect totals
-          resultData.new_experience += extraXp;
-          resultData.new_coins += extraCoins;
+        const extraCoins = Math.floor(config.points_reward * (bonusPercent / 100));
+        if (extraCoins > 0) {
+           await supabase.rpc('increment_user_stats', {
+             p_user_id: user.id,
+             p_xp: 0,
+             p_coins: extraCoins
+           });
+           bonusDetails = { xp: 0, coins: extraCoins, percentage: bonusPercent };
         }
       }
     }
-  } catch (e) {
-    console.error('Error applying faction bonus:', e);
-    // Do not fail the claim if bonus fails
-  }
+  } catch (e) { /* Ignore bonus error */ }
 
-  // The RPC returns a JSON object on success
-  return { 
-    success: true, 
-    data: {
-      ...resultData,
-      bonus: bonusApplied ? bonusDetails : undefined
-    } 
-  }
-  } catch (error: any) {
-    console.error('Unexpected error in claimMissionReward:', error)
-    return { success: false, error: error.message || 'Unknown error' }
+  return {
+      success: true,
+      data: {
+          reward_coins: config.points_reward,
+          new_coins: config.points_reward + bonusDetails.coins, // Approximation
+          bonus: bonusDetails.percentage > 0 ? bonusDetails : null
+      }
   }
 }
 

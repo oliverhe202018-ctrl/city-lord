@@ -99,6 +99,26 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
     checkUser()
   }, [])
 
+  // Load colors when editing starts
+  React.useEffect(() => {
+    if (isEditing && userId) {
+        const loadColors = async () => {
+            const supabase = createClient()
+            const { data } = await (supabase
+                .from('profiles' as any) as any)
+                .select('path_color, fill_color')
+                .eq('id', userId)
+                .single()
+            
+            if (data) {
+                if (data.path_color) setPathColor(data.path_color)
+                if (data.fill_color) setFillColor(data.fill_color)
+            }
+        }
+        loadColors()
+    }
+  }, [isEditing, userId])
+
   // If we have store data (nickname/level), we can show the UI immediately
   // while "loading" might still be true for the session check.
   // But to be safe, we use the local loading state for the auth check.
@@ -182,26 +202,6 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
     }
     setIsEditing(false)
   }
-
-  // Load colors when editing starts
-  React.useEffect(() => {
-    if (isEditing && userId) {
-        const loadColors = async () => {
-            const supabase = createClient()
-            const { data } = await (supabase
-                .from('profiles' as any) as any)
-                .select('path_color, fill_color')
-                .eq('id', userId)
-                .single()
-            
-            if (data) {
-                if (data.path_color) setPathColor(data.path_color)
-                if (data.fill_color) setFillColor(data.fill_color)
-            }
-        }
-        loadColors()
-    }
-  }, [isEditing, userId])
 
   const handleLogout = async () => {
     try {

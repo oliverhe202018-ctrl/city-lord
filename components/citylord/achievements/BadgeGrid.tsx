@@ -10,6 +10,7 @@ import Image from "next/image"
 import { toast } from "sonner"
 import { useGameStore } from "@/store/useGameStore"
 import { useUserBadges } from "@/hooks/useGameData"
+import { format } from "date-fns"
 
 interface BadgeGridProps {
   initialData?: any[]
@@ -18,7 +19,7 @@ interface BadgeGridProps {
 export function BadgeGrid({ initialData }: BadgeGridProps) {
   // Use ACHIEVEMENT_DEFINITIONS as the source of truth for badges list
   const badges = ACHIEVEMENT_DEFINITIONS
-  const { userId } = useGameStore()
+  const { userId, userStats } = useGameStore()
   
   const { data: userBadges, isLoading: loading } = useUserBadges()
   
@@ -30,6 +31,40 @@ export function BadgeGrid({ initialData }: BadgeGridProps) {
 
   const isUnlocked = (badgeId: string) => {
     return (currentBadges || []).some((ub: any) => ub.badge_id === badgeId)
+  }
+
+  const getProgress = (badge: any) => {
+    if (isUnlocked(badge.id)) return null
+    if (badge.category === 'special') return null
+
+    let current = 0
+    let target = badge.maxProgress
+    let unit = ''
+
+    if (badge.category === 'territory') {
+        // Handle exploration/conquest logic roughly
+        if (badge.id.includes('exploration')) {
+            // Count badges
+            // Assuming this maps to tiles for simplicity as per description
+            current = userStats?.totalTiles || 0
+            unit = '块'
+        } else if (badge.id.includes('conquest')) {
+            // Area
+             current = userStats?.totalArea || 0
+             unit = 'km²'
+        } else {
+             current = userStats?.totalTiles || 0
+             unit = '块'
+        }
+    } else if (badge.category === 'running') {
+        current = userStats?.totalDistance || 0
+        unit = 'km'
+    }
+
+    if (target <= 0) return null
+    const percentage = Math.min(100, Math.round((current / target) * 100))
+    
+    return { current, target, percentage, unit }
   }
 
   const getTierLabel = (tier: string) => {
@@ -160,6 +195,25 @@ export function BadgeGrid({ initialData }: BadgeGridProps) {
                          <Lock className="w-6 h-6 text-white/30" />
                        )}
                     </div>
+                    
+                    {/* Progress Bar for locked badges */}
+                    {!unlocked && !isHiddenType && (() => {
+                        const progress = getProgress(badge)
+                        if (progress) {
+                            return (
+                                <div className="w-full px-1 my-1 z-20">
+                                    <div className="h-1 w-full bg-white/10 rounded-full overflow-hidden">
+                                        <div className="h-full bg-yellow-500/50" style={{ width: `${progress.percentage}%` }} />
+                                    </div>
+                                    <div className="text-[8px] text-center text-white/40 mt-0.5 scale-90">
+                                        {progress.current}/{progress.target}{progress.unit}
+                                    </div>
+                                </div>
+                            )
+                        }
+                        return null
+                    })()}
+
                     <span className={`relative z-10 text-[10px] font-medium text-center line-clamp-1 w-full ${!unlocked ? 'text-white/40' : ''}`}>
                       {badge.title}
                     </span>
@@ -228,13 +282,7 @@ export function BadgeGrid({ initialData }: BadgeGridProps) {
                   {(() => {
                     const userBadge = (userBadges || []).find(ub => ub.badge_id === selectedBadge?.id)
                     if (userBadge?.earned_at) {
-                      return new Date(userBadge.earned_at).toLocaleString('zh-CN', {
-                        year: 'numeric',
-                        month: '2-digit',
-                        day: '2-digit',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })
+                      return format(new Date(userBadge.earned_at), 'yyyy-MM-dd HH:mm')
                     }
                     return "未获得"
                   })()}

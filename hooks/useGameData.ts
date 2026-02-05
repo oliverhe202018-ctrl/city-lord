@@ -1,6 +1,7 @@
 'use client'
 
 import useSWR from 'swr'
+import { useGameStore } from '@/store/useGameStore'
 
 // Unified fetcher for API routes
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -39,7 +40,9 @@ export function useMyRoomData() {
 
 // Hook 5: Club Data
 export function useClubData() {
-  return useSWR('/api/club/info', fetcher, { 
+  const userId = useGameStore((state) => state.userId)
+  
+  return useSWR(userId ? '/api/club/info' : null, fetcher, { 
     revalidateOnFocus: true,  // Club messages/members might update
     dedupingInterval: 60000,  // 1 minute cache
   })
