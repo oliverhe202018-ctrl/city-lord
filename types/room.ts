@@ -12,6 +12,11 @@ export type Room = {
   status: 'waiting' | 'active' | 'ended'
   created_at: string
   participants?: any[] // Extended field for UI
+  invite_code?: string
+  allow_chat?: boolean
+  allow_imports?: boolean
+  allow_member_invite?: boolean
+  avatar_url?: string | null
 }
 
 export type CreateRoomData = {
@@ -21,4 +26,8 @@ export type CreateRoomData = {
   max_participants?: number
   is_private?: boolean
   password?: string
+  allow_chat?: boolean
+  allow_imports?: boolean
+  allow_member_invite?: boolean
+  avatar_url?: string
 }

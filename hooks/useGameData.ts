@@ -30,11 +30,20 @@ export function useUserMissions() {
   })
 }
 
-// Hook 4: User Room Data
+// Hook 4: User Room Data (Legacy - fetches "current" room from DB perspective)
 export function useMyRoomData() {
   return useSWR('/api/user/room', fetcher, { 
-    revalidateOnFocus: false, // Room decor/status doesn't change often
-    dedupingInterval: 300000, // 5 minutes cache
+    revalidateOnFocus: false, 
+    dedupingInterval: 300000, 
+  })
+}
+
+// Hook 6: Specific Room Details (For UI selection)
+export function useRoomDetails(roomId?: string) {
+  return useSWR(roomId ? `/api/room/${roomId}` : null, fetcher, {
+    revalidateOnFocus: true, // Need live participants updates
+    dedupingInterval: 5000,  // Short cache for active room
+    refreshInterval: 10000   // Auto-refresh every 10s
   })
 }
 

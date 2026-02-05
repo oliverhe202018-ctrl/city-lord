@@ -1,13 +1,26 @@
 "use client"
 
 import React from 'react';
-import { Users, Plus, Search, Lock, Unlock, TrendingUp, MapPin, LogOut, BarChart3, Scale, Swords, Target, Rocket, TrendingDown, CheckCircle2 } from 'lucide-react';
+// 补全所有漏掉的图标
+import { 
+  Users, Plus, Search, Lock, Unlock, TrendingUp, MapPin, LogOut, 
+  BarChart3, Scale, Swords, Target, Rocket, TrendingDown, CheckCircle2,
+  UserPlus, 
+  MessageSquare, // 修复 MessageSquare is not defined
+  Info,          // 修复 Info is not defined (详情页图标)
+  Map as MapIcon // 修复 MapIcon is not defined (领地图标)
+} from 'lucide-react';
+
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from '@/components/ui/drawer';
 import { getRooms, createRoom, joinRoom, leaveRoom, type Room } from '@/app/actions/room';
 import { toast } from 'sonner';
 import { PlayerStatsDrawer } from './PlayerStatsDrawer';
 import { useGameStore, useGameActions, useGameUser } from '@/store/useGameStore';
-import { useMyRoomData } from '@/hooks/useGameData'; // Import SWR hook
+import { useMyRoomData, useRoomDetails } from '@/hooks/useGameData';
+
+// ★★★ 这一行必须加，否则等会报 InviteRoomView is not defined ★★★
+import { InviteRoomView } from './InviteRoomView';
+import { RoomChat } from './RoomChat';
 
 // Mock Extended Types
 interface ExtendedParticipant {
@@ -31,32 +44,57 @@ type FilterType = 'overall' | 'ratio' | 'rivals' | 'stealers' | 'gainers' | 'los
 interface RoomDrawerProps {
   isOpen: boolean;
   onClose: () => void;
+  // selectedRoomId?: string; // We use store now
 }
 
 export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
-  const userId = useGameStore(state => state.userId);
-  const { setCurrentRoom } = useGameActions();
-  
-  // Use SWR Hook for Current Room
-  const { data: rawRoom, mutate: refreshRoom } = useMyRoomData();
-  // Safe access: handle potential error response or null
-  const currentRoom = React.useMemo(() => {
-     if (!rawRoom) return null;
-     if ('error' in rawRoom) return null; // Treat API error as no room for now
-     return rawRoom;
-  }, [rawRoom]);
-
-  if (!userId) return null;
-
-  const [view, setView] = React.useState<'list' | 'create' | 'my_room'>('list');
+  // 1. 状态定义
+  const [view, setView] = React.useState<'list' | 'create' | 'my_room' | 'invite'>('list');
   const [rooms, setRooms] = React.useState<Room[]>([]);
   const [isLoading, setIsLoading] = React.useState(false);
+  const [activeTab, setActiveTab] = React.useState<'leaderboard' | 'chat' | 'territory' | 'info'>('leaderboard');
 
   // Dashboard State
   const [activeFilter, setActiveFilter] = React.useState<FilterType>('overall');
   const [participants, setParticipants] = React.useState<ExtendedParticipant[]>([]);
   const [selectedPlayer, setSelectedPlayer] = React.useState<ExtendedParticipant | null>(null);
   const [isStatsOpen, setIsStatsOpen] = React.useState(false);
+
+  // Create Form State
+  const [formData, setFormData] = React.useState({
+    name: '',
+    target_distance_km: 3,
+    is_private: false,
+    password: ''
+  });
+
+  const { userId, nickname, avatar, currentRoom: selectedRoom } = useGameStore(state => state);
+  const { setCurrentRoom } = useGameActions();
+  
+  // 1. Fetch My Room (Background/Default) - "My Joined Room"
+  const { data: myRoomData } = useMyRoomData();
+  
+  // 2. Fetch Details for Selected Room (High Priority)
+  // If selectedRoom is set (e.g. from Dropdown), fetch its fresh details
+  const { data: roomDetails, mutate: refreshRoom } = useRoomDetails(selectedRoom?.id);
+
+  // 3. Determine Active Room
+  // Priority: Fresh Details > Store Selection > My Joined Room
+  const activeRoom = React.useMemo(() => {
+      // If we have fresh details for the selected room, use them
+      if (roomDetails && !('error' in roomDetails)) return roomDetails;
+      
+      // If we have a selection but no details yet, use the partial selection
+      if (selectedRoom) return selectedRoom;
+      
+      // Fallback: If no selection, use "My Room"
+      if (myRoomData && !('error' in myRoomData)) return myRoomData;
+      
+      return null;
+  }, [roomDetails, selectedRoom, myRoomData]);
+
+  // Early return 必须在 Hooks 定义之后
+  if (!userId) return null;
 
   // Filter Logic
   const handleFilterChange = (type: FilterType) => {
@@ -85,27 +123,14 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
     { id: 'losers', label: '失地榜', icon: TrendingDown },
   ] as const;
 
-  // Create Form State
-  const [formData, setFormData] = React.useState({
-    name: '',
-    target_distance_km: 3,
-    is_private: false,
-    password: ''
-  });
-
   const loadRooms = async () => {
     setIsLoading(true);
     try {
-      // Check if already in a room using SWR cache first
-      // SWR hook `useMyRoomData` automatically handles fetching
-      // We rely on `currentRoom` from SWR for "My Room" state
-      
-      // For "Room List", we still fetch manually for now or could SWR-ify it
-      if (currentRoom) {
-        setCurrentRoom(currentRoom);
-        if (currentRoom.participants) {
+      if (activeRoom) {
+        // If we have an active room (either selected or my room), show it
+        if (activeRoom.participants) {
           // Use real data from backend
-          let enriched = [...currentRoom.participants] as ExtendedParticipant[];
+          let enriched = [...activeRoom.participants] as ExtendedParticipant[];
 
           // If dev environment and not enough data, simulate update to populate
           if (process.env.NODE_ENV === 'development' && enriched.length > 0 && enriched[0].total_score === 0) {
@@ -118,34 +143,38 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
         setView('my_room');
       } else {
         // No room found, show list
-        setCurrentRoom(null);
         const list = await getRooms();
         setRooms(list);
         if (view === 'my_room') setView('list');
       }
     } catch (e) {
       console.error(e);
-      // Only toast if it's a real error, not just empty
-      // toast.error('加载失败'); 
     } finally {
       setIsLoading(false);
     }
   };
 
-  // React to SWR updates
+  // React to Room Updates
   React.useEffect(() => {
-    if (currentRoom) {
-       // Auto-switch to my_room if data arrives
-       if (view !== 'my_room') setView('my_room');
-       setCurrentRoom(currentRoom);
+    if (activeRoom) {
+       // Only switch view if we are not creating or inviting
+       if (view === 'list') setView('my_room');
        
-       if (currentRoom.participants) {
-          let enriched = [...currentRoom.participants] as ExtendedParticipant[];
-          enriched.sort((a, b) => b.total_score - a.total_score);
-          setParticipants(enriched);
+       // Update participants list
+       if (activeRoom.participants) {
+         let enriched = [...activeRoom.participants] as ExtendedParticipant[];
+         enriched.sort((a, b) => b.total_score - a.total_score);
+         setParticipants(enriched);
        }
     }
-  }, [currentRoom, setCurrentRoom]); // Removed view from dependency to avoid loop
+  }, [activeRoom]); 
+
+  // Auto-Select My Room if nothing selected
+  React.useEffect(() => {
+      if (!selectedRoom && myRoomData && !('error' in myRoomData)) {
+          setCurrentRoom(myRoomData);
+      }
+  }, [myRoomData, selectedRoom, setCurrentRoom]);
 
   // Reset/Load when drawer opens
   React.useEffect(() => {
@@ -198,19 +227,20 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
     try {
       await joinRoom(room.id, password);
       toast.success(`成功加入：${room.name}`);
+      setCurrentRoom(room); // Update store
       refreshRoom(); // Refetch SWR
-      loadRooms();
+      setView('my_room');
     } catch (e) {
       toast.error('加入失败: ' + (e instanceof Error ? e.message : '未知错误'));
     }
   };
 
   const handleLeave = async () => {
-    if (!currentRoom) return;
+    if (!activeRoom) return;
     if (!confirm('确定要退出房间吗？')) return;
 
     try {
-      await leaveRoom(currentRoom.id);
+      await leaveRoom(activeRoom.id);
       toast.success('已退出房间');
       setCurrentRoom(null);
       setView('list');
@@ -232,12 +262,20 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
 
         <DrawerHeader className="px-6 pb-2">
           <div className="flex items-center justify-between">
-            <div>
-              <DrawerTitle className="text-white text-2xl font-bold">
-                {view === 'create' ? '创建私人房间' : view === 'my_room' ? '我的房间' : '选择跑步房间'}
+            <div className="flex-1">
+              <DrawerTitle className="text-white text-2xl font-bold flex items-center gap-2">
+                {view === 'create' ? '创建私人房间' : view === 'my_room' ? activeRoom?.name || '我的房间' : view === 'invite' ? '邀请好友' : '选择跑步房间'}
+                {view === 'my_room' && activeRoom && (activeRoom.host_id === userId || activeRoom.allow_member_invite) && (
+                  <button 
+                    onClick={() => setView('invite')}
+                    className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-colors ml-2"
+                  >
+                    <UserPlus className="w-4 h-4 text-cyan-400" />
+                  </button>
+                )}
               </DrawerTitle>
               <p className="text-white/50 text-sm mt-1">
-                {view === 'create' ? '设置房间参数' : view === 'my_room' ? '等待比赛开始' : '加入好友创建的私人房间'}
+                {view === 'create' ? '设置房间参数' : view === 'my_room' ? `房主: ${activeRoom?.host_name || 'Unknown'}` : view === 'invite' ? '分享房间码' : '加入好友创建的私人房间'}
               </p>
             </div>
             <DrawerClose className="p-2 rounded-lg hover:bg-white/10 transition-colors cursor-pointer">
@@ -248,107 +286,167 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
           </div>
         </DrawerHeader>
 
-        {view === 'my_room' && currentRoom ? (
-          <div className="px-6 pb-8 space-y-6">
-            <div className="p-6 rounded-2xl bg-white/5 border border-white/10 space-y-4">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h2 className="text-xl font-bold text-white">{currentRoom.name}</h2>
-                  <p className="text-white/50 text-sm">房主: {currentRoom.host_name}</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-4">
-                <div className="p-3 rounded-xl bg-black/20">
-                  <p className="text-white/40 text-xs mb-1">人数</p>
-                  <p className="text-white font-semibold">{currentRoom.participants?.length || 1} / {currentRoom.max_participants}</p>
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-white/5">
-                {/* Dashboard Filters */}
-                <div className="grid grid-cols-3 gap-2 mb-4">
-                  {filters.map(f => (
-                    <button
-                      key={f.id}
-                      onClick={() => handleFilterChange(f.id)}
-                      className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all active:scale-95 ${activeFilter === f.id
-                        ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20'
-                        : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10 hover:text-white'
-                        }`}
-                    >
-                      <f.icon className="w-5 h-5" />
-                      <span className="text-[10px] font-medium">{f.label}</span>
-                    </button>
-                  ))}
-                </div>
-
-                <p className="text-sm font-medium text-white/70 mb-3">
-                  排行榜 ({filters.find(f => f.id === activeFilter)?.label})
-                </p>
-                <div className="space-y-2">
-                  {participants.map((p, index) => (
-                    <button
-                      key={p.id}
-                      onClick={() => {
-                        setSelectedPlayer(p);
-                        setIsStatsOpen(true);
-                      }}
-                      className="w-full flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all border border-transparent hover:border-white/10 text-left group"
-                    >
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <div className="flex items-center justify-center w-6 text-white/40 font-bold font-mono text-sm flex-shrink-0">
-                          #{index + 1}
-                        </div>
-                        <div className="w-10 h-10 rounded-full bg-white/10 overflow-hidden relative flex-shrink-0">
-                          {/* Avatar placeholder */}
-                          <div className="w-full h-full flex items-center justify-center text-sm font-bold text-white/50 bg-gradient-to-br from-white/5 to-white/10">
-                            {p.nickname?.[0]}
-                          </div>
-                          {p.status === 'running' && (
-                            <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-[#18181b]" />
-                          )}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="text-white font-medium group-hover:text-blue-400 transition-colors truncate">{p.nickname}</div>
-                          <div className="text-white/40 text-xs flex items-center gap-1">
-                            {new Date(p.joined_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} 加入
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="text-right flex-shrink-0 ml-2">
-                        <div className="text-white font-bold font-mono text-lg">
-                          {activeFilter === 'overall' && p.total_score}
-                          {activeFilter === 'ratio' && `${p.territory_ratio}%`}
-                          {activeFilter === 'rivals' && p.rivals_defeated}
-                          {activeFilter === 'stealers' && p.stolen_lands}
-                          {activeFilter === 'gainers' && `+${p.growth_rate}%`}
-                          {activeFilter === 'losers' && p.lost_lands}
-                        </div>
-                        <div className="text-xs text-white/40">
-                          {activeFilter === 'overall' && '得分'}
-                          {activeFilter === 'ratio' && '占比'}
-                          {activeFilter === 'rivals' && '击败'}
-                          {activeFilter === 'stealers' && '偷取'}
-                          {activeFilter === 'gainers' && '增长'}
-                          {activeFilter === 'losers' && '丢失'}
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
+        {view === 'invite' && activeRoom ? (
+          <InviteRoomView room={activeRoom} onBack={() => setView('my_room')} />
+        ) : view === 'my_room' && activeRoom ? (
+          <div className="flex flex-col h-full overflow-hidden">
+            {/* Tab Navigation */}
+            <div className="px-6 border-b border-white/5">
+              <div className="grid grid-cols-4 w-full">
+                {[
+                  { id: 'leaderboard', label: '排行榜', icon: BarChart3 },
+                  { id: 'chat', label: '聊天室', icon: MessageSquare },
+                  { id: 'territory', label: '领地', icon: MapIcon },
+                  { id: 'info', label: '房间详情', icon: Info },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id as any)}
+                    className={`flex flex-col items-center justify-center py-3 gap-1 relative transition-colors ${
+                      activeTab === tab.id ? 'text-cyan-400' : 'text-white/40 hover:text-white/60'
+                    }`}
+                  >
+                    <tab.icon className="w-5 h-5" />
+                    <span className="text-[10px] font-medium">{tab.label}</span>
+                    {activeTab === tab.id && (
+                      <div className="absolute bottom-0 w-full h-0.5 bg-cyan-400 rounded-t-full" />
+                    )}
+                  </button>
+                ))}
               </div>
             </div>
 
-            <div className="pt-4 border-t border-white/5">
-              <button
-                onClick={handleLeave}
-                className="w-full py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 font-bold hover:bg-red-500/20 transition-all active:scale-95 flex items-center justify-center gap-2"
-              >
-                <LogOut className="w-5 h-5" />
-                退出房间
-              </button>
+            <div className="flex-1 overflow-y-auto px-6 py-6 custom-scrollbar">
+              {activeTab === 'info' && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <div className="pt-4 border-t border-white/5">
+                    <button
+                      onClick={handleLeave}
+                      className="w-full py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 font-bold hover:bg-red-500/20 transition-all active:scale-95 flex items-center justify-center gap-2"
+                    >
+                      <LogOut className="w-5 h-5" />
+                      退出房间
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'leaderboard' && (
+                <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <div className="grid grid-cols-1 gap-4">
+                    <div className="p-3 rounded-xl bg-black/20">
+                      <p className="text-white/40 text-xs mb-1">人数</p>
+                      <p className="text-white font-semibold">{activeRoom.participants?.length || 1} / {activeRoom.max_participants}</p>
+                    </div>
+                  </div>
+
+                  <div className="pt-2">
+                    {/* Dashboard Filters */}
+                    <div className="grid grid-cols-3 gap-2 mb-4">
+                      {filters.map(f => (
+                        <button
+                          key={f.id}
+                          onClick={() => handleFilterChange(f.id)}
+                          className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all active:scale-95 ${activeFilter === f.id
+                            ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20'
+                            : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10 hover:text-white'
+                            }`}
+                        >
+                          <f.icon className="w-5 h-5" />
+                          <span className="text-[10px] font-medium">{f.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium text-white/70">
+                      当前排行 ({filters.find(f => f.id === activeFilter)?.label})
+                    </p>
+                    <div className="text-xs text-white/30">实时更新</div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    {participants.map((p, index) => (
+                      <button
+                        key={p.id}
+                        onClick={() => {
+                          setSelectedPlayer(p);
+                          setIsStatsOpen(true);
+                        }}
+                        className="w-full flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all border border-transparent hover:border-white/10 text-left group"
+                      >
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className={`flex items-center justify-center w-6 font-bold font-mono text-sm flex-shrink-0 ${
+                            index === 0 ? 'text-yellow-400' : index === 1 ? 'text-gray-300' : index === 2 ? 'text-amber-600' : 'text-white/40'
+                          }`}>
+                            #{index + 1}
+                          </div>
+                          <div className="w-10 h-10 rounded-full bg-white/10 overflow-hidden relative flex-shrink-0">
+                            {p.avatar ? (
+                              <img src={p.avatar} alt={p.nickname} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-sm font-bold text-white/50 bg-gradient-to-br from-white/5 to-white/10">
+                                {p.nickname?.[0]}
+                              </div>
+                            )}
+                            {p.status === 'running' && (
+                              <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-[#18181b]" />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-white font-medium group-hover:text-blue-400 transition-colors truncate">{p.nickname}</div>
+                            <div className="text-white/40 text-xs flex items-center gap-1">
+                              {new Date(p.joined_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} 加入
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="text-right flex-shrink-0 ml-2">
+                          <div className="text-white font-bold font-mono text-lg">
+                            {activeFilter === 'overall' && p.total_score}
+                            {activeFilter === 'ratio' && `${p.territory_ratio}%`}
+                            {activeFilter === 'rivals' && p.rivals_defeated}
+                            {activeFilter === 'stealers' && p.stolen_lands}
+                            {activeFilter === 'gainers' && `+${p.growth_rate}%`}
+                            {activeFilter === 'losers' && p.lost_lands}
+                          </div>
+                          <div className="text-xs text-white/40">
+                            {activeFilter === 'overall' && '得分'}
+                            {activeFilter === 'ratio' && '占比'}
+                            {activeFilter === 'rivals' && '击败'}
+                            {activeFilter === 'stealers' && '偷取'}
+                            {activeFilter === 'gainers' && '增长'}
+                            {activeFilter === 'losers' && '丢失'}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'chat' && (
+                <div className="h-full flex flex-col animate-in fade-in zoom-in-95 duration-300 overflow-hidden pb-2">
+                   <RoomChat 
+                     roomId={activeRoom.id} 
+                     participants={participants} // 这一行非常重要，把排行榜的数据传进去用于显示头像
+                     currentUser={{
+                       id: userId!,
+                       nickname: nickname || '我',
+                       avatar: avatar
+                     }}
+                   />
+                </div>
+              )}
+
+              {activeTab === 'territory' && (
+                <div className="flex flex-col items-center justify-center h-full text-white/30 py-12 animate-in fade-in zoom-in-95">
+                  <MapIcon className="w-12 h-12 mb-4 opacity-50" />
+                  <p className="text-sm">领地视图即将上线</p>
+                  <p className="text-xs mt-1">Coming Soon</p>
+                </div>
+              )}
             </div>
           </div>
         ) : view === 'create' ? (

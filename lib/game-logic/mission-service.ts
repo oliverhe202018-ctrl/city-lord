@@ -174,6 +174,19 @@ export async function initializeUserMissions(userId: string) {
   // console.log(`[MissionService] Starting initialization for user ${userId.slice(0, 8)}...`)
 
   try {
+    // 0. AUTO-SEED: Ensure missions exist in the DB (Fix for FK Violation)
+    // This prevents "Key is not present in table missions" errors when assigning missions.
+    // [DISABLED] Client-side seeding causes RLS issues. We use SQL migration instead.
+    /*
+    const { error: seedError } = await supabase
+      .from('missions')
+      .upsert(DEFAULT_MISSIONS as any, { onConflict: 'id' })
+    
+    if (seedError) {
+      console.error('[MissionService] Failed to auto-seed missions:', seedError)
+    }
+    */
+
     // 2. READ FIRST: Fetch existing user missions
     const { data: existingMissions, error: userMissionsError } = await supabase
       .from('user_missions')
@@ -245,10 +258,6 @@ export async function initializeUserMissions(userId: string) {
     // Handle Inserts (Missing Missions)
     if (missionsToInsert.length > 0) {
       console.log(`[MissionService] Inserting ${missionsToInsert.length} missing missions...`)
-      
-      // NOTE: We do NOT auto-seed the 'missions' table here because it requires admin privileges (RLS).
-      // New missions must be added via SQL migration.
-      // We assume the 'missions' table already contains the definition.
       
       const { error: insertError } = await supabase
         .from('user_missions')

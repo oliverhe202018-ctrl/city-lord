@@ -3,7 +3,7 @@
 import React from "react"
 import { AvatarUploader } from "@/components/ui/AvatarUploader"
 
-import { MapPin, Swords, Footprints, Eye, Settings, ChevronRight, Hexagon, Zap, Target, LogIn, LogOut, Edit2 } from "lucide-react"
+import { MapPin, Swords, Footprints, Eye, Settings, ChevronRight, Hexagon, Zap, Target, LogIn, LogOut, Edit2, Gift } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useGameStore } from "@/store/useGameStore"
@@ -474,6 +474,20 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
 
         {/* Quick Actions */}
         <div className="mt-auto border-t border-white/10 p-4">
+          {/* Invite Friends Entry */}
+          <Link href="/referral" className="mb-3 flex w-full items-center justify-between rounded-2xl border border-white/10 bg-gradient-to-r from-orange-500/10 to-rose-500/10 p-4 transition-all active:bg-white/10 hover:bg-white/5">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-rose-500 shadow-lg shadow-orange-500/20">
+                <Gift className="h-5 w-5 text-white" />
+              </div>
+              <div className="text-left">
+                <p className="font-semibold text-white">邀请好友</p>
+                <p className="text-sm text-white/60">邀请好友加入，解锁专属奖励</p>
+              </div>
+            </div>
+            <ChevronRight className="h-5 w-5 text-white/40" />
+          </Link>
+
           <button className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/5 p-4 transition-all active:bg-white/10">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#39ff14]/20">

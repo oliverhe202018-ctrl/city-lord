@@ -9,6 +9,7 @@ import { useGameStore } from "@/store/useGameStore"
 import { useHydration } from "@/hooks/useHydration";
 import { ChevronDown, Calendar, Activity, MapPin, Navigation, User, Zap, Palette, Trophy, LogIn, X } from "lucide-react"
 import { CityDrawer } from "./CityDrawer"
+import { RoomSelector } from '@/components/room/RoomSelector'
 import { LoadingSpinner } from "@/components/citylord/loading-screen"
 
 /**
@@ -193,8 +194,8 @@ export function MapHeader({ isCityDrawerOpen, setIsCityDrawerOpen, setShowThemeS
 
   return (
     <>
-      {/* 头部状态栏容器 - 固定在顶部 */}
-      <div className="absolute top-[env(safe-area-inset-top)] left-0 right-0 z-[50] px-4">
+      {/* 头部状态栏容器 - 固定在顶部安全区域 */}
+      <div className="absolute top-[env(safe-area-inset-top)] left-0 right-0 z-[100] px-4 transition-all duration-300 pt-2">
         <GlassCard className="p-1">
           <div className="flex items-center justify-between gap-2">
             {/* 左侧：城市选择器 */}
@@ -284,6 +285,8 @@ export function MapHeader({ isCityDrawerOpen, setIsCityDrawerOpen, setShowThemeS
 
             {/* 右侧：GPS 状态 */}
             <div className="flex items-center gap-1 pr-2">
+              {/* RoomSelector hidden as per user request - moved to bottom navigation */}
+              {/* <RoomSelector className="h-8 border-none bg-transparent hover:bg-white/5" compact /> */}
               <div className={`flex items-center gap-1 px-2 py-1 rounded-lg border ${gpsConfig.bg} ${gpsConfig.border}`}>
                   <GpsIcon className={`w-3 h-3 ${gpsConfig.color} ${gpsStatus === 'locating' ? 'animate-spin' : ''}`} />
                   <span className={`text-[10px] font-bold ${gpsConfig.color}`}>{gpsConfig.text}</span>

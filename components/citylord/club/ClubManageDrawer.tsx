@@ -300,6 +300,7 @@ export function ClubManageDrawer({ isOpen, onClose, club }: ClubManageDrawerProp
             currentAvatarUrl={formData.avatarUrl}
             onUploadComplete={(url) => setFormData(prev => ({ ...prev, avatarUrl: url }))}
             size={80}
+            cropShape="rect"
           />
           <div className="text-xs text-muted-foreground flex-1">
             点击头像上传新图片。<br/>

@@ -16,6 +16,7 @@ import { SocialPage } from "@/components/citylord/social/social-page"
 import { NotificationProvider, NotificationPanel, sampleNotifications } from "@/components/citylord/notifications/notification-center"
 import { WelcomeScreen, InteractiveTutorial, QuickNavPopup, MapInteractionGuide } from "@/components/citylord/onboarding/complete-onboarding"
 import { MapHeader } from "@/components/map/MapHeader"
+import { NavBar } from "@/components/citylord/NavBar"
 import { LoadingScreen } from "@/components/citylord/loading-screen"
 import { useRunningTracker } from "@/hooks/useRunningTracker"
 

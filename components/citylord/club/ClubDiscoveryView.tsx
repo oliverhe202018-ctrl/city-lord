@@ -26,6 +26,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+import { AvatarUploader } from '@/components/ui/AvatarUploader';
+
 // Simplified list of major Chinese provinces/regions for the dropdown
 const CHINA_PROVINCES = [
   "北京市", "天津市", "河北省", "山西省", "内蒙古自治区",
@@ -50,9 +52,8 @@ export function ClubDiscoveryView({ clubs, onJoinSuccess, isLoading = false }: C
     description: '',
     province: '',
     isPublic: true,
+    avatarUrl: ''
   });
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
 
@@ -78,15 +79,6 @@ export function ClubDiscoveryView({ clubs, onJoinSuccess, isLoading = false }: C
     return matchesSearch && matchesProvince;
   });
 
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setAvatarFile(file);
-      const objectUrl = URL.createObjectURL(file);
-      setAvatarPreview(objectUrl);
-    }
-  };
-
   const handleCreateClub = async (e?: React.FormEvent | React.MouseEvent) => {
     if (e) {
       e.preventDefault();
@@ -106,20 +98,9 @@ export function ClubDiscoveryView({ clubs, onJoinSuccess, isLoading = false }: C
     setIsCreating(true);
 
     try {
-      // In a real app, you would upload the avatar file to storage (e.g. Supabase Storage) first
-      // and get a public URL. For now, we'll just use the dicebear fallback if no file is uploaded,
-      // or we'd assume the backend handles it. 
-      // Since the createClub action expects avatar_url string:
+      // Use uploaded avatar URL or fallback to dicebear
+      const avatarUrl = createForm.avatarUrl || `https://api.dicebear.com/7.x/shapes/svg?seed=${createForm.name}`;
       
-      let avatarUrl = `https://api.dicebear.com/7.x/shapes/svg?seed=${createForm.name}`;
-      
-      // TODO: Implement actual image upload logic here if needed
-      if (avatarFile) {
-         // Mock upload or implement upload
-         // const uploadedUrl = await uploadToStorage(avatarFile);
-         // avatarUrl = uploadedUrl;
-      }
-
       const result = await createClub({
         name: createForm.name,
         description: createForm.description,
@@ -163,7 +144,11 @@ export function ClubDiscoveryView({ clubs, onJoinSuccess, isLoading = false }: C
     try {
         const result = await joinClub(selectedClub.id);
         if (result.success) {
-            toast.success(`加入 ${selectedClub.name} 成功！`);
+            if (result.status === 'active') {
+                toast.success(`加入 ${selectedClub.name} 成功！`);
+            } else {
+                toast.success('申请已提交，等待审核');
+            }
             setSelectedClub(null);
             onJoinSuccess();
         } else {
@@ -230,25 +215,13 @@ export function ClubDiscoveryView({ clubs, onJoinSuccess, isLoading = false }: C
         <div className="px-6 pb-20 space-y-8">
             {/* Avatar Upload */}
             <div className="flex flex-col items-center justify-center">
-                <div className="relative group cursor-pointer">
-                    <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-zinc-800 bg-zinc-900 flex items-center justify-center transition-all group-hover:border-white/30">
-                        {avatarPreview ? (
-                            <img src={avatarPreview} alt="Avatar Preview" className="w-full h-full object-cover" />
-                        ) : (
-                            <Camera className="w-8 h-8 text-zinc-600 group-hover:text-zinc-400" />
-                        )}
-                    </div>
-                    <div className="absolute bottom-0 right-0 bg-white text-black p-1.5 rounded-full shadow-lg">
-                        <Upload className="w-3 h-3" />
-                    </div>
-                    <input 
-                        type="file" 
-                        accept="image/*"
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                        onChange={handleAvatarChange}
-                    />
-                </div>
-                <p className="text-xs text-zinc-500 mt-3">上传俱乐部 Logo</p>
+                <AvatarUploader
+                  currentAvatarUrl={createForm.avatarUrl}
+                  onUploadComplete={(url) => setCreateForm({ ...createForm, avatarUrl: url })}
+                  size={96} // w-24 = 96px
+                  cropShape="rect"
+                />
+                <p className="text-xs text-zinc-500 mt-3">上传俱乐部 Logo (自动裁剪为 1:1)</p>
             </div>
 
             {/* Form Fields */}

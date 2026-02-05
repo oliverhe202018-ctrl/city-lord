@@ -4,6 +4,22 @@ City Lord 是一款结合真实地理位置（LBS）的跑步领地争夺游戏�
 
 ## 📅 更新日志 (Changelog)
 
+### 2026-02-06: 💬 实时聊天与房间系统增强 (Realtime Chat & Room System)
+
+**核心修复与体验升级：**
+
+1.  **🛡️ 聊天室稳定性重构 (Robust Realtime Chat)**
+    *   **自我修复连接 (Self-Healing Connection)**: 彻底重构了 `RoomChat` 组件的连接逻辑。引入了 `useState` 单例模式管理 Supabase 客户端，防止因组件重渲染导致的连接“抖动”。实现了递归自动重连机制，当遇到 `TIMED_OUT` 或网络波动时，系统会自动清理僵尸连接并尝试重新订阅。
+    *   **消息时间戳 (Timestamps)**: 聊天气泡现已支持显示发送时间（HH:MM）。针对“我”和“他人”的消息采用了不同的布局策略，提升了信息的可读性。
+
+2.  **🏠 房间切换逻辑修复**
+    *   **即时响应**: 修复了 `RoomDrawer` 下拉菜单选择房间后，内容区域不更新的 Bug。重构了数据获取逻辑，优先使用 `useRoomDetails` 获取选中房间的实时数据，而非仅依赖“我加入的房间”。
+    *   **SWR 集成**: 为房间详情接口 (`/api/room/[id]`) 集成了 SWR 缓存策略，实现了数据的即时加载与后台静默更新。
+
+3.  **🔧 数据库与架构升级**
+    *   **数据完整性**: 修复了 `missions` 表因缺失默认数据导致的外键约束报错。编写了幂等的 SQL 脚本 (`supabase_fix.sql`) 补充了 13 个核心任务定义。
+    *   **Supabase SSR 迁移**: 完成了从 `@supabase/auth-helpers-nextjs` (遗留库) 到 `@supabase/ssr` (新标准) 的最终迁移，确保了 Auth 流程在 Next.js App Router 中的稳定性。
+
 ### 2026-02-05: 🛡️ 管理后台与勋章系统重构 (Admin & Badge System)
 
 **核心功能上线：**
