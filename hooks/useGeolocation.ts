@@ -1,17 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-
-// 1. TypeScript Type Definitions
-declare global {
-  interface Window {
-    AndroidApp?: {
-      startLocation: () => void;
-    };
-    onNativeLocationSuccess?: (lat: number, lng: number, address: string) => void;
-    onNativeLocationError?: (errorMessage: string) => void;
-  }
-}
+import { Geolocation } from '@capacitor/geolocation';
+import { toast } from 'sonner';
 
 interface GeolocationOptions {
   enableHighAccuracy?: boolean;
@@ -21,12 +12,11 @@ interface GeolocationOptions {
 
 interface GeolocationState {
   loading: boolean;
-  error: GeolocationPositionError | null;
+  error: any | null;
   data: {
     latitude: number;
     longitude: number;
-    address?: string;
-    coordType?: 'gcj02' | 'wgs84';
+    coordType?: 'wgs84'; // Capacitor default is WGS84
   } | null;
 }
 
@@ -37,8 +27,8 @@ interface UseGeolocationProps {
 }
 
 /**
- * AMap-compatible geolocation hook.
- * It can be used for one-time location retrieval or for watching position changes.
+ * Capacitor-based geolocation hook.
+ * Replaces the old Android Bridge and Navigator fallback.
  * 
  * @param options Geolocation options
  * @param watch Whether to watch for position changes
@@ -56,6 +46,7 @@ export const useGeolocation = ({
   });
 
   const isMounted = useRef(true);
+  const watchIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     isMounted.current = true;
@@ -67,108 +58,48 @@ export const useGeolocation = ({
   // Destructure options to create stable dependencies for hooks.
   const { enableHighAccuracy, timeout, maximumAge } = options;
 
-  const getLocation = useCallback(() => {
-    if (typeof window === 'undefined') return;
+  const getLocation = useCallback(async () => {
+    if (disabled) return;
+    
+    setState((prev) => ({ ...prev, loading: true, error: null }));
 
-    // Logic Branching
-    // Case A: Check if we are in the Android App environment
-    if (window.AndroidApp) {
-      setState((prev) => ({ ...prev, loading: true, error: null }));
+    try {
+      const position = await Geolocation.getCurrentPosition({
+        enableHighAccuracy,
+        timeout,
+        maximumAge
+      });
 
-      // Mount callbacks
-      window.onNativeLocationSuccess = (lat: number, lng: number, address: string) => {
-        if (!isMounted.current) return;
-        setState({
-          loading: false,
-          error: null,
-          data: {
-            latitude: lat,
-            longitude: lng,
-            address: address,
-            coordType: 'gcj02', // Native returns GCJ-02
-          },
-        });
-      };
-
-      window.onNativeLocationError = (errorMessage: string) => {
-        if (!isMounted.current) return;
-        setState((prev) => ({
-          ...prev,
-          loading: false,
-          error: {
-            code: 0,
-            message: errorMessage,
-            PERMISSION_DENIED: 1,
-            POSITION_UNAVAILABLE: 2,
-            TIMEOUT: 3,
-          } as GeolocationPositionError,
-        }));
-      };
-
-      // Trigger native location
-      try {
-        window.AndroidApp.startLocation();
-      } catch (e) {
-        console.error("Failed to call AndroidApp.startLocation", e);
-        if (isMounted.current) {
-          setState((prev) => ({
-            ...prev,
-            loading: false,
-            error: {
-              code: 0,
-              message: "Failed to invoke native location",
-              PERMISSION_DENIED: 1,
-              POSITION_UNAVAILABLE: 2,
-              TIMEOUT: 3,
-            } as GeolocationPositionError,
-          }));
-        }
-      }
-
-    } else if (navigator.geolocation) {
-      // Case B: Ordinary Browser (HTML5 Fallback)
-      setState((prev) => ({ ...prev, loading: true, error: null }));
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          if (!isMounted.current) return;
-          setState({
-            loading: false,
-            error: null,
-            data: {
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude,
-              coordType: 'wgs84', // Standard browser returns WGS-84
-            },
-          });
-        },
-        (error) => {
-          if (!isMounted.current) return;
-          setState({
-            loading: false,
-            error,
-            data: null,
-          });
-        },
-        // Pass the original options object
-        { enableHighAccuracy, timeout, maximumAge }
-      );
-    } else {
-      // Geolocation is not supported
       if (!isMounted.current) return;
-      setState((prev) => ({
-        ...prev,
-        loading: false,
-        error: {
-          code: 0,
-          message: "Geolocation is not supported by this browser.",
-          PERMISSION_DENIED: 1,
-          POSITION_UNAVAILABLE: 2,
-          TIMEOUT: 3,
-        } as GeolocationPositionError,
-      }));
-    }
-  }, [enableHighAccuracy, timeout, maximumAge]);
 
+      setState({
+        loading: false,
+        error: null,
+        data: {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          coordType: 'wgs84',
+        },
+      });
+    } catch (error: any) {
+      console.error("Geolocation Error:", error);
+      
+      if (!isMounted.current) return;
+
+      setState({
+        loading: false,
+        error: error,
+        data: null,
+      });
+
+      // Show toast for error
+      toast.error("获取位置失败", {
+        description: error.message || "请检查定位权限是否开启"
+      });
+    }
+  }, [enableHighAccuracy, timeout, maximumAge, disabled]);
+
+  // Initial Location Fetch
   useEffect(() => {
     if (disabled) {
       setState({ loading: false, error: null, data: null });
@@ -180,50 +111,59 @@ export const useGeolocation = ({
     }
   }, [getLocation, watch, disabled]);
 
+  // Watch Logic
   useEffect(() => {
-    if (disabled) {
-      return;
-    }
-
-    // Check for Android App environment first
-    if (typeof window !== 'undefined' && window.AndroidApp) {
-      // If we are in the Android App, we prefer the native bridge.
-      // Even if 'watch' is true, we rely on the bridge. 
-      // If the bridge 'startLocation' is continuous, it will work via the callback.
-      // If it's one-off, we at least get the initial location.
-      // We avoid using navigator.watchPosition because it might return inaccurate WGS84 coordinates.
-      if (watch) {
-        getLocation();
+    if (disabled || !watch) {
+      if (watchIdRef.current) {
+        Geolocation.clearWatch({ id: watchIdRef.current });
+        watchIdRef.current = null;
       }
       return;
     }
 
-    if (watch && typeof window !== 'undefined' && navigator.geolocation) {
-      const watchId = navigator.geolocation.watchPosition(
-        (position) => {
-          if (!isMounted.current) return;
-          setState({
-            loading: false,
-            error: null,
-            data: {
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude,
-              coordType: 'wgs84',
-            },
-          });
-        },
-        (error) => {
-          if (!isMounted.current) return;
-          setState((prev) => ({ ...prev, loading: false, error }));
-        },
-        // Pass the original options object
-        { enableHighAccuracy, timeout, maximumAge }
-      );
+    const startWatch = async () => {
+      try {
+        const id = await Geolocation.watchPosition(
+          {
+            enableHighAccuracy,
+            timeout,
+            maximumAge
+          },
+          (position, err) => {
+            if (!isMounted.current) return;
 
-      return () => {
-        navigator.geolocation.clearWatch(watchId);
-      };
-    }
+            if (err) {
+              setState((prev) => ({ ...prev, loading: false, error: err }));
+              return;
+            }
+
+            if (position) {
+              setState({
+                loading: false,
+                error: null,
+                data: {
+                  latitude: position.coords.latitude,
+                  longitude: position.coords.longitude,
+                  coordType: 'wgs84',
+                },
+              });
+            }
+          }
+        );
+        watchIdRef.current = id;
+      } catch (err) {
+        console.error("Failed to start watch:", err);
+      }
+    };
+
+    startWatch();
+
+    return () => {
+      if (watchIdRef.current) {
+        Geolocation.clearWatch({ id: watchIdRef.current });
+        watchIdRef.current = null;
+      }
+    };
   }, [watch, enableHighAccuracy, timeout, maximumAge, disabled]);
 
   const refetch = useCallback(() => {
