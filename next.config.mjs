@@ -9,8 +9,11 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  // Hosted App 模式不需要静态导出
+  // output: 'export',
   //3. 图片域名配置
   images: {
+    unoptimized: true, // 保持开启，以防万一有部分静态资源引用
     remotePatterns: [
       {
         protocol: 'https',

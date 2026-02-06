@@ -6,7 +6,8 @@
     "dev": "kill-port 3000 && next dev --webpack",
     "build": "next build --webpack",
     "lint": "eslint .",
-    "start": "next start"
+    "start": "next start",
+    "android": "next build --webpack && npx cap sync && npx cap open android"
   },
   "dependencies": {
     "@amap/amap-jsapi-loader": "^1.0.1",
