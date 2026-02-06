@@ -7,12 +7,31 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
 export async function POST(request: Request) {
   // Determine the correct origin for redirection
-  let origin = process.env.NEXT_PUBLIC_SITE_URL;
-  if (!origin && process.env.VERCEL_URL) {
-      origin = `https://${process.env.VERCEL_URL}`;
-  }
-  if (!origin) {
-      origin = new URL(request.url).origin;
+  // Priority: 
+  // 1. In Development: Try to use Host header or request origin
+  // 2. NEXT_PUBLIC_SITE_URL (e.g., set in Vercel env)
+  // 3. VERCEL_URL (automatically set by Vercel, but needs https:// prefix)
+  // 4. request.url origin (fallback)
+  
+  let origin = '';
+  
+  if (process.env.NODE_ENV === 'development') {
+    const host = request.headers.get('host');
+    const protocol = request.headers.get('x-forwarded-proto') || 'http';
+    if (host) {
+        origin = `${protocol}://${host}`;
+    } else {
+        origin = new URL(request.url).origin;
+    }
+    console.log('[Login with Code] Development mode detected, using origin:', origin);
+  } else {
+    origin = process.env.NEXT_PUBLIC_SITE_URL || '';
+    if (!origin && process.env.VERCEL_URL) {
+        origin = `https://${process.env.VERCEL_URL}`;
+    }
+    if (!origin) {
+        origin = new URL(request.url).origin;
+    }
   }
   
   console.log('[Login with Code] Resolved Origin:', origin);
@@ -86,6 +105,9 @@ export async function POST(request: Request) {
     const adminUrl = `${SUPABASE_URL}/auth/v1/admin/generate_link`;
     console.log('[Login with Code] Calling admin API:', adminUrl);
 
+    const redirectTo = `${origin}/auth/callback`;
+    console.log('[Login with Code] Using redirectTo:', redirectTo);
+
     const response = await fetch(adminUrl, {
       method: 'POST',
       headers: {
@@ -98,7 +120,7 @@ export async function POST(request: Request) {
         type: 'magiclink',
         email: email,
         options: {
-          redirectTo: `${origin}/auth/callback`
+          redirectTo: redirectTo
         }
       })
     });

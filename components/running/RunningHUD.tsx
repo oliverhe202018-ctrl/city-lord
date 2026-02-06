@@ -23,18 +23,18 @@ function MissionTrackerItem({ title, current, target, unit, isCompleted }: Missi
   const progress = Math.min(100, (current / target) * 100)
   
   return (
-    <div className="mb-2 w-full max-w-[200px] rounded-lg bg-black/40 backdrop-blur-sm p-2 text-xs text-white border border-white/10">
-      <div className="flex justify-between items-center mb-1">
-        <span className="truncate font-medium max-w-[120px]">{title}</span>
+    <div className="mb-3 w-full max-w-[260px] rounded-xl bg-black/60 backdrop-blur-md p-3 text-sm text-white border border-white/10 shadow-lg">
+      <div className="flex justify-between items-center mb-2">
+        <span className="truncate font-bold max-w-[160px] drop-shadow-sm">{title}</span>
         {isCompleted ? (
-          <CheckCircle2 className="h-3 w-3 text-[#22c55e]" />
+          <CheckCircle2 className="h-4 w-4 text-[#22c55e]" />
         ) : (
-          <span className="text-white/60">{Math.floor(current)}/{target}</span>
+          <span className="text-white/80 font-mono font-bold">{Math.floor(current)}/{target}</span>
         )}
       </div>
-      <div className="h-1.5 w-full rounded-full bg-white/10 overflow-hidden">
+      <div className="h-2.5 w-full rounded-full bg-white/10 overflow-hidden ring-1 ring-white/5">
         <motion.div 
-          className={cn("h-full rounded-full", isCompleted ? "bg-[#22c55e]" : "bg-blue-500")}
+          className={cn("h-full rounded-full shadow-[0_0_8px_rgba(34,197,94,0.4)]", isCompleted ? "bg-[#22c55e]" : "bg-blue-500")}
           initial={{ width: 0 }}
           animate={{ width: `${progress}%` }}
           transition={{ duration: 0.5 }}

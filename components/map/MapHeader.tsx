@@ -7,7 +7,7 @@ import { useCity } from "@/contexts/CityContext";
 import { useRegion } from "@/contexts/RegionContext";
 import { useGameStore } from "@/store/useGameStore"
 import { useHydration } from "@/hooks/useHydration";
-import { ChevronDown, Calendar, Activity, MapPin, Navigation, User, Zap, Palette, Trophy, LogIn, X } from "lucide-react"
+import { ChevronDown, Calendar, Activity, MapPin, Navigation, User, Zap, Palette, Trophy, LogIn, X, Check } from "lucide-react"
 import { CityDrawer } from "./CityDrawer"
 import { RoomSelector } from '@/components/room/RoomSelector'
 import { LoadingSpinner } from "@/components/citylord/loading-screen"
@@ -142,7 +142,7 @@ export function MapHeader({ isCityDrawerOpen, setIsCityDrawerOpen, setShowThemeS
   // GPS Status Config
   const getGpsStatusConfig = () => {
     switch(gpsStatus) {
-      case 'success': return { icon: Navigation, color: 'text-green-400', bg: 'bg-green-500/20', border: 'border-green-500/30', text: 'GPS正常' }
+      case 'success': return { icon: Check, color: 'text-[#22c55e]', bg: 'bg-[#22c55e]/20', border: 'border-[#22c55e]/50', text: '已定位' }
       case 'locating': return { icon: Navigation, color: 'text-yellow-400', bg: 'bg-yellow-500/20', border: 'border-yellow-500/30', text: '定位中' }
       case 'error': return { icon: Navigation, color: 'text-red-400', bg: 'bg-red-500/20', border: 'border-red-500/30', text: 'GPS异常' }
       default: return { icon: Navigation, color: 'text-slate-400', bg: 'bg-slate-500/20', border: 'border-slate-500/30', text: '无信号' }
