@@ -7,6 +7,7 @@ import { useCity } from "@/contexts/CityContext";
 import FogLayer from "./FogLayer";
 import TerritoryLayer from "./TerritoryLayer";
 import { toast } from "sonner";
+import gcoord from "gcoord";
 
 // Declare AMap globally
 declare global {
@@ -75,7 +76,11 @@ const MapViewOrchestrator = () => {
     });
 
     if (geoData) {
-      markerRef.current.setPosition([geoData.longitude, geoData.latitude]);
+      let pos = [geoData.longitude, geoData.latitude];
+      if (geoData.coordType !== 'gcj02') {
+         pos = gcoord.transform(pos, gcoord.WGS84, gcoord.GCJ02);
+      }
+      markerRef.current.setPosition(pos);
     }
 
     map.add(markerRef.current);
@@ -91,7 +96,10 @@ const MapViewOrchestrator = () => {
   // Update marker position when geoData changes
   useEffect(() => {
     if (markerRef.current && geoData) {
-      const newPos = [geoData.longitude, geoData.latitude];
+      let newPos = [geoData.longitude, geoData.latitude];
+      if (geoData.coordType !== 'gcj02') {
+         newPos = gcoord.transform(newPos, gcoord.WGS84, gcoord.GCJ02);
+      }
       markerRef.current.setPosition(newPos);
     }
   }, [geoData]);

@@ -31,9 +31,9 @@ export async function POST(request: Request) {
 
     // Send email with timeout handling
     try {
-        // In development, if no SMTP credentials are provided, skip sending email
-        if (process.env.NODE_ENV !== 'production' && !process.env.SMTP_PASS) {
-            console.log('Skipping email send in development (no SMTP_PASS)');
+        // In development, if no API key is provided, skip sending email
+        if (process.env.NODE_ENV !== 'production' && !process.env.RESEND_API_KEY) {
+            console.log('Skipping email send in development (no RESEND_API_KEY)');
             // Do NOT wait for anything here.
         } else {
             // Force log for debugging even if we attempt to send
@@ -42,8 +42,18 @@ export async function POST(request: Request) {
             // Fire and forget in development to prevent UI blocking if SMTP is slow
             // In production, we might want to await it, but with a short timeout
             const emailPromise = sendVerificationCode(email, code, type || 'register')
-                .then(() => console.log(`Email sent successfully to ${email}`))
-                .catch((e) => console.error(`Email send failed async: ${e.message}`));
+                .then((result) => {
+                    if (result.success) {
+                        console.log(`Email sent successfully to ${email}`);
+                    } else {
+                        console.error(`Email send failed async:`, result.error);
+                        throw new Error(JSON.stringify(result.error));
+                    }
+                })
+                .catch((e) => {
+                    console.error(`Email send failed async: ${e.message || e}`);
+                    throw e;
+                });
 
             if (process.env.NODE_ENV === 'production') {
                   // In production, wait up to 3 seconds

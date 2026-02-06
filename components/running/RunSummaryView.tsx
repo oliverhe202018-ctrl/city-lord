@@ -1,8 +1,11 @@
 "use client"
 
-import { Share2, X, Activity, Flame, Zap, MapPin, Footprints, Timer, Trophy } from "lucide-react"
-import { motion } from "framer-motion"
+import { Share2, X, Activity, Flame, Zap, MapPin, Footprints, Timer, Trophy, Share, MessageCircle, MoreHorizontal } from "lucide-react"
+import { motion, AnimatePresence } from "framer-motion"
 import { HEX_AREA_SQ_METERS } from "@/lib/citylord/area-utils"
+import { StaticTrajectoryMap } from "./StaticTrajectoryMap"
+import { useState } from "react"
+import { GlassCard } from "../ui/GlassCard"
 
 interface RunSummaryViewProps {
   distance: number // km
@@ -13,6 +16,11 @@ interface RunSummaryViewProps {
   steps?: number
   onClose: () => void
   onShare?: () => void
+  runTrajectory?: { lat: number, lng: number }[]
+  territoryInfo?: {
+    isCaptured: boolean
+    previousOwner?: string
+  }
 }
 
 export function RunSummaryView({
@@ -23,8 +31,12 @@ export function RunSummaryView({
   hexesCaptured,
   steps = 0,
   onClose,
-  onShare
+  onShare,
+  runTrajectory = [],
+  territoryInfo = { isCaptured: false }
 }: RunSummaryViewProps) {
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+
   // Mock data for missing fields
   const avgSpeed = duration !== "00:00:00" ? (distance / (parseInt(duration.split(':')[0]) + parseInt(duration.split(':')[1])/60)).toFixed(1) : "0.0"
   
@@ -45,16 +57,11 @@ export function RunSummaryView({
            </div>
         </div>
         <button 
-          onClick={onShare}
-          className="flex items-center gap-1 text-sm text-[#22c55e] border border-[#22c55e] rounded-full px-3 py-1"
+          onClick={onClose}
+          className="p-2 text-gray-400 hover:bg-gray-100 rounded-full"
         >
-          <Share2 size={14} />
-          动态轨迹图
+          <X size={20} />
         </button>
-        <div className="h-10 w-10 rounded-full bg-gray-200 overflow-hidden">
-           {/* Avatar placeholder */}
-           <div className="w-full h-full bg-slate-300" />
-        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto bg-gray-50/50">
@@ -126,6 +133,31 @@ export function RunSummaryView({
              <MapPin className="h-5 w-5 text-red-400" />
            </div>
         </div>
+
+        {/* Task 2: Static Trajectory Map */}
+        <div className="mx-4 mb-4 rounded-xl overflow-hidden shadow-sm border border-gray-100 relative bg-gray-100 h-72">
+          {runTrajectory.length > 0 ? (
+             <StaticTrajectoryMap path={runTrajectory} className="w-full h-full" />
+          ) : (
+             <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm">
+               暂无轨迹数据
+             </div>
+          )}
+        </div>
+
+        {/* Task 3: Territory Capture Feedback */}
+        {territoryInfo.isCaptured && (
+          <div className="mx-4 mb-8 text-center animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300">
+            <div className="inline-block px-4 py-2 rounded-lg bg-[#22c55e]/10 border border-[#22c55e]/20">
+              <span className="text-[#22c55e] font-bold text-sm">
+                {territoryInfo.previousOwner 
+                  ? `恭喜，本次从 ${territoryInfo.previousOwner} 手中占领1块领地`
+                  : "恭喜，本次占领1块新领地"
+                }
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Bottom Actions */}
@@ -133,18 +165,66 @@ export function RunSummaryView({
         <div className="flex gap-3">
            <button 
              onClick={onClose}
-             className="flex-1 bg-[#22c55e] hover:bg-[#16a34a] text-white font-bold py-3 rounded-full transition-all active:scale-[0.98]"
+             className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-900 font-bold py-3 rounded-full transition-all active:scale-[0.98]"
            >
              完成运动
            </button>
            <button 
-             onClick={onShare}
+             onClick={() => setIsShareModalOpen(true)}
              className="flex-1 bg-[#22c55e] hover:bg-[#16a34a] text-white font-bold py-3 rounded-full transition-all active:scale-[0.98]"
            >
              分享战绩
            </button>
         </div>
       </div>
+
+      {/* Task 4: Share Modal */}
+      <AnimatePresence>
+        {isShareModalOpen && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsShareModalOpen(false)}
+              className="fixed inset-0 bg-black/50 z-[10001] backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl z-[10002] p-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-lg font-bold text-gray-900">分享战绩</h3>
+                <button 
+                  onClick={() => setIsShareModalOpen(false)}
+                  className="p-1 rounded-full hover:bg-gray-100"
+                >
+                  <X size={20} className="text-gray-500" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <button className="flex flex-col items-center gap-3 p-4 rounded-xl bg-gray-50 active:bg-gray-100 transition-colors">
+                  <div className="h-12 w-12 rounded-full bg-[#07c160] flex items-center justify-center text-white">
+                    <MessageCircle size={24} fill="currentColor" />
+                  </div>
+                  <span className="text-sm font-medium text-gray-900">分享到朋友圈</span>
+                </button>
+                
+                <button className="flex flex-col items-center gap-3 p-4 rounded-xl bg-gray-50 active:bg-gray-100 transition-colors">
+                  <div className="h-12 w-12 rounded-full bg-blue-500 flex items-center justify-center text-white">
+                    <MoreHorizontal size={24} />
+                  </div>
+                  <span className="text-sm font-medium text-gray-900">其他分享</span>
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

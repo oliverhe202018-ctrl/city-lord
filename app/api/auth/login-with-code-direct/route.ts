@@ -11,16 +11,30 @@ export async function POST(request: Request) {
   
   // Determine the correct origin for redirection
   // Priority: 
-  // 1. NEXT_PUBLIC_SITE_URL (e.g., set in Vercel env)
-  // 2. VERCEL_URL (automatically set by Vercel, but needs https:// prefix)
-  // 3. request.url origin (fallback, might be internal network in some cases)
+  // 1. In Development: Try to use Host header or request origin
+  // 2. NEXT_PUBLIC_SITE_URL (e.g., set in Vercel env)
+  // 3. VERCEL_URL (automatically set by Vercel, but needs https:// prefix)
+  // 4. request.url origin (fallback)
   
-  let origin = process.env.NEXT_PUBLIC_SITE_URL;
-  if (!origin && process.env.VERCEL_URL) {
-      origin = `https://${process.env.VERCEL_URL}`;
-  }
-  if (!origin) {
-      origin = new URL(request.url).origin;
+  let origin = '';
+  
+  if (process.env.NODE_ENV === 'development') {
+    const host = request.headers.get('host');
+    const protocol = request.headers.get('x-forwarded-proto') || 'http';
+    if (host) {
+        origin = `${protocol}://${host}`;
+    } else {
+        origin = new URL(request.url).origin;
+    }
+    console.log('[Login with Code Direct] Development mode detected, using origin:', origin);
+  } else {
+    origin = process.env.NEXT_PUBLIC_SITE_URL || '';
+    if (!origin && process.env.VERCEL_URL) {
+        origin = `https://${process.env.VERCEL_URL}`;
+    }
+    if (!origin) {
+        origin = new URL(request.url).origin;
+    }
   }
   
   console.log('[Login with Code Direct] Resolved Origin:', origin);
@@ -127,11 +141,14 @@ export async function POST(request: Request) {
 
     // 3. Generate a Magic Link
     console.log('[Login with Code Direct] Generating magic link...');
+    const redirectTo = `${origin}/auth/callback`;
+    console.log('[Login with Code Direct] Using redirectTo:', redirectTo);
+
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'magiclink',
       email: cleanEmail,
       options: {
-        redirectTo: `${origin}/auth/callback`,
+        redirectTo: redirectTo,
       }
     });
 
@@ -145,6 +162,20 @@ export async function POST(request: Request) {
 
     if (!actionLink) {
       throw new Error('Failed to generate session link');
+    }
+    
+    // Check if Supabase respected our redirect_to
+    try {
+        const generatedUrl = new URL(actionLink);
+        const generatedRedirectTo = generatedUrl.searchParams.get('redirect_to');
+        if (generatedRedirectTo && generatedRedirectTo !== redirectTo) {
+            console.warn('⚠️ [Login with Code Direct] WARNING: Supabase rejected the redirect URL!');
+            console.warn(`   Requested: ${redirectTo}`);
+            console.warn(`   Returned:  ${generatedRedirectTo}`);
+            console.warn('   Please check your Supabase "Redirect URLs" whitelist. Ensure it includes: ' + origin + '/**');
+        }
+    } catch (e) {
+        // Ignore URL parsing errors
     }
 
     console.log('[Login with Code Direct] Magic link generated successfully');

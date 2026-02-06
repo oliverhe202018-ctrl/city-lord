@@ -94,13 +94,18 @@ export function useRunningTracker(isRunning: boolean): RunningStats {
   useEffect(() => {
     if (!isRunning || isPaused || !geoData) return;
 
-    // Convert WGS84 to GCJ02 (AMap standard)
+    // Convert WGS84 to GCJ02 (AMap standard) if needed
     // gcoord returns [lng, lat]
-    const gcj02 = gcoord.transform(
-      [geoData.longitude, geoData.latitude],
-      gcoord.WGS84,
-      gcoord.GCJ02
-    );
+    let gcj02 = [geoData.longitude, geoData.latitude];
+
+    // Check if coordinate is already GCJ02 (from Native Bridge)
+    if (geoData.coordType !== 'gcj02') {
+      gcj02 = gcoord.transform(
+        [geoData.longitude, geoData.latitude],
+        gcoord.WGS84,
+        gcoord.GCJ02
+      );
+    }
 
     const newLoc: Location = {
       lat: gcj02[1],

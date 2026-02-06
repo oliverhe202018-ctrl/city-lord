@@ -26,10 +26,7 @@
 
 | 变量名 | 说明 | 示例值 |
 | :--- | :--- | :--- |
-| `SMTP_HOST` | SMTP 服务器地址 | `smtp.qq.com` 或 `smtp.gmail.com` |
-| `SMTP_PORT` | 端口号 | `465` (SSL) 或 `587` (TLS) |
-| `SMTP_USER` | 发件人邮箱账号 | `your-email@qq.com` |
-| `SMTP_PASS` | 邮箱授权码/密码 | `abcdefg1234` |
+| `RESEND_API_KEY` | Resend API Key | `re_123456789` |
 
 ## 2. 部署步骤
 
