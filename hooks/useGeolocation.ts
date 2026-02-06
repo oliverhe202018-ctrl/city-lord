@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Geolocation } from '@capacitor/geolocation';
 import { toast } from 'sonner';
+import gcoord from 'gcoord';
 
 interface GeolocationOptions {
   enableHighAccuracy?: boolean;
@@ -16,7 +17,7 @@ interface GeolocationState {
   data: {
     latitude: number;
     longitude: number;
-    coordType?: 'wgs84'; // Capacitor default is WGS84
+    coordType?: 'gcj02'; // Transformed to GCJ-02 for AMap
   } | null;
 }
 
@@ -27,8 +28,7 @@ interface UseGeolocationProps {
 }
 
 /**
- * Capacitor-based geolocation hook.
- * Replaces the old Android Bridge and Navigator fallback.
+ * Capacitor-based geolocation hook with WGS84 -> GCJ02 transformation.
  * 
  * @param options Geolocation options
  * @param watch Whether to watch for position changes
@@ -72,13 +72,21 @@ export const useGeolocation = ({
 
       if (!isMounted.current) return;
 
+      // Transform WGS-84 (Capacitor) to GCJ-02 (AMap)
+      // Note: gcoord expects [lng, lat], returns [lng, lat]
+      const result = gcoord.transform(
+        [position.coords.longitude, position.coords.latitude],
+        gcoord.WGS84,
+        gcoord.GCJ02
+      );
+
       setState({
         loading: false,
         error: null,
         data: {
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          coordType: 'wgs84',
+          latitude: result[1],
+          longitude: result[0],
+          coordType: 'gcj02',
         },
       });
     } catch (error: any) {
@@ -138,13 +146,20 @@ export const useGeolocation = ({
             }
 
             if (position) {
+              // Transform WGS-84 (Capacitor) to GCJ-02 (AMap)
+              const result = gcoord.transform(
+                [position.coords.longitude, position.coords.latitude],
+                gcoord.WGS84,
+                gcoord.GCJ02
+              );
+
               setState({
                 loading: false,
                 error: null,
                 data: {
-                  latitude: position.coords.latitude,
-                  longitude: position.coords.longitude,
-                  coordType: 'wgs84',
+                  latitude: result[1],
+                  longitude: result[0],
+                  coordType: 'gcj02',
                 },
               });
             }
