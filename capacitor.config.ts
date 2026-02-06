@@ -6,7 +6,13 @@ const config: CapacitorConfig = {
   webDir: 'public',
   server: {
     url: "https://cl.4567666.xyz",
-    cleartext: true
+    cleartext: true,
+    allowNavigation: [
+      "*.city-tour.dev",
+      "*.vercel.app",
+      "cl.4567666.xyz",
+      "*.4567666.xyz"
+    ]
   }
 };
 

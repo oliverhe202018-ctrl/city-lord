@@ -55,7 +55,18 @@ public class MainActivity extends AppCompatActivity {
         webSettings.setDomStorageEnabled(true);
 
         // 设置 WebViewClient 保证在当前 APP 打开链接而不是跳浏览器
-        myWebView.setWebViewClient(new WebViewClient());
+        // 替换原来的 myWebView.setWebViewClient(new WebViewClient());
+        myWebView.setWebViewClient(new WebViewClient() {
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                // 只要是 http 或 https 开头的，都强制在当前 WebView 打开
+                if (url.startsWith("http:") || url.startsWith("https:")) {
+                    view.loadUrl(url);
+                    return true; // 返回 true 表示“我处理了，系统浏览器别管”
+                }
+                return false;
+            }
+        });
 
         // 【核心】注入 JS 对象，名字叫 "AndroidApp"
         myWebView.addJavascriptInterface(new WebAppInterface(), "AndroidApp");
