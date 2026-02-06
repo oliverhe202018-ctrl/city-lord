@@ -1,3 +1,5 @@
+"use client";
+
 import React from "react"
 import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
@@ -16,7 +18,7 @@ import './globals.css'
 const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
-export const viewport: Viewport = {
+const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
@@ -29,7 +31,7 @@ export const viewport: Viewport = {
   ],
 };
 
-export const metadata: Metadata = {
+const metadata: Metadata = {
   title: 'CityLord - 跑步领地争霸',
   description: '用跑步征服你的城市。一款将跑步与领地占领相结合的游戏化健身应用。',
   generator: 'v0.app',
@@ -52,6 +54,24 @@ export const metadata: Metadata = {
   },
 }
 
+import { StatusBar, Style } from '@capacitor/status-bar';
+import { Capacitor } from '@capacitor/core';
+import { useEffect } from "react";
+
+// Client Component Wrapper for Status Bar
+function StatusBarConfig() {
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      StatusBar.setStyle({ style: Style.Dark });
+      // On Android, overlayWebView makes the status bar transparent/overlay
+      if (Capacitor.getPlatform() === 'android') {
+        StatusBar.setOverlaysWebView({ overlay: true });
+      }
+    }
+  }, []);
+  return null;
+}
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -60,6 +80,7 @@ export default function RootLayout({
   return (
     <html lang="zh-CN" suppressHydrationWarning className="h-full">
       <body className={`font-sans antialiased h-full overflow-hidden overflow-x-hidden w-full relative`}>
+        <StatusBarConfig />
         <Script id="amap-security" strategy="beforeInteractive">
           {`
             window._AMapSecurityConfig = {

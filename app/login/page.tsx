@@ -94,7 +94,7 @@ export default function LoginPage() {
         // 自动填入（可选，这里为了方便直接填入）
         setVerificationCode(data.devCode)
       } else {
-        toast.success("验证码已发送", { description: "请查看您的邮箱 (citylord@126.com 发送)" })
+        toast.success("验证码已发送", { description: "请查看您的邮箱 (system@mail.city-tour.dev 发送)" })
       }
     } catch (error: any) {
       console.error('Send code error:', error)
