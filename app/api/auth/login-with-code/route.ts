@@ -152,3 +152,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ safeError }, { status: 500 });
   }
 }
+
+// fix: switch to resend
