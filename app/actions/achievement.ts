@@ -1,7 +1,6 @@
-// 'use server'
+'use server'
 
-import { createClient } from '@/mock-supabase'
-import { cookies } from '@/mock-headers'
+import { createClient } from '@/lib/supabase/server'
 
 export interface UserAchievementProgress {
   achievementId: string
@@ -24,8 +23,7 @@ export interface UserAchievementProgress {
 }
 
 export async function fetchUserAchievements(): Promise<UserAchievementProgress[]> {
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {

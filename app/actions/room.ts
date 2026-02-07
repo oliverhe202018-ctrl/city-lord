@@ -1,5 +1,7 @@
 
-import { createClient } from '@/lib/supabase/client'
+'use server'
+
+import { createClient } from '@/lib/supabase/server'
 
 export type Room = {
   id: string
@@ -35,7 +37,7 @@ export type CreateRoomData = {
 }
 
 export async function fetchRoomDetails(roomId: string) {
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const { data: room, error } = await supabase
     .from('rooms')
@@ -71,7 +73,7 @@ export async function fetchRoomDetails(roomId: string) {
 }
 
 export async function getCurrentRoom() {
-  const supabase = createClient()
+  const supabase = await createClient()
   await supabase.auth.getSession()
 
   const { data: { user } } = await supabase.auth.getUser()

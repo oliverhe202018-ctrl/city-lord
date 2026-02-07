@@ -1,14 +1,12 @@
-// 'use server'
+'use server'
 
-import { createClient } from '@/mock-supabase'
-import { cookies } from '@/mock-headers'
+import { createClient } from '@/lib/supabase/server'
 import { Database } from '@/types/supabase'
 
 type Message = Database['public']['Tables']['messages']['Row']
 
 export async function createSystemMessage(receiverId: string, content: string) {
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = await createClient()
 
   // System messages don't need a sender_id (null)
   // We skip the user check because this might be called by server actions where the context is already validated
@@ -44,8 +42,7 @@ export async function createSystemMessage(receiverId: string, content: string) {
 }
 
 export async function sendMessage(receiverId: string, content: string, type: 'text' | 'system' | 'challenge' = 'text') {
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = await createClient()
   
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Unauthorized')
@@ -66,8 +63,7 @@ export async function sendMessage(receiverId: string, content: string, type: 'te
 }
 
 export async function getMessages() {
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = await createClient()
   
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
@@ -90,8 +86,7 @@ export async function getMessages() {
 }
 
 export async function markAsRead(messageId: string) {
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = await createClient()
   
   const { error } = await (supabase
     .from('messages' as any) as any)
@@ -103,8 +98,7 @@ export async function markAsRead(messageId: string) {
 }
 
 export async function getUnreadMessageCount() {
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = await createClient()
   
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return 0

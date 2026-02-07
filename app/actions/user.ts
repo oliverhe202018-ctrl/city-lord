@@ -1,14 +1,13 @@
-// 'use server'
+'use server'
 
-import { createClient } from '@/mock-supabase'
-import { cookies } from '@/mock-headers'
-
+import { createClient } from '@/lib/supabase/server'
 import { checkAndRewardMissions, RunContext } from '@/lib/game-logic/mission-checker'
 import { initializeUserMissions } from '@/lib/game-logic/mission-service'
+import { cache } from 'react'
+import { calculateLevel } from '@/lib/game-logic/level-system'
 
 export async function stopRunningAction(context: RunContext) {
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) return { success: false, error: 'Not authenticated' }
@@ -121,8 +120,7 @@ export async function stopRunningAction(context: RunContext) {
 }
 
 export async function getUserProfileStats() {
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
@@ -177,8 +175,7 @@ export async function getUserProfileStats() {
 }
 
 export async function touchUserActivity() {
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   
   if (!user) return
@@ -189,11 +186,8 @@ export async function touchUserActivity() {
     .eq('id', user.id)
 }
 
-import { cache } from 'react'
-
 export const ensureUserProfile = cache(async (userId: string) => {
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = await createClient()
 
   // 🚀 Fast Path: Check ID existence only (<50ms)
   const { data, error } = await supabase
@@ -241,11 +235,8 @@ export const ensureUserProfile = cache(async (userId: string) => {
   return { success: true, isNew: true }
 })
 
-import { calculateLevel } from '@/lib/game-logic/level-system'
-
 export async function addExperience(amount: number) {
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) return { success: false, error: 'Not authenticated' }
@@ -287,8 +278,7 @@ export async function addExperience(amount: number) {
 }
 
 export async function addCoins(amount: number) {
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) return { success: false, error: 'Not authenticated' }

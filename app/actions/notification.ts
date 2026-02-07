@@ -1,7 +1,6 @@
-// 'use server'
+'use server'
 
-import { createClient } from '@/mock-supabase';
-import { cookies } from '@/mock-headers';
+import { createClient } from '@/lib/supabase/server';
 
 export interface Notification {
   id: string;
@@ -17,8 +16,7 @@ export interface Notification {
  * 发送系统通知
  */
 export async function sendSystemNotification(userId: string, content: string, type: 'system' | 'club' | 'mission' | 'friend' = 'system') {
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
+  const supabase = await createClient();
   
   try {
     const { error } = await supabase.from('messages').insert({
@@ -45,8 +43,7 @@ export async function sendSystemNotification(userId: string, content: string, ty
  * 获取用户的通知列表
  */
 export async function getUserNotifications(userId?: string) {
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
+  const supabase = await createClient();
   
   let targetUserId = userId;
 
@@ -78,8 +75,7 @@ export async function getUserNotifications(userId?: string) {
  * 标记通知为已读
  */
 export async function markNotificationAsRead(messageId: string) {
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
+  const supabase = await createClient();
   
   const { error } = await supabase
     .from('messages')
@@ -98,8 +94,7 @@ export async function markNotificationAsRead(messageId: string) {
  * 标记所有通知为已读
  */
 export async function markAllNotificationsAsRead(userId?: string) {
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
+  const supabase = await createClient();
   
   let targetUserId = userId;
 
@@ -129,8 +124,7 @@ export async function markAllNotificationsAsRead(userId?: string) {
  * 删除通知
  */
 export async function deleteNotification(messageId: string) {
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
+  const supabase = await createClient();
   
   const { error } = await supabase
     .from('messages')

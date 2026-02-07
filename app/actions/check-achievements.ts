@@ -29,8 +29,7 @@ export interface RunContext {
  * @param runContext Optional context from a just-finished run to check single-event achievements
  */
 export async function checkAndGrantAchievements(runContext?: RunContext): Promise<AchievementCheckResult> {
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = await createClient()
   
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { newBadges: [], rewards: { xp: 0, coins: 0 } }

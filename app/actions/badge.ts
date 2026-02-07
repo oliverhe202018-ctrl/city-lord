@@ -1,7 +1,6 @@
-// 'use server'
+'use server'
 
-import { createClient } from '@/mock-supabase'
-import { cookies } from '@/mock-headers'
+import { createClient } from '@/lib/supabase/server'
 
 import { ACHIEVEMENT_DEFINITIONS } from '@/lib/achievements'
 
