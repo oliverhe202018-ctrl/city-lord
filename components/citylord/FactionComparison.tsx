@@ -4,81 +4,45 @@ import { useFactionStats } from '@/hooks/useGameData'
 import { Hexagon, Shield, Zap } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
-import { formatAreaFromHexCount } from "@/lib/citylord/area-utils"
+import { formatArea } from "@/lib/citylord/area-utils"
 import { calculateFactionBalance } from '@/utils/faction-balance'
+import { FactionBattleBackground } from '@/components/Faction/FactionBattleBackground'
 
 interface FactionComparisonProps {
   userFaction: 'RED' | 'BLUE' | null
   initialData?: any
+  redArea?: number
+  blueArea?: number
 }
 
-export function FactionComparison({ userFaction, initialData }: FactionComparisonProps) {
-  const { data: stats, isLoading, error } = useFactionStats()
+export function FactionComparison({ userFaction, initialData, redArea: propRedArea, blueArea: propBlueArea }: FactionComparisonProps) {
+  // Use props if available, otherwise fallback to initialData or 0
+  const redArea = propRedArea ?? initialData?.redArea ?? 0
+  const blueArea = propBlueArea ?? initialData?.blueArea ?? 0
 
-  // Prioritize SWR data, fall back to initialData if available (and loading)
-  // But SWR handles initialData/fallbackData better if we pass it to the hook.
-  // However, our hook is standardized without arguments.
-  // We can use SWRConfig or mutate global cache with initialData, 
-  // OR just manually coalesce here.
-  // Given the hook doesn't accept options, we'll manually coalesce.
-  
-  const currentStats = stats || initialData
-  const showSkeleton = isLoading && !currentStats
-
-  // Use default stats if undefined
-  const safeStats = currentStats || { 
-    RED: 0, 
-    BLUE: 0, 
-    area: { RED: 0, BLUE: 0 }, 
-    bonus: { RED: 0, BLUE: 0 } 
+  // 50/50 Rule
+  const totalArea = redArea + blueArea
+  let redPercent = 50
+  if (totalArea > 0) {
+      redPercent = (redArea / totalArea) * 100
   }
+  const bluePercent = 100 - redPercent
 
-  // Calculate bonus on frontend (Real-time calculation)
-  const balance = calculateFactionBalance(safeStats.RED, safeStats.BLUE)
-  const frontendBonus = { RED: 0, BLUE: 0 }
-  
-  if (balance.underdog) {
-      const percentage = Math.round((balance.multiplier - 1) * 100)
-      if (balance.underdog === 'red') {
-          frontendBonus.RED = percentage
-      } else {
-          frontendBonus.BLUE = percentage
-      }
-  }
+  // Formatted values
+  const redFormatted = formatArea(redArea)
+  const blueFormatted = formatArea(blueArea)
 
-  // Use frontend calculated bonus
-  const activeBonus = frontendBonus
-
-  // Calculate boosted areas
-  const boostedRedArea = (safeStats.area?.RED || 0) * (1 + (activeBonus.RED || 0) / 100)
-  const boostedBlueArea = (safeStats.area?.BLUE || 0) * (1 + (activeBonus.BLUE || 0) / 100)
-
-  // Member percentages
-  const total = safeStats.RED + safeStats.BLUE
-  const redPercent = total > 0 ? (safeStats.RED / total) * 100 : 50
-  const bluePercent = total > 0 ? (safeStats.BLUE / total) * 100 : 50
-  
-  // Area percentages (for visual bar if we wanted, or just display value)
-  const totalArea = boostedRedArea + boostedBlueArea
-  const redAreaPercent = totalArea > 0 ? (boostedRedArea / totalArea) * 100 : 50
-  const blueAreaPercent = totalArea > 0 ? (boostedBlueArea / totalArea) * 100 : 50
-
-  // Show skeleton ONLY if we have no data at all (no initialData and still loading)
-  if (showSkeleton) return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 mb-4 animate-pulse">
-        <div className="h-4 w-24 bg-white/10 rounded mb-4" />
-        <div className="h-4 w-full bg-white/10 rounded-full mb-4" />
-        <div className="flex justify-between">
-            <div className="h-8 w-16 bg-white/10 rounded" />
-            <div className="h-8 w-16 bg-white/10 rounded" />
-        </div>
-    </div>
-  )
+  // Loading state
+  const isLoading = (propRedArea === undefined && initialData === undefined)
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 mb-4">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-white/40">阵营战况</h2>
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 mb-4 overflow-hidden relative">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3 relative z-10">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-white/40 flex items-center gap-2">
+           <Hexagon className="w-4 h-4" />
+           领地势力对抗
+        </h2>
         {userFaction && (
           <span className={cn(
             "text-[10px] px-2 py-0.5 rounded-full border font-medium",
@@ -89,126 +53,53 @@ export function FactionComparison({ userFaction, initialData }: FactionCompariso
         )}
       </div>
 
-      <div className="relative h-3 bg-slate-800 rounded-full overflow-hidden flex shadow-inner">
-        {/* Red Bar */}
-        <motion.div 
-          initial={{ width: 0 }}
-          animate={{ width: `${redPercent}%` }}
-          transition={{ duration: 1, ease: "easeOut" }}
-          className="bg-gradient-to-r from-red-600 to-red-500 relative group"
-        >
-            <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent" />
-        </motion.div>
+      {/* Main Visual: Area based FactionBattleBackground */}
+      <div className="relative h-16 w-full rounded-xl overflow-hidden mb-4">
+         <FactionBattleBackground 
+            redArea={redArea} 
+            blueArea={blueArea} 
+            isLoading={isLoading} 
+         />
+         
+         {/* Overlaid Stats on the bar */}
+         <div className="absolute inset-0 flex items-center justify-between px-4 z-10 pointer-events-none">
+            {/* Red */}
+            <div className="flex flex-col items-start shadow-sm">
+                <span className="text-xs font-bold text-white drop-shadow-md">RED</span>
+                <span className="text-lg font-black text-white drop-shadow-md leading-none">
+                    {redPercent.toFixed(1)}%
+                </span>
+            </div>
+            
+            {/* VS */}
+            <div className="text-white/80 font-bold italic text-xl drop-shadow-md">VS</div>
 
-        {/* Blue Bar */}
-        <motion.div 
-          initial={{ width: 0 }}
-          animate={{ width: `${bluePercent}%` }}
-          transition={{ duration: 1, ease: "easeOut" }}
-          className="bg-gradient-to-l from-blue-600 to-blue-500 relative"
-        >
-             <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent" />
-        </motion.div>
+            {/* Blue */}
+            <div className="flex flex-col items-end shadow-sm">
+                <span className="text-xs font-bold text-white drop-shadow-md">BLUE</span>
+                <span className="text-lg font-black text-white drop-shadow-md leading-none">
+                    {bluePercent.toFixed(1)}%
+                </span>
+            </div>
+         </div>
       </div>
 
-      <div className="flex justify-between items-start mt-3">
-        {/* Red Stats */}
-        <div className={cn("text-left transition-all", userFaction === 'RED' ? "opacity-100" : "opacity-70")}>
-          <div className="flex items-center gap-1.5 text-red-500 mb-0.5">
-            <Shield className="w-4 h-4 fill-red-500/20" />
-            <span className="font-bold text-lg leading-none">{safeStats.RED.toLocaleString()}</span>
-          </div>
-          <div className="text-xs text-red-400/50 font-mono flex items-center gap-2">
-            <span>赤红先锋 {redPercent.toFixed(1)}%</span>
-            {(activeBonus.RED || 0) > 0 && (
-              <span className="flex items-center text-[10px] text-yellow-400 bg-yellow-400/10 px-1 rounded">
-                <Zap className="w-3 h-3 mr-0.5" />
-                +{activeBonus.RED}% 
-              </span>
-            )}
-          </div>
-          <div className="text-[10px] text-white/20 mt-1">
-             领土: {formatAreaFromHexCount(safeStats.area?.RED || 0).fullText}
-          </div>
-        </div>
-
-        {/* Blue Stats */}
-        <div className={cn("text-right transition-all", userFaction === 'BLUE' ? "opacity-100" : "opacity-70")}>
-          <div className="flex items-center justify-end gap-1.5 text-blue-500 mb-0.5">
-            <span className="font-bold text-lg leading-none">{safeStats.BLUE.toLocaleString()}</span>
-            <Hexagon className="w-4 h-4 fill-blue-500/20" />
-          </div>
-          <div className="text-xs text-blue-400/50 font-mono flex items-center justify-end gap-2">
-            {(activeBonus.BLUE || 0) > 0 && (
-              <span className="flex items-center text-[10px] text-yellow-400 bg-yellow-400/10 px-1 rounded">
-                <Zap className="w-3 h-3 mr-0.5" />
-                +{activeBonus.BLUE}%
-              </span>
-            )}
-            <span>蔚蓝联盟 {bluePercent.toFixed(1)}%</span>
-          </div>
-          <div className="text-[10px] text-white/20 mt-1">
-             领土: {formatAreaFromHexCount(safeStats.area?.BLUE || 0).fullText}
-          </div>
-        </div>
-      </div>
-
-      {/* Area Comparison */}
-      <div className="mt-4 pt-4 border-t border-white/5">
-         <div className="flex items-center justify-between mb-2">
-            <h3 className="text-[10px] uppercase tracking-wider text-white/40">
-              领地势力
-              {(activeBonus.RED || 0) > 0 && <span className="text-red-400 ml-1">(红方 +{activeBonus.RED}%)</span>}
-              {(activeBonus.BLUE || 0) > 0 && <span className="text-blue-400 ml-1">(蓝方 +{activeBonus.BLUE}%)</span>}
-            </h3>
+      {/* Detailed Stats below */}
+      <div className="flex justify-between items-center px-1">
+         {/* Red Detail */}
+         <div className="text-left">
+             <div className="text-xs text-red-400/70 uppercase tracking-wider mb-1">赤红领地</div>
+             <div className="text-xl font-bold text-white leading-none">
+                 {redFormatted.value} <span className="text-xs text-white/50 font-normal">{redFormatted.unit}</span>
+             </div>
          </div>
 
-         {/* Area Bars */}
-         <div className="relative h-2 bg-slate-800 rounded-full overflow-hidden flex shadow-inner opacity-80">
-            <motion.div 
-              initial={{ width: 0 }}
-              animate={{ width: `${redAreaPercent}%` }}
-              transition={{ duration: 1, ease: "easeOut", delay: 0.2 }}
-              className="bg-red-900/60 relative"
-            >
-               <div className="absolute inset-0 bg-gradient-to-r from-red-600/40 to-red-500/40" />
-            </motion.div>
-            <motion.div 
-              initial={{ width: 0 }}
-              animate={{ width: `${blueAreaPercent}%` }}
-              transition={{ duration: 1, ease: "easeOut", delay: 0.2 }}
-              className="bg-blue-900/60 relative"
-            >
-               <div className="absolute inset-0 bg-gradient-to-l from-blue-600/40 to-blue-500/40" />
-            </motion.div>
-         </div>
-
-         <div className="flex justify-between items-start mt-2 text-[10px]">
-            {/* Red Area */}
-            <div className={cn("text-left", userFaction === 'RED' ? "opacity-100" : "opacity-60")}>
-               <div className="flex flex-col items-start gap-0.5 text-red-300">
-                  <div className="flex items-center gap-1">
-                    <Hexagon className="w-3 h-3" />
-                    <span className="font-mono">{formatAreaFromHexCount(boostedRedArea).value} {formatAreaFromHexCount(boostedRedArea).unit}</span>
-                  </div>
-                  {(activeBonus.RED || 0) > 0 && (
-                    <span className="text-red-400/70 text-[9px]">(含{activeBonus.RED}%加成)</span>
-                  )}
-               </div>
-            </div>
-
-            {/* Blue Area */}
-            <div className={cn("text-right", userFaction === 'BLUE' ? "opacity-100" : "opacity-60")}>
-               <div className="flex flex-col items-end gap-0.5 text-blue-300">
-                  <div className="flex items-center justify-end gap-1">
-                    <span className="font-mono">{formatAreaFromHexCount(boostedBlueArea).value} {formatAreaFromHexCount(boostedBlueArea).unit}</span>
-                    <Hexagon className="w-3 h-3" />
-                  </div>
-                  {(activeBonus.BLUE || 0) > 0 && (
-                    <span className="text-blue-400/70 text-[9px]">(含{activeBonus.BLUE}%加成)</span>
-                  )}
-               </div>
-            </div>
+         {/* Blue Detail */}
+         <div className="text-right">
+             <div className="text-xs text-blue-400/70 uppercase tracking-wider mb-1">蔚蓝领地</div>
+             <div className="text-xl font-bold text-white leading-none">
+                 {blueFormatted.value} <span className="text-xs text-white/50 font-normal">{blueFormatted.unit}</span>
+             </div>
          </div>
       </div>
     </div>
