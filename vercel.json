@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/update-faction-stats",
+      "schedule": "0 * * * *"
+    }
+  ]
+}
