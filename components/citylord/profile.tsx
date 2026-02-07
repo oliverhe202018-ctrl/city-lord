@@ -24,6 +24,8 @@ import { Dialog,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { FactionBattleBackground } from "@/components/Faction/FactionBattleBackground"
+
 interface ProfileProps {
   onOpenSettings: () => void
   initialFactionStats?: any
@@ -74,6 +76,42 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
     battlesWon: 0,
     faction: null as 'RED' | 'BLUE' | null
   }
+
+  // Faction Stats State
+  const [factionStats, setFactionStats] = React.useState<{ red_area: number, blue_area: number } | null>(null);
+
+  // Use Supabase Client directly (works in Static Export / Capacitor)
+  React.useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from('faction_stats_snapshot')
+          .select('red_area, blue_area')
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (error) {
+           console.error("Error fetching faction stats:", error);
+           // Fallback default
+           setFactionStats({ red_area: 0, blue_area: 0 });
+           return;
+        }
+
+        if (data) {
+           setFactionStats({ red_area: data.red_area, blue_area: data.blue_area });
+        } else {
+           setFactionStats({ red_area: 0, blue_area: 0 });
+        }
+      } catch (err) {
+        console.error("Unexpected error fetching faction stats:", err);
+        setFactionStats({ red_area: 0, blue_area: 0 });
+      }
+    };
+    
+    fetchStats();
+  }, []);
 
   React.useEffect(() => {
     const checkUser = async () => {
@@ -239,13 +277,24 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
     <div className="flex h-full flex-col bg-[#1a1a1a]">
       {/* Header with Avatar */}
       <div className="relative border-b border-white/10 bg-black/40 px-4 pb-6 pt-6 backdrop-blur-xl shrink-0">
+        {/* Dynamic Faction Background */}
+        <div className="absolute inset-0 overflow-hidden rounded-b-3xl z-0">
+          <FactionBattleBackground 
+            userFaction={userStats.faction?.toLowerCase() === 'red' ? 'red' : 'blue'}
+            redArea={factionStats?.red_area || 0} 
+            blueArea={factionStats?.blue_area || 0} 
+            isLoading={!factionStats} 
+            className="opacity-30 pointer-events-none"
+          />
+        </div>
+
         {/* Settings Button */}
-        <button onClick={onOpenSettings} className="absolute right-4 top-6 rounded-full border border-white/10 bg-white/5 p-2">
+        <button onClick={onOpenSettings} className="absolute right-4 top-6 rounded-full border border-white/10 bg-white/5 p-2 z-20">
           <Settings className="h-5 w-5 text-white/60" />
         </button>
 
         {/* Avatar with XP Ring */}
-        <div className="flex flex-col items-center">
+        <div className="flex flex-col items-center relative z-10">
           <div className="relative">
             {/* XP Progress Ring */}
             <svg className="h-32 w-32 -rotate-90">
@@ -465,6 +514,8 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
           <FactionComparison 
             userFaction={userStats.faction} 
             initialData={initialFactionStats}
+            redArea={factionStats?.red_area}
+            blueArea={factionStats?.blue_area}
           />
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-white/40">勋章墙</h2>
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">

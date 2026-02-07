@@ -48,6 +48,11 @@ import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/useAuth"
 import { toast } from "sonner"
 
+import { Capacitor } from '@capacitor/core';
+import { Geolocation } from '@capacitor/geolocation';
+import { RunHistoryDrawer } from "@/components/map/RunHistoryDrawer"
+import { History } from "lucide-react"
+
 interface GamePageContentProps {
   initialMissions?: any[]
   initialStats?: any
@@ -130,6 +135,7 @@ export function GamePageContent({
   const [showMapGuide, setShowMapGuide] = useState(false)
   const [showThemeSwitcher, setShowThemeSwitcher] = useState(false)
   const [isCityDrawerOpen, setIsCityDrawerOpen] = useState(false);
+  const [isRunHistoryOpen, setIsRunHistoryOpen] = useState(false);
   const [shouldHideButtons, setShouldHideButtons] = useState(false);
 
   // Animation demo states
@@ -287,6 +293,19 @@ export function GamePageContent({
     setShowCaptureEffect(true)
   }
 
+  const handleOpenSettings = async () => {
+    try {
+      if (Capacitor.isNativePlatform()) {
+        await Geolocation.requestPermissions();
+      } else {
+        toast.info("请在浏览器设置中开启定位权限");
+      }
+    } catch (e) {
+      console.error("Failed to open settings", e);
+      toast.error("无法打开设置");
+    }
+  };
+
   return (
     <div className="relative w-full h-[100dvh] max-w-md mx-auto flex flex-col bg-[#0f172a] overflow-hidden">
       {!hydrated && <LoadingScreen message="正在初始化..." />}
@@ -330,7 +349,7 @@ export function GamePageContent({
       <LocationPermissionPrompt
         isOpen={hydrated && !!gpsError && !hasDismissedGeolocationPrompt}
         onClose={dismissGeolocationPrompt}
-        onOpenSettings={() => window.location.reload()}
+        onOpenSettings={handleOpenSettings}
       />
 
       {hydrated && currentCity && (
@@ -355,6 +374,17 @@ export function GamePageContent({
               <div className="pointer-events-auto">
                 <ModeSwitcher onDrawerOpenChange={(isOpen) => setShouldHideButtons(isOpen)} />
               </div>
+
+              {!shouldHideButtons && (
+                <div className="pointer-events-auto absolute top-36 right-4 z-20">
+                  <button
+                      onClick={() => setIsRunHistoryOpen(true)}
+                      className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg text-white active:scale-95 transition-all hover:bg-black/80"
+                    >
+                      <History className="h-5 w-5" />
+                    </button>
+                </div>
+              )}
 
               {gameMode === 'map' && !shouldHideButtons && (
                 <div className="pointer-events-auto absolute bottom-24 left-4 right-4 z-20 flex justify-center">
@@ -585,9 +615,12 @@ export function GamePageContent({
       <LocationPermissionPrompt
         isOpen={showPermissionPrompt}
         onClose={() => setShowPermissionPrompt(false)}
-        onOpenSettings={() => {
-          setShowPermissionPrompt(false)
-        }}
+        onOpenSettings={handleOpenSettings}
+      />
+
+      <RunHistoryDrawer 
+        isOpen={isRunHistoryOpen} 
+        onClose={() => setIsRunHistoryOpen(false)} 
       />
     </div>
   )

@@ -18,6 +18,22 @@ export function AMapProvider({ children }: { children: ReactNode }) {
   const [viewMode, setViewMode] = useState<'individual' | 'faction'>('individual');
 
   useEffect(() => {
+    // Check GPS Permissions on mount (Android/iOS)
+    const checkPermissions = async () => {
+        if (Capacitor.isNativePlatform()) {
+            try {
+                const status = await Geolocation.checkPermissions();
+                if (status.location !== 'granted' && status.coarseLocation !== 'granted') {
+                    // Request if not granted
+                    await Geolocation.requestPermissions();
+                }
+            } catch (e) {
+                console.error("Failed to check/request GPS permissions", e);
+            }
+        }
+    };
+    checkPermissions();
+
     // Check if AMap is available globally
     const checkAMap = () => {
       if (typeof window !== 'undefined' && (window as any).AMap) {

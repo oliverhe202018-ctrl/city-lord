@@ -169,7 +169,7 @@ export function BadgeGrid({ initialData }: BadgeGridProps) {
                     key={badge.id}
                     onClick={() => setSelectedBadge(badge)}
                     className={`
-                      relative aspect-square flex flex-col items-center justify-center rounded-xl border p-2 transition-all overflow-hidden
+                      relative aspect-square flex flex-col items-center justify-between rounded-xl border p-2 transition-all overflow-hidden pb-3
                       ${unlocked 
                         ? `${tierClass} hover:bg-white/5` 
                         : 'border-white/5 bg-white/5 hover:opacity-100'
@@ -178,19 +178,21 @@ export function BadgeGrid({ initialData }: BadgeGridProps) {
                   >
                     {/* Background image if unlocked or locked (but grayscale) */}
                     {imagePath && shouldShowContent ? (
-                      <div className={`absolute inset-0 z-0 p-2 ${!unlocked ? 'grayscale opacity-40' : ''}`}>
-                         <Image 
-                           src={imagePath} 
-                           alt={badge.title}
-                           fill
-                           className="object-contain p-2"
-                         />
+                      <div className={`absolute inset-x-0 top-0 bottom-6 z-0 p-2 flex items-center justify-center ${!unlocked ? 'grayscale opacity-40' : ''}`}>
+                         <div className="relative w-full h-full max-w-[70%] max-h-[70%]">
+                           <Image 
+                             src={imagePath} 
+                             alt={badge.title}
+                             fill
+                             className="object-contain"
+                           />
+                         </div>
                       </div>
                     ) : null}
 
-                    <div className={`relative z-10 mb-2 p-2 rounded-full ${unlocked ? 'bg-black/20' : 'bg-black/40'} ${(imagePath && shouldShowContent) ? 'bg-transparent' : ''}`}>
+                    <div className={`relative z-10 p-2 rounded-full mt-1 ${unlocked ? 'bg-black/20' : 'bg-black/40'} ${(imagePath && shouldShowContent) ? 'bg-transparent' : ''}`}>
                        {shouldShowContent ? (
-                         (imagePath && shouldShowContent) ? null : <badge.icon className="w-6 h-6" />
+                         (imagePath && shouldShowContent) ? <div className="w-6 h-6" /> : <badge.icon className="w-6 h-6" />
                        ) : (
                          <Lock className="w-6 h-6 text-white/30" />
                        )}
@@ -201,7 +203,7 @@ export function BadgeGrid({ initialData }: BadgeGridProps) {
                         const progress = getProgress(badge)
                         if (progress) {
                             return (
-                                <div className="w-full px-1 my-1 z-20">
+                                <div className="w-full px-1 my-1 z-20 absolute bottom-6">
                                     <div className="h-1 w-full bg-white/10 rounded-full overflow-hidden">
                                         <div className="h-full bg-yellow-500/50" style={{ width: `${progress.percentage}%` }} />
                                     </div>
@@ -214,7 +216,7 @@ export function BadgeGrid({ initialData }: BadgeGridProps) {
                         return null
                     })()}
 
-                    <span className={`relative z-10 text-[10px] font-medium text-center line-clamp-1 w-full ${!unlocked ? 'text-white/40' : ''}`}>
+                    <span className={`relative z-10 text-[10px] font-medium text-center line-clamp-1 w-full mt-2 ${!unlocked ? 'text-white/40' : ''}`}>
                       {badge.title}
                     </span>
                     
@@ -242,38 +244,35 @@ export function BadgeGrid({ initialData }: BadgeGridProps) {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-             <div className="flex justify-center py-6 bg-black/20 rounded-lg">
-                {selectedBadge && (() => {
-                   const tierClass = getTierColor(selectedBadge.rarity)
-                   const imagePath = selectedBadge.image
-                   const unlocked = isUnlocked(selectedBadge.id)
-                   const isHiddenType = selectedBadge.category === 'special'
-                   const shouldShowContent = unlocked || !isHiddenType
+             <div className="flex flex-col items-center justify-center p-6 space-y-4">
+                <div className="relative">
+                  <div className={`w-24 h-24 rounded-full flex items-center justify-center bg-gradient-to-br ${
+                    selectedBadge?.rarity === 'legendary' ? 'from-orange-500/20 to-red-500/20 border-orange-500/50' :
+                    selectedBadge?.rarity === 'epic' ? 'from-purple-500/20 to-pink-500/20 border-purple-500/50' :
+                    selectedBadge?.rarity === 'rare' ? 'from-blue-500/20 to-cyan-500/20 border-blue-500/50' :
+                    'from-white/10 to-white/5 border-white/20'
+                  } border-2 shadow-[0_0_30px_-5px_rgba(0,0,0,0.5)]`}>
+                    <BadgeIcon 
+                      name={selectedBadge?.icon_name || 'award'} 
+                      className={`w-12 h-12 ${
+                        isUnlocked(selectedBadge?.id || '') ? 'text-white' : 'text-white/20'
+                      }`}
+                    />
+                  </div>
+                  {/* Lock Overlay if locked */}
+                  {!isUnlocked(selectedBadge?.id || '') && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full backdrop-blur-[1px]">
+                      <Lock className="w-8 h-8 text-white/40" />
+                    </div>
+                  )}
+                </div>
 
-                   if (imagePath && shouldShowContent) {
-                     return (
-                       <div className={`relative w-32 h-32 ${!unlocked ? 'grayscale opacity-70' : ''}`}>
-                         <Image 
-                           src={imagePath} 
-                           alt={selectedBadge.title}
-                           fill
-                           className="object-contain"
-                         />
-                       </div>
-                     )
-                   }
-
-                   if (!shouldShowContent) {
-                     return <Lock className="w-24 h-24 text-white/20" />
-                   }
-
-                   const IconComp = selectedBadge.icon || Award
-                   return <IconComp className={`w-24 h-24 ${tierClass.split(' ')[0]}`} />
-                })()}
-             </div>
-             <div>
-                <h4 className="text-sm font-semibold text-white/80 mb-1">达成条件</h4>
-                <p className="text-sm text-white/60">{selectedBadge?.description}</p>
+                <div className="text-center space-y-1">
+                  <h3 className="text-xl font-bold text-white tracking-wide">{selectedBadge?.title}</h3>
+                  <p className="text-sm text-white/60 leading-relaxed max-w-[260px]">
+                    {selectedBadge?.description}
+                  </p>
+                </div>
              </div>
              
              <div>

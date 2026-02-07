@@ -1,6 +1,6 @@
 
-import { createClient } from '@/lib/supabase/server'
-import { cookies } from 'next/headers'
+import { createClient } from '@/mock-supabase'
+import { cookies } from '@/mock-headers'
 
 // Define the default missions structure
 export const DEFAULT_MISSIONS = [

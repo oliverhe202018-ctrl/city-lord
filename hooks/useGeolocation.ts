@@ -27,6 +27,8 @@ interface UseGeolocationProps {
   disabled?: boolean;
 }
 
+import { useGameStore } from '@/store/useGameStore';
+
 /**
  * Capacitor-based geolocation hook with WGS84 -> GCJ02 transformation.
  * 
@@ -45,6 +47,7 @@ export const useGeolocation = ({
     data: null,
   });
 
+  const gpsCorrectionEnabled = useGameStore(state => state.appSettings?.gpsCorrectionEnabled ?? true);
   const isMounted = useRef(true);
   const watchIdRef = useRef<string | null>(null);
 
@@ -72,21 +75,29 @@ export const useGeolocation = ({
 
       if (!isMounted.current) return;
 
-      // Transform WGS-84 (Capacitor) to GCJ-02 (AMap)
-      // Note: gcoord expects [lng, lat], returns [lng, lat]
-      const result = gcoord.transform(
-        [position.coords.longitude, position.coords.latitude],
-        gcoord.WGS84,
-        gcoord.GCJ02
-      );
+      let latitude = position.coords.latitude;
+      let longitude = position.coords.longitude;
+      let coordType: 'gcj02' | 'wgs84' = 'wgs84';
+
+      if (gpsCorrectionEnabled) {
+        // Transform WGS-84 (Capacitor) to GCJ-02 (AMap)
+        const result = gcoord.transform(
+          [longitude, latitude],
+          gcoord.WGS84,
+          gcoord.GCJ02
+        );
+        longitude = result[0];
+        latitude = result[1];
+        coordType = 'gcj02';
+      }
 
       setState({
         loading: false,
         error: null,
         data: {
-          latitude: result[1],
-          longitude: result[0],
-          coordType: 'gcj02',
+          latitude,
+          longitude,
+          coordType,
         },
       });
     } catch (error: any) {
@@ -146,20 +157,29 @@ export const useGeolocation = ({
             }
 
             if (position) {
-              // Transform WGS-84 (Capacitor) to GCJ-02 (AMap)
-              const result = gcoord.transform(
-                [position.coords.longitude, position.coords.latitude],
-                gcoord.WGS84,
-                gcoord.GCJ02
-              );
+              let latitude = position.coords.latitude;
+              let longitude = position.coords.longitude;
+              let coordType: 'gcj02' | 'wgs84' = 'wgs84';
+
+              if (gpsCorrectionEnabled) {
+                // Transform WGS-84 (Capacitor) to GCJ-02 (AMap)
+                const result = gcoord.transform(
+                  [longitude, latitude],
+                  gcoord.WGS84,
+                  gcoord.GCJ02
+                );
+                longitude = result[0];
+                latitude = result[1];
+                coordType = 'gcj02';
+              }
 
               setState({
                 loading: false,
                 error: null,
                 data: {
-                  latitude: result[1],
-                  longitude: result[0],
-                  coordType: 'gcj02',
+                  latitude,
+                  longitude,
+                  coordType,
                 },
               });
             }

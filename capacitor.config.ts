@@ -1,18 +1,14 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.citytour.app',
+  appId: 'com.xiangfei.citylord',
   appName: 'City Lord',
-  webDir: 'public',
+  webDir: 'out',
   server: {
-    url: "https://cl.4567666.xyz",
-    cleartext: true,
-    allowNavigation: [
-      "*.city-tour.dev",
-      "*.vercel.app",
-      "cl.4567666.xyz",
-      "*.4567666.xyz"
-    ]
+    androidScheme: 'https'
+  },
+  plugins: {
+    // 预留给后续插件配置
   }
 };
 

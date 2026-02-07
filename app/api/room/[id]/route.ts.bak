@@ -1,10 +1,18 @@
 import { NextResponse } from 'next/server'
-import { fetchRoomDetails } from '@/app/actions/room'
+// import { fetchRoomDetails } from '@/app/actions/room'
+
+export const dynamic = 'force-static'
+
+export async function generateStaticParams() {
+  return []
+}
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  // { params }: { params: Promise<{ id: string }> }
 ) {
+  return NextResponse.json({ error: 'Not supported in static export' }, { status: 404 })
+  /*
   try {
     const { id } = await params
     const room = await fetchRoomDetails(id)
@@ -18,4 +26,5 @@ export async function GET(
     console.error('API Error [RoomDetails]:', error)
     return NextResponse.json({ error: 'Failed to fetch room details' }, { status: 500 })
   }
+  */
 }

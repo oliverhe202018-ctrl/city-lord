@@ -21,15 +21,20 @@ export function FactionBattleBackground({
 }: Props) {
   
   // Calculate percentages
-  const { bluePercent, redPercent, winningFaction } = useMemo(() => {
+  const { bluePercent, redPercent, winningFaction, isDraw } = useMemo(() => {
     const total = blue_area + red_area
-    if (total === 0) return { bluePercent: 50, redPercent: 50, winningFaction: null }
+    // Fix Task 4: 0 vs 0 兜底显示 50/50，视为平局
+    if (total === 0) return { bluePercent: 50, redPercent: 50, winningFaction: null, isDraw: true }
     
     const blue = (blue_area / total) * 100
+    // 如果双方极其接近（误差小于0.1%），也视为平局
+    const isDraw = Math.abs(blue - 50) < 0.1
+    
     return {
       bluePercent: blue,
       redPercent: 100 - blue,
-      winningFaction: blue_area > red_area ? 'blue' : (red_area > blue_area ? 'red' : null)
+      winningFaction: isDraw ? null : (blue_area > red_area ? 'blue' : 'red'),
+      isDraw
     }
   }, [blue_area, red_area])
 
@@ -59,25 +64,38 @@ export function FactionBattleBackground({
   // Dynamic colors using Tailwind vars or fallbacks
   const blueColor = "rgba(59, 130, 246, 0.8)" // blue-500
   const redColor = "rgba(239, 68, 68, 0.8)"   // red-500
+  const neutralColor = "rgba(100, 116, 139, 0.3)" // slate-500 (降低透明度)
 
-  // We can use a simpler approach with two absolute divs for "breathing" effect
-  
+  // 0数据时的特殊处理：降低饱和度，避免过于刺眼
+  const isZeroData = blue_area === 0 && red_area === 0;
+  const finalBlue = isZeroData ? "rgba(59, 130, 246, 0.4)" : blueColor;
+  const finalRed = isZeroData ? "rgba(239, 68, 68, 0.4)" : redColor;
+
   return (
-    <div className={cn("relative w-full h-full overflow-hidden", className)}>
+    <div className={cn("relative w-full h-full overflow-hidden pointer-events-none select-none", className)}>
       {/* Base Background Layer - The Split */}
       <div 
-        className="absolute inset-0 transition-all duration-1000 ease-in-out"
+        className="absolute inset-0 transition-all duration-1000 ease-in-out z-0"
         style={{
-          background: `linear-gradient(115deg, 
-            ${blueColor} 0%, 
-            ${blueColor} ${bluePercent - 5}%, 
-            ${redColor} ${bluePercent + 5}%, 
-            ${redColor} 100%)`
+          background: isDraw 
+            ? `linear-gradient(135deg, ${finalBlue} 0%, ${neutralColor} 50%, ${finalRed} 100%)`
+            : `linear-gradient(115deg, 
+                ${finalBlue} 0%, 
+                ${finalBlue} ${bluePercent - 5}%, 
+                ${finalRed} ${bluePercent + 5}%, 
+                ${finalRed} 100%)`
         }}
       />
+      
+      {/* 0数据时的提示文案 */}
+      {isZeroData && (
+        <div className="absolute inset-0 flex items-center justify-center z-10 opacity-30">
+             <span className="text-[10px] font-mono text-white tracking-widest uppercase">TERRITORY SCANNING...</span>
+        </div>
+      )}
 
       {/* Winning Faction "Breathing" / "Flow" Effect */}
-      {winningFaction && (
+      {winningFaction && !isZeroData && (
         <motion.div
           className="absolute inset-0 z-10 mix-blend-overlay"
           animate={{ 
