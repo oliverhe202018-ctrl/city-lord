@@ -1,5 +1,7 @@
 
-import { createClient } from '@/lib/supabase/client'
+'use server'
+
+import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
 
 // Define input validation Schema
@@ -14,7 +16,7 @@ export async function checkEmailExists(email: string) {
     return { error: parsed.error.errors[0].message, exists: false }
   }
 
-  const supabase = createClient()
+  const supabase = await createClient()
 
   try {
     // 2. Query profiles table (faster than auth.users and safer with RLS)

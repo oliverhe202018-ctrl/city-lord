@@ -1,5 +1,6 @@
+'use server'
 
-import { createClient } from '@/lib/supabase/client'
+import { createClient } from '@/lib/supabase/server'
 import { Database } from '@/types/supabase'
 
 type ClubRow = Database['public']['Tables']['clubs']['Row']
@@ -40,7 +41,7 @@ export async function createClub(data: {
   is_public?: boolean;
 }) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     await supabase.auth.getSession() // Login State Patch
     
     const { data: { user: authUser } } = await supabase.auth.getUser()
@@ -114,7 +115,7 @@ export async function createClub(data: {
 
 export async function updateClub(clubId: string, data: Partial<Club>) {
     try {
-        const supabase = createClient()
+        const supabase = await createClient()
         await supabase.auth.getSession()
         
         // Map frontend Club type to DB columns if needed
@@ -139,7 +140,7 @@ export async function updateClub(clubId: string, data: Partial<Club>) {
 }
 
 export async function getPendingClubs() {
-  const supabase = createClient()
+  const supabase = await createClient()
   
   const { data, error } = await supabase
     .from('clubs')
@@ -156,7 +157,7 @@ export async function getPendingClubs() {
 }
 
 export async function approveClub(clubId: string) {
-    const supabase = createClient()
+    const supabase = await createClient()
     await supabase.auth.getSession()
     
     // 1. Update club status
@@ -183,7 +184,7 @@ export async function approveClub(clubId: string) {
 }
 
 export async function rejectClub(clubId: string, reason: string) {
-    const supabase = createClient()
+    const supabase = await createClient()
     await supabase.auth.getSession()
     
     // 1. Update club status
@@ -213,7 +214,7 @@ export async function rejectClub(clubId: string, reason: string) {
 }
 
 export async function getClubs() {
-  const supabase = createClient()
+  const supabase = await createClient()
   
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -276,7 +277,7 @@ export async function getClubs() {
 
 export async function joinClub(clubId: string) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     await supabase.auth.getSession()
     
     const { data: { user } } = await supabase.auth.getUser()
@@ -347,7 +348,7 @@ export async function joinClub(clubId: string) {
 }
 
 export async function leaveClub(clubId: string) {
-  const supabase = createClient()
+  const supabase = await createClient()
   await supabase.auth.getSession()
   
   const { data: { user } } = await supabase.auth.getUser()
@@ -394,7 +395,7 @@ async function checkClubOwner(supabase: any, clubId: string, userId: string) {
 // ==================== New Management Actions ====================
 
 export async function updateClubInfo(clubId: string, data: { name?: string, description?: string, avatarUrl?: string }) {
-  const supabase = createClient()
+  const supabase = await createClient()
   await supabase.auth.getSession()
   
   // 1. 获取当前用户
@@ -437,7 +438,7 @@ export async function updateClubInfo(clubId: string, data: { name?: string, desc
 }
 
 export async function getClubJoinRequests(clubId: string) {
-  const supabase = createClient()
+  const supabase = await createClient()
   
   // 1. 获取当前用户
   const { data: { user } } = await supabase.auth.getUser()
@@ -503,7 +504,7 @@ export async function getClubJoinRequests(clubId: string) {
 }
 
 export async function getClubMembers(clubId: string) {
-  const supabase = createClient()
+  const supabase = await createClient()
   
   // 1. 获取当前用户
   const { data: { user } } = await supabase.auth.getUser()
@@ -561,7 +562,7 @@ export async function getClubMembers(clubId: string) {
 }
 
 export async function processJoinRequest(clubId: string, requestId: string, action: 'approve' | 'reject') {
-  const supabase = createClient()
+  const supabase = await createClient()
   await supabase.auth.getSession()
   
   // 1. 获取当前用户
@@ -635,7 +636,7 @@ export async function processJoinRequest(clubId: string, requestId: string, acti
 }
 
 export async function kickMember(clubId: string, memberId: string) {
-  const supabase = createClient()
+  const supabase = await createClient()
   await supabase.auth.getSession()
   
   // 1. 获取当前用户
@@ -694,7 +695,7 @@ export async function kickMember(clubId: string, memberId: string) {
 }
 
 export async function disbandClub(clubId: string) {
-  const supabase = createClient()
+  const supabase = await createClient()
   await supabase.auth.getSession()
   
   // 1. 获取当前用户
@@ -717,8 +718,8 @@ export async function disbandClub(clubId: string) {
     
     // 1. Delete members
     await supabase.from('club_members')
-      .delete()
-      .eq('club_id', clubId)
+    .delete()
+    .eq('club_id', clubId)
       
     // 2. Delete club
     const { error } = await supabase
@@ -739,7 +740,7 @@ export async function disbandClub(clubId: string) {
 
 // 1. Get Club Rankings (Province/National)
 export async function getClubRankings(type: 'province' | 'national', province?: string) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   let query = supabase.from('clubs')
@@ -813,7 +814,7 @@ export async function getClubRankings(type: 'province' | 'national', province?: 
 
 // 2. Get Internal Members (Sorted by Contribution)
 export async function getInternalMembers(clubId: string) {
-  const supabase = createClient()
+  const supabase = await createClient()
 
   // Join club_members with profiles to get name, avatar, and total_area (contribution)
   const { data, error } = await supabase
@@ -848,7 +849,7 @@ export async function getInternalMembers(clubId: string) {
 
 // 3. Get Club Territories (Runs)
 export async function getClubTerritoriesReal(clubId: string, sortBy: 'date' | 'area') {
-  const supabase = createClient()
+  const supabase = await createClient()
 
   let query = supabase
     .from('runs')
@@ -895,7 +896,7 @@ export async function getClubTerritoriesReal(clubId: string, sortBy: 'date' | 'a
 // 4. Get Club History
 export async function getClubHistory(clubId: string) {
    // Fetch last 30 days runs
-   const supabase = createClient()
+   const supabase = await createClient()
    
    const thirtyDaysAgo = new Date()
    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
@@ -943,7 +944,7 @@ export async function getClubTerritories(clubId: string) {
 
 // 5. Get Distinct Provinces (Source of Truth for Filter)
 export async function getAvailableProvinces() {
-  const supabase = createClient()
+  const supabase = await createClient()
 
   // Fetch all active clubs with non-null provinces
   // Supabase doesn't have a direct 'distinct' select modifier like Prisma, 

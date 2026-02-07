@@ -1,9 +1,11 @@
-import { createClient } from '@/lib/supabase/client'
+'use server'
+
+import { createClient } from '@/lib/supabase/server'
 
 export type Faction = 'RED' | 'BLUE'
 
 export async function getFactionStats() {
-  const supabase = createClient()
+  const supabase = await createClient()
   
   try {
     // 1. Get Member Counts from RPC (Single fast query)
@@ -79,7 +81,7 @@ export async function getFactionStats() {
 }
 
 export async function joinFaction(faction: Faction) {
-    const supabase = createClient()
+    const supabase = await createClient()
     
     try {
         const { data: { user } } = await supabase.auth.getUser()

@@ -20,8 +20,7 @@ export type ReferralData = {
 
 export async function getReferralData(): Promise<{ success: boolean; data?: ReferralData; error?: string }> {
   try {
-    const cookieStore = await cookies()
-    const supabase = createClient(cookieStore)
+    const supabase = await createClient()
     
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { success: false, error: '未登录' }
