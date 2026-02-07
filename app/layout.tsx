@@ -58,14 +58,20 @@ import { StatusBar, Style } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
 import { useEffect } from "react";
 
+import { useBackgroundLocation } from '@/hooks/useBackgroundLocation';
+
 // Client Component Wrapper for Status Bar
 function StatusBarConfig() {
+  // Integrate Background Location Logic
+  useBackgroundLocation();
+
   useEffect(() => {
     if (Capacitor.isNativePlatform()) {
       StatusBar.setStyle({ style: Style.Dark });
-      // On Android, overlayWebView makes the status bar transparent/overlay
       if (Capacitor.getPlatform() === 'android') {
-        StatusBar.setOverlaysWebView({ overlay: true });
+        // 关键修复：关闭 Overlay，让 WebView 位于状态栏下方
+        StatusBar.setOverlaysWebView({ overlay: false });
+        StatusBar.setBackgroundColor({ color: '#000000' });
       }
     }
   }, []);
@@ -79,7 +85,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN" suppressHydrationWarning className="h-full">
-      <body className={`font-sans antialiased h-full overflow-hidden overflow-x-hidden w-full relative`}>
+      <body className={`font-sans antialiased h-full overflow-hidden overflow-x-hidden w-full relative pt-[env(safe-area-inset-top)]`}>
         <StatusBarConfig />
         <Script id="amap-security" strategy="beforeInteractive">
           {`

@@ -17,6 +17,9 @@ declare global {
   }
 }
 
+import { KeepAwake } from '@capacitor-community/keep-awake';
+import { Capacitor } from '@capacitor/core';
+
 const MapViewOrchestrator = () => {
   const { region } = useRegion();
   const { map, setMap } = useAMap();
@@ -27,14 +30,24 @@ const MapViewOrchestrator = () => {
   const hydrated = useHydration();
   const markerRef = useRef<any>(null);
 
+  // 0. Ensure screen stays on for native apps (Double Insurance)
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      KeepAwake.keepAwake();
+    }
+    // Note: We deliberately DO NOT call allowSleep() on unmount to keep GPS alive 
+    // if the user switches tabs but stays in the app context.
+    // BackgroundTask will handle the process lifecycle.
+  }, []);
+
   // 1. Geolocation with watch enabled
   const { data: geoData, error: geoError } = useGeolocation({ 
     disabled: !hydrated || hasDismissedGeolocationPrompt,
     watch: true,
     options: {
       enableHighAccuracy: true,
-      maximumAge: 10000, // Increased to 10s
-      timeout: 20000,    // Increased to 20s
+      maximumAge: 0,      // Force fresh data
+      timeout: 30000,     // 30s timeout for GPS fix
     }
   });
 

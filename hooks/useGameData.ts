@@ -2,13 +2,14 @@
 
 import useSWR from 'swr'
 import { useGameStore } from '@/store/useGameStore'
+import { getFactionStats } from '@/app/actions/faction'
 
 // Unified fetcher for API routes
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 // Hook 1: Faction Stats
 export function useFactionStats() {
-  return useSWR('/api/faction/stats', fetcher, {
+  return useSWR('faction-stats', () => getFactionStats(), {
     revalidateOnFocus: false, // Homepage doesn't need frequent updates
     dedupingInterval: 60000,   // 1 minute deduping
   })

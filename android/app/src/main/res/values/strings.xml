@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">CityLord</string>
-    <string name="title_activity_main">CityLord</string>
-    <string name="package_name">com.citylord.game</string>
-    <string name="custom_url_scheme">com.citylord.game</string>
+    <string name="app_name">City Lord</string>
+    <string name="title_activity_main">City Lord</string>
+    <string name="package_name">com.xiangfei.citylord</string>
+    <string name="custom_url_scheme">com.xiangfei.citylord</string>
 </resources>

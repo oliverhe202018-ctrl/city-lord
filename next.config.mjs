@@ -1,4 +1,9 @@
+import path from 'path';
+import { fileURLToPath } from 'url';
 import withPWA from 'next-pwa';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -9,7 +14,7 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  // Hosted App 模式不需要静态导出
+  // Capacitor 需要静态导出
   // output: 'export',
   //3. 图片域名配置
   images: {
@@ -26,6 +31,13 @@ const nextConfig = {
     ],
     dangerouslyAllowSVG: true,
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
+  },
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      config.resolve.alias['next/headers'] = path.resolve(__dirname, 'mock-headers.js');
+      config.resolve.alias['@/lib/supabase/server'] = path.resolve(__dirname, 'mock-supabase.js');
+    }
+    return config;
   },
 };
 

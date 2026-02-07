@@ -15,7 +15,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [verificationCode, setVerificationCode] = useState("")
-  const [verificationToken, setVerificationToken] = useState("")
+  // verificationToken is no longer needed with Supabase SDK
   const [codeSent, setCodeSent] = useState(false)
   const [countdown, setCountdown] = useState(0)
   const [loading, setLoading] = useState(false)
@@ -58,7 +58,10 @@ export default function LoginPage() {
     }
   }, [countdown])
 
-  const handleSendCode = async (type: 'register' | 'login' = 'register') => {
+  // ==========================================
+  // 核心逻辑: 发送验证码 (Register & Login)
+  // ==========================================
+  const handleSendCode = async (type: 'register' | 'login') => {
     if (!email) {
       toast.error("请输入邮箱")
       return
@@ -67,171 +70,130 @@ export default function LoginPage() {
 
     setLoading(true)
     try {
-      const res = await fetch('/api/auth/send-code', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, type })
-      })
-      
-      const data = await res.json()
-      
-      if (!res.ok) throw new Error(data.error || '发送失败')
-      
-      setVerificationToken(data.token)
-      setCodeSent(true)
-      setCountdown(60) // 60s cooldown
+      if (type === 'register') {
+        // [Register Logic]
+        // 1. Strict Requirement: Call signUp only
+        if (!password) {
+           toast.error("请先输入密码")
+           setLoading(false)
+           return
+        }
 
-      // 如果后端返回了 devCode (开发模式 fallback)，直接提示用户
-      if (data.devCode) {
-        toast.success("验证码已生成 (开发模式)", { 
-          description: `您的验证码是：${data.devCode} (邮件发送可能失败)`,
-          duration: 10000, // 显示久一点
-          action: {
-            label: "填入",
-            onClick: () => setVerificationCode(data.devCode)
-          }
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
         })
-        // 自动填入（可选，这里为了方便直接填入）
-        setVerificationCode(data.devCode)
+
+        // 2. Intercept "User already registered" error
+        if (error) {
+          if (error.message.includes("already registered") || error.status === 422) { 
+             toast.error("该账号已存在，请直接登录")
+             return // Stop flow
+          }
+          throw error
+        }
+        
+        // 3. Handle "Prevent User Enumeration" fake success
+        // If identities is empty/null, it means the user exists but Supabase hid the error
+        if (data.user && (!data.user.identities || data.user.identities.length === 0)) {
+            toast.error("该账号已存在，请直接登录")
+            return // Stop flow
+        }
+
+        // Success: Only now start countdown
+        setCodeSent(true)
+        setCountdown(60)
+        toast.success("验证码已发送", { description: "请查看您的邮箱" })
+
       } else {
-        toast.success("验证码已发送", { description: "请查看您的邮箱 (system@mail.city-tour.dev 发送)" })
+        // [Login Logic]
+        // 1. Strict Requirement: Call signInWithOtp with shouldCreateUser: false
+        const { error } = await supabase.auth.signInWithOtp({
+          email,
+          options: {
+            shouldCreateUser: false, // Prevent new users from getting code here
+          },
+        })
+
+        if (error) {
+           if (error.message.includes("Signups not allowed") || error.message.includes("not found")) {
+              toast.error("账号未注册，请先注册")
+              return
+           }
+           throw error
+        }
+
+        setCodeSent(true)
+        setCountdown(60)
+        toast.success("验证码已发送", { description: "请登录邮箱查看" })
       }
     } catch (error: any) {
       console.error('Send code error:', error)
-      toast.error("发送失败", { description: error.message })
+      let msg = error?.message
+      if (msg?.includes("already registered")) msg = "该账号已存在，请直接登录"
+      if (msg?.includes("Signups not allowed")) msg = "账号未注册，请先注册"
+      
+      toast.error("发送失败", { description: msg ?? "请检查网络或稍后再试" })
     } finally {
       setLoading(false)
     }
   }
 
-  const handleRegister = async (e: React.FormEvent) => {
+  // ==========================================
+  // 核心逻辑: 验证验证码 (Register Final Step)
+  // ==========================================
+  const handleRegisterVerify = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!email || !password || !verificationCode) {
-      toast.error("请填写完整信息")
-      return
-    }
+    if (!email || !verificationCode) return
 
     setLoading(true)
     try {
-      const res = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          email, 
-          password, 
-          code: verificationCode, 
-          token: verificationToken 
-        })
+      // [注册验证]
+      // 必须使用 type: 'signup'
+      const { data, error } = await supabase.auth.verifyOtp({
+        email,
+        token: verificationCode,
+        type: 'signup',
       })
 
-      const data = await res.json()
+      if (error) throw error
 
-      if (!res.ok) throw new Error(data.error || '注册失败')
-
-      if (data.requiresEmailConfirmation) {
-        toast.success("注册成功！", { 
-          description: "账号已创建。由于 Supabase 项目开启了邮箱验证，请前往邮箱点击确认链接以激活账户，或者在 Supabase 后台关闭 'Confirm email' 选项。",
-          duration: 8000
-        })
-      } else {
-        toast.success("注册成功", { description: "正在登录..." })
-        // Use router.push first, then fallback to window.location
-        // window.location is safer for full reload to ensure auth state sync
-        window.location.href = "/"
-      }
+      toast.success("注册成功", { description: "欢迎加入城市领主" })
+      // Session 建立后，useEffect 会自动跳转
     } catch (error: any) {
-      toast.error("注册失败", { description: error.message })
+      console.error('Register verify error:', error)
+      toast.error("注册验证失败", { description: error.message || "验证码错误" })
     } finally {
       setLoading(false)
     }
   }
 
-  const handleCodeLogin = async (e: React.FormEvent) => {
+  // ==========================================
+  // 核心逻辑: 验证验证码 (Login Final Step)
+  // ==========================================
+  const handleLoginVerify = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!email || !verificationCode) {
-      toast.error("请输入邮箱和验证码")
-      return
-    }
+    if (!email || !verificationCode) return
 
     setLoading(true)
     try {
-      // 1. 发起 Fetch 请求，而不是提交表单
-      const response = await fetch('/api/auth/login-with-code-direct', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          code: verificationCode,
-          token: verificationToken // 可选，如果前端有token
-        }),
+      // [登录验证]
+      // 必须使用 type: 'email' (Magic Link / OTP 登录)
+      // 注意：signInWithOtp 发送的是 magiclink 或 recovery 或 otp，
+      // 对于 type，通常是 'email' 或 'magiclink'，这里 verifyOtp 文档推荐 'email' 对应 signInWithOtp
+      const { data, error } = await supabase.auth.verifyOtp({
+        email,
+        token: verificationCode,
+        type: 'email', 
       })
 
-      // 2. 解析响应
-      // 注意：如果后端成功，会返回 303 Redirect，fetch 默认会跟随重定向
-      // 但如果是 303 跳转到 Magic Link，我们需要拿到那个 URL 吗？
-      // 不，我们的 API 设计是：验证成功后，后端生成 magic link 并直接 redirect 浏览器。
-      // 但是 fetch 请求如果跟随 redirect，最终会拿到 redirect 后的页面内容（比如首页 HTML）。
-      // 这会导致我们在 data 中拿到一堆 HTML，而不是 JSON。
-      
-      // 修正策略：
-      // 我们的后端目前是 `return NextResponse.redirect(actionLink, 303)`。
-      // 对于 Fetch 请求，如果设置 `redirect: 'manual'`，我们可以拿到 opaqueredirect，但拿不到 URL。
-      // 如果后端返回 JSON { success: true, redirectUrl: '...' } 可能会更好。
-      
-      // 但是用户要求 "后端 API 格式统一"，且 "验证码错误的时候就直接跳转到...页面显示...Invalid verification code"。
-      // 这说明后端目前是在出错时直接渲染了错误信息或者返回了 JSON。
-      
-      // 如果我们用 fetch，我们需要后端：
-      // 1. 出错时返回 JSON (status 400/401)
-      // 2. 成功时返回 JSON (status 200)，包含 redirectUrl，由前端进行跳转。
-      //    或者成功时保持 Redirect，前端 fetch 会自动跟随，最终 response.ok = true (但 url 变了)。
-      
-      // 让我们先假设后端会修改为返回 JSON 错误。
-      // 如果后端验证成功，它目前是做 303 跳转。
-      // Fetch 默认 `redirect: 'follow'`。
-      // 如果验证成功，fetch 会跟随跳转到 `/auth/callback` -> `/`。
-      // 最终 response.url 会是首页。response.ok 是 true。
-      // 这时我们手动 window.location.href = '/' 即可。
-      
-      // 如果验证失败，后端目前可能返回 JSON { error: ... } (status 500/400)。
-      // 这时 response.ok 是 false。我们读取 response.json() 拿到错误信息。
+      if (error) throw error
 
-      const contentType = response.headers.get("content-type");
-      
-      if (!response.ok) {
-        let errorMessage = "登录失败";
-        if (contentType && contentType.indexOf("application/json") !== -1) {
-            const errorData = await response.json();
-            errorMessage = errorData.error || errorMessage;
-        } else {
-            errorMessage = await response.text();
-        }
-        
-        toast.error(errorMessage, { duration: 3000 });
-        setLoading(false);
-        return;
-      }
-
-      // 如果成功，fetch 可能会跟随重定向最终到达首页或其他页面
-      // 或者如果后端改成了返回 JSON，我们也处理
-      if (contentType && contentType.indexOf("application/json") !== -1) {
-          const data = await response.json();
-          if (data.redirectUrl) {
-              window.location.href = data.redirectUrl;
-              return;
-          }
-      }
-
-      // 如果是重定向跟随成功 (response.ok = true)
-      // 我们可以认为登录成功，直接刷新页面或跳转
-      toast.success("登录成功！");
-      window.location.href = "/";
-
+      toast.success("登录成功")
     } catch (error: any) {
-      console.error("[Login Page] Login error:", error)
-      toast.error("登录失败", {
-        description: error.message || "网络请求失败，请稍后重试"
-      })
+      console.error('Login verify error:', error)
+      toast.error("登录失败", { description: error.message || "验证码错误" })
+    } finally {
       setLoading(false)
     }
   }
@@ -241,10 +203,11 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const response = await supabase.auth.signInWithPassword({
         email,
         password,
       })
+      const error = response?.error
 
       if (error) {
         throw error
@@ -254,10 +217,10 @@ export default function LoginPage() {
       
       // 强制重定向，确保状态同步
       window.location.href = "/"
-    } catch (error) {
+    } catch (error: any) {
       console.error("Login error:", error)
       toast.error("登录失败", {
-        description: error instanceof Error ? error.message : "账号或密码错误"
+        description: error?.message ?? "登录失败，请检查网络"
       })
     } finally {
       setLoading(false)
@@ -361,7 +324,7 @@ export default function LoginPage() {
 
                 {/* 验证码登录表单 */}
                 {loginMethod === "code" && (
-                  <form onSubmit={handleCodeLogin} className="space-y-4">
+                  <form onSubmit={handleLoginVerify} className="space-y-4">
                     <div className="space-y-2">
                       <div className="relative">
                         <Mail className="absolute left-3 top-3 h-4 w-4 text-white/40" />
@@ -422,7 +385,7 @@ export default function LoginPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <form onSubmit={handleRegister} className="space-y-4">
+                <form onSubmit={handleRegisterVerify} className="space-y-4">
                   <div className="space-y-2">
                     <div className="relative">
                       <Mail className="absolute left-3 top-3 h-4 w-4 text-white/40" />

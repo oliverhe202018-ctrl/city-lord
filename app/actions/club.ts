@@ -1,7 +1,5 @@
-'use server'
 
-import { createClient } from '@/lib/supabase/server'
-import { cookies } from 'next/headers'
+import { createClient } from '@/lib/supabase/client'
 import { Database } from '@/types/supabase'
 
 type ClubRow = Database['public']['Tables']['clubs']['Row']
@@ -42,24 +40,17 @@ export async function createClub(data: {
   is_public?: boolean;
 }) {
   try {
-    const cookieStore = await cookies()
-    const supabase = createClient(cookieStore)
+    const supabase = createClient()
+    await supabase.auth.getSession() // Login State Patch
     
     const { data: { user: authUser } } = await supabase.auth.getUser()
     
-    let userId = authUser?.id
-
-    // Fallback to first profile if no auth user (Dev/Demo mode)
-    if (!userId) {
-      const { data: profiles } = await supabase.from('profiles').select('id').limit(1)
-      if (profiles && profiles.length > 0) {
-        userId = profiles[0].id
-      }
-    }
-
-    if (!userId) {
+    // Strict Auth Check (Golden Rule #5)
+    if (!authUser) {
         return { success: false, error: 'Unauthorized: User not found' }
     }
+    
+    const userId = authUser.id
 
     // Prepare insert data based on actual schema
     const insertData = {
@@ -123,8 +114,8 @@ export async function createClub(data: {
 
 export async function updateClub(clubId: string, data: Partial<Club>) {
     try {
-        const cookieStore = await cookies()
-        const supabase = createClient(cookieStore)
+        const supabase = createClient()
+        await supabase.auth.getSession()
         
         // Map frontend Club type to DB columns if needed
         const updateData: any = { ...data }
@@ -148,8 +139,7 @@ export async function updateClub(clubId: string, data: Partial<Club>) {
 }
 
 export async function getPendingClubs() {
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = createClient()
   
   const { data, error } = await supabase
     .from('clubs')
@@ -166,8 +156,8 @@ export async function getPendingClubs() {
 }
 
 export async function approveClub(clubId: string) {
-    const cookieStore = await cookies()
-    const supabase = createClient(cookieStore)
+    const supabase = createClient()
+    await supabase.auth.getSession()
     
     // 1. Update club status
     const { data: club, error } = await supabase
@@ -193,8 +183,8 @@ export async function approveClub(clubId: string) {
 }
 
 export async function rejectClub(clubId: string, reason: string) {
-    const cookieStore = await cookies()
-    const supabase = createClient(cookieStore)
+    const supabase = createClient()
+    await supabase.auth.getSession()
     
     // 1. Update club status
     const { data: club, error } = await supabase
@@ -223,8 +213,7 @@ export async function rejectClub(clubId: string, reason: string) {
 }
 
 export async function getClubs() {
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = createClient()
   
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -287,8 +276,8 @@ export async function getClubs() {
 
 export async function joinClub(clubId: string) {
   try {
-    const cookieStore = await cookies()
-    const supabase = createClient(cookieStore)
+    const supabase = createClient()
+    await supabase.auth.getSession()
     
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { success: false, error: 'Unauthorized' }
@@ -358,8 +347,8 @@ export async function joinClub(clubId: string) {
 }
 
 export async function leaveClub(clubId: string) {
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = createClient()
+  await supabase.auth.getSession()
   
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Unauthorized')
@@ -405,8 +394,8 @@ async function checkClubOwner(supabase: any, clubId: string, userId: string) {
 // ==================== New Management Actions ====================
 
 export async function updateClubInfo(clubId: string, data: { name?: string, description?: string, avatarUrl?: string }) {
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = createClient()
+  await supabase.auth.getSession()
   
   // 1. 获取当前用户
   const { data: { user } } = await supabase.auth.getUser()
@@ -448,8 +437,7 @@ export async function updateClubInfo(clubId: string, data: { name?: string, desc
 }
 
 export async function getClubJoinRequests(clubId: string) {
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = createClient()
   
   // 1. 获取当前用户
   const { data: { user } } = await supabase.auth.getUser()
@@ -515,8 +503,7 @@ export async function getClubJoinRequests(clubId: string) {
 }
 
 export async function getClubMembers(clubId: string) {
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = createClient()
   
   // 1. 获取当前用户
   const { data: { user } } = await supabase.auth.getUser()
@@ -574,8 +561,8 @@ export async function getClubMembers(clubId: string) {
 }
 
 export async function processJoinRequest(clubId: string, requestId: string, action: 'approve' | 'reject') {
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = createClient()
+  await supabase.auth.getSession()
   
   // 1. 获取当前用户
   const { data: { user } } = await supabase.auth.getUser()
@@ -648,8 +635,8 @@ export async function processJoinRequest(clubId: string, requestId: string, acti
 }
 
 export async function kickMember(clubId: string, memberId: string) {
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = createClient()
+  await supabase.auth.getSession()
   
   // 1. 获取当前用户
   const { data: { user } } = await supabase.auth.getUser()
@@ -707,8 +694,8 @@ export async function kickMember(clubId: string, memberId: string) {
 }
 
 export async function disbandClub(clubId: string) {
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = createClient()
+  await supabase.auth.getSession()
   
   // 1. 获取当前用户
   const { data: { user } } = await supabase.auth.getUser()
@@ -752,8 +739,7 @@ export async function disbandClub(clubId: string) {
 
 // 1. Get Club Rankings (Province/National)
 export async function getClubRankings(type: 'province' | 'national', province?: string) {
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   let query = supabase.from('clubs')
@@ -827,8 +813,7 @@ export async function getClubRankings(type: 'province' | 'national', province?: 
 
 // 2. Get Internal Members (Sorted by Contribution)
 export async function getInternalMembers(clubId: string) {
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = createClient()
 
   // Join club_members with profiles to get name, avatar, and total_area (contribution)
   const { data, error } = await supabase
@@ -863,8 +848,7 @@ export async function getInternalMembers(clubId: string) {
 
 // 3. Get Club Territories (Runs)
 export async function getClubTerritoriesReal(clubId: string, sortBy: 'date' | 'area') {
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = createClient()
 
   let query = supabase
     .from('runs')
@@ -911,8 +895,7 @@ export async function getClubTerritoriesReal(clubId: string, sortBy: 'date' | 'a
 // 4. Get Club History
 export async function getClubHistory(clubId: string) {
    // Fetch last 30 days runs
-   const cookieStore = await cookies()
-   const supabase = createClient(cookieStore)
+   const supabase = createClient()
    
    const thirtyDaysAgo = new Date()
    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
@@ -960,8 +943,7 @@ export async function getClubTerritories(clubId: string) {
 
 // 5. Get Distinct Provinces (Source of Truth for Filter)
 export async function getAvailableProvinces() {
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = createClient()
 
   // Fetch all active clubs with non-null provinces
   // Supabase doesn't have a direct 'distinct' select modifier like Prisma, 

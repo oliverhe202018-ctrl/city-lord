@@ -55,7 +55,7 @@ export function QuickEntry({ onNavigate, missionCount = 0, rank = 42 }: QuickEnt
           <Users className="h-5 w-5 text-purple-400" />
         </div>
         <span className="text-xs font-medium text-white">好友</span>
-        <span className="text-[10px] text-white/40">12在线</span>
+        <span className="text-[10px] text-white/40">{friendCount || 0}人</span>
       </button>
     </div>
   )

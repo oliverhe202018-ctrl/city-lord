@@ -85,71 +85,78 @@ export function RoomChat({ roomId, participants = [], currentUser }: RoomChatPro
   useEffect(() => {
     if (!roomId) return;
 
-    let retryTimer: NodeJS.Timeout;
+    let channel: RealtimeChannel | null = null;
+    let isMounted = true; // 1. 防止组件卸载后更新状态
+    let retryTimeout: NodeJS.Timeout;
 
-    const connectToRealtime = () => {
-        // 1. Cleanup previous channel to prevent zombies (Aggressive Cleanup)
-        if (channelRef.current) {
-            console.log(`[RoomChat] Cleaning up existing channel for ${roomId}`);
-            supabase.removeChannel(channelRef.current);
-            channelRef.current = null;
-        }
+    const connect = async () => {
+        // 如果已经有连接，先清理
+        if (channel) await supabase.removeChannel(channel);
 
-        console.log(`[RoomChat] Initializing subscription for room: ${roomId}`);
+        console.log('[RoomChat] Initiating connection...');
         setConnectionStatus('CONNECTING');
-
-        const channelName = `room-chat-${roomId}`;
-        const channel = supabase
-          .channel(channelName)
-          .on(
-            'postgres_changes',
-            {
-              event: 'INSERT',
-              schema: 'public',
-              table: 'room_messages',
-              filter: `room_id=eq.${roomId}`,
-            },
-            (payload) => {
-              console.log('[RoomChat] Received message:', payload);
-              const newMsg = payload.new as Message;
-              setMessages((prev) => {
-                if (prev.some(m => m.id === newMsg.id)) return prev;
-                return [...prev, newMsg];
-              });
-              setTimeout(scrollToBottom, 100);
-            }
-          )
-          .subscribe((status) => {
-            console.log(`[RoomChat] Connection status: ${status}`);
-            
-            if (status === 'SUBSCRIBED') {
-              setConnectionStatus('CONNECTED');
-            } else if (status === 'TIMED_OUT' || status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-              console.error(`[RoomChat] Subscription failed with status: ${status}`);
-              setConnectionStatus('DISCONNECTED');
-              
-              // 3. Auto-Retry Logic
-              console.log('[RoomChat] Retrying connection in 5s...');
-              if (retryTimer) clearTimeout(retryTimer);
-              retryTimer = setTimeout(connectToRealtime, 5000);
-            }
-          });
         
-        channelRef.current = channel;
+        // 2. 创建频道
+        channel = supabase.channel(`room-chat-${roomId}`, {
+            config: {
+                broadcast: { self: true },
+                presence: { key: userId || 'anon' },
+            },
+        });
+
+        // 3. 绑定事件
+        channel
+            .on(
+              'postgres_changes',
+              {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'room_messages',
+                filter: `room_id=eq.${roomId}`,
+              },
+              (payload) => {
+                if (!isMounted) return;
+                console.log('[RoomChat] Received message:', payload);
+                const newMsg = payload.new as Message;
+                setMessages((prev) => {
+                  if (prev.some(m => m.id === newMsg.id)) return prev;
+                  return [...prev, newMsg];
+                });
+                setTimeout(scrollToBottom, 100);
+              }
+            )
+            .subscribe((status) => {
+                console.log(`[RoomChat] Status changed: ${status}`);
+                
+                if (!isMounted) return;
+
+                if (status === 'SUBSCRIBED') {
+                    setConnectionStatus('CONNECTED');
+                } 
+                else if (status === 'CLOSED' || status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
+                    setConnectionStatus('DISCONNECTED');
+                    // 4. 遇到错误，3秒后自动重试 (关键!)
+                    console.log('[RoomChat] Connection lost, retrying in 3s...');
+                    clearTimeout(retryTimeout);
+                    retryTimeout = setTimeout(() => {
+                        if (isMounted) connect();
+                    }, 3000);
+                }
+            });
     };
 
-    connectToRealtime();
+    connect();
 
-    // Cleanup: Unsubscribe when component unmounts or roomId changes
+    // 5. 严格的清理函数
     return () => {
-      console.log(`[RoomChat] Unmounting/Changing room. Cleaning up channel: ${roomId}`);
-      if (retryTimer) clearTimeout(retryTimer);
-      if (channelRef.current) {
-          supabase.removeChannel(channelRef.current);
-          channelRef.current = null;
-      }
+        isMounted = false;
+        clearTimeout(retryTimeout);
+        if (channel) {
+            console.log('[RoomChat] Cleaning up channel...');
+            supabase.removeChannel(channel);
+        }
     };
-  }, [roomId, supabase]); // ✅ Dependency array includes stable supabase instance
+  }, [roomId, supabase, userId]); // 确保依赖项正确
 
   const handleSend = async () => {
     if (!newMessage.trim() || !userId) return;

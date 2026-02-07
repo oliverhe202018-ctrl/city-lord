@@ -4,6 +4,28 @@ City Lord 是一款结合真实地理位置（LBS）的跑步领地争夺游戏�
 
 ## 📅 更新日志 (Changelog)
 
+### 2026-02-07: 📱 Android 原生体验深度优化 (Native Polish & Hardening)
+
+**核心架构升级：**
+
+1.  **🔋 强健的后台定位 (Robust Background Location)**
+    *   **双重保活机制**：集成了 `@capawesome/capacitor-background-task` 和 `@capacitor-community/keep-awake`。
+    *   **KeepAwake**：进入地图页自动申请屏幕唤醒锁，防止物理息屏导致 CPU 休眠。
+    *   **Background Task**：App 切入后台时自动申请系统任务时间片，确保 Geolocation 进程不被 Android 系统挂起。
+    *   **权限升级**：在 `AndroidManifest.xml` 中配置了 `FOREGROUND_SERVICE` 和 `WAKE_LOCK` 等关键权限，符合 Google Play 跑步类应用标准。
+
+2.  **🔧 原生 UI 适配 (Native UI Adaptation)**
+    *   **沉浸式状态栏**：使用 `@capacitor/status-bar` 强制关闭 WebView Overlay，配合黑色背景，彻底解决了 Android 顶部刘海/挖孔屏的内容遮挡问题。
+    *   **坐标系纠偏开关**：在设置中新增“GPS 坐标纠偏”开关。支持在 WGS84 (原生硬件) 和 GCJ02 (高德标准) 之间手动切换，完美适配模拟器开发和真机实测两种场景。
+
+3.  **🛡️ 认证安全升级 (Auth Security)**
+    *   **流程隔离**：重构 `AuthForm`，严格分离注册 (`signUp`) 和登录 (`signInWithOtp`) 逻辑。
+    *   **防枚举攻击**：针对 Supabase 的 "Prevent User Enumeration" 机制增加了前端拦截逻辑，精准识别“假成功”状态，避免已注册用户误入注册流程。
+
+4.  **🎨 视觉细节打磨**
+    *   **50/50 视觉兜底**：重构 `FactionBattleBackground`，当领地数据为 0 vs 0 时，显示优雅的低饱和度红蓝渐变和 "SCANNING" 提示，告别黑屏尴尬。
+    *   **定位交互优化**：修复了定位权限被拒绝后 UI 无限转圈的 Bug，增加了显式的权限请求引导。
+
 ### 2026-02-06: 📱 原生定位桥接与 UI 交互升级 (Native Location & UI Polish)
 
 **核心体验优化：**

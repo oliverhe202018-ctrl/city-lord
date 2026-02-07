@@ -80,6 +80,7 @@ export interface AppSettings {
   soundEnabled: boolean;
   hapticEnabled: boolean;
   theme: 'light' | 'dark' | 'system';
+  gpsCorrectionEnabled: boolean;
 }
 
 export interface MyClub {
@@ -105,6 +106,12 @@ export interface ModeActions {
   setMyClub: (club: MyClub | null) => void;
   updateMyClubInfo: (info: Partial<MyClub>) => void;
   updateAppSettings: (settings: Partial<AppSettings>) => void;
+
+  // Settings Actions
+  setSoundEnabled: (enabled: boolean) => void;
+  setHapticEnabled: (enabled: boolean) => void;
+  setTheme: (theme: 'light' | 'dark' | 'system') => void;
+  setGpsCorrectionEnabled: (enabled: boolean) => void;
   
   // Room Actions
   setCurrentRoom: (room: Room | null) => void;
@@ -178,6 +185,7 @@ const initialAppSettings: AppSettings = {
   soundEnabled: true,
   hapticEnabled: true,
   theme: 'system',
+  gpsCorrectionEnabled: false,
 };
 
 const initialUserState: UserState = {
@@ -234,6 +242,12 @@ const createModeSlice: StateCreator<GameStore, [], [], ModeActions> = (set, get)
     })),
   updateAppSettings: (settings) =>
     set((state) => ({ appSettings: { ...state.appSettings, ...settings } })),
+
+  // Settings Actions
+  setSoundEnabled: (enabled) => set((state) => ({ appSettings: { ...state.appSettings, soundEnabled: enabled } })),
+  setHapticEnabled: (enabled) => set((state) => ({ appSettings: { ...state.appSettings, hapticEnabled: enabled } })),
+  setTheme: (theme) => set((state) => ({ appSettings: { ...state.appSettings, theme } })),
+  setGpsCorrectionEnabled: (enabled) => set((state) => ({ appSettings: { ...state.appSettings, gpsCorrectionEnabled: enabled } })),
   
   // Room Actions Implementation
   setCurrentRoom: (room) => set({ currentRoom: room }),

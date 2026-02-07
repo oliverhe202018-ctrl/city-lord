@@ -102,6 +102,10 @@ function LoginModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void 
   )
 }
 
+import { Capacitor } from '@capacitor/core';
+import { Geolocation } from '@capacitor/geolocation';
+import { toast } from "sonner";
+
 /**
  * 地图头部状态栏组件
  * Displays user stats, city info, and GPS status
@@ -139,8 +143,12 @@ export function MapHeader({ isCityDrawerOpen, setIsCityDrawerOpen, setShowThemeS
     checkUser()
   }, [])
 
+  const [requestingLocation, setRequestingLocation] = useState(false);
+
   // GPS Status Config
   const getGpsStatusConfig = () => {
+    if (requestingLocation) return { icon: Navigation, color: 'text-blue-400', bg: 'bg-blue-500/20', border: 'border-blue-500/30', text: '请求中' };
+
     switch(gpsStatus) {
       case 'success': return { icon: Check, color: 'text-[#22c55e]', bg: 'bg-[#22c55e]/20', border: 'border-[#22c55e]/50', text: '已定位' }
       case 'locating': return { icon: Navigation, color: 'text-yellow-400', bg: 'bg-yellow-500/20', border: 'border-yellow-500/30', text: '定位中' }
@@ -150,6 +158,42 @@ export function MapHeader({ isCityDrawerOpen, setIsCityDrawerOpen, setShowThemeS
   }
   const gpsConfig = getGpsStatusConfig()
   const GpsIcon = gpsConfig.icon
+
+  const handleGPSClick = async () => {
+    // 允许重试，但防止连点
+    if (requestingLocation) return;
+    
+    setRequestingLocation(true);
+    try {
+        if (!Capacitor.isNativePlatform()) {
+             toast.info("网页端请允许浏览器定位权限");
+             window.location.reload();
+             return;
+        }
+
+        // Native Permission Flow
+        const status = await Geolocation.requestPermissions();
+        
+        if (status.location === 'denied' || status.coarseLocation === 'denied') {
+             toast.error("定位权限被拒绝", {
+               description: "请前往系统设置中手动开启定位权限"
+             });
+        } else if (status.location === 'granted' || status.coarseLocation === 'granted') {
+             toast.success("授权成功，正在定位...");
+             // 重载页面以触发 useGeolocation 的初始化
+             window.location.reload();
+        } else {
+             toast.warning("请允许定位权限以继续");
+        }
+    } catch (e) {
+        console.error("GPS Permission Error", e);
+        toast.error("请求权限失败", { description: "请检查设备设置" });
+    } finally {
+        // 务必重置状态，否则 UI 会一直转圈
+        setRequestingLocation(false);
+    }
+  };
+
   const expProgress = Math.min(100, Math.max(0, (currentExp / maxExp) * 100))
 
   // 计算体力恢复倒计时
@@ -195,7 +239,7 @@ export function MapHeader({ isCityDrawerOpen, setIsCityDrawerOpen, setShowThemeS
   return (
     <>
       {/* 头部状态栏容器 - 固定在顶部安全区域 */}
-      <div className="absolute top-[env(safe-area-inset-top)] left-0 right-0 z-[100] px-4 transition-all duration-300 pt-2">
+      <div className="absolute top-0 left-0 right-0 z-[100] px-4 transition-all duration-300 pt-[calc(env(safe-area-inset-top)+1rem)]">
         <GlassCard className="p-1">
           <div className="flex items-center justify-between gap-2">
             {/* 左侧：城市选择器 */}
@@ -287,10 +331,13 @@ export function MapHeader({ isCityDrawerOpen, setIsCityDrawerOpen, setShowThemeS
             <div className="flex items-center gap-1 pr-2">
               {/* RoomSelector hidden as per user request - moved to bottom navigation */}
               {/* <RoomSelector className="h-8 border-none bg-transparent hover:bg-white/5" compact /> */}
-              <div className={`flex items-center gap-1 px-2 py-1 rounded-lg border ${gpsConfig.bg} ${gpsConfig.border}`}>
-                  <GpsIcon className={`w-3 h-3 ${gpsConfig.color} ${gpsStatus === 'locating' ? 'animate-spin' : ''}`} />
+              <button 
+                onClick={handleGPSClick}
+                className={`flex items-center gap-1 px-2 py-1 rounded-lg border ${gpsConfig.bg} ${gpsConfig.border} transition-all active:scale-95`}
+              >
+                  <GpsIcon className={`w-3 h-3 ${gpsConfig.color} ${gpsStatus === 'locating' || requestingLocation ? 'animate-spin' : ''}`} />
                   <span className={`text-[10px] font-bold ${gpsConfig.color}`}>{gpsConfig.text}</span>
-              </div>
+              </button>
               <button
                 onClick={() => setShowThemeSwitcher(true)}
                 className="p-2 rounded-lg hover:bg-white/5 transition-colors"

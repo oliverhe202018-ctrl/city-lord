@@ -1,7 +1,5 @@
-'use server'
 
-import { createClient } from '@/lib/supabase/server'
-import { cookies } from 'next/headers'
+import { createClient } from '@/lib/supabase/client'
 
 export type Room = {
   id: string
@@ -20,6 +18,7 @@ export type Room = {
   allow_chat?: boolean
   allow_imports?: boolean
   avatar_url?: string
+  allow_member_invite?: boolean
 }
 
 export type CreateRoomData = {
@@ -31,12 +30,12 @@ export type CreateRoomData = {
   password?: string
   allow_chat?: boolean
   allow_imports?: boolean
+  allow_member_invite?: boolean
   avatar_url?: string
 }
 
 export async function fetchRoomDetails(roomId: string) {
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = createClient()
 
   const { data: room, error } = await supabase
     .from('rooms')
@@ -66,13 +65,14 @@ export async function fetchRoomDetails(roomId: string) {
     invite_code: room.invite_code,
     allow_chat: room.allow_chat,
     allow_imports: room.allow_imports,
+    allow_member_invite: room.allow_member_invite,
     avatar_url: room.avatar_url
   } as Room
 }
 
 export async function getCurrentRoom() {
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = createClient()
+  await supabase.auth.getSession()
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
@@ -113,13 +113,13 @@ export async function getCurrentRoom() {
     invite_code: room.invite_code,
     allow_chat: room.allow_chat,
     allow_imports: room.allow_imports,
+    allow_member_invite: room.allow_member_invite,
     avatar_url: room.avatar_url
   } as Room
 }
 
 export async function getRooms() {
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = createClient()
 
   const { data: rooms, error } = await supabase
     .from('rooms')
@@ -153,32 +153,28 @@ export async function getRooms() {
     invite_code: room.invite_code,
     allow_chat: room.allow_chat,
     allow_imports: room.allow_imports,
+    allow_member_invite: room.allow_member_invite,
     avatar_url: room.avatar_url
   })) as Room[]
 }
 
 export async function createRoom(data: CreateRoomData) {
   try {
-    const cookieStore = await cookies()
-    const supabase = createClient(cookieStore)
+    const supabase = createClient()
+    await supabase.auth.getSession() // Login State Patch
     
     const { data: { user: authUser } } = await supabase.auth.getUser()
     
-    let user = authUser
-    if (!user) {
-       const { data: profiles } = await supabase.from('profiles').select('id').limit(1)
-       if (profiles && profiles.length > 0) {
-          user = { id: (profiles[0] as any).id } as any
-       }
-    }
-
-    if (!user) return { success: false, error: '未登录' }
+    // Strict Auth Check (Golden Rule #5)
+    if (!authUser) return { success: false, error: '请先登录' }
+    
+    const user = authUser
 
     // 1. Create Room
     const { data: room, error: createError } = await (supabase
       .from('rooms' as any) as any)
       .insert({
-        host_id: user.id,
+        host_id: user.id, // Explicitly bind to user.id (Golden Rule #4)
         name: data.name,
         target_distance_km: data.target_distance_km,
         target_duration_minutes: data.target_duration_minutes,
@@ -221,19 +217,15 @@ export async function createRoom(data: CreateRoomData) {
 
 export async function joinRoomByCode(code: string) {
   try {
-    const cookieStore = await cookies()
-    const supabase = createClient(cookieStore)
+    const supabase = createClient()
+    await supabase.auth.getSession() // Login State Patch
     
     const { data: { user: authUser } } = await supabase.auth.getUser()
-    let user = authUser
-    if (!user) {
-       const { data: profiles } = await supabase.from('profiles').select('id').limit(1)
-       if (profiles && profiles.length > 0) {
-          user = { id: (profiles[0] as any).id } as any
-       }
-    }
-
-    if (!user) return { success: false, error: '未登录' }
+    
+    // Strict Auth Check
+    if (!authUser) return { success: false, error: '请先登录' }
+    
+    const user = authUser
 
     // 1. Find room by code
     const { data: room, error: findError } = await (supabase
@@ -289,19 +281,15 @@ export async function joinRoom(roomId: string, password?: string) {
   // This function seems less used now with invite codes, but keeping for compatibility
   // Updating to return simple success object
   try {
-    const cookieStore = await cookies()
-    const supabase = createClient(cookieStore)
+    const supabase = createClient()
+    await supabase.auth.getSession() // Login State Patch
     
     const { data: { user: authUser } } = await supabase.auth.getUser()
-    let user = authUser
-    if (!user) {
-       const { data: profiles } = await supabase.from('profiles').select('id').limit(1)
-       if (profiles && profiles.length > 0) {
-          user = { id: (profiles[0] as any).id } as any
-       }
-    }
-
-    if (!user) throw new Error('Unauthorized')
+    
+    // Strict Auth Check
+    if (!authUser) throw new Error('Unauthorized')
+    
+    const user = authUser
 
     // 1. Check if already joined
     const { data: membership } = await (supabase
@@ -354,19 +342,15 @@ export async function joinRoom(roomId: string, password?: string) {
 
 export async function leaveRoom(roomId: string) {
   try {
-    const cookieStore = await cookies()
-    const supabase = createClient(cookieStore)
+    const supabase = createClient()
+    await supabase.auth.getSession() // Login State Patch
     
     const { data: { user: authUser } } = await supabase.auth.getUser()
-    let user = authUser
-    if (!user) {
-       const { data: profiles } = await supabase.from('profiles').select('id').limit(1)
-       if (profiles && profiles.length > 0) {
-          user = { id: (profiles[0] as any).id } as any
-       }
-    }
-
-    if (!user) return { success: false, error: '未登录' }
+    
+    // Strict Auth Check
+    if (!authUser) return { success: false, error: '未登录' }
+    
+    const user = authUser
 
     const { error } = await (supabase
       .from('room_participants' as any) as any)
@@ -394,19 +378,14 @@ export async function leaveRoom(roomId: string) {
 
 export async function getJoinedRooms() {
   try {
-    const cookieStore = await cookies()
-    const supabase = createClient(cookieStore)
+    const supabase = createClient()
     
     const { data: { user: authUser } } = await supabase.auth.getUser()
-    let user = authUser
-    if (!user) {
-       const { data: profiles } = await supabase.from('profiles').select('id').limit(1)
-       if (profiles && profiles.length > 0) {
-          user = { id: (profiles[0] as any).id } as any
-       }
-    }
-
-    if (!user) return { success: true, rooms: [] }
+    
+    // Strict Auth Check
+    if (!authUser) return { success: true, rooms: [] }
+    
+    const user = authUser
 
     const { data: participations, error } = await (supabase
       .from('room_participants' as any) as any)

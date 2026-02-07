@@ -1,7 +1,7 @@
-'use server'
+// 'use server'
 
-import { createClient } from '@/lib/supabase/server'
-import { cookies } from 'next/headers'
+import { createClient } from '@/mock-supabase'
+import { cookies } from '@/mock-headers'
 import { sendMessage, markAsRead, getMessages } from './message'
 import { Database } from '@/types/supabase'
 
