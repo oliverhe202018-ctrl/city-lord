@@ -4,6 +4,21 @@ City Lord 是一款结合真实地理位置（LBS）的跑步领地争夺游戏�
 
 ## 📅 更新日志 (Changelog)
 
+### 2026-02-08: 🏃‍♂️ 跑步体验深度优化 (Running Experience Optimization)
+
+**核心功能升级：**
+
+1.  **🔋 原生后台保活 (Native Background Tracking)**
+    *   **前台服务集成**：引入 `@capacitor-community/background-geolocation` 插件，利用 Android 前台服务 (Foreground Service) 机制，在通知栏显示常驻通知，确保 App 在熄屏或切后台后仍能持续记录轨迹。
+    *   **双源定位策略**：重构 `useRunningTracker`，采用“双轨制”定位策略——UI 层继续使用 Web API 保证实时性，后台层启动原生插件保证数据不丢失。
+    *   **权限配置**：完善 `AndroidManifest.xml`，添加 `FOREGROUND_SERVICE_LOCATION` 和 `ACCESS_BACKGROUND_LOCATION` 权限，符合现代 Android 规范。
+
+2.  **🔊 沉浸式语音反馈 (Audio Feedback)**
+    *   **全流程语音**：新增了跑步全流程的语音交互。
+        *   **倒计时**：起跑前播放 3 秒倒计时音效。
+        *   **状态播报**：暂停、恢复、结束跑步时均有清晰的音效反馈。
+    *   **音频管理**：封装了轻量级的 `LocationService` 和音频工具，解耦了业务逻辑。
+
 ### 2026-02-08: 🏗️ 架构现代化与构建修复 (Architecture Modernization & Build Fixes)
 
 **核心架构升级：**

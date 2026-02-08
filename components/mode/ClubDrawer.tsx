@@ -17,9 +17,10 @@ import { Loader2 } from 'lucide-react';
 interface ClubDrawerProps {
   isOpen: boolean;
   onClose: () => void;
+  onOpenCreate: () => void;
 }
 
-export function ClubDrawer({ isOpen, onClose }: ClubDrawerProps) {
+export function ClubDrawer({ isOpen, onClose, onOpenCreate }: ClubDrawerProps) {
   // ==================================================================================
   // 1. Hook Definition Area
   // ==================================================================================
@@ -140,6 +141,7 @@ export function ClubDrawer({ isOpen, onClose }: ClubDrawerProps) {
             }))}
             onJoinSuccess={() => refreshClubs()}
             isLoading={isLoading}
+            onOpenCreate={onOpenCreate}
         />
     );
   };
@@ -153,7 +155,7 @@ export function ClubDrawer({ isOpen, onClose }: ClubDrawerProps) {
           <div className="w-12 h-1.5 bg-white/20 rounded-full" />
         </div>
 
-        {/* Only show generic header if in discovery mode */}
+        {/* Only show generic header if in discovery mode AND list view */}
         {(!joinedClub || joinedClub.status !== 'active') && (
             <DrawerHeader className="px-6 pb-2 flex-shrink-0">
             <div className="flex items-center justify-between">

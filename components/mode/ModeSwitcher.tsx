@@ -5,6 +5,7 @@ import { useGameStore } from '@/store/useGameStore';
 import { RoomSelector } from '@/components/room/RoomSelector';
 import { ClubDrawer } from './ClubDrawer';
 import { RoomDrawer } from './RoomDrawer';
+import { CreateClubDrawer } from '@/components/citylord/club/CreateClubDrawer';
 import { useHydration } from '@/hooks/useHydration';
 import { cn } from '@/lib/utils';
 
@@ -15,7 +16,16 @@ export function ModeSwitcher() {
   
   const [isRoomSelectorOpen, setIsRoomSelectorOpen] = useState(false);
   const [isClubDrawerOpen, setIsClubDrawerOpen] = useState(false);
+  const [isCreateClubOpen, setIsCreateClubOpen] = useState(false);
   const [isRoomDrawerOpen, setIsRoomDrawerOpen] = useState(false);
+
+  // 核心逻辑：点击“创建”时，关闭列表，打开创建页
+  const handleOpenCreateClub = () => {
+    setIsClubDrawerOpen(false); // 1. 关闭列表抽屉
+    setTimeout(() => {
+      setIsCreateClubOpen(true); // 2. 打开创建抽屉 (加一点延迟让动画更自然)
+    }, 200);
+  };
 
   if (!hydrated) return null;
 
@@ -67,7 +77,22 @@ export function ModeSwitcher() {
       </div>
       
       {/* 俱乐部抽屉组件保持不变 */} 
-      <ClubDrawer isOpen={isClubDrawerOpen} onClose={() => setIsClubDrawerOpen(false)} />
+      <ClubDrawer 
+        isOpen={isClubDrawerOpen} 
+        onClose={() => setIsClubDrawerOpen(false)} 
+        onOpenCreate={handleOpenCreateClub}
+      />
+      
+      <CreateClubDrawer 
+        isOpen={isCreateClubOpen} 
+        onClose={() => setIsCreateClubOpen(false)} 
+        onSuccess={() => {
+           setIsCreateClubOpen(false);
+           // Optional: Re-open list or just stay closed?
+           // Usually better to show list again or show "My Club"
+           setTimeout(() => setIsClubDrawerOpen(true), 200);
+        }}
+      />
       
       <RoomDrawer 
         isOpen={isRoomDrawerOpen} 

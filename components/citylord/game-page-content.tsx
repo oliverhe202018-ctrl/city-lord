@@ -19,6 +19,8 @@ import { MapHeader } from "@/components/map/MapHeader"
 import { NavBar } from "@/components/citylord/NavBar"
 import { LoadingScreen } from "@/components/citylord/loading-screen"
 import { useRunningTracker } from "@/hooks/useRunningTracker"
+import useSWR from 'swr'
+import { fetchFriends } from "@/app/actions/social"
 
 const ImmersiveRunningMode = nextDynamic(() => import("@/components/citylord/running/immersive-mode").then(mod => mod.ImmersiveRunningMode), { ssr: false });
 
@@ -52,6 +54,7 @@ import { Capacitor } from '@capacitor/core';
 import { Geolocation } from '@capacitor/geolocation';
 import { RunHistoryDrawer } from "@/components/map/RunHistoryDrawer"
 import { History } from "lucide-react"
+import { CountdownOverlay } from "@/components/running/CountdownOverlay"
 
 interface GamePageContentProps {
   initialMissions?: any[]
@@ -137,6 +140,7 @@ export function GamePageContent({
   const [isCityDrawerOpen, setIsCityDrawerOpen] = useState(false);
   const [isRunHistoryOpen, setIsRunHistoryOpen] = useState(false);
   const [shouldHideButtons, setShouldHideButtons] = useState(false);
+  const [isCountingDown, setIsCountingDown] = useState(false);
 
   // Animation demo states
   const [showCaptureEffect, setShowCaptureEffect] = useState(false)
@@ -255,6 +259,8 @@ export function GamePageContent({
     return () => clearInterval(interval)
   }, [checkStaminaRecovery])
 
+  const { data: friends } = useSWR('friends', fetchFriends)
+
   const handleWelcomeComplete = () => {
     setShowWelcome(false)
     setShowOnboarding(true)
@@ -346,6 +352,16 @@ export function GamePageContent({
         onComplete={handleOnboardingComplete}
       />
 
+      {isCountingDown && (
+        <CountdownOverlay
+          onComplete={() => {
+            setIsCountingDown(false)
+            setIsRunning(true)
+            setShowImmersiveMode(true)
+          }}
+        />
+      )}
+
       <LocationPermissionPrompt
         isOpen={hydrated && !!gpsError && !hasDismissedGeolocationPrompt}
         onClose={dismissGeolocationPrompt}
@@ -376,7 +392,7 @@ export function GamePageContent({
               </div>
 
               {!shouldHideButtons && (
-                <div className="pointer-events-auto absolute top-36 right-4 z-20">
+                <div className="pointer-events-auto absolute top-36 left-4 z-20">
                   <button
                       onClick={() => setIsRunHistoryOpen(true)}
                       className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg text-white active:scale-95 transition-all hover:bg-black/80"
@@ -388,7 +404,17 @@ export function GamePageContent({
 
               {gameMode === 'map' && !shouldHideButtons && (
                 <div className="pointer-events-auto absolute bottom-24 left-4 right-4 z-20 flex justify-center">
-                  <QuickEntry onNavigate={handleQuickNavigate} missionCount={missionCount} />
+                  <QuickEntry 
+                    onNavigate={(tab) => {
+                      if (tab === 'play') {
+                        setIsCountingDown(true)
+                      } else {
+                        handleQuickNavigate(tab)
+                      }
+                    }} 
+                    missionCount={missionCount} 
+                    friendCount={friends?.length || 0} 
+                  />
                 </div>
               )}
             </div>
@@ -558,7 +584,7 @@ export function GamePageContent({
         }}
         onAccept={() => {
           setShowChallengeInvite(false)
-          setIsRunning(true)
+          setIsCountingDown(true) // Trigger countdown instead of immediate run
           setActiveTab("play")
         }}
       />

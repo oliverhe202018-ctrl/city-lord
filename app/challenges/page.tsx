@@ -38,6 +38,22 @@ export default function ChallengesPage() {
 
   useEffect(() => {
     async function loadData() {
+      // Check cache first
+      const cachedChallenges = localStorage.getItem('cached_challenges')
+      const cachedAchievements = localStorage.getItem('cached_achievements')
+      
+      if (cachedChallenges) {
+        try {
+            setChallenges(JSON.parse(cachedChallenges))
+        } catch (e) { console.error('Cache parse error', e) }
+      }
+      
+      if (cachedAchievements) {
+        try {
+            setAchievements(JSON.parse(cachedAchievements))
+        } catch (e) { console.error('Cache parse error', e) }
+      }
+
       if (!currentCity) return
 
       try {
@@ -63,6 +79,7 @@ export default function ChallengesPage() {
           priority: 1
         }))
         setChallenges(mappedChallenges)
+        localStorage.setItem('cached_challenges', JSON.stringify(mappedChallenges))
 
         // Load Achievements
         const achievementsData = await fetchUserAchievements()
@@ -85,6 +102,7 @@ export default function ChallengesPage() {
           progress: { current: a.progress, max: a.condition.threshold }
         }))
         setAchievements(mappedAchievements)
+        localStorage.setItem('cached_achievements', JSON.stringify(mappedAchievements))
       } catch (error: any) {
         if (error?.name !== 'AbortError' && error?.digest !== 'NEXT_REDIRECT') {
           console.error("Failed to load challenges/achievements:", error)

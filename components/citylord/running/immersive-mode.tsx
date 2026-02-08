@@ -56,6 +56,8 @@ function getDistanceFromLatLonInMeters(lat1: number, lon1: number, lat2: number,
   return d;
 }
 
+import { playAudio } from "@/utils/audio"
+
 export function ImmersiveRunningMode({
   isActive,
   distance,
@@ -206,9 +208,11 @@ export function ImmersiveRunningMode({
   const handlePauseToggle = useCallback(() => {
     if (isPaused) {
       setIsPaused(false)
+      playAudio('run_resume.mp3')
       onResume()
     } else {
       setIsPaused(true)
+      playAudio('run_pause.mp3')
       onPause()
     }
   }, [isPaused, onPause, onResume])
@@ -264,6 +268,7 @@ export function ImmersiveRunningMode({
         hexesCaptured={effectiveHexes}
         onClose={() => {
           setShowSummary(false)
+          playAudio('run_finish.mp3')
           onStop()
         }}
         onShare={() => {

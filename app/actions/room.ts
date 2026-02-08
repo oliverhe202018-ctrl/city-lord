@@ -1,4 +1,3 @@
-
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
@@ -121,7 +120,7 @@ export async function getCurrentRoom() {
 }
 
 export async function getRooms() {
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const { data: rooms, error } = await supabase
     .from('rooms')
@@ -162,13 +161,13 @@ export async function getRooms() {
 
 export async function createRoom(data: CreateRoomData) {
   try {
-    const supabase = createClient()
-    await supabase.auth.getSession() // Login State Patch
+    const supabase = await createClient()
     
-    const { data: { user: authUser } } = await supabase.auth.getUser()
+    // Auth Fix: Use getUser instead of getSession
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
     
     // Strict Auth Check (Golden Rule #5)
-    if (!authUser) return { success: false, error: '请先登录' }
+    if (authError || !authUser) return { success: false, error: '请先登录' }
     
     const user = authUser
 
@@ -192,7 +191,10 @@ export async function createRoom(data: CreateRoomData) {
       .select()
       .single()
 
-    if (createError) throw createError
+    if (createError) {
+      console.error('Create Room Error:', createError.message, createError.details); // 必须打印 details
+      throw new Error(createError.message);
+    }
 
     // 2. Join Room automatically as host
     const { error: joinError } = await (supabase
@@ -219,13 +221,13 @@ export async function createRoom(data: CreateRoomData) {
 
 export async function joinRoomByCode(code: string) {
   try {
-    const supabase = createClient()
-    await supabase.auth.getSession() // Login State Patch
+    const supabase = await createClient()
     
-    const { data: { user: authUser } } = await supabase.auth.getUser()
+    // Auth Fix: Use getUser instead of getSession
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
     
     // Strict Auth Check
-    if (!authUser) return { success: false, error: '请先登录' }
+    if (authError || !authUser) return { success: false, error: '请先登录' }
     
     const user = authUser
 
@@ -283,7 +285,7 @@ export async function joinRoom(roomId: string, password?: string) {
   // This function seems less used now with invite codes, but keeping for compatibility
   // Updating to return simple success object
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     await supabase.auth.getSession() // Login State Patch
     
     const { data: { user: authUser } } = await supabase.auth.getUser()
@@ -344,7 +346,7 @@ export async function joinRoom(roomId: string, password?: string) {
 
 export async function leaveRoom(roomId: string) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     await supabase.auth.getSession() // Login State Patch
     
     const { data: { user: authUser } } = await supabase.auth.getUser()
@@ -380,7 +382,7 @@ export async function leaveRoom(roomId: string) {
 
 export async function getJoinedRooms() {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     
     const { data: { user: authUser } } = await supabase.auth.getUser()
     

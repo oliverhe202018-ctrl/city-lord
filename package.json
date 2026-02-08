@@ -12,6 +12,7 @@
   "dependencies": {
     "@amap/amap-jsapi-loader": "^1.0.1",
     "@amap/amap-jsapi-types": "^0.0.15",
+    "@capacitor-community/background-geolocation": "^1.2.26",
     "@capacitor-community/keep-awake": "^5.0.1",
     "@capacitor/app": "^6.0.3",
     "@capacitor/core": "^6.2.1",
