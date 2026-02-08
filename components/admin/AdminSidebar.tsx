@@ -11,7 +11,8 @@ import {
   LogOut,
   Settings,
   Flag,
-  Award
+  Award,
+  MessageSquareWarning
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
@@ -53,6 +54,11 @@ const sidebarItems = [
     title: '阵营管理',
     href: '/admin/factions',
     icon: Flag
+  },
+  {
+    title: '用户反馈',
+    href: '/admin/feedback',
+    icon: MessageSquareWarning
   },
   {
     title: '系统日志',

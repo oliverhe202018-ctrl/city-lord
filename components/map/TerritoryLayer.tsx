@@ -83,7 +83,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, onTerri
         
         if (!mounted) return;
 
-        const createdPolygons = data.map((territory) => {
+        const createdPolygons = (data || []).map((territory) => {
           // Convert H3 index to polygon coordinates
           // h3-js returns [lat, lng], AMap expects [lng, lat]
           const boundary = cellToBoundary(territory.id);

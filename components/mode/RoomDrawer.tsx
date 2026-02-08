@@ -450,7 +450,7 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
             </div>
           </div>
         ) : view === 'create' ? (
-          <div className="px-6 pb-8 space-y-6">
+          <div className="px-6 pb-32 space-y-6">
             <div className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-white/70">房间名称</label>

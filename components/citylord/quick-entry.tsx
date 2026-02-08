@@ -5,10 +5,11 @@ import { Target, Trophy, Users } from "lucide-react"
 interface QuickEntryProps {
   onNavigate: (tab: "missions" | "social" | "running") => void
   missionCount?: number
+  friendCount?: number
   rank?: number
 }
 
-export function QuickEntry({ onNavigate, missionCount = 0, rank = 42 }: QuickEntryProps) {
+export function QuickEntry({ onNavigate, missionCount = 0, friendCount = 0, rank = 42 }: QuickEntryProps) {
   return (
     <div className="grid grid-cols-3 gap-3">
       {/* Missions Entry */}
@@ -55,7 +56,7 @@ export function QuickEntry({ onNavigate, missionCount = 0, rank = 42 }: QuickEnt
           <Users className="h-5 w-5 text-purple-400" />
         </div>
         <span className="text-xs font-medium text-white">好友</span>
-        <span className="text-[10px] text-white/40">{friendCount || 0}人</span>
+        <span className="text-[10px] text-white/40">{friendCount}人</span>
       </button>
     </div>
   )

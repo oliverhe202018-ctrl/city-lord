@@ -1,21 +1,22 @@
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useAMap } from '@/components/map/AMapProvider';
 import { useRegion } from '@/contexts/RegionContext';
 import { Button } from '@/components/ui/button';
-import { LocateFixedIcon, Plus, Minus, Gamepad2, Users, User } from 'lucide-react';
+import { LocateFixedIcon, Plus, Minus, Gamepad2, Users, User, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { Capacitor } from '@capacitor/core';
+import { Geolocation } from '@capacitor/geolocation';
+import { toast } from 'sonner';
+import gcoord from 'gcoord';
 
 export const MapControls = () => {
-  const { map, viewMode, setViewMode } = useAMap();
+  const { map, viewMode, setViewMode, centerMap, locationState } = useAMap();
   const { region } = useRegion();
-
+  
   const handleLocate = () => {
-    if (map && region?.lastFixCenter) {
-      map.setCenter(region.lastFixCenter, true); // Smoothly move to the location
-      map.setZoom(15, false, 500);
-    }
+    centerMap();
   };
 
   const handleZoomIn = () => {
@@ -47,7 +48,6 @@ export const MapControls = () => {
         variant="outline"
         size="icon"
         onClick={handleLocate}
-        disabled={!region?.lastFixCenter}
         className="h-12 w-12 rounded-full bg-background/30 backdrop-blur-sm shadow-lg transition-all hover:bg-background/50 border-white/20 text-white"
       >
         <LocateFixedIcon className="h-6 w-6" />

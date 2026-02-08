@@ -3,7 +3,7 @@
 import React from "react"
 import { AvatarUploader } from "@/components/ui/AvatarUploader"
 
-import { MapPin, Swords, Footprints, Eye, Settings, ChevronRight, Hexagon, Zap, Target, LogIn, LogOut, Edit2, Gift } from "lucide-react"
+import { MapPin, Swords, Footprints, Eye, Settings, ChevronRight, Hexagon, Zap, Target, LogIn, LogOut, Edit2, Gift, MessageSquareWarning } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useGameStore } from "@/store/useGameStore"
@@ -12,6 +12,7 @@ import { formatAreaFromHexCount, getAreaEquivalentFromHexCount } from "@/lib/cit
 import { useQuery } from '@tanstack/react-query'
 import { createClient } from "@/lib/supabase/client"
 import { getUserProfileStats } from "@/app/actions/user"
+import { getFactionStats } from '@/app/actions/faction'
 import { toast } from "sonner"
 import { calculateLevel, getNextLevelProgress, getTitle } from "@/lib/game-logic/level-system"
 import { BadgeGrid } from "@/components/citylord/achievements/BadgeGrid"
@@ -78,35 +79,17 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
   }
 
   // Faction Stats State
-  const [factionStats, setFactionStats] = React.useState<{ red_area: number, blue_area: number } | null>(null);
+  const [factionStats, setFactionStats] = React.useState<any>(null);
 
-  // Use Supabase Client directly (works in Static Export / Capacitor)
+  // Fetch complete stats including member counts
   React.useEffect(() => {
     const fetchStats = async () => {
       try {
-        const supabase = createClient();
-        const { data, error } = await supabase
-          .from('faction_stats_snapshot')
-          .select('red_area, blue_area')
-          .order('updated_at', { ascending: false })
-          .limit(1)
-          .single();
-
-        if (error) {
-           console.error("Error fetching faction stats:", error);
-           // Fallback default
-           setFactionStats({ red_area: 0, blue_area: 0 });
-           return;
-        }
-
-        if (data) {
-           setFactionStats({ red_area: data.red_area, blue_area: data.blue_area });
-        } else {
-           setFactionStats({ red_area: 0, blue_area: 0 });
-        }
+        const stats = await getFactionStats();
+        setFactionStats(stats);
       } catch (err) {
-        console.error("Unexpected error fetching faction stats:", err);
-        setFactionStats({ red_area: 0, blue_area: 0 });
+        console.error("Error fetching faction stats:", err);
+        setFactionStats({ RED: 0, BLUE: 0, redArea: 0, blueArea: 0 });
       }
     };
     
@@ -281,10 +264,10 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
         <div className="absolute inset-0 overflow-hidden rounded-b-3xl z-0">
           <FactionBattleBackground 
             userFaction={userStats.faction?.toLowerCase() === 'red' ? 'red' : 'blue'}
-            redArea={factionStats?.red_area || 0} 
-            blueArea={factionStats?.blue_area || 0} 
+            red_area={factionStats?.redArea || 0} 
+            blue_area={factionStats?.blueArea || 0} 
             isLoading={!factionStats} 
-            className="opacity-30 pointer-events-none"
+            className="opacity-50 pointer-events-none"
           />
         </div>
 
@@ -294,7 +277,7 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
         </button>
 
         {/* Avatar with XP Ring */}
-        <div className="flex flex-col items-center relative z-10">
+        <div className="flex flex-col items-center relative z-10 pt-8">
           <div className="relative">
             {/* XP Progress Ring */}
             <svg className="h-32 w-32 -rotate-90">
@@ -512,10 +495,8 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
         {/* Badges Grid */}
         <div className="px-4 pb-4">
           <FactionComparison 
-            userFaction={userStats.faction} 
-            initialData={initialFactionStats}
-            redArea={factionStats?.red_area}
-            blueArea={factionStats?.blue_area}
+            userFaction={userStats.faction?.toLowerCase() === 'red' ? 'red' : 'blue'}
+            initialData={factionStats}
           />
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-white/40">勋章墙</h2>
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -539,18 +520,18 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
             <ChevronRight className="h-5 w-5 text-white/40" />
           </Link>
 
-          <button className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/5 p-4 transition-all active:bg-white/10">
+          <Link href="/feedback" className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/5 p-4 transition-all active:bg-white/10 hover:bg-white/10">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#39ff14]/20">
-                <Target className="h-5 w-5 text-[#39ff14]" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-yellow-500/20">
+                <MessageSquareWarning className="h-5 w-5 text-yellow-500" />
               </div>
               <div className="text-left">
-                <p className="font-semibold text-white">每日挑战</p>
-                <p className="text-sm text-white/60">跑步5公里获取额外经验</p>
+                <p className="font-semibold text-white">问题反馈</p>
+                <p className="text-sm text-white/60">提交Bug或改进建议</p>
               </div>
             </div>
             <ChevronRight className="h-5 w-5 text-white/40" />
-          </button>
+          </Link>
 
           {userEmail ? (
             <button 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useGeolocation } from './useGeolocation';
 import gcoord from 'gcoord';
 import * as turf from '@turf/turf';
+import { LocationService } from '@/utils/locationService';
 
 export interface Location {
   lat: number;
@@ -66,18 +66,16 @@ export function useRunningTracker(isRunning: boolean): RunningStats {
   const [closedPolygons, setClosedPolygons] = useState<Location[][]>([]);
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
   
-  // Use high accuracy geolocation with watching
-  const { data: geoData, error } = useGeolocation({
-    watch: true,
-    options: {
-      enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 0
-    },
-    disabled: !isRunning
-  });
-
+  // Watcher ID for LocationService
+  const watcherIdRef = useRef<string | null>(null);
+  
   const lastLocationRef = useRef<Location | null>(null);
+  const pathRef = useRef<Location[]>([]);
+  const isPausedRef = useRef(isPaused);
+
+  // Sync refs
+  useEffect(() => { pathRef.current = path; }, [path]);
+  useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
 
   // Timer effect
   useEffect(() => {
@@ -90,87 +88,121 @@ export function useRunningTracker(isRunning: boolean): RunningStats {
     return () => clearInterval(interval);
   }, [isRunning, isPaused]);
 
-  // Location update effect
-  useEffect(() => {
-    if (!isRunning || isPaused || !geoData) return;
-
-    // Convert WGS84 to GCJ02 (AMap standard) if needed
-    // gcoord returns [lng, lat]
-    let gcj02 = [geoData.longitude, geoData.latitude];
-
-    // Check if coordinate is already GCJ02 (from Native Bridge)
-    if (geoData.coordType !== 'gcj02') {
-      gcj02 = gcoord.transform(
-        [geoData.longitude, geoData.latitude],
-        gcoord.WGS84,
-        gcoord.GCJ02
-      );
-    }
+  const handleLocationUpdate = useCallback((lat: number, lng: number) => {
+    if (isPausedRef.current) return;
 
     const newLoc: Location = {
-      lat: gcj02[1],
-      lng: gcj02[0],
+      lat,
+      lng,
       timestamp: Date.now()
     };
 
-    setCurrentLocation({ lat: newLoc.lat, lng: newLoc.lng });
+    setCurrentLocation({ lat, lng });
 
     if (lastLocationRef.current) {
       const dist = getDistanceFromLatLonInMeters(
         lastLocationRef.current.lat,
         lastLocationRef.current.lng,
-        newLoc.lat,
-        newLoc.lng
+        lat,
+        lng
       );
 
-      // Filter GPS noise: ignore if distance is too small (< 2m) or too large (> 100m in 1 update usually means jump)
-      // But for walking/running, let's keep it simple.
-      // A simple noise filter: if speed > 30km/h (approx 8.3 m/s), ignore?
-      // Let's rely on standard high accuracy for now.
-      // Small movements are valid.
-      
-      // Accumulate distance
-      if (dist > 2) { // Minimum threshold to reduce stationary jitter
+      // Filter GPS noise: ignore if distance is too small (< 2m)
+      if (dist > 2) { 
         setDistance(prev => prev + dist);
         
         // Loop Detection Logic
-        // We check if the new point closes a loop with the start of the current active path
-        const currentPath = [...path, newLoc];
+        const currentPath = [...pathRef.current, newLoc];
         setPath(currentPath);
+        pathRef.current = currentPath; // Update ref immediately to prevent race conditions
         lastLocationRef.current = newLoc;
 
-        if (currentPath.length > 5) { // Need at least a few points to form a polygon
+        if (currentPath.length > 5) {
            const startPoint = currentPath[0];
            const endPoint = newLoc;
            
-           // Use Turf to calculate distance (more robust for geo)
            const from = turf.point([startPoint.lng, startPoint.lat]);
            const to = turf.point([endPoint.lng, endPoint.lat]);
            const gap = turf.distance(from, to, { units: 'meters' });
 
-           // Threshold for closing loop: 20 meters
            if (gap < 20) {
-               // Loop Closed!
                console.log("Loop Closed! Gap:", gap);
-               
-               // Add to closed polygons
                setClosedPolygons(prev => [...prev, currentPath]);
-               
-               // Reset path for new loop, but keep the current point as start of new path
-               // so the runner can continue seamlessly
                setPath([newLoc]);
-               
-               // Optional: Trigger haptic feedback or sound here if we had access to native APIs
+               // Manually update pathRef for immediate subsequent updates
+               pathRef.current = [newLoc];
            }
         }
       }
     } else {
-      // First point
       setPath([newLoc]);
       lastLocationRef.current = newLoc;
     }
+  }, []);
 
-  }, [geoData, isRunning, isPaused]);
+  // Location Service & Event Listener
+  useEffect(() => {
+    let isSubscribed = true;
+
+    const startService = async () => {
+      if (isRunning && !watcherIdRef.current) {
+        try {
+          const id = await LocationService.startTracking();
+          if (isSubscribed) {
+            watcherIdRef.current = id;
+          } else {
+            // If component unmounted or stopped before start finished
+            LocationService.stopTracking(id);
+          }
+        } catch (e) {
+          console.error("Failed to start location service:", e);
+        }
+      }
+    };
+
+    const stopService = async () => {
+      if (!isRunning && watcherIdRef.current) {
+        await LocationService.stopTracking(watcherIdRef.current);
+        watcherIdRef.current = null;
+      }
+    };
+
+    if (isRunning) {
+      startService();
+    } else {
+      stopService();
+    }
+
+    // Event Listener for new-location
+    const handleNewLocation = (e: any) => {
+        if (!isRunning) return;
+        
+        const loc = e.detail;
+        // Transform WGS84 (Plugin default) to GCJ02 (AMap)
+        // Note: Plugin returns { latitude, longitude, ... }
+        const gcj02 = gcoord.transform(
+            [loc.longitude, loc.latitude],
+            gcoord.WGS84,
+            gcoord.GCJ02
+        );
+        handleLocationUpdate(gcj02[1], gcj02[0]);
+    };
+
+    if (isRunning) {
+        window.addEventListener('new-location', handleNewLocation);
+    }
+
+    return () => {
+      isSubscribed = false;
+      window.removeEventListener('new-location', handleNewLocation);
+      // Cleanup service on unmount if still running
+      if (watcherIdRef.current) {
+        LocationService.stopTracking(watcherIdRef.current);
+        watcherIdRef.current = null;
+      }
+    };
+  }, [isRunning, handleLocationUpdate]);
+
 
   // Wake Lock for screen
   useEffect(() => {

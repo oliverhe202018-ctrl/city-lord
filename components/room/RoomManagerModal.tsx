@@ -278,7 +278,7 @@ export function RoomManagerModal({ open, onOpenChange, onRoomEnter }: RoomManage
           </TabsContent>
 
           {/* Create Tab */}
-          <TabsContent value="create" className="flex-1 p-6 flex flex-col gap-6 mt-0 overflow-y-auto">
+          <TabsContent value="create" className="flex-1 p-6 flex flex-col gap-6 mt-0 overflow-y-auto max-h-[80vh] pb-40">
             {!createdRoom ? (
               <div className="space-y-6">
                 <div className="flex justify-center">

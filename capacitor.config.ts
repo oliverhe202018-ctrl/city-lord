@@ -4,12 +4,13 @@ const config: CapacitorConfig = {
   appId: 'com.xiangfei.citylord',
   appName: 'City Lord',
   webDir: 'out',
-  server: {
-    androidScheme: 'https'
-  },
-  plugins: {
-    // 预留给后续插件配置
-  }
+  //server: {
+    // ⚠️ 关键修改在这里！
+    // 把下面的 IP 换成你刚刚查到的电脑 IP
+    // 端口号通常是 3000 (Next.js 默认)
+  //  url: 'http://192.168.0.101:3000', 
+  //  cleartext: true // 允许 http (非 https) 请求
+  //}
 };
 
 export default config;

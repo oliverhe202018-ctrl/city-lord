@@ -21,32 +21,34 @@ export async function fetchTerritories(cityId: string): Promise<Territory[]> {
   const { data: { user } } = await supabase.auth.getUser()
   const currentUserId = user?.id
 
-  const { data, error } = await supabase
-    .from('territories')
-    .select('*')
-    .eq('city_id', cityId)
+  try {
+    const { data, error } = await supabase
+      .from('territories')
+      .select('*')
+      .eq('city_id', cityId)
 
-  if (error) {
-    console.error('Error fetching territories:', error)
-    
-    // Fallback: If table doesn't exist (PGRST205) or other error, return empty array to prevent UI crash
-    // In a real scenario, we might want to return mock data for demo purposes if the DB is not ready.
-    if (error.code === '42P01' || error.code === 'PGRST205') { // 42P01 is PostgreSQL "undefined_table"
-      console.warn('Territories table missing. Returning empty list.')
+    if (error) {
+      console.error('Error fetching territories:', error)
       return []
     }
+
+    if (!data) {
+      return []
+    }
+
+    return data.map((t: any) => ({
+      id: t.id,
+      cityId: t.city_id,
+      ownerId: t.owner_id,
+      ownerType: currentUserId ? (t.owner_id === currentUserId ? 'me' : 'enemy') : 'neutral',
+      capturedAt: t.captured_at,
+      health: t.health,
+      lastMaintainedAt: t.last_maintained_at
+    }))
+  } catch (err) {
+    console.error('Territory fetch failed:', err)
     return []
   }
-
-  return data.map((t: any) => ({
-    id: t.id,
-    cityId: t.city_id,
-    ownerId: t.owner_id,
-    ownerType: currentUserId ? (t.owner_id === currentUserId ? 'me' : 'enemy') : 'neutral',
-    capturedAt: t.captured_at,
-    health: t.health,
-    lastMaintainedAt: t.last_maintained_at
-  }))
 }
 
 import { checkHiddenBadges } from './badge'
