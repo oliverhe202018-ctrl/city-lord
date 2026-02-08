@@ -4,7 +4,7 @@ android {
     namespace "com.xiangfei.citylord"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.xiangfei.citylord"
+        applicationId "com.citylord.game.pro"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
