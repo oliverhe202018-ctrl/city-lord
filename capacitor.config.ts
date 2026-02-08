@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.xiangfei.citylord',
+  appId: 'com.citylord.game.pro',
   appName: 'City Lord',
   webDir: 'out',
   //server: {
