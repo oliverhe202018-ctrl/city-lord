@@ -13,7 +13,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { AvatarUploader } from '@/components/ui/AvatarUploader';
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from '@/components/ui/drawer';
+import { 
+  Drawer, 
+  DrawerContent, 
+  DrawerHeader, 
+  DrawerTitle, 
+  DrawerClose 
+} from '@/components/ui/drawer';
 
 // List of major Chinese provinces/regions
 const CHINA_PROVINCES = [
@@ -86,26 +92,29 @@ export function CreateClubDrawer({ isOpen, onClose, onSuccess }: CreateClubDrawe
   };
 
   return (
-    <Drawer open={isOpen} onOpenChange={(open) => !open && onClose()} snapPoints={[0.95]}>
-      <DrawerContent className="h-[96vh] p-0 border-none bg-transparent">
-        {/* 1. 外层容器：全高，Flex 列布局 */}
-        <div className="flex flex-col h-full w-full bg-zinc-900 rounded-t-[32px] overflow-hidden">
+    <Drawer open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DrawerContent className="h-[85vh] p-0 border-none bg-transparent">
+        {/* 1. 全局容器: 确保头部底部固定 */}
+        <div className="flex flex-col h-full w-full bg-zinc-900 rounded-t-[10px] overflow-hidden">
           
-          {/* 2. 头部 (Fixed): 禁止压缩，禁止滚动 */}
-          <div className="flex-none p-4 border-b border-white/10 relative">
-            {/* Handle bar for visual cue */}
-            <div className="absolute top-2 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-white/20 rounded-full" />
-            
-            <div className="mt-4 flex items-center justify-between px-2">
-              <h2 className="text-xl font-bold text-white">创建俱乐部</h2>
-              <DrawerClose className="p-2 rounded-lg hover:bg-white/10 transition-colors cursor-pointer">
-                <X className="w-6 h-6 text-white/60" />
+          {/* 2. 头部 (Fixed) - 放置 DrawerTitle 消除报错 */}
+          <DrawerHeader className="flex-none border-b border-white/10 px-4 py-4">
+            <div className="flex items-center justify-between">
+              {/* 👇 关键点：使用 DrawerTitle 替换普通的 h2/div */}
+              <DrawerTitle className="text-lg font-bold text-white">
+                创建俱乐部
+              </DrawerTitle>
+              
+              <DrawerClose asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-400 hover:bg-white/10 hover:text-white">
+                  <X className="w-5 h-5" />
+                </Button>
               </DrawerClose>
             </div>
-          </div>
+          </DrawerHeader>
 
-          {/* 3. 中间内容 (Scrollable): 占据剩余空间，仅此处滚动 */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-6 overscroll-contain custom-scrollbar">
+          {/* 3. 中间内容 (Scrollable) */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-6 overscroll-contain custom-scrollbar">
              {/* Avatar Upload */}
              <div className="flex flex-col items-center justify-center">
               <AvatarUploader
@@ -180,12 +189,9 @@ export function CreateClubDrawer({ isOpen, onClose, onSuccess }: CreateClubDrawe
                 className="data-[state=checked]:bg-white data-[state=unchecked]:bg-zinc-700"
               />
             </div>
-            
-            {/* Bottom Padding to prevent content from hitting the edge */}
-            <div className="pb-6" />
           </div>
 
-          {/* 4. 底部 (Fixed): 禁止压缩，固定在最下方 */}
+          {/* 4. 底部 (Fixed) */}
           <div className="flex-none p-4 border-t border-white/10 bg-zinc-900 safe-area-bottom">
             <Button
               onClick={handleSubmit}
