@@ -313,14 +313,9 @@ export function GamePageContent({
       // Show overlay
       setIsCountingDown(true)
       
-      // Auto-complete after 4s (matching audio length approximately)
-      // The overlay will be visual only now
-      setTimeout(() => {
-         setIsCountingDown(false)
-         setIsRunning(true)
-         setShowImmersiveMode(true)
-         triggerCaptureEffect()
-      }, 4000);
+      // Auto-complete handled by CountdownOverlay internal logic now (synced with visual)
+      // We removed the timeout here to avoid conflict
+
 
     } else {
       setActiveTab(tab as TabType)

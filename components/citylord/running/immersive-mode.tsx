@@ -215,10 +215,11 @@ export function ImmersiveRunningMode({
       onResume()
     } else {
       setIsPaused(true)
-      // Force Play Pause
-      console.log('Attempting to play: run_pause.mp3');
-      const audio = new Audio('/sounds/run_pause.mp3')
-      audio.play().catch(e => console.error(e))
+      // Note: Pause sound is now handled in SlideToPause component for direct feedback
+      // But we keep it here for fallback/other pause triggers
+      // console.log('Attempting to play: run_pause.mp3');
+      // const audio = new Audio('/sounds/run_pause.mp3')
+      // audio.play().catch(e => console.error(e))
       onPause()
     }
   }, [isPaused, onPause, onResume])
@@ -264,6 +265,18 @@ export function ImmersiveRunningMode({
     }
   }, [showStopConfirm])
 
+  const handleStop = () => {
+    // 1. Play audio and mount to window to prevent cut-off
+    const audio = new Audio('/sounds/run_finish.mp3');
+    (window as any).finishAudio = audio; // Critical: Keep alive
+    audio.play().catch(e => console.error(e));
+    
+    // 2. Delayed transition (800ms)
+    setTimeout(() => {
+      onStop(); 
+    }, 800);
+  };
+
   if (showSummary) {
     return (
       <RunSummaryView 
@@ -272,20 +285,7 @@ export function ImmersiveRunningMode({
         pace={pace}
         calories={calories}
         hexesCaptured={effectiveHexes}
-        onClose={() => {
-          setShowSummary(false)
-          // Immediate play on interaction & Global Mount
-          console.log('Attempting to play: run_finish.mp3');
-          const audio = new Audio('/sounds/run_finish.mp3')
-          audio.play().catch(e => console.error(e));
-          // @ts-ignore
-          window.runningAudio = audio; // Mount to global
-          
-          // Delayed Stop
-          setTimeout(() => {
-            onStop()
-          }, 500);
-        }}
+        onClose={handleStop}
         onShare={() => {
           toast.success("分享图片已生成 (模拟)")
         }}
