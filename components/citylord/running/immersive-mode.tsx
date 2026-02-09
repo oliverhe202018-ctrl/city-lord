@@ -23,6 +23,8 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Location } from "@/hooks/useRunningTracker"
 
+import { GhostJoystick } from "./GhostJoystick"
+
 interface ImmersiveModeProps {
   isActive: boolean
   distance: number // in km
@@ -40,6 +42,7 @@ interface ImmersiveModeProps {
   path?: Location[]
   closedPolygons?: Location[][]
   onHexClaimed?: () => void
+  onManualLocation?: (lat: number, lng: number) => void
 }
 
 // Helper: Calculate distance between two points in meters
@@ -75,8 +78,10 @@ export function ImmersiveRunningMode({
   path = [],
   closedPolygons = [],
   onHexClaimed,
+  onManualLocation,
 }: ImmersiveModeProps) {
   const [isPaused, setIsPaused] = useState(false)
+  const [isGhostMode, setIsGhostMode] = useState(false)
   const [showStopConfirm, setShowStopConfirm] = useState(false)
   const [showSummary, setShowSummary] = useState(false)
   const [displayedArea, setDisplayedArea] = useState(0)
@@ -204,6 +209,30 @@ export function ImmersiveRunningMode({
       return () => clearTimeout(timer)
     }
   }, [hexesCaptured])
+
+  const handleGhostMove = useCallback((vector: {x: number, y: number}) => {
+    if (!currentLocation || !onManualLocation) return
+    
+    // Max speed 15km/h ~= 4.16 m/s
+    // Update rate 50ms => 0.05s
+    // Max dist per update = 4.16 * 0.05 = 0.208 meters
+    
+    const speedMps = 15 / 3.6 // ~4.16
+    const timeStep = 0.05 // 50ms
+    const dist = speedMps * timeStep
+    
+    // North/South distance (dLat)
+    // 1 degree lat ~= 111,320 meters
+    // Joystick Y+ is down (South), so Lat decreases.
+    const dLat = -(dist * vector.y) / 111320
+    
+    // East/West distance (dLng)
+    // 1 degree lng ~= 111320 * cos(lat)
+    const latRad = currentLocation.lat * (Math.PI / 180)
+    const dLng = (dist * vector.x) / (111320 * Math.cos(latRad))
+    
+    onManualLocation(currentLocation.lat + dLat, currentLocation.lng + dLng)
+  }, [currentLocation, onManualLocation])
 
   const handlePauseToggle = useCallback(() => {
     if (isPaused) {
@@ -363,7 +392,16 @@ export function ImmersiveRunningMode({
           }
         }}
         onStop={handleAttemptStop}
+        onGhostModeTrigger={() => {
+           setIsGhostMode(true)
+           toast.success("幽灵模式已开启", {
+             description: "使用右下角摇杆控制移动",
+             icon: <Zap className="h-4 w-4 text-purple-400" />
+           })
+        }}
       />
+      
+      {isGhostMode && <GhostJoystick onMove={handleGhostMove} />}
     </div>
   )
 }
