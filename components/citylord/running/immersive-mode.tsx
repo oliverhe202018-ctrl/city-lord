@@ -279,6 +279,11 @@ export function ImmersiveRunningMode({
     if (gap <= LOOP_THRESHOLD) {
         // Closed loop
         setEffectiveHexes(hexesCaptured)
+        // 1. Play audio immediately on successful stop intent
+        const audio = new Audio('/sounds/run_finish.mp3');
+        (window as any).finishAudio = audio; 
+        audio.play().catch(e => console.error(e));
+        
         setShowSummary(true)
     } else {
         // Open loop - Warn user
@@ -295,12 +300,7 @@ export function ImmersiveRunningMode({
   }, [showStopConfirm])
 
   const handleStop = () => {
-    // 1. Play audio and mount to window to prevent cut-off
-    const audio = new Audio('/sounds/run_finish.mp3');
-    (window as any).finishAudio = audio; // Critical: Keep alive
-    audio.play().catch(e => console.error(e));
-    
-    // 2. No delay, but keep onStop for state cleanup
+    // Audio already played in handleAttemptStop or Dialog
     onStop(); 
   };
 
@@ -347,6 +347,11 @@ export function ImmersiveRunningMode({
               onClick={() => {
                 setShowLoopWarning(false)
                 setEffectiveHexes(0)
+                // Play audio here too as user confirmed stop
+                const audio = new Audio('/sounds/run_finish.mp3');
+                (window as any).finishAudio = audio; 
+                audio.play().catch(e => console.error(e));
+                
                 setShowSummary(true)
               }}
             >
