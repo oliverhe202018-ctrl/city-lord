@@ -25,6 +25,7 @@ interface RunningStats {
   clearRecovery: () => void;
   rawDuration: number; // seconds
   closedPolygons: Location[][]; // New: Array of closed polygons
+  addManualLocation: (lat: number, lng: number) => void;
 }
 
 // Haversine formula to calculate distance between two points in meters
@@ -276,6 +277,10 @@ export function useRunningTracker(isRunning: boolean): RunningStats {
     }
   }, [distance, duration, closedPolygons]); // Added dependencies for state access
 
+  const addManualLocation = useCallback((lat: number, lng: number) => {
+    handleLocationUpdate(lat, lng, 0, Date.now());
+  }, [handleLocationUpdate]);
+
   // Location Service & Event Listener
   useEffect(() => {
     let isSubscribed = true;
@@ -463,6 +468,7 @@ export function useRunningTracker(isRunning: boolean): RunningStats {
     stop,
     clearRecovery,
     rawDuration: duration,
-    closedPolygons
+    closedPolygons,
+    addManualLocation
   };
 }

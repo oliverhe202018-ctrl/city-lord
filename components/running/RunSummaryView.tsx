@@ -42,6 +42,28 @@ export function RunSummaryView({
   
   // Calculate territory area based on game constants
   const capturedArea = hexesCaptured * HEX_AREA_SQ_METERS
+
+  const handleComplete = (e?: any) => { 
+    // 1. Prevent default behavior
+    if (e && e.preventDefault) e.preventDefault(); 
+    console.log("Force navigating to dashboard..."); 
+  
+    // 2. Play audio (fire and forget) 
+    try { 
+      const audio = new Audio('/sounds/run_finish.mp3'); 
+      audio.play().catch(err => console.log("Audio ignored", err)); 
+    } catch (error) { 
+      console.log("Audio error", error); 
+    } 
+  
+    // 3. Force Redirect: Directly modify window.location
+    // Delay 100ms to ensure main thread isn't blocked, then force jump
+    setTimeout(() => { 
+      // User requested /dashboard, but checking project structure, / seems to be the main entry. 
+      // We will use / to ensure we hit the game home.
+      window.location.href = '/'; 
+    }, 100); 
+  };
   
   return (
     <div className="fixed inset-0 z-[10000] flex flex-col bg-white text-black animate-in slide-in-from-bottom duration-300">
@@ -164,10 +186,7 @@ export function RunSummaryView({
       <div className="p-4 bg-white border-t border-gray-100 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
         <div className="flex gap-3">
            <button 
-             onClick={() => {
-               // Direct navigation, no audio here (already played in ImmersiveMode)
-               onClose();
-             }}
+             onClick={handleComplete}
              className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-900 font-bold py-3 rounded-full transition-all active:scale-[0.98]"
            >
              完成运动

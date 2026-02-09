@@ -180,6 +180,7 @@ interface RunningHUDProps {
   isPaused: boolean
   onPauseToggle: () => void
   onStop: () => void
+  onGhostModeTrigger?: () => void
 }
 
 export function RunningHUD({
@@ -190,7 +191,8 @@ export function RunningHUD({
   hexesCaptured,
   isPaused,
   onPauseToggle,
-  onStop
+  onStop,
+  onGhostModeTrigger
 }: RunningHUDProps) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isMapMode, setIsMapMode] = useState(false)
@@ -221,6 +223,22 @@ export function RunningHUD({
       clearTimeout(unlockTimerRef.current)
       unlockTimerRef.current = null
       setShowUnlockHint(false)
+    }
+  }
+
+  // Ghost Mode Trigger
+  const ghostTimerRef = useRef<NodeJS.Timeout | null>(null)
+  
+  const handlePacePressStart = () => {
+    ghostTimerRef.current = setTimeout(() => {
+      onGhostModeTrigger?.()
+    }, 2000)
+  }
+
+  const handlePacePressEnd = () => {
+    if (ghostTimerRef.current) {
+      clearTimeout(ghostTimerRef.current)
+      ghostTimerRef.current = null
     }
   }
 
@@ -421,7 +439,12 @@ export function RunningHUD({
             <span className="text-xl font-bold text-white/60 italic">公里</span>
           </div>
           
-          <div className="mt-4 flex items-center gap-2 px-4 py-2 rounded-full bg-black/20 backdrop-blur-sm border border-white/5">
+          <div 
+            className="mt-4 flex items-center gap-2 px-4 py-2 rounded-full bg-black/20 backdrop-blur-sm border border-white/5 select-none active:bg-white/5 transition-colors"
+            onPointerDown={handlePacePressStart}
+            onPointerUp={handlePacePressEnd}
+            onPointerLeave={handlePacePressEnd}
+          >
             <Zap className="h-4 w-4 text-[#22c55e] animate-pulse" />
             <span className="font-mono text-2xl font-bold text-white">{pace}</span>
             <span className="text-xs text-white/40">/公里</span>

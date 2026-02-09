@@ -113,7 +113,8 @@ export function GamePageContent({
     closedPolygons,
     togglePause: toggleTrackerPause, 
     stop: stopTracker,
-    clearRecovery
+    clearRecovery,
+    addManualLocation
   } = useRunningTracker(isRunning)
 
   // Crash Recovery Check
@@ -563,6 +564,7 @@ export function GamePageContent({
              }
           }
         }}
+        onManualLocation={addManualLocation}
         onExpand={() => {}}
         currentLocation={currentLocation || undefined}
         path={path}
