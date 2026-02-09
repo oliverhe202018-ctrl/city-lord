@@ -208,11 +208,13 @@ export function ImmersiveRunningMode({
   const handlePauseToggle = useCallback(() => {
     if (isPaused) {
       setIsPaused(false)
-      playAudio('run_resume.mp3')
+      const audio = new Audio('/sounds/run_resume.mp3')
+      audio.play().catch(e => console.error(e))
       onResume()
     } else {
       setIsPaused(true)
-      playAudio('run_pause.mp3')
+      const audio = new Audio('/sounds/run_pause.mp3')
+      audio.play().catch(e => console.error(e))
       onPause()
     }
   }, [isPaused, onPause, onResume])
@@ -268,7 +270,9 @@ export function ImmersiveRunningMode({
         hexesCaptured={effectiveHexes}
         onClose={() => {
           setShowSummary(false)
-          playAudio('run_finish.mp3')
+          // Immediate play on interaction
+          const audio = new Audio('/sounds/run_finish.mp3')
+          audio.play().catch(e => console.error(e))
           onStop()
         }}
         onShare={() => {

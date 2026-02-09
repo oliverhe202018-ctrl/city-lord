@@ -14,20 +14,54 @@ export function CountdownOverlay({ onComplete }: CountdownOverlayProps) {
     // Play sound immediately on mount
     const audio = new Audio('/sounds/countdown.mp3')
     audio.volume = 0.8
-    audio.play().catch(e => console.error("Audio play failed:", e))
+    const playPromise = audio.play()
+    if (playPromise !== undefined) {
+      playPromise.catch(e => console.error("Audio play failed:", e))
+    }
 
+    // Audio duration matching strategy
+    // Assuming countdown.mp3 is roughly 4-5 seconds
+    // We want the visual countdown to sync with it roughly
+    // Or just use a fixed timer that feels right.
+    // User requested: "Wait for audio to finish"
+    
+    // Let's use onended event as primary trigger, but fallback to timer
+    let isCompleted = false;
+
+    const handleAudioEnd = () => {
+      if (!isCompleted) {
+        isCompleted = true;
+        onComplete();
+      }
+    };
+
+    audio.onended = handleAudioEnd;
+
+    // Fallback timer (e.g. 5s) in case audio fails or is blocked
+    const fallbackTimer = setTimeout(() => {
+       if (!isCompleted) {
+         isCompleted = true;
+         onComplete();
+       }
+    }, 5000);
+
+    // Visual Countdown Timer (Purely visual now, does not trigger complete)
     const timer = setInterval(() => {
       setCount((prev) => {
         if (prev <= 1) {
           clearInterval(timer)
-          onComplete()
-          return 0
+          return 1 // Keep at 1 or show GO?
         }
         return prev - 1
       })
     }, 1000)
 
-    return () => clearInterval(timer)
+    return () => {
+      clearInterval(timer)
+      clearTimeout(fallbackTimer)
+      audio.pause()
+      audio.currentTime = 0
+    }
   }, [onComplete])
 
   return (
