@@ -279,11 +279,7 @@ export function ImmersiveRunningMode({
     if (gap <= LOOP_THRESHOLD) {
         // Closed loop
         setEffectiveHexes(hexesCaptured)
-        // 1. Play audio immediately on successful stop intent
-        const audio = new Audio('/sounds/run_finish.mp3');
-        (window as any).finishAudio = audio; 
-        audio.play().catch(e => console.error(e));
-        
+        // 1. Audio logic moved to handleStop (final confirm)
         setShowSummary(true)
     } else {
         // Open loop - Warn user
@@ -301,7 +297,14 @@ export function ImmersiveRunningMode({
 
   const handleStop = () => {
     // Audio already played in handleAttemptStop or Dialog
-    onStop(); 
+    const audio = new Audio('/sounds/run_finish.mp3');
+    (window as any).finishAudio = audio; // Critical: Keep alive
+    audio.play().catch(e => console.error(e));
+    
+    // Delay 800ms to ensure sound plays
+    setTimeout(() => {
+      onStop(); 
+    }, 800);
   };
 
   if (showSummary) {
@@ -347,10 +350,12 @@ export function ImmersiveRunningMode({
               onClick={() => {
                 setShowLoopWarning(false)
                 setEffectiveHexes(0)
-                // Play audio here too as user confirmed stop
-                const audio = new Audio('/sounds/run_finish.mp3');
-                (window as any).finishAudio = audio; 
-                audio.play().catch(e => console.error(e));
+                // Audio logic handled in handleStop (via onClose) or explicit here if we call handleStop?
+                // Actually, handleStop is called by RunSummaryView onClose.
+                // But if we skip summary and stop immediately... 
+                // Wait, logic says: setShowSummary(true). So summary opens.
+                // Then user clicks "Finish" in Summary -> handleStop -> Audio + onStop.
+                // So we DON'T need audio here.
                 
                 setShowSummary(true)
               }}

@@ -149,7 +149,7 @@ export function ClubDrawer({ isOpen, onClose, onOpenCreate }: ClubDrawerProps) {
   return (
     <Drawer open={isOpen} onOpenChange={onClose} snapPoints={[0.4, 0.95]}>
       <DrawerContent
-        className="bg-zinc-900/90 border-t border-white/10 rounded-t-[32px] w-full overflow-x-hidden flex flex-col h-full max-h-[96vh]"
+        className="bg-zinc-900/90 border-t border-white/10 rounded-t-[32px] w-full overflow-x-hidden flex flex-col h-[85vh] min-h-[500px]"
       >
         <div className="flex justify-center pt-4 pb-2 flex-shrink-0">
           <div className="w-12 h-1.5 bg-white/20 rounded-full" />

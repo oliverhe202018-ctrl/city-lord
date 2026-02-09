@@ -42,6 +42,15 @@ export function RunSummaryView({
   
   // Calculate territory area based on game constants
   const capturedArea = hexesCaptured * HEX_AREA_SQ_METERS
+
+  const forceExit = (e?: any) => { 
+    if (e) { 
+      e.preventDefault(); 
+      e.stopPropagation(); 
+    } 
+    // Use replace to destroy current history, prevent user from swiping back
+    window.location.replace('/'); 
+  };
   
   return (
     <div className="fixed inset-0 z-[10000] flex flex-col bg-white text-black animate-in slide-in-from-bottom duration-300">
@@ -56,12 +65,12 @@ export function RunSummaryView({
              <div className="text-sm font-bold text-[#22c55e]">户外跑步</div>
            </div>
         </div>
-        <button 
-          onClick={onClose}
-          className="p-2 text-gray-400 hover:bg-gray-100 rounded-full"
+        <div 
+          onClick={forceExit}
+          className="p-2 text-gray-400 hover:bg-gray-100 rounded-full cursor-pointer z-50 pointer-events-auto"
         >
           <X size={20} />
-        </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto bg-gray-50/50">
@@ -163,12 +172,12 @@ export function RunSummaryView({
       {/* Bottom Actions */}
       <div className="p-4 bg-white border-t border-gray-100 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
         <div className="flex gap-3">
-           <button 
-             onClick={onClose}
-             className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-900 font-bold py-3 rounded-full transition-all active:scale-[0.98]"
+           <a 
+             href="/"
+             className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-900 font-bold py-3 rounded-full transition-all active:scale-[0.98] text-center flex items-center justify-center cursor-pointer z-50 pointer-events-auto"
            >
              完成运动
-           </button>
+           </a>
            <button 
              onClick={() => setIsShareModalOpen(true)}
              className="flex-1 bg-[#22c55e] hover:bg-[#16a34a] text-white font-bold py-3 rounded-full transition-all active:scale-[0.98]"
