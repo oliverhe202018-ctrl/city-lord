@@ -224,9 +224,9 @@ export function ImmersiveRunningMode({
     }
   }, [isPaused, onPause, onResume])
 
-  const handleStop = useCallback(() => {
-    // Logic moved to handleAttemptStop
-  }, [])
+  // const handleStop = useCallback(() => {
+  //   // Logic moved to handleAttemptStop
+  // }, [])
 
   const handleAttemptStop = () => {
     // If no path data or very short path, just proceed
