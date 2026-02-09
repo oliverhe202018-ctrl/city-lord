@@ -272,17 +272,6 @@ export function ImmersiveRunningMode({
     audio.play().catch(e => console.error(e));
     
     // 2. No delay, but keep onStop for state cleanup
-    // The delay might have been causing issues if onStop unmounts too fast, 
-    // but window mount should handle it.
-    // User requested: "2. 原有的结束逻辑 (保持 onStop 调用)" - implying immediate or controlled.
-    // But previous instructions said "Delayed transition (800ms)". 
-    // New instruction says: "remove delay" (implied by "ensure direct navigation" in step 3?)
-    // Wait, step 2 says "修改：在该函数执行 onStop() 之前，插入播放逻辑... 2. 原有的结束逻辑 (保持 onStop 调用)"
-    // It doesn't explicitly say remove delay here, but step 3 says "Fix Summary Navigation... ensure direct navigation".
-    // Let's look at the user prompt again carefully.
-    // "修改：在该函数执行 onStop() 之前，插入播放逻辑... // 2. 原有的结束逻辑 (保持 onStop 调用) onStop();"
-    // The user code snippet shows NO setTimeout.
-    
     onStop(); 
   };
 
