@@ -4,6 +4,22 @@ City Lord 是一款结合真实地理位置（LBS）的跑步领地争夺游戏�
 
 ## 📅 更新日志 (Changelog)
 
+### 2026-02-09: ☁️ 云端加载模式与隐私合规 (Hosted Mode & Privacy)
+
+**核心架构升级：**
+
+1.  **⚡ Capacitor Hosted Mode (在线加载模式)**
+    *   **架构转型**：放弃了 Next.js Static Export，转为使用 Capacitor 的 `server.url` 直接加载 Vercel 生产环境网页。
+    *   **优势**：保留了 Next.js 完整的 SSR/ISR 能力，同时拥有原生插件访问权限。更新网页无需重新发版 APK。
+    *   **构建优化**：简化了构建流程，不再需要 `build-mobile.js`，只需同步配置文件即可。
+
+2.  **🛡️ 隐私合规的后台定位 (Foreground Service)**
+    *   **前台服务保活**：调整了 `@capacitor-community/background-geolocation` 的调用方式，通过 `backgroundTitle/Message` 显式触发 Android 前台服务通知。
+    *   **权限精简**：移除了敏感的 `ACCESS_BACKGROUND_LOCATION` 权限，仅保留 `FOREGROUND_SERVICE` 和 `FOREGROUND_SERVICE_LOCATION`。用户只需授权“仅在使用该应用时允许”，App 切到后台后依然能通过前台服务持续定位，符合 Google Play 最新隐私规范。
+
+3.  **🎨 UI 细节打磨**
+    *   **阵营战况优化**：调整了个人主页 (Profile) 顶部的阵营对战进度条布局，将文字标签推至屏幕边缘并上移，解决了与头像遮挡的问题，视觉更加平衡。
+
 ### 2026-02-08: 🏃‍♂️ 跑步体验深度优化 (Running Experience Optimization)
 
 **核心功能升级：**

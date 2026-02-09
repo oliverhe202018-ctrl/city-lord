@@ -9,7 +9,8 @@ export const LocationService = {
     try {
       // 1. 先添加 Watcher
       // 关键配置：设置 backgroundTitle 和 backgroundMessage
-      // 这会自动触发 Android 的前台服务通知，实现“免始终允许”的后台保活
+      // 这会自动触发 Android 的前台服务通知 (Foreground Service)，实现“免始终允许”的后台保活
+      // 配合 Manifest 中的 FOREGROUND_SERVICE 权限，无需 ACCESS_BACKGROUND_LOCATION
       const watcherId = await BackgroundGeolocation.addWatcher(
         {
           backgroundMessage: "正在记录您的领地征程...",
