@@ -271,8 +271,8 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
           />
         </div>
 
-        {/* Settings Button */}
-        <button onClick={onOpenSettings} className="absolute right-4 top-6 rounded-full border border-white/10 bg-white/5 p-2 z-20">
+        {/* Settings Button - Moved to bottom right to avoid conflict with top faction labels */}
+        <button onClick={onOpenSettings} className="absolute right-4 bottom-6 rounded-full border border-white/10 bg-white/5 p-2 z-20">
           <Settings className="h-5 w-5 text-white/60" />
         </button>
 

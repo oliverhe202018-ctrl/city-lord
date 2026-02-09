@@ -100,12 +100,10 @@ export function FactionBattleBackground({
       {/* Red Faction Text */}
       <motion.div 
         className={cn(
-          "absolute top-1/2 z-20 font-black text-white tracking-widest whitespace-nowrap drop-shadow-lg flex flex-col items-center gap-1",
+          "absolute top-4 left-6 z-20 font-black text-white tracking-widest whitespace-nowrap drop-shadow-lg flex flex-col items-start gap-1",
           getFontSize(redPercent)
         )}
         style={{ 
-          left: `${redPercent / 2}%`, 
-          transform: 'translate(-50%, -50%)',
           opacity: getOpacity(redPercent)
         }}
         animate={{ scale: redPercent > 50 ? 1.05 : 1 }}
@@ -118,12 +116,10 @@ export function FactionBattleBackground({
       {/* Blue Faction Text */}
       <motion.div 
         className={cn(
-          "absolute top-1/2 z-20 font-black text-white tracking-widest whitespace-nowrap drop-shadow-lg flex flex-col items-center gap-1",
+          "absolute top-4 right-6 z-20 font-black text-white tracking-widest whitespace-nowrap drop-shadow-lg flex flex-col items-end gap-1",
           getFontSize(bluePercent)
         )}
         style={{ 
-          left: `${redPercent + (100 - redPercent) / 2}%`, 
-          transform: 'translate(-50%, -50%)',
           opacity: getOpacity(bluePercent)
         }}
         animate={{ scale: bluePercent > 50 ? 1.05 : 1 }}
