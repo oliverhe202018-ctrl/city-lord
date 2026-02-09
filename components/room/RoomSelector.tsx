@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Plus, Users, Globe, Check, Settings2 } from 'lucide-react';
 import { useGameStore, useGameActions } from '@/store/useGameStore';
@@ -49,6 +49,8 @@ export function RoomSelector({
   const joinedRooms = useGameStore((state) => state.joinedRooms);
   const { setCurrentRoom, setJoinedRooms } = useGameActions();
   
+  const containerRef = useRef<HTMLDivElement>(null);
+
   // Load joined rooms on mount
   useEffect(() => {
     const loadRooms = async () => {
@@ -64,6 +66,31 @@ export function RoomSelector({
     
     loadRooms();
   }, [setJoinedRooms]);
+
+  // Click Outside Handler (Method 2)
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!showOpen) return;
+      
+      const target = event.target as HTMLElement;
+
+      // 1. Check if click is inside the container (Trigger Button)
+      if (containerRef.current && containerRef.current.contains(target)) {
+        return;
+      }
+
+      // 2. Check if click is inside the Dropdown Content (Portal)
+      // Radix UI / Shadcn content is usually portaled
+      if (target.closest('[role="menu"]') || target.closest('[data-radix-popper-content-wrapper]')) {
+        return;
+      }
+
+      setShowOpen(false);
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showOpen, setShowOpen]);
 
   const handleRoomSelect = (room: Room) => {
     // 1. Set Active Room
@@ -82,15 +109,8 @@ export function RoomSelector({
 
   return (
     <>
+      <div ref={containerRef} className={cn("relative", compact ? "inline-block" : "w-full")}>
       <DropdownMenu open={showOpen} onOpenChange={setShowOpen}>
-        {/* Mobile Backdrop for Click Outside */}
-        {showOpen && (
-          <div 
-            className="fixed inset-0 z-[99998] bg-transparent" 
-            onClick={() => setShowOpen(false)}
-            onTouchStart={() => setShowOpen(false)}
-          />
-        )}
         <DropdownMenuTrigger asChild>
           {children ? children : (
             <div className={cn(
@@ -170,6 +190,7 @@ export function RoomSelector({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      </div>
 
       <RoomManagerModal 
         open={isModalOpen} 
