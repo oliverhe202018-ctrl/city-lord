@@ -8,22 +8,26 @@ interface CountdownOverlayProps {
 }
 
 export function CountdownOverlay({ onComplete }: CountdownOverlayProps) {
-  const [count, setCount] = useState(3)
+  const [count, setCount] = useState<string>("READY")
 
   useEffect(() => {
-    // Visual Countdown Timer Only (Audio played in parent)
-    const timer = setInterval(() => {
-      setCount((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer)
-          return 1 
-        }
-        return prev - 1
-      })
-    }, 1000)
+    // Sequence: READY (0ms) -> 3 (1000ms) -> 2 (2000ms) -> 1 (3000ms) -> GO (4000ms) -> Complete (4500ms)
+    // Matches typical countdown audio structure
+    
+    const timers: NodeJS.Timeout[] = []
+
+    timers.push(setTimeout(() => setCount("3"), 1000))
+    timers.push(setTimeout(() => setCount("2"), 2000))
+    timers.push(setTimeout(() => setCount("1"), 3000))
+    timers.push(setTimeout(() => {
+        setCount("GO!")
+    }, 4000))
+    timers.push(setTimeout(() => {
+        onComplete()
+    }, 4500))
 
     return () => {
-      clearInterval(timer)
+      timers.forEach(clearTimeout)
     }
   }, [onComplete])
 
@@ -38,7 +42,7 @@ export function CountdownOverlay({ onComplete }: CountdownOverlayProps) {
           transition={{ duration: 0.5, ease: "easeOut" }}
           className="flex flex-col items-center"
         >
-          <span className="font-mono text-[12rem] font-black italic tracking-tighter text-[#22c55e] drop-shadow-[0_0_30px_rgba(34,197,94,0.6)]">
+          <span className={`font-mono font-black italic tracking-tighter drop-shadow-[0_0_30px_rgba(34,197,94,0.6)] ${count === "READY" ? "text-6xl text-white" : "text-[12rem] text-[#22c55e]"}`}>
             {count}
           </span>
         </motion.div>

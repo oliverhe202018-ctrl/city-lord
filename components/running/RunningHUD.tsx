@@ -101,6 +101,10 @@ function SlideToPause({ onPause }: { onPause: () => void }) {
         }}
         onDragEnd={(event, info) => {
           if (info.offset.x > SLIDE_THRESHOLD - 50) {
+            // Immediate Sound Feedback on Slide Success
+            const audio = new Audio('/sounds/run_pause.mp3');
+            audio.play().catch(e => console.error(e));
+            
             onPause()
           }
           setDragX(0)
