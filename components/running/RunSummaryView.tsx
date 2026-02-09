@@ -164,7 +164,10 @@ export function RunSummaryView({
       <div className="p-4 bg-white border-t border-gray-100 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
         <div className="flex gap-3">
            <button 
-             onClick={onClose}
+             onClick={() => {
+               // Direct navigation, no audio here (already played in ImmersiveMode)
+               onClose();
+             }}
              className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-900 font-bold py-3 rounded-full transition-all active:scale-[0.98]"
            >
              完成运动

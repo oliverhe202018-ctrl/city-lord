@@ -153,7 +153,12 @@ function PausedControls({ onResume, onFinish }: { onResume: () => void, onFinish
       <motion.button
         initial={{ opacity: 0, x: 20 }}
         animate={{ opacity: 1, x: 0 }}
-        onClick={onResume}
+        onClick={() => {
+          // Direct Play Resume
+          const audio = new Audio('/sounds/run_resume.mp3');
+          audio.play().catch(e => console.error(e));
+          onResume();
+        }}
         className="flex-[3] bg-[#22c55e] rounded-full flex items-center justify-center font-bold text-white shadow-lg shadow-[#22c55e]/20 transition-all active:scale-95"
       >
         继续运动
