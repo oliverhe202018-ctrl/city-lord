@@ -208,11 +208,15 @@ export function ImmersiveRunningMode({
   const handlePauseToggle = useCallback(() => {
     if (isPaused) {
       setIsPaused(false)
+      // Force Play Resume
+      console.log('Attempting to play: run_resume.mp3');
       const audio = new Audio('/sounds/run_resume.mp3')
       audio.play().catch(e => console.error(e))
       onResume()
     } else {
       setIsPaused(true)
+      // Force Play Pause
+      console.log('Attempting to play: run_pause.mp3');
       const audio = new Audio('/sounds/run_pause.mp3')
       audio.play().catch(e => console.error(e))
       onPause()
@@ -270,10 +274,17 @@ export function ImmersiveRunningMode({
         hexesCaptured={effectiveHexes}
         onClose={() => {
           setShowSummary(false)
-          // Immediate play on interaction
+          // Immediate play on interaction & Global Mount
+          console.log('Attempting to play: run_finish.mp3');
           const audio = new Audio('/sounds/run_finish.mp3')
-          audio.play().catch(e => console.error(e))
-          onStop()
+          audio.play().catch(e => console.error(e));
+          // @ts-ignore
+          window.runningAudio = audio; // Mount to global
+          
+          // Delayed Stop
+          setTimeout(() => {
+            onStop()
+          }, 500);
         }}
         onShare={() => {
           toast.success("分享图片已生成 (模拟)")

@@ -292,6 +292,9 @@ export function GamePageContent({
     setShowOnboarding(false)
   }
 
+  // Countdown Audio Ref
+  const countdownAudioRef = useRef<HTMLAudioElement | null>(null);
+
   const handleQuickNavigate = (tab: "missions" | "social" | "running") => {
     if (tab === "running") {
       if (!isAuthenticated) {
@@ -299,9 +302,26 @@ export function GamePageContent({
         router.push('/login')
         return
       }
-      setIsRunning(true)
-      setShowImmersiveMode(true)
-      triggerCaptureEffect()
+
+      // Force Play Audio immediately on user interaction
+      console.log('Attempting to play: countdown.mp3');
+      const audio = new Audio('/sounds/countdown.mp3');
+      audio.volume = 0.8;
+      audio.play().catch(e => console.error("Play failed", e));
+      countdownAudioRef.current = audio;
+
+      // Show overlay
+      setIsCountingDown(true)
+      
+      // Auto-complete after 4s (matching audio length approximately)
+      // The overlay will be visual only now
+      setTimeout(() => {
+         setIsCountingDown(false)
+         setIsRunning(true)
+         setShowImmersiveMode(true)
+         triggerCaptureEffect()
+      }, 4000);
+
     } else {
       setActiveTab(tab as TabType)
     }
@@ -428,11 +448,7 @@ export function GamePageContent({
                 <div className="pointer-events-auto absolute bottom-24 left-4 right-4 z-20 flex justify-center">
                   <QuickEntry 
                     onNavigate={(tab) => {
-                      if (tab === 'play') {
-                        setIsCountingDown(true)
-                      } else {
-                        handleQuickNavigate(tab)
-                      }
+                       handleQuickNavigate(tab)
                     }} 
                     missionCount={missionCount} 
                     friendCount={friends?.length || 0} 
