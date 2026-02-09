@@ -439,6 +439,12 @@ export function useRunningTracker(isRunning: boolean): RunningStats {
     setIsPaused(true);
   }, []);
 
+  const clearRecovery = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(RECOVERY_KEY);
+    }
+  }, []);
+
   // Derived stats
   const distanceKm = distance / 1000;
   const pace = formatPace(duration, distanceKm);
