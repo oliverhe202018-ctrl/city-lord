@@ -125,16 +125,20 @@ export function AMapProvider({ children }: { children: ReactNode }) {
       // 作为一个混合应用，WebView 通常是系统 WebView (Chrome/Chromium based)，返回 WGS84。
       // 原生 Geolocation 插件返回的也是 WGS84。
       // 所以我们统一视为 WGS84 并转换。
-      const [lng, lat] = gcoord.transform(
-        [position.coords.longitude, position.coords.latitude],
-        gcoord.WGS84,
-        gcoord.GCJ02
-      );
+      if (position?.coords) {
+          const [lng, lat] = gcoord.transform(
+            [position.coords.longitude, position.coords.latitude],
+            gcoord.WGS84,
+            gcoord.GCJ02
+          );
 
-      setLocationState({ 
-        status: 'success', 
-        coords: [lng, lat] 
-      });
+          setLocationState({ 
+            status: 'success', 
+            coords: [lng, lat] 
+          });
+      } else {
+          throw new Error("Invalid position data");
+      }
 
     } catch (error: any) {
       console.error("Location failed:", error);
@@ -151,7 +155,11 @@ export function AMapProvider({ children }: { children: ReactNode }) {
           errorMsg = "定位超时，请重试";
       }
 
-      toast.error(`定位失败: ${errorMsg}`);
+      // Show toast for error ONLY if it's not a trivial undefined error on startup
+      const isUndefinedError = errorMsg.includes("undefined") || errorMsg.includes("reading 'longitude'");
+      if (!isUndefinedError) {
+          toast.error(`定位失败: ${errorMsg}`);
+      }
       setLocationState({ status: 'error', message: errorMsg });
     }
   }, []);
