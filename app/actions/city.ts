@@ -52,6 +52,8 @@ export async function fetchTerritories(cityId: string): Promise<Territory[]> {
 }
 
 import { checkHiddenBadges } from './badge'
+import { prisma } from '@/lib/prisma'
+import { calculateFactionBalance } from '@/utils/faction-balance'
 
 export async function claimTerritory(cityId: string, cellId: string): Promise<{ success: boolean; error?: string; grantedBadges?: string[] }> {
   const cookieStore = await cookies()
@@ -62,39 +64,136 @@ export async function claimTerritory(cityId: string, cellId: string): Promise<{ 
     return { success: false, error: 'Unauthorized' }
   }
 
-  // 1. Call claim_territory RPC (Handles capture, repair, and decay logic)
-  const { data: claimResult, error: claimError } = await supabase.rpc('claim_territory', {
-    p_city_id: cityId,
-    p_cell_id: cellId
-  })
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Fetch User Profile for Faction
+      const profile = await tx.profiles.findUnique({ 
+        where: { id: user.id },
+        select: { faction: true, id: true }
+      })
 
-  if (claimError) {
-    console.error('Error claiming territory:', claimError)
-    return { success: false, error: claimError.message }
+      if (!profile) throw new Error('Profile not found')
+
+      // 2. Faction Buff Logic (Underdog Bonus)
+      let multiplier = 1.0
+      if (profile.faction) {
+        // Fetch snapshot for balance check
+        const snapshot = await tx.faction_stats_snapshot.findFirst({
+           orderBy: { updated_at: 'desc' }
+        })
+
+        if (snapshot) {
+           const { underdog, multiplier: bonus } = calculateFactionBalance(
+             snapshot.red_area || 0,
+             snapshot.blue_area || 0
+           )
+           
+           if (underdog && underdog.toUpperCase() === profile.faction.toUpperCase()) {
+              multiplier = bonus
+           }
+        }
+      }
+
+      // 3. Concurrency Control & Claim Logic
+      // "Optimistic Locking": Update only if owner is null or health <= 0
+      const updateResult = await tx.territories.updateMany({
+        where: {
+          id: cellId,
+          OR: [
+            // { owner_id: null }, // Removed because owner_id is required in schema
+            { health: { lte: 0 } }
+          ]
+        },
+        data: {
+          owner_id: user.id,
+          city_id: cityId,
+          captured_at: new Date(),
+          health: 100 * multiplier, // Apply Buff to Health
+          level: 1, // Reset level on capture
+          last_maintained_at: new Date()
+        }
+      })
+
+      // If updateMany returns count 0, check if we need to INSERT (if it doesn't exist)
+      if (updateResult.count === 0) {
+        // Check if it exists
+        const exists = await tx.territories.findUnique({ where: { id: cellId } })
+        
+        if (!exists) {
+          // Create new
+          await tx.territories.create({
+            data: {
+              id: cellId,
+              city_id: cityId,
+              owner_id: user.id,
+              captured_at: new Date(),
+              health: 100 * multiplier,
+              level: 1
+            }
+          })
+        } else {
+           // It exists and didn't match criteria (owned by someone else and healthy)
+           // If I already own it, maybe just heal it?
+           if (exists.owner_id === user.id) {
+              await tx.territories.update({
+                where: { id: cellId },
+                data: {
+                  health: Math.min(100, (exists.health || 0) + 10), // Heal
+                  last_maintained_at: new Date()
+                }
+              })
+              return { action: 'healed' }
+           }
+           
+           // Owned by enemy and healthy -> Attack logic (reduce health) could go here
+           // But for now, we assume failure to capture
+           throw new Error('Territory is protected')
+        }
+      }
+
+      // 4. Update User Progress (Tiles Captured)
+      // We upsert user_city_progress
+      const progress = await tx.user_city_progress.findUnique({
+        where: { user_id_city_id: { user_id: user.id, city_id: cityId } }
+      })
+
+      if (progress) {
+        await tx.user_city_progress.update({
+          where: { user_id_city_id: { user_id: user.id, city_id: cityId } },
+          data: {
+            tiles_captured: (progress.tiles_captured || 0) + 1,
+            area_controlled: Number(progress.area_controlled || 0) + 0.01 * multiplier, // Apply buff to area too? User said "capture_score"
+            last_active_at: new Date()
+          }
+        })
+      } else {
+        await tx.user_city_progress.create({
+          data: {
+            user_id: user.id,
+            city_id: cityId,
+            tiles_captured: 1,
+            area_controlled: 0.01 * multiplier,
+            last_active_at: new Date(),
+            joined_at: new Date()
+          }
+        })
+      }
+
+      return { action: 'captured' }
+    })
+
+    // 5. Check Hidden Badges (Outside Transaction for speed/simplicity or keep inside if critical)
+    const grantedBadges = await checkHiddenBadges(user.id, {
+      type: 'territory_claim',
+      timestamp: new Date()
+    })
+
+    return { success: true, grantedBadges }
+
+  } catch (err: any) {
+    console.error('Error claiming territory:', err)
+    return { success: false, error: err.message || 'Claim failed' }
   }
-
-  const result = claimResult as any
-
-  // 2. Update user progress (increment tiles captured) - Only if NEW capture
-  if (result && result.action === 'captured') {
-    const { error: progressError } = await supabase.rpc('increment_user_tiles', { 
-      p_user_id: user.id, 
-      p_city_id: cityId 
-    } as any)
-
-    if (progressError) {
-      console.error('Error incrementing user tiles:', progressError)
-      // We still consider the claim successful if the territory row was inserted/updated
-    }
-  }
-
-  // 3. Check for Hidden Badges (Night Owl, Early Bird)
-  const grantedBadges = await checkHiddenBadges(user.id, {
-    type: 'territory_claim',
-    timestamp: new Date()
-  })
-
-  return { success: true, grantedBadges }
 }
 
 export async function fetchCityStats(cityId: string) {

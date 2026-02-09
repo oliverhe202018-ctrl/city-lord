@@ -112,8 +112,30 @@ export function GamePageContent({
     path,
     closedPolygons,
     togglePause: toggleTrackerPause, 
-    stop: stopTracker 
+    stop: stopTracker,
+    clearRecovery
   } = useRunningTracker(isRunning)
+
+  // Crash Recovery Check
+  useEffect(() => {
+      const RECOVERY_KEY = 'CURRENT_RUN_RECOVERY';
+      const recoveryJson = localStorage.getItem(RECOVERY_KEY);
+      if (recoveryJson) {
+          try {
+              const data = JSON.parse(recoveryJson);
+              // Check 24h validity
+              if (data.startTime && (Date.now() - data.startTime < 24 * 60 * 60 * 1000)) {
+                  console.log("Found crash recovery data, restoring run...");
+                  setIsRunning(true);
+                  setShowImmersiveMode(true);
+              } else {
+                  localStorage.removeItem(RECOVERY_KEY);
+              }
+          } catch (e) {
+              localStorage.removeItem(RECOVERY_KEY);
+          }
+      }
+  }, []);
 
   const [sessionHexes, setSessionHexes] = useState(0)
 
@@ -505,6 +527,7 @@ export function GamePageContent({
         onResume={toggleTrackerPause}
         onStop={() => {
           stopTracker()
+          clearRecovery()
           setIsRunning(false)
           setShowImmersiveMode(false)
           

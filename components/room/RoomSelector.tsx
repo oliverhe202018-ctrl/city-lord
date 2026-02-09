@@ -83,6 +83,14 @@ export function RoomSelector({
   return (
     <>
       <DropdownMenu open={showOpen} onOpenChange={setShowOpen}>
+        {/* Mobile Backdrop for Click Outside */}
+        {showOpen && (
+          <div 
+            className="fixed inset-0 z-[99998] bg-transparent" 
+            onClick={() => setShowOpen(false)}
+            onTouchStart={() => setShowOpen(false)}
+          />
+        )}
         <DropdownMenuTrigger asChild>
           {children ? children : (
             <div className={cn(

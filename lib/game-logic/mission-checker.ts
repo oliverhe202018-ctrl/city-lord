@@ -9,6 +9,7 @@ export interface RunContext {
   newHexCount?: number // Count of "newly discovered" hexes (for Exploration missions)
   startTime: Date
   endTime: Date
+  regionId?: string
 }
 
 /**

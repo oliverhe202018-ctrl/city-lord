@@ -763,6 +763,10 @@ model runs {
   duration   Int       @default(0)
   province   String?
   created_at DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at DateTime? @default(now()) @db.Timestamptz(6)
+  status     String?   @default("active")
+  path       Json?     @db.Json
+  distance   Float?    @default(0)
   clubs      clubs?    @relation(fields: [club_id], references: [id], onUpdate: NoAction)
   profiles   profiles? @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 

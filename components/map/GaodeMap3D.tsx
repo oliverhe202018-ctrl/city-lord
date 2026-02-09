@@ -82,6 +82,12 @@ export function GaodeMap3D({
     setDebugLog(prev => [...prev.slice(-4), msg]) // Keep last 5 logs
   }
 
+  // Safe Data Access
+  const safeHexagons = hexagons || []
+  const safeTerritories = territories || []
+  const safePath = path || []
+  const safeClosedPolygons = closedPolygons || []
+
   // 1. Initialize Map
   useEffect(() => {
     if (!mapContainerRef.current) return
@@ -207,7 +213,7 @@ export function GaodeMap3D({
   useEffect(() => {
     if (!isMapReady || !prismLayerRef.current || !locaInstanceRef.current) return
 
-    addLog(`Rendering Hexagons: ${hexagons.length}`)
+    addLog(`Rendering Hexagons: ${safeHexagons.length}`)
 
     // --- DEBUG: Hardcoded Hexagon near Beijing Tiananmen ---
     // [116.397, 39.909]
@@ -234,12 +240,12 @@ export function GaodeMap3D({
     }
 
     // Convert Real Data
-    const realGeoJSON = h3ToAmapGeoJSON(hexagons)
+    const realGeoJSON = h3ToAmapGeoJSON(safeHexagons)
     
     // Enrich with Health Data if available
-    if (territories.length > 0) {
+    if (safeTerritories.length > 0) {
       realGeoJSON.features.forEach((feature: any) => {
-        const t = territories.find(t => t.id === feature.properties.h3Index)
+        const t = safeTerritories.find(t => t.id === feature.properties.h3Index)
         if (t) {
           feature.properties.health = t.health ?? 100
           feature.properties.ownerType = t.ownerType
@@ -351,7 +357,7 @@ export function GaodeMap3D({
 
     addLog("Layer Style Set & Rendered")
     
-  }, [isMapReady, hexagons, exploredHexes, territories])
+  }, [isMapReady, safeHexagons, exploredHexes, safeTerritories])
 
   // Path & Polygon Rendering
   useEffect(() => {
@@ -359,8 +365,8 @@ export function GaodeMap3D({
     const map = mapInstanceRef.current
 
     // 1. Draw Path (Polyline)
-    if (path.length > 0) {
-      const pathCoords = path.map(p => [p.lng, p.lat])
+    if (safePath.length > 0) {
+      const pathCoords = safePath.map(p => [p.lng, p.lat])
       
       if (!polylineRef.current) {
         polylineRef.current = new AMap.Polyline({
@@ -390,8 +396,8 @@ export function GaodeMap3D({
         polygonRefs.current = []
     }
 
-    if (closedPolygons.length > 0) {
-        const newPolygons = closedPolygons.map(polyPath => {
+    if (safeClosedPolygons.length > 0) {
+        const newPolygons = safeClosedPolygons.map(polyPath => {
             const coords = polyPath.map(p => [p.lng, p.lat])
             return new AMap.Polygon({
                 path: coords,

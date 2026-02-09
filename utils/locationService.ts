@@ -5,19 +5,26 @@ const BackgroundGeolocation = registerPlugin<BackgroundGeolocationPlugin>('Backg
 
 export const LocationService = {
   // 启动跑步记录
-  startTracking: async () => {
+  startTracking: async (authToken?: string) => {
     try {
+      const syncConfig = authToken ? {
+        url: `${process.env.NEXT_PUBLIC_API_URL || ''}/api/run/native-sync`,
+        headers: { Authorization: `Bearer ${authToken}` },
+        autoSync: true,
+        autoSyncThreshold: 5, // Sync every 5 items
+        batchSync: true,
+        maxDaysToKeep: 1,
+      } : {};
+
       // 1. 先添加 Watcher
-      // 关键配置：设置 backgroundTitle 和 backgroundMessage
-      // 这会自动触发 Android 的前台服务通知 (Foreground Service)，实现“免始终允许”的后台保活
-      // 配合 Manifest 中的 FOREGROUND_SERVICE 权限，无需 ACCESS_BACKGROUND_LOCATION
       const watcherId = await BackgroundGeolocation.addWatcher(
         {
           backgroundMessage: "正在记录您的领地征程...",
           backgroundTitle: "City Lord 跑步中",
           requestPermissions: true, // 自动申请权限
           stale: false,
-          distanceFilter: 5 // 5米更新一次
+          distanceFilter: 5, // 5米更新一次
+          ...syncConfig
         },
         (location, error) => {
           if (error) {
