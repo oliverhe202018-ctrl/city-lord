@@ -214,65 +214,51 @@ export async function rejectClub(clubId: string, reason: string) {
 }
 
 export async function getClubs() {
-  const supabase = await createClient()
-  
-  const { data: { user } } = await supabase.auth.getUser()
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
 
-  const { data, error } = await supabase
-    .from('clubs')
-    .select(`
-      *,
-      club_members (count)
-    `)
-    .eq('status', 'active')
-    .order('created_at', { ascending: false })
+    // Use Prisma to fetch clubs (Bypass RLS)
+    const clubs = await prisma.clubs.findMany({
+      where: { status: 'active' },
+      orderBy: { created_at: 'desc' },
+      include: {
+        club_members: {
+          select: { user_id: true } // Just need to check membership
+        }
+      }
+    })
+
+    // Get user memberships if logged in
+    const userMemberships = new Set<string>()
+    if (user) {
+        // We can check local prisma result if we included all members, but better to query specific user membership
+        const memberships = await prisma.club_members.findMany({
+          where: { 
+            user_id: user.id,
+            club_id: { in: clubs.map(c => c.id) }
+          },
+          select: { club_id: true }
+        })
+        memberships.forEach(m => userMemberships.add(m.club_id))
+    }
     
-  if (error) {
+    return clubs.map((club) => ({
+      id: club.id,
+      name: club.name,
+      description: club.description,
+      owner_id: club.owner_id,
+      avatar: club.avatar_url || `https://api.dicebear.com/7.x/shapes/svg?seed=${club.id}`,
+      members: club.member_count || 1, // Use stored member_count
+      territory: club.territory || '0 mi²', 
+      level: club.level || '初级', 
+      rating: Number(club.rating) || 5.0, 
+      isJoined: userMemberships.has(club.id)
+    }))
+  } catch (error) {
     console.error('Error fetching clubs:', error)
     return []
   }
-
-  interface ClubResult {
-    id: string
-    name: string
-    description: string | null
-    owner_id: string | null
-    avatar_url: string | null
-    level: string
-    rating: number
-    member_count: number
-    territory: string
-    created_at: string
-    club_members: { count: number }[] | null
-  }
-
-  const typedData = data as unknown as ClubResult[]
-
-  // Get user memberships if logged in
-  const userMemberships = new Set<string>()
-  if (user) {
-      const { data: memberships } = await supabase
-          .from('club_members')
-          .select('club_id')
-          .eq('user_id', user.id)
-      
-      if (memberships) {
-          memberships.forEach((m) => userMemberships.add(m.club_id))
-      }
-  }
-  
-  return typedData.map((club) => ({
-    id: club.id,
-    name: club.name,
-    description: club.description,
-    owner_id: club.owner_id,
-    avatar: club.avatar_url || `https://api.dicebear.com/7.x/shapes/svg?seed=${club.id}`,
-    members: club.club_members?.[0]?.count || 0,
-    territory: club.territory || '0 mi²', 
-    level: club.level || '初级', 
-    rating: club.rating || 5.0, 
-    isJoined: userMemberships.has(club.id)
-  }))
 }
 
 export async function joinClub(clubId: string) {
