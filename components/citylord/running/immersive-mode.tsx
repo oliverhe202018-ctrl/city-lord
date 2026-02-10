@@ -6,6 +6,7 @@ import { hexCountToArea, formatArea, HEX_AREA_SQ_METERS } from "@/lib/citylord/a
 import { claimTerritory, fetchTerritories } from "@/app/actions/city"
 import { latLngToCell } from "h3-js"
 import { useCity } from "@/contexts/CityContext"
+import { useGameLocation } from "@/store/useGameStore"
 import { Haptics, ImpactStyle } from '@capacitor/haptics'
 import { toast } from "sonner"
 import { AchievementPopup } from "../achievement-popup"
