@@ -95,6 +95,9 @@ export default function SmartPlannerPage() {
       map.on('mousemove', handleMapDrag);
       map.on('mousedown', () => { if (mode === 'freehand') setIsDragging(true); });
       map.on('mouseup', () => { if (mode === 'freehand') setIsDragging(false); });
+      
+      // Fix Gesture Conflict: Disable map drag when in freehand mode
+      // We'll update this in the effect below when mode changes
 
     }).catch(e => console.error(e));
 
@@ -102,6 +105,18 @@ export default function SmartPlannerPage() {
       mapInstanceRef.current?.destroy();
     };
   }, [userLat, userLng]); // Re-init if user loc changes significantly? Maybe not needed.
+
+  // --- Map Drag Lock Effect ---
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    
+    if (mode === 'freehand') {
+        map.setStatus({ dragEnable: false });
+    } else {
+        map.setStatus({ dragEnable: true });
+    }
+  }, [mode]);
 
   // --- Handlers ---
   
@@ -198,9 +213,11 @@ export default function SmartPlannerPage() {
     if (polylineRef.current) map.remove(polylineRef.current);
     polylineRef.current = new AMap.Polyline({
         path: pathCoords,
-        strokeColor: "#3b82f6", // Blue
+        strokeColor: isCalculating ? "#9ca3af" : "#3b82f6", // Grey if calculating, Blue otherwise
         strokeWeight: 6,
-        strokeOpacity: 0.8,
+        strokeOpacity: isCalculating ? 0.5 : 0.8,
+        strokeStyle: isCalculating ? "dashed" : "solid",
+        strokeDasharray: isCalculating ? [10, 10] : undefined,
         lineJoin: 'round',
         lineCap: 'round',
         zIndex: 50,
@@ -248,7 +265,7 @@ export default function SmartPlannerPage() {
         }
     }
 
-  }, [currentPath, isLoopClosed]);
+  }, [currentPath, isLoopClosed, isCalculating]);
 
   // --- Logic ---
   const checkLoopClosure = (path: RoutePoint[]) => {
@@ -354,15 +371,15 @@ export default function SmartPlannerPage() {
        {/* Bottom Control Dock (Wave Dock) */}
        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20 w-full max-w-sm px-4">
            {/* Snap Toggle */}
-           <div className="flex justify-center mb-4">
+           <div className="flex justify-center mb-4 relative">
                <button 
                  onClick={() => setSnapToRoad(!snapToRoad)}
                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
                      snapToRoad ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50' : 'bg-black/40 text-white/40 border border-white/10'
                  }`}
                >
-                   <Zap className="w-3 h-3" />
-                   {snapToRoad ? "Snap On" : "Snap Off"}
+                   {isCalculating ? <RotateCcw className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
+                   {isCalculating ? "Calculating..." : (snapToRoad ? "Snap On" : "Snap Off")}
                </button>
            </div>
 
