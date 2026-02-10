@@ -6,6 +6,7 @@ import { hexCountToArea, formatArea, HEX_AREA_SQ_METERS } from "@/lib/citylord/a
 import { claimTerritory, fetchTerritories } from "@/app/actions/city"
 import { latLngToCell } from "h3-js"
 import { useCity } from "@/contexts/CityContext"
+import { Haptics, ImpactStyle } from '@capacitor/haptics'
 import { toast } from "sonner"
 import { AchievementPopup } from "../achievement-popup"
 import { RunningHUD } from "@/components/running/RunningHUD"
@@ -27,8 +28,9 @@ import { GhostJoystick } from "./GhostJoystick"
 
 interface ImmersiveModeProps {
   isActive: boolean
-  distance: number // in km
-  pace: string // e.g., "6:42"
+  userId?: string
+  distance?: number
+  pace?: number
   time: string // e.g., "00:12:34"
   calories: number
   heartRate?: number
@@ -82,6 +84,7 @@ export function ImmersiveRunningMode({
 }: ImmersiveModeProps) {
   const [isPaused, setIsPaused] = useState(false)
   const [isGhostMode, setIsGhostMode] = useState(false)
+  const [isMapMode, setIsMapMode] = useState(false)
   const [showStopConfirm, setShowStopConfirm] = useState(false)
   const [showSummary, setShowSummary] = useState(false)
   const [displayedArea, setDisplayedArea] = useState(0)
@@ -90,7 +93,30 @@ export function ImmersiveRunningMode({
   const [effectiveHexes, setEffectiveHexes] = useState(0)
   
   const { currentCity } = useCity() // Removed refreshTerritories as it's not in context
+  const { ghostPath } = useGameLocation()
   const [lastClaimedHex, setLastClaimedHex] = useState<string | null>(null)
+  const [currentHex, setCurrentHex] = useState<string | null>(null)
+
+  // Haptic Feedback Logic
+  useEffect(() => {
+    if (!currentLocation || !currentCity?.territories || !userId) return
+    
+    const hex = latLngToCell(currentLocation.lat, currentLocation.lng, 9)
+    if (hex !== currentHex) {
+      setCurrentHex(hex)
+      
+      const territory = currentCity.territories.find(t => t.id === hex)
+      if (territory) {
+        if (territory.ownerId === userId) {
+           Haptics.impact({ style: ImpactStyle.Light })
+           toast.success("这是朕的江山", { duration: 2000 })
+        } else if (territory.ownerId && territory.ownerId !== userId) {
+           Haptics.vibrate()
+           toast.warning("入侵敌方领地！", { duration: 3000 })
+        }
+      }
+    }
+  }, [currentLocation, currentHex, userId, currentCity])
   
   // Map Data State
   const [mapHexagons, setMapHexagons] = useState<string[]>([])
@@ -101,8 +127,10 @@ export function ImmersiveRunningMode({
     if (!currentCity) return
     try {
       const territories = await fetchTerritories(currentCity.id)
-      setMapHexagons(territories.map(t => t.id))
-      setExploredHexes(territories.filter(t => t.ownerType === 'me').map(t => t.id))
+      if (territories && Array.isArray(territories)) {
+        setMapHexagons(territories.map(t => t.id))
+        setExploredHexes(territories.filter(t => t.ownerType === 'me').map(t => t.id))
+      }
     } catch (e: any) {
       if (e?.name !== 'AbortError' && e?.digest !== 'NEXT_REDIRECT') {
         console.error("Failed to load territories", e)
@@ -295,16 +323,25 @@ export function ImmersiveRunningMode({
     }
   }, [showStopConfirm])
 
-  const handleStop = () => {
-    // Audio already played in handleAttemptStop or Dialog
-    const audio = new Audio('/sounds/run_finish.mp3');
-    (window as any).finishAudio = audio; // Critical: Keep alive
-    audio.play().catch(e => console.error(e));
+  const handleStop = (e?: any) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     
-    // Delay 800ms to ensure sound plays
+    // 1. 尝试播放音频 (放在 try-catch 中，绝不阻塞)
+    try {
+        const audio = new Audio('/sounds/run_finish.mp3');
+        (window as any).finishAudio = audio; // Critical: Keep alive
+        audio.play().catch(e => console.log('Audio error handled:', e));
+    } catch (err) {
+        console.log('Audio init error:', err);
+    }
+    
+    // 2. 强制执行结束逻辑 (放在 setTimeout 中确保跳出当前事件循环)
     setTimeout(() => {
       onStop(); 
-    }, 800);
+    }, 100);
   };
 
   if (showSummary) {
@@ -374,6 +411,7 @@ export function ImmersiveRunningMode({
             exploredHexes={exploredHexes} 
             userLocation={[currentLocation.lng, currentLocation.lat]} 
             path={path}
+            ghostPath={ghostPath?.map(p => ({ lat: p[0], lng: p[1] } as Location)) || []}
             closedPolygons={closedPolygons}
           />
         )}
@@ -385,31 +423,48 @@ export function ImmersiveRunningMode({
       <div className="relative z-10 h-[env(safe-area-inset-top)] bg-transparent" />
 
       {/* New HUD Implementation */}
-      <RunningHUD 
-        distance={distance}
-        pace={pace}
-        duration={time}
-        calories={calories}
-        hexesCaptured={hexesCaptured}
-        isPaused={isPaused}
-        onPauseToggle={() => {
-          if (isPaused) {
-            setIsPaused(false)
-            onResume()
-          } else {
-            setIsPaused(true)
-            onPause()
-          }
-        }}
-        onStop={handleAttemptStop}
-        onGhostModeTrigger={() => {
-           setIsGhostMode(true)
-           toast.success("幽灵模式已开启", {
-             description: "使用右下角摇杆控制移动",
-             icon: <Zap className="h-4 w-4 text-purple-400" />
-           })
-        }}
-      />
+      <div className={isMapMode ? "opacity-0 pointer-events-none transition-opacity duration-300" : "opacity-100 transition-opacity duration-300"}>
+        <RunningHUD 
+          distance={distance}
+          pace={pace}
+          duration={time}
+          calories={calories}
+          hexesCaptured={hexesCaptured}
+          isPaused={isPaused}
+          onPauseToggle={() => {
+            if (isPaused) {
+              setIsPaused(false)
+              onResume()
+            } else {
+              setIsPaused(true)
+              onPause()
+            }
+          }}
+          onStop={handleAttemptStop}
+          onGhostModeTrigger={() => {
+             setIsGhostMode(true)
+             toast.success("幽灵模式已开启", {
+               description: "使用右下角摇杆控制移动",
+               icon: <Zap className="h-4 w-4 text-purple-400" />
+             })
+          }}
+          // Pass map toggle handler to HUD
+          onMapClick={() => setIsMapMode(true)}
+        />
+      </div>
+
+      {/* Return to Stats Button (Only visible in Map Mode) */}
+      {isMapMode && (
+        <div className="absolute bottom-32 left-1/2 -translate-x-1/2 z-50 pointer-events-auto animate-in slide-in-from-bottom-10 fade-in duration-300">
+          <button 
+            onClick={() => setIsMapMode(false)}
+            className="flex items-center gap-2 px-6 py-3 rounded-full bg-black/80 backdrop-blur-md border border-[#22c55e]/50 text-white font-bold shadow-[0_0_20px_rgba(34,197,94,0.3)] active:scale-95 transition-all hover:bg-black"
+          >
+            <ChevronUp className="w-5 h-5 text-[#22c55e]" />
+            返回数据
+          </button>
+        </div>
+      )}
       
       {isGhostMode && <GhostJoystick onMove={handleGhostMove} />}
     </div>

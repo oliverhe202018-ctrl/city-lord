@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>City Lord Landmark Battle</title>
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; color: white; display: flex; align-items: center; justify-content: center; font-family: sans-serif; }
+        .game-container { text-align: center; }
+        button { padding: 15px 30px; font-size: 20px; background: #22c55e; border: none; color: white; border-radius: 50px; cursor: pointer; margin-top: 20px; }
+        button:active { transform: scale(0.95); }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>Landmark Battle Demo</h1>
+        <p>This is a placeholder for the Cocos2d Web Export.</p>
+        <p>Goal: Defeat the Guardian to claim this landmark!</p>
+        
+        <button id="winBtn">Simulate WIN</button>
+        <button id="loseBtn" style="background: #ef4444;">Simulate LOSE</button>
+    </div>
+
+    <script>
+        // Simulate Game Logic communicating with Parent
+        document.getElementById('winBtn').addEventListener('click', () => {
+            // Post message to parent window (Next.js app)
+            window.parent.postMessage({ type: 'BATTLE_RESULT', success: true, score: 1500 }, '*');
+        });
+
+        document.getElementById('loseBtn').addEventListener('click', () => {
+            window.parent.postMessage({ type: 'BATTLE_RESULT', success: false, score: 300 }, '*');
+        });
+    </script>
+</body>
+</html>

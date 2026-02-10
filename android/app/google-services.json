@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "845613856645",
+    "project_id": "citylord-38f5e",
+    "storage_bucket": "citylord-38f5e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:845613856645:android:7bcd97ca4bd18aaec4b6ec",
+        "android_client_info": {
+          "package_name": "com.citylord.game.pro"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDy0z3F7GsVWtWVQQ-RdYACXAOBlprFCSM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:845613856645:android:09ca626127d88f92c4b6ec",
+        "android_client_info": {
+          "package_name": "com.xiangfei.citylord"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDy0z3F7GsVWtWVQQ-RdYACXAOBlprFCSM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

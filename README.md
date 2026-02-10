@@ -4,6 +4,20 @@ City Lord 是一款结合真实地理位置（LBS）的跑步领地争夺游戏�
 
 ## 📅 更新日志 (Changelog)
 
+### 2026-02-10: 🚀 发布前终极体检与推送增强 (Pre-Release Health Check & Push Notification)
+
+**核心系统加固：**
+
+1.  **🔔 双轨制推送系统 (Hybrid Push Notification)**
+    *   **China-Ready**: 针对中国大陆环境，实现了 FCM (OneSignal) 与 Supabase Realtime + Local Notifications 的双轨制推送。
+    *   **机制**: 当 FCM 不可用时，App 自动监听数据库变化，并在本地触发原生通知，确保“被攻击”、“战斗结算”等关键信息必达。
+    *   **容错**: OneSignal 初始化逻辑增加 `try-catch` 保护，防止在无 GMS 设备上闪退。
+
+2.  **🛡️ 系统稳定性 (System Stability)**
+    *   **防崩溃**: 全局扫描并修复了数组访问越界风险 (unsafe `.length` access)，彻底根除运行时白屏隐患。
+    *   **交互安全**: 修复了“结束跑步”按钮在音频加载失败时无法响应的问题（改为非阻塞式调用）。
+    *   **UI 适配**: 优化了俱乐部列表等页面的最小高度和图片适配，防止键盘遮挡和图片变形。
+
 ### 2026-02-09: ☁️ 云端加载模式与隐私合规 (Hosted Mode & Privacy)
 
 **核心架构升级：**
@@ -246,21 +260,41 @@ City Lord 是一款结合真实地理位置（LBS）的跑步领地争夺游戏�
 - [x] **好友列表**: 展示好友在线状态（基于 5 分钟心跳阈值）。
 - [x] **动态展示**: 基础的好友活动流 (`friend-activity-feed`)。
 
-## 🚀 核心功能
+## 🚀 核心功能 (Core Features)
 
-*   **🏃 跑步占领**：实时追踪跑步轨迹，将轨迹覆盖的六边形地块转化为个人领地。
-*   **🗺️ 六边形地图**：基于 H3 索引的高性能动态地图，支持迷雾系统。
-*   **🤝 社交互动**：好友系统、实时动态、以及即将推出的俱乐部功能。
-*   **🏆 成就系统**：丰富的勋章墙和排行榜，记录你的每一次突破。
+*   **🏃 跑步占领 (Run to Conquer)**：实时追踪跑步轨迹，将轨迹覆盖的六边形地块转化为个人领地。
+*   **🗺️ 六边形地图 (Hex Grid)**：基于 H3 索引的高性能动态地图，支持迷雾系统。
+*   **🤝 社交互动 (Social)**：好友系统、实时动态、聊天室、以及即将推出的俱乐部功能。
+*   **🏆 成就系统 (Achievements)**：丰富的勋章墙和排行榜，记录你的每一次突破。
+*   **⚔️ 阵营对抗 (Factions)**：加入阵营，参与全城领地争夺战。
 
-## 🛠️ 技术栈
+## 🛠️ 技术栈 (Tech Stack)
 
-*   **前端**：Next.js 14 (React), Tailwind CSS, Framer Motion, Lucide Icons
-*   **地图**：高德地图 JS API (AMap), H3-js (六边形网格)
-*   **后端/数据库**：Supabase (PostgreSQL, Auth, Realtime)
-*   **移动端适配**：Capacitor (Android/iOS)
+### 前端 (Frontend)
+*   **Framework**: Next.js 16 (App Router)
+*   **UI Library**: React 19, Tailwind CSS, Framer Motion, Shadcn UI
+*   **State Management**: Zustand, SWR, React Query
 
-## 📦 快速开始
+### 移动端 (Mobile)
+*   **Framework**: Capacitor 6
+*   **Plugins**:
+    *   `@capacitor-community/background-geolocation` (后台保活)
+    *   `@capacitor/local-notifications` (本地通知)
+    *   `onesignal-cordova-plugin` (推送通知)
+
+### 后端与数据 (Backend & Data)
+*   **BaaS**: Supabase (PostgreSQL, Auth, Realtime, Edge Functions)
+*   **ORM**: Prisma
+*   **Maps**: AMap (高德地图 JS API), H3-js (Uber Hexagonal Grid)
+
+## 📦 快速开始 (Quick Start)
+
+### 前置要求 (Prerequisites)
+*   Node.js 18+
+*   Java JDK 17 (用于 Android 构建)
+*   Android Studio (用于 APK 打包)
+
+### 安装 (Installation)
 
 1.  **安装依赖**
     ```bash
@@ -270,15 +304,40 @@ City Lord 是一款结合真实地理位置（LBS）的跑步领地争夺游戏�
     ```
 
 2.  **配置环境变量**
-    复制 `.env.example` 为 `.env.local` 并填入 Supabase 和高德地图的 Key。
+    复制 `.env.example` 为 `.env.local` 并填入必要 Key：
+    ```env
+    NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+    NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+    NEXT_PUBLIC_AMAP_KEY=your_amap_key
+    NEXT_PUBLIC_AMAP_SECURITY_CODE=your_amap_security_code
+    NEXT_PUBLIC_ONESIGNAL_APP_ID=your_onesignal_app_id
+    ```
 
 3.  **启动开发服务器**
     ```bash
     npm run dev
     ```
+    访问 `http://localhost:3000`
 
-4.  **访问**
-    打开浏览器访问 `http://localhost:3000`
+## 📱 移动端构建 (Mobile Build)
+
+本项目采用 Capacitor 将 Next.js 应用打包为原生 App。
+
+### Android
+
+1.  **构建 Web 资源**
+    由于采用 Hosted Mode，开发阶段通常无需频繁构建 Web 资源，只需确保 `capacitor.config.ts` 中的 `server.url` 指向你的开发机 IP 或生产环境 URL。
+
+2.  **同步原生配置**
+    ```bash
+    npx cap sync android
+    ```
+
+3.  **打开 Android Studio**
+    ```bash
+    npx cap open android
+    ```
+    在 Android Studio 中连接真机或模拟器进行调试。
 
 ---
 *Created by Trae AI Assistant*

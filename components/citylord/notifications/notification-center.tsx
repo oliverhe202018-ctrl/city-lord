@@ -3,6 +3,11 @@
 import React from "react"
 
 import { useState, useEffect, createContext, useContext } from "react"
+import { createClient } from "@/lib/supabase/client"
+import { useAuth } from "@/hooks/useAuth"
+import { formatDistanceToNow } from 'date-fns'
+import { zhCN } from 'date-fns/locale'
+
 import {
   X,
   Trophy,
@@ -291,6 +296,68 @@ const NotificationContext = createContext<NotificationContextType | null>(null)
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [toasts, setToasts] = useState<Notification[]>([])
+  const { user } = useAuth()
+  const supabase = createClient()
+
+  // Fetch Notifications on Mount
+  useEffect(() => {
+    if (!user?.id) return
+
+    const fetchNotifications = async () => {
+        const { data, error } = await supabase
+            .from('notifications')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(20)
+
+        if (data && !error) {
+            setNotifications(data.map(n => ({
+                id: n.id,
+                type: (n.type as NotificationType) || 'system',
+                title: n.title,
+                message: n.body,
+                timestamp: n.created_at ? formatDistanceToNow(new Date(n.created_at), { addSuffix: true, locale: zhCN }) : '刚刚',
+                read: n.is_read || false,
+                action: n.data?.territoryId ? {
+                    label: "查看",
+                    handler: () => {} // Logic to navigate
+                } : undefined
+            })))
+        }
+    }
+
+    fetchNotifications()
+
+    // Realtime Subscription
+    const channel = supabase.channel('notification-provider')
+        .on('postgres_changes', { 
+            event: 'INSERT', 
+            schema: 'public', 
+            table: 'notifications',
+            filter: `user_id=eq.${user.id}` 
+        }, (payload: any) => {
+            const n = payload.new
+            const newNotif: Notification = {
+                id: n.id,
+                type: (n.type as NotificationType) || 'system',
+                title: n.title,
+                message: n.body,
+                timestamp: '刚刚',
+                read: false,
+                action: n.data?.territoryId ? {
+                    label: "查看",
+                    handler: () => {}
+                } : undefined
+            }
+            
+            setNotifications(prev => [newNotif, ...prev])
+            setToasts(prev => [...prev, newNotif])
+        })
+        .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [user?.id])
 
   const addNotification = (
     notification: Omit<Notification, "id" | "timestamp" | "read">
@@ -313,18 +380,29 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     setToasts((prev) => prev.filter((t) => t.id !== id))
   }
 
-  const markAsRead = (id: string) => {
+  const markAsRead = async (id: string) => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n))
     )
+    if (user?.id) {
+        await supabase.from('notifications').update({ is_read: true }).eq('id', id)
+    }
   }
 
-  const markAllAsRead = () => {
+  const markAllAsRead = async () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
+    if (user?.id) {
+        await supabase.from('notifications').update({ is_read: true }).eq('user_id', user.id)
+    }
   }
 
-  const clearAll = () => {
+  const clearAll = async () => {
     setNotifications([])
+    if (user?.id) {
+        // Soft delete or just clear local? Let's just clear local for UI
+        // Or actually delete from DB?
+        await supabase.from('notifications').delete().eq('user_id', user.id)
+    }
   }
 
   return (
