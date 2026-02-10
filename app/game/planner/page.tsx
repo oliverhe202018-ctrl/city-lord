@@ -91,10 +91,16 @@ export default function SmartPlannerPage() {
       // Click Handler for Waypoint Mode
       map.on('click', handleMapClick);
       
-      // Drag Handler for Freehand Mode (using mousemove/touchmove)
+      // Drag Handler for Freehand Mode
       map.on('mousemove', handleMapDrag);
-      map.on('mousedown', () => { if (mode === 'freehand') setIsDragging(true); });
-      map.on('mouseup', () => { if (mode === 'freehand') setIsDragging(false); });
+      map.on('mousedown', () => { if (modeRef.current === 'freehand') setIsDragging(true); });
+      map.on('mouseup', () => { 
+        if (modeRef.current === 'freehand') {
+            setIsDragging(false); 
+            // Auto-switch back to waypoint mode after drawing
+            setMode('waypoint');
+        }
+      });
       
       // Fix Gesture Conflict: Disable map drag when in freehand mode
       // We'll update this in the effect below when mode changes
@@ -105,6 +111,12 @@ export default function SmartPlannerPage() {
       mapInstanceRef.current?.destroy();
     };
   }, [userLat, userLng]); // Re-init if user loc changes significantly? Maybe not needed.
+
+  // Use ref to access latest mode in event handlers
+  const modeRef = useRef(mode);
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
 
   // --- Map Drag Lock Effect ---
   useEffect(() => {
@@ -133,11 +145,16 @@ export default function SmartPlannerPage() {
   const [isDragging, setIsDragging] = useState(false);
 
   const handleMapClick = async (e: any) => {
-    if (mode !== 'waypoint') return;
+    if (modeRef.current !== 'waypoint') return;
     
     const { lng, lat } = e.lnglat;
     const newPoint = { lat, lng };
-    let newPath = [...currentPath];
+    
+    // Use refs for latest state
+    const currentHist = historyRef.current;
+    const idx = historyIndexRef.current;
+    const path = currentHist[idx] || [];
+    let newPath = [...path];
 
     if (snapToRoad && newPath.length > 0) {
       // Async Snap Logic
@@ -164,15 +181,31 @@ export default function SmartPlannerPage() {
     pushState(newPath);
   };
 
+  // Use ref to access latest state in event handlers
+  const historyRef = useRef(history);
+  const historyIndexRef = useRef(historyIndex);
+  
+  useEffect(() => {
+    historyRef.current = history;
+    historyIndexRef.current = historyIndex;
+  }, [history, historyIndex]);
+
   const handleMapDrag = (e: any) => {
-    if (mode !== 'freehand' || !isDragging) return;
-    // Throttle?
+    if (modeRef.current !== 'freehand' || !isDragging) return;
+    
     const { lng, lat } = e.lnglat;
-    const newPath = [...currentPath, { lat, lng }];
-    // Update visual directly for performance, commit on mouseup?
-    // For now simple commit:
-    // pushState(newPath); // Too heavy for drag. Should use local state then commit on mouseup.
-    // Let's implement optimized freehand later. For V1, freehand adds points rapidly.
+    // Get latest path from ref
+    const currentHist = historyRef.current;
+    const idx = historyIndexRef.current;
+    const path = currentHist[idx] || [];
+    
+    const newPath = [...path, { lat, lng }];
+    
+    // Direct update to history to trigger render
+    // Note: This is high frequency, might lag. 
+    // Ideally we separate "preview path" from "committed history".
+    // But for this task, let's just update state.
+    pushState(newPath); 
   };
 
   // Helper: Road Segment Calculation
