@@ -56,6 +56,7 @@ export function PlannerTutorial({ forceShow, onClose }: PlannerTutorialProps) {
 
   // Check storage on mount
   useEffect(() => {
+    // 只有在客户端执行时才访问 localStorage
     const hasSeen = localStorage.getItem("hasSeenPlannerTutorial");
     if (!hasSeen || forceShow) {
       setIsVisible(true);
@@ -76,19 +77,21 @@ export function PlannerTutorial({ forceShow, onClose }: PlannerTutorialProps) {
         setTargetRect(rect);
       } else if (step.targetId === "planner-map-center") {
         // Fallback for map center
-        const width = window.innerWidth;
-        const height = window.innerHeight;
-        setTargetRect({
-          left: width * 0.2,
-          top: height * 0.3,
-          width: width * 0.6,
-          height: height * 0.4,
-          right: width * 0.8,
-          bottom: height * 0.7,
-          x: width * 0.2,
-          y: height * 0.3,
-          toJSON: () => {}
-        });
+        if (typeof window !== 'undefined') {
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            setTargetRect({
+              left: width * 0.2,
+              top: height * 0.3,
+              width: width * 0.6,
+              height: height * 0.4,
+              right: width * 0.8,
+              bottom: height * 0.7,
+              x: width * 0.2,
+              y: height * 0.3,
+              toJSON: () => {}
+            });
+        }
       }
     }, 100);
 
@@ -115,7 +118,7 @@ export function PlannerTutorial({ forceShow, onClose }: PlannerTutorialProps) {
   const isLastStep = currentStep === STEPS.length - 1;
 
   // Determine Dialog Position (Top or Bottom)
-  const isTargetBottom = targetRect && targetRect.top > window.innerHeight / 2;
+  const isTargetBottom = targetRect && typeof window !== 'undefined' ? targetRect.top > window.innerHeight / 2 : false;
 
   return (
     <div className="fixed inset-0 z-[100] overflow-hidden pointer-events-auto">
