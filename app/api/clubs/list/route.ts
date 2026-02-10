@@ -1,10 +1,14 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
   try {
     const clubs = await prisma.clubs.findMany({
-      where: { status: 'active' },
+      where: { 
+        status: 'active' 
+      },
       orderBy: { created_at: 'desc' }
     })
 
