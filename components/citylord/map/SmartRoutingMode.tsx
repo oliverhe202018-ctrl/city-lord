@@ -10,6 +10,8 @@ export function SmartRoutingMode() {
 
   // Toggle Mode - Redirects to the new Planner Page
   const toggleMode = () => {
+    // If we have a back mechanism, use router.push, but maybe we want to preserve state?
+    // Actually, planner is a separate page.
     router.push('/game/planner');
   };
 

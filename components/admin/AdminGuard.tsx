@@ -31,8 +31,11 @@ export function AdminGuard({ children }: AdminGuardProps) {
       // Case 1: User not logged in
       if (!user) {
         if (mounted) {
-          router.push('/login')
-          // We don't set isChecking to false here because we are redirecting
+           // Don't redirect if loading. But here authLoading is false.
+           // Just ensuring we don't loop.
+           if (window.location.pathname !== '/login') {
+             router.push('/login')
+           }
         }
         return
       }
