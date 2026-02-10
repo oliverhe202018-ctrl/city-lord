@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react"
 import { Lock, Award } from "lucide-react"
 import { Badge, UserBadge } from "@/app/actions/badge"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { BadgeIcon } from "./badge-icon"
 import { ACHIEVEMENT_DEFINITIONS } from "@/lib/achievements"
 import Image from "next/image"
@@ -244,6 +244,9 @@ export function BadgeGrid({ initialData }: BadgeGridProps) {
                  </span>
                )}
             </DialogTitle>
+            <DialogDescription className="sr-only">
+              {selectedBadge?.description || "Badge Details"}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
              <div className="flex flex-col items-center justify-center p-6 space-y-4">
