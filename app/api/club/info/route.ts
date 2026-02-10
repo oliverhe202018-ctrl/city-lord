@@ -9,7 +9,15 @@ export async function GET() {
   try {
     const cookieStore = await cookies()
     const supabase = createClient(cookieStore)
-    const { data: { user } } = await supabase.auth.getUser()
+    
+    // Check if auth is available (sometimes getUser might fail if cookies are missing)
+    let user = null
+    try {
+        const { data } = await supabase.auth.getUser()
+        user = data.user
+    } catch (e) {
+        console.warn('Auth check failed:', e)
+    }
 
     if (!user) {
         return NextResponse.json({ joinedClub: null, allClubs: [] })
