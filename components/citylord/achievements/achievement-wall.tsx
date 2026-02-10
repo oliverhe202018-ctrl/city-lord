@@ -107,13 +107,13 @@ function AchievementCard({ achievement, onSelect }: AchievementCardProps) {
             {achievement.image ? (
               <div className={`relative h-full w-full ${!achievement.unlocked ? 'grayscale opacity-60' : ''}`}>
                 <Image
-                  src={achievement.image}
+                  src={achievement.image?.startsWith('/') ? achievement.image : `/badges/${achievement.image}`}
                   alt={achievement.title}
                   fill
                   className="object-contain p-1"
                   onError={(e) => {
-                     e.currentTarget.style.display = 'none';
-                     e.currentTarget.parentElement?.classList.add('hidden');
+                     e.currentTarget.src = '/badges/badge_100km.png';
+                     // e.currentTarget.style.display = 'none';
                   }}
                 />
               </div>

@@ -156,8 +156,8 @@ export function BadgeGrid({ initialData }: BadgeGridProps) {
                 const unlocked = isUnlocked(badge.id)
                 // Fix: map rarity to tier color, access image directly, map title to name
                 const tierClass = getTierColor(badge.rarity)
-                const imagePath = badge.image
-                const showContent = unlocked || badge.category !== 'special' // hidden category is mapped to 'special' in definitions? No, wait. 
+                const imagePath = badge.image ? (badge.image.startsWith('/') ? badge.image : `/badges/${badge.image}`) : undefined;
+                const showContent = unlocked || badge.category !== 'special' // hidden category is mapped to 'special' in definitions? No, wait.  
                 // Let's check definitions. category is 'territory' | 'running' | 'special'.
                 // The 'hidden' tab filters for 'special'.
                 // So if badge.category === 'special', we might want to hide it if locked.
@@ -188,8 +188,8 @@ export function BadgeGrid({ initialData }: BadgeGridProps) {
                              fill
                              className="object-contain"
                              onError={(e) => {
-                                 e.currentTarget.style.display = 'none';
-                                 e.currentTarget.parentElement?.classList.add('hidden');
+                                 e.currentTarget.src = '/badges/badge_100km.png'; // Fallback to a known image
+                                 // e.currentTarget.style.display = 'none'; // Don't hide, show fallback
                              }}
                            />
                            {/* Fallback Icon will show if image is hidden because they are siblings in different containers? 
