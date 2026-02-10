@@ -59,13 +59,20 @@ export default function AdminFeedbackPage() {
         .order("created_at", { ascending: false });
 
       if (error) {
-        console.error("Fetch error:", error);
-        toast.error("获取反馈列表失败");
+        // If 404/Empty, it might just mean no table or empty, handle gracefully
+        if (error.code === 'PGRST116' || error.message.includes('not found')) {
+            setFeedbackList([])
+        } else {
+            console.error("Fetch error:", error);
+            // Don't toast error on init load if it's just empty
+            if (feedbackList.length > 0) toast.error("刷新列表失败");
+        }
       } else {
         setFeedbackList(data as any || []);
       }
     } catch (err) {
       console.error(err);
+      setFeedbackList([]); // Fallback to empty state
     } finally {
       setLoading(false);
     }
@@ -155,8 +162,14 @@ export default function AdminFeedbackPage() {
               </TableRow>
             ) : filteredList.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
-                  暂无反馈数据
+                <TableCell colSpan={6} className="h-64 text-center">
+                   <div className="flex flex-col items-center justify-center text-muted-foreground">
+                      <div className="bg-muted rounded-full p-4 mb-3">
+                         <Bug className="h-8 w-8 text-muted-foreground/50" />
+                      </div>
+                      <p className="font-medium">暂无反馈记录</p>
+                      <p className="text-xs text-muted-foreground/60 mt-1">用户提交的反馈将会显示在这里</p>
+                   </div>
                 </TableCell>
               </TableRow>
             ) : (

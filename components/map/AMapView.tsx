@@ -256,7 +256,6 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(({ showTerritory, onM
             }}
           />
           <MapControls />
-          <SmartRoutingMode />
         </>
       )}
 

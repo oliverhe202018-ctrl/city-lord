@@ -563,7 +563,7 @@ export function GamePageContent({
               )}
 
               {gameMode === 'map' && !shouldHideButtons && (
-                <div className="pointer-events-auto absolute bottom-[100px] left-4 right-4 z-20 flex justify-center">
+                <div className="pointer-events-auto absolute bottom-[80px] left-4 right-4 z-20 flex justify-center">
                   <QuickEntry 
                     onNavigate={(tab) => {
                        handleQuickNavigate(tab)
