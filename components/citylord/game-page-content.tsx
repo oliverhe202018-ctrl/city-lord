@@ -55,6 +55,8 @@ import { Geolocation } from '@capacitor/geolocation';
 import { RunHistoryDrawer } from "@/components/map/RunHistoryDrawer"
 import { History } from "lucide-react"
 import { CountdownOverlay } from "@/components/running/CountdownOverlay"
+import { initOneSignal, setExternalUserId } from "@/lib/onesignal/init"
+import { LocalNotifications } from '@capacitor/local-notifications'
 
 interface GamePageContentProps {
   initialMissions?: any[]
@@ -77,13 +79,84 @@ export function GamePageContent({
 }: GamePageContentProps) {
   const searchParams = useSearchParams()
   const router = useRouter()
-  const { isAuthenticated } = useAuth(initialUser)
+  const { user, isAuthenticated } = useAuth(initialUser)
   const { isLoading: isCityLoading, currentCity } = useCity()
   const { checkStaminaRecovery, dismissGeolocationPrompt, claimAchievement, addTotalDistance } = useGameActions()
   const { achievements, totalDistance } = useGameUser()
   const hydrated = useHydration();
   const mapViewRef = useRef<AMapViewHandle>(null);
   const [showTerritory, setShowTerritory] = useState(true);
+
+  // Realtime Battle Alerts
+  useEffect(() => {
+    if (!user?.id) return;
+    
+    // Request Local Notification Permissions
+    const requestPermissions = async () => {
+        try {
+            if (Capacitor.isNativePlatform()) {
+                await LocalNotifications.requestPermissions();
+            }
+        } catch (e) {
+            console.error("Failed to request notification permissions", e);
+        }
+    };
+    requestPermissions();
+
+    const supabase = createClient();
+    
+    // Listen to NOTIFICATIONS table instead of territories
+    const channel = supabase.channel('personal-notifications')
+      .on('postgres_changes', { 
+          event: 'INSERT', 
+          schema: 'public', 
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}` 
+      }, async (payload: any) => {
+          console.log('New Notification Received:', payload);
+          
+          if (payload.new) {
+             const { title, body, data } = payload.new;
+             
+             // 1. Trigger Local Notification (Native)
+             if (Capacitor.isNativePlatform()) {
+                 try {
+                     await LocalNotifications.schedule({
+                         notifications: [{
+                             title: title,
+                             body: body,
+                             id: Math.floor(Math.random() * 100000),
+                             schedule: { at: new Date(Date.now() + 100) }, // Immediate
+                             sound: 'res://raw/notification_sound', // Optional: Custom sound if added
+                             extra: data
+                         }]
+                     });
+                 } catch (err) {
+                     console.warn("LocalNotification schedule failed:", err);
+                 }
+             } else {
+                 // Web Fallback: Toast
+                 toast(title, {
+                     description: body,
+                     duration: 5000,
+                     action: {
+                         label: "查看",
+                         onClick: () => setActiveTab('social') // Or specific tab
+                     }
+                 });
+             }
+             
+             // 2. Play Sound (In-App)
+             try {
+                 const audio = new Audio('/sounds/alert.mp3');
+                 audio.play().catch(e => console.log('Audio play failed', e));
+             } catch(e) {}
+          }
+      })
+      .subscribe();
+      
+    return () => { supabase.removeChannel(channel); }
+  }, [user?.id]);
 
   // Mission Count
   const [missionCount, setMissionCount] = useState(0)
@@ -174,6 +247,9 @@ export function GamePageContent({
   const [showPermissionPrompt, setShowPermissionPrompt] = useState(false)
   const [isOffline, setIsOffline] = useState(false)
   const [gpsStrength, setGpsStrength] = useState(5)
+  
+  // Map View Mode (User vs Club)
+  const [mapViewMode, setMapViewMode] = useState<'user' | 'club'>('user');
 
   // Get user location from store - use stable selectors to avoid unnecessary re-renders
   const userLat = useGameStore((state) => state.latitude)
@@ -181,15 +257,30 @@ export function GamePageContent({
   const gameMode = useGameStore((state) => state.gameMode);
   const gpsError = useGameStore((state) => state.gpsError);
   const hasDismissedGeolocationPrompt = useGameStore((state) => state.hasDismissedGeolocationPrompt);
+  const isSmartRunStarting = useGameStore((state) => state.isSmartRunStarting);
+  const setSmartRunStarting = useGameStore((state) => state.setSmartRunStarting);
+  
+  // Smart Run Start Listener
+  useEffect(() => {
+    if (isSmartRunStarting) {
+        setIsRunning(true);
+        setShowImmersiveMode(true);
+        setSmartRunStarting(false);
+    }
+  }, [isSmartRunStarting, setSmartRunStarting]);
   
   // Check if first visit - 只在首次挂载时执行
   useEffect(() => {
     let isMounted = true
     
+    // Initialize OneSignal
+    initOneSignal();
+    
     async function checkSession() {
       // If we have initialUser from server, we can skip some checks or just verify
       if (initialUser) {
         // Logged in
+        setExternalUserId(initialUser.id);
         return
       }
 
@@ -250,6 +341,7 @@ export function GamePageContent({
 
       if (session) {
         setShowWelcome(false)
+        if (session.user?.id) setExternalUserId(session.user.id);
         return
       }
 
@@ -467,10 +559,16 @@ export function GamePageContent({
 
         {activeTab === "mode" && (
           <div className="relative h-dvh w-full overflow-hidden">
-            <AMapView ref={mapViewRef} showTerritory={showTerritory} />
+            <AMapView ref={mapViewRef} showTerritory={showTerritory} viewMode={mapViewMode} />
             <div className="relative z-10 h-full w-full pointer-events-none">
               <div className="pointer-events-auto">
-                <MapHeader isCityDrawerOpen={isCityDrawerOpen} setIsCityDrawerOpen={setIsCityDrawerOpen} setShowThemeSwitcher={setShowThemeSwitcher} />
+                <MapHeader 
+                  isCityDrawerOpen={isCityDrawerOpen} 
+                  setIsCityDrawerOpen={setIsCityDrawerOpen} 
+                  setShowThemeSwitcher={setShowThemeSwitcher} 
+                  viewMode={mapViewMode}
+                  onViewModeChange={setMapViewMode}
+                />
               </div>
               <div className="pointer-events-auto">
                 <ModeSwitcher onDrawerOpenChange={(isOpen) => setShouldHideButtons(isOpen)} />
@@ -528,6 +626,7 @@ export function GamePageContent({
 
       <ImmersiveRunningMode
         isActive={showImmersiveMode}
+        userId={user?.id}
         distance={distance}
         pace={pace}
         time={duration}

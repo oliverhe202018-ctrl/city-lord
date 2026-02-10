@@ -106,6 +106,7 @@ import { MapControls } from "./MapControls";
 import { useAMap } from "./AMapProvider";
 import { useGameActions, useGameStore } from "@/store/useGameStore";
 import { useHydration } from "@/hooks/useHydration";
+import { SmartRoutingMode } from "@/components/citylord/map/SmartRoutingMode";
 
 export type AMapViewHandle = {
   zoomIn: () => void;
@@ -255,6 +256,7 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(({ showTerritory, onM
             }}
           />
           <MapControls />
+          <SmartRoutingMode />
         </>
       )}
 

@@ -25,6 +25,7 @@ interface GaodeMap3DProps {
   // Optional: Pass full territory objects to render health
   territories?: { id: string; health?: number; ownerType: 'me' | 'enemy' | 'neutral' }[]
   path?: Location[]
+  ghostPath?: Location[]
   closedPolygons?: Location[][]
 }
 
@@ -39,6 +40,7 @@ export function GaodeMap3D({
   initialZoom = 17,
   territories = [],
   path = [],
+  ghostPath = [],
   closedPolygons = []
 }: GaodeMap3DProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
@@ -51,6 +53,7 @@ export function GaodeMap3D({
   
   // Path & Polygon Refs
   const polylineRef = useRef<any>(null)
+  const ghostPolylineRef = useRef<any>(null)
   const polygonRefs = useRef<any[]>([])
 
   // User Color Preferences
@@ -364,6 +367,29 @@ export function GaodeMap3D({
     if (!mapInstanceRef.current || !isMapReady) return
     const map = mapInstanceRef.current
 
+    // 0. Draw Ghost Path (Polyline)
+    if (ghostPath && ghostPath.length > 0) {
+      const ghostCoords = ghostPath.map(p => [p.lng, p.lat])
+      
+      if (!ghostPolylineRef.current) {
+        ghostPolylineRef.current = new window.AMap.Polyline({
+          path: ghostCoords,
+          strokeColor: "#a855f7", 
+          strokeOpacity: 0.6,
+          strokeWeight: 6,
+          strokeStyle: "dashed",
+          strokeDasharray: [10, 10],
+          zIndex: 45,
+        })
+        map.add(ghostPolylineRef.current)
+      } else {
+        ghostPolylineRef.current.setPath(ghostCoords)
+      }
+    } else if (ghostPolylineRef.current) {
+       map.remove(ghostPolylineRef.current)
+       ghostPolylineRef.current = null
+    }
+
     // 1. Draw Path (Polyline)
     if (safePath.length > 0) {
       const pathCoords = safePath.map(p => [p.lng, p.lat])
@@ -414,7 +440,7 @@ export function GaodeMap3D({
         polygonRefs.current = newPolygons
     }
 
-  }, [isMapReady, path, closedPolygons, pathColor, fillColor])
+  }, [isMapReady, path, closedPolygons, ghostPath, pathColor, fillColor])
 
   // Update User Marker Position
   useEffect(() => {
@@ -431,7 +457,7 @@ export function GaodeMap3D({
   useEffect(() => {
     if (!mapInstanceRef.current || !window.AMap) return
 
-    const pathCoordinates = path.map(p => [p.lng, p.lat])
+    const pathCoordinates = safePath.map(p => [p.lng, p.lat])
 
     if (polylineRef.current) {
         // Update existing polyline
@@ -462,7 +488,7 @@ export function GaodeMap3D({
     }
 
     // Add new polygons
-    const newPolygons = closedPolygons.map(poly => {
+    const newPolygons = safeClosedPolygons.map(poly => {
         const coords = poly.map(p => [p.lng, p.lat])
         return new window.AMap.Polygon({
             path: coords,

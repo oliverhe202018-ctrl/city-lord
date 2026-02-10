@@ -94,12 +94,10 @@ export function useRunningTracker(isRunning: boolean): RunningStats {
 
         if (isMounted && data.active && data.run) {
           // Restore state from server
-          if (data.run.path && Array.isArray(data.run.path)) {
+          if (data.run.path && Array.isArray(data.run.path) && data.run.path.length > 0) {
              setPath(data.run.path);
              pathRef.current = data.run.path;
-             if (data.run.path.length > 0) {
-               lastLocationRef.current = data.run.path[data.run.path.length - 1];
-             }
+             lastLocationRef.current = data.run.path[data.run.path.length - 1];
           }
           if (data.run.distance) setDistance(data.run.distance * 1000); // Server uses km? No, float. Let's assume meters or km. 
           // Wait, native sync accumulates distance in km in the API logic: currentDistance += (dist / 1000)
@@ -230,7 +228,7 @@ export function useRunningTracker(isRunning: boolean): RunningStats {
         }
         // ----------------------------------
 
-        if (currentPath.length > 5) {
+        if (currentPath?.length > 5) {
            const startPoint = currentPath[0];
            const endPoint = newLoc;
            
@@ -416,8 +414,10 @@ export function useRunningTracker(isRunning: boolean): RunningStats {
                    setDuration(data.duration || 0);
                    setClosedPolygons(data.closedPolygons || []);
                    if (data.path && data.path.length > 0) {
-                       lastLocationRef.current = data.path[data.path.length - 1];
+                       const lastLoc = data.path[data.path.length - 1];
+                       lastLocationRef.current = lastLoc;
                        pathRef.current = data.path;
+                       setCurrentLocation(lastLoc);
                    }
                    recovered = true;
                    toast.success('已恢复上次异常退出的跑步记录');

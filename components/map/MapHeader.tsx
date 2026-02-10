@@ -7,10 +7,18 @@ import { useCity } from "@/contexts/CityContext";
 import { useRegion } from "@/contexts/RegionContext";
 import { useGameStore } from "@/store/useGameStore"
 import { useHydration } from "@/hooks/useHydration";
-import { ChevronDown, Calendar, Activity, MapPin, Navigation, User, Zap, Palette, Trophy, LogIn, X, Check } from "lucide-react"
+import { ChevronDown, Calendar, Activity, MapPin, Navigation, User, Zap, Palette, Trophy, LogIn, X, Check, Users } from "lucide-react"
 import { CityDrawer } from "./CityDrawer"
 import { RoomSelector } from '@/components/room/RoomSelector'
 import { LoadingSpinner } from "@/components/citylord/loading-screen"
+
+interface MapHeaderProps {
+  isCityDrawerOpen: boolean
+  setIsCityDrawerOpen: (open: boolean) => void
+  setShowThemeSwitcher: (show: boolean) => void
+  viewMode?: 'user' | 'club'
+  onViewModeChange?: (mode: 'user' | 'club') => void
+}
 
 /**
  * 跑步实时数据类型
@@ -110,7 +118,13 @@ import { toast } from "sonner";
  * 地图头部状态栏组件
  * Displays user stats, city info, and GPS status
  */
-export function MapHeader({ isCityDrawerOpen, setIsCityDrawerOpen, setShowThemeSwitcher }: { isCityDrawerOpen: boolean, setIsCityDrawerOpen: (isOpen: boolean) => void, setShowThemeSwitcher: (isOpen: boolean) => void }) {
+export function MapHeader({ 
+  isCityDrawerOpen, 
+  setIsCityDrawerOpen, 
+  setShowThemeSwitcher,
+  viewMode = 'user',
+  onViewModeChange
+}: MapHeaderProps) {
   const { region } = useRegion();
   const { currentCity, isLoading, leaderboard, currentCityProgress, totalPlayers } = useCity();
 
@@ -338,15 +352,34 @@ export function MapHeader({ isCityDrawerOpen, setIsCityDrawerOpen, setShowThemeS
                   <GpsIcon className={`w-3 h-3 ${gpsConfig.color} ${gpsStatus === 'locating' || requestingLocation ? 'animate-spin' : ''}`} />
                   <span className={`text-[10px] font-bold ${gpsConfig.color}`}>{gpsConfig.text}</span>
               </button>
-              <button
-                onClick={() => setShowThemeSwitcher(true)}
-                className="p-2 rounded-lg hover:bg-white/5 transition-colors"
-              >
-                <Palette className="w-4 h-4 text-white/80" />
-              </button>
+
             </div>
           </div>
         </GlassCard>
+      </div>
+
+      {/* Floating Action Buttons */}
+      <div className="absolute right-4 top-[calc(env(safe-area-inset-top)+6rem)] flex flex-col gap-3 pointer-events-auto">
+        {/* Layer Toggle Button */}
+        {onViewModeChange && (
+          <button
+            onClick={() => onViewModeChange(viewMode === 'user' ? 'club' : 'user')}
+            className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white shadow-lg active:scale-95 transition-all"
+          >
+            {viewMode === 'user' ? (
+              <User className="w-5 h-5" />
+            ) : (
+              <Users className="w-5 h-5 text-[#22c55e]" />
+            )}
+          </button>
+        )}
+
+        <button 
+          onClick={() => setShowThemeSwitcher(true)}
+          className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white shadow-lg active:scale-95 transition-all"
+        >
+          <Palette className="w-5 h-5 text-white/80" />
+        </button>
       </div>
 
       {/* 城市切换抽屉 */}

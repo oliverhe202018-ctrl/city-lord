@@ -44,6 +44,7 @@ export interface LocationState {
   hasDismissedGeolocationPrompt: boolean;
   runStartTime: number | null;
   currentRunPath: [number, number][];
+  ghostPath: [number, number][] | null;
 }
 
 export interface InventoryItem {
@@ -152,6 +153,8 @@ export interface LocationActions {
   clearGpsError: () => void;
   dismissGeolocationPrompt: () => void;
   resetRunState: () => void;
+  setGhostPath: (path: [number, number][] | null) => void;
+  setSmartRunStarting: (starting: boolean) => void;
 }
 
 export interface InventoryActions {
@@ -220,6 +223,8 @@ const initialLocationState: LocationState = {
   hasDismissedGeolocationPrompt: false,
   runStartTime: null,
   currentRunPath: [],
+  ghostPath: null,
+  isSmartRunStarting: false,
 };
 
 const initialInventoryState: InventoryState = {
@@ -500,6 +505,7 @@ const createLocationSlice: StateCreator<GameStore, [], [], LocationActions> = (s
     currentRunPath: [],
     speed: 0,
   }),
+  setGhostPath: (path) => set({ ghostPath: path }),
 });
 
 const createInventorySlice: StateCreator<GameStore, [], [], InventoryActions> = (set, get) => ({
@@ -723,6 +729,7 @@ export const useGameActions = () => {
       clearGpsError: state.clearGpsError,
       dismissGeolocationPrompt: state.dismissGeolocationPrompt,
       resetRunState: state.resetRunState,
+      setGhostPath: state.setGhostPath,
 
       // Inventory Actions
       addItem: state.addItem,
@@ -772,6 +779,8 @@ export const useGameLocation = () =>
       gpsStatus: state.gpsStatus,
       gpsError: state.gpsError,
       hasDismissedGeolocationPrompt: state.hasDismissedGeolocationPrompt,
+      ghostPath: state.ghostPath,
+      isSmartRunStarting: state.isSmartRunStarting,
     })),
   );
 export const useGameInventory = () => useGameStore(useShallow((state) => ({ items: state.items, totalItems: state.totalItems })));

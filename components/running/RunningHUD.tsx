@@ -181,6 +181,7 @@ interface RunningHUDProps {
   onPauseToggle: () => void
   onStop: () => void
   onGhostModeTrigger?: () => void
+  onMapClick?: () => void
 }
 
 export function RunningHUD({
@@ -192,10 +193,11 @@ export function RunningHUD({
   isPaused,
   onPauseToggle,
   onStop,
-  onGhostModeTrigger
+  onGhostModeTrigger,
+  onMapClick
 }: RunningHUDProps) {
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isMapMode, setIsMapMode] = useState(false)
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isLocked, setIsLocked] = useState(false)
   const [showUnlockHint, setShowUnlockHint] = useState(false)
 
@@ -327,11 +329,14 @@ export function RunningHUD({
       {isLocked && (
         <div 
           className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/20 backdrop-blur-[2px] touch-none select-none"
+          style={{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' }}
           onTouchStart={handleUnlockPressStart}
           onTouchEnd={handleUnlockPressEnd}
+          onTouchCancel={handleUnlockPressEnd}
           onMouseDown={handleUnlockPressStart}
           onMouseUp={handleUnlockPressEnd}
           onMouseLeave={handleUnlockPressEnd}
+          onContextMenu={(e) => e.preventDefault()}
         >
           <div className="flex flex-col items-center gap-4 p-8 rounded-full bg-black/60 backdrop-blur-md border border-white/10 animate-pulse">
             <Lock className="h-12 w-12 text-white" />
@@ -470,7 +475,13 @@ export function RunningHUD({
 
           {/* Map Button (Center) */}
           <button 
-            onClick={() => setIsMapMode(!isMapMode)}
+            onClick={() => {
+              if (onMapClick) {
+                onMapClick()
+              } else {
+                setIsMapMode(!isMapMode)
+              }
+            }}
             className={cn(
               "flex flex-col items-center gap-2 group transition-all",
               isMapMode ? "scale-110" : ""

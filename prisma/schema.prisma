@@ -50,14 +50,82 @@ model profiles {
   other_profiles_profiles_referrer_idToprofiles profiles[]           @relation("profiles_referrer_idToprofiles")
   room_participants                             room_participants[]
   rooms                                         rooms[]
+  route_plans                                   route_plans[]
   runs                                          runs[]
   territories                                   territories[]
+  training_plans                                training_plans[]
   user_city_progress                            user_city_progress[]
+  user_season_stats                             user_season_stats[]
 
   @@index([club_id], map: "idx_profiles_club_id")
   @@index([faction], map: "idx_profiles_faction")
   @@index([invited_by], map: "idx_profiles_invited_by")
   @@map("profiles")
+  @@schema("public")
+}
+
+model route_plans {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id        String    @db.Uuid
+  name           String?
+  waypoints      Json?     @db.Json
+  geometry       Json?     @db.Json
+  distance       Float?    @default(0)
+  estimated_time Int?      @default(0)
+  created_at     DateTime? @default(now()) @db.Timestamptz(6)
+  profiles       profiles  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model training_plans {
+  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id            String               @db.Uuid
+  goal               String?
+  level              String?
+  start_date         DateTime?            @db.Timestamptz(6)
+  duration_weeks     Int?
+  created_at         DateTime?            @default(now()) @db.Timestamptz(6)
+  scheduled_workouts scheduled_workouts[]
+  profiles           profiles             @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model seasons {
+  id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name              String
+  start_date        DateTime            @db.Timestamptz(6)
+  end_date          DateTime            @db.Timestamptz(6)
+  is_active         Boolean             @default(false)
+  created_at        DateTime?           @default(now()) @db.Timestamptz(6)
+  user_season_stats user_season_stats[]
+
+  @@schema("public")
+}
+
+model user_season_stats {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id   String   @db.Uuid
+  season_id String   @db.Uuid
+  score     Int      @default(0)
+  rank      Int?
+  seasons   seasons  @relation(fields: [season_id], references: [id], onDelete: Cascade)
+  profiles  profiles @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, season_id])
+  @@schema("public")
+}
+
+model scheduled_workouts {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  plan_id         String         @db.Uuid
+  day_offset      Int?
+  target_distance Float?
+  target_pace     String?
+  is_completed    Boolean?       @default(false)
+  training_plans  training_plans @relation(fields: [plan_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
   @@schema("public")
 }
 
@@ -679,8 +747,9 @@ model notifications {
   id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   user_id    String    @db.Uuid
   title      String
-  message    String
-  type       String
+  body       String?
+  type       String?
+  data       Json?
   is_read    Boolean?  @default(false)
   created_at DateTime? @default(now()) @db.Timestamptz(6)
   profiles   profiles  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)

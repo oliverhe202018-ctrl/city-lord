@@ -122,8 +122,9 @@ export function CreateClubDrawer({ isOpen, onClose, onSuccess }: CreateClubDrawe
                 onUploadComplete={(url) => setFormData({ ...formData, avatarUrl: url })}
                 size={96}
                 cropShape="rect"
+                cropAspect={1}
               />
-              <p className="text-xs text-zinc-500 mt-3">上传俱乐部 Logo</p>
+              <p className="text-xs text-zinc-500 mt-3">上传俱乐部 Logo (必须为正方形)</p>
             </div>
 
             {/* Club Name */}
