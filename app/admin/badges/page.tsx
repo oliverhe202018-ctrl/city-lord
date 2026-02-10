@@ -7,37 +7,42 @@ import { CreateBadgeButton } from './CreateBadgeButton'
 export const dynamic = 'force-dynamic'
 
 export default async function BadgesPage() {
-  let badges = []
-  try {
-    badges = await prisma.badges.findMany({
-      orderBy: { created_at: 'desc' }
-    })
-  } catch (e) {
-    console.error("Failed to fetch badges:", e)
-    // Don't throw, just return empty array
-  }
+  const badges = await prisma.badges.findMany({
+    orderBy: {
+      category: 'asc'
+    }
+  })
+
+  // Format image paths correctly
+  const formattedBadges = badges.map(badge => ({
+    ...badge,
+    image: badge.icon_name ? `/badges/${badge.icon_name}` : '/badges/default.png',
+    // Map database fields to UI expected fields if necessary
+    rarity: badge.tier || 'bronze',
+    maxProgress: Number(badge.requirement_value) || 0
+  }))
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">勋章管理</h2>
-          <p className="text-muted-foreground">管理系统中的成就勋章。</p>
+          <h1 className="text-3xl font-bold tracking-tight">徽章管理</h1>
+          <p className="text-muted-foreground mt-2">
+            管理系统中的所有徽章、成就及其解锁条件。
+          </p>
         </div>
         <CreateBadgeButton />
       </div>
 
-      {badges.length === 0 ? (
-        <Alert>
-          <InfoIcon className="h-4 w-4" />
-          <AlertTitle>暂无勋章</AlertTitle>
-          <AlertDescription>
-            系统中尚未创建任何勋章。请点击右上角按钮创建第一个勋章。
-          </AlertDescription>
-        </Alert>
-      ) : (
-        <BadgeList initialBadges={badges} />
-      )}
+      <Alert>
+        <InfoIcon className="h-4 w-4" />
+        <AlertTitle>提示</AlertTitle>
+        <AlertDescription>
+          徽章图片应上传至 /public/badges 目录。修改条件后，仅对新触发的行为生效。
+        </AlertDescription>
+      </Alert>
+
+      <BadgeList initialBadges={formattedBadges} />
     </div>
   )
 }
