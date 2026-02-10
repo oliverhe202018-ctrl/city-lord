@@ -517,7 +517,7 @@ export function GamePageContent({
                 <MapHeader isCityDrawerOpen={isCityDrawerOpen} setIsCityDrawerOpen={setIsCityDrawerOpen} setShowThemeSwitcher={setShowThemeSwitcher} />
               </div>
 
-              <div className="pointer-events-auto mt-2">
+              <div className="pointer-events-auto mt-[60px]">
                 <ModeSwitcher onDrawerOpenChange={(isOpen) => setShouldHideButtons(isOpen)} />
               </div>
 
