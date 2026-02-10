@@ -207,6 +207,17 @@ export function GaodeMap3D({
 
     return () => {
       if (mapInstanceRef.current) {
+        // Safe Cleanup using optional chaining
+        ghostPolylineRef.current?.remove?.()
+        polylineRef.current?.remove?.()
+        
+        // Handle array cleanup
+        if (Array.isArray(polygonRefs.current)) {
+             polygonRefs.current.forEach((p: any) => p?.remove?.())
+        }
+        
+        markerRef.current?.remove?.()
+        
         mapInstanceRef.current.destroy()
       }
     }
