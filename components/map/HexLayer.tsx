@@ -202,7 +202,18 @@ export function HexLayer({ cells, onCellClick }: HexLayerProps) {
     return () => {
       try {
         if (map && polygonsRef.current.length) {
-          map.remove(polygonsRef.current)
+          // Safer removal
+          const validPolygons = polygonsRef.current.filter(p => !!p);
+          if (validPolygons.length > 0) {
+              if (typeof map.remove === 'function') {
+                 map.remove(validPolygons);
+              } else {
+                 // Fallback
+                 validPolygons.forEach(p => {
+                     if (p && typeof p.setMap === 'function') p.setMap(null);
+                 });
+              }
+          }
           polygonsRef.current = []
         }
       } catch (error) {
