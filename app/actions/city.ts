@@ -54,6 +54,7 @@ export async function fetchTerritories(cityId: string): Promise<Territory[]> {
 import { checkHiddenBadges } from './badge'
 import { prisma } from '@/lib/prisma'
 import { calculateFactionBalance } from '@/utils/faction-balance'
+import { checkAndAwardBadges } from '@/app/lib/badges'
 
 export async function claimTerritory(cityId: string, cellId: string): Promise<{ success: boolean; error?: string; grantedBadges?: string[] }> {
   const cookieStore = await cookies()
@@ -183,10 +184,8 @@ export async function claimTerritory(cityId: string, cellId: string): Promise<{ 
     })
 
     // 5. Check Hidden Badges (Outside Transaction for speed/simplicity or keep inside if critical)
-    const grantedBadges = await checkHiddenBadges(user.id, {
-      type: 'territory_claim',
-      timestamp: new Date()
-    })
+    const newBadges = await checkAndAwardBadges(user.id)
+    const grantedBadges = newBadges.map(b => b.code)
 
     return { success: true, grantedBadges }
 

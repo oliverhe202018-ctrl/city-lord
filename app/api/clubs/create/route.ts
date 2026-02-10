@@ -12,43 +12,57 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json()
-    const name = String(body?.name || '').trim()
+    const { name, description, province, avatar_url } = body
 
-    if (!name) {
-      return NextResponse.json({ error: 'Club name is required' }, { status: 400 })
+    if (!name || !province) {
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    const created = await prisma.$transaction(async (tx) => {
-      const club = await tx.clubs.create({
-        data: {
-          name,
-          description: body?.description ?? null,
-          owner_id: user.id,
-          avatar_url: body?.avatar_url ?? null,
-          province: body?.province ?? null,
-          is_public: body?.is_public ?? true,
-          status: 'pending',
-          level: '1',
-          rating: 0,
-          member_count: 1,
-          territory: '0'
-        }
-      })
-
-      await tx.club_members.create({
-        data: {
-          club_id: club.id,
-          user_id: user.id,
-          role: 'owner',
-          status: 'active'
-        }
-      })
-
-      return club
+    // Check for duplicate name
+    const existingClub = await prisma.clubs.findUnique({
+      where: { name }
     })
 
-    return NextResponse.json({ success: true, data: created })
+    if (existingClub) {
+      return NextResponse.json({ error: '俱乐部名称已存在' }, { status: 400 })
+    }
+
+    // Use Prisma to create club (Service Role)
+    const newClub = await prisma.clubs.create({
+      data: {
+        name,
+        description,
+        province,
+        avatar_url,
+        owner_id: user.id,
+        status: 'pending', // Requires approval
+        member_count: 1
+      }
+    })
+
+    // Add owner as member
+    await prisma.club_members.create({
+      data: {
+        club_id: newClub.id,
+        user_id: user.id,
+        role: 'owner',
+        status: 'active'
+      }
+    })
+
+    // Update user profile with club_id
+    await prisma.profiles.update({
+        where: { id: user.id },
+        data: { club_id: newClub.id }
+    })
+
+    return NextResponse.json({ success: true, data: newClub })
   } catch (error: any) {
-    return NextResponse.json({ error: error?.message || 'Failed to create club' }, { status: 500 })
+    console.error('Error creating club:', error)
+    // Handle Prisma unique constraint violation explicitly just in case
+    if (error.code === 'P2002') {
+        return NextResponse.json({ error: '俱乐部名称已存在' }, { status: 400 })
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
