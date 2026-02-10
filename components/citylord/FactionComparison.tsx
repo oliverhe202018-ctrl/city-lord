@@ -26,8 +26,8 @@ export function FactionComparison({ initialData, redArea: propRedArea, blueArea:
   const blueMemberPercent = 100 - redMemberPercent
 
   // 2. Get Area Stats (Use props if available, else initialData)
-  const redArea = propRedArea ?? initialData?.redArea ?? 0
-  const blueArea = propBlueArea ?? initialData?.blueArea ?? 0
+  const redArea = propRedArea ?? initialData?.redArea ?? initialData?.red_area ?? 0
+  const blueArea = propBlueArea ?? initialData?.blueArea ?? initialData?.blue_area ?? 0
 
   // Area percentages
   const totalArea = redArea + blueArea

@@ -483,7 +483,7 @@ export function MissionCenter({ initialData }: { initialData?: any[] }) {
             <div className="mb-4 rounded-full bg-white/5 p-4">
               <Trophy className="h-8 w-8 text-white/20" />
             </div>
-            <p className="text-white/40">暂无任务</p>
+            <p className="text-white/40">今日任务已刷新，敬请期待</p>
           </div>
         )}
       </div>

@@ -56,9 +56,11 @@ export function PlannerTutorial({ forceShow, onClose }: PlannerTutorialProps) {
 
   // Check storage on mount
   useEffect(() => {
-    // 只有在客户端执行时才访问 localStorage
     const hasSeen = localStorage.getItem("hasSeenPlannerTutorial");
-    if (!hasSeen || forceShow) {
+    if (forceShow) {
+      setCurrentStep(0);
+      setIsVisible(true);
+    } else if (!hasSeen) {
       setIsVisible(true);
     }
   }, [forceShow]);
@@ -75,6 +77,8 @@ export function PlannerTutorial({ forceShow, onClose }: PlannerTutorialProps) {
       if (element) {
         const rect = element.getBoundingClientRect();
         setTargetRect(rect);
+        // Add spotlight effect
+        element.classList.add("relative", "z-[60]");
       } else if (step.targetId === "planner-map-center") {
         // Fallback for map center
         if (typeof window !== 'undefined') {
@@ -95,7 +99,15 @@ export function PlannerTutorial({ forceShow, onClose }: PlannerTutorialProps) {
       }
     }, 100);
 
-    return () => clearTimeout(timer);
+    return () => {
+        clearTimeout(timer);
+        // Cleanup spotlight effect
+        const step = STEPS[currentStep];
+        const element = document.getElementById(step.targetId);
+        if (element) {
+            element.classList.remove("relative", "z-[60]");
+        }
+    };
   }, [currentStep, isVisible]);
 
   const handleNext = () => {

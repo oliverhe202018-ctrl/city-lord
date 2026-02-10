@@ -378,7 +378,7 @@ export function RoomManagerModal({ open, onOpenChange, onRoomEnter }: RoomManage
                 <div className="bg-muted/50 border border-dashed border-white/20 rounded-xl p-6 flex flex-col items-center gap-4">
                   <span className="text-sm text-muted-foreground">房间邀请码</span>
                   <div className="text-4xl font-mono font-bold tracking-[0.5em] text-cyan-400">
-                    {createdRoom.invite_code}
+                    {createdRoom.invite_code || "Generating..."}
                   </div>
                   <Button variant="ghost" size="sm" className="gap-2" onClick={copyInviteCode}>
                     <Copy className="w-4 h-4" />

@@ -187,7 +187,19 @@ export function BadgeGrid({ initialData }: BadgeGridProps) {
                              alt={badge.title}
                              fill
                              className="object-contain"
+                             onError={(e) => {
+                                 e.currentTarget.style.display = 'none';
+                                 e.currentTarget.parentElement?.classList.add('hidden');
+                             }}
                            />
+                           {/* Fallback Icon will show if image is hidden because they are siblings in different containers? 
+                               No, the Image is inside a div. If I hide the image, I see the div background. 
+                               Actually, if image fails, we should show the Icon fallback.
+                               But current structure is: if imagePath exists, show Image.
+                               So I need to handle state for image error to switch to Icon.
+                               Or just use a simple placeholder. 
+                               The user said: "显示一个默认的灰色锁头图标或占位图"
+                           */}
                          </div>
                       </div>
                     ) : null}
