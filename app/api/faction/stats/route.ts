@@ -5,21 +5,49 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    // Use Prisma aggregate to bypass RPC and RLS issues
-    const [redCount, blueCount, redArea, blueArea] = await Promise.all([
-      prisma.profile.count({ where: { faction: 'RED' } }),
-      prisma.profile.count({ where: { faction: 'BLUE' } }),
-      // For area, we might need a different table or logic, currently assuming count is enough or mock area
-      // If territory table exists:
-      prisma.territory.count({ where: { faction: 'RED' } }).then(c => c * 0.06),
-      prisma.territory.count({ where: { faction: 'BLUE' } }).then(c => c * 0.06)
-    ])
+    // Group by faction to handle case sensitivity and get accurate counts
+    const factionGroups = await prisma.profile.groupBy({
+      by: ['faction'],
+      _count: { faction: true },
+    })
+
+    // Normalize and aggregate counts
+    let redCount = 0
+    let blueCount = 0
+
+    factionGroups.forEach(group => {
+      if (!group.faction) return
+      const faction = group.faction.toLowerCase()
+      if (faction === 'red') redCount += group._count.faction
+      if (faction === 'blue') blueCount += group._count.faction
+    })
+
+    // Calculate area based on territories owned by users of each faction
+    // We use a case-insensitive check for faction
+    const redAreaCount = await prisma.territories.count({
+      where: {
+        profiles: {
+          faction: { in: ['Red', 'RED', 'red'] }
+        }
+      }
+    })
+    
+    const blueAreaCount = await prisma.territories.count({
+      where: {
+        profiles: {
+          faction: { in: ['Blue', 'BLUE', 'blue'] }
+        }
+      }
+    })
+
+    const redArea = redAreaCount * 0.06
+    const blueArea = blueAreaCount * 0.06
 
     return NextResponse.json({
       red_faction: redCount,
       blue_faction: blueCount,
-      red_area: redArea,
-      blue_area: blueArea
+      red_area: redArea || 0,
+      blue_area: blueArea || 0
     })
   } catch (error: any) {
     console.error('Faction Stats Error:', error)

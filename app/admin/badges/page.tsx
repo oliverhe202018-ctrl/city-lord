@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { BadgeList } from './BadgeList'
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { InfoIcon } from "lucide-react"
+import { CreateBadgeButton } from './CreateBadgeButton'
 
 export default async function BadgesPage() {
   let badges = []
@@ -21,6 +22,7 @@ export default async function BadgesPage() {
           <h2 className="text-3xl font-bold tracking-tight">勋章管理</h2>
           <p className="text-muted-foreground">管理系统中的成就勋章。</p>
         </div>
+        <CreateBadgeButton />
       </div>
 
       {badges.length === 0 ? (
