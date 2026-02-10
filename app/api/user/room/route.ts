@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getCurrentRoom, createRoom } from '@/app/actions/room'
 
-export const dynamic = 'force-static'
+export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
