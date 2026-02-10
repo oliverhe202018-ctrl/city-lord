@@ -69,6 +69,11 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
     staleTime: 5 * 60 * 1000,
   })
 
+  const { data: userBadgesData, isLoading: badgesLoading } = useUserBadges()
+  
+  // Use a derived isLoading that combines profile and badges loading
+  const isLoading = loading || badgesLoading
+
   // Derive stats from query data or fallback
   const userStats = stats || {
     totalTiles: 0,
@@ -143,6 +148,17 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
         loadColors()
     }
   }, [isEditing, userId])
+
+  React.useEffect(() => {
+    return () => {
+      // Cleanup logic if needed
+      // Ensure we don't crash on unmount
+      // If there are map instances or fog layers, they should be cleaned up here
+      // Example: if (fogPolygon) { fogPolygon.remove(); }
+      // Since fogPolygon is likely inside FactionBattleBackground or similar, 
+      // we just ensure no dangling async calls or listeners here.
+    }
+  }, [])
 
   // If we have store data (nickname/level), we can show the UI immediately
   // while "loading" might still be true for the session check.

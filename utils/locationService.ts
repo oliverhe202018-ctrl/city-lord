@@ -16,6 +16,13 @@ export const LocationService = {
         maxDaysToKeep: 1,
       } : {};
 
+      // Capacitor logic skipped in Web View to prevent console spam
+      // We only use this in native app context
+      if (typeof window !== 'undefined' && !(window as any).Capacitor?.isNative) {
+          console.log('[LocationService] Web environment detected, skipping native background geolocation');
+          return 'web-watcher-id';
+      }
+
       // 1. 先添加 Watcher
       const watcherId = await BackgroundGeolocation.addWatcher(
         {
@@ -46,6 +53,7 @@ export const LocationService = {
 
   // 停止跑步记录
   stopTracking: async (watcherId: string) => {
+    if (watcherId === 'web-watcher-id') return;
     if (watcherId) {
       await BackgroundGeolocation.removeWatcher({ id: watcherId });
     }

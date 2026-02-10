@@ -61,7 +61,7 @@ export async function POST(req: Request) {
     console.error('Error creating club:', error)
     // Handle Prisma unique constraint violation explicitly just in case
     if (error.code === 'P2002') {
-        return NextResponse.json({ error: '俱乐部名称已存在' }, { status: 400 })
+        return NextResponse.json({ error: '俱乐部名称已存在，请换一个名字' }, { status: 400 })
     }
     return NextResponse.json({ error: error.message }, { status: 500 })
   }

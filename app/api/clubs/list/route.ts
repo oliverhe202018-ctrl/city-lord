@@ -6,9 +6,6 @@ export const dynamic = 'force-dynamic'
 export async function GET() {
   try {
     const clubs = await prisma.clubs.findMany({
-      where: { 
-        status: 'active' 
-      },
       orderBy: { created_at: 'desc' }
     })
 
