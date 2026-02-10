@@ -106,11 +106,20 @@ const FogLayer: React.FC<FogLayerProps> = ({ map }) => {
     return () => {
       try {
         if (map) {
-          map.off("moveend", updateFog);
-          map.off("zoomend", updateFog);
+          // Check if map methods exist before calling
+          if (typeof map.off === 'function') {
+            map.off("moveend", updateFog);
+            map.off("zoomend", updateFog);
+          }
+          
           if (fogPolygonRef.current) {
             try {
-              map.remove(fogPolygonRef.current);
+              if (typeof map.remove === 'function') {
+                map.remove(fogPolygonRef.current);
+              } else if (typeof fogPolygonRef.current.setMap === 'function') {
+                // Fallback cleanup
+                fogPolygonRef.current.setMap(null);
+              }
               fogPolygonRef.current = null;
             } catch (error) {
               console.warn('Failed to remove fogPolygon:', error);

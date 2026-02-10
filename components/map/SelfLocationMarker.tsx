@@ -54,7 +54,15 @@ export function SelfLocationMarker({ position }: SelfLocationMarkerProps) {
 
     return () => {
       if (markerRef.current) {
-        map.remove(markerRef.current);
+        try {
+            if (typeof map.remove === 'function') {
+                map.remove(markerRef.current);
+            } else if (typeof markerRef.current.setMap === 'function') {
+                markerRef.current.setMap(null);
+            }
+        } catch (e) {
+            console.warn('Failed to remove marker', e);
+        }
         markerRef.current = null;
       }
     };

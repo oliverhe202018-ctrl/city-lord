@@ -24,13 +24,15 @@ export function BadgeGrid({ initialData }: BadgeGridProps) {
   const { data: userBadges, isLoading: loading } = useUserBadges()
   
   // Manual coalesce with initialData
-  const currentBadges = userBadges || initialData || []
-  const isLoading = loading && !userBadges && !initialData
+  const safeUserBadges = Array.isArray(userBadges) ? userBadges : []
+  const safeInitialData = Array.isArray(initialData) ? initialData : []
+  const currentBadges = safeUserBadges.length > 0 ? safeUserBadges : safeInitialData
+  const isLoading = loading && !safeUserBadges.length && !safeInitialData.length
 
   const [selectedBadge, setSelectedBadge] = useState<any | null>(null) // Use any to allow mixing types if needed, or update Badge type
 
   const isUnlocked = (badgeId: string) => {
-    return (currentBadges || []).some((ub: any) => ub.badge_id === badgeId)
+    return (Array.isArray(currentBadges) ? currentBadges : []).some((ub: any) => ub.badge_id === badgeId)
   }
 
   const getProgress = (badge: any) => {
@@ -279,7 +281,7 @@ export function BadgeGrid({ initialData }: BadgeGridProps) {
                 <h4 className="text-sm font-semibold text-white/80 mb-1">获取时间</h4>
                 <p className="text-sm text-white/60">
                   {(() => {
-                    const userBadge = (userBadges || []).find(ub => ub.badge_id === selectedBadge?.id)
+                    const userBadge = (Array.isArray(userBadges) ? userBadges : []).find(ub => ub.badge_id === selectedBadge?.id)
                     if (userBadge?.earned_at) {
                       return format(new Date(userBadge.earned_at), 'yyyy-MM-dd HH:mm')
                     }

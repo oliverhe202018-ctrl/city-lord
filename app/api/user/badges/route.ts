@@ -9,6 +9,7 @@ export async function GET() {
     return NextResponse.json(data)
   } catch (error) {
     console.error('API Error [UserBadges]:', error)
-    return NextResponse.json({ error: 'Failed to fetch user badges' }, { status: 500 })
+    // Return empty array instead of 500 error to prevent frontend crash
+    return NextResponse.json([], { status: 200 })
   }
 }
