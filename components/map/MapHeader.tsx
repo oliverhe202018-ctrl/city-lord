@@ -253,7 +253,7 @@ export function MapHeader({
   return (
     <>
       {/* 头部状态栏容器 - 固定在顶部安全区域 */}
-      <div className="fixed top-0 left-0 right-0 z-[100] px-4 transition-all duration-300 pt-[calc(env(safe-area-inset-top)+1rem)]">
+      <div className="fixed top-0 left-0 right-0 z-[100] px-4 transition-all duration-300 pt-[calc(env(safe-area-inset-top)+1rem)] max-w-md mx-auto">
         <GlassCard className="p-1">
           <div className="flex items-center justify-between gap-2">
             {/* 左侧：城市选择器 */}

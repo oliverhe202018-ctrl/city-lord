@@ -53,7 +53,7 @@ import { toast } from "sonner"
 import { Capacitor } from '@capacitor/core';
 import { Geolocation } from '@capacitor/geolocation';
 import { RunHistoryDrawer } from "@/components/map/RunHistoryDrawer"
-import { History } from "lucide-react"
+import { History, Pen } from "lucide-react"
 import { CountdownOverlay } from "@/components/running/CountdownOverlay"
 import { initOneSignal, setExternalUserId } from "@/lib/onesignal/init"
 import { LocalNotifications } from '@capacitor/local-notifications'
@@ -545,7 +545,14 @@ export function GamePageContent({
               </div>
 
               {!shouldHideButtons && (
-                <div className="pointer-events-auto absolute top-[180px] left-4 z-20">
+                <div className="pointer-events-auto absolute top-[130px] left-4 z-20 flex flex-col gap-4">
+                  <button
+                      onClick={() => router.push('/game/planner')}
+                      className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg text-white active:scale-95 transition-all hover:bg-black/80"
+                    >
+                      <Pen className="h-5 w-5" />
+                    </button>
+
                   <button
                       onClick={() => setIsRunHistoryOpen(true)}
                       className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg text-white active:scale-95 transition-all hover:bg-black/80"

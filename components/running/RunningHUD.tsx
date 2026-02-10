@@ -77,7 +77,7 @@ function SlideToPause({ onPause }: { onPause: () => void }) {
   const SLIDE_THRESHOLD = 200 // pixels to slide to trigger action
 
   return (
-    <div className="relative w-full max-w-[320px] h-14 bg-[#22c55e] rounded-full overflow-hidden shadow-lg shadow-[#22c55e]/20" ref={containerRef}>
+    <div className="relative w-full max-w-[320px] h-14 bg-[#22c55e] rounded-full overflow-hidden shadow-lg shadow-[#22c55e]/20 touch-none select-none" ref={containerRef} style={{ WebkitTouchCallout: 'none' }}>
       {/* Background Text */}
       <div className="absolute inset-0 flex items-center justify-center text-black/60 text-sm font-bold pointer-events-none tracking-widest pl-8">
         {"> 向右滑动暂停"}
@@ -329,7 +329,7 @@ export function RunningHUD({
       {isLocked && (
         <div 
           className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/20 backdrop-blur-[2px] touch-none select-none"
-          style={{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' }}
+          style={{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
           onTouchStart={handleUnlockPressStart}
           onTouchEnd={handleUnlockPressEnd}
           onTouchCancel={handleUnlockPressEnd}

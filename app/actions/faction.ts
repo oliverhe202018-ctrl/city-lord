@@ -1,35 +1,20 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { prisma } from '@/lib/prisma'
 
 export type Faction = 'RED' | 'BLUE'
 
 export async function getFactionStats() {
-  const supabase = await createClient()
-  
   try {
-    // 1. Get Member Counts from RPC (Single fast query)
-    const { data: summary, error: rpcError } = await supabase.rpc('get_dashboard_summary')
-    
-    if (rpcError) {
-      console.error('Error fetching faction counts (RPC):', rpcError)
-    }
+    // Use Prisma to bypass RLS and get accurate counts directly from DB
+    const redCount = await prisma.territory.count({ where: { faction: 'RED' } })
+    const blueCount = await prisma.territory.count({ where: { faction: 'BLUE' } })
 
-    const redCount = summary?.red_faction || 0
-    const blueCount = summary?.blue_faction || 0
-
-    // 2. Get Area Stats from Snapshot Table
-    const { data: areaStats, error: areaError } = await supabase
-      .from('faction_stats_snapshot')
-      .select('red_area, blue_area')
-      .maybeSingle()
-
-    if (areaError) {
-      console.error('Error fetching faction area stats:', areaError)
-    }
-
-    const redArea = Number(areaStats?.red_area || 0)
-    const blueArea = Number(areaStats?.blue_area || 0)
+    // Calculate Area (Mock or based on hex count)
+    // 1 hex ~= 0.06 sq km (approx)
+    const redArea = redCount * 0.06
+    const blueArea = blueCount * 0.06
 
     // Calculate percentages
     const totalCount = redCount + blueCount
