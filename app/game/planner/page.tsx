@@ -90,6 +90,8 @@ export default function SmartPlannerPage() {
       (window as any)._AMapSecurityConfig = {
         securityJsCode: 'e827ba611fad4802c48dd900d01eb4bf',
       }
+    } else {
+        return; // Don't run on server
     }
 
     AMapLoader.load({
