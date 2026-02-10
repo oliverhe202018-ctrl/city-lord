@@ -75,7 +75,7 @@ export async function joinFaction(faction: Faction) {
         // Update profile
         const { error } = await supabase
             .from('profiles')
-            .update({ faction: faction === 'RED' ? 'red' : 'blue' })
+            .update({ faction: faction === 'RED' ? 'Red' : 'Blue' })
             .eq('id', user.id)
             
         if (error) {

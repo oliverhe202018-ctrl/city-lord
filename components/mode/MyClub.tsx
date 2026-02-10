@@ -33,7 +33,8 @@ function MemberCard({ member }: { member: ClubMember }) {
 // Cache outside component to persist across unmounts
 let cachedClubs: any[] | null = null;
 let lastFetchTime = 0;
-const CACHE_DURATION = 60 * 1000; // 1 minute cache
+// Reduce cache duration to 1 second to ensure freshness after updates
+const CACHE_DURATION = 1 * 1000; 
 
 function ClubList() {
   const { region } = useRegion();

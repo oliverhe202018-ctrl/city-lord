@@ -4,6 +4,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { InfoIcon } from "lucide-react"
 import { CreateBadgeButton } from './CreateBadgeButton'
 
+export const dynamic = 'force-dynamic'
+
 export default async function BadgesPage() {
   let badges = []
   try {
