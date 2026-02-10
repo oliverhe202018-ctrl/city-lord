@@ -350,6 +350,9 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
                 <DialogContent className="bg-zinc-900 border-white/10 text-white sm:max-w-[425px]">
                     <DialogHeader>
                         <DialogTitle>修改资料</DialogTitle>
+                        <DialogDescription className="text-white/50">
+                            更新您的个人信息，包括头像、昵称和个性化颜色。
+                        </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
                         <div className="space-y-2">
