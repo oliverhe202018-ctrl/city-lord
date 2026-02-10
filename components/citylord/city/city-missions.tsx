@@ -119,9 +119,14 @@ export function MissionCard({
   const theme = mission.cityId ? getCityTheme(mission.cityId) : null
   const isCompleted = mission.status === "completed" || mission.status === "claimed"
   const isClaimed = mission.status === "claimed"
-  const totalSteps = mission.steps.length
-  const completedSteps = mission.steps.filter((s) => s.current >= s.target).length
-  const overallProgress = mission.steps.reduce((acc, s) => acc + Math.min(s.current / s.target, 1), 0) / totalSteps * 100
+  
+  // Defensive check for steps
+  const steps = Array.isArray(mission.steps) ? mission.steps : []
+  const totalSteps = steps.length
+  const completedSteps = steps.filter((s) => s.current >= s.target).length
+  const overallProgress = totalSteps > 0 
+    ? steps.reduce((acc, s) => acc + Math.min(s.current / s.target, 1), 0) / totalSteps * 100
+    : 0
 
   const typeIcons = {
     daily: <Calendar className="h-4 w-4" />,
@@ -320,7 +325,7 @@ export function MissionDetail({
             {language === "zh" ? "任务步骤" : "Mission Steps"}
           </h3>
           <div className="space-y-4">
-            {mission.steps.map((step, i) => {
+            {Array.isArray(mission.steps) && mission.steps.map((step, i) => {
               const stepComplete = step.current >= step.target
               const stepProgress = Math.min((step.current / step.target) * 100, 100)
 

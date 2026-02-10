@@ -83,7 +83,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, onTerri
         
         if (!mounted) return;
 
-        const createdPolygons = (data || []).map((territory) => {
+        const createdPolygons = (Array.isArray(data) ? data : []).map((territory) => {
           // Convert H3 index to polygon coordinates
           // h3-js returns [lat, lng], AMap expects [lng, lat]
           const boundary = cellToBoundary(territory.id);
@@ -109,7 +109,11 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, onTerri
 
         // Clear old polygons before adding new ones
         setPolygons(prev => {
-           prev.forEach(p => p.setMap(null)); 
+           prev.forEach(p => {
+               if (p && typeof p.setMap === 'function') {
+                   p.setMap(null);
+               }
+           }); 
            return createdPolygons;
         });
         
@@ -139,7 +143,15 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, onTerri
     return () => {
       try {
         if (map && polygons.length > 0) {
-          map.remove(polygons);
+          // map.remove(polygons) is standard, but defensive coding:
+          polygons.forEach(p => {
+              if (p && typeof p.setMap === 'function') {
+                  p.setMap(null); // Safer than map.remove([p]) sometimes
+              }
+          });
+          if (typeof map.remove === 'function') {
+              map.remove(polygons.filter(p => !!p));
+          }
         }
       } catch (error) {
         console.warn('Failed to remove polygons:', error);
