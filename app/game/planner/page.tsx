@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAMap } from "@/components/map/AMapProvider";
+import { PlannerTutorial } from "@/components/citylord/map/PlannerTutorial"; // Import Tutorial
 import { Button } from "@/components/ui/button";
 import { 
   Undo, 
@@ -13,7 +14,8 @@ import {
   X, 
   Zap, 
   Hexagon,
-  RotateCcw
+  RotateCcw,
+  HelpCircle
 } from "lucide-react";
 import { toast } from "sonner";
 import { useGameStore } from "@/store/useGameStore";
@@ -56,6 +58,9 @@ export default function SmartPlannerPage() {
   // Undo/Redo System
   const [history, setHistory] = useState<RoutePoint[][]>([[]]);
   const [historyIndex, setHistoryIndex] = useState(0);
+
+  // Tutorial State
+  const [showTutorial, setShowTutorial] = useState(false);
 
   // Computed Metrics
   const [distance, setDistance] = useState(0);
@@ -381,9 +386,15 @@ export default function SmartPlannerPage() {
     <div className="relative w-full h-screen bg-black overflow-hidden flex flex-col">
        {/* Fullscreen Map Container */}
        <div ref={mapContainerRef} className="absolute inset-0 z-0" />
+       
+       {/* Tutorial Overlay */}
+       <PlannerTutorial 
+         forceShow={showTutorial} 
+         onClose={() => setShowTutorial(false)} 
+       />
 
        {/* Top HUD (Data Island) */}
-       <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20">
+       <div id="planner-hud" className="absolute top-6 left-1/2 -translate-x-1/2 z-20">
            <div className="flex items-center bg-black/80 backdrop-blur-md rounded-full px-6 py-3 border border-white/10 shadow-2xl gap-8">
                <div className="flex flex-col items-center">
                    <span className="text-[10px] text-white/40 font-bold tracking-wider uppercase">DISTANCE</span>
@@ -399,12 +410,20 @@ export default function SmartPlannerPage() {
                    </span>
                </div>
            </div>
+           
+           {/* Help Button */}
+           <button 
+             onClick={() => setShowTutorial(true)}
+             className="absolute -right-12 top-1/2 -translate-y-1/2 bg-black/60 backdrop-blur border border-white/10 p-2 rounded-full text-white/60 hover:text-white transition-all"
+           >
+             <HelpCircle className="w-5 h-5" />
+           </button>
        </div>
 
        {/* Bottom Control Dock (Wave Dock) */}
        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20 w-full max-w-sm px-4">
            {/* Snap Toggle */}
-           <div className="flex justify-center mb-4 relative">
+           <div id="planner-snap-toggle" className="flex justify-center mb-4 relative">
                <button 
                  onClick={() => setSnapToRoad(!snapToRoad)}
                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
@@ -420,7 +439,7 @@ export default function SmartPlannerPage() {
            <div className="relative bg-black/90 backdrop-blur-xl rounded-[2.5rem] border border-white/10 p-2 shadow-2xl flex items-center justify-between h-20 px-6">
                
                {/* Left Tools */}
-               <div className="flex items-center gap-4">
+               <div id="planner-tools" className="flex items-center gap-4">
                    <button onClick={handleUndo} disabled={historyIndex === 0} className="text-white/60 hover:text-white disabled:opacity-30 transition-colors">
                        <Undo className="w-6 h-6" />
                    </button>
@@ -430,7 +449,7 @@ export default function SmartPlannerPage() {
                </div>
 
                {/* Center Action Button (Floating) */}
-               <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+               <div id="planner-draw-btn" className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
                    <button 
                      onClick={() => setMode(mode === 'waypoint' ? 'freehand' : 'waypoint')}
                      className={`w-20 h-20 rounded-full flex flex-col items-center justify-center border-4 border-black shadow-2xl transition-all active:scale-95 ${
