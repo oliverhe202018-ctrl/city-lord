@@ -55,8 +55,10 @@ export function QuickEntry({ onNavigate, missionCount = 0, friendCount = 0, rank
         <div className="mb-1.5 flex h-10 w-10 items-center justify-center rounded-xl bg-purple-400/20 transition-all group-hover:bg-purple-400/30">
           <Users className="h-5 w-5 text-purple-400" />
         </div>
-        <span className="text-xs font-medium text-white">好友</span>
-        <span className="text-[10px] text-white/40">{friendCount}人</span>
+        <div className="flex items-center gap-1">
+          <span className="text-xs font-medium text-white">好友</span>
+          <span className="text-[10px] text-white/40">({friendCount})</span>
+        </div>
       </button>
     </div>
   )

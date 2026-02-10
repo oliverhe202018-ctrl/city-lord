@@ -21,11 +21,12 @@ export default function AdminDashboardPage() {
     const fetchData = async () => {
       setLoading(true)
       try {
-        // 1. Get Summary (RPC)
-        const { data: summaryData } = await supabase.rpc('get_dashboard_summary')
-        if (summaryData) setSummary(summaryData)
+        // 1. Get Summary (Custom API)
+        const res = await fetch('/api/admin/dashboard-summary')
+        const summaryData = await res.json()
+        if (summaryData && !summaryData.error) setSummary(summaryData)
 
-        // 2. Get Trend (RPC)
+        // 2. Get Trend (RPC - keep for now if valid, or mock)
         const { data: trendData } = await supabase.rpc('get_user_growth_trend')
         if (trendData) setTrend(trendData)
 
