@@ -455,7 +455,15 @@ export default function PlannerClientView() {
       const points = route.waypoints as RoutePoint[];
       useGameStore.getState().setGhostPath(points.map(p => [p.lat, p.lng]));
       useGameStore.getState().setSmartRunStarting(true);
-      router.push('/game/runner'); // Or just router.back() if runner is main? Assuming runner page.
+      
+      // Go back to the map (which is usually the previous page)
+      // If we came from /game, back() works.
+      // If direct link, we might need push.
+      if (window.history.length > 1) {
+          router.back();
+      } else {
+          router.push('/game');
+      }
   };
 
   const handleUndo = () => {

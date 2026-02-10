@@ -472,8 +472,14 @@ export function MissionCenter({ initialData }: { initialData?: any[] }) {
                 if (mission.status === "completed") {
                   handleClaimReward(mission.id, mission.reward)
                 } else if (mission.status !== "claimed") {
-                  router.push('/')
-                  toast.info("前往地图完成任务")
+                  // Instead of redirecting to home, close the drawer/modal if possible or just toast
+                  // If this is a page, maybe we want to go to map?
+                  // But user complaint is "forced redirect to /".
+                  // If we are in a modal/drawer over the map, closing it is better.
+                  // Assuming MissionCenter is used in a tab/drawer context:
+                  toast.info("请关闭任务面板，在地图上完成任务", {
+                      description: "点击底部导航栏返回地图"
+                  })
                 }
               }}
             />

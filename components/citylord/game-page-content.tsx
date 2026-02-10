@@ -169,8 +169,26 @@ export function GamePageContent({
     }
   }, [initialMissions])
 
-  // 全屏加载状态 - 必须在所有 hooks 之后 return
-  const [activeTab, setActiveTab] = useState<TabType>("play")
+  // State Persistence for Tabs
+  useEffect(() => {
+    // On mount, check URL param
+    if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        const tab = params.get('tab');
+        if (tab && ['play', 'missions', 'social', 'profile', 'leaderboard', 'mode'].includes(tab)) {
+            setActiveTab(tab as TabType);
+        }
+    }
+  }, []);
+
+  // Sync state to URL
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+        const url = new URL(window.location.href);
+        url.searchParams.set('tab', activeTab);
+        window.history.replaceState({}, '', url.toString());
+    }
+  }, [activeTab]);
   const [isRunning, setIsRunning] = useState(false)
   const [showImmersiveMode, setShowImmersiveMode] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
@@ -392,7 +410,8 @@ export function GamePageContent({
     if (tab === "running") {
       if (!isAuthenticated) {
         toast.warning('请先登录才能开始占领领地！')
-        router.push('/login')
+        // Only redirect if explicitly required, otherwise just warn
+        // router.push('/login')
         return
       }
 
