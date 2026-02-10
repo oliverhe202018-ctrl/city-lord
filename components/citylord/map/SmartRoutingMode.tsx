@@ -25,7 +25,14 @@ export function SmartRoutingMode() {
 
   // Toggle Mode
   const toggleMode = () => {
+    // New Architecture: Redirect to Planner Page
+    router.push('/game/planner');
+  };
+
+  /* Legacy Logic (Commented out for reference or potential fallback)
+  const toggleModeLegacy = () => {
     if (isActive) {
+  ...
       clearAll();
       setIsActive(false);
     } else {
