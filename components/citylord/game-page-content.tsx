@@ -169,6 +169,9 @@ export function GamePageContent({
     }
   }, [initialMissions])
 
+  // 全屏加载状态 - 必须在所有 hooks 之后 return
+  const [activeTab, setActiveTab] = useState<TabType>("play")
+
   // State Persistence for Tabs
   useEffect(() => {
     // On mount, check URL param
