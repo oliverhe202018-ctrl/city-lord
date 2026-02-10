@@ -12,7 +12,6 @@ import { formatAreaFromHexCount, getAreaEquivalentFromHexCount } from "@/lib/cit
 import { useQuery } from '@tanstack/react-query'
 import { createClient } from "@/lib/supabase/client"
 import { getUserProfileStats } from "@/app/actions/user"
-import { getFactionStats } from '@/app/actions/faction'
 import { toast } from "sonner"
 import { calculateLevel, getNextLevelProgress, getTitle } from "@/lib/game-logic/level-system"
 import { BadgeGrid } from "@/components/citylord/achievements/BadgeGrid"
@@ -80,17 +79,21 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
   }
 
   // Faction Stats State
-  const [factionStats, setFactionStats] = React.useState<any>(null);
+  const [factionStats, setFactionStats] = React.useState<any>(initialFactionStats ?? null);
 
   // Fetch complete stats including member counts
   React.useEffect(() => {
     const fetchStats = async () => {
       try {
-        const stats = await getFactionStats();
-        setFactionStats(stats);
+        const res = await fetch('/api/faction/stats')
+        if (!res.ok) {
+          throw new Error(`Failed to fetch: ${res.status}`)
+        }
+        const stats = await res.json()
+        setFactionStats(stats)
       } catch (err) {
         console.error("Error fetching faction stats:", err);
-        setFactionStats({ RED: 0, BLUE: 0, redArea: 0, blueArea: 0 });
+        setFactionStats({ red_faction: 0, blue_faction: 0, red_area: 0, blue_area: 0 });
       }
     };
     
@@ -265,8 +268,8 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
         <div className="absolute inset-0 overflow-hidden rounded-b-3xl z-0">
           <FactionBattleBackground 
             userFaction={userStats.faction?.toLowerCase() === 'red' ? 'red' : 'blue'}
-            red_area={factionStats?.redArea || 0} 
-            blue_area={factionStats?.blueArea || 0} 
+            red_area={factionStats?.red_area ?? factionStats?.redArea ?? 0} 
+            blue_area={factionStats?.blue_area ?? factionStats?.blueArea ?? 0} 
             isLoading={!factionStats} 
             className="opacity-50 pointer-events-none"
           />

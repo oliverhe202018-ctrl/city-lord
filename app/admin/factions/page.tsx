@@ -45,35 +45,20 @@ export default function FactionsPage() {
   const fetchStats = useCallback(async () => {
     setLoadingStats(true)
     try {
-      // Use RPC instead of direct table query for better performance and to bypass RLS
-      const { data, error } = await supabase.rpc('get_faction_stats')
-
-      if (error) throw error
-
-      // Parse RPC result: [{ faction_name: 'red', member_count: 5 }, ...]
-      let red = 0
-      let blue = 0
-
-      if (Array.isArray(data)) {
-        data.forEach((item: any) => {
-          // Handle potentially different casing or naming conventions just in case
-          const name = (item.faction_name || item.faction || '').toLowerCase()
-          const count = Number(item.member_count || item.count || 0)
-          
-          if (name === 'red') red = count
-          if (name === 'blue') blue = count
-        })
+      const res = await fetch('/api/faction/stats')
+      if (!res.ok) {
+        throw new Error(`Failed to fetch: ${res.status}`)
       }
-
-      setRedCount(red)
-      setBlueCount(blue)
+      const data = await res.json()
+      setRedCount(Number(data?.red_faction || 0))
+      setBlueCount(Number(data?.blue_faction || 0))
     } catch (err: any) {
       console.error('Error fetching faction stats:', err)
       toast.error(`获取阵营数据失败: ${err.message}`)
     } finally {
       setLoadingStats(false)
     }
-  }, [supabase])
+  }, [])
 
   // 2. Fetch Config
   const fetchConfig = useCallback(async () => {

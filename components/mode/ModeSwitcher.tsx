@@ -30,7 +30,7 @@ export function ModeSwitcher() {
   if (!hydrated) return null;
 
   return (
-    <div className="absolute left-1/2 z-[100] w-full max-w-md -translate-x-1/2 px-4 top-[calc(env(safe-area-inset-top)+4rem)]">
+    <div className="relative z-[100] mx-auto w-full max-w-md px-4 mt-24">
       <div className="grid grid-cols-3 gap-2 rounded-full bg-black/80 p-1.5 backdrop-blur-md border border-white/10 shadow-lg">
         {/* 1. 地图按钮 */}
         <button 

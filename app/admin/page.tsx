@@ -11,6 +11,7 @@ import { zhCN } from 'date-fns/locale'
 
 export default function AdminDashboardPage() {
   const [summary, setSummary] = useState<any>(null)
+  const [factionStats, setFactionStats] = useState<any>(null)
   const [trend, setTrend] = useState<any[]>([])
   const [logs, setLogs] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -25,6 +26,12 @@ export default function AdminDashboardPage() {
         const res = await fetch('/api/admin/dashboard-summary')
         const summaryData = await res.json()
         if (summaryData && !summaryData.error) setSummary(summaryData)
+
+        const factionRes = await fetch('/api/faction/stats')
+        if (factionRes.ok) {
+          const factionData = await factionRes.json()
+          setFactionStats(factionData)
+        }
 
         // 2. Get Trend (RPC - keep for now if valid, or mock)
         const { data: trendData } = await supabase.rpc('get_user_growth_trend')
@@ -50,9 +57,11 @@ export default function AdminDashboardPage() {
   }, [])
 
   // Calculate percentages for faction bar
-  const totalFaction = (summary?.red_faction || 0) + (summary?.blue_faction || 0)
-  const redPercent = totalFaction > 0 ? (summary?.red_faction / totalFaction) * 100 : 50
-  const bluePercent = totalFaction > 0 ? (summary?.blue_faction / totalFaction) * 100 : 50
+  const redCount = factionStats?.red_faction ?? summary?.red_faction ?? 0
+  const blueCount = factionStats?.blue_faction ?? summary?.blue_faction ?? 0
+  const totalFaction = redCount + blueCount
+  const redPercent = totalFaction > 0 ? (redCount / totalFaction) * 100 : 50
+  const bluePercent = totalFaction > 0 ? (blueCount / totalFaction) * 100 : 50
 
   return (
     <div className="space-y-6">
@@ -117,9 +126,9 @@ export default function AdminDashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="flex justify-between items-end mb-2">
-               <span className="text-2xl font-bold text-red-500">{summary?.red_faction || 0}</span>
+               <span className="text-2xl font-bold text-red-500">{redCount}</span>
                <span className="text-sm text-muted-foreground">vs</span>
-               <span className="text-2xl font-bold text-blue-500">{summary?.blue_faction || 0}</span>
+               <span className="text-2xl font-bold text-blue-500">{blueCount}</span>
             </div>
             {/* Mini Progress Bar */}
             <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden flex">

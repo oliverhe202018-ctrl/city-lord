@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Shield, Zap, User, Users } from 'lucide-react'
-import { getFactionStats, joinFaction, Faction } from '@/app/actions/faction'
+import { joinFaction, Faction } from '@/app/actions/faction'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -64,8 +64,20 @@ export function FactionSelector({ initialUser }: FactionSelectorProps) {
   }
 
   const loadStats = async () => {
-    const data = await getFactionStats()
-    setStats(data)
+    try {
+      const res = await fetch('/api/faction/stats')
+      if (!res.ok) {
+        throw new Error(`Failed to fetch: ${res.status}`)
+      }
+      const data = await res.json()
+      setStats({
+        RED: Number(data?.red_faction || data?.RED || 0),
+        BLUE: Number(data?.blue_faction || data?.BLUE || 0),
+        bonus: data?.bonus || { RED: 0, BLUE: 0 }
+      })
+    } catch (error) {
+      setStats({ RED: 0, BLUE: 0, bonus: { RED: 0, BLUE: 0 } })
+    }
   }
 
   const handleJoin = async (faction: Faction) => {

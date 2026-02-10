@@ -53,7 +53,7 @@ import { toast } from "sonner"
 import { Capacitor } from '@capacitor/core';
 import { Geolocation } from '@capacitor/geolocation';
 import { RunHistoryDrawer } from "@/components/map/RunHistoryDrawer"
-import { History, Pen } from "lucide-react"
+import { Route } from "lucide-react"
 import { CountdownOverlay } from "@/components/running/CountdownOverlay"
 import { initOneSignal, setExternalUserId } from "@/lib/onesignal/init"
 import { LocalNotifications } from '@capacitor/local-notifications'
@@ -540,7 +540,7 @@ export function GamePageContent({
                 <MapHeader isCityDrawerOpen={isCityDrawerOpen} setIsCityDrawerOpen={setIsCityDrawerOpen} setShowThemeSwitcher={setShowThemeSwitcher} />
               </div>
 
-              <div className="pointer-events-auto mt-[96px]">
+              <div className="pointer-events-auto">
                 <ModeSwitcher onDrawerOpenChange={(isOpen) => setShouldHideButtons(isOpen)} />
               </div>
 
@@ -550,14 +550,7 @@ export function GamePageContent({
                       onClick={() => router.push('/game/planner')}
                       className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg text-white active:scale-95 transition-all hover:bg-black/80"
                     >
-                      <Pen className="h-5 w-5" />
-                    </button>
-
-                  <button
-                      onClick={() => setIsRunHistoryOpen(true)}
-                      className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg text-white active:scale-95 transition-all hover:bg-black/80"
-                    >
-                      <History className="h-5 w-5" />
+                      <Route className="h-5 w-5" />
                     </button>
                 </div>
               )}
@@ -600,7 +593,7 @@ export function GamePageContent({
                   onViewModeChange={setMapViewMode}
                 />
               </div>
-              <div className="pointer-events-auto mt-[96px]">
+              <div className="pointer-events-auto">
                 <ModeSwitcher onDrawerOpenChange={(isOpen) => setShouldHideButtons(isOpen)} />
               </div>
             </div>
