@@ -513,9 +513,9 @@ export default function PlannerClientView() {
   };
 
   return (
-    <div className="relative w-full h-[100dvh] overflow-hidden flex flex-col">
+    <div className="relative w-full h-[100dvh] overflow-hidden flex flex-col pointer-events-none max-w-[480px] mx-auto shadow-2xl">
        {/* Fullscreen Map Container */}
-       <div ref={mapContainerRef} className="absolute inset-0 h-full w-full -z-10" />
+       <div ref={mapContainerRef} className="absolute inset-0 h-full w-full -z-10 pointer-events-auto" />
        
        {/* Tutorial Overlay */}
        <PlannerTutorial 
@@ -573,7 +573,10 @@ export default function PlannerClientView() {
                <div className="flex flex-col items-center">
                    <span className="text-[10px] text-white/40 font-bold tracking-wider uppercase">领地面积</span>
                    <span className="text-xl font-mono font-bold text-green-400">
-                       {(area / 10000).toFixed(2)} <span className="text-xs text-green-500/50">ha</span>
+                       {area > 10000 
+                         ? <>{(area / 1000000).toFixed(2)} <span className="text-xs text-green-500/50">k㎡</span></>
+                         : <>{Math.round(area).toLocaleString()} <span className="text-xs text-green-500/50">㎡</span></>
+                       }
                    </span>
                </div>
            </div>
@@ -606,7 +609,9 @@ export default function PlannerClientView() {
                  }`}
                >
                    {isCalculating ? <RotateCcw className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
-                   {isCalculating ? "计算中..." : (snapToRoad ? "吸附路网：开" : "吸附路网：关")}
+                   <span className="bg-black/60 px-2 py-1 rounded">
+                       {isCalculating ? "计算中..." : (snapToRoad ? "吸附路网：开" : "吸附路网：关")}
+                   </span>
                </button>
            </div>
 
