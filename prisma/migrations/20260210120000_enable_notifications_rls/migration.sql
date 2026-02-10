@@ -1,6 +1,10 @@
 -- Enable RLS
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policies to ensure idempotency
+DROP POLICY IF EXISTS "Users can view their own notifications" ON notifications;
+DROP POLICY IF EXISTS "Users can update their own notifications" ON notifications;
+
 -- Allow users to view their own notifications
 CREATE POLICY "Users can view their own notifications" 
 ON notifications FOR SELECT 
@@ -10,7 +14,3 @@ USING (auth.uid() = user_id);
 CREATE POLICY "Users can update their own notifications" 
 ON notifications FOR UPDATE 
 USING (auth.uid() = user_id);
-
--- Note: Service Role (Edge Functions) bypasses RLS by default, so INSERT policy is not strictly required if using service_role key.
--- But for completeness, if we wanted to allow authenticated users to insert (which we usually don't for system notifications), we would add that here.
--- For now, we rely on Service Role for INSERTs.
