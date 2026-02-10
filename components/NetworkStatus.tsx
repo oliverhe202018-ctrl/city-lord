@@ -6,8 +6,12 @@ export function NetworkStatus() {
   const [isOnline, setIsOnline] = useState(true)
 
   useEffect(() => {
-    // Initial check
-    setIsOnline(navigator.onLine)
+    // Initial check with delay to prevent false positives on load
+    const timer = setTimeout(() => {
+      if (typeof navigator !== 'undefined') {
+        setIsOnline(navigator.onLine)
+      }
+    }, 2000)
 
     const handleOnline = () => setIsOnline(true)
     const handleOffline = () => setIsOnline(false)
@@ -16,6 +20,7 @@ export function NetworkStatus() {
     window.addEventListener('offline', handleOffline)
 
     return () => {
+      clearTimeout(timer)
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
     }

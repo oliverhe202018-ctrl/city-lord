@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Geolocation } from '@capacitor/geolocation';
+import { Capacitor } from '@capacitor/core';
 import { toast } from 'sonner';
 import gcoord from 'gcoord';
 
@@ -67,11 +68,24 @@ export const useGeolocation = ({
     setState((prev) => ({ ...prev, loading: true, error: null }));
 
     try {
-      const position = await Geolocation.getCurrentPosition({
-        enableHighAccuracy,
-        timeout,
-        maximumAge
-      });
+      let position: any;
+      
+      if (Capacitor.isNativePlatform()) {
+        position = await Geolocation.getCurrentPosition({
+          enableHighAccuracy,
+          timeout,
+          maximumAge
+        });
+      } else {
+        // Web Fallback
+        position = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy,
+            timeout,
+            maximumAge
+          });
+        });
+      }
 
       if (!isMounted.current) return;
 
@@ -142,60 +156,93 @@ export const useGeolocation = ({
 
     const startWatch = async () => {
       try {
-        const id = await Geolocation.watchPosition(
-          {
-            enableHighAccuracy,
-            timeout,
-            maximumAge
-          },
-          (position, err) => {
-            if (!isMounted.current) return;
+        if (Capacitor.isNativePlatform()) {
+          const id = await Geolocation.watchPosition(
+            {
+              enableHighAccuracy,
+              timeout,
+              maximumAge
+            },
+            (position, err) => {
+              if (!isMounted.current) return;
 
-            if (err) {
-              setState((prev) => ({ ...prev, loading: false, error: err }));
-              return;
-            }
-
-            if (position) {
-              let latitude = position.coords.latitude;
-              let longitude = position.coords.longitude;
-              let coordType: 'gcj02' | 'wgs84' = 'wgs84';
-
-              if (gpsCorrectionEnabled) {
-                // Transform WGS-84 (Capacitor) to GCJ-02 (AMap)
-                const result = gcoord.transform(
-                  [longitude, latitude],
-                  gcoord.WGS84,
-                  gcoord.GCJ02
-                );
-                longitude = result[0];
-                latitude = result[1];
-                coordType = 'gcj02';
+              if (err) {
+                // Suppress error if we are just starting up or if it's a transient issue
+                // But for watchPosition, err is usually significant. 
+                // However, we want to match the "silence initial errors" philosophy.
+                setState((prev) => ({ ...prev, loading: false, error: err }));
+                return;
               }
 
-              setState({
-                loading: false,
-                error: null,
-                data: {
-                  latitude,
-                  longitude,
-                  coordType,
-                },
-              });
+              if (position) {
+                processPosition(position);
+              }
             }
-          }
-        );
-        watchIdRef.current = id;
+          );
+          watchIdRef.current = id;
+        } else {
+          // Web Watch
+          const id = navigator.geolocation.watchPosition(
+            (position) => {
+              if (!isMounted.current) return;
+              processPosition(position);
+            },
+            (err) => {
+              if (!isMounted.current) return;
+              setState((prev) => ({ ...prev, loading: false, error: err }));
+            },
+            {
+              enableHighAccuracy,
+              timeout,
+              maximumAge
+            }
+          );
+          // Store ID as string for consistency (though web returns number)
+          watchIdRef.current = String(id);
+        }
       } catch (err) {
         console.error("Failed to start watch:", err);
       }
+    };
+
+    // Helper to process position (deduplicate logic)
+    const processPosition = (position: any) => {
+      let latitude = position.coords.latitude;
+      let longitude = position.coords.longitude;
+      let coordType: 'gcj02' | 'wgs84' = 'wgs84';
+
+      if (gpsCorrectionEnabled) {
+        // Transform WGS-84 (Capacitor/Web) to GCJ-02 (AMap)
+        const result = gcoord.transform(
+          [longitude, latitude],
+          gcoord.WGS84,
+          gcoord.GCJ02
+        );
+        longitude = result[0];
+        latitude = result[1];
+        coordType = 'gcj02';
+      }
+
+      setState({
+        loading: false,
+        error: null,
+        data: {
+          latitude,
+          longitude,
+          coordType,
+        },
+      });
     };
 
     startWatch();
 
     return () => {
       if (watchIdRef.current) {
-        Geolocation.clearWatch({ id: watchIdRef.current });
+        if (Capacitor.isNativePlatform()) {
+          Geolocation.clearWatch({ id: watchIdRef.current });
+        } else {
+          navigator.geolocation.clearWatch(Number(watchIdRef.current));
+        }
         watchIdRef.current = null;
       }
     };
