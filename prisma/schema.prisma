@@ -71,6 +71,7 @@ model route_plans {
   waypoints      Json?     @db.Json
   geometry       Json?     @db.Json
   distance       Float?    @default(0)
+  capture_area   Float?    @default(0)
   estimated_time Int?      @default(0)
   created_at     DateTime? @default(now()) @db.Timestamptz(6)
   profiles       profiles  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)

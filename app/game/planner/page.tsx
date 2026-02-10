@@ -3,7 +3,10 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAMap } from "@/components/map/AMapProvider";
-import { PlannerTutorial } from "@/components/citylord/map/PlannerTutorial"; // Import Tutorial
+import { PlannerTutorial } from "@/components/citylord/map/PlannerTutorial"; 
+import { RouteSaveDrawer } from "@/components/citylord/map/RouteSaveDrawer";
+import { SaveSuccessDialog } from "@/components/citylord/map/SaveSuccessDialog";
+import { MyRoutesSheet, Route } from "@/components/citylord/map/MyRoutesSheet";
 import { Button } from "@/components/ui/button";
 import { 
   Undo, 
@@ -15,9 +18,10 @@ import {
   Zap, 
   Hexagon,
   RotateCcw,
-  HelpCircle
+  HelpCircle,
+  List
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/hooks/use-toast";
 import { useGameStore } from "@/store/useGameStore";
 import { calculateSmartRoute } from "@/lib/utils/routing";
 import { latLngToCell } from "h3-js";
@@ -66,6 +70,16 @@ export default function SmartPlannerPage() {
   const [distance, setDistance] = useState(0);
   const [area, setArea] = useState(0); // Estimated capture area
 
+  // Save/Manage Workflow State
+  const [showSaveDrawer, setShowSaveDrawer] = useState(false);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [showMyRoutes, setShowMyRoutes] = useState(false);
+  const [loadingSave, setLoadingSave] = useState(false);
+  
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingRoute, setEditingRoute] = useState<Route | null>(null);
+  const [previewPath, setPreviewPath] = useState<string>("");
+
   const currentPath = history[historyIndex] || [];
 
   // --- Map Initialization ---
@@ -107,15 +121,12 @@ export default function SmartPlannerPage() {
         }
       });
       
-      // Fix Gesture Conflict: Disable map drag when in freehand mode
-      // We'll update this in the effect below when mode changes
-
     }).catch(e => console.error(e));
 
     return () => {
       mapInstanceRef.current?.destroy();
     };
-  }, [userLat, userLng]); // Re-init if user loc changes significantly? Maybe not needed.
+  }, [userLat, userLng]);
 
   // Use ref to access latest mode in event handlers
   const modeRef = useRef(mode);
@@ -167,10 +178,6 @@ export default function SmartPlannerPage() {
       try {
         const lastPoint = newPath[newPath.length - 1];
         const AMap = (window as any).AMap;
-        // Simple 2-point walking route
-        const route = await calculateSmartRoute(['dummy'], lastPoint, AMap); // Refactor calc to be generic?
-        // Actually calculateSmartRoute is for Hexes. We need raw point-to-point.
-        // Let's implement a quick point-to-point snap helper inside or reuse logic
         const segment = await calculateRoadSegment(lastPoint, newPoint);
         newPath = [...newPath, ...segment];
       } catch (err) {
@@ -199,17 +206,12 @@ export default function SmartPlannerPage() {
     if (modeRef.current !== 'freehand' || !isDragging) return;
     
     const { lng, lat } = e.lnglat;
-    // Get latest path from ref
     const currentHist = historyRef.current;
     const idx = historyIndexRef.current;
     const path = currentHist[idx] || [];
     
     const newPath = [...path, { lat, lng }];
     
-    // Direct update to history to trigger render
-    // Note: This is high frequency, might lag. 
-    // Ideally we separate "preview path" from "committed history".
-    // But for this task, let's just update state.
     pushState(newPath); 
   };
 
@@ -347,16 +349,111 @@ export default function SmartPlannerPage() {
       }
   };
 
-  const handleSave = () => {
+  // Helper to generate SVG Path from RoutePoints
+  const generateSvgPath = (points: RoutePoint[]): string => {
+    if (points.length < 2) return "";
+    
+    let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+    points.forEach(p => {
+        minLat = Math.min(minLat, p.lat);
+        maxLat = Math.max(maxLat, p.lat);
+        minLng = Math.min(minLng, p.lng);
+        maxLng = Math.max(maxLng, p.lng);
+    });
+
+    const latSpan = maxLat - minLat;
+    const lngSpan = maxLng - minLng;
+    const maxSpan = Math.max(latSpan, lngSpan);
+    
+    if (maxSpan === 0) return "";
+
+    const normalize = (val: number, min: number) => ((val - min) / maxSpan) * 80 + 10; // 10-90 padding
+
+    const pathData = points.map((p, i) => {
+        // SVG coordinate system: Y is down. So flip lat.
+        const x = normalize(p.lng, minLng);
+        const y = 100 - normalize(p.lat, minLat);
+        return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+    }).join(" ");
+
+    return pathData;
+  };
+
+  const handleSaveClick = () => {
       if (currentPath.length < 2) {
-          toast.error("路线太短");
+          toast({ title: "Route too short", description: "Please add more points.", variant: "destructive" });
           return;
       }
-      // Save to Ghost Path
-      useGameStore.getState().setGhostPath(currentPath.map(p => [p.lat, p.lng]));
+      setPreviewPath(generateSvgPath(currentPath));
+      setShowSaveDrawer(true);
+  };
+
+  const handleConfirmSave = async (name: string) => {
+      setLoadingSave(true);
+      try {
+          const payload = {
+              id: isEditing && editingRoute ? editingRoute.id : undefined,
+              name,
+              points: currentPath,
+              distance: distance / 1000, // km
+              capture_area: area / 1000000 // sq km
+          };
+
+          const method = isEditing ? 'PUT' : 'POST';
+          const res = await fetch('/api/routes/route', {
+              method,
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+          });
+
+          if (!res.ok) throw new Error('Failed to save route');
+
+          setShowSaveDrawer(false);
+          setShowSuccessDialog(true);
+          
+          // Reset edit state if updating
+          if (isEditing) {
+              setIsEditing(false);
+              setEditingRoute(null);
+          }
+
+      } catch (error) {
+          console.error(error);
+          toast({ title: "Error", description: "Failed to save route.", variant: "destructive" });
+      } finally {
+          setLoadingSave(false);
+      }
+  };
+
+  const handleEditRoute = (route: Route) => {
+      // Load route into planner
+      const points = route.waypoints as RoutePoint[];
+      setHistory([points]);
+      setHistoryIndex(0);
+      calculateMetrics(points);
+      checkLoopClosure(points);
+      
+      // Set edit state
+      setIsEditing(true);
+      setEditingRoute(route);
+      
+      // Close sheet
+      setShowMyRoutes(false);
+      
+      // Center map on route
+      if (mapInstanceRef.current && points.length > 0) {
+          const center = [points[0].lng, points[0].lat];
+          mapInstanceRef.current.setZoomAndCenter(16, center);
+      }
+      
+      toast({ title: "Editing Mode", description: `Editing "${route.name}"` });
+  };
+
+  const handleStartRun = (route: Route) => {
+      const points = route.waypoints as RoutePoint[];
+      useGameStore.getState().setGhostPath(points.map(p => [p.lat, p.lng]));
       useGameStore.getState().setSmartRunStarting(true);
-      toast.success("路线已保存，准备出发！");
-      router.back();
+      router.push('/game/runner'); // Or just router.back() if runner is main? Assuming runner page.
   };
 
   const handleUndo = () => {
@@ -377,11 +474,6 @@ export default function SmartPlannerPage() {
       }
   };
 
-  const handleClear = () => {
-      pushState([]);
-      setIsLoopClosed(false);
-  };
-
   return (
     <div className="relative w-full h-screen bg-black overflow-hidden flex flex-col">
        {/* Fullscreen Map Container */}
@@ -393,8 +485,45 @@ export default function SmartPlannerPage() {
          onClose={() => setShowTutorial(false)} 
        />
 
+       {/* Components */}
+       <RouteSaveDrawer 
+         open={showSaveDrawer} 
+         onOpenChange={setShowSaveDrawer}
+         onSave={handleConfirmSave}
+         distance={distance / 1000}
+         captureArea={area / 1000000}
+         initialName={isEditing ? editingRoute?.name : ''}
+         mode={isEditing ? 'update' : 'save'}
+         loading={loadingSave}
+         previewPath={previewPath}
+       />
+       
+       <SaveSuccessDialog
+         open={showSuccessDialog}
+         onOpenChange={setShowSuccessDialog}
+         onContinue={() => setShowSuccessDialog(false)}
+         onViewList={() => {
+             setShowSuccessDialog(false);
+             setShowMyRoutes(true);
+         }}
+       />
+
+       <MyRoutesSheet 
+         open={showMyRoutes}
+         onOpenChange={setShowMyRoutes}
+         onEdit={handleEditRoute}
+         onDelete={() => {}} // State updates in component
+         onStartRun={handleStartRun}
+       />
+
        {/* Top HUD (Data Island) */}
-       <div id="planner-hud" className="absolute top-6 left-1/2 -translate-x-1/2 z-20">
+       <div id="planner-hud" className="absolute top-6 left-1/2 -translate-x-1/2 z-20 flex gap-4">
+           {isEditing && (
+               <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-yellow-500/20 text-yellow-400 px-3 py-1 rounded-full text-xs font-bold border border-yellow-500/50 whitespace-nowrap">
+                   EDITING: {editingRoute?.name}
+               </div>
+           )}
+           
            <div className="flex items-center bg-black/80 backdrop-blur-md rounded-full px-6 py-3 border border-white/10 shadow-2xl gap-8">
                <div className="flex flex-col items-center">
                    <span className="text-[10px] text-white/40 font-bold tracking-wider uppercase">DISTANCE</span>
@@ -411,13 +540,21 @@ export default function SmartPlannerPage() {
                </div>
            </div>
            
-           {/* Help Button */}
-           <button 
-             onClick={() => setShowTutorial(true)}
-             className="absolute -right-12 top-1/2 -translate-y-1/2 bg-black/60 backdrop-blur border border-white/10 p-2 rounded-full text-white/60 hover:text-white transition-all"
-           >
-             <HelpCircle className="w-5 h-5" />
-           </button>
+           {/* My Routes & Help Button Group */}
+           <div className="absolute -right-24 top-1/2 -translate-y-1/2 flex gap-2">
+                <button 
+                    onClick={() => setShowMyRoutes(true)}
+                    className="bg-black/60 backdrop-blur border border-white/10 p-2 rounded-full text-white/60 hover:text-white transition-all"
+                >
+                    <List className="w-5 h-5" />
+                </button>
+                <button 
+                    onClick={() => setShowTutorial(true)}
+                    className="bg-black/60 backdrop-blur border border-white/10 p-2 rounded-full text-white/60 hover:text-white transition-all"
+                >
+                    <HelpCircle className="w-5 h-5" />
+                </button>
+           </div>
        </div>
 
        {/* Bottom Control Dock (Wave Dock) */}
@@ -478,8 +615,8 @@ export default function SmartPlannerPage() {
                        <Hexagon className="w-6 h-6" />
                    </button>
                    <button 
-                     onClick={handleSave}
-                     className="text-white hover:text-green-400 transition-colors bg-white/10 p-2 rounded-full"
+                     onClick={handleSaveClick}
+                     className={`text-white hover:text-green-400 transition-colors bg-white/10 p-2 rounded-full ${isEditing ? 'text-yellow-400' : ''}`}
                    >
                        <Save className="w-5 h-5" />
                    </button>
