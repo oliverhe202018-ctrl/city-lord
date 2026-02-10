@@ -66,6 +66,7 @@ import { playAudio } from "@/utils/audio"
 
 export function ImmersiveRunningMode({
   isActive,
+  userId,
   distance,
   pace,
   time,

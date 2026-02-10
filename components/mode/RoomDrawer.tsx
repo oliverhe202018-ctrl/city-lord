@@ -93,9 +93,6 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
       return null;
   }, [roomDetails, selectedRoom, myRoomData]);
 
-  // Early return 必须在 Hooks 定义之后
-  if (!userId) return null;
-
   // Filter Logic
   const handleFilterChange = (type: FilterType) => {
     setActiveFilter(type);
@@ -189,6 +186,9 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
       return () => clearTimeout(timer);
     }
   }, [isOpen]);
+
+  // Early return MUST be after all hooks
+  if (!userId) return null;
 
   const handleCreate = async () => {
     if (!formData.name) {
