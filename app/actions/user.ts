@@ -8,6 +8,8 @@ import { calculateLevel } from '@/lib/game-logic/level-system'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 
+import { checkAndAwardBadges } from '@/app/lib/badges'
+
 export async function stopRunningAction(context: RunContext) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -100,7 +102,7 @@ export async function stopRunningAction(context: RunContext) {
         } else if (mission.type === 'NIGHT_RUN') {
           const hour = context.endTime.getHours()
           if (hour >= 22 || hour < 4) {
-            newProgress += 1
+             newProgress += 1
           }
         }
 
@@ -180,10 +182,18 @@ export async function stopRunningAction(context: RunContext) {
 
       return { completedMissionIds }
     })
+    
+    // Check Badges after transaction
+    const newBadges = await checkAndAwardBadges(user.id, {
+        distance: context.distance * 1000,
+        endTime: context.endTime,
+        pace: context.distance > 0 ? ((context.endTime.getTime() - context.startTime.getTime()) / 1000) / context.distance : 0 // sec/km
+    })
 
     return { 
       success: true, 
-      completedMissionIds: result.completedMissionIds 
+      completedMissionIds: result.completedMissionIds,
+      newBadges: newBadges
     }
 
   } catch (err: any) {
