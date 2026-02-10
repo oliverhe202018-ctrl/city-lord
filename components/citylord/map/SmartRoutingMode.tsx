@@ -185,8 +185,8 @@ export function SmartRoutingMode() {
 
       {/* Mode UI Overlay */}
       {isActive && (
-        <div className="absolute top-0 left-0 w-full z-30 p-4 pointer-events-none">
-           <div className="pointer-events-auto bg-black/80 backdrop-blur-md text-white p-4 rounded-xl border border-purple-500/30 shadow-2xl animate-in slide-in-from-top-4 mx-auto max-w-md mt-16">
+        <div className="absolute bottom-0 left-0 w-full z-[100] p-4 pointer-events-none mb-[120px]">
+           <div className="pointer-events-auto bg-black/80 backdrop-blur-md text-white p-4 rounded-xl border border-purple-500/30 shadow-2xl animate-in slide-in-from-bottom-4 mx-auto max-w-md">
               <div className="flex items-center justify-between mb-2">
                  <h3 className="font-bold text-purple-400 flex items-center gap-2">
                     <Wand2 className="w-4 h-4" /> 智能路径规划
@@ -217,7 +217,7 @@ export function SmartRoutingMode() {
                             disabled={selectedHexes.size === 0 || isGenerating}
                           >
                             {isGenerating ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <MapPin className="w-3 h-3 mr-2" />}
-                            生成路线
+                            {isGenerating ? "生成中..." : "生成路线"}
                           </Button>
                       </div>
                   </>

@@ -119,12 +119,8 @@ const FogLayer: React.FC<FogLayerProps> = ({ map }) => {
                 map.remove(fogPolygonRef.current);
               } 
               // Priority 2: Object self-remove (User suggested fix)
-              else if (fogPolygonRef.current?.remove) {
-                fogPolygonRef.current.remove();
-              }
-              // Priority 3: setMap(null)
-              else if (fogPolygonRef.current?.setMap) {
-                fogPolygonRef.current.setMap(null);
+              else {
+                fogPolygonRef.current?.remove?.();
               }
               
               fogPolygonRef.current = null;
