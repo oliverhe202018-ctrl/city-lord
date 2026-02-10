@@ -477,9 +477,9 @@ export default function PlannerClientView() {
   };
 
   return (
-    <div className="relative w-full h-screen bg-black overflow-hidden flex flex-col">
+    <div className="relative w-full h-screen overflow-hidden flex flex-col">
        {/* Fullscreen Map Container */}
-       <div ref={mapContainerRef} className="absolute inset-0 z-0" />
+       <div ref={mapContainerRef} className="absolute inset-0 h-[100dvh] w-full -z-10" />
        
        {/* Tutorial Overlay */}
        <PlannerTutorial 

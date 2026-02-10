@@ -111,6 +111,10 @@ function AchievementCard({ achievement, onSelect }: AchievementCardProps) {
                   alt={achievement.title}
                   fill
                   className="object-contain p-1"
+                  onError={(e) => {
+                     e.currentTarget.style.display = 'none';
+                     e.currentTarget.parentElement?.classList.add('hidden');
+                  }}
                 />
               </div>
             ) : (
