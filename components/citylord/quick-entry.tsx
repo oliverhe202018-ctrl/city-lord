@@ -15,7 +15,7 @@ export function QuickEntry({ onNavigate, missionCount = 0, friendCount = 0, rank
       {/* Missions Entry */}
       <button
         onClick={() => onNavigate("missions")}
-        className="group relative flex flex-col items-center rounded-2xl border border-white/10 bg-black/40 p-3 backdrop-blur-xl transition-all hover:border-cyan-400/30 hover:bg-cyan-400/5 active:scale-[0.98]"
+        className="group relative mb-[80px] flex flex-col items-center rounded-2xl border border-white/10 bg-black/40 p-3 backdrop-blur-xl transition-all hover:border-cyan-400/30 hover:bg-cyan-400/5 active:scale-[0.98]"
       >
         <div className="mb-1.5 flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-400/20 transition-all group-hover:bg-cyan-400/30">
           <Target className="h-5 w-5 text-cyan-400" />
@@ -50,7 +50,7 @@ export function QuickEntry({ onNavigate, missionCount = 0, friendCount = 0, rank
       {/* Social Entry */}
       <button
         onClick={() => onNavigate("social")}
-        className="group flex flex-col items-center rounded-2xl border border-white/10 bg-black/40 p-3 backdrop-blur-xl transition-all hover:border-purple-400/30 hover:bg-purple-400/5 active:scale-[0.98]"
+        className="group mb-[80px] flex flex-col items-center rounded-2xl border border-white/10 bg-black/40 p-3 backdrop-blur-xl transition-all hover:border-purple-400/30 hover:bg-purple-400/5 active:scale-[0.98]"
       >
         <div className="mb-1.5 flex h-10 w-10 items-center justify-center rounded-xl bg-purple-400/20 transition-all group-hover:bg-purple-400/30">
           <Users className="h-5 w-5 text-purple-400" />

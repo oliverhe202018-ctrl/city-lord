@@ -123,6 +123,12 @@ export function AuthSync() {
       const profile = data as Database['public']['Tables']['profiles']['Row']
 
       if (profile) {
+        const { data: adminData } = await supabase
+          .from('app_admins')
+          .select('role')
+          .eq('id', userId)
+          .maybeSingle()
+
         // 同步数据到 Zustand Store
         // 注意：这里我们只同步了部分字段，需要根据实际 Store 结构扩展
         if (profile.nickname) setNickname(profile.nickname)
@@ -139,6 +145,9 @@ export function AuthSync() {
           stamina: profile.stamina || state.stamina,
           maxStamina: profile.max_stamina || state.maxStamina,
           totalArea: profile.total_area || state.totalArea,
+          totalDistance: (profile.total_distance_km || 0) * 1000,
+          faction: profile.faction ?? state.faction ?? null,
+          role: adminData?.role ?? null,
         }))
         
         console.log("User profile synced:", profile)

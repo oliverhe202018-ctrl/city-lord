@@ -239,7 +239,7 @@ export function MapHeader({
 
   if (!currentCity || isLoading || !hydrated) {
     return (
-      <div className="absolute top-6 left-4 right-4 z-[100]">
+      <div className="fixed top-0 left-0 right-0 z-[100] px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
         <GlassCard className="flex items-center justify-center py-3">
           <LoadingSpinner size="sm" />
           <span className="ml-2 text-sm text-white/80">
@@ -253,7 +253,7 @@ export function MapHeader({
   return (
     <>
       {/* 头部状态栏容器 - 固定在顶部安全区域 */}
-      <div className="absolute top-0 left-0 right-0 z-[100] px-4 transition-all duration-300 pt-[calc(env(safe-area-inset-top)+1rem)]">
+      <div className="fixed top-0 left-0 right-0 z-[100] px-4 transition-all duration-300 pt-[calc(env(safe-area-inset-top)+1rem)]">
         <GlassCard className="p-1">
           <div className="flex items-center justify-between gap-2">
             {/* 左侧：城市选择器 */}

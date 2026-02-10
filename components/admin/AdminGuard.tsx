@@ -19,6 +19,7 @@ export function AdminGuard({ children }: AdminGuardProps) {
   
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null)
   const [isChecking, setIsChecking] = useState(true)
+  const [debugError, setDebugError] = useState<string | undefined>()
 
   // 2. useEffect handles side effects and async logic
   useEffect(() => {
@@ -52,14 +53,19 @@ export function AdminGuard({ children }: AdminGuardProps) {
 
         if (error || !data) {
           // Not an admin
+          console.error('Admin check failed:', error)
+          setDebugError(error?.message || 'No data found in app_admins')
           setIsAuthorized(false)
         } else {
           // Is admin
           setIsAuthorized(true)
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Unexpected error checking admin status:', err)
-        if (mounted) setIsAuthorized(false)
+        if (mounted) {
+            setIsAuthorized(false)
+            setDebugError(err.message || String(err))
+        }
       } finally {
         if (mounted) setIsChecking(false)
       }
@@ -88,7 +94,7 @@ export function AdminGuard({ children }: AdminGuardProps) {
 
   // If unauthorized (and check is done), show 403
   if (isAuthorized === false) {
-    return <AccessDenied />
+    return <AccessDenied userId={user?.id} error={debugError} />
   }
 
   // If authorized, render children

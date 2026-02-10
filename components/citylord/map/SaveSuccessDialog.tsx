@@ -31,9 +31,9 @@ export function SaveSuccessDialog({
             <CheckCircle2 className="h-10 w-10 text-green-500" />
           </div>
           <DialogHeader>
-            <DialogTitle className="text-2xl font-bold">Route Saved!</DialogTitle>
+            <DialogTitle className="text-2xl font-bold">路线已保存！</DialogTitle>
             <DialogDescription className="text-white/60">
-              Your route has been saved successfully to your collection.
+              你的路线已成功保存到路线收藏中。
             </DialogDescription>
           </DialogHeader>
         </div>
@@ -42,14 +42,14 @@ export function SaveSuccessDialog({
             onClick={onViewList}
             className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold h-11"
           >
-            View My Routes
+            查看我的路线
           </Button>
           <Button
             variant="ghost"
             onClick={onContinue}
             className="w-full text-white/70 hover:text-white hover:bg-white/10"
           >
-            Continue Planning
+            继续规划
           </Button>
         </DialogFooter>
       </DialogContent>

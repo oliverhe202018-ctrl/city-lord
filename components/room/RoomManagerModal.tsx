@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Dialog,
   DialogContent,
@@ -32,6 +33,7 @@ interface RoomManagerModalProps {
 }
 
 export function RoomManagerModal({ open, onOpenChange, onRoomEnter }: RoomManagerModalProps) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<string>('join');
   const [isLoading, setIsLoading] = useState(false);
   
@@ -47,8 +49,15 @@ export function RoomManagerModal({ open, onOpenChange, onRoomEnter }: RoomManage
   const [allowMemberInvite, setAllowMemberInvite] = useState(true);
   const [maxMembers, setMaxMembers] = useState(10);
   const [createdRoom, setCreatedRoom] = useState<Room | null>(null);
+  const [createdInviteCode, setCreatedInviteCode] = useState('');
 
   const { setCurrentRoom, addJoinedRoom } = useGameActions();
+
+  useEffect(() => {
+    if (createdRoom?.invite_code && !createdInviteCode) {
+      setCreatedInviteCode(createdRoom.invite_code);
+    }
+  }, [createdRoom, createdInviteCode]);
 
   // Reset state when modal closes or tab changes
   const resetState = () => {
@@ -61,6 +70,7 @@ export function RoomManagerModal({ open, onOpenChange, onRoomEnter }: RoomManage
     setAllowMemberInvite(true);
     setMaxMembers(10);
     setCreatedRoom(null);
+    setCreatedInviteCode('');
     setIsLoading(false);
   };
 
@@ -133,6 +143,7 @@ export function RoomManagerModal({ open, onOpenChange, onRoomEnter }: RoomManage
 
       if (result.success && result.room) {
         setCreatedRoom(result.room as Room);
+        setCreatedInviteCode(result.room.invite_code || '');
         toast.success('房间创建成功！');
       } else {
         toast.error(result.error || '创建失败');
@@ -155,13 +166,16 @@ export function RoomManagerModal({ open, onOpenChange, onRoomEnter }: RoomManage
       // Trigger callback to open RoomDrawer
       if (onRoomEnter) {
         onRoomEnter(createdRoom.id);
+      } else {
+        router.push(`/game/room/${createdRoom.id}`);
       }
     }
   };
 
   const copyInviteCode = () => {
-    if (createdRoom?.invite_code) {
-      navigator.clipboard.writeText(createdRoom.invite_code);
+    const codeToCopy = createdInviteCode || createdRoom?.invite_code;
+    if (codeToCopy) {
+      navigator.clipboard.writeText(codeToCopy);
       toast.success('邀请码已复制');
     }
   };
@@ -377,16 +391,25 @@ export function RoomManagerModal({ open, onOpenChange, onRoomEnter }: RoomManage
 
                 <div className="bg-muted/50 border border-dashed border-white/20 rounded-xl p-6 flex flex-col items-center gap-4">
                   <span className="text-sm text-muted-foreground">房间邀请码</span>
-                  <div className="text-4xl font-mono font-bold tracking-[0.5em] text-cyan-400">
-                    {createdRoom.invite_code || "Generating..."}
-                  </div>
-                  <Button variant="ghost" size="sm" className="gap-2" onClick={copyInviteCode}>
-                    <Copy className="w-4 h-4" />
-                    复制邀请码
-                  </Button>
+                  {(createdInviteCode || createdRoom?.invite_code) ? (
+                    <>
+                      <div className="text-4xl font-mono font-bold tracking-[0.5em] text-cyan-400">
+                        {createdInviteCode || createdRoom?.invite_code}
+                      </div>
+                      <Button variant="ghost" size="sm" className="gap-2" onClick={copyInviteCode}>
+                        <Copy className="w-4 h-4" />
+                        复制邀请码
+                      </Button>
+                    </>
+                  ) : (
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>生成中...</span>
+                    </div>
+                  )}
                 </div>
 
-                <Button className="w-full bg-cyan-600 hover:bg-cyan-700 text-white" onClick={confirmCreate}>
+                <Button className="w-full bg-cyan-600 hover:bg-cyan-700 text-white" onClick={confirmCreate} disabled={!createdRoom}>
                   进入房间
                   <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>

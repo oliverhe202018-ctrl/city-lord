@@ -47,14 +47,14 @@ export function MyRoutesSheet({
     setLoading(true);
     try {
       const res = await fetch('/api/routes/route');
-      if (!res.ok) throw new Error('Failed to fetch routes');
+      if (!res.ok) throw new Error('加载路线失败');
       const data = await res.json();
       setRoutes(data);
     } catch (error) {
       console.error(error);
       toast({
-        title: "Error",
-        description: "Failed to load routes",
+        title: "错误",
+        description: "加载路线失败",
         variant: "destructive",
       });
     } finally {
@@ -70,23 +70,23 @@ export function MyRoutesSheet({
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm('Are you sure you want to delete this route?')) return;
+    if (!confirm('确定要删除这条路线吗？')) return;
     
     try {
       const res = await fetch(`/api/routes/route?id=${id}`, {
         method: 'DELETE'
       });
-      if (!res.ok) throw new Error('Failed to delete');
+      if (!res.ok) throw new Error('删除失败');
       setRoutes(routes.filter(r => r.id !== id));
       onDelete(id);
       toast({
-        title: "Success",
-        description: "Route deleted",
+        title: "成功",
+        description: "路线已删除",
       });
     } catch (error) {
       toast({
-        title: "Error",
-        description: "Failed to delete route",
+        title: "错误",
+        description: "删除路线失败",
         variant: "destructive",
       });
     }
@@ -99,9 +99,9 @@ export function MyRoutesSheet({
         <div className="flex flex-col h-full">
             <div className="p-6 border-b border-white/10">
                 <SheetHeader>
-                <SheetTitle className="text-2xl font-bold text-white">My Routes</SheetTitle>
+                <SheetTitle className="text-2xl font-bold text-white">我的路线</SheetTitle>
                 <SheetDescription className="text-white/50">
-                    Manage your saved routes and territories.
+                    管理你保存的路线与领地。
                 </SheetDescription>
                 </SheetHeader>
             </div>
@@ -114,7 +114,7 @@ export function MyRoutesSheet({
             ) : routes.length === 0 ? (
                 <div className="text-center py-20 text-white/50">
                 <MapPin className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                <p>No routes saved yet.</p>
+                <p>暂无保存的路线。</p>
                 </div>
             ) : (
                 <div className="space-y-4">
@@ -127,11 +127,11 @@ export function MyRoutesSheet({
                         <div className="flex justify-between items-start mb-2">
                         <div>
                             <h3 className="font-bold text-lg text-white group-hover:text-cyan-400 transition-colors">
-                            {route.name || 'Unnamed Route'}
+                            {route.name || '未命名路线'}
                             </h3>
                             <div className="flex items-center text-xs text-white/50 mt-1">
                             <Calendar className="h-3 w-3 mr-1" />
-                            {format(new Date(route.created_at), 'MMM d, yyyy')}
+                            {format(new Date(route.created_at), 'yyyy年M月d日')}
                             </div>
                         </div>
                         <div className="bg-cyan-500/20 text-cyan-400 text-xs font-bold px-2 py-1 rounded">
@@ -141,7 +141,7 @@ export function MyRoutesSheet({
 
                         <div className="flex items-center justify-between mt-4">
                         <div className="text-sm text-purple-400 font-medium">
-                            Capture: {route.capture_area?.toFixed(2) || 0} km²
+                            领地面积：{route.capture_area?.toFixed(2) || 0} km²
                         </div>
                         </div>
                     </div>
@@ -154,7 +154,7 @@ export function MyRoutesSheet({
                         onClick={() => onStartRun(route)}
                         >
                         <Play className="h-3 w-3 mr-1.5" />
-                        Start Run
+                        开始跑步
                         </Button>
                         <Button
                         variant="ghost"
@@ -163,7 +163,7 @@ export function MyRoutesSheet({
                         onClick={() => onEdit(route)}
                         >
                         <Edit2 className="h-3 w-3 mr-1.5" />
-                        Edit
+                        编辑
                         </Button>
                         <Button
                         variant="ghost"
