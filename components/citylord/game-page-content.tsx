@@ -87,6 +87,30 @@ export function GamePageContent({
   const mapViewRef = useRef<AMapViewHandle>(null);
   const [showTerritory, setShowTerritory] = useState(true);
 
+  // 全屏加载状态 - 必须在所有 hooks 之后 return
+  const [activeTab, setActiveTab] = useState<TabType>("play")
+
+  // State Persistence for Tabs
+  useEffect(() => {
+    // On mount, check URL param
+    if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        const tab = params.get('tab');
+        if (tab && ['play', 'missions', 'social', 'profile', 'leaderboard', 'mode'].includes(tab)) {
+            setActiveTab(tab as TabType);
+        }
+    }
+  }, []);
+
+  // Sync state to URL
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+        const url = new URL(window.location.href);
+        url.searchParams.set('tab', activeTab);
+        window.history.replaceState({}, '', url.toString());
+    }
+  }, [activeTab]);
+
   // Realtime Battle Alerts
   useEffect(() => {
     if (!user?.id) return;
@@ -169,29 +193,6 @@ export function GamePageContent({
     }
   }, [initialMissions])
 
-  // 全屏加载状态 - 必须在所有 hooks 之后 return
-  const [activeTab, setActiveTab] = useState<TabType>("play")
-
-  // State Persistence for Tabs
-  useEffect(() => {
-    // On mount, check URL param
-    if (typeof window !== 'undefined') {
-        const params = new URLSearchParams(window.location.search);
-        const tab = params.get('tab');
-        if (tab && ['play', 'missions', 'social', 'profile', 'leaderboard', 'mode'].includes(tab)) {
-            setActiveTab(tab as TabType);
-        }
-    }
-  }, []);
-
-  // Sync state to URL
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-        const url = new URL(window.location.href);
-        url.searchParams.set('tab', activeTab);
-        window.history.replaceState({}, '', url.toString());
-    }
-  }, [activeTab]);
   const [isRunning, setIsRunning] = useState(false)
   const [showImmersiveMode, setShowImmersiveMode] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
@@ -539,12 +540,12 @@ export function GamePageContent({
                 <MapHeader isCityDrawerOpen={isCityDrawerOpen} setIsCityDrawerOpen={setIsCityDrawerOpen} setShowThemeSwitcher={setShowThemeSwitcher} />
               </div>
 
-              <div className="pointer-events-auto mt-[60px]">
+              <div className="pointer-events-auto mt-[96px]">
                 <ModeSwitcher onDrawerOpenChange={(isOpen) => setShouldHideButtons(isOpen)} />
               </div>
 
               {!shouldHideButtons && (
-                <div className="pointer-events-auto absolute top-36 left-4 z-20">
+                <div className="pointer-events-auto absolute top-[180px] left-4 z-20">
                   <button
                       onClick={() => setIsRunHistoryOpen(true)}
                       className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg text-white active:scale-95 transition-all hover:bg-black/80"
@@ -555,7 +556,7 @@ export function GamePageContent({
               )}
 
               {gameMode === 'map' && !shouldHideButtons && (
-                <div className="pointer-events-auto absolute bottom-24 left-4 right-4 z-20 flex justify-center">
+                <div className="pointer-events-auto absolute bottom-[100px] left-4 right-4 z-20 flex justify-center">
                   <QuickEntry 
                     onNavigate={(tab) => {
                        handleQuickNavigate(tab)
@@ -592,7 +593,7 @@ export function GamePageContent({
                   onViewModeChange={setMapViewMode}
                 />
               </div>
-              <div className="pointer-events-auto">
+              <div className="pointer-events-auto mt-[96px]">
                 <ModeSwitcher onDrawerOpenChange={(isOpen) => setShouldHideButtons(isOpen)} />
               </div>
             </div>

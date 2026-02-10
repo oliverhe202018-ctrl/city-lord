@@ -41,7 +41,8 @@ export async function updateSession(request: NextRequest) {
   // Only check auth status strictly if we are on a protected route.
   // This reduces latency for static assets and public pages.
   const isProtectedRoute = request.nextUrl.pathname.startsWith('/city-lord') || 
-                           request.nextUrl.pathname.startsWith('/profile')
+                           request.nextUrl.pathname.startsWith('/profile') ||
+                           request.nextUrl.pathname.startsWith('/admin')
 
   if (isProtectedRoute) {
     // Check user only when necessary

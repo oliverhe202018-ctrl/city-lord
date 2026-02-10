@@ -14,33 +14,33 @@ interface Step {
 const STEPS: Step[] = [
   {
     targetId: "planner-hud",
-    title: "实时数据 (Track Progress)",
-    description: "顶部实时显示规划路线的总距离 (Distance) 和预计占领面积 (Capture)。"
+    title: "实时数据",
+    description: "顶部实时显示规划路线的全程距离和预计占领面积。"
   },
   {
     targetId: "planner-map-center",
-    title: "点击打点 (Add Waypoints)",
+    title: "点击打点",
     description: "在地图上任意点击即可添加路径点，系统会自动按顺序连接它们。"
   },
   {
     targetId: "planner-draw-btn",
-    title: "手绘模式 (Draw Mode)",
+    title: "手绘模式",
     description: "点击切换到画笔模式，可以在地图上自由滑动手指进行轨迹绘制。"
   },
   {
     targetId: "planner-snap-toggle",
-    title: "路网吸附 (Snap to Roads)",
-    description: "开启后，您的路径将自动吸附并沿着真实的城市道路生成，不再是直线。"
+    title: "路网吸附",
+    description: "开启后，路径会自动吸附并沿着真实道路生成，不再是直线。"
   },
   {
     targetId: "planner-map-center",
-    title: "闭环占领 (Loop to Capture)",
-    description: "当终点回到起点附近 (200m内) 时，路径会自动闭合并显示绿色填充，代表领地有效。"
+    title: "闭环占领",
+    description: "当终点回到起点附近（200米内）时，路径会自动闭合并显示绿色填充。"
   },
   {
     targetId: "planner-tools",
-    title: "编辑路径 (Edit Route)",
-    description: "使用撤销 (Undo)、重做 (Redo) 或清空功能来微调您的路线规划。"
+    title: "编辑路径",
+    description: "使用撤销、重做或清空功能来微调你的路线规划。"
   }
 ];
 
@@ -133,7 +133,7 @@ export function PlannerTutorial({ forceShow, onClose }: PlannerTutorialProps) {
   const isTargetBottom = targetRect && typeof window !== 'undefined' ? targetRect.top > window.innerHeight / 2 : false;
 
   return (
-    <div className="fixed inset-0 z-[100] overflow-hidden pointer-events-auto">
+    <div className="fixed inset-0 z-[100] overflow-hidden pointer-events-none">
       {/* Background Mask with Hole (SVG) */}
       <svg className="absolute inset-0 w-full h-full pointer-events-none">
         <defs>
@@ -171,7 +171,7 @@ export function PlannerTutorial({ forceShow, onClose }: PlannerTutorialProps) {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -20 }}
           transition={{ duration: 0.2 }}
-          className={`absolute left-4 right-4 mx-auto max-w-sm bg-[#1a1a1a] border border-white/10 rounded-2xl p-6 shadow-2xl ${
+          className={`absolute left-4 right-4 mx-auto max-w-sm bg-[#1a1a1a] border border-white/10 rounded-2xl p-6 shadow-2xl pointer-events-auto ${
             isTargetBottom ? "top-24" : "bottom-24"
           }`}
         >
@@ -197,7 +197,7 @@ export function PlannerTutorial({ forceShow, onClose }: PlannerTutorialProps) {
               onClick={handleFinish}
               className="text-white/40 text-sm hover:text-white transition-colors"
             >
-              Skip
+              跳过
             </button>
             <Button 
               onClick={handleNext}
@@ -205,7 +205,7 @@ export function PlannerTutorial({ forceShow, onClose }: PlannerTutorialProps) {
                 isLastStep ? "bg-[#22c55e] hover:bg-[#16a34a] text-black" : "bg-[#f87171] hover:bg-[#ef4444] text-white"
               }`}
             >
-              {isLastStep ? "Got it" : "Next"}
+              {isLastStep ? "我知道了" : "下一步"}
               {!isLastStep && <ChevronRight className="w-4 h-4 ml-1" />}
             </Button>
           </div>

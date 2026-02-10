@@ -14,6 +14,8 @@ export type GameMode = 'map' | 'single' | 'private' | 'club';
 export interface UserState {
   userId: string;
   nickname: string;
+  faction: string | null;
+  role: string | null;
   level: number;
   currentExp: number;
   maxExp: number;
@@ -194,6 +196,8 @@ const initialAppSettings: AppSettings = {
 const initialUserState: UserState = {
   userId: 'user_' + Date.now(),
   nickname: '玩家',
+  faction: null,
+  role: null,
   level: 1,
   currentExp: 0,
   maxExp: 1000,
@@ -436,14 +440,23 @@ const createUserSlice: StateCreator<GameStore, [], [], UserActions> = (set, get)
         .eq('id', user.id)
         .single();
 
+      const { data: adminData } = await supabase
+        .from('app_admins')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle();
+
       if (profile) {
         const profileData = profile as any;
         set((state) => ({
+          userId: user.id,
           level: profileData.level,
           currentExp: profileData.current_exp || state.currentExp,
           coins: profileData.coins || state.coins,
           totalArea: profileData.total_area || state.totalArea,
           totalDistance: (profileData.total_distance_km * 1000) || state.totalDistance,
+          faction: profileData.faction ?? state.faction ?? null,
+          role: adminData?.role ?? null,
         }));
       }
     } catch (error) {
@@ -653,6 +666,8 @@ export const useGameStore = create<GameStore>()(
         // User Profile
         userId: state.userId,
         nickname: state.nickname,
+        faction: state.faction,
+        role: state.role,
         level: state.level,
         currentExp: state.currentExp,
         maxExp: state.maxExp,
@@ -750,6 +765,8 @@ export const useGameUser = () =>
     useShallow((state) => ({
       userId: state.userId,
       nickname: state.nickname,
+      faction: state.faction,
+      role: state.role,
       level: state.level,
       currentExp: state.currentExp,
       maxExp: state.maxExp,

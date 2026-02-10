@@ -19,7 +19,8 @@ import {
   Hexagon,
   RotateCcw,
   HelpCircle,
-  List
+  List,
+  Trash2
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useGameStore } from "@/store/useGameStore";
@@ -97,7 +98,7 @@ export default function PlannerClientView() {
     AMapLoader.load({
       key: AMAP_KEY,
       version: "2.0",
-      plugins: ["AMap.Scale", "AMap.ToolBar", "AMap.Walking", "AMap.GeometryUtil"],
+      plugins: ["AMap.Scale", "AMap.ToolBar", "AMap.Walking", "AMap.GeometryUtil", "AMap.Geolocation"],
     }).then((AMap) => {
       const map = new AMap.Map(mapContainerRef.current, {
         viewMode: "2D",
@@ -108,6 +109,24 @@ export default function PlannerClientView() {
       });
 
       mapInstanceRef.current = map;
+
+      map.plugin('AMap.Geolocation', () => {
+        const geolocation = new AMap.Geolocation({
+          enableHighAccuracy: true,
+          timeout: 10000,
+          convert: true,
+          showButton: false,
+          showMarker: false,
+          showCircle: false
+        });
+        map.addControl(geolocation);
+        geolocation.getCurrentPosition((status: string, result: any) => {
+          if (status === 'complete' && result?.position) {
+            map.setCenter([result.position.lng, result.position.lat]);
+            map.setZoom(17);
+          }
+        });
+      });
 
       // Click Handler for Waypoint Mode
       map.on('click', handleMapClick);
@@ -383,7 +402,7 @@ export default function PlannerClientView() {
 
   const handleSaveClick = () => {
       if (currentPath.length < 2) {
-          toast({ title: "Route too short", description: "Please add more points.", variant: "destructive" });
+          toast({ title: "路线太短", description: "请先添加更多点位。", variant: "destructive" });
           return;
       }
       setPreviewPath(generateSvgPath(currentPath));
@@ -408,7 +427,7 @@ export default function PlannerClientView() {
               body: JSON.stringify(payload)
           });
 
-          if (!res.ok) throw new Error('Failed to save route');
+          if (!res.ok) throw new Error('保存路线失败');
 
           setShowSaveDrawer(false);
           setShowSuccessDialog(true);
@@ -421,7 +440,7 @@ export default function PlannerClientView() {
 
       } catch (error) {
           console.error(error);
-          toast({ title: "Error", description: "Failed to save route.", variant: "destructive" });
+          toast({ title: "错误", description: "保存路线失败。", variant: "destructive" });
       } finally {
           setLoadingSave(false);
       }
@@ -484,6 +503,15 @@ export default function PlannerClientView() {
       }
   };
 
+  const handleClear = () => {
+      setHistory([[]]);
+      setHistoryIndex(0);
+      setIsLoopClosed(false);
+      setDistance(0);
+      setArea(0);
+      setIsCalculating(false);
+  };
+
   return (
     <div className="relative w-full h-[100dvh] overflow-hidden flex flex-col">
        {/* Fullscreen Map Container */}
@@ -527,23 +555,23 @@ export default function PlannerClientView() {
        />
 
        {/* Top HUD (Data Island) */}
-       <div id="planner-hud" className="absolute top-6 left-1/2 -translate-x-1/2 z-20 flex gap-4">
+       <div id="planner-hud" className="absolute top-6 left-1/2 -translate-x-1/2 z-20 flex gap-4 pointer-events-none">
            {isEditing && (
-               <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-yellow-500/20 text-yellow-400 px-3 py-1 rounded-full text-xs font-bold border border-yellow-500/50 whitespace-nowrap">
-                   EDITING: {editingRoute?.name}
+               <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-yellow-500/20 text-yellow-400 px-3 py-1 rounded-full text-xs font-bold border border-yellow-500/50 whitespace-nowrap pointer-events-none">
+                   编辑中：{editingRoute?.name}
                </div>
            )}
            
-           <div className="flex items-center bg-black/80 backdrop-blur-md rounded-full px-6 py-3 border border-white/10 shadow-2xl gap-8">
+           <div className="flex items-center bg-black/80 backdrop-blur-md rounded-full px-6 py-3 border border-white/10 shadow-2xl gap-8 pointer-events-auto">
                <div className="flex flex-col items-center">
-                   <span className="text-[10px] text-white/40 font-bold tracking-wider uppercase">DISTANCE</span>
+                   <span className="text-[10px] text-white/40 font-bold tracking-wider uppercase">全程距离</span>
                    <span className="text-xl font-mono font-bold text-white">
                        {(distance / 1000).toFixed(2)} <span className="text-xs text-white/50">km</span>
                    </span>
                </div>
                <div className="w-px h-8 bg-white/10" />
                <div className="flex flex-col items-center">
-                   <span className="text-[10px] text-white/40 font-bold tracking-wider uppercase">CAPTURE</span>
+                   <span className="text-[10px] text-white/40 font-bold tracking-wider uppercase">领地面积</span>
                    <span className="text-xl font-mono font-bold text-green-400">
                        {(area / 10000).toFixed(2)} <span className="text-xs text-green-500/50">ha</span>
                    </span>
@@ -551,7 +579,7 @@ export default function PlannerClientView() {
            </div>
            
            {/* My Routes & Help Button Group */}
-           <div className="absolute -right-24 top-1/2 -translate-y-1/2 flex gap-2">
+           <div className="absolute -right-24 top-1/2 -translate-y-1/2 flex gap-2 pointer-events-auto">
                 <button 
                     onClick={() => setShowMyRoutes(true)}
                     className="bg-black/60 backdrop-blur border border-white/10 p-2 rounded-full text-white/60 hover:text-white transition-all"
@@ -568,9 +596,9 @@ export default function PlannerClientView() {
        </div>
 
        {/* Bottom Control Dock (Wave Dock) */}
-       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20 w-full max-w-sm px-4">
+       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20 w-full max-w-sm px-4 pointer-events-none">
            {/* Snap Toggle */}
-           <div id="planner-snap-toggle" className="flex justify-center mb-4 relative">
+           <div id="planner-snap-toggle" className="flex justify-center mb-4 relative pointer-events-auto">
                <button 
                  onClick={() => setSnapToRoad(!snapToRoad)}
                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
@@ -578,20 +606,26 @@ export default function PlannerClientView() {
                  }`}
                >
                    {isCalculating ? <RotateCcw className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
-                   {isCalculating ? "Calculating..." : (snapToRoad ? "Snap On" : "Snap Off")}
+                   {isCalculating ? "计算中..." : (snapToRoad ? "吸附路网：开" : "吸附路网：关")}
                </button>
            </div>
 
            {/* Main Dock */}
-           <div className="relative bg-black/90 backdrop-blur-xl rounded-[2.5rem] border border-white/10 p-2 shadow-2xl flex items-center justify-between h-20 px-6">
+           <div className="relative bg-black/90 backdrop-blur-xl rounded-[2.5rem] border border-white/10 p-2 shadow-2xl flex items-center justify-between h-20 px-6 pointer-events-auto">
                
                {/* Left Tools */}
                <div id="planner-tools" className="flex items-center gap-4">
-                   <button onClick={handleUndo} disabled={historyIndex === 0} className="text-white/60 hover:text-white disabled:opacity-30 transition-colors">
+                   <button onClick={handleUndo} disabled={historyIndex === 0} className="flex flex-col items-center text-white/60 hover:text-white disabled:opacity-30 transition-colors">
                        <Undo className="w-6 h-6" />
+                       <span className="text-[10px] mt-0.5">撤销</span>
                    </button>
-                   <button onClick={handleRedo} disabled={historyIndex === history.length - 1} className="text-white/60 hover:text-white disabled:opacity-30 transition-colors">
+                   <button onClick={handleRedo} disabled={historyIndex === history.length - 1} className="flex flex-col items-center text-white/60 hover:text-white disabled:opacity-30 transition-colors">
                        <Redo className="w-6 h-6" />
+                       <span className="text-[10px] mt-0.5">重做</span>
+                   </button>
+                   <button onClick={handleClear} className="flex flex-col items-center text-white/60 hover:text-white transition-colors">
+                       <Trash2 className="w-5 h-5" />
+                       <span className="text-[10px] mt-1">清空</span>
                    </button>
                </div>
 
@@ -611,7 +645,7 @@ export default function PlannerClientView() {
                            <Pen className="w-8 h-8 mb-1" />
                        )}
                        <span className="text-[10px] font-bold uppercase tracking-wider opacity-90">
-                           {mode === 'waypoint' ? 'Point' : 'Draw'}
+                           {mode === 'waypoint' ? '打点' : '手绘'}
                        </span>
                    </button>
                </div>
@@ -626,15 +660,18 @@ export default function PlannerClientView() {
                    </button>
                    <button 
                      onClick={handleSaveClick}
-                     className={`text-white hover:text-green-400 transition-colors bg-white/10 p-2 rounded-full ${isEditing ? 'text-yellow-400' : ''}`}
+                     className={`flex flex-col items-center text-white hover:text-green-400 transition-colors ${isEditing ? 'text-yellow-400' : ''}`}
                    >
-                       <Save className="w-5 h-5" />
+                       <span className="bg-white/10 p-2 rounded-full">
+                         <Save className="w-5 h-5" />
+                       </span>
+                       <span className="text-[10px] mt-1">保存路线</span>
                    </button>
                </div>
            </div>
            
            {/* Exit Button */}
-           <div className="absolute -top-16 right-0">
+           <div className="absolute -top-16 right-0 pointer-events-auto">
                <button onClick={() => router.back()} className="bg-black/60 backdrop-blur border border-white/10 p-2 rounded-full text-white/60 hover:text-white hover:bg-red-500/20 transition-all">
                    <X className="w-6 h-6" />
                </button>

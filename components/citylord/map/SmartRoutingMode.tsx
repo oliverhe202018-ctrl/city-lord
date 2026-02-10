@@ -18,7 +18,7 @@ export function SmartRoutingMode() {
   return (
     <>
       {/* Entry Button */}
-      <div className="absolute top-48 left-4 z-20 pointer-events-auto">
+      <div className="absolute top-[240px] left-4 z-20 pointer-events-auto">
          <Button
             size="icon"
             onClick={toggleMode}
