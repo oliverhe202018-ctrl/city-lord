@@ -16,6 +16,32 @@ interface BadgeGridProps {
   initialData?: any[]
 }
 
+const STATIC_BADGES = [
+  // 探索类 (Exploration)
+  { id: 'city-explorer', title: 'City Explorer', description: 'Visit 3 different districts', image: 'badge_city_explorer.png', category: 'Exploration', rarity: 'bronze', maxProgress: 3 },
+  { id: 'city-walker', title: 'City Walker', description: 'Walk 10km total', image: 'badge_city_walker.png', category: 'Exploration', rarity: 'bronze', maxProgress: 10000 },
+  { id: 'early-bird', title: 'Early Bird', description: 'Complete a run before 7 AM', image: 'badge_early_bird.png', category: 'Exploration', rarity: 'silver', maxProgress: 1 },
+  { id: 'night-walker', title: 'Night Walker', description: 'Complete a run after 9 PM', image: 'badge_night_walker.png', category: 'Exploration', rarity: 'silver', maxProgress: 1 },
+  
+  // 耐力类 (Endurance)
+  { id: '100km-club', title: '100km Club', description: 'Total distance > 100km', image: 'badge_100km.png', category: 'Endurance', rarity: 'gold', maxProgress: 100000 },
+  { id: 'marathon-god', title: 'Marathon God', description: 'Single run > 42km', image: 'badge_marathon_god.png', category: 'Endurance', rarity: 'platinum', maxProgress: 42000 },
+  { id: 'shoe-killer', title: 'Shoe Killer', description: 'Total distance > 500km', image: 'badge_shoe_killer.png', category: 'Endurance', rarity: 'platinum', maxProgress: 500000 },
+  
+  // 征服类 (Conquest)
+  { id: 'first-territory', title: 'First Territory', description: 'Capture 1st territory', image: 'badge_first_territory.png', category: 'Conquest', rarity: 'bronze', maxProgress: 1 },
+  { id: 'landlord', title: 'Landlord', description: 'Hold 10 territories simultaneously', image: 'badge_landlord.png', category: 'Conquest', rarity: 'gold', maxProgress: 10 },
+  { id: 'territory-raider', title: 'Territory Raider', description: 'Capture 50 territories total', image: 'badge_territory_raider.png', category: 'Conquest', rarity: 'platinum', maxProgress: 50 },
+  
+  // 速度类 (Speed)
+  { id: 'flash', title: 'Flash', description: "Pace < 4'00\"/km for 5km", image: 'badge_flash.png', category: 'Speed', rarity: 'gold', maxProgress: 1 },
+  { id: 'wind-chaser', title: 'Wind Chaser', description: 'Top speed > 15km/h', image: 'badge_wind_chaser_gold.png', category: 'Speed', rarity: 'silver', maxProgress: 15 },
+  
+  // 特殊类 (Special)
+  { id: 'social-star', title: 'Social Star', description: 'Invite 5 friends', image: 'badge_starting_line.png', category: 'Special', rarity: 'silver', maxProgress: 5 },
+  { id: 'mysterious', title: 'Mysterious', description: 'Hidden achievement', image: 'a-cute-myster...png', category: 'Special', rarity: 'platinum', maxProgress: 1 }
+]
+
 export function BadgeGrid({ initialData }: BadgeGridProps) {
   // Use serverBadges + fallback to static if needed, but let's prioritize serverBadges
   // Actually, we want to show ALL possible badges (from DB)
@@ -30,43 +56,8 @@ export function BadgeGrid({ initialData }: BadgeGridProps) {
   // The static file might be old.
   // Let's rely on a new fetch for definitions.
   
-  const [allBadges, setAllBadges] = useState<any[]>([]) 
-  
-  useEffect(() => {
-      // Fetch all badges definitions (we can reuse the admin API or create a public one)
-      // Since admin API is protected, let's create a quick server action or use static fallback for now to avoid blocking.
-      // Actually, we can just use the serverBadges (earned) and merge with a static list that matches the seed.
-      
-      // Better: Create a public API for badge definitions.
-      // Or just hardcode the seed data here as "definitions" to ensure UI matches DB.
-      
-      const definitions = [
-          // 探索类 (Exploration)
-          { id: 'city-explorer', title: 'City Explorer', description: 'Visit 3 different districts', image: 'badge_city_explorer.png', category: 'Exploration', rarity: 'bronze', maxProgress: 3 },
-          { id: 'city-walker', title: 'City Walker', description: 'Walk 10km total', image: 'badge_city_walker.png', category: 'Exploration', rarity: 'bronze', maxProgress: 10000 },
-          { id: 'early-bird', title: 'Early Bird', description: 'Complete a run before 7 AM', image: 'badge_early_bird.png', category: 'Exploration', rarity: 'silver', maxProgress: 1 },
-          { id: 'night-walker', title: 'Night Walker', description: 'Complete a run after 9 PM', image: 'badge_night_walker.png', category: 'Exploration', rarity: 'silver', maxProgress: 1 },
-          
-          // 耐力类 (Endurance)
-          { id: '100km-club', title: '100km Club', description: 'Total distance > 100km', image: 'badge_100km.png', category: 'Endurance', rarity: 'gold', maxProgress: 100000 },
-          { id: 'marathon-god', title: 'Marathon God', description: 'Single run > 42km', image: 'badge_marathon_god.png', category: 'Endurance', rarity: 'platinum', maxProgress: 42000 },
-          { id: 'shoe-killer', title: 'Shoe Killer', description: 'Total distance > 500km', image: 'badge_shoe_killer.png', category: 'Endurance', rarity: 'platinum', maxProgress: 500000 },
-          
-          // 征服类 (Conquest)
-          { id: 'first-territory', title: 'First Territory', description: 'Capture 1st territory', image: 'badge_first_territory.png', category: 'Conquest', rarity: 'bronze', maxProgress: 1 },
-          { id: 'landlord', title: 'Landlord', description: 'Hold 10 territories simultaneously', image: 'badge_landlord.png', category: 'Conquest', rarity: 'gold', maxProgress: 10 },
-          { id: 'territory-raider', title: 'Territory Raider', description: 'Capture 50 territories total', image: 'badge_territory_raider.png', category: 'Conquest', rarity: 'platinum', maxProgress: 50 },
-          
-          // 速度类 (Speed)
-          { id: 'flash', title: 'Flash', description: "Pace < 4'00\"/km for 5km", image: 'badge_flash.png', category: 'Speed', rarity: 'gold', maxProgress: 1 },
-          { id: 'wind-chaser', title: 'Wind Chaser', description: 'Top speed > 15km/h', image: 'badge_wind_chaser_gold.png', category: 'Speed', rarity: 'silver', maxProgress: 15 },
-          
-          // 特殊类 (Special)
-          { id: 'social-star', title: 'Social Star', description: 'Invite 5 friends', image: 'badge_starting_line.png', category: 'Special', rarity: 'silver', maxProgress: 5 },
-          { id: 'mysterious', title: 'Mysterious', description: 'Hidden achievement', image: 'a-cute-myster...png', category: 'Special', rarity: 'platinum', maxProgress: 1 }
-      ]
-      setAllBadges(definitions)
-  }, [])
+  const [allBadges, setAllBadges] = useState<any[]>(STATIC_BADGES) 
+
 
 
   
@@ -98,49 +89,6 @@ export function BadgeGrid({ initialData }: BadgeGridProps) {
   // Since we just seeded the DB, static definitions might be out of sync if we change DB.
   // Ideally, we fetch all definitions from /api/badges/definitions (public).
   
-  // For now, let's use the static ACHIEVEMENT_DEFINITIONS but updated to match seed data structure
-  // Wait, the seed data uses new structure (Exploration, Speed, etc).
-  // The static file might be old.
-  // Let's rely on a new fetch for definitions.
-  
-  const [allBadges, setAllBadges] = useState<any[]>([])
-  
-  useEffect(() => {
-      // Fetch all badges definitions (we can reuse the admin API or create a public one)
-      // Since admin API is protected, let's create a quick server action or use static fallback for now to avoid blocking.
-      // Actually, we can just use the serverBadges (earned) and merge with a static list that matches the seed.
-      
-      // Better: Create a public API for badge definitions.
-      // Or just hardcode the seed data here as "definitions" to ensure UI matches DB.
-      
-      const definitions = [
-          // 探索类 (Exploration)
-          { id: 'city-explorer', title: 'City Explorer', description: 'Visit 3 different districts', image: 'badge_city_explorer.png', category: 'Exploration', rarity: 'bronze', maxProgress: 3 },
-          { id: 'city-walker', title: 'City Walker', description: 'Walk 10km total', image: 'badge_city_walker.png', category: 'Exploration', rarity: 'bronze', maxProgress: 10000 },
-          { id: 'early-bird', title: 'Early Bird', description: 'Complete a run before 7 AM', image: 'badge_early_bird.png', category: 'Exploration', rarity: 'silver', maxProgress: 1 },
-          { id: 'night-walker', title: 'Night Walker', description: 'Complete a run after 9 PM', image: 'badge_night_walker.png', category: 'Exploration', rarity: 'silver', maxProgress: 1 },
-          
-          // 耐力类 (Endurance)
-          { id: '100km-club', title: '100km Club', description: 'Total distance > 100km', image: 'badge_100km.png', category: 'Endurance', rarity: 'gold', maxProgress: 100000 },
-          { id: 'marathon-god', title: 'Marathon God', description: 'Single run > 42km', image: 'badge_marathon_god.png', category: 'Endurance', rarity: 'platinum', maxProgress: 42000 },
-          { id: 'shoe-killer', title: 'Shoe Killer', description: 'Total distance > 500km', image: 'badge_shoe_killer.png', category: 'Endurance', rarity: 'platinum', maxProgress: 500000 },
-          
-          // 征服类 (Conquest)
-          { id: 'first-territory', title: 'First Territory', description: 'Capture 1st territory', image: 'badge_first_territory.png', category: 'Conquest', rarity: 'bronze', maxProgress: 1 },
-          { id: 'landlord', title: 'Landlord', description: 'Hold 10 territories simultaneously', image: 'badge_landlord.png', category: 'Conquest', rarity: 'gold', maxProgress: 10 },
-          { id: 'territory-raider', title: 'Territory Raider', description: 'Capture 50 territories total', image: 'badge_territory_raider.png', category: 'Conquest', rarity: 'platinum', maxProgress: 50 },
-          
-          // 速度类 (Speed)
-          { id: 'flash', title: 'Flash', description: "Pace < 4'00\"/km for 5km", image: 'badge_flash.png', category: 'Speed', rarity: 'gold', maxProgress: 1 },
-          { id: 'wind-chaser', title: 'Wind Chaser', description: 'Top speed > 15km/h', image: 'badge_wind_chaser_gold.png', category: 'Speed', rarity: 'silver', maxProgress: 15 },
-          
-          // 特殊类 (Special)
-          { id: 'social-star', title: 'Social Star', description: 'Invite 5 friends', image: 'badge_starting_line.png', category: 'Special', rarity: 'silver', maxProgress: 5 },
-          { id: 'mysterious', title: 'Mysterious', description: 'Hidden achievement', image: 'a-cute-myster...png', category: 'Special', rarity: 'platinum', maxProgress: 1 }
-      ]
-      setAllBadges(definitions)
-  }, [])
-
   // Use local definitions as base
   const badges = allBadges
   
