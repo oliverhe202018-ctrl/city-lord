@@ -35,25 +35,23 @@ interface ClubDiscoveryViewProps {
   onJoinSuccess: () => void;
   isLoading?: boolean;
   onOpenCreate: () => void;
+  onViewClub: (clubId: string) => void;
 }
 
 export function ClubDiscoveryView({ 
   clubs, 
   onJoinSuccess, 
   isLoading = false,
-  onOpenCreate
+  onOpenCreate,
+  onViewClub
 }: ClubDiscoveryViewProps) {
-  // Only keep states needed for List View and Join Confirmation
+  // Only keep states needed for List View
   const [searchTerm, setSearchTerm] = useState('');
-  const [joiningClubId, setJoiningClubId] = useState<string | null>(null);
   
   // Filter State
   const [provinces, setProvinces] = useState<string[]>([]);
   const [selectedProvince, setSelectedProvince] = useState<string>('all');
   
-  // Join Confirmation State
-  const [selectedClub, setSelectedClub] = useState<{id: string, name: string, avatar: string} | null>(null);
-
   useEffect(() => {
       getAvailableProvinces().then(data => {
           setProvinces(data);
@@ -66,80 +64,10 @@ export function ClubDiscoveryView({
     return matchesSearch && matchesProvince;
   });
 
-  const onJoinClick = (club: any) => {
-      setSelectedClub({
-          id: club.id,
-          name: club.name,
-          avatar: club.avatar
-      });
-  }
-
-  const confirmJoin = async () => {
-    if (!selectedClub) return;
-    
-    setJoiningClubId(selectedClub.id);
-    
-    try {
-        const result = await joinClub(selectedClub.id);
-        if (result.success) {
-            if (result.status === 'active') {
-                toast.success(`加入 ${selectedClub.name} 成功！`);
-            } else {
-                toast.success('申请已提交，等待审核');
-            }
-            setSelectedClub(null);
-            onJoinSuccess();
-        } else {
-            toast.error(result.error || '加入失败');
-        }
-    } catch (e) {
-        toast.error('请求失败');
-    } finally {
-        setJoiningClubId(null);
-    }
-  };
-
-  // View: Create (Removed) - Logic Moved to Parent
-
-  // View: Confirmation (Full Screen replacement)
-  if (selectedClub) {
-      return (
-        <div className="flex flex-col h-full items-center justify-center p-6 text-center animate-in fade-in zoom-in-95 duration-200">
-            <div className="w-12 h-1 bg-zinc-800 rounded-full mb-8 opacity-50" />
-            
-            <h2 className="text-xl font-bold text-white mb-2">加入俱乐部</h2>
-            <p className="text-zinc-400 mb-8 text-sm">确认要加入这个俱乐部吗？</p>
-
-            <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-zinc-800 mb-4 shadow-xl">
-                <img src={selectedClub.avatar} alt={selectedClub.name} className="w-full h-full object-cover" />
-            </div>
-            
-            <h3 className="text-2xl font-black text-white mb-12">{selectedClub.name}</h3>
-
-            <div className="flex gap-4 w-full">
-                <Button 
-                    variant="outline" 
-                    onClick={() => setSelectedClub(null)}
-                    className="flex-1 py-6 rounded-xl bg-transparent border-zinc-700 text-white hover:bg-zinc-800 hover:text-white"
-                >
-                    取消
-                </Button>
-                <Button 
-                    onClick={confirmJoin}
-                    className="flex-1 py-6 rounded-xl bg-white text-black font-bold hover:bg-white/90"
-                    disabled={!!joiningClubId}
-                >
-                    {joiningClubId ? <Loader2 className="w-4 h-4 animate-spin" /> : '确认加入'}
-                </Button>
-            </div>
-        </div>
-      );
-  }
-
   // View: List (Default)
   return (
-    <div className="flex flex-col h-full">
-      <div className="px-6 pb-4">
+    <div className="flex flex-col h-auto max-h-[85vh]">
+      <div className="px-6 pb-4 flex-shrink-0">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
           <input
@@ -187,7 +115,7 @@ export function ClubDiscoveryView({
         </div>
       </div>
 
-      <div className="px-6 py-2 space-y-3 overflow-y-auto flex-1 pb-20 no-scrollbar">
+      <div className="px-6 py-2 space-y-3 overflow-y-auto flex-1 min-h-0 pb-safe">
         {isLoading ? (
             <div className="flex justify-center py-10">
                 <Loader2 className="w-8 h-8 text-white/30 animate-spin" />
@@ -200,7 +128,7 @@ export function ClubDiscoveryView({
             filteredClubs.map((club) => (
             <div
                 key={club.id}
-                onClick={() => onJoinClick(club)}
+                onClick={() => onViewClub(club.id)}
                 className="w-full p-4 rounded-2xl bg-zinc-800/30 border border-white/5 hover:bg-zinc-800/50 transition-all cursor-pointer"
             >
                 <div className="flex items-center gap-4">
@@ -237,14 +165,13 @@ export function ClubDiscoveryView({
                             variant={club.isJoined ? "secondary" : "outline"}
                             onClick={(e) => {
                                 e.stopPropagation();
-                                onJoinClick(club);
+                                onViewClub(club.id);
                             }}
-                            disabled={club.isJoined || joiningClubId === club.id}
                             className={`h-7 text-xs px-3 ${
                                 !club.isJoined ? "border-yellow-500/50 text-yellow-500 hover:bg-yellow-500/10" : ""
                             }`}
                         >
-                            {club.isJoined ? '已申请' : (joiningClubId === club.id ? '...' : '加入')}
+                            {club.isJoined ? '已申请' : '详情'}
                         </Button>
                     </div>
                 </div>

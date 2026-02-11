@@ -47,7 +47,9 @@ export const useReverseGeocode = (options: ReverseGeocodeOptions | null) => {
   });
 
   const getAddress = useCallback(async () => {
+    // Guard clause for invalid coordinates
     if (!map || !options || typeof window === 'undefined' || !(window as any).AMap) return;
+    if (options.latitude === 0 && options.longitude === 0) return;
 
     setState({ loading: true, error: null, address: null });
 
@@ -75,7 +77,10 @@ export const useReverseGeocode = (options: ReverseGeocodeOptions | null) => {
             lastFixCenter: lngLat, // Save as last fix
           });
         } else {
-          console.error('[ReverseGeocode] Failed:', status, result);
+          // Ignore 'no_data' error to prevent console spam
+          if (result !== 'no_data') {
+             console.error('[ReverseGeocode] Failed:', status, result);
+          }
           setState({ loading: false, error: result || 'Reverse geocode failed', address: null });
         }
       });
@@ -83,9 +88,9 @@ export const useReverseGeocode = (options: ReverseGeocodeOptions | null) => {
   }, [map, options, setRegion]);
 
   useEffect(() => {
-    if (options?.latitude && options?.longitude) {
-      getAddress();
-    }
+    if (!options) return;
+    if (options.latitude === 0 && options.longitude === 0) return;
+    getAddress();
   }, [options, getAddress]);
 
   return { ...state, refetch: getAddress };

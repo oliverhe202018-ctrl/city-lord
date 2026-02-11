@@ -161,7 +161,7 @@ export async function getPendingClubs() {
       where: { status: 'pending' },
       orderBy: { created_at: 'desc' },
       include: {
-        profiles: {
+        profiles_clubs_owner_idToprofiles: {
           select: {
             nickname: true,
             avatar_url: true
@@ -172,8 +172,8 @@ export async function getPendingClubs() {
 
     return pendingClubs.map(club => ({
       ...club,
-      creator_name: club.profiles?.nickname || 'Unknown',
-      creator_avatar: club.profiles?.avatar_url
+      creator_name: club.profiles_clubs_owner_idToprofiles?.nickname || 'Unknown',
+      creator_avatar: club.profiles_clubs_owner_idToprofiles?.avatar_url
     })) as any[]
   } catch (error) {
     console.error('Error fetching pending clubs:', error)
@@ -187,7 +187,7 @@ export async function getApprovedClubs() {
       where: { status: 'active' },
       orderBy: { created_at: 'desc' },
       include: {
-        profiles: {
+        profiles_clubs_owner_idToprofiles: {
           select: {
             nickname: true
           }
@@ -197,7 +197,7 @@ export async function getApprovedClubs() {
 
     return approvedClubs.map(club => ({
       ...club,
-      creator_name: club.profiles?.nickname || 'Unknown',
+      creator_name: club.profiles_clubs_owner_idToprofiles?.nickname || 'Unknown',
       member_count: club.member_count || 0
     })) as any[]
   } catch (error) {
@@ -293,18 +293,28 @@ export async function getClubs() {
         memberships.forEach(m => userMemberships.add(m.club_id))
     }
     
-    return clubs.map((club) => ({
+    return clubs.map((club) => {
+      const rawAvatar = club.avatar_url
+      let avatarUrl = rawAvatar || `https://api.dicebear.com/7.x/shapes/svg?seed=${club.id}`
+      if (rawAvatar && !/^https?:\/\//i.test(rawAvatar) && !rawAvatar.startsWith('data:')) {
+        const { data } = supabase.storage.from('clubs').getPublicUrl(rawAvatar)
+        avatarUrl = data.publicUrl
+      }
+
+      return {
       id: club.id,
       name: club.name,
       description: club.description,
       owner_id: club.owner_id,
-      avatar: club.avatar_url || `https://api.dicebear.com/7.x/shapes/svg?seed=${club.id}`,
-      members: club.member_count || 1, // Use stored member_count
+      avatar: avatarUrl,
+      logo_url: avatarUrl,
+      members: club.member_count || 1,
       territory: club.territory || '0 mi²', 
       level: club.level || '初级', 
       rating: Number(club.rating) || 5.0, 
       isJoined: userMemberships.has(club.id)
-    }))
+    }
+    })
   } catch (error) {
     console.error('Error fetching clubs:', error)
     return []
@@ -974,9 +984,107 @@ export async function getClubLeaderboard(clubId: string) {
     return getInternalMembers(clubId)
 }
 
-export async function getClubTerritories(clubId: string) {
-    return getClubTerritoriesReal(clubId, 'date')
+export async function getTopClubsByArea(limit = 5, province?: string) {
+  const supabase = await createClient()
+
+  // 1. Fetch clubs ordered by total_area
+  // Note: Assuming 'total_area' column exists, otherwise we might need to rely on 'territory' string parsing or separate logic
+  // If 'total_area' is not available in schema, we might fallback to member_count or just random for now
+  
+  try {
+    let query = supabase
+        .from('clubs')
+        .select('id, name, avatar_url, total_area, member_count')
+        .eq('status', 'active')
+        .order('total_area', { ascending: false }) // Use total_area if available
+        .limit(limit)
+
+    if (province) {
+        query = query.eq('province', province)
+    }
+
+    const { data: clubs, error } = await query
+
+    if (error) {
+        // Fallback: order by member_count if total_area fails (e.g. column missing)
+        console.warn('Fetch top clubs error (might be missing column), falling back to member_count:', error.message)
+        let fallbackQuery = supabase
+            .from('clubs')
+            .select('id, name, avatar_url, member_count')
+            .eq('status', 'active')
+            .order('member_count', { ascending: false })
+            .limit(limit)
+            
+        if (province) {
+            fallbackQuery = fallbackQuery.eq('province', province)
+        }
+
+        const { data: fallbackClubs } = await fallbackQuery
+            
+        return (fallbackClubs || []).map(c => processClubAvatar(c, supabase))
+    }
+
+    return (clubs || []).map(c => processClubAvatar(c, supabase))
+  } catch (e) {
+      console.error('getTopClubsByArea exception:', e)
+      return []
+  }
 }
+
+function processClubAvatar(club: any, supabase: any) {
+    const rawAvatar = club.avatar_url
+    let avatarUrl = rawAvatar || `https://api.dicebear.com/7.x/initials/svg?seed=${club.name}`
+    
+    if (rawAvatar && !/^https?:\/\//i.test(rawAvatar) && !rawAvatar.startsWith('data:')) {
+        const { data } = supabase.storage.from('clubs').getPublicUrl(rawAvatar)
+        avatarUrl = data.publicUrl
+    }
+     
+     return {
+         id: club.id,
+         name: club.name,
+         avatar: avatarUrl,
+         totalArea: club.total_area || 0,
+         displayArea: club.total_area ? `覆盖 ${Number(club.total_area).toFixed(1)}km²` : '暂无领地'
+     }
+ }
+
+ export async function getClubRankStats(clubId: string) {
+    try {
+        const club = await prisma.clubs.findUnique({
+            where: { id: clubId },
+            select: { total_area: true, province: true }
+        })
+
+        if (!club) return { global: 0, provincial: 0 }
+
+        const totalArea = club.total_area || 0
+        const province = club.province
+
+        const globalRank = await prisma.clubs.count({
+            where: { 
+                total_area: { gt: totalArea },
+                status: 'active'
+            }
+        }) + 1
+
+        let provincialRank = 0
+        if (province) {
+            provincialRank = await prisma.clubs.count({
+                where: { 
+                    total_area: { gt: totalArea },
+                    status: 'active',
+                    province: province
+                }
+            }) + 1
+        }
+
+        return { global: globalRank, provincial: provincialRank }
+    } catch (e) {
+        console.error('getClubRankStats error:', e)
+        return { global: 0, provincial: 0 }
+    }
+ }
 
 // 5. Get Distinct Provinces (Source of Truth for Filter)
 export async function getAvailableProvinces() {

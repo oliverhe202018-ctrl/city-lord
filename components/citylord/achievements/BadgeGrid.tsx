@@ -348,7 +348,7 @@ export function BadgeGrid({ initialData }: BadgeGridProps) {
                 <h4 className="text-sm font-semibold text-white/80 mb-1">获取时间</h4>
                 <p className="text-sm text-white/60">
                   {(() => {
-                    const userBadge = (Array.isArray(userBadges) ? userBadges : []).find(ub => ub.badge_id === selectedBadge?.id)
+                    const userBadge = (Array.isArray(serverBadges) ? serverBadges : []).find(ub => ub.badge_id === selectedBadge?.id)
                     if (userBadge?.earned_at) {
                       return format(new Date(userBadge.earned_at), 'yyyy-MM-dd HH:mm')
                     }

@@ -24,7 +24,7 @@ export function AccessDenied({ userId, error }: AccessDeniedProps) {
           {userId && <p>User ID: {userId}</p>}
           {error && <p>Error: {error}</p>}
           <p className="mt-2 text-muted-foreground">
-            Check if your User ID exists in the 'public.app_admins' table.
+            Check if your User ID exists in the &apos;public.app_admins&apos; table.
           </p>
         </div>
       )}

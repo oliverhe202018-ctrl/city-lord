@@ -46,7 +46,7 @@ export function MyRoutesSheet({
   const fetchRoutes = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/routes/route');
+      const res = await fetch('/api/routes');
       if (!res.ok) throw new Error('加载路线失败');
       const data = await res.json();
       setRoutes(data);
@@ -73,7 +73,7 @@ export function MyRoutesSheet({
     if (!confirm('确定要删除这条路线吗？')) return;
     
     try {
-      const res = await fetch(`/api/routes/route?id=${id}`, {
+      const res = await fetch(`/api/routes?id=${id}`, {
         method: 'DELETE'
       });
       if (!res.ok) throw new Error('删除失败');

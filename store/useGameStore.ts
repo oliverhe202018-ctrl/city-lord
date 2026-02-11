@@ -47,6 +47,7 @@ export interface LocationState {
   runStartTime: number | null;
   currentRunPath: [number, number][];
   ghostPath: [number, number][] | null;
+  isSmartRunStarting: boolean;
 }
 
 export interface InventoryItem {
@@ -519,6 +520,7 @@ const createLocationSlice: StateCreator<GameStore, [], [], LocationActions> = (s
     speed: 0,
   }),
   setGhostPath: (path) => set({ ghostPath: path }),
+  setSmartRunStarting: (starting) => set({ isSmartRunStarting: starting }),
 });
 
 const createInventorySlice: StateCreator<GameStore, [], [], InventoryActions> = (set, get) => ({
@@ -745,6 +747,7 @@ export const useGameActions = () => {
       dismissGeolocationPrompt: state.dismissGeolocationPrompt,
       resetRunState: state.resetRunState,
       setGhostPath: state.setGhostPath,
+      setSmartRunStarting: state.setSmartRunStarting,
 
       // Inventory Actions
       addItem: state.addItem,

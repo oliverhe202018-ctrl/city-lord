@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { sendMessage, markAsRead, getMessages } from './message'
 import { Database } from '@/types/supabase'
+import { cookies } from 'next/headers'
 
 type Profile = Database['public']['Tables']['profiles']['Row']
 

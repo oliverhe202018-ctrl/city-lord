@@ -1,433 +1,436 @@
-'use client';
+'use client'
 
-import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import { useGameStore } from '@/store/useGameStore';
-import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
-import { MapPin, Users, Crown, Settings, LogOut, ChevronLeft, Trophy, TrendingUp, ExternalLink, Clock, User } from 'lucide-react';
-import { ClubManageDrawer } from './ClubManageDrawer';
-import { AvatarUploader } from '@/components/ui/AvatarUploader';
-import { useRouter } from 'next/navigation';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { useEffect, useMemo, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { Button } from '@/components/ui/button'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Trophy, Map, Users, Footprints } from 'lucide-react'
 
-import { getClubLeaderboard, getClubTerritories, getClubRankings, getInternalMembers, getClubTerritoriesReal, getClubHistory } from '@/app/actions/club';
-
-interface Club {
-  id: string;
-  name: string;
-  description: string | null;
-  avatar_url: string | null;
-  owner_id: string;
-  member_count: number;
-  level: number;
-  territory: string;
-  province?: string;
-  total_area?: number;
+type ClubDetailInfo = {
+  id: string
+  name: string
+  description?: string | null
+  avatarUrl?: string | null
+  memberCount: number
+  province?: string
+  totalArea?: number
 }
 
-interface ClubTerritory {
-  id: string;
-  name: string;
-  area: number;
-  date: string;
-  member: string;
-  memberName: string;
-  lastTime: string;
-  pace?: string;
-  location?: string;
-  totalDistance?: string;
-  totalTime?: string;
-  avgPace?: string;
+type ClubDetailMember = {
+  id: string
+  name: string
+  avatarUrl?: string | null
+  role: 'owner' | 'admin' | 'member'
+  level: number
 }
 
-interface LeaderboardItem {
-  id: string;
-  name: string;
-  avatar: string;
-  area?: number;
-  score?: number;
-  rank?: number;
-  province?: string;
+type ClubDetailStats = {
+  totalDistanceKm: number
+  totalCalories: number
+  memberCount: number
 }
 
-import { useRegion } from '@/contexts/RegionContext';
+function formatDistance(value: number) {
+  return `${value.toFixed(1)} km`
+}
 
-// ... existing code ...
+function formatCalories(value: number) {
+  return `${value.toLocaleString()} kcal`
+}
 
-export function ClubDetailView({ clubId, onChange }: { clubId: string; onChange?: () => void }) {
-  const { region } = useRegion();
-  const [club, setClub] = useState<Club | null>(null);
-  const [isOwner, setIsOwner] = useState(false);
-  const [territories, setTerritories] = useState<ClubTerritory[]>([]);
-  const [leaderboard, setLeaderboard] = useState<LeaderboardItem[]>([]);
-  const [myRanking, setMyRanking] = useState<LeaderboardItem | null>(null);
-  const [historyData, setHistoryData] = useState<{date: string, area: number}[]>([]);
-  
-  const [activeTab, setActiveTab] = useState<'leaderboard' | 'territories' | 'history'>('leaderboard');
-  // 'internal' = Club Ranking (Members), 'ranking' = Global/Province Ranking
-  const [rankingType, setRankingType] = useState<'ranking' | 'internal'>('ranking');
-  const [rankingScope, setRankingScope] = useState<'province' | 'national'>('national');
-  
-  const [territorySortBy, setTerritorySortBy] = useState<'date' | 'area'>('date');
-  // Use province from RegionContext if available, otherwise default to '未知'
-  const [userProvince, setUserProvince] = useState<string>(region?.province || '未知');
-  
-  const userId = useGameStore((state) => state.userId);
-  const router = useRouter();
-  const supabase = createClient();
+function roleLabel(role: ClubDetailMember['role']) {
+  if (role === 'owner') return '会长'
+  if (role === 'admin') return '管理员'
+  return '成员'
+}
+
+function isPublicUrl(value?: string | null) {
+  return !!value && (/^https?:\/\//i.test(value) || value.startsWith('data:'))
+}
+
+type TopClub = {
+  id: string
+  name: string
+  avatar: string
+  displayArea: string
+  totalArea: number
+}
+
+export function ClubDetailView({ 
+  clubId, 
+  onChange, 
+  isJoined = false,
+  onJoin,
+  isJoining = false,
+  onBack,
+  topClubs = []
+}: { 
+  clubId: string; 
+  onChange?: () => void;
+  isJoined?: boolean;
+  onJoin?: () => Promise<boolean> | void;
+  isJoining?: boolean;
+  onBack?: () => void;
+  topClubs?: TopClub[];
+}) {
+  const supabase = useMemo(() => createClient(), [])
+  const [club, setClub] = useState<ClubDetailInfo | null>(null)
+  const [members, setMembers] = useState<ClubDetailMember[]>([])
+  const [stats, setStats] = useState<ClubDetailStats>({
+    totalDistanceKm: 0,
+    totalCalories: 0,
+    memberCount: 0
+  })
+  const [rankings, setRankings] = useState<{ global: number; provincial: number }>({ global: 0, provincial: 0 })
+
+  const [rankType, setRankType] = useState<'global' | 'local'>('global');
+  const [topClubsLocal, setTopClubsLocal] = useState<TopClub[]>([]);
+
+  // Local state to override Props for immediate UI transition
+  const [hasJoined, setHasJoined] = useState(false);
+  const effectiveIsMember = isJoined || hasJoined;
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 5;
+  const totalPages = Math.ceil(members.length / ITEMS_PER_PAGE);
+  const displayMembers = members.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+  const handleJoinClick = async () => {
+    if (onJoin) {
+      const result = await onJoin();
+      if (result === true) {
+        setHasJoined(true);
+      }
+    }
+  };
 
   useEffect(() => {
-    if (clubId) fetchClubDetails();
-    
-    // If we have region data from context, use it directly
-    if (region?.province) {
-        setUserProvince(region.province);
-        setRankingScope('province');
-    } else {
-        // Fallback to fetching from profile if context is not ready
-        fetchUserProfile();
-    }
-  }, [clubId, region?.province]);
+    if (!clubId) return
 
-  // Fetch data when tabs change
-  useEffect(() => {
-    if (!clubId) return;
+    const load = async () => {
+      const { data: clubData } = await supabase
+        .from('clubs')
+        .select('id, name, description, avatar_url, member_count, province')
+        .eq('id', clubId)
+        .single()
+      
+      // Fetch rankings
+      const { getClubRankStats, getTopClubsByArea } = await import('@/app/actions/club');
+      const rankStats = await getClubRankStats(clubId);
+      setRankings(rankStats);
 
-    if (activeTab === 'leaderboard') {
-        fetchLeaderboard();
-    } else if (activeTab === 'territories') {
-        fetchTerritories();
-    } else if (activeTab === 'history') {
-        fetchHistory();
-    }
-  }, [activeTab, rankingType, rankingScope, territorySortBy, clubId, userProvince]);
-
-  async function fetchUserProfile() {
-      // Avoid fetching if we already have it from context
-      if (region?.province) return;
-
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-          const { data: profile } = await supabase.from('profiles').select('province').eq('id', user.id).single();
-          if (profile && profile.province) {
-              setUserProvince(profile.province);
-              // Default to province ranking if user has province
-              setRankingScope('province'); 
-          }
+      // Fetch local top clubs if needed
+      if (clubData?.province) {
+          const localData = await getTopClubsByArea(5, clubData.province);
+          setTopClubsLocal(localData);
       }
-  }
 
-  async function fetchClubDetails() {
-    const { data } = await supabase.from('clubs').select('*').eq('id', clubId).single();
-    if (data) {
-      setClub(data as Club);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user?.id === data.owner_id) setIsOwner(true);
-    }
-  }
+      const { data: memberRows } = await supabase
+        .from('club_members')
+        .select(`
+          user_id,
+          role,
+          profiles (
+            nickname,
+            avatar_url,
+            level
+          )
+        `)
+        .eq('club_id', clubId)
+        .eq('status', 'active')
 
-  async function fetchLeaderboard() {
-      setLeaderboard([]);
-      setMyRanking(null);
+      const { data: runRows } = await supabase
+        .from('runs')
+        .select('distance')
+        .eq('club_id', clubId)
 
-      if (rankingType === 'internal') {
-          // Internal Club Ranking (Members)
-          const members = await getInternalMembers(clubId);
-          setLeaderboard(members as any);
-      } else {
-          // Global/Province Ranking (Clubs)
-          const { data, myClub } = await getClubRankings(rankingScope, userProvince);
-          setLeaderboard(data);
-          // Only show pinned row if rank > 1 (User requirement: "If I am #1, no need extra pin")
-          if (myClub && myClub.rank && myClub.rank > 1) {
-              setMyRanking(myClub);
-          }
+      const toPublicUrl = (path: string | null | undefined, bucket: string) => {
+        if (!path) return null
+        if (isPublicUrl(path)) return path
+        const { data } = supabase.storage.from(bucket).getPublicUrl(path)
+        return data.publicUrl || null
       }
+
+      if (clubData) {
+        setClub({
+          id: clubData.id,
+          name: clubData.name,
+          description: clubData.description,
+          avatarUrl: toPublicUrl(clubData.avatar_url, 'clubs'),
+          memberCount: clubData.member_count || 0,
+          province: clubData.province,
+          totalArea: (clubData as any).total_area || 0
+        })
+      }
+
+      const mappedMembers = (memberRows || []).map((row: any) => ({
+        id: row.user_id,
+        name: row.profiles?.nickname || 'Unknown',
+        avatarUrl: toPublicUrl(row.profiles?.avatar_url, 'avatars'),
+        role: (row.role || 'member') as ClubDetailMember['role'],
+        level: row.profiles?.level || 1
+      }))
+
+      setMembers(mappedMembers)
+
+      const totalDistanceKm = (runRows || []).reduce((sum: number, item: any) => {
+        return sum + Number(item.distance || 0)
+      }, 0)
+      const totalCalories = Math.round(totalDistanceKm * 60)
+      const memberCount = clubData?.member_count || mappedMembers.length
+
+      setStats({
+        totalDistanceKm,
+        totalCalories,
+        memberCount
+      })
+    }
+
+    load()
+  }, [clubId, supabase])
+
+  const displayTopClubs = rankType === 'global' ? topClubs : topClubsLocal;
+
+  if (!club) {
+    return <div className="p-8 text-center text-white">加载中...</div>
   }
 
-  async function fetchTerritories() {
-      const data = await getClubTerritoriesReal(clubId, territorySortBy);
-      setTerritories(data);
-  }
-
-  async function fetchHistory() {
-      const data = await getClubHistory(clubId);
-      setHistoryData(data);
-  }
-
-
-  const handleQuit = async () => {
-    // Implement quit logic
-    toast.success('已退出俱乐部');
-    router.push('/club?view=list');
-  }
-
-  if (!club) return <div className="p-8 text-center text-white">加载中...</div>;
+  const formatArea = (area: number | undefined) => {
+      if (!area) return '0 ㎡';
+      if (area < 10000) return `${Math.round(area)} ㎡`;
+      return `${(area / 1000000).toFixed(1)} k㎡`;
+  };
 
   return (
-    <div className="flex flex-col min-h-screen bg-zinc-950 text-white pb-20 overflow-x-hidden">
-      {/* 顶部 Header - 参考图 1 */}
-      <div className="pt-8 pb-6 px-6 bg-zinc-950">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-zinc-800">
-               <img src={club.avatar_url || '/placeholder.png'} className="w-full h-full object-cover" alt="Club Avatar" />
+    <div 
+      className="flex flex-col w-full bg-black text-white h-auto max-h-[90vh]"
+    >
+      <div
+        className={`w-full no-scrollbar flex-1 min-h-0 ${
+          effectiveIsMember 
+            ? "overflow-hidden pb-0" // ✅ 已加入：自适应 + 禁止滚动（因有分页）
+            : "overflow-y-auto overscroll-contain pb-safe"
+        }`}
+      >
+        <div className="px-6 pt-6">
+          <div className="relative h-44 overflow-hidden rounded-2xl border border-white/10">
+            <div className="absolute inset-0 bg-gradient-to-br from-zinc-800 via-zinc-900 to-black" />
+            <div className="absolute inset-0 opacity-50">
+              {club.avatarUrl ? (
+                <img src={club.avatarUrl} alt={club.name} className="h-full w-full object-cover" />
+              ) : null}
             </div>
-            <div>
-              <h1 className="text-xl font-bold text-white">{club.name}</h1>
-              <button 
-                onClick={onChange}
-                className="text-sm text-zinc-500 hover:text-white transition-colors"
-              >
-                更换
-              </button>
+            <div className="absolute inset-0 bg-black/40" />
+            <div className="absolute left-6 top-4 flex items-center justify-between w-[calc(100%-3rem)] z-10">
+              <div className="flex items-center gap-2">
+                {onBack && !effectiveIsMember && (
+                  <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full bg-black/40 text-white hover:bg-black/60" onClick={onBack}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                  </Button>
+                )}
+              </div>
+              {effectiveIsMember && (
+                <Button size="sm" className="rounded-full bg-yellow-500 text-black hover:bg-yellow-400 font-bold shadow-lg" onClick={() => onChange?.()}>
+                  更换
+                </Button>
+              )}
             </div>
           </div>
-          <div className="flex gap-8 text-center">
-            <div>
-              <div className="text-xs text-zinc-500 uppercase font-semibold mb-1">当前领地</div>
-              <div className="text-xl font-bold text-white">{club.territory || '0'} <span className="text-sm font-normal text-zinc-500">KM²</span></div>
+          <div className="relative -mt-10 flex items-end gap-4">
+            <div className="h-24 w-24 overflow-hidden rounded-full border-2 border-white/10 bg-zinc-800">
+              {club.avatarUrl ? (
+                <img src={club.avatarUrl} alt={club.name} className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-3xl font-bold text-white">
+                  {club.name.slice(0, 1)}
+                </div>
+              )}
             </div>
-            <div>
-              <div className="text-xs text-zinc-500 uppercase font-semibold mb-1">总成员</div>
-              <div className="text-xl font-bold text-white">{club.member_count}</div>
+            <div className="pb-2">
+              <div className="text-lg font-semibold text-white">{club.name}</div>
+              
+              {/* Inline Stats Row */}
+              <div className="flex items-center gap-3 text-base font-medium text-zinc-300 mt-1">
+                <div className="flex items-center gap-1">
+                  <Footprints className="w-4 h-4 text-zinc-400" />
+                  <span>{formatArea(club.totalArea)}</span>
+                </div>
+                <div className="w-[1px] h-4 bg-zinc-700" />
+                <div className="flex items-center gap-1">
+                  <Users className="w-4 h-4 text-zinc-400" />
+                  <span>{stats.memberCount}人</span>
+                </div>
+              </div>
+
+              {club.description ? (
+                <div className="text-xs text-white/60 mt-1 line-clamp-1">{club.description}</div>
+              ) : null}
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Tab Navigation - 参考图 2 */}
-      <div className="px-4 border-b border-zinc-800 flex gap-8 mb-4">
-         <button
-            onClick={() => setActiveTab('leaderboard')}
-            className={`pb-3 text-sm font-bold uppercase tracking-wide transition-colors relative ${
-              activeTab === 'leaderboard' ? 'text-white' : 'text-zinc-500'
-            }`}
-          >
-            排行榜
-            {activeTab === 'leaderboard' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white rounded-t-full" />}
-          </button>
-          <button
-            onClick={() => setActiveTab('territories')}
-            className={`pb-3 text-sm font-bold uppercase tracking-wide transition-colors relative ${
-              activeTab === 'territories' ? 'text-white' : 'text-zinc-500'
-            }`}
-          >
-            领地
-            {activeTab === 'territories' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white rounded-t-full" />}
-          </button>
-          <button
-            onClick={() => setActiveTab('history')}
-            className={`pb-3 text-sm font-bold uppercase tracking-wide transition-colors relative ${
-              activeTab === 'history' ? 'text-white' : 'text-zinc-500'
-            }`}
-          >
-            历史
-            {activeTab === 'history' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white rounded-t-full" />}
-          </button>
-      </div>
+        <div className="px-6 mt-6">
+          <div className="grid grid-cols-2 gap-3 rounded-2xl border border-white/10 bg-zinc-900/60 p-4">
+            <div 
+                className={`text-center border-r border-white/10 flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors ${rankType === 'global' ? 'bg-white/5 rounded-lg -my-2 py-2' : 'hover:bg-white/5 rounded-lg -my-2 py-2'}`}
+                onClick={() => setRankType('global')}
+            >
+              <div className={`flex items-center gap-1.5 ${rankType === 'global' ? 'text-yellow-500' : 'text-zinc-500'} mb-1`}>
+                <Trophy className="w-4 h-4" />
+                <span className="text-xs font-bold">全国排名</span>
+              </div>
+              <div className={`text-xl font-black italic ${rankType === 'global' ? 'text-white' : 'text-zinc-500'}`}>#{rankings.global || '-'}</div>
+            </div>
+            <div 
+                className={`text-center flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors ${rankType === 'local' ? 'bg-white/5 rounded-lg -my-2 py-2' : 'hover:bg-white/5 rounded-lg -my-2 py-2'}`}
+                onClick={() => setRankType('local')}
+            >
+              <div className={`flex items-center gap-1.5 ${rankType === 'local' ? 'text-blue-400' : 'text-zinc-500'} mb-1`}>
+                <Map className="w-4 h-4" />
+                <span className="text-xs font-bold">省内排名</span>
+              </div>
+              <div className={`text-xl font-black italic ${rankType === 'local' ? 'text-white' : 'text-zinc-500'}`}>#{rankings.provincial || '-'}</div>
+            </div>
+          </div>
+        </div>
 
-      {/* Tab Content */}
-      <div className="px-4 flex-1">
-        {activeTab === 'leaderboard' && (
-          <div className="space-y-4">
-             {/* Sub Tabs */}
-             <div className="flex bg-zinc-900 rounded-full p-1 mb-4">
-                <button 
-                  onClick={() => setRankingType('ranking')}
-                  className={`flex-1 py-1.5 text-sm font-medium rounded-full transition-all ${rankingType === 'ranking' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}
-                >
-                  排行榜
-                </button>
-                <button 
-                  onClick={() => setRankingType('internal')}
-                  className={`flex-1 py-1.5 text-sm font-medium rounded-full transition-all ${rankingType === 'internal' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}
-                >
-                  俱乐部排行
-                </button>
-             </div>
-
-             {/* Filter Pills (Only for Ranking) */}
-             {rankingType === 'ranking' && (
-               <div className="flex bg-zinc-900 rounded-full p-1 mb-4">
-                  <button 
-                    onClick={() => setRankingScope('province')}
-                    className={`flex-1 py-1.5 text-sm font-medium rounded-full transition-all ${rankingScope === 'province' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'} flex items-center justify-center gap-2`}
-                  >
-                     {userProvince} <span className="text-xs">🇨🇳</span>
-                  </button>
-                  <button 
-                    onClick={() => setRankingScope('national')}
-                    className={`flex-1 py-1.5 text-sm font-medium rounded-full transition-all ${rankingScope === 'national' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}
-                  >
-                     全国
-                  </button>
-               </div>
-             )}
-
-             {/* Leaderboard List */}
-             <div className="space-y-2">
-                {/* My Rank Row (Sticky) */}
-                {myRanking && (
-                    <div className="bg-zinc-800/80 rounded-lg p-3 flex items-center mb-4 border border-zinc-700/50 sticky top-0 z-10 backdrop-blur-sm">
-                        <div className="w-8 text-center font-bold text-white text-lg">{myRanking.rank}</div>
-                        <div className="w-10 h-10 rounded-full overflow-hidden mx-3 bg-zinc-700">
-                          <img src={myRanking.avatar || '/placeholder.png'} className="w-full h-full object-cover" />
-                        </div>
-                        <div className="flex-1 font-semibold text-white">{myRanking.name}</div>
-                        <div className="font-bold text-white">{myRanking.score || 0} <span className="text-xs font-normal text-zinc-500">KM²</span></div>
-                    </div>
-                )}
-
-                {/* List */}
-                {leaderboard.length === 0 ? (
-                    <div className="text-center py-8 text-zinc-500">暂无数据</div>
+        {/* Conditional Rendering: Tabs for Members, Leaderboard for Non-Members */}
+        {effectiveIsMember ? (
+          <div className="px-6 mt-6">
+            <Tabs defaultValue="members" className="w-full">
+              <TabsList className="w-full bg-zinc-900/70 border border-white/10">
+                <TabsTrigger value="activity" className="flex-1">动态</TabsTrigger>
+                <TabsTrigger value="members" className="flex-1">成员</TabsTrigger>
+                <TabsTrigger value="data" className="flex-1">数据</TabsTrigger>
+              </TabsList>
+              <TabsContent value="activity" className="mt-4 flex-none h-auto">
+                <div className="rounded-2xl border border-white/5 bg-zinc-900/60 p-6 text-center text-white/50">
+                  暂无俱乐部动态
+                </div>
+              </TabsContent>
+              <TabsContent value="members" className="mt-4 flex-none h-auto pb-0 flex flex-col">
+                {members.length === 0 ? (
+                  <div className="py-8 text-center text-white/50">暂无成员</div>
                 ) : (
-                    leaderboard.map((item, i) => {
-                      const rank = item.rank || (i + 1);
-                      let bgClass = "bg-zinc-900";
-                      let rankColor = "text-white";
-                      let score = item.score || item.area || 0;
-
-                      // Special styling for top 3
-                      if (rank === 1) {
-                        bgClass = "bg-gradient-to-r from-yellow-900/40 to-zinc-900 border-l-4 border-yellow-500";
-                        rankColor = "text-yellow-500";
-                      } else if (rank === 2) {
-                         bgClass = "bg-gradient-to-r from-slate-700/40 to-zinc-900 border-l-4 border-slate-400";
-                         rankColor = "text-slate-400";
-                      } else if (rank === 3) {
-                         bgClass = "bg-gradient-to-r from-orange-900/40 to-zinc-900 border-l-4 border-orange-700";
-                         rankColor = "text-orange-700";
-                      }
-
-                      return (
-                        <div key={item.id} className={`${bgClass} rounded-lg p-3 flex items-center transition-transform active:scale-[0.99]`}>
-                            <div className={`w-8 text-center font-bold text-lg ${rankColor} italic`}>{rank}</div>
-                            <div className="w-8 h-8 rounded-full overflow-hidden mx-3 bg-zinc-800 border border-white/10">
-                               <img src={item.avatar || '/placeholder.png'} className="w-full h-full object-cover" />
+                  <div className="flex flex-col h-auto">
+                    {/* 1. 固定高度的成员列表区 */}
+                    <div className="space-y-3">
+                      {displayMembers.map((member) => (
+                        <div key={member.id} className="flex items-center justify-between rounded-2xl border border-white/5 bg-zinc-900/60 px-4 py-3 h-[72px]">
+                          <div className="flex items-center gap-3">
+                            <div className="h-12 w-12 overflow-hidden rounded-full bg-zinc-800">
+                              {member.avatarUrl ? (
+                                <img src={member.avatarUrl} alt={member.name} className="h-full w-full object-cover" />
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center text-sm font-semibold text-white">
+                                  {member.name.slice(0, 1)}
+                                </div>
+                              )}
                             </div>
-                            <div className="flex-1 font-semibold text-white ml-2">{item.name}</div>
-                            <div className="font-bold text-white">{score} <span className="text-xs font-normal text-zinc-500">KM²</span></div>
+                            <div>
+                              <div className="text-sm font-semibold text-white">{member.name}</div>
+                              <div className="text-xs text-white/50">Lv.{member.level}</div>
+                            </div>
+                          </div>
+                          <div className="text-xs text-white/60">{roleLabel(member.role)}</div>
                         </div>
-                      )
-                    })
+                      ))}
+                    </div>
+
+                    {/* 2. 分页挂件：作为内容的终点 */}
+                    <div className="flex items-center justify-center pt-6 pb-safe text-sm text-white/50 gap-4 shrink-0">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        className="h-8 w-8 p-0 rounded-full hover:bg-white/10"
+                      >
+                        ←
+                      </Button>
+                      <span className="font-medium text-white/70">{currentPage} / {totalPages}</span>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                        className="h-8 w-8 p-0 rounded-full hover:bg-white/10"
+                      >
+                        →
+                      </Button>
+                    </div>
+                    
+                    {/* 3. 底部填充，确保不贴底太紧，但绝不留大片空白 */}
+                    {/* <div className="h-6 shrink-0" /> */}
+                  </div>
                 )}
-             </div>
+              </TabsContent>
+              <TabsContent value="data" className="mt-4 flex-none h-auto">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-4">
+                    <div className="text-xs text-white/50">总里程</div>
+                    <div className="text-lg font-semibold text-white">{formatDistance(stats.totalDistanceKm)}</div>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-4">
+                    <div className="text-xs text-white/50">总消耗</div>
+                    <div className="text-lg font-semibold text-white">{formatCalories(stats.totalCalories)}</div>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-4">
+                    <div className="text-xs text-white/50">总人数</div>
+                    <div className="text-lg font-semibold text-white">{stats.memberCount.toLocaleString()}</div>
+                  </div>
+                </div>
+              </TabsContent>
+            </Tabs>
           </div>
-        )}
-
-        {activeTab === 'territories' && (
-           <div className="space-y-4">
-              {/* Sort Buttons */}
-              <div className="flex gap-2">
-                 <button 
-                    onClick={() => setTerritorySortBy('date')}
-                    className={`flex-1 py-2 rounded-full text-sm font-medium border border-zinc-800 transition-colors ${territorySortBy === 'date' ? 'bg-zinc-800 text-white' : 'bg-zinc-900 text-zinc-500 hover:text-white'}`}
-                 >
-                    按日期排序
-                 </button>
-                 <button 
-                    onClick={() => setTerritorySortBy('area')}
-                    className={`flex-1 py-2 rounded-full text-sm font-medium border border-zinc-800 transition-colors ${territorySortBy === 'area' ? 'bg-zinc-800 text-white' : 'bg-zinc-900 text-zinc-500 hover:text-white'}`}
-                 >
-                    按面积排序
-                 </button>
-              </div>
-
-              {/* Territory List */}
-              <div className="space-y-3">
-                 {territories.length === 0 ? (
-                     <div className="text-center py-8 text-zinc-500">暂无记录</div>
-                 ) : (
-                     territories.map((t) => (
-                        <div key={t.id} className="bg-zinc-900 rounded-xl p-4 border border-zinc-800/50">
-                           <div className="flex items-start gap-3 mb-4">
-                              <div className="w-10 h-10 rounded-full bg-zinc-800 overflow-hidden">
-                                 <img src={t.member || '/placeholder-user.jpg'} className="w-full h-full object-cover" />
-                              </div>
-                              <div>
-                                 <div className="text-sm text-zinc-400">{t.date} {t.lastTime}</div>
-                                 <div className="text-sm text-white font-medium">{t.memberName} 在 {t.location} 占领了领地</div>
-                              </div>
-                           </div>
-
-                           <div className="grid grid-cols-4 gap-4 text-center">
-                              <div>
-                                 <div className="text-xl font-bold text-white">{t.totalDistance}</div>
-                                 <div className="text-xs text-zinc-500">里程</div>
-                              </div>
-                              <div>
-                                 <div className="text-xl font-bold text-white">{t.totalTime}</div>
-                                 <div className="text-xs text-zinc-500">时长</div>
-                              </div>
-                              <div>
-                                 <div className="text-xl font-bold text-white">{t.avgPace}</div>
-                                 <div className="text-xs text-zinc-500">配速</div>
-                              </div>
-                              <div>
-                                 <div className="text-xl font-bold text-white">{t.area}</div>
-                                 <div className="text-xs text-zinc-500">面积 (km²)</div>
-                              </div>
-                           </div>
-                        </div>
-                     ))
-                 )}
-              </div>
-           </div>
-        )}
-
-        {activeTab === 'history' && (
-          <div className="h-[400px] w-full bg-zinc-900 rounded-xl p-4">
-             <h3 className="text-white font-bold mb-6">领地历史趋势 (30天)</h3>
-             {historyData.length === 0 ? (
-                 <div className="flex items-center justify-center h-[300px] text-zinc-500">暂无历史数据</div>
-             ) : (
-                 <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={historyData}>
-                      <defs>
-                        <linearGradient id="colorArea" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#8884d8" stopOpacity={0.3}/>
-                          <stop offset="95%" stopColor="#8884d8" stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
-                      <XAxis 
-                        dataKey="date" 
-                        stroke="#666" 
-                        tick={{fill: '#666', fontSize: 12}}
-                        tickLine={false}
-                        axisLine={false}
-                        minTickGap={30}
-                      />
-                      <YAxis 
-                        stroke="#666"
-                        tick={{fill: '#666', fontSize: 12}} 
-                        tickLine={false}
-                        axisLine={false}
-                        tickFormatter={(value) => `${value}`}
-                      />
-                      <Tooltip 
-                        contentStyle={{ backgroundColor: '#18181b', border: '1px solid #333', borderRadius: '8px', color: '#fff' }}
-                        itemStyle={{ color: '#fff' }}
-                        formatter={(value: any) => [`${value} km²`, '面积']}
-                      />
-                      <Area 
-                        type="monotone" 
-                        dataKey="area" 
-                        stroke="#8884d8" 
-                        strokeWidth={2}
-                        fillOpacity={1} 
-                        fill="url(#colorArea)" 
-                        strokeLinecap="round"
-                      />
-                    </AreaChart>
-                 </ResponsiveContainer>
-             )}
+        ) : (
+          <div className="px-6 mt-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-white">{rankType === 'global' ? '全国' : '省内'}前5名排行榜</h3>
+            </div>
+            <div className="space-y-3">
+              {displayTopClubs.length === 0 ? (
+                <div className="py-8 text-center text-white/30 bg-zinc-900/30 rounded-2xl border border-white/5">
+                  暂无排行数据
+                </div>
+              ) : (
+                displayTopClubs.map((club, index) => (
+                  <div key={club.id} className="flex items-center gap-4 p-3 rounded-2xl bg-zinc-900/60 border border-white/5">
+                    <div className={`w-8 h-8 flex items-center justify-center rounded-full font-bold text-sm ${
+                      index === 0 ? 'bg-yellow-500 text-black' : 
+                      index === 1 ? 'bg-gray-300 text-black' : 
+                      index === 2 ? 'bg-orange-700 text-white' : 
+                      'bg-zinc-800 text-white/50'
+                    }`}>
+                      {index + 1}
+                    </div>
+                    <div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-800 flex-shrink-0">
+                       <img src={club.avatar} alt={club.name} className="w-full h-full object-cover" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-bold text-white truncate">{club.name}</div>
+                      <div className="text-xs text-white/50">{club.displayArea}</div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         )}
       </div>
+
+      {!effectiveIsMember && onJoin && (
+        <div className="shrink-0 p-4 bg-zinc-950/95 backdrop-blur border-t border-white/10 z-50 pb-8 safe-area-bottom">
+           <Button 
+            size="lg" 
+            className="w-full py-6 text-lg font-bold bg-yellow-500 text-black hover:bg-yellow-400 shadow-xl rounded-xl"
+            onClick={handleJoinClick}
+            disabled={isJoining}
+           >
+            {isJoining ? "申请中..." : "申请加入"}
+           </Button>
+        </div>
+      )}
     </div>
-  );
+  )
 }

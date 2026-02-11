@@ -7,7 +7,7 @@ import { ACHIEVEMENT_DEFINITIONS } from '@/lib/achievements'
 
 export async function syncBadges() {
   const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = await createClient(cookieStore)
   
   // Iterate local definitions
   const upsertData = ACHIEVEMENT_DEFINITIONS.map(def => {
@@ -96,7 +96,7 @@ export interface UserBadge {
 
 export async function deleteBadge(badgeId: string) {
   const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = await createClient(cookieStore)
 
   const { error } = await supabase
     .from('badges')
@@ -113,7 +113,7 @@ export async function deleteBadge(badgeId: string) {
 
 export async function upsertBadge(data: Partial<Badge>) {
   const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = await createClient(cookieStore)
 
   // Validate required fields
   if (!data.code || !data.name) {
@@ -143,7 +143,7 @@ export async function upsertBadge(data: Partial<Badge>) {
 
 export async function fetchAllBadges() {
   const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = await createClient(cookieStore)
   
   const { data, error } = await supabase
     .from('badges')
@@ -160,7 +160,7 @@ export async function fetchAllBadges() {
 
 export async function fetchUserBadges() {
   const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = await createClient(cookieStore)
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) return []
@@ -191,7 +191,7 @@ export async function fetchUserBadges() {
  */
 export async function grantBadge(userId: string, badgeCode: string) {
   const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = await createClient(cookieStore)
 
   // 1. Find badge ID by code
   const { data: badge, error: badgeError } = await supabase

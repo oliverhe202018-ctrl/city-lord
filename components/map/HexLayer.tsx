@@ -3,8 +3,6 @@
 import { useEffect, useRef } from "react"
 import { useMap } from "./MapContext"
 import { HexCellData } from "./HexDetailSheet"
-import { toast } from "sonner"
-import { useTheme } from "next-themes"
 
 interface HexLayerProps {
   cells: HexCellData[]
@@ -167,60 +165,26 @@ export function HexLayer({ cells, onCellClick }: HexLayerProps) {
     map.add(newPolygons)
     polygonsRef.current = newPolygons
 
-  }, [map, AMap, cells, viewMode]) // Re-render when viewMode changes
-
-  return null
-}
-        if (cell.status !== 'fog') {
-          polygon.setOptions({
-            fillOpacity: style.fillOpacity + 0.2,
-            strokeOpacity: 1,
-          })
-        }
-      })
-
-      polygon.on("mouseout", () => {
-        if (cell.status !== 'fog') {
-          polygon.setOptions(style)
-        }
-      })
-
-      // Click handler
-      polygon.on("click", (e: any) => {
-        // Prevent map click if necessary, though AMap handles overlay clicks separately usually
-        onCellClick(cell)
-      })
-
-      newPolygons.push(polygon)
-    })
-
-    // Add all polygons to map
-    map.add(newPolygons)
-    polygonsRef.current = newPolygons
-
-    // Cleanup
     return () => {
       try {
         if (map && polygonsRef.current.length) {
-          // Safer removal
-          const validPolygons = polygonsRef.current.filter(p => !!p);
+          const validPolygons = polygonsRef.current.filter(p => !!p)
           if (validPolygons.length > 0) {
-              if (typeof map.remove === 'function') {
-                 map.remove(validPolygons);
-              } else {
-                 // Fallback
-                 validPolygons.forEach(p => {
-                     if (p && typeof p.setMap === 'function') p.setMap(null);
-                 });
-              }
+            if (typeof map.remove === 'function') {
+              map.remove(validPolygons)
+            } else {
+              validPolygons.forEach(p => {
+                if (p && typeof p.setMap === 'function') p.setMap(null)
+              })
+            }
           }
           polygonsRef.current = []
         }
       } catch (error) {
-        console.warn('Failed to remove polygons:', error);
+        console.warn('Failed to remove polygons:', error)
       }
     }
-  }, [map, AMap, cells]) // Re-run if cells change
+  }, [map, AMap, cells, viewMode]) // Re-render when viewMode changes
 
-  return null // This component renders nothing to the DOM, only to the Map canvas
+  return null
 }

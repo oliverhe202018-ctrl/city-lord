@@ -14,7 +14,7 @@ export async function GET(request: Request) {
     const redCount = await prisma.territories.count({
       where: {
         profiles: {
-          faction: 'red', // Database stores lowercase 'red'
+          faction: 'Red',
         },
       },
     });
@@ -23,7 +23,7 @@ export async function GET(request: Request) {
     const blueCount = await prisma.territories.count({
       where: {
         profiles: {
-          faction: 'blue', // Database stores lowercase 'blue'
+          faction: 'Blue',
         },
       },
     });
