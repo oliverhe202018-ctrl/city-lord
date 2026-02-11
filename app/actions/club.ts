@@ -155,18 +155,55 @@ export async function updateClub(clubId: string, data: Partial<Club>) {
 export async function getPendingClubs() {
   const supabase = await createClient()
   
-  const { data, error } = await supabase
-    .from('clubs')
-    .select('*')
-    .eq('status', 'pending')
-    .order('created_at', { ascending: false })
-    
-  if (error) {
+  // Use Prisma to include creator info
+  try {
+    const pendingClubs = await prisma.clubs.findMany({
+      where: { status: 'pending' },
+      orderBy: { created_at: 'desc' },
+      include: {
+        profiles: {
+          select: {
+            nickname: true,
+            avatar_url: true
+          }
+        }
+      }
+    })
+
+    return pendingClubs.map(club => ({
+      ...club,
+      creator_name: club.profiles?.nickname || 'Unknown',
+      creator_avatar: club.profiles?.avatar_url
+    })) as any[]
+  } catch (error) {
     console.error('Error fetching pending clubs:', error)
     return []
   }
+}
 
-  return data as Club[]
+export async function getApprovedClubs() {
+  try {
+    const approvedClubs = await prisma.clubs.findMany({
+      where: { status: 'active' },
+      orderBy: { created_at: 'desc' },
+      include: {
+        profiles: {
+          select: {
+            nickname: true
+          }
+        }
+      }
+    })
+
+    return approvedClubs.map(club => ({
+      ...club,
+      creator_name: club.profiles?.nickname || 'Unknown',
+      member_count: club.member_count || 0
+    })) as any[]
+  } catch (error) {
+    console.error('Error fetching approved clubs:', error)
+    return []
+  }
 }
 
 export async function approveClub(clubId: string) {

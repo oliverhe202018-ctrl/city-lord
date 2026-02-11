@@ -5,58 +5,19 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    // Group by faction to handle case sensitivity and get accurate counts
-    const factionGroups = await prisma.profile.groupBy({
-      by: ['faction'],
-      _count: { faction: true },
-    })
-
-    // Normalize and aggregate counts
-    let redCount = 0
-    let blueCount = 0
-
-    factionGroups.forEach(group => {
-      if (!group.faction) return
-      const faction = group.faction.toLowerCase()
-      if (faction === 'red') redCount += group._count.faction
-      if (faction === 'blue') blueCount += group._count.faction
-    })
-
-    // Calculate area based on territories owned by users of each faction
-    // We use a case-insensitive check for faction
-    const redAreaCount = await prisma.territories.count({
-      where: {
-        profiles: {
-          faction: { equals: 'Red', mode: 'insensitive' }
-        }
-      }
-    })
+    const stats = await getFactionStats()
     
-    const blueAreaCount = await prisma.territories.count({
-      where: {
-        profiles: {
-          faction: { equals: 'Blue', mode: 'insensitive' }
-        }
-      }
-    })
-
-    const redArea = redAreaCount * 0.06
-    const blueArea = blueAreaCount * 0.06
-
+    // Map internal stats to API response expected by client
     return NextResponse.json({
-      red_faction: redCount,
-      blue_faction: blueCount,
-      red_area: redArea || 0,
-      blue_area: blueArea || 0
+      red_faction: stats.RED,
+      blue_faction: stats.BLUE,
+      redArea: stats.redArea,
+      blueArea: stats.blueArea,
+      percentages: stats.percentages,
+      bonus: stats.bonus
     })
-  } catch (error: any) {
-    console.error('Faction Stats Error:', error)
-    // Return safe default instead of error to prevent UI crash
-    return NextResponse.json({
-      red_faction: 0,
-      blue_faction: 0,
-      red_area: 0,
-      blue_area: 0
-    })
+  } catch (error) {
+    console.error('API Error [FactionStats]:', error)
+    return NextResponse.json({ error: 'Failed to fetch stats' }, { status: 500 })
   }
 }
