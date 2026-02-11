@@ -9,7 +9,7 @@ import { useToast } from '@/components/ui/use-toast'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
 
-export function ClubList() {
+export default function ClubList() {
   const { region } = useRegion()
   const { province, cityName, countyName } = region || {}
   const { toast } = useToast()
