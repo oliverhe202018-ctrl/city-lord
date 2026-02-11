@@ -17,8 +17,8 @@ export function FactionComparison({ initialData, redArea: propRedArea, blueArea:
   console.log('Stats Data:', initialData);
 
   // 1. Get Member Counts from initialData with robust fallbacks
-  const redMembers = initialData?.red_user_count ?? initialData?.redUserCount ?? initialData?.redCount ?? initialData?.RED ?? 0
-  const blueMembers = initialData?.blue_user_count ?? initialData?.blueUserCount ?? initialData?.blueCount ?? initialData?.BLUE ?? 0
+  const redMembers = initialData?.red_user_count ?? initialData?.redUserCount ?? initialData?.redCount ?? initialData?.red_faction ?? initialData?.RED ?? 0
+  const blueMembers = initialData?.blue_user_count ?? initialData?.blueUserCount ?? initialData?.blueCount ?? initialData?.blue_faction ?? initialData?.BLUE ?? 0
   
   // Member percentages
   const totalMembers = redMembers + blueMembers

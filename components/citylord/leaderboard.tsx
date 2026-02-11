@@ -3,10 +3,43 @@
 import { Trophy, Crown, Medal, Award, Hexagon, Users } from "lucide-react"
 import { formatAreaFromHexCount } from "@/lib/citylord/area-utils"
 import { GlassCard } from "@/components/ui/GlassCard"
-import { useRegion } from "@/contexts/RegionContext"
-import { useState, useEffect, useContext } from "react"
+import { useContext } from "react"
 import { CityContext } from "@/contexts/CityContext"
-import { CityLeaderboardEntry } from "@/app/actions/city"
+import { CityLeaderboardEntry, fetchCityLeaderboard } from "@/app/actions/city"
+import useSWR from "swr"
+
+function PodiumItem({ entry, size }: { entry?: CityLeaderboardEntry, size: 'lg' | 'md' | 'sm' }) {
+  if (!entry) return null
+  const isFirst = entry.rank === 1
+  const height = isFirst ? 'h-32' : entry.rank === 2 ? 'h-24' : 'h-20'
+  const color = isFirst ? 'text-yellow-400' : entry.rank === 2 ? 'text-gray-300' : 'text-amber-600'
+  const glow = isFirst ? 'shadow-[0_0_20px_rgba(250,204,21,0.3)]' : ''
+
+  return (
+    <div className="flex flex-col items-center justify-end">
+      <div className="relative mb-2">
+        {isFirst && <Crown className="absolute -top-6 left-1/2 -translate-x-1/2 h-6 w-6 text-yellow-400 animate-bounce" />}
+        <div className={`rounded-full border-2 ${color.replace('text', 'border')} ${glow} p-1`}>
+           <div className={`flex items-center justify-center rounded-full bg-white/10 overflow-hidden ${isFirst ? 'h-16 w-16' : 'h-12 w-12'} shrink-0`}>
+             {entry.avatar ? (
+               <img src={entry.avatar} alt={entry.nickname} className="h-full w-full object-cover" />
+             ) : (
+               <span className={isFirst ? 'text-3xl' : 'text-2xl'}>👤</span>
+             )}
+           </div>
+        </div>
+        <div className={`absolute -bottom-2 left-1/2 -translate-x-1/2 flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold text-black ${color.replace('text', 'bg')}`}>
+          {entry.rank}
+        </div>
+      </div>
+      <div className="text-center">
+        <div className={`font-bold text-white ${isFirst ? 'text-sm' : 'text-xs'} truncate max-w-[80px]`}>{entry.nickname}</div>
+        <div className="text-[10px] text-white/60">{formatAreaFromHexCount(entry.tilesCaptured).fullText}</div>
+      </div>
+      <div className={`w-full ${height} mt-2 rounded-t-lg bg-gradient-to-b from-white/10 to-transparent backdrop-blur-sm border-t border-x border-white/10`} />
+    </div>
+  )
+}
 
 function Podium({ top3 }: { top3: CityLeaderboardEntry[] }) {
   const [first, second, third] = [
@@ -14,39 +47,6 @@ function Podium({ top3 }: { top3: CityLeaderboardEntry[] }) {
     top3.find(p => p.rank === 2),
     top3.find(p => p.rank === 3)
   ]
-
-  const PodiumItem = ({ entry, size }: { entry?: CityLeaderboardEntry, size: 'lg' | 'md' | 'sm' }) => {
-    if (!entry) return null
-    const isFirst = entry.rank === 1
-    const height = isFirst ? 'h-32' : entry.rank === 2 ? 'h-24' : 'h-20'
-    const color = isFirst ? 'text-yellow-400' : entry.rank === 2 ? 'text-gray-300' : 'text-amber-600'
-    const glow = isFirst ? 'shadow-[0_0_20px_rgba(250,204,21,0.3)]' : ''
-    
-    return (
-      <div className="flex flex-col items-center justify-end">
-        <div className="relative mb-2">
-          {isFirst && <Crown className="absolute -top-6 left-1/2 -translate-x-1/2 h-6 w-6 text-yellow-400 animate-bounce" />}
-          <div className={`rounded-full border-2 ${color.replace('text', 'border')} ${glow} p-1`}>
-             <div className={`flex items-center justify-center rounded-full bg-white/10 overflow-hidden ${isFirst ? 'h-16 w-16' : 'h-12 w-12'} shrink-0`}>
-               {entry.avatar ? (
-                 <img src={entry.avatar} alt={entry.nickname} className="h-full w-full object-cover" />
-               ) : (
-                 <span className={isFirst ? 'text-3xl' : 'text-2xl'}>👤</span>
-               )}
-             </div>
-          </div>
-          <div className={`absolute -bottom-2 left-1/2 -translate-x-1/2 flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold text-black ${color.replace('text', 'bg')}`}>
-            {entry.rank}
-          </div>
-        </div>
-        <div className="text-center">
-          <div className={`font-bold text-white ${isFirst ? 'text-sm' : 'text-xs'} truncate max-w-[80px]`}>{entry.nickname}</div>
-          <div className="text-[10px] text-white/60">{formatAreaFromHexCount(entry.tilesCaptured).fullText}</div>
-        </div>
-        <div className={`w-full ${height} mt-2 rounded-t-lg bg-gradient-to-b from-white/10 to-transparent backdrop-blur-sm border-t border-x border-white/10`} />
-      </div>
-    )
-  }
 
   return (
     <div className="flex items-end justify-center gap-4 px-4 pt-8 pb-4">
@@ -59,12 +59,8 @@ function Podium({ top3 }: { top3: CityLeaderboardEntry[] }) {
 
 export function Leaderboard() {
   const context = useContext(CityContext)
-  
-  if (!context) {
-    return <div className="p-8 text-center text-white/60">Loading...</div>
-  }
-
-  const { currentCity, currentCityProgress } = context
+  const currentCity = context?.currentCity
+  const currentCityProgress = context?.currentCityProgress
   
   // SWR Optimization: Fetch leaderboard independently with caching
   // We use context.leaderboard as fallbackData if available (from initial context load)
@@ -72,11 +68,15 @@ export function Leaderboard() {
     currentCity?.id ? ['cityLeaderboard', currentCity.id] : null,
     () => fetchCityLeaderboard(currentCity!.id),
     {
-      fallbackData: context.leaderboard || [],
+      fallbackData: context?.leaderboard || [],
       revalidateOnFocus: true,
       dedupingInterval: 60000 // 1 minute dedupe
     }
   )
+
+  if (!context) {
+    return <div className="p-8 text-center text-white/60">Loading...</div>
+  }
 
   const title = currentCity ? `${currentCity.name} 排行榜` : "全球 排行榜"
 

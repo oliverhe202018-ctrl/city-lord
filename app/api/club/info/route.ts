@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 export async function GET() {
   try {
     const cookieStore = await cookies()
-    const supabase = createClient(cookieStore)
+    const supabase = await createClient(cookieStore)
     
     // Check if auth is available (sometimes getUser might fail if cookies are missing)
     let user = null

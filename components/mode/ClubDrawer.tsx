@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRegion } from '@/contexts/RegionContext';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from '@/components/ui/drawer';
 import { leaveClub } from '@/app/actions/club';
@@ -34,14 +34,41 @@ export function ClubDrawer({ isOpen, onClose, onOpenCreate }: ClubDrawerProps) {
   
   // Local State Hooks
   const [currentUserId, setCurrentUserId] = React.useState<string | null>(null);
+  const [viewingClubId, setViewingClubId] = React.useState<string | null>(null);
   const [isManageOpen, setIsManageOpen] = React.useState(false);
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
   const [clubToLeave, setClubToLeave] = useState<string | null>(null);
+  const [isJoining, setIsJoining] = useState(false);
 
   // Derived Data
   const joinedClub = clubData?.joinedClub;
   const allClubs = clubData?.allClubs || [];
   const isLoading = isSwrLoading;
+  const supabase = React.useMemo(() => createClient(), []);
+
+  const clubsWithAvatars = React.useMemo(() => {
+    return allClubs.map((club: any) => {
+      const rawAvatar = club.avatar || club.logo_url || club.avatar_url
+      let avatarUrl = rawAvatar || `https://api.dicebear.com/7.x/initials/svg?seed=${club.name}`
+      if (rawAvatar && !/^https?:\/\//i.test(rawAvatar) && !rawAvatar.startsWith('data:')) {
+        const { data } = supabase.storage.from('clubs').getPublicUrl(rawAvatar)
+        avatarUrl = data.publicUrl
+      }
+      return { ...club, displayAvatar: avatarUrl }
+    })
+  }, [allClubs, supabase])
+
+  const [topClubs, setTopClubs] = useState<any[]>([]);
+
+  useEffect(() => {
+    // Lazy fetch top clubs when drawer opens or mode changes
+    const fetchTopClubs = async () => {
+        const { getTopClubsByArea } = await import('@/app/actions/club');
+        const data = await getTopClubsByArea();
+        setTopClubs(data);
+    };
+    fetchTopClubs();
+  }, []);
 
   // Effects
   React.useEffect(() => {
@@ -56,6 +83,40 @@ export function ClubDrawer({ isOpen, onClose, onOpenCreate }: ClubDrawerProps) {
   }, []);
 
   // Handlers
+  const handleJoinClub = async (clubId: string) => {
+    setIsJoining(true);
+    try {
+      const { joinClub } = await import('@/app/actions/club');
+      const result = await joinClub(clubId);
+      if (result.success) {
+        toast.success(result.status === 'active' ? '加入成功！' : '申请已提交，等待审核');
+        
+        // Refresh everything: SWR cache and local viewing state
+        await refreshClubs(); 
+        
+        // If joined successfully, force update viewingClubId or close it if needed
+        // But better: since refreshClubs updates joinedClub, and we check joinedClub?.id === viewingClubId,
+        // the ClubDetailView should naturally re-render with isJoined=true
+        // We just need to make sure renderContent picks up the new status.
+        
+        // Wait a tick for SWR to update
+        setTimeout(() => {
+            // No manual state change needed if SWR updates 'joinedClub'
+        }, 100);
+
+        return true;
+      } else {
+        toast.error(result.error || '加入失败');
+        return false;
+      }
+    } catch (e) {
+      toast.error('请求失败');
+      return false;
+    } finally {
+      setIsJoining(false);
+    }
+  };
+
   const handleLeaveClub = async () => {
     if (!clubToLeave) return;
 
@@ -112,12 +173,37 @@ export function ClubDrawer({ isOpen, onClose, onOpenCreate }: ClubDrawerProps) {
       );
     }
 
-    // CASE A: User has a joined club (Active)
+    // CASE A: Viewing a specific club detail (from list click)
+    if (viewingClubId) {
+        const isMember = joinedClub?.id === viewingClubId && joinedClub?.status === 'active';
+        return (
+            <div className={`w-full ${isMember ? "h-auto" : "h-full"}`}>
+                 <ClubDetailView 
+                   clubId={viewingClubId} 
+                   isJoined={isMember}
+                   onJoin={() => handleJoinClub(viewingClubId)}
+                   isJoining={isJoining}
+                   topClubs={topClubs}
+                   onChange={() => {
+                       if (isMember) {
+                           openLeaveModal(viewingClubId);
+                       } else {
+                           setViewingClubId(null); // Back to list
+                       }
+                   }}
+                   onBack={() => setViewingClubId(null)}
+                 />
+             </div>
+        );
+    }
+
+    // CASE B: User has a joined club (Active) -> Show Detail directly
     if (joinedClub && joinedClub.status === 'active') {
         return (
-            <div className="h-full overflow-y-auto no-scrollbar pb-20">
+            <div className="h-auto w-full">
                 <ClubDetailView 
                   clubId={joinedClub.id} 
+                  isJoined={true}
                   onChange={() => {
                       // Option to leave/change club
                       openLeaveModal(joinedClub.id);
@@ -127,36 +213,43 @@ export function ClubDrawer({ isOpen, onClose, onOpenCreate }: ClubDrawerProps) {
         );
     }
 
-    // CASE B: User is not in a club (or pending/rejected)
+    // CASE C: User is not in a club (or pending/rejected) -> Show List
     // Note: If pending, we might want to show a pending state, but for now we treat it as discovery with status
     return (
         <ClubDiscoveryView 
-            clubs={allClubs.map((c: any) => ({
+            clubs={clubsWithAvatars.map((c: any) => ({
                 id: c.id,
                 name: c.name,
                 members: c.member_count || 1,
                 territory: c.territory || '0 mi²',
-                avatar: c.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${c.name}`,
-                isJoined: c.id === joinedClub?.id // Mark if pending
+                avatar: c.displayAvatar,
+                isJoined: c.id === joinedClub?.id
             }))}
             onJoinSuccess={() => refreshClubs()}
             isLoading={isLoading}
             onOpenCreate={onOpenCreate}
+            onViewClub={(id) => setViewingClubId(id)}
         />
     );
   };
 
+  const isViewingJoined = joinedClub && joinedClub.status === 'active';
+
   return (
-    <Drawer open={isOpen} onOpenChange={onClose} snapPoints={[0.4, 0.95]}>
+    <Drawer 
+      open={isOpen} 
+      onOpenChange={onClose} 
+      // Removed snapPoints to allow auto-height adaptation globally
+    >
       <DrawerContent
-        className="bg-zinc-900/90 border-t border-white/10 rounded-t-[32px] w-full overflow-x-hidden flex flex-col h-[85vh] min-h-[500px]"
+        className="bg-zinc-900/90 border-t border-white/10 rounded-t-[32px] w-full overflow-x-hidden flex flex-col h-auto max-h-[90vh]"
       >
         <div className="flex justify-center pt-4 pb-2 flex-shrink-0">
           <div className="w-12 h-1.5 bg-white/20 rounded-full" />
         </div>
 
-        {/* Only show generic header if in discovery mode AND list view */}
-        {(!joinedClub || joinedClub.status !== 'active') && (
+        {/* Only show generic header if in discovery mode AND list view AND not viewing detail */}
+        {(!joinedClub || joinedClub.status !== 'active') && !viewingClubId && (
             <DrawerHeader className="px-6 pb-2 flex-shrink-0">
             <div className="flex items-center justify-between">
                 <div>

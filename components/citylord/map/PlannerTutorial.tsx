@@ -45,9 +45,19 @@ const STEPS: Step[] = [
 ];
 
 function TutorialAnimation({ stepIndex }: { stepIndex: number }) {
+    const [key, setKey] = useState(0);
+
+    useEffect(() => {
+        setKey(0); // Reset on step change
+        const interval = setInterval(() => {
+            setKey(prev => prev + 1);
+        }, 4000); // 4s loop cycle
+        return () => clearInterval(interval);
+    }, [stepIndex]);
+
     if (stepIndex === 1) { // Step 2: Waypoints
         return (
-            <div className="relative w-64 h-64 bg-black/40 backdrop-blur rounded-xl border border-white/10 shadow-2xl overflow-hidden">
+            <div key={key} className="relative w-64 h-64 bg-black/40 backdrop-blur rounded-xl border border-white/10 shadow-2xl overflow-hidden">
                 <svg viewBox="0 0 200 200" className="w-full h-full">
                     {/* Points */}
                     <motion.circle cx="50" cy="150" r="6" fill="#3b82f6" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.2 }} />
@@ -80,7 +90,7 @@ function TutorialAnimation({ stepIndex }: { stepIndex: number }) {
     
     if (stepIndex === 4) { // Step 5: Loop Closure
         return (
-            <div className="relative w-64 h-64 bg-black/40 backdrop-blur rounded-xl border border-white/10 shadow-2xl overflow-hidden">
+            <div key={key} className="relative w-64 h-64 bg-black/40 backdrop-blur rounded-xl border border-white/10 shadow-2xl overflow-hidden">
                  <svg viewBox="0 0 200 200" className="w-full h-full">
                     {/* Open Pentagon Points */}
                     <circle cx="100" cy="40" r="4" fill="#3b82f6" />
@@ -224,7 +234,7 @@ export function PlannerTutorial({ forceShow, onClose }: PlannerTutorialProps) {
   const isTargetBottom = targetRect && typeof window !== 'undefined' ? targetRect.top > window.innerHeight / 2 : false;
 
   return (
-    <div className="fixed inset-0 z-[100] overflow-hidden pointer-events-none">
+    <div className="fixed inset-0 z-[100] overflow-hidden pointer-events-auto">
       {/* Background Mask with Hole (SVG) */}
       <svg className="absolute inset-0 w-full h-full pointer-events-none">
         <defs>

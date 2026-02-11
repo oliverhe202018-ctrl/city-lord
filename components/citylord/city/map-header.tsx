@@ -88,18 +88,6 @@ export function MapHeader({
   const daysRemaining = getDaysRemaining()
   const seasonProgress = season ? ((90 - daysRemaining) / 90) * 100 : 0
 
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
-  
-  // Simple check for login status (could be replaced with context or props)
-  // For MapHeader, we can check localStorage or props. 
-  // Let's use a simpler approach: assume MapHeader is used in contexts where AuthSync is running.
-  // But to be reactive, we should probably fetch auth state.
-  // For now, let's add a "Login" button if we detect no session.
-  
-  // Note: Since this is a client component, we can use createClient.
-  // However, MapHeader is often updated rapidly. 
-  // Let's add a "Login" prompt if not running.
-
   return (
     <div className="absolute left-0 right-0 top-0 z-30 pt-[env(safe-area-inset-top)]">
       {/* Main Header Bar */}

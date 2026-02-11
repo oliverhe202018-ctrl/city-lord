@@ -7,12 +7,14 @@ import { Users, MapPin, CheckCircle2, Loader2 } from 'lucide-react'
 import { joinClub, getClubs } from '@/app/actions/club'
 import { useToast } from '@/components/ui/use-toast'
 import { Button } from '@/components/ui/button'
+import { createClient } from '@/lib/supabase/client'
 
 export function ClubList() {
   const { region } = useRegion()
   const { province, cityName, countyName } = region || {}
   const { toast } = useToast()
   const queryClient = useQueryClient()
+  const supabase = useMemo(() => createClient(), [])
 
   // 获取位置名称，避免 undefined
   const locationName = cityName || countyName || '城市'
@@ -31,6 +33,17 @@ export function ClubList() {
     })
     return set
   }, [clubs])
+
+  const clubsWithAvatars = useMemo(() => {
+    return clubs.map((club: any) => {
+      const avatar = club.avatar
+      if (!avatar || /^https?:\/\//i.test(avatar) || avatar.startsWith('data:')) {
+        return { ...club, displayAvatar: avatar }
+      }
+      const { data } = supabase.storage.from('clubs').getPublicUrl(avatar)
+      return { ...club, displayAvatar: data.publicUrl }
+    })
+  }, [clubs, supabase])
 
   const joinMutation = useMutation({
     mutationFn: joinClub,
@@ -89,13 +102,13 @@ export function ClubList() {
         </div>
       ) : (
         <div className="space-y-3 pb-20">
-          {clubs.map((club: any) => (
+          {clubsWithAvatars.map((club: any) => (
             <div
               key={club.id}
               onClick={() => handleViewClub(club.id, club.name)}
               className="flex items-center gap-3 p-3 rounded-lg bg-zinc-800/50 hover:bg-zinc-700/50 cursor-pointer transition-colors"
             >
-              <img src={club.avatar} alt={club.name} className="w-12 h-12 rounded-full flex-shrink-0" />
+              <img src={club.displayAvatar || club.avatar} alt={club.name} className="w-12 h-12 rounded-full flex-shrink-0" />
               <div className="flex-1 min-w-0">
                 <div className="font-semibold flex items-center gap-2 truncate">
                   {club.name}

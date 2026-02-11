@@ -84,11 +84,18 @@ export async function claimTerritory(cityId: string, cellId: string): Promise<{ 
         })
 
         if (snapshot) {
-           const { underdog, multiplier: bonus } = calculateFactionBalance(
-             snapshot.red_area || 0,
-             snapshot.blue_area || 0
+           const redScore = snapshot.red_area || 0
+           const blueScore = snapshot.blue_area || 0
+           const { underdog, multiplier: bonus, diffRatio } = calculateFactionBalance(
+             redScore,
+             blueScore
            )
-           
+           console.log('Faction bonus debug:', {
+             redScore,
+             blueScore,
+             scoreDiffRatio: diffRatio,
+             bonusMultiplier: bonus
+           })
            if (underdog && underdog.toUpperCase() === profile.faction.toUpperCase()) {
               multiplier = bonus
            }

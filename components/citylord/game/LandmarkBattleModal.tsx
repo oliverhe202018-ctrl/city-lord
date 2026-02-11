@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { X } from "lucide-react";
 
 interface LandmarkBattleModalProps {
@@ -11,9 +11,8 @@ interface LandmarkBattleModalProps {
 }
 
 export function LandmarkBattleModal({ isOpen, onClose, onBattleComplete, landmarkName }: LandmarkBattleModalProps) {
-  if (!isOpen) return null;
-
   useEffect(() => {
+    if (!isOpen) return
     const handleMessage = (event: MessageEvent) => {
       // Security check: ensure origin matches if hosted externally
       // if (event.origin !== "https://your-cdn.com") return;
@@ -25,7 +24,9 @@ export function LandmarkBattleModal({ isOpen, onClose, onBattleComplete, landmar
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [onBattleComplete]);
+  }, [isOpen, onBattleComplete]);
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-[10000] bg-black flex flex-col animate-in fade-in duration-300">

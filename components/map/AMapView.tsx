@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useEffect, useRef, useState, forwardRef, useImperativeHandle } from "react";
+import React, { useEffect, useRef, useState, forwardRef, useImperativeHandle, useMemo } from "react";
 import AMapLoader from "@amap/amap-jsapi-loader";
 import { useCity } from "@/contexts/CityContext";
 import FogLayer from "./FogLayer";
@@ -53,7 +53,13 @@ const MapViewOrchestrator = () => {
   });
 
   // 2. Reverse geocode when geolocation data is available
-  const { address, error: geocodeError } = useReverseGeocode(geoData);
+  const validGeoData = useMemo(() => {
+    if (!geoData) return null
+    if (geoData.latitude === 0 && geoData.longitude === 0) return null
+    return geoData
+  }, [geoData])
+
+  const { address, error: geocodeError } = useReverseGeocode(validGeoData);
 
   // 3. Center the map when the region is updated
   useEffect(() => {

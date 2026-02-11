@@ -275,7 +275,7 @@ export default function ChallengesPage() {
           <div className="flex-1">
             <p className="text-sm font-bold text-blue-400 mb-1">演示模式</p>
             <p className="text-xs text-white/60 leading-relaxed">
-              点击"模拟解锁"按钮可以随机解锁一个成就。点击挑战卡片可以查看详情并开始挑战。
+              点击&quot;模拟解锁&quot;按钮可以随机解锁一个成就。点击挑战卡片可以查看详情并开始挑战。
             </p>
           </div>
           <button
