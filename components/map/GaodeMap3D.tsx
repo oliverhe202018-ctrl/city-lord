@@ -402,7 +402,7 @@ export function GaodeMap3D({
     }
 
     // 1. Draw Path (Polyline)
-    if (safePath.length > 0) {
+    if (safePath && safePath.length > 0) {
       const pathCoords = safePath.map(p => [p.lng, p.lat])
       
       if (!polylineRef.current) {
@@ -428,12 +428,12 @@ export function GaodeMap3D({
 
     // 2. Draw Closed Polygons
     // Remove old polygons
-    if (polygonRefs.current.length > 0) {
+    if (polygonRefs.current && polygonRefs.current.length > 0) {
         map.remove(polygonRefs.current)
         polygonRefs.current = []
     }
 
-    if (safeClosedPolygons.length > 0) {
+    if (safeClosedPolygons && safeClosedPolygons.length > 0) {
         const newPolygons = safeClosedPolygons.map(polyPath => {
             const coords = polyPath.map(p => [p.lng, p.lat])
             return new AMap.Polygon({
@@ -468,23 +468,29 @@ export function GaodeMap3D({
   useEffect(() => {
     if (!mapInstanceRef.current || !window.AMap) return
 
-    const pathCoordinates = safePath.map(p => [p.lng, p.lat])
+    const pathCoordinates = (safePath || []).map(p => [p.lng, p.lat])
 
-    if (polylineRef.current) {
-        // Update existing polyline
-        polylineRef.current.setPath(pathCoordinates)
-        polylineRef.current.setOptions({ strokeColor: pathColor })
-    } else {
-        // Create new polyline
-        polylineRef.current = new window.AMap.Polyline({
-            path: pathCoordinates,
-            strokeColor: pathColor,
-            strokeWeight: 6,
-            strokeOpacity: 0.9,
-            zIndex: 100,
-            showDir: true
-        })
-        mapInstanceRef.current.add(polylineRef.current)
+    if (pathCoordinates.length > 0) {
+      if (polylineRef.current) {
+          // Update existing polyline
+          polylineRef.current.setPath(pathCoordinates)
+          polylineRef.current.setOptions({ strokeColor: pathColor })
+      } else {
+          // Create new polyline
+          polylineRef.current = new window.AMap.Polyline({
+              path: pathCoordinates,
+              strokeColor: pathColor,
+              strokeWeight: 6,
+              strokeOpacity: 0.9,
+              zIndex: 100,
+              showDir: true
+          })
+          mapInstanceRef.current.add(polylineRef.current)
+      }
+    } else if (polylineRef.current) {
+       // Clear if empty
+       mapInstanceRef.current.remove(polylineRef.current)
+       polylineRef.current = null
     }
   }, [path, pathColor, isMapReady])
 
@@ -493,27 +499,32 @@ export function GaodeMap3D({
     if (!mapInstanceRef.current || !window.AMap) return
 
     // Clear existing polygons
-    if (polygonRefs.current.length > 0) {
+    if (polygonRefs.current && polygonRefs.current.length > 0) {
         mapInstanceRef.current.remove(polygonRefs.current)
         polygonRefs.current = []
     }
 
     // Add new polygons
-    const newPolygons = safeClosedPolygons.map(poly => {
-        const coords = poly.map(p => [p.lng, p.lat])
-        return new window.AMap.Polygon({
-            path: coords,
-            strokeColor: pathColor,
-            strokeWeight: 2,
-            strokeOpacity: 0.8,
-            fillColor: fillColor,
-            fillOpacity: 0.4,
-            zIndex: 90
-        })
-    })
+    if (safeClosedPolygons && safeClosedPolygons.length > 0) {
+      const newPolygons = safeClosedPolygons.map(poly => {
+          const coords = poly.map(p => [p.lng, p.lat])
+          return new window.AMap.Polygon({
+              path: coords,
+              strokeColor: pathColor,
+              strokeWeight: 2,
+              strokeOpacity: 0.8,
+              fillColor: fillColor,
+              fillOpacity: 0.4,
+              zIndex: 90
+          })
+      })
 
-    if (newPolygons.length > 0) {
-        mapInstanceRef.current.add(newPolygons)
+      if (newPolygons.length > 0) {
+          mapInstanceRef.current.add(newPolygons)
+          polygonRefs.current = newPolygons
+      }
+    }
+
         polygonRefs.current = newPolygons
     }
   }, [closedPolygons, pathColor, fillColor, isMapReady])

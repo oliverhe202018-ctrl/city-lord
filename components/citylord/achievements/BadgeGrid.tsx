@@ -75,7 +75,7 @@ export function BadgeGrid({ initialData }: BadgeGridProps) {
 
   useEffect(() => {
     // Fetch user badges from new API
-    fetch('/api/badges/my')
+    fetch('/api/badges/my', { credentials: 'include' })
       .then(res => res.json())
       .then(data => {
         if (data.success) {

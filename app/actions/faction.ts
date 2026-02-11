@@ -7,16 +7,40 @@ export type Faction = 'RED' | 'BLUE'
 
 export async function getFactionStats() {
   try {
-    // Use Prisma to bypass RLS and get accurate counts directly from DB
-    const redCount = await prisma.territory.count({ where: { faction: 'RED' } })
-    const blueCount = await prisma.territory.count({ where: { faction: 'BLUE' } })
+    // 1. Get Member Counts (from profiles)
+    // Use Prisma with case-insensitive check
+    const redCount = await prisma.profiles.count({
+      where: { faction: { equals: 'Red', mode: 'insensitive' } }
+    })
+    const blueCount = await prisma.profiles.count({
+      where: { faction: { equals: 'Blue', mode: 'insensitive' } }
+    })
 
-    // Calculate Area (Mock or based on hex count)
-    // 1 hex ~= 0.06 sq km (approx)
-    const redArea = redCount * 0.06
-    const blueArea = blueCount * 0.06
+    // 2. Get Area Counts (from territories)
+    // Note: 'territories' is the correct model name
+    const redTerritories = await prisma.territories.count({
+      where: {
+        profiles: {
+          faction: { equals: 'Red', mode: 'insensitive' }
+        }
+      }
+    })
+    
+    const blueTerritories = await prisma.territories.count({
+      where: {
+        profiles: {
+          faction: { equals: 'Blue', mode: 'insensitive' }
+        }
+      }
+    })
 
-    // Calculate percentages
+    // Calculate Area (1 hex ~= 0.06 sq km)
+    const redArea = redTerritories * 0.06
+    const blueArea = blueTerritories * 0.06
+
+    // Calculate percentages (based on Members or Area? Usually Area for domination, but Members for balance)
+    // Let's use Members for the "RED/BLUE" count return, and Area for "redArea/blueArea"
+    // The "percentages" usually refer to population balance in this context
     const totalCount = redCount + blueCount
     const redPercent = totalCount > 0 ? (redCount / totalCount) * 100 : 50
     const bluePercent = totalCount > 0 ? (blueCount / totalCount) * 100 : 50

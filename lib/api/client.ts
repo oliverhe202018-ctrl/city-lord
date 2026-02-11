@@ -53,9 +53,18 @@ class ApiClient {
     const response = await fetch(`${this.baseUrl}${url}`, {
       ...restOptions,
       headers,
+      credentials: 'include',
     });
 
     if (!response.ok) {
+      // Handle 401 Unauthorized
+      if (response.status === 401) {
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login';
+        }
+        throw new Error('Unauthorized');
+      }
+
       // 处理 409 Conflict (并发/处理中)
       if (response.status === 409) {
         throw new Error('请求正在处理中，请勿重复提交');

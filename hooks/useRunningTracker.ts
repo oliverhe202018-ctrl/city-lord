@@ -88,7 +88,7 @@ export function useRunningTracker(isRunning: boolean): RunningStats {
 
     const fetchServerState = async () => {
       try {
-        const res = await fetch('/api/run/current');
+        const res = await fetch('/api/run/current', { credentials: 'include' });
         if (!res.ok) return;
         const data = await res.json();
 

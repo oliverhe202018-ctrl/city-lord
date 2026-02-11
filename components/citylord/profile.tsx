@@ -16,6 +16,7 @@ import { toast } from "sonner"
 import { calculateLevel, getNextLevelProgress, getTitle } from "@/lib/game-logic/level-system"
 import { BadgeGrid } from "@/components/citylord/achievements/BadgeGrid"
 import { FactionComparison } from "@/components/citylord/FactionComparison"
+import { useUserBadges } from "@/hooks/useGameData"
 import { Dialog,
   DialogContent,
   DialogHeader,
@@ -90,7 +91,7 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
   React.useEffect(() => {
     const fetchStats = async () => {
       try {
-        const res = await fetch('/api/faction/stats')
+        const res = await fetch('/api/faction/stats', { credentials: 'include' })
         if (!res.ok) {
           throw new Error(`Failed to fetch: ${res.status}`)
         }
