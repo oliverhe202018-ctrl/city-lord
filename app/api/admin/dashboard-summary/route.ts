@@ -4,17 +4,17 @@ import { prisma } from '@/lib/prisma'
 export async function GET() {
   try {
     const [totalUsers, activeClubs, pendingClubs, redFaction, blueFaction] = await Promise.all([
-      prisma.profile.count(),
+      prisma.profiles.count(),
       prisma.clubs.count({ where: { status: 'active' } }),
       prisma.clubs.count({ where: { status: 'pending' } }),
-      prisma.profile.count({ where: { faction: 'RED' } }),
-      prisma.profile.count({ where: { faction: 'BLUE' } })
+      prisma.profiles.count({ where: { faction: 'Red' } }),
+      prisma.profiles.count({ where: { faction: 'Blue' } })
     ])
 
     // Get new users today
     const today = new Date()
     today.setHours(0, 0, 0, 0)
-    const newUsersToday = await prisma.profile.count({
+    const newUsersToday = await prisma.profiles.count({
       where: {
         created_at: {
           gte: today.toISOString()
