@@ -1,6 +1,8 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { revalidatePath, revalidateTag, unstable_cache } from 'next/cache'
+import { cookies } from 'next/headers'
 import { Database } from '@/types/supabase'
 
 type ClubRow = Database['public']['Tables']['clubs']['Row']
@@ -782,6 +784,35 @@ export async function disbandClub(clubId: string) {
   }
 }
 
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+
+// 5. Get Club Details Cached (Optimized for Performance)
+export const getClubDetailsCached = unstable_cache(
+  async (clubId: string) => {
+    // Create a Service Role Client to bypass cookies() requirement in cache scope
+    // This is safe because v_clubs_summary contains public info and we are caching it globally
+    const supabase = createSupabaseClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+    
+    // Use the optimized view (or fallback to table if view doesn't exist yet, but we created it)
+    const { data, error } = await supabase
+      .from('v_clubs_summary')
+      .select('*')
+      .eq('club_id', clubId)
+      .single()
+
+    if (error) {
+       console.error('Fetch Cached Club Details Error:', error)
+       return null
+    }
+    return data
+  },
+  ['club-details'],
+  { revalidate: 3600, tags: ['club-details'] }
+)
+
 // ==================== Data Fetching for View (Refactored) ====================
 
 // 1. Get Club Rankings (Province/National)
@@ -891,6 +922,32 @@ export async function getInternalMembers(clubId: string) {
   }))
 
   return members.sort((a: any, b: any) => b.area - a.area).map((m: any, i: number) => ({ ...m, rank: i + 1 }))
+}
+
+export async function getClubTerritories(clubId: string) {
+  const supabase = await createClient(); 
+  
+  // Get all member IDs first
+  const { data: members } = await supabase
+    .from('club_members')
+    .select('user_id')
+    .eq('club_id', clubId);
+    
+  const memberIds = members?.map(m => m.user_id) || [];
+
+  if (memberIds.length === 0) return [];
+
+  // Fetch territories owned by these members
+  const { data, error } = await supabase
+    .from('territories')
+    .select('id, location, owner_id')
+    .in('owner_id', memberIds);
+  
+  if (error) {
+    console.error('Error fetching club territories:', error);
+    return [];
+  }
+  return data || [];
 }
 
 // 3. Get Club Territories (Runs)

@@ -13,13 +13,18 @@ export default async function BadgesPage() {
     }
   })
 
-  // Format image paths correctly
+  // Format image paths correctly and serialize Decimal
   const formattedBadges = badges.map(badge => ({
     ...badge,
     image: badge.icon_name ? `/badges/${badge.icon_name}` : '/badges/default.png',
     // Map database fields to UI expected fields if necessary
     rarity: badge.tier || 'bronze',
-    maxProgress: Number(badge.requirement_value) || 0
+    // Serialize Decimal to number to prevent Next.js serialization error
+    requirement_value: badge.requirement_value ? Number(badge.requirement_value) : 0,
+    maxProgress: badge.requirement_value ? Number(badge.requirement_value) : 0,
+    // Add condition_value serialization if it exists in schema as Decimal (though schema says Int?)
+    // Checking schema: condition_value Int? - So it's safe. 
+    // Checking schema: requirement_value Decimal? - Needs conversion.
   }))
 
   return (

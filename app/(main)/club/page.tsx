@@ -1,55 +1,47 @@
-'use client';
+import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
+import ClubList from '@/components/citylord/club/ClubList'
+import { ClubDetailView } from '@/components/citylord/club/ClubDetailView'
 
-import { useEffect, useState } from 'react';
-import { createClient } from "@/lib/supabase/client";
-import { ClubList } from "@/components/citylord/club/ClubList";
-import { ClubDetailView } from "@/components/citylord/club/ClubDetailView";
+export default async function ClubPage() {
+  const supabase = await createClient()
+  
+  // 1. 获取当前用户
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  if (!user) {
+    redirect('/login')
+  }
 
-export default function ClubPage() {
-  const [loading, setLoading] = useState(true);
-  const [myClubId, setMyClubId] = useState<string | null>(null);
+  // 2. ✅ 查询用户的俱乐部信息（从 profiles 表）
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('club_id')
+    .eq('id', user.id)
+    .single()
 
-  useEffect(() => {
-    async function checkClub() {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+  // 3. ✅ 如果 club_id 存在，验证成员关系
+  if (profile?.club_id) {
+    // 验证成员关系是否真实存在
+    const { data: membership } = await supabase
+      .from('club_members')
+      .select('status, club_id')
+      .eq('user_id', user.id)
+      .eq('club_id', profile.club_id)
+      .maybeSingle()
 
-      if (!user) {
-        setLoading(false);
-        return;
-      }
-
-      // 1. 优先查询：我是不是某个俱乐部的成员？
-      const { data: member } = await supabase
-        .from('club_members')
-        .select('club_id')
-        .eq('user_id', user.id)
-        .single();
-
-      // 2. 再次查询：我是不是某个俱乐部的所有者（Owner）？
-      const { data: owner } = await supabase
-        .from('clubs')
-        .select('id')
-        .eq('owner_id', user.id)
-        .single();
-        
-      setMyClubId(member?.club_id || owner?.id || null);
-      setLoading(false);
+    // 如果成员关系存在（无论是 pending 还是 active），显示详情
+    if (membership) {
+      return <ClubDetailView clubId={profile.club_id} isJoined={membership.status === 'active'} />
     }
-    checkClub();
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-black">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
+    
+    // 如果成员关系不存在但 profile.club_id 存在（数据不一致），修复它
+    await supabase
+      .from('profiles')
+      .update({ club_id: null })
+      .eq('id', user.id)
   }
 
-  if (myClubId) {
-    return <ClubDetailView clubId={myClubId} />;
-  }
-
-  return <ClubList />;
+  // 4. 未加入任何俱乐部，显示列表
+  return <ClubList />
 }

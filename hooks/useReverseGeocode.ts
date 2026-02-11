@@ -76,11 +76,12 @@ export const useReverseGeocode = (options: ReverseGeocodeOptions | null) => {
             centerLngLat: lngLat, // Current location
             lastFixCenter: lngLat, // Save as last fix
           });
+        } else if (status === 'no_data') {
+          // Handle 'no_data' gracefully: it's not a system error, just no address found (e.g. ocean)
+          // Do NOT set error state to avoid triggering error boundaries or logs
+          setState({ loading: false, error: null, address: null });
         } else {
-          // Ignore 'no_data' error to prevent console spam
-          if (result !== 'no_data') {
-             console.error('[ReverseGeocode] Failed:', status, result);
-          }
+          console.error('[ReverseGeocode] Failed:', status, result);
           setState({ loading: false, error: result || 'Reverse geocode failed', address: null });
         }
       });

@@ -8,7 +8,7 @@ import { calculateLevel } from '@/lib/game-logic/level-system'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 
-import { checkAndAwardBadges } from '@/app/lib/badges'
+import { checkAndAwardBadges } from '@/app/actions/check-achievements'
 
 export async function stopRunningAction(context: RunContext) {
   const supabase = await createClient()
@@ -184,10 +184,10 @@ export async function stopRunningAction(context: RunContext) {
     })
     
     // Check Badges after transaction
-    const newBadges = await checkAndAwardBadges(user.id, {
+    const newBadges = await checkAndAwardBadges(user.id, 'RUN_FINISHED', {
         distance: context.distance * 1000,
         endTime: context.endTime,
-        pace: context.distance > 0 ? ((context.endTime.getTime() - context.startTime.getTime()) / 1000) / context.distance : 0 // sec/km
+        pace: context.distance > 0 ? ((context.endTime.getTime() - context.startTime.getTime()) / 1000 / 60) / context.distance : 0 // min/km
     })
 
     return { 

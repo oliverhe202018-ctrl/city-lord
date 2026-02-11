@@ -26,7 +26,7 @@ import { toast } from "@/hooks/use-toast";
 import { useGameStore } from "@/store/useGameStore";
 import { calculateSmartRoute } from "@/lib/utils/routing";
 import { latLngToCell } from "h3-js";
-import AMapLoader from "@amap/amap-jsapi-loader";
+import MapManager from "@/lib/mapManager";
 import { Capacitor } from "@capacitor/core";
 
 // Security Config
@@ -134,25 +134,33 @@ export default function PlannerClientView() {
         return; // Don't run on server
     }
 
-    AMapLoader.load({
-      key: AMAP_KEY,
-      version: "2.0",
-      plugins: ["AMap.Scale", "AMap.ToolBar", "AMap.Walking", "AMap.GeometryUtil", "AMap.Geolocation", "AMap.Polyline", "AMap.Marker", "AMap.Polygon"],
-    }).then((AMap) => {
-      if (!mapContainerRef.current) return; // Guard: Component might have unmounted
-
-      const map = new AMap.Map(mapContainerRef.current, {
-        viewMode: "2D",
-        zoom: 17,
+    MapManager.getInstance()
+      .initMap({
+        key: AMAP_KEY,
+        version: "2.0",
+        plugins: [
+          "AMap.Scale",
+          "AMap.ToolBar",
+          "AMap.Walking",
+          "AMap.GeometryUtil",
+          "AMap.Geolocation",
+          "AMap.Polyline",
+          "AMap.Marker",
+          "AMap.Polygon",
+        ],
+        container: mapContainerRef.current!,
         center: [userLng || 116.397, userLat || 39.909],
+        zoom: 17,
         mapStyle: "amap://styles/dark",
-        skyColor: '#1f2029'
-      });
+        skyColor: "#1f2029",
+      })
+      .then(({ map, AMap }) => {
+        if (!mapContainerRef.current) return;
 
-      mapInstanceRef.current = map;
-      amapRef.current = AMap; // Store AMap instance
+        mapInstanceRef.current = map;
+        amapRef.current = AMap;
 
-      map.plugin('AMap.Geolocation', () => {
+        map.plugin("AMap.Geolocation", () => {
         const geolocation = new AMap.Geolocation({
           enableHighAccuracy: true,
           timeout: 10000,
@@ -220,7 +228,7 @@ export default function PlannerClientView() {
       
       if (mapInstanceRef.current) {
         mapInstanceRef.current.off('click', handleMapClick);
-        mapInstanceRef.current.destroy();
+        MapManager.getInstance().destroyMap();
       }
     };
   }, [userLat, userLng]);
