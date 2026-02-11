@@ -35,7 +35,7 @@ export interface Friend {
 
 export async function fetchFriends(): Promise<Friend[]> {
   const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = await createClient(cookieStore)
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) return []
@@ -106,7 +106,7 @@ export async function fetchFriends(): Promise<Friend[]> {
 
 export async function searchUsers(query: string): Promise<Friend[]> {
   const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = await createClient(cookieStore)
   
   if (!query || query.length < 2) return []
 
@@ -153,7 +153,7 @@ export interface FriendActivity {
 
 export async function fetchFriendActivities(): Promise<FriendActivity[]> {
   const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = await createClient(cookieStore)
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) return []
@@ -345,7 +345,7 @@ export interface RecommendedUser {
 
 export async function getRecommendedUsers(): Promise<RecommendedUser[]> {
   const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = await createClient(cookieStore)
   const { data: { user } } = await supabase.auth.getUser()
   
   if (!user) return []
@@ -418,7 +418,7 @@ export async function getRecommendedUsers(): Promise<RecommendedUser[]> {
 
 export async function sendFriendRequest(targetUserId: string) {
   const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = await createClient(cookieStore)
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) throw new Error('Not authenticated')
@@ -459,7 +459,7 @@ export async function sendFriendRequest(targetUserId: string) {
 
 export async function getFriendRequests() {
   const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = await createClient(cookieStore)
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) return []
@@ -498,7 +498,7 @@ export async function getFriendRequests() {
 
 export async function respondToFriendRequest(userId: string, action: 'accept' | 'reject') {
   const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = await createClient(cookieStore)
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) throw new Error('Not authenticated')
@@ -537,7 +537,7 @@ export async function createChallenge(params: {
   rewardXp?: number
 }) {
   const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = await createClient(cookieStore)
   const { data: { user } } = await supabase.auth.getUser()
   
   if (!user) throw new Error('Not authenticated')
@@ -571,7 +571,7 @@ export async function createChallenge(params: {
 
 export async function getPendingChallenges() {
   const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = await createClient(cookieStore)
   const { data: { user } } = await supabase.auth.getUser()
   
   if (!user) return []
@@ -625,7 +625,7 @@ export async function getPendingChallenges() {
 
 export async function respondToChallenge(challengeId: string, accept: boolean) {
    const cookieStore = await cookies()
-   const supabase = createClient(cookieStore)
+   const supabase = await createClient(cookieStore)
    
    // Mark message as read (handled)
    const { error } = await supabase

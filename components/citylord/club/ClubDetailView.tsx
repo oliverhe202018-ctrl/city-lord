@@ -1,10 +1,12 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import useSWR from 'swr'
 import { createClient } from '@/lib/supabase/client'
+import { getClubDetailsCached } from '@/app/actions/club'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Trophy, Map, Users, Footprints } from 'lucide-react'
+import { Trophy, Map, Users, Footprints, Loader2 } from 'lucide-react'
 
 type ClubDetailInfo = {
   id: string
@@ -56,6 +58,9 @@ type TopClub = {
   totalArea: number
 }
 
+import { useRouter } from 'next/navigation'
+import { useGameStore } from '@/store/useGameStore'
+
 export function ClubDetailView({ 
   clubId, 
   onChange, 
@@ -73,7 +78,23 @@ export function ClubDetailView({
   onBack?: () => void;
   topClubs?: TopClub[];
 }) {
+  const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
+  
+  // Local state to override Props for immediate UI transition
+  const [hasJoined, setHasJoined] = useState(false);
+  const effectiveIsMember = isJoined || hasJoined;
+
+  // Optimized Data Fetching with SWR & Server Action Cache
+  const { data: cachedClub, isLoading: isClubLoading } = useSWR(
+    clubId ? ['club-details', clubId] : null,
+    ([_, id]) => getClubDetailsCached(id),
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 60000, // 1 minute
+    }
+  );
+
   const [club, setClub] = useState<ClubDetailInfo | null>(null)
   const [members, setMembers] = useState<ClubDetailMember[]>([])
   const [stats, setStats] = useState<ClubDetailStats>({
@@ -86,10 +107,6 @@ export function ClubDetailView({
   const [rankType, setRankType] = useState<'global' | 'local'>('global');
   const [topClubsLocal, setTopClubsLocal] = useState<TopClub[]>([]);
 
-  // Local state to override Props for immediate UI transition
-  const [hasJoined, setHasJoined] = useState(false);
-  const effectiveIsMember = isJoined || hasJoined;
-
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 5;
   const totalPages = Math.ceil(members.length / ITEMS_PER_PAGE);
@@ -97,10 +114,43 @@ export function ClubDetailView({
 
   const handleJoinClick = async () => {
     if (onJoin) {
+      // If onJoin prop is provided (legacy or wrapper), use it
       const result = await onJoin();
       if (result === true) {
         setHasJoined(true);
       }
+    } else {
+        // Direct Server Action Call
+        try {
+            const { joinClub } = await import('@/app/actions/club');
+            const result = await joinClub(clubId);
+            
+            if (result.success) {
+                setHasJoined(true);
+                
+                // ✅ 同步更新 Zustand
+                if (result.clubId) {
+                    useGameStore.getState().updateClubId(result.clubId)
+                }
+
+                const message = result.status === 'active' 
+                ? '加入成功！' 
+                : '申请已提交，等待审核'
+                
+                toast.success(message)
+
+                // ✅ 关键：延迟 500ms 后跳转到 /club 页面
+                setTimeout(() => {
+                    router.push('/club')
+                    router.refresh() // 强制刷新数据
+                }, 500)
+            } else {
+                toast.error(result.error || '加入失败')
+            }
+        } catch (e) {
+            console.error('Join club error:', e)
+            toast.error('网络请求失败')
+        }
     }
   };
 
@@ -108,24 +158,31 @@ export function ClubDetailView({
     if (!clubId) return
 
     const load = async () => {
-      const { data: clubData } = await supabase
-        .from('clubs')
-        .select('id, name, description, avatar_url, member_count, province')
-        .eq('id', clubId)
-        .single()
-      
-      // Fetch rankings
-      const { getClubRankStats, getTopClubsByArea } = await import('@/app/actions/club');
-      const rankStats = await getClubRankStats(clubId);
-      setRankings(rankStats);
+      // 1. If we have cached data, sync it to 'club' state first for immediate UI
+      if (cachedClub) {
+        const toPublicUrl = (path: string | null | undefined, bucket: string) => {
+          if (!path) return null
+          if (isPublicUrl(path)) return path
+          const { data } = supabase.storage.from(bucket).getPublicUrl(path)
+          return data.publicUrl || null
+        }
 
-      // Fetch local top clubs if needed
-      if (clubData?.province) {
-          const localData = await getTopClubsByArea(5, clubData.province);
-          setTopClubsLocal(localData);
+        setClub({
+          id: cachedClub.club_id,
+          name: cachedClub.name,
+          description: cachedClub.description,
+          avatarUrl: toPublicUrl(cachedClub.avatar_url, 'clubs'),
+          memberCount: cachedClub.member_count || 0,
+          province: cachedClub.province,
+          totalArea: Number(cachedClub.total_area) || 0
+        })
       }
 
-      const { data: memberRows } = await supabase
+      // 2. Fetch additional details (rankings, members, stats)
+      const { getClubRankStats, getTopClubsByArea } = await import('@/app/actions/club');
+      
+      const rankStatsPromise = getClubRankStats(clubId);
+      const memberRowsPromise = supabase
         .from('club_members')
         .select(`
           user_id,
@@ -137,30 +194,33 @@ export function ClubDetailView({
           )
         `)
         .eq('club_id', clubId)
-        .eq('status', 'active')
+        .eq('status', 'active');
 
-      const { data: runRows } = await supabase
+      const runRowsPromise = supabase
         .from('runs')
         .select('distance')
-        .eq('club_id', clubId)
+        .eq('club_id', clubId);
+
+      const [rankStats, { data: memberRows }, { data: runRows }] = await Promise.all([
+        rankStatsPromise,
+        memberRowsPromise,
+        runRowsPromise
+      ]);
+
+      setRankings(rankStats);
+
+      // Fetch local top clubs if province is available
+      const currentProvince = cachedClub?.province || club?.province;
+      if (currentProvince) {
+          const localData = await getTopClubsByArea(5, currentProvince);
+          setTopClubsLocal(localData);
+      }
 
       const toPublicUrl = (path: string | null | undefined, bucket: string) => {
         if (!path) return null
         if (isPublicUrl(path)) return path
         const { data } = supabase.storage.from(bucket).getPublicUrl(path)
         return data.publicUrl || null
-      }
-
-      if (clubData) {
-        setClub({
-          id: clubData.id,
-          name: clubData.name,
-          description: clubData.description,
-          avatarUrl: toPublicUrl(clubData.avatar_url, 'clubs'),
-          memberCount: clubData.member_count || 0,
-          province: clubData.province,
-          totalArea: (clubData as any).total_area || 0
-        })
       }
 
       const mappedMembers = (memberRows || []).map((row: any) => ({
@@ -177,7 +237,7 @@ export function ClubDetailView({
         return sum + Number(item.distance || 0)
       }, 0)
       const totalCalories = Math.round(totalDistanceKm * 60)
-      const memberCount = clubData?.member_count || mappedMembers.length
+      const memberCount = cachedClub?.member_count || mappedMembers.length
 
       setStats({
         totalDistanceKm,
@@ -187,12 +247,21 @@ export function ClubDetailView({
     }
 
     load()
-  }, [clubId, supabase])
+  }, [clubId, supabase, cachedClub]) // Depend on cachedClub to trigger sync when SWR returns
 
   const displayTopClubs = rankType === 'global' ? topClubs : topClubsLocal;
 
+  if (isClubLoading && !club) {
+    return (
+      <div className="w-full h-[300px] flex flex-col items-center justify-center bg-black text-white gap-4">
+        <Loader2 className="w-8 h-8 animate-spin text-yellow-500" />
+        <div className="text-sm text-white/50">正在加载俱乐部详情...</div>
+      </div>
+    );
+  }
+
   if (!club) {
-    return <div className="p-8 text-center text-white">加载中...</div>
+    return <div className="p-8 text-center text-white">俱乐部信息不存在</div>
   }
 
   const formatArea = (area: number | undefined) => {

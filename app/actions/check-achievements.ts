@@ -1,203 +1,182 @@
-// 'use server'
+'use server'
 
-import { createClient } from '@/mock-supabase'
-import { cookies } from '@/mock-headers'
-import { ACHIEVEMENT_DEFINITIONS } from '@/lib/achievements'
-import { getUserProfileStats } from './user'
+import { prisma } from '@/lib/prisma'
 
-export interface AchievementCheckResult {
-  newBadges: string[]
-  rewards: {
-    xp: number
-    coins: number
-  }
+export type TriggerType = 'RUN_FINISHED' | 'TERRITORY_CAPTURE' | 'SOCIAL'
+
+export interface BadgeCheckContext {
+  distance?: number // meters
+  duration?: number // seconds
+  pace?: number // seconds per km or min/km? Usually min/km in logic, let's standardize.
+  // The user input said "pace < 4'00"". That's 4 minutes/km.
+  // We'll accept seconds per km for precision or min/km float. 
+  // Let's use min/km float.
+  endTime?: Date
 }
 
-export interface RunContext {
-  distance: number // km
-  duration: number // minutes
-  startTime: Date
-  endTime: Date
-  tilesCaptured: number
-  regionId?: string
-  pace?: number // min/km
-}
+export async function checkAndAwardBadges(
+  userId: string, 
+  triggerType: TriggerType, 
+  context?: BadgeCheckContext
+) {
+  try {
+    // 1. Fetch all badges and user's earned badges
+    const [allBadges, earnedBadges] = await Promise.all([
+      prisma.badges.findMany(),
+      prisma.user_badges.findMany({
+        where: { user_id: userId },
+        select: { badge_id: true }
+      })
+    ])
 
-/**
- * Checks all achievement conditions against user stats and grants new ones.
- * This should be called after significant user actions (run finish, tile capture).
- * @param runContext Optional context from a just-finished run to check single-event achievements
- */
-export async function checkAndGrantAchievements(runContext?: RunContext): Promise<AchievementCheckResult> {
-  const supabase = await createClient()
-  
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { newBadges: [], rewards: { xp: 0, coins: 0 } }
+    const earnedBadgeIds = new Set(earnedBadges.map(ub => ub.badge_id))
+    const unearnedBadges = allBadges.filter(b => !earnedBadgeIds.has(b.id))
 
-  // 1. Get User Stats
-  const stats = await getUserProfileStats()
-  
-  // 2. Get Owned Badges
-  const { data: userBadges } = await supabase
-    .from('user_badges')
-    .select('badge_id')
-    .eq('user_id', user.id)
-  
-  const ownedIds = new Set(userBadges?.map(b => b.badge_id) || [])
-  const newBadges: string[] = []
-  let totalXp = 0
-  let totalCoins = 0
+    if (unearnedBadges.length === 0) return []
 
-  // Helper for region count
-  let distinctRegionsCount = 0
-  if (!ownedIds.has('exploration_4')) {
-     const { count } = await supabase
-       .from('user_city_progress')
-       .select('city_id', { count: 'exact', head: true })
-       .eq('user_id', user.id)
-     distinctRegionsCount = count || 0
-  }
-
-  // 3. Iterate Definitions and Check Conditions
-  for (const def of ACHIEVEMENT_DEFINITIONS) {
-    if (ownedIds.has(def.id)) continue
-
-    let qualified = false
-
-    // --- Territory Logic ---
-    if (def.category === 'territory') {
-      // Basic count checks
-      if (def.id === 'exploration_1' && stats.totalTiles >= 1) qualified = true
-      if (def.id === 'exploration_2' && stats.totalTiles >= 1) qualified = true 
-      if (def.id === 'exploration_3' && stats.totalTiles >= 10) qualified = true
-      if (def.id === 'exploration_7' && stats.totalTiles >= 100) qualified = true
-      
-      // "exploration_4": "3 different regions"
-      if (def.id === 'exploration_4' && distinctRegionsCount >= 3) qualified = true
-
-      // "exploration_5": "3 consecutive days" (Simulated/Placeholder: grant if > 50 tiles for now)
-      if (def.id === 'exploration_5' && stats.totalTiles >= 50) qualified = true 
-
-      // "exploration_6": "Complete region" (Simulated: grant if > 200 tiles)
-      if (def.id === 'exploration_6' && stats.totalTiles >= 200) qualified = true
-
-      // "exploration_8": "Regional Overlord" (Simulated: grant if > 500 tiles)
-      if (def.id === 'exploration_8' && stats.totalTiles >= 500) qualified = true
-
-      // "exploration_9": "World End" (Simulated: grant if > 1000 tiles)
-      if (def.id === 'exploration_9' && stats.totalTiles >= 1000) qualified = true
-    }
-
-    // --- Endurance Logic ---
-    if (def.category === 'running') {
-      // Cumulative Distance
-      if (def.id === 'endurance_1' && stats.totalDistance >= 1) qualified = true
-      if (def.id === 'endurance_3' && stats.totalDistance >= 42.195) qualified = true
-      if (def.id === 'endurance_4' && stats.totalDistance >= 50) qualified = true
-      if (def.id === 'endurance_5' && stats.totalDistance >= 100) qualified = true
-      if (def.id === 'endurance_6' && stats.totalDistance >= 100) qualified = true // Simplified: Treat same as 100km total for now
-      if (def.id === 'endurance_8' && stats.totalDistance >= 500) qualified = true
-      if (def.id === 'endurance_9' && stats.totalDistance >= 1000) qualified = true
-      
-      // Single Run Context Checks
-      if (runContext) {
-        // "endurance_2": Single run > 10km
-        if (def.id === 'endurance_2' && runContext.distance >= 10) qualified = true
-        
-        // "endurance_7": 30 consecutive days (Simulated: grant if total > 300km)
-        if (def.id === 'endurance_7' && stats.totalDistance >= 300) qualified = true
-
-        // "endurance_10": Pace < 4:00/km (Run must be > 1km to count)
-        if (def.id === 'endurance_10' && runContext.distance >= 1) {
-           const pace = runContext.duration / runContext.distance
-           if (pace <= 4.0) qualified = true
-        }
+    // 2. Fetch User Stats (needed for most checks)
+    const profile = await prisma.profiles.findUnique({
+      where: { id: userId },
+      select: {
+        total_area: true,
+        total_distance_km: true,
+        nickname: true
       }
-    }
-
-    // --- Conquest Logic ---
-    if (def.category === 'territory' && def.id.startsWith('conquest')) {
-        // We lack "stolen" stats. Simulate based on battles won or total tiles.
-        // "conquest_1": 1 tile (Simulate with 5 total tiles)
-        if (def.id === 'conquest_1' && stats.totalTiles >= 5) qualified = true
-        // "conquest_2": 10 tiles (Simulate with 50 total tiles)
-        if (def.id === 'conquest_2' && stats.totalTiles >= 50) qualified = true
-        // "conquest_3": 100 tiles (Simulate with 500 total tiles)
-        if (def.id === 'conquest_3' && stats.totalTiles >= 500) qualified = true
-    }
-
-    // --- Hidden/Special Logic ---
-    if (def.category === 'special' && runContext) {
-        const hour = new Date(runContext.endTime).getHours()
-        
-        // "hidden_1": Early Bird (5-7 AM)
-        if (def.id === 'hidden_1' && hour >= 5 && hour < 7) qualified = true
-        
-        // "hidden_2": Night Walker (22-4 AM)
-        if (def.id === 'hidden_2' && (hour >= 22 || hour < 4)) qualified = true
-        
-        // "hidden_3": Flash/Rain (Simulated: Random chance 1/20 on run finish)
-        if (def.id === 'hidden_3' && Math.random() < 0.05) qualified = true
-    }
-
-    // --- Grant if qualified ---
-    if (qualified) {
-      // First, ensure the badge exists in the 'badges' table to satisfy FK
-      const { error: badgeError } = await supabase
-        .from('badges')
-        .upsert({
-            id: def.id,
-            name: def.title,
-            description: def.description,
-            category: def.category,
-            condition_value: def.maxProgress,
-            tier: def.rarity,
-            icon_name: 'award'
-        }, { onConflict: 'id' })
-
-      if (badgeError) {
-          console.error(`Failed to sync badge def ${def.id}`, badgeError)
-          continue
-      }
-
-      // Now grant to user
-      const { error: grantError } = await supabase
-        .from('user_badges')
-        .insert({
-          user_id: user.id,
-          badge_id: def.id,
-          earned_at: new Date().toISOString()
-        })
-
-      if (!grantError) {
-        newBadges.push(def.title)
-        if (def.rewards.xp) totalXp += def.rewards.xp
-        if (def.rewards.coins) totalCoins += def.rewards.coins
-      }
-    }
-  }
-
-  // 4. Apply Rewards
-  if (totalXp > 0 || totalCoins > 0) {
-    const { error: updateError } = await supabase.rpc('increment_user_stats', {
-        p_user_id: user.id,
-        p_xp: totalXp,
-        p_coins: totalCoins
     })
 
-    if (updateError) {
-        const { data: p } = await supabase.from('profiles').select('current_exp, coins').eq('id', user.id).single()
-        if (p) {
-            await supabase.from('profiles').update({
-                current_exp: (p.current_exp || 0) + totalXp,
-                coins: (p.coins || 0) + totalCoins
-            }).eq('id', user.id)
-        }
-    }
-  }
+    if (!profile) return []
 
-  return {
-    newBadges,
-    rewards: { xp: totalXp, coins: totalCoins }
+    const newBadges: any[] = []
+
+    // 3. Iterate and Check Conditions
+    for (const badge of unearnedBadges) {
+      let isQualified = false
+      const code = badge.code // Using code as the unique identifier for logic
+      
+      // Optimization: Filter by category/trigger if possible
+      // But codes are specific, so we switch on code or category
+
+      // --- Territory Logic ---
+      if (triggerType === 'TERRITORY_CAPTURE') {
+        if (code === 'landlord') {
+           // 大地主: active领地数 >= 10
+           const count = await prisma.territories.count({ where: { owner_id: userId } })
+           if (count >= 10) isQualified = true
+        }
+        else if (code === 'territory-raider') {
+           // 掠夺者: 历史总领地数 >= 50
+           // Using user_city_progress sum
+           const progress = await prisma.user_city_progress.aggregate({
+             where: { user_id: userId },
+             _sum: { tiles_captured: true }
+           })
+           const totalCaptured = progress._sum.tiles_captured || 0
+           if (totalCaptured >= 50) isQualified = true
+        }
+        else if (code === 'first-territory') {
+           // First Territory
+           // If we are here, user just captured one. 
+           // If they don't have the badge, and they captured one, grant it.
+           // Or check totalCaptured >= 1
+           const progress = await prisma.user_city_progress.aggregate({
+             where: { user_id: userId },
+             _sum: { tiles_captured: true }
+           })
+           if ((progress._sum.tiles_captured || 0) >= 1) isQualified = true
+        }
+      }
+
+      // --- Running Logic ---
+      if (triggerType === 'RUN_FINISHED') {
+        if (code === 'shoe-killer') {
+            // 跑鞋终结者: 总里程 >= 500km
+            if ((profile.total_distance_km || 0) >= 500) isQualified = true
+        }
+        else if (code === '100km-club') {
+            if ((profile.total_distance_km || 0) >= 100) isQualified = true
+        }
+        else if (code === 'city-walker') {
+            if ((profile.total_distance_km || 0) >= 50) isQualified = true // As per previous migration
+        }
+        else if (code === 'flash' && context) {
+            // 闪电侠: 配速 < 4'00" (4.0 min/km)
+            // context.pace is expected in min/km
+            // Ensure distance is reasonable (e.g. > 1km) to avoid GPS glitch
+            const distKm = (context.distance || 0) / 1000
+            if (distKm >= 1 && context.pace && context.pace < 4.0) {
+                isQualified = true
+            }
+        }
+        else if (code === 'marathon-god' && context) {
+             // Marathon: Single run > 42km
+             const distKm = (context.distance || 0) / 1000
+             if (distKm >= 42) isQualified = true
+        }
+        else if (code === 'early-bird' && context?.endTime) {
+            // 早起的鸟儿: 5:00 - 7:00
+            const hour = context.endTime.getHours()
+            if (hour >= 5 && hour < 7) isQualified = true
+        }
+        else if (code === 'night-walker' && context?.endTime) {
+            // 夜行者: 22:00 - 02:00
+            const hour = context.endTime.getHours()
+            if (hour >= 22 || hour < 2) isQualified = true
+        }
+      }
+
+      // --- Awarding ---
+      if (isQualified) {
+        // Double Check inside transaction to prevent race conditions
+        // Although we filtered earlier, concurrency could happen.
+        // We use insert ignore or try/catch.
+        
+        try {
+            await prisma.$transaction(async (tx) => {
+                // Check again
+                const existing = await tx.user_badges.findUnique({
+                    where: {
+                        user_id_badge_id: {
+                            user_id: userId,
+                            badge_id: badge.id
+                        }
+                    }
+                })
+
+                if (!existing) {
+                    // 1. Award Badge
+                    await tx.user_badges.create({
+                        data: {
+                            user_id: userId,
+                            badge_id: badge.id,
+                            earned_at: new Date()
+                        }
+                    })
+
+                    // 2. Create Notification
+                    await tx.notifications.create({
+                        data: {
+                            user_id: userId,
+                            title: '恭喜获得新勋章！',
+                            body: `你已解锁【${badge.name}】勋章！${badge.description || ''}`,
+                            type: 'badge',
+                            is_read: false
+                        }
+                    })
+                    
+                    newBadges.push(badge)
+                }
+            })
+        } catch (error) {
+            console.error(`Failed to award badge ${badge.code}:`, error)
+            // Continue to next badge
+        }
+      }
+    }
+
+    return newBadges
+
+  } catch (error) {
+    console.error('checkAndAwardBadges error:', error)
+    return []
   }
 }

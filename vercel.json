@@ -1,7 +1,7 @@
 {
   "crons": [
     {
-      "path": "/api/cron/update-faction-stats",
+      "path": "/api/cron/daily-stats",
       "schedule": "0 0 * * *"
     }
   ]

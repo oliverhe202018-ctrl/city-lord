@@ -72,6 +72,12 @@ export function ClubDrawer({ isOpen, onClose, onOpenCreate }: ClubDrawerProps) {
 
   // Effects
   React.useEffect(() => {
+    if (!isOpen) {
+      setViewingClubId(null);
+    }
+  }, [isOpen]);
+
+  React.useEffect(() => {
     const checkUser = async () => {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()

@@ -28,6 +28,7 @@ export interface UserState {
   avatar: string;
   achievements: Record<string, boolean>; // id -> claimed
   unreadMessageCount: number;
+  clubId: string | null; // 新增：当前俱乐部ID
 }
 
 export interface LocationState {
@@ -127,6 +128,7 @@ export interface ModeActions {
 
 export interface UserActions {
   setNickname: (nickname: string) => void;
+  updateClubId: (clubId: string | null) => void;
   setUnreadMessageCount: (count: number) => void;
   addExperience: (amount: number) => void;
   addCoins: (amount: number) => void;
@@ -368,6 +370,7 @@ const createModeSlice: StateCreator<GameStore, [], [], ModeActions> = (set, get)
 
 const createUserSlice: StateCreator<GameStore, [], [], UserActions> = (set, get) => ({
   setNickname: (nickname) => set({ nickname }),
+  updateClubId: (clubId) => set({ clubId }),
   setUnreadMessageCount: (count) => set({ unreadMessageCount: count }),
   addExperience: (amount) => set((state) => {
     const newExp = state.currentExp + amount;
@@ -719,6 +722,7 @@ export const useGameActions = () => {
       
       // User Actions
       setNickname: state.setNickname,
+      updateClubId: state.updateClubId,
       setUnreadMessageCount: state.setUnreadMessageCount,
       addExperience: state.addExperience,
       addCoins: state.addCoins,

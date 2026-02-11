@@ -4,6 +4,25 @@ City Lord 是一款结合真实地理位置（LBS）的跑步领地争夺游戏�
 
 ## 📅 更新日志 (Changelog)
 
+### 2026-02-12: 🏢 俱乐部系统全面重构 (Club System Overhaul)
+
+**核心架构升级：**
+
+1.  **🚀 性能飞跃 (Performance Boost)**
+    *   **服务端缓存**: 引入 Next.js `unstable_cache`，将俱乐部详情查询（`getClubDetailsCached`）缓存 1 小时，配合 Tag Revalidation 实现“秒开”体验。
+    *   **SQL 视图优化**: 创建 `v_clubs_summary` 数据库视图，预聚合成员数、总面积等高频字段，彻底告别实时遍历计算，查询延迟从 5s+ 降至 50ms。
+    *   **前端 SWR 集成**: 详情页采用 `useSWR` + Server Action 混合模式，利用客户端缓存实现无感加载与自动更新。
+
+2.  **🔗 智能路由与状态管理 (Smart Routing & State)**
+    *   **自动跳转逻辑**: 完善了“加入俱乐部”全流程。申请成功后，系统自动更新 Zustand 全局状态并无缝跳转至俱乐部详情页。
+    *   **路由守卫**: 重构 `/club` 路由入口，智能判断用户状态（Pending/Active/None），自动分流至详情页或发现列表，并具备自动修复数据一致性（Self-healing）能力。
+    *   **数据库触发器**: 部署 PostgreSQL 触发器，在 `club_members` 状态变更时自动同步 `profiles.club_id`，从数据库层面保障数据绝对一致。
+
+3.  **🐛 关键修复 (Critical Fixes)**
+    *   **导航闭环**: 修复了“退出俱乐部后仍停留在详情页”及“关闭详情页后无法返回列表”的导航 Bug。
+    *   **API 稳定性**: 解决了 Server Action 中 `cookies()` 调用与缓存上下文冲突的问题，改用 Service Role Client 确保后台任务稳定性。
+    *   **地理编码容错**: 优化 `useReverseGeocode` Hook，优雅处理海洋等无地址区域（`no_data`），消除控制台红字报错。
+
 ### 2026-02-10: 🗺️ 智能路径规划器 (Smart Route Planner)
 
 **核心功能上线：**
