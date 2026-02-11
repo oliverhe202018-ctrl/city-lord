@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "kill-port 3000 && next dev --webpack",
     "build": "npx prisma generate && next build --webpack",
+    "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "postinstall": "prisma generate",
     "start": "next start",
