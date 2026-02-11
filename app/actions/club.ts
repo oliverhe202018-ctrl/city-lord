@@ -68,6 +68,15 @@ export async function createClub(data: {
       territory: '0'
     }
 
+    // Check for duplicate name using Prisma
+    const existingClub = await prisma.clubs.findUnique({
+      where: { name: data.name }
+    })
+
+    if (existingClub) {
+      return { success: false, error: '俱乐部名称已存在' }
+    }
+
     const { data: club, error } = await supabase
       .from('clubs')
       .insert(insertData)
@@ -108,6 +117,10 @@ export async function createClub(data: {
     }
   } catch (err) {
     console.error('Create Club Exception:', err)
+    // Handle Prisma unique constraint violation explicitly
+    if ((err as any).code === 'P2002') {
+        return { success: false, error: '俱乐部名称已存在，请换一个名字' }
+    }
     // Ensure we return a structured error instead of throwing to avoid Server Component Render Error
     return { success: false, error: err instanceof Error ? err.message : 'Unknown server error' }
   }

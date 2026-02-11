@@ -55,7 +55,7 @@ export function StaticTrajectoryMap({ path, className }: StaticTrajectoryMapProp
         });
 
         // Convert path to AMap path
-        const linePath = path.map(p => [p.lng, p.lat]);
+        const linePath = (path || []).map(p => [p.lng, p.lat]);
 
         // Draw Polyline
         if (linePath.length > 0) {

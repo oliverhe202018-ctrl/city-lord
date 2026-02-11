@@ -9,7 +9,7 @@ export const createClient = () =>
       auth: {
         persistSession: true,
         autoRefreshToken: true,
-        detectSessionInUrl: true,
+        detectSessionInUrl: false,
         storage: typeof window !== 'undefined' ? window.localStorage : undefined,
       },
     }

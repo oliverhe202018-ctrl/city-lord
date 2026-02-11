@@ -272,19 +272,23 @@ export default function PlannerClientView() {
 
     // 1. Draw Polyline
     if (polylineRef.current) map.remove(polylineRef.current);
-    polylineRef.current = new AMap.Polyline({
-        path: pathCoords,
-        strokeColor: isCalculating ? "#9ca3af" : "#3b82f6", // Grey if calculating, Blue otherwise
-        strokeWeight: 6,
-        strokeOpacity: isCalculating ? 0.5 : 0.8,
-        strokeStyle: isCalculating ? "dashed" : "solid",
-        strokeDasharray: isCalculating ? [10, 10] : undefined,
-        lineJoin: 'round',
-        lineCap: 'round',
-        zIndex: 50,
-        showDir: true
-    });
-    map.add(polylineRef.current);
+    
+    // Guard Clause: Ensure path exists and has length
+    if (pathCoords && pathCoords.length > 0) {
+      polylineRef.current = new AMap.Polyline({
+          path: pathCoords,
+          strokeColor: isCalculating ? "#9ca3af" : "#3b82f6", // Grey if calculating, Blue otherwise
+          strokeWeight: 6,
+          strokeOpacity: isCalculating ? 0.5 : 0.8,
+          strokeStyle: isCalculating ? "dashed" : "solid",
+          strokeDasharray: isCalculating ? [10, 10] : undefined,
+          lineJoin: 'round',
+          lineCap: 'round',
+          zIndex: 50,
+          showDir: true
+      });
+      map.add(polylineRef.current);
+    }
 
     // 2. Draw Polygon if Closed
     if (polygonRef.current) map.remove(polygonRef.current);

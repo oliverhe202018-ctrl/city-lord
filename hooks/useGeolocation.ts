@@ -71,6 +71,15 @@ export const useGeolocation = ({
       let position: any;
       
       if (Capacitor.isNativePlatform()) {
+        // Request permissions first
+        const permissionStatus = await Geolocation.checkPermissions();
+        if (permissionStatus.location !== 'granted') {
+            const requestStatus = await Geolocation.requestPermissions();
+            if (requestStatus.location !== 'granted') {
+                throw new Error('User denied location permission');
+            }
+        }
+
         position = await Geolocation.getCurrentPosition({
           enableHighAccuracy,
           timeout,

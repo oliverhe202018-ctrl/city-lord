@@ -4,7 +4,13 @@ import useSWR from 'swr'
 import { useGameStore } from '@/store/useGameStore'
 
 // Unified fetcher for API routes
-const fetcher = (url: string) => fetch(url).then((r) => r.json())
+const fetcher = (url: string) => fetch(url, { credentials: 'include' }).then((r) => {
+  if (r.status === 401) {
+    if (typeof window !== 'undefined') window.location.href = '/login'
+    throw new Error('Unauthorized')
+  }
+  return r.json()
+})
 
 // Hook 1: Faction Stats
 export function useFactionStats() {
