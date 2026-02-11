@@ -524,9 +524,6 @@ export function GaodeMap3D({
           polygonRefs.current = newPolygons
       }
     }
-
-        polygonRefs.current = newPolygons
-    }
   }, [closedPolygons, pathColor, fillColor, isMapReady])
 
   return (
