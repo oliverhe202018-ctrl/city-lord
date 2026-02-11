@@ -14,6 +14,7 @@ import { AlertCircle, Save, Users, Zap, TrendingUp, Calculator } from 'lucide-re
 import { Database } from '@/types/supabase'
 import { toast } from 'sonner'
 import { calculateFactionBalance, BalanceResult } from '@/utils/faction-balance'
+import { getFactionStats } from '@/app/actions/faction'
 
 type FactionBalanceConfig = Database['public']['Tables']['faction_balance_configs']['Row']
 
@@ -45,13 +46,11 @@ export default function FactionsPage() {
   const fetchStats = useCallback(async () => {
     setLoadingStats(true)
     try {
-      const res = await fetch('/api/faction/stats')
-      if (!res.ok) {
-        throw new Error(`Failed to fetch: ${res.status}`)
-      }
-      const data = await res.json()
-      setRedCount(Number(data?.red_faction || 0))
-      setBlueCount(Number(data?.blue_faction || 0))
+      // Use Server Action directly instead of API fetch
+      const stats = await getFactionStats()
+      
+      setRedCount(stats.RED)
+      setBlueCount(stats.BLUE)
     } catch (err: any) {
       console.error('Error fetching faction stats:', err)
       toast.error(`获取阵营数据失败: ${err.message}`)

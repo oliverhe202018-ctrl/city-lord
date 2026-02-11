@@ -30,7 +30,7 @@ export function BadgeGrid({ initialData }: BadgeGridProps) {
   // The static file might be old.
   // Let's rely on a new fetch for definitions.
   
-  // const [allBadges, setAllBadges] = useState<any[]>([]) // Removed duplicate declaration
+  const [allBadges, setAllBadges] = useState<any[]>([]) 
   
   useEffect(() => {
       // Fetch all badges definitions (we can reuse the admin API or create a public one)
