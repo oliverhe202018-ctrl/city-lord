@@ -61,7 +61,7 @@ export function BadgeGrid({ initialData }: BadgeGridProps) {
 
 
   
-  const { data: userBadgesData, isLoading: loading } = useUserBadges()
+  const { data: userBadgesData, isLoading } = useUserBadges()
   const [serverBadges, setServerBadges] = useState<any[]>([])
 
   useEffect(() => {

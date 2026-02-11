@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { getFactionStats } from '@/app/actions/faction'
 
 export const dynamic = 'force-dynamic'
 

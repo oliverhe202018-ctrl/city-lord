@@ -8,12 +8,12 @@ export type Faction = 'RED' | 'BLUE'
 export async function getFactionStats() {
   try {
     // 1. Get Member Counts (from profiles)
-    // Use Prisma with case-insensitive check
+    // Use Prisma with exact match as per schema (Red/Blue capitalized)
     const redCount = await prisma.profiles.count({
-      where: { faction: { equals: 'Red', mode: 'insensitive' } }
+      where: { faction: 'Red' }
     })
     const blueCount = await prisma.profiles.count({
-      where: { faction: { equals: 'Blue', mode: 'insensitive' } }
+      where: { faction: 'Blue' }
     })
 
     // 2. Get Area Counts (from territories)
@@ -21,7 +21,7 @@ export async function getFactionStats() {
     const redTerritories = await prisma.territories.count({
       where: {
         profiles: {
-          faction: { equals: 'Red', mode: 'insensitive' }
+          faction: 'Red'
         }
       }
     })
@@ -29,7 +29,7 @@ export async function getFactionStats() {
     const blueTerritories = await prisma.territories.count({
       where: {
         profiles: {
-          faction: { equals: 'Blue', mode: 'insensitive' }
+          faction: 'Blue'
         }
       }
     })
