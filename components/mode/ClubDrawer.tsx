@@ -7,6 +7,7 @@ import { leaveClub } from '@/app/actions/club';
 import { toast } from 'sonner';
 import { useGameStore } from '@/store/useGameStore';
 import { createClient } from "@/lib/supabase/client";
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ClubManageDrawer } from '@/components/citylord/club/ClubManageDrawer';
 import { ClubDetailView } from '@/components/citylord/club/ClubDetailView';
 import { ClubDiscoveryView } from '@/components/citylord/club/ClubDiscoveryView';
@@ -25,6 +26,10 @@ export function ClubDrawer({ isOpen, onClose, onOpenCreate }: ClubDrawerProps) {
   // 1. Hook Definition Area
   // ==================================================================================
   
+  // Navigation
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   // Context & Store Hooks
   const { region } = useRegion();
   const { userId } = useGameStore();
@@ -194,10 +199,10 @@ export function ClubDrawer({ isOpen, onClose, onOpenCreate }: ClubDrawerProps) {
                        if (isMember) {
                            openLeaveModal(viewingClubId);
                        } else {
-                           setViewingClubId(null); // Back to list
+                           handleCloseDetail(); // Back to list
                        }
                    }}
-                   onBack={() => setViewingClubId(null)}
+                   onBack={handleCloseDetail}
                  />
              </div>
         );

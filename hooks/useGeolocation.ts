@@ -18,7 +18,7 @@ interface GeolocationState {
   data: {
     latitude: number;
     longitude: number;
-    coordType?: 'gcj02'; // Transformed to GCJ-02 for AMap
+    coordType?: 'gcj02' | 'wgs84'; // Transformed to GCJ-02 for AMap
   } | null;
 }
 
@@ -49,6 +49,9 @@ export const useGeolocation = ({
   });
 
   const gpsCorrectionEnabled = useGameStore(state => state.appSettings?.gpsCorrectionEnabled ?? true);
+  const lastKnownLocation = useGameStore(state => state.lastKnownLocation);
+  const setLastKnownLocation = useGameStore(state => state.setLastKnownLocation);
+  
   const isMounted = useRef(true);
   const watchIdRef = useRef<string | null>(null);
 
@@ -62,10 +65,13 @@ export const useGeolocation = ({
   // Destructure options to create stable dependencies for hooks.
   const { enableHighAccuracy, timeout, maximumAge } = options;
 
-  const getLocation = useCallback(async () => {
+  const getLocation = useCallback(async (retryCount = 0) => {
     if (disabled) return;
     
-    setState((prev) => ({ ...prev, loading: true, error: null }));
+    // Only set loading on first try
+    if (retryCount === 0) {
+      setState((prev) => ({ ...prev, loading: true, error: null }));
+    }
 
     try {
       let position: any;
@@ -82,7 +88,7 @@ export const useGeolocation = ({
 
         position = await Geolocation.getCurrentPosition({
           enableHighAccuracy,
-          timeout,
+          timeout: timeout || 10000,
           maximumAge
         });
       } else {
@@ -90,7 +96,7 @@ export const useGeolocation = ({
         position = await new Promise((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(resolve, reject, {
             enableHighAccuracy,
-            timeout,
+            timeout: timeout || 10000,
             maximumAge
           });
         });
@@ -114,6 +120,9 @@ export const useGeolocation = ({
         coordType = 'gcj02';
       }
 
+      // Update Store
+      setLastKnownLocation({ lat: latitude, lng: longitude });
+
       setState({
         loading: false,
         error: null,
@@ -124,9 +133,18 @@ export const useGeolocation = ({
         },
       });
     } catch (error: any) {
-      console.error("Geolocation Error:", error);
+      console.error(`Geolocation Error (Attempt ${retryCount + 1}):`, error);
       
       if (!isMounted.current) return;
+
+      // Retry Logic
+      if (retryCount < 3) {
+         console.log(`Retrying geolocation in 1s... (${retryCount + 1}/3)`);
+         setTimeout(() => {
+             if (isMounted.current) getLocation(retryCount + 1);
+         }, 1000);
+         return;
+      }
 
       setState({
         loading: false,
@@ -139,7 +157,7 @@ export const useGeolocation = ({
         description: error.message || "请检查定位权限是否开启"
       });
     }
-  }, [enableHighAccuracy, timeout, maximumAge, disabled]);
+  }, [enableHighAccuracy, timeout, maximumAge, disabled, gpsCorrectionEnabled, setLastKnownLocation]);
 
   // Initial Location Fetch
   useEffect(() => {
@@ -241,6 +259,9 @@ export const useGeolocation = ({
           coordType,
         },
       });
+      
+      // Update Store
+      setLastKnownLocation({ lat: latitude, lng: longitude });
     };
 
     startWatch();

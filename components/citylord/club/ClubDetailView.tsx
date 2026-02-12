@@ -1,12 +1,17 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import useSWR from 'swr'
 import { createClient } from '@/lib/supabase/client'
 import { getClubDetailsCached } from '@/app/actions/club'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Trophy, Map, Users, Footprints, Loader2 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { useGameStore } from '@/store/useGameStore'
+import { toast } from 'sonner'
+import { Keyboard } from '@capacitor/keyboard'
+import { Capacitor } from '@capacitor/core'
 
 type ClubDetailInfo = {
   id: string
@@ -58,9 +63,6 @@ type TopClub = {
   totalArea: number
 }
 
-import { useRouter } from 'next/navigation'
-import { useGameStore } from '@/store/useGameStore'
-
 export function ClubDetailView({ 
   clubId, 
   onChange, 
@@ -84,6 +86,28 @@ export function ClubDetailView({
   // Local state to override Props for immediate UI transition
   const [hasJoined, setHasJoined] = useState(false);
   const effectiveIsMember = isJoined || hasJoined;
+
+  // ✅ 新增：键盘高度管理
+  const [keyboardHeight, setKeyboardHeight] = useState(0)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+
+  // ✅ 新增：监听键盘事件
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return
+
+    const showListener = Keyboard.addListener('keyboardWillShow', (info) => {
+      setKeyboardHeight(info.keyboardHeight)
+    })
+
+    const hideListener = Keyboard.addListener('keyboardWillHide', () => {
+      setKeyboardHeight(0)
+    })
+
+    return () => {
+      showListener.remove()
+      hideListener.remove()
+    }
+  }, [])
 
   // Optimized Data Fetching with SWR & Server Action Cache
   const { data: cachedClub, isLoading: isClubLoading } = useSWR(
@@ -272,14 +296,25 @@ export function ClubDetailView({
 
   return (
     <div 
-      className="flex flex-col w-full bg-black text-white h-auto max-h-[90vh]"
+      className="fixed inset-0 flex flex-col bg-black text-white"
+      style={{
+        // ✅ 键盘弹出时向上移动，而不是改变高度
+        paddingBottom: keyboardHeight > 0 ? `${keyboardHeight}px` : '0px',
+        transition: 'padding-bottom 0.3s ease'
+      }}
     >
+      {/* ✅ 固定高度的可滚动内容区 */}
       <div
-        className={`w-full no-scrollbar flex-1 min-h-0 ${
+        ref={scrollContainerRef}
+        className={`flex-1 w-full ${
           effectiveIsMember 
-            ? "overflow-hidden pb-0" // ✅ 已加入：自适应 + 禁止滚动（因有分页）
-            : "overflow-y-auto overscroll-contain pb-safe"
+            ? "overflow-y-auto overscroll-contain" // ✅ 已加入：允许滚动
+            : "overflow-y-auto overscroll-contain"
         }`}
+        style={{
+          // ✅ 使用 dvh 单位，自动适配键盘
+          height: effectiveIsMember ? 'calc(100dvh - env(safe-area-inset-bottom))' : 'auto'
+        }}
       >
         <div className="px-6 pt-6">
           <div className="relative h-44 overflow-hidden rounded-2xl border border-white/10">
@@ -363,29 +398,32 @@ export function ClubDetailView({
           </div>
         </div>
 
-        {/* Conditional Rendering: Tabs for Members, Leaderboard for Non-Members */}
+        {/* ✅ 关键修改：已加入时的 Tabs 内容区域 */}
         {effectiveIsMember ? (
-          <div className="px-6 mt-6">
+          <div className="px-6 mt-6 pb-4">
             <Tabs defaultValue="members" className="w-full">
               <TabsList className="w-full bg-zinc-900/70 border border-white/10">
                 <TabsTrigger value="activity" className="flex-1">动态</TabsTrigger>
                 <TabsTrigger value="members" className="flex-1">成员</TabsTrigger>
                 <TabsTrigger value="data" className="flex-1">数据</TabsTrigger>
               </TabsList>
-              <TabsContent value="activity" className="mt-4 flex-none h-auto">
+              
+              <TabsContent value="activity" className="mt-4">
                 <div className="rounded-2xl border border-white/5 bg-zinc-900/60 p-6 text-center text-white/50">
                   暂无俱乐部动态
                 </div>
               </TabsContent>
-              <TabsContent value="members" className="mt-4 flex-none h-auto pb-0 flex flex-col">
+
+              <TabsContent value="members" className="mt-4">
                 {members.length === 0 ? (
                   <div className="py-8 text-center text-white/50">暂无成员</div>
                 ) : (
-                  <div className="flex flex-col h-auto">
-                    {/* 1. 固定高度的成员列表区 */}
+                  <div className="space-y-4">
+                    {/* ✅ 成员列表：固定项高度 */}
                     <div className="space-y-3">
                       {displayMembers.map((member) => (
-                        <div key={member.id} className="flex items-center justify-between rounded-2xl border border-white/5 bg-zinc-900/60 px-4 py-3 h-[72px]">
+                        <div key={member.id} className="flex items-center justify-between rounded-2xl border border-white/5 bg-zinc-900/60 px-4 py-3 min-h-[72px]">
+                          {/* ... 原有成员卡片内容 ... */}
                           <div className="flex items-center gap-3">
                             <div className="h-12 w-12 overflow-hidden rounded-full bg-zinc-800">
                               {member.avatarUrl ? (
@@ -406,13 +444,13 @@ export function ClubDetailView({
                       ))}
                     </div>
 
-                    {/* 2. 分页挂件：作为内容的终点 */}
-                    <div className="flex items-center justify-center pt-6 pb-safe text-sm text-white/50 gap-4 shrink-0">
+                    {/* ✅ 分页控件 */}
+                    <div className="flex items-center justify-center pt-4 pb-2 text-sm text-white/50 gap-4">
                       <Button 
                         variant="ghost" 
                         size="sm" 
-                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                        disabled={currentPage === 1}
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
+                        disabled={currentPage === 1} 
                         className="h-8 w-8 p-0 rounded-full hover:bg-white/10"
                       >
                         ←
@@ -421,20 +459,19 @@ export function ClubDetailView({
                       <Button 
                         variant="ghost" 
                         size="sm" 
-                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                        disabled={currentPage === totalPages}
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
+                        disabled={currentPage === totalPages} 
                         className="h-8 w-8 p-0 rounded-full hover:bg-white/10"
                       >
                         →
                       </Button>
                     </div>
-                    
-                    {/* 3. 底部填充，确保不贴底太紧，但绝不留大片空白 */}
-                    {/* <div className="h-6 shrink-0" /> */}
                   </div>
                 )}
               </TabsContent>
-              <TabsContent value="data" className="mt-4 flex-none h-auto">
+              
+              <TabsContent value="data" className="mt-4">
+                {/* ... 原有数据内容 ... */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-4">
                     <div className="text-xs text-white/50">总里程</div>
@@ -453,7 +490,8 @@ export function ClubDetailView({
             </Tabs>
           </div>
         ) : (
-          <div className="px-6 mt-6">
+          <div className="px-6 mt-6 pb-4">
+            {/* ... 原有的排行榜内容 completely unchanged ... */}
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-white">{rankType === 'global' ? '全国' : '省内'}前5名排行榜</h3>
             </div>
@@ -488,8 +526,15 @@ export function ClubDetailView({
         )}
       </div>
 
+      {/* ✅ 固定底部按钮（未加入时） */}
       {!effectiveIsMember && onJoin && (
-        <div className="shrink-0 p-4 bg-zinc-950/95 backdrop-blur border-t border-white/10 z-50 pb-8 safe-area-bottom">
+        <div
+          className="flex-shrink-0 p-4 bg-zinc-950/95 backdrop-blur border-t border-white/10 z-50"
+          style={{
+            // ✅ 安全区域适配
+            paddingBottom: `calc(1rem + env(safe-area-inset-bottom))`
+          }}
+        >
            <Button 
             size="lg" 
             className="w-full py-6 text-lg font-bold bg-yellow-500 text-black hover:bg-yellow-400 shadow-xl rounded-xl"

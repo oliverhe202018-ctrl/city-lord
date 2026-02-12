@@ -49,6 +49,7 @@ export interface LocationState {
   currentRunPath: [number, number][];
   ghostPath: [number, number][] | null;
   isSmartRunStarting: boolean;
+  lastKnownLocation: { lat: number; lng: number } | null;
 }
 
 export interface InventoryItem {
@@ -160,6 +161,7 @@ export interface LocationActions {
   resetRunState: () => void;
   setGhostPath: (path: [number, number][] | null) => void;
   setSmartRunStarting: (starting: boolean) => void;
+  setLastKnownLocation: (location: { lat: number; lng: number } | null) => void;
 }
 
 export interface InventoryActions {
@@ -213,6 +215,7 @@ const initialUserState: UserState = {
   avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=default',
   achievements: {},
   unreadMessageCount: 0,
+  clubId: null,
 };
 
 const initialLocationState: LocationState = {
@@ -232,6 +235,7 @@ const initialLocationState: LocationState = {
   currentRunPath: [],
   ghostPath: null,
   isSmartRunStarting: false,
+  lastKnownLocation: null,
 };
 
 const initialInventoryState: InventoryState = {
@@ -524,6 +528,7 @@ const createLocationSlice: StateCreator<GameStore, [], [], LocationActions> = (s
   }),
   setGhostPath: (path) => set({ ghostPath: path }),
   setSmartRunStarting: (starting) => set({ isSmartRunStarting: starting }),
+  setLastKnownLocation: (location) => set({ lastKnownLocation: location }),
 });
 
 const createInventorySlice: StateCreator<GameStore, [], [], InventoryActions> = (set, get) => ({
@@ -805,6 +810,7 @@ export const useGameLocation = () =>
       hasDismissedGeolocationPrompt: state.hasDismissedGeolocationPrompt,
       ghostPath: state.ghostPath,
       isSmartRunStarting: state.isSmartRunStarting,
+      lastKnownLocation: state.lastKnownLocation,
     })),
   );
 export const useGameInventory = () => useGameStore(useShallow((state) => ({ items: state.items, totalItems: state.totalItems })));

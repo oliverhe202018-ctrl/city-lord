@@ -228,9 +228,9 @@ export function useRunningTracker(isRunning: boolean): RunningStats {
         }
         // ----------------------------------
 
-        if (currentPath?.length > 5) {
-           const startPoint = currentPath[0];
-           const endPoint = newLoc;
+        if (currentPath.length > 5) {
+          const startPoint = currentPath[0];
+          const endPoint = newLoc;
            
            const from = turf.point([startPoint.lng, startPoint.lat]);
            const to = turf.point([endPoint.lng, endPoint.lat]);
@@ -409,14 +409,15 @@ export function useRunningTracker(isRunning: boolean): RunningStats {
                const data = JSON.parse(recoveryJson);
                // Check 24h validity
                if (data.startTime && (Date.now() - data.startTime < 24 * 60 * 60 * 1000)) {
-                   setPath(data.path || []);
+                   const safePath = Array.isArray(data.path) ? data.path : [];
+                   setPath(safePath);
                    setDistance(data.distance || 0);
                    setDuration(data.duration || 0);
                    setClosedPolygons(data.closedPolygons || []);
-                   if (data.path && data.path.length > 0) {
-                       const lastLoc = data.path[data.path.length - 1];
+                   if (safePath.length > 0) {
+                       const lastLoc = safePath[safePath.length - 1];
                        lastLocationRef.current = lastLoc;
-                       pathRef.current = data.path;
+                       pathRef.current = safePath;
                        setCurrentLocation(lastLoc);
                    }
                    recovered = true;

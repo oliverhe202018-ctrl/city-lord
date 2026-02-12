@@ -289,14 +289,15 @@ export function ImmersiveRunningMode({
 
   const handleAttemptStop = () => {
     // If no path data or very short path, just proceed
-    if (!path || path.length < 2) {
+    const safePath = path || [];
+    if (safePath.length < 2) {
       setEffectiveHexes(hexesCaptured)
       setShowSummary(true)
       return
     }
 
-    const startPoint = path[0]
-    const endPoint = path[path.length - 1]
+    const startPoint = safePath[0]
+    const endPoint = safePath[safePath.length - 1]
     
     // Calculate gap between start and end
     const gap = getDistanceFromLatLonInMeters(
