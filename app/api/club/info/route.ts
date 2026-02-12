@@ -1,65 +1,94 @@
 import { NextResponse } from 'next/server'
-import { getClubs } from '@/app/actions/club'
 import { createClient } from '@/lib/supabase/server'
 import { cookies } from 'next/headers'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url)
+    const clubId = searchParams.get('clubId')
+    
     const cookieStore = await cookies()
     const supabase = await createClient(cookieStore)
+
+    // =================================================================
+    // MODE 1: Single Club Detail (Optimized for Speed)
+    // =================================================================
+    if (clubId) {
+        // 1. Basic Info
+        const { data: club, error } = await supabase
+            .from('clubs')
+            .select('*')
+            .eq('id', clubId)
+            .single()
+
+        if (error || !club) {
+            return NextResponse.json({ error: 'Club not found' }, { status: 404 })
+        }
+
+        // 2. Member Count (Exact count, no data fetch)
+        const { count: memberCount } = await supabase
+            .from('club_members')
+            .select('*', { count: 'exact', head: true })
+            .eq('club_id', clubId)
+
+        // 3. Territory Area (Return 0 for speed as requested)
+        // Note: Real calculation requires PostGIS/Turf.js which is slow
+        const totalArea = 0
+
+        return NextResponse.json({
+            ...club,
+            memberCount: memberCount || 0,
+            totalArea
+        })
+    }
+
+    // =================================================================
+    // MODE 2: Dashboard / List View (Legacy Support)
+    // Used by useClubData() hook
+    // =================================================================
     
-    // Check if auth is available (sometimes getUser might fail if cookies are missing)
+    // Check Auth
     let user = null
     try {
         const { data } = await supabase.auth.getUser()
         user = data.user
     } catch (e) {
-        console.warn('Auth check failed:', e)
+        // ignore auth error
     }
 
-    if (!user) {
-        return NextResponse.json({ joinedClub: null, allClubs: [] })
-    }
-
-    // 1. Check if user is in a club
-    const { data: member } = await supabase
-        .from('club_members')
-        .select('club_id, status')
-        .eq('user_id', user.id)
-        .single()
-    
-    // 2. Fetch all clubs list (reusing action logic)
-    const allClubs = await getClubs()
-
-    // 3. If user is in a club, fetch that specific club details
+    // 1. Fetch User's Club Status
     let joinedClub = null
-    if (member && member.status === 'active') {
-        const { data: clubDetails } = await supabase
-            .from('clubs')
-            .select('*')
-            .eq('id', member.club_id)
+    if (user) {
+        const { data: member } = await supabase
+            .from('club_members')
+            .select('club_id, status')
+            .eq('user_id', user.id)
             .single()
-        
-        if (clubDetails) {
-            joinedClub = clubDetails
+            
+        if (member && member.status === 'active') {
+             const { data: myClub } = await supabase
+                .from('clubs')
+                .select('*')
+                .eq('id', member.club_id)
+                .single()
+             joinedClub = myClub
         }
-    } else {
-        // Check if owner
-         const { data: ownerClub } = await supabase
-            .from('clubs')
-            .select('*')
-            .eq('owner_id', user.id)
-            .single()
-         if (ownerClub) {
-             joinedClub = ownerClub
-         }
     }
+
+    // 2. Fetch All Active Clubs (Pure Supabase, No External Fetch)
+    // Optimized: Only select necessary fields
+    const { data: allClubs } = await supabase
+        .from('clubs')
+        .select('*')
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(50) // Safety limit
 
     return NextResponse.json({
         joinedClub,
-        allClubs
+        allClubs: allClubs || []
     })
 
   } catch (error) {

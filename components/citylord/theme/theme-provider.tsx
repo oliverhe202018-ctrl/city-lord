@@ -1,6 +1,8 @@
 "use client"
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react"
+import { StatusBar, Style } from '@capacitor/status-bar';
+import { Capacitor } from '@capacitor/core';
 
 // ============================================================
 // Theme Definitions
@@ -270,13 +272,19 @@ export function ThemeProvider({ children, defaultTheme = "cyberpunk" }: ThemePro
       root.style.setProperty(`--cl-${key}`, value)
     })
 
-    // Set dark/light mode class
+    // Set dark/light mode class on HTML element
     if (isDark) {
-      document.body.classList.add("dark")
-      document.body.classList.remove("light")
+      document.documentElement.classList.add("dark")
+      document.documentElement.classList.remove("light")
     } else {
-      document.body.classList.add("light")
-      document.body.classList.remove("dark")
+      document.documentElement.classList.add("light")
+      document.documentElement.classList.remove("dark")
+    }
+
+    // Sync Capacitor Status Bar
+    if (Capacitor.isNativePlatform()) {
+      StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light });
+      StatusBar.setBackgroundColor({ color: colors.background });
     }
   }, [theme])
 

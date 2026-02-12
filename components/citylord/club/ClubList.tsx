@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRegion } from '@/contexts/RegionContext'
 import { Users, MapPin, CheckCircle2, Loader2 } from 'lucide-react'

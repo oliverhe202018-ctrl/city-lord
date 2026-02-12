@@ -548,6 +548,9 @@ export function GaodeMap3D({
           Loading AMap Engine...
         </div>
       )}
+
+      {/* Gradient Overlay for text readability - Adjusted for visibility */}
+      <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/40 pointer-events-none" />
     </div>
   )
 }

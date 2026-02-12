@@ -7,10 +7,21 @@ const config: CapacitorConfig = {
   server: {
     url: 'https://cl.4567666.xyz',
     cleartext: true,
-    allowNavigation: ['cl.4567666.xyz', '*.cl.4567666.xyz']
+    androidScheme: 'https',
+    allowNavigation: [
+      'cl.4567666.xyz',
+      '*.cl.4567666.xyz'
+    ]
   },
   android: {
     allowMixedContent: true
+  },
+  plugins: {
+    Keyboard: {
+      resize: "native",
+      resizeOnFullScreen: false,
+      style: "dark"
+    }
   }
 };
 
