@@ -11,10 +11,30 @@ export default function CityLordApp() {
 
   useEffect(() => {
     const init = async () => {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-      setLoading(false);
+      try {
+        const supabase = createClient();
+        // Add timeout to prevent hanging (5s)
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Auth check timeout')), 5000)
+        );
+        
+        const authPromise = supabase.auth.getUser();
+        
+        // Race between auth check and timeout
+        const result = await Promise.race([authPromise, timeoutPromise]) as any;
+        const { data: { user }, error } = result;
+
+        if (error) {
+          console.warn("Auth check warning:", error.message);
+        }
+        setUser(user);
+      } catch (e) {
+        console.error("Auth init exception:", e);
+        // On error/timeout, assume no user (show login)
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
     };
     init();
   }, []);
