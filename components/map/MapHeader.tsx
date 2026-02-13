@@ -5,16 +5,14 @@ import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { useCity } from "@/contexts/CityContext";
 import { useRegion } from "@/contexts/RegionContext";
-import { useGameStore } from "@/store/useGameStore"
+import { useGameStore, useGameActions } from "@/store/useGameStore"
 import { useHydration } from "@/hooks/useHydration";
-import { ChevronDown, Calendar, Activity, MapPin, Navigation, User, Zap, Palette, Trophy, LogIn, X, Check, Users } from "lucide-react"
+import { ChevronDown, Calendar, Activity, MapPin, Navigation, User, Zap, Palette, Trophy, LogIn, X, Check, Users, Signal } from "lucide-react"
 import { CityDrawer } from "./CityDrawer"
 import { RoomSelector } from '@/components/room/RoomSelector'
 import { LoadingSpinner } from "@/components/citylord/loading-screen"
 
 interface MapHeaderProps {
-  isCityDrawerOpen: boolean
-  setIsCityDrawerOpen: (open: boolean) => void
   setShowThemeSwitcher: (show: boolean) => void
   viewMode?: 'user' | 'club'
   onViewModeChange?: (mode: 'user' | 'club') => void
@@ -119,8 +117,6 @@ import { toast } from "sonner";
  * Displays user stats, city info, and GPS status
  */
 export function MapHeader({ 
-  isCityDrawerOpen, 
-  setIsCityDrawerOpen, 
   setShowThemeSwitcher,
   viewMode = 'user',
   onViewModeChange
@@ -129,7 +125,8 @@ export function MapHeader({
   const { currentCity, isLoading, leaderboard, currentCityProgress, totalPlayers } = useCity();
 
 
-  const { gpsStatus, level, currentExp, maxExp, stamina, maxStamina, lastStaminaUpdate } = useGameStore();
+  const { gpsStatus, level, currentExp, maxExp, stamina, maxStamina, lastStaminaUpdate, activeDrawer, latitude, longitude, lastKnownLocation } = useGameStore();
+  const { openDrawer, closeDrawer } = useGameActions();
   const hydrated = useHydration();
 
   const [isLoggedIn, setIsLoggedIn] = useState(true)
@@ -163,8 +160,16 @@ export function MapHeader({
   const getGpsStatusConfig = () => {
     if (requestingLocation) return { icon: Navigation, color: 'text-blue-400', bg: 'bg-blue-500/20', border: 'border-blue-500/30', text: '请求中' };
 
+    // 只要有坐标，就视为定位成功 (As long as we have coordinates, show success)
+    const hasLocation = (latitude !== null && longitude !== null && latitude !== 0 && longitude !== 0) || 
+                        (lastKnownLocation && lastKnownLocation.lat !== 0 && lastKnownLocation.lng !== 0) ||
+                        (gpsStatus === 'success'); // Allow gpsStatus to override if needed
+
+    if (hasLocation) {
+       return { icon: Signal, color: 'text-[#22c55e]', bg: 'bg-[#22c55e]/20', border: 'border-[#22c55e]/50', text: '已定位' }
+    }
+
     switch(gpsStatus) {
-      case 'success': return { icon: Check, color: 'text-[#22c55e]', bg: 'bg-[#22c55e]/20', border: 'border-[#22c55e]/50', text: '已定位' }
       case 'locating': return { icon: Navigation, color: 'text-yellow-400', bg: 'bg-yellow-500/20', border: 'border-yellow-500/30', text: '定位中' }
       case 'error': return { icon: Navigation, color: 'text-red-400', bg: 'bg-red-500/20', border: 'border-red-500/30', text: 'GPS异常' }
       default: return { icon: Navigation, color: 'text-slate-400', bg: 'bg-slate-500/20', border: 'border-slate-500/30', text: '无信号' }
@@ -258,7 +263,7 @@ export function MapHeader({
           <div className="flex items-center justify-between gap-2">
             {/* 左侧：城市选择器 */}
             <button
-              onClick={() => setIsCityDrawerOpen(true)}
+              onClick={() => openDrawer('city')}
               className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
             >
               <span className="text-xl">{currentCity.icon}</span>
@@ -284,7 +289,7 @@ export function MapHeader({
                     {currentExp}/{maxExp}
                   </span>
                 </div>
-                <div className="h-1 rounded-full bg-white/10 overflow-hidden">
+                <div className="h-1 rounded-full bg-secondary/30 overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all duration-500 ease-out"
                     style={{
@@ -383,7 +388,7 @@ export function MapHeader({
       </div>
 
       {/* 城市切换抽屉 */}
-      <CityDrawer isOpen={isCityDrawerOpen} onClose={() => setIsCityDrawerOpen(false)} />
+      <CityDrawer isOpen={activeDrawer === 'city'} onClose={closeDrawer} />
 
       {/* 登录提示弹窗 */}
       <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} />

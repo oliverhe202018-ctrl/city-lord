@@ -60,7 +60,19 @@ model profiles {
   @@index([club_id], map: "idx_profiles_club_id")
   @@index([faction], map: "idx_profiles_faction")
   @@index([invited_by], map: "idx_profiles_invited_by")
+  @@index([referrer_id])
   @@map("profiles")
+  @@schema("public")
+}
+
+model DailyStat {
+  id               String   @id @default(cuid())
+  date             DateTime @unique
+  redCount         Int
+  blueCount        Int
+  totalTerritories Int
+  createdAt        DateTime @default(now())
+
   @@schema("public")
 }
 
@@ -71,11 +83,12 @@ model route_plans {
   waypoints      Json?     @db.Json
   geometry       Json?     @db.Json
   distance       Float?    @default(0)
-  capture_area   Float?    @default(0)
   estimated_time Int?      @default(0)
   created_at     DateTime? @default(now()) @db.Timestamptz(6)
+  capture_area   Float?    @default(0)
   profiles       profiles  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
+  @@index([user_id])
   @@schema("public")
 }
 
@@ -90,6 +103,7 @@ model training_plans {
   scheduled_workouts scheduled_workouts[]
   profiles           profiles             @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
+  @@index([user_id])
   @@schema("public")
 }
 
@@ -115,6 +129,7 @@ model user_season_stats {
   profiles  profiles @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@unique([user_id, season_id])
+  @@index([season_id])
   @@schema("public")
 }
 
@@ -127,6 +142,7 @@ model scheduled_workouts {
   is_completed    Boolean?       @default(false)
   training_plans  training_plans @relation(fields: [plan_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
+  @@index([plan_id])
   @@schema("public")
 }
 
@@ -526,6 +542,7 @@ model users {
   is_sso_user                 Boolean                @default(false)
   deleted_at                  DateTime?              @db.Timestamptz(6)
   is_anonymous                Boolean                @default(false)
+  badges                      String[]               @default([])
   identities                  identities[]
   mfa_factors                 mfa_factors[]
   oauth_authorizations        oauth_authorizations[]
@@ -556,6 +573,7 @@ model admin_logs {
   details    String?
   users      users     @relation(fields: [admin_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
+  @@index([admin_id])
   @@schema("public")
 }
 
@@ -605,6 +623,8 @@ model challenges {
   profiles_challenges_creator_idToprofiles profiles  @relation("challenges_creator_idToprofiles", fields: [creator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   profiles_challenges_target_idToprofiles  profiles  @relation("challenges_target_idToprofiles", fields: [target_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
+  @@index([creator_id])
+  @@index([target_id])
   @@schema("public")
 }
 
@@ -620,6 +640,7 @@ model club_members {
   profiles  profiles @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@id([club_id, user_id])
+  @@index([user_id])
   @@schema("public")
 }
 
@@ -644,7 +665,8 @@ model clubs {
   profiles_clubs_owner_idToprofiles profiles?      @relation("clubs_owner_idToprofiles", fields: [owner_id], references: [id], onUpdate: NoAction)
   profiles_profiles_club_idToclubs  profiles[]     @relation("profiles_club_idToclubs")
   runs                              runs[]
-
+  
+  @@index([owner_id], map: "idx_clubs_owner_id")
   @@schema("public")
 }
 
@@ -690,6 +712,7 @@ model friendships {
   profiles_friendships_user_idToprofiles   profiles @relation("friendships_user_idToprofiles", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([user_id, friend_id])
+  @@index([friend_id], map: "idx_friendships_friend_id")
   @@schema("public")
 }
 
@@ -704,6 +727,7 @@ model messages {
   users      users?    @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([sender_id], map: "idx_messages_sender_id")
+  @@index([user_id])
   @@schema("public")
 }
 
@@ -755,6 +779,7 @@ model notifications {
   created_at DateTime? @default(now()) @db.Timestamptz(6)
   profiles   profiles  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
+  @@index([user_id])
   @@schema("public")
 }
 
@@ -768,6 +793,8 @@ model room_messages {
   rooms      rooms     @relation(fields: [room_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   users      users     @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
+  @@index([room_id])
+  @@index([user_id])
   @@schema("public")
 }
 
@@ -792,6 +819,7 @@ model room_participants {
   @@id([room_id, user_id])
   @@index([room_id, territory_ratio(sort: Desc)], map: "idx_room_participants_ratio")
   @@index([room_id, total_score(sort: Desc)], map: "idx_room_participants_score")
+  @@index([user_id])
   @@schema("public")
 }
 
@@ -821,6 +849,7 @@ model rooms {
   room_participants       room_participants[]
   profiles                profiles?           @relation(fields: [host_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
+  @@index([host_id], map: "idx_rooms_host_id")
   @@schema("public")
 }
 
@@ -840,20 +869,25 @@ model runs {
   clubs      clubs?    @relation(fields: [club_id], references: [id], onUpdate: NoAction)
   profiles   profiles? @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
+  @@index([club_id], map: "idx_runs_club_id")
+  @@index([user_id])
   @@schema("public")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model territories {
-  id                 String    @id
+  id                 String                   @id
   city_id            String
-  owner_id           String    @db.Uuid
-  captured_at        DateTime? @default(now()) @db.Timestamptz(6)
-  last_maintained_at DateTime? @default(now()) @db.Timestamptz(6)
-  health             Int?      @default(100)
-  level              Int?      @default(1)
-  profiles           profiles  @relation(fields: [owner_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  owner_id           String                   @db.Uuid
+  captured_at        DateTime?                @default(now()) @db.Timestamptz(6)
+  last_maintained_at DateTime?                @default(now()) @db.Timestamptz(6)
+  health             Int?                     @default(100)
+  level              Int?                     @default(1)
+  geojson            Unsupported("geometry")?
+  h3_index           String?
+  status             String?                  @default("active")
+  profiles           profiles                 @relation(fields: [owner_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([city_id], map: "idx_territories_city_id")
   @@index([owner_id], map: "idx_territories_owner_id")
@@ -881,6 +915,7 @@ model user_badges {
   users     users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([user_id, badge_id])
+  @@index([badge_id])
   @@schema("public")
 }
 
@@ -916,6 +951,29 @@ model user_missions {
 
   @@unique([user_id, mission_id])
   @@index([user_id], map: "idx_user_missions_user_id")
+  @@index([mission_id])
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model spatial_ref_sys {
+  srid      Int     @id
+  auth_name String? @db.VarChar(256)
+  auth_srid Int?
+  srtext    String? @db.VarChar(2048)
+  proj4text String? @db.VarChar(2048)
+
+  @@schema("public")
+}
+
+model user_locations {
+  id         String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String                   @db.Uuid
+  location   Unsupported("geometry")?
+  updated_at DateTime?                @default(now()) @db.Timestamptz(6)
+
+  @@index([location], map: "idx_user_locations_location", type: Gist)
+  @@index([user_id])
   @@schema("public")
 }
 

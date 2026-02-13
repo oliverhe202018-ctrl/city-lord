@@ -145,6 +145,18 @@ export async function checkAndAwardBadges(userId: string, activityData?: any) {
           earned_at: new Date()
         }
       })
+
+      // 发送站内信通知
+      await prisma.notifications.create({
+        data: {
+          user_id: userId,
+          title: '获得新勋章！',
+          body: `恭喜！你已解锁【${badge.name}】勋章！${badge.description || ''}`,
+          type: 'badge',
+          is_read: false
+        }
+      })
+
       newBadges.push(badge)
     }
   }

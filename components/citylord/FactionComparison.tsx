@@ -25,6 +25,10 @@ export function FactionComparison({ initialData, redArea: propRedArea, blueArea:
   const redMemberPercent = totalMembers > 0 ? (redMembers / totalMembers) * 100 : 50
   const blueMemberPercent = 100 - redMemberPercent
 
+  // Determine Weaker Faction (by Member Count)
+  const weakerFaction = redMembers < blueMembers ? 'RED' : (blueMembers < redMembers ? 'BLUE' : null)
+  const buffPercentage = 15 // Fixed 15% buff for now
+
   // 2. Get Area Stats (Use props if available, else initialData)
   const redArea = propRedArea ?? initialData?.redArea ?? initialData?.red_area ?? 0
   const blueArea = propBlueArea ?? initialData?.blueArea ?? initialData?.blue_area ?? 0
@@ -34,32 +38,22 @@ export function FactionComparison({ initialData, redArea: propRedArea, blueArea:
   const redAreaPercent = totalArea > 0 ? (redArea / totalArea) * 100 : 50
   const blueAreaPercent = 100 - redAreaPercent
 
-  // Calculate Underdog Bonus
-  const redPercentRaw = totalArea > 0 ? (redArea / totalArea) : 0.5
-  const bluePercentRaw = totalArea > 0 ? (blueArea / totalArea) : 0.5
-  
-  let bonusText = null
-  const imbalanceThreshold = 0.4 // 40%
-
-  if (redPercentRaw < imbalanceThreshold) {
-    bonusText = <span className="text-red-400">弱势方加成: +15% 采集效率</span>
-  } else if (bluePercentRaw < imbalanceThreshold) {
-    bonusText = <span className="text-blue-400">弱势方加成: +15% 采集效率</span>
-  }
-
   // Format numbers for display
   const redAreaFormatted = new Intl.NumberFormat('en-US').format(Math.round(redArea || 0)); 
   const blueAreaFormatted = new Intl.NumberFormat('en-US').format(Math.round(blueArea || 0));
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-[#1a1b1e] p-4 mb-4 space-y-6 shadow-xl">
+    <div className="rounded-2xl border border-border bg-card p-4 mb-4 space-y-6 shadow-sm">
       
       {/* Section 1: Faction Battle Status (Members) */}
       <div>
-        <h3 className="text-xs font-medium text-white/60 mb-2">阵营战况</h3>
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-xs font-medium text-muted-foreground">阵营战况</h3>
+          <span className="text-[10px] text-muted-foreground/60">本栏目数据每日0点更新</span>
+        </div>
         
         {/* Progress Bar */}
-        <div className="h-3 w-full rounded-full bg-white/10 overflow-hidden flex mb-2">
+        <div className="h-3 w-full rounded-full bg-muted overflow-hidden flex mb-2">
           <motion.div 
             initial={{ width: 0 }}
             animate={{ width: `${redMemberPercent}%` }}
@@ -101,14 +95,14 @@ export function FactionComparison({ initialData, redArea: propRedArea, blueArea:
         </div>
       </div>
 
-      <div className="h-px bg-white/5 w-full" />
+      <div className="h-px bg-border w-full" />
 
       {/* Section 2: Territory Power (Area) */}
       <div>
-        <h3 className="text-xs font-medium text-white/60 mb-2">领地势力</h3>
+        <h3 className="text-xs font-medium text-muted-foreground mb-2">领地势力</h3>
         
         {/* Progress Bar */}
-        <div className="h-3 w-full rounded-full bg-white/10 overflow-hidden flex mb-2">
+        <div className="h-3 w-full rounded-full bg-muted overflow-hidden flex mb-2">
           <motion.div 
             initial={{ width: 0 }}
             animate={{ width: `${redAreaPercent}%` }}
@@ -126,28 +120,35 @@ export function FactionComparison({ initialData, redArea: propRedArea, blueArea:
         {/* Stats Row */}
         <div className="flex justify-between items-center">
            {/* Red Area */}
-           <div className="flex items-center gap-1.5 text-red-500/80">
-              <Hexagon className="w-3 h-3" />
-              <span className="text-xs font-medium">
-                {redAreaFormatted}
-              </span>
+           <div className="flex flex-col items-start">
+             <div className="flex items-center gap-1.5 text-red-500/80">
+                <Hexagon className="w-3 h-3" />
+                <span className="text-xs font-medium">
+                  {redAreaFormatted}
+                </span>
+             </div>
+             {weakerFaction === 'RED' && (
+               <span className="text-[10px] text-red-500/50 mt-0.5">
+                 (含增益{buffPercentage}%)
+               </span>
+             )}
            </div>
 
            {/* Blue Area */}
-           <div className="flex items-center gap-1.5 text-blue-400/80">
-              <span className="text-xs font-medium">
-                {blueAreaFormatted}
-              </span>
-              <Hexagon className="w-3 h-3" />
+           <div className="flex flex-col items-end">
+             <div className="flex items-center gap-1.5 text-blue-400/80">
+                <span className="text-xs font-medium">
+                  {blueAreaFormatted}
+                </span>
+                <Hexagon className="w-3 h-3" />
+             </div>
+             {weakerFaction === 'BLUE' && (
+               <span className="text-[10px] text-blue-400/50 mt-0.5">
+                 (含增益{buffPercentage}%)
+               </span>
+             )}
            </div>
         </div>
-        
-        {/* Underdog Bonus */}
-        {bonusText && (
-          <div className="mt-2 text-[10px] font-medium text-center bg-white/5 py-1 rounded-md border border-white/5">
-            {bonusText}
-          </div>
-        )}
       </div>
 
     </div>

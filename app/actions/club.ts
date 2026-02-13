@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { prisma } from '@/lib/prisma'
 import { revalidatePath, revalidateTag, unstable_cache } from 'next/cache'
 import { cookies } from 'next/headers'
 import { Database } from '@/types/supabase'
@@ -320,6 +321,54 @@ export async function getClubs() {
   } catch (error) {
     console.error('Error fetching clubs:', error)
     return []
+  }
+}
+
+export async function getUserClub() {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return null
+
+    // Find the first active club membership
+    const membership = await prisma.club_members.findFirst({
+      where: {
+        user_id: user.id,
+        status: 'active'
+      },
+      include: {
+        clubs: true
+      }
+    })
+
+    if (!membership || !membership.clubs) return null
+
+    const club = membership.clubs
+    
+    // Process Avatar URL
+    const rawAvatar = club.avatar_url
+    let avatarUrl = rawAvatar || `https://api.dicebear.com/7.x/shapes/svg?seed=${club.id}`
+    if (rawAvatar && !/^https?:\/\//i.test(rawAvatar) && !rawAvatar.startsWith('data:')) {
+      const { data } = supabase.storage.from('clubs').getPublicUrl(rawAvatar)
+      avatarUrl = data.publicUrl
+    }
+
+    return {
+      id: club.id,
+      name: club.name,
+      description: club.description,
+      owner_id: club.owner_id,
+      avatar: avatarUrl,
+      logo_url: avatarUrl,
+      members: club.member_count,
+      territory: club.territory,
+      level: club.level,
+      rating: Number(club.rating),
+      isJoined: true
+    }
+  } catch (error) {
+    console.error('Error fetching user club:', error)
+    return null
   }
 }
 

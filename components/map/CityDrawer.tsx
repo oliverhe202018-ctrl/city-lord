@@ -17,6 +17,7 @@ export function CityDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () =
   const { allCities, switchCity } = useCity();
   const [searchQuery, setSearchQuery] = useState("");
   const [openProvinces, setOpenProvinces] = useState<string[]>([]);
+  const [snapPoint, setSnapPoint] = useState<number | string | null>(1);
   
   // Group cities by province
   const groupedCities = useMemo(() => {
@@ -42,8 +43,15 @@ export function CityDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () =
   };
 
   return (
-    <Drawer open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DrawerContent className="h-[85vh] bg-[#0a0f1a] border-t border-white/10">
+    <Drawer 
+      open={isOpen} 
+      onOpenChange={(open) => !open && onClose()}
+      snapPoints={[0.4, 1]}
+      activeSnapPoint={snapPoint}
+      onActiveSnapPointChange={setSnapPoint}
+      dismissible={true}
+    >
+      <DrawerContent className="max-h-[96vh] flex flex-col h-full bg-zinc-950 border-t border-zinc-800">
         <DrawerHeader className="border-b border-white/10 pb-4">
           <div className="flex items-center justify-between">
             <DrawerTitle className="text-white text-lg font-bold">切换城市</DrawerTitle>

@@ -16,6 +16,7 @@ export function ModeDrawer({ isOpen, onClose }: ModeDrawerProps) {
   const locationName = (cityName && cityName !== 'undefined' ? cityName : '') || 
                       (countyName && countyName !== 'undefined' ? countyName : '') || 
                       '城市';
+  const [snapPoint, setSnapPoint] = useState<number | string | null>(1);
 
   const modes = [
     {
@@ -66,8 +67,15 @@ export function ModeDrawer({ isOpen, onClose }: ModeDrawerProps) {
   };
 
   return (
-    <Drawer open={isOpen} onOpenChange={onClose} snapPoints={[0.4, 0.95]}>
-      <DrawerContent className="bg-zinc-900/90 border-t border-white/10 rounded-t-[32px] max-h-[96vh] max-w-[100vw] overflow-x-hidden flex flex-col h-full">
+    <Drawer 
+      open={isOpen} 
+      onOpenChange={onClose} 
+      snapPoints={[0.4, 1]}
+      activeSnapPoint={snapPoint}
+      onActiveSnapPointChange={setSnapPoint}
+      dismissible={true}
+    >
+      <DrawerContent className="bg-zinc-900/90 border-t border-white/10 rounded-t-[32px] w-full overflow-x-hidden flex flex-col h-[96vh]">
         {/* 顶部拖拽手柄 */}
         <div className="flex justify-center pt-4 pb-2">
           <div className="w-12 h-1.5 bg-white/20 rounded-full" />

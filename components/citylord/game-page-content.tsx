@@ -81,7 +81,7 @@ export function GamePageContent({
   const router = useRouter()
   const { user, isAuthenticated } = useAuth(initialUser)
   const { isLoading: isCityLoading, currentCity } = useCity()
-  const { checkStaminaRecovery, dismissGeolocationPrompt, claimAchievement, addTotalDistance } = useGameActions()
+  const { checkStaminaRecovery, dismissGeolocationPrompt, claimAchievement, addTotalDistance, openDrawer, closeDrawer } = useGameActions()
   const { achievements, totalDistance } = useGameUser()
   const hydrated = useHydration();
   const mapViewRef = useRef<AMapViewHandle>(null);
@@ -255,8 +255,6 @@ export function GamePageContent({
   const [showQuickNav, setShowQuickNav] = useState(false)
   const [showMapGuide, setShowMapGuide] = useState(false)
   const [showThemeSwitcher, setShowThemeSwitcher] = useState(false)
-  const [isCityDrawerOpen, setIsCityDrawerOpen] = useState(false);
-  const [isRunHistoryOpen, setIsRunHistoryOpen] = useState(false);
   const [shouldHideButtons, setShouldHideButtons] = useState(false);
   const [isCountingDown, setIsCountingDown] = useState(false);
 
@@ -278,6 +276,7 @@ export function GamePageContent({
   const userLng = useGameStore((state) => state.longitude)
   const gameMode = useGameStore((state) => state.gameMode);
   const gpsError = useGameStore((state) => state.gpsError);
+  const activeDrawer = useGameStore((state) => state.activeDrawer);
   const hasDismissedGeolocationPrompt = useGameStore((state) => state.hasDismissedGeolocationPrompt);
   const isSmartRunStarting = useGameStore((state) => state.isSmartRunStarting);
   const setSmartRunStarting = useGameStore((state) => state.setSmartRunStarting);
@@ -537,7 +536,7 @@ export function GamePageContent({
 
             <div className="relative z-10 h-full w-full pointer-events-none">
               <div className="pointer-events-auto">
-                <MapHeader isCityDrawerOpen={isCityDrawerOpen} setIsCityDrawerOpen={setIsCityDrawerOpen} setShowThemeSwitcher={setShowThemeSwitcher} />
+                <MapHeader setShowThemeSwitcher={setShowThemeSwitcher} />
               </div>
 
               <div className="pointer-events-auto">
@@ -554,7 +553,7 @@ export function GamePageContent({
                     </button>
                     
                   <button
-                      onClick={() => setIsRunHistoryOpen(true)}
+                      onClick={() => openDrawer('runHistory')}
                       className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg text-white active:scale-95 transition-all hover:bg-black/80"
                     >
                       <History className="h-5 w-5" />
@@ -593,8 +592,6 @@ export function GamePageContent({
             <div className="relative z-10 h-full w-full pointer-events-none">
               <div className="pointer-events-auto">
                 <MapHeader 
-                  isCityDrawerOpen={isCityDrawerOpen} 
-                  setIsCityDrawerOpen={setIsCityDrawerOpen} 
                   setShowThemeSwitcher={setShowThemeSwitcher} 
                   viewMode={mapViewMode}
                   onViewModeChange={setMapViewMode}
@@ -676,8 +673,9 @@ export function GamePageContent({
           addTotalDistance(currentRunDistance)
           const newTotalDistance = (totalDistance || 0) + currentRunDistance
           
-          if (!achievements?.['endurance_3'] && !localStorage.getItem('achievement_marathon-hero_claimed') && newTotalDistance >= 42195) {
-             const def = ACHIEVEMENT_DEFINITIONS.find(a => a.id === 'endurance_3');
+          // Check for achievements based on distance
+          if (!achievements?.['marathon-god'] && newTotalDistance >= 42195) {
+             const def = ACHIEVEMENT_DEFINITIONS.find(a => a.id === 'marathon-god');
              if (def) {
                  setCurrentUnlockedAchievement(def);
                  setShowAchievement(true);
@@ -685,8 +683,8 @@ export function GamePageContent({
              }
           }
 
-          if (!achievements?.['endurance_1'] && newTotalDistance >= 1000) {
-             const def = ACHIEVEMENT_DEFINITIONS.find(a => a.id === 'endurance_1');
+          if (!achievements?.['city-walker'] && newTotalDistance >= 10000) {
+             const def = ACHIEVEMENT_DEFINITIONS.find(a => a.id === 'city-walker');
              if (def) {
                  setCurrentUnlockedAchievement(def);
                  setShowAchievement(true);
@@ -810,8 +808,8 @@ export function GamePageContent({
       />
 
       <RunHistoryDrawer 
-        isOpen={isRunHistoryOpen} 
-        onClose={() => setIsRunHistoryOpen(false)} 
+        isOpen={activeDrawer === 'runHistory'} 
+        onClose={closeDrawer} 
       />
     </div>
   )

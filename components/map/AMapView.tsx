@@ -24,7 +24,7 @@ import { SelfLocationMarker } from "./SelfLocationMarker";
 
 const MapViewOrchestrator = () => {
   const { region } = useRegion();
-  const { map, setMap } = useAMap();
+  const { map, setMap } = useMap();
   const { setGpsStatus } = useGameActions();
   const hasDismissedGeolocationPrompt = useGameStore(
     (state) => state.hasDismissedGeolocationPrompt
@@ -109,7 +109,7 @@ import { useGeolocation } from "@/hooks/useGeolocation";
 import { useReverseGeocode } from "@/hooks/useReverseGeocode";
 import { useRegion } from "@/contexts/RegionContext";
 import { MapControls } from "./MapControls";
-import { useAMap } from "./AMapProvider";
+import { useMap } from "./AMapContext";
 import { useGameActions, useGameStore } from "@/store/useGameStore";
 import { useHydration } from "@/hooks/useHydration";
 import { SmartRoutingMode } from "@/components/citylord/map/SmartRoutingMode";
@@ -127,7 +127,7 @@ export interface AMapViewProps {
 const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(({ showTerritory, onMapLoad }, ref) => {
   const mapDomRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any | null>(null);
-  const { setMap } = useAMap();
+  const { setMap } = useMap();
   const { syncCurrentRoom } = useGameActions();
   const currentRoom = useGameStore(state => state.currentRoom);
 
@@ -194,8 +194,7 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(({ showTerritory, onM
           zoom: 13,
           center: initialCenter,
           viewMode: "2D",
-          mapStyle: "amap://styles/dark",
-          features: ['bg', 'road', 'point', 'building'], // Restore 'bg' to show outlines/buildings
+          mapStyle: "amap://styles/22e069175d1afe32e9542abefde02cb5",
           // showLabel: false, // Hide all labels
         });
 

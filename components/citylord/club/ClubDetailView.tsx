@@ -261,7 +261,8 @@ export function ClubDetailView({
         return sum + Number(item.distance || 0)
       }, 0)
       const totalCalories = Math.round(totalDistanceKm * 60)
-      const memberCount = cachedClub?.member_count || mappedMembers.length
+      // Fix: Prefer actual member list count over cached count which might be out of sync
+      const memberCount = mappedMembers.length > 0 ? mappedMembers.length : (cachedClub?.member_count || 0)
 
       setStats({
         totalDistanceKm,
@@ -296,7 +297,7 @@ export function ClubDetailView({
 
   return (
     <div 
-      className="fixed inset-0 flex flex-col bg-black text-white"
+      className="relative w-full h-full flex flex-col bg-black text-white"
       style={{
         // ✅ 键盘弹出时向上移动，而不是改变高度
         paddingBottom: keyboardHeight > 0 ? `${keyboardHeight}px` : '0px',
@@ -306,15 +307,11 @@ export function ClubDetailView({
       {/* ✅ 固定高度的可滚动内容区 */}
       <div
         ref={scrollContainerRef}
-        className={`flex-1 w-full ${
+        className={`flex-1 w-full min-h-0 ${
           effectiveIsMember 
-            ? "overflow-y-auto overscroll-contain" // ✅ 已加入：允许滚动
+            ? "overflow-y-auto overscroll-contain" 
             : "overflow-y-auto overscroll-contain"
         }`}
-        style={{
-          // ✅ 使用 dvh 单位，自动适配键盘
-          height: effectiveIsMember ? 'calc(100dvh - env(safe-area-inset-bottom))' : 'auto'
-        }}
       >
         <div className="px-6 pt-6">
           <div className="relative h-44 overflow-hidden rounded-2xl border border-white/10">

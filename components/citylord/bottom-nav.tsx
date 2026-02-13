@@ -36,8 +36,8 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
   ]
 
   return (
-    <nav className="absolute bottom-0 left-0 right-0 z-[1000] border-t border-white/10 bg-black/80 backdrop-blur-2xl pb-[env(safe-area-inset-bottom)]">
-      <div className="flex items-center justify-around px-2 pb-2 pt-3">
+    <nav className="absolute bottom-0 left-0 right-0 z-[1000] border-t border-border bg-background/80 backdrop-blur-2xl pb-[env(safe-area-inset-bottom)]">
+      <div className="flex items-center justify-around px-2 py-1">
         {tabs.map((tab) => {
           const Icon = tab.icon
           const isActive = activeTab === tab.id
@@ -46,30 +46,30 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
             <button
               key={tab.id}
               onClick={() => onTabChange(tab.id)}
-              className="relative flex flex-col items-center gap-1 px-3 py-1 transition-all"
+              className="relative flex flex-col items-center gap-0.5 px-3 py-1 transition-all"
             >
               <div
-                className={`relative flex h-11 w-11 items-center justify-center rounded-2xl transition-all ${
-                  isActive ? "bg-[#22c55e]/20" : "bg-transparent"
+                className={`relative flex h-10 w-10 items-center justify-center rounded-2xl transition-all ${
+                  isActive ? "bg-primary/20" : "bg-transparent"
                 }`}
               >
                 <Icon
-                  className={`h-6 w-6 transition-colors ${
-                    isActive ? "text-[#22c55e]" : "text-white/40"
+                  className={`h-5 w-5 transition-colors ${
+                    isActive ? "text-primary" : "text-muted-foreground"
                   }`}
                 />
 
                 {/* Badge */}
                 {tab.badge && tab.badge > 0 && (
-                  <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-lg">
+                  <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-destructive text-[9px] font-bold text-destructive-foreground shadow-lg">
                     {tab.badge}
                   </span>
                 )}
               </div>
 
               <span
-                className={`text-[11px] font-semibold transition-colors ${
-                  isActive ? "text-[#22c55e]" : "text-white/40"
+                className={`text-[10px] font-semibold transition-colors ${
+                  isActive ? "text-primary" : "text-muted-foreground"
                 }`}
               >
                 {tab.label}
@@ -77,7 +77,7 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
 
               {/* Active indicator dot */}
               {isActive && (
-                <span className="absolute -bottom-0.5 h-1 w-1 rounded-full bg-[#22c55e] shadow-[0_0_8px_rgba(34,197,94,0.8)]" />
+                <span className="absolute -bottom-0.5 h-1 w-1 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.8)]" />
               )}
             </button>
           )

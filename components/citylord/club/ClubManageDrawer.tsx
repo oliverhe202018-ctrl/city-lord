@@ -86,6 +86,7 @@ export function ClubManageDrawer({ isOpen, onClose, club }: ClubManageDrawerProp
 
   const [view, setView] = useState<View>('menu')
   const [isLoading, setIsLoading] = useState(false)
+  const [snapPoint, setSnapPoint] = useState<number | string | null>(1)
   
   // Data State
   const [requests, setRequests] = useState<JoinRequest[]>([])
@@ -436,7 +437,15 @@ export function ClubManageDrawer({ isOpen, onClose, club }: ClubManageDrawerProp
   }
 
   return (
-    <Drawer open={isOpen} onOpenChange={(open) => !open && onClose()} snapPoints={[0.4, 0.95]}>
+    <Drawer 
+      open={isOpen} 
+      onOpenChange={onClose}
+      snapPoints={[0.4, 1]}
+      activeSnapPoint={snapPoint}
+      onActiveSnapPointChange={setSnapPoint}
+      dismissible={true}
+      repositionInputs={false}
+    >
       <DrawerContent className="max-h-[96vh] flex flex-col h-full">
         <DrawerHeader className="border-b pb-4">
           <div className="flex items-center gap-2">

@@ -6,17 +6,13 @@ import { Toaster as Sonner, ToasterProps } from 'sonner'
 const Toaster = ({ ...props }: ToasterProps) => {
   const { theme = 'system' } = useTheme()
 
+  // Invert theme logic as requested: Dark Mode -> Light Toast, Light Mode -> Dark Toast
+  const invertedTheme = theme === 'dark' ? 'light' : theme === 'light' ? 'dark' : 'system';
+
   return (
     <Sonner
-      theme={theme as ToasterProps['theme']}
+      theme={invertedTheme as ToasterProps['theme']}
       className="toaster group"
-      style={
-        {
-          '--normal-bg': 'var(--popover)',
-          '--normal-text': 'var(--popover-foreground)',
-          '--normal-border': 'var(--border)',
-        } as React.CSSProperties
-      }
       {...props}
     />
   )

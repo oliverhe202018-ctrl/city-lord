@@ -100,7 +100,7 @@ export function FriendsList({
   const statusConfig = {
     online: { color: "bg-[#22c55e]", label: "在线", animate: false },
     running: { color: "bg-cyan-400", label: "跑步中", animate: true },
-    offline: { color: "bg-white/30", label: "离线", animate: false },
+    offline: { color: "bg-muted-foreground/30", label: "离线", animate: false },
   }
 
   // Helper to determine real-time status
@@ -115,8 +115,8 @@ export function FriendsList({
   if (isFriendsLoading || isRequestsLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-[#22c55e]" />
-        <p className="mt-2 text-sm text-white/60">正在加载好友列表...</p>
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="mt-2 text-sm text-muted-foreground">正在加载好友列表...</p>
       </div>
     )
   }
@@ -127,18 +127,18 @@ export function FriendsList({
       <div className="mb-4 space-y-3">
         {/* Search Input */}
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
             placeholder="搜索好友..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-xl border border-white/10 bg-white/5 py-2.5 pl-10 pr-4 text-sm text-white placeholder:text-white/40 focus:border-[#22c55e]/50 focus:outline-none focus:ring-1 focus:ring-[#22c55e]/50"
+            className="w-full rounded-xl border border-border bg-muted/50 py-2.5 pl-10 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/50"
           />
         </div>
 
         {/* Filter Tabs */}
-        <div className="flex gap-2 rounded-xl bg-white/5 p-1">
+        <div className="flex gap-2 rounded-xl bg-muted/50 p-1">
           {(["all", "online", "nearby"] as const).map((f) => {
             const labels = { all: "全部", online: "在线", nearby: "附近" }
             const counts = {
@@ -152,8 +152,8 @@ export function FriendsList({
                 onClick={() => setFilter(f)}
                 className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
                   filter === f
-                    ? "bg-[#22c55e] text-black"
-                    : "text-white/60 hover:text-white"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 {labels[f]} ({counts[f]})
@@ -164,7 +164,7 @@ export function FriendsList({
       </div>
 
       {/* Add Friend Button */}
-      <button className="mb-4 flex items-center justify-center gap-2 rounded-xl border border-dashed border-[#22c55e]/30 bg-[#22c55e]/5 py-3 text-[#22c55e] transition-all hover:bg-[#22c55e]/10">
+      <button className="mb-4 flex items-center justify-center gap-2 rounded-xl border border-dashed border-primary/30 bg-primary/5 py-3 text-primary transition-all hover:bg-primary/10">
         <UserPlus className="h-5 w-5" />
         <span className="font-medium">添加新好友</span>
       </button>
@@ -172,30 +172,30 @@ export function FriendsList({
       {/* Friend Requests Section */}
       {requests.length > 0 && (
         <div className="mb-6 space-y-2">
-          <h3 className="px-1 text-xs font-semibold uppercase tracking-wider text-white/40">
+          <h3 className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             好友请求 ({requests.length})
           </h3>
           {requests.map((req) => (
-            <div key={req.id} className="flex items-center justify-between rounded-xl border border-[#22c55e]/20 bg-[#22c55e]/5 p-3">
+            <div key={req.id} className="flex items-center justify-between rounded-xl border border-primary/20 bg-primary/5 p-3">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#22c55e]/30 to-cyan-500/30 text-sm font-bold text-white">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-primary/30 to-cyan-500/30 text-sm font-bold text-foreground">
                   {req.avatar || req.name[0]}
                 </div>
                 <div>
-                  <div className="font-semibold text-white">{req.name}</div>
-                  <div className="text-xs text-white/50">Lv.{req.level} • 请求添加好友</div>
+                  <div className="font-semibold text-foreground">{req.name}</div>
+                  <div className="text-xs text-muted-foreground">Lv.{req.level} • 请求添加好友</div>
                 </div>
               </div>
               <div className="flex gap-2">
                 <button
                   onClick={() => handleResponse(req.userId, 'reject')}
-                  className="rounded-lg bg-white/5 p-2 text-white/60 hover:bg-red-500/20 hover:text-red-500"
+                  className="rounded-lg bg-muted p-2 text-muted-foreground hover:bg-destructive/20 hover:text-destructive"
                 >
                   <X className="h-4 w-4" />
                 </button>
                 <button
                   onClick={() => handleResponse(req.userId, 'accept')}
-                  className="rounded-lg bg-[#22c55e] p-2 text-black hover:bg-[#22c55e]/90"
+                  className="rounded-lg bg-primary p-2 text-primary-foreground hover:bg-primary/90"
                 >
                   <Check className="h-4 w-4" />
                 </button>
@@ -217,8 +217,8 @@ export function FriendsList({
               key={friend.id}
               className={`overflow-hidden rounded-2xl border transition-all duration-300 ${
                 isSelected 
-                  ? "border-[#22c55e]/50 bg-[#22c55e]/10" 
-                  : "border-white/10 bg-white/5 hover:bg-white/10"
+                  ? "border-primary/50 bg-primary/10" 
+                  : "border-border bg-card/50 hover:bg-muted/50"
               }`}
             >
               {/* Main Row */}
@@ -231,20 +231,20 @@ export function FriendsList({
               >
                 {/* Avatar */}
                 <div className="relative">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#22c55e]/30 to-cyan-500/30 text-lg font-bold text-white">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-primary/30 to-cyan-500/30 text-lg font-bold text-foreground">
                     {friend.avatar || friend.name[0]}
                   </div>
                   {/* Status Dot */}
                   <div 
-                    className={`absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-[#0f172a] ${status.color} ${status.animate ? "animate-pulse" : ""}`}
+                    className={`absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-background ${status.color} ${status.animate ? "animate-pulse" : ""}`}
                   />
                 </div>
 
                 {/* Info */}
                 <div className="flex-1 text-left">
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold text-white">{friend.name}</span>
-                    <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-white/60">
+                    <span className="font-semibold text-foreground">{friend.name}</span>
+                    <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
                       Lv.{friend.level}
                     </span>
                     {friend.clan && (
@@ -259,7 +259,7 @@ export function FriendsList({
                       </span>
                     )}
                   </div>
-                  <div className="mt-1 flex items-center gap-3 text-xs text-white/50">
+                  <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1">
                       <MapPin className="h-3 w-3" />
                       {friend.hexCount}格
@@ -269,7 +269,7 @@ export function FriendsList({
                       {friend.totalKm}km
                     </span>
                     {friend.nearbyDistance && (
-                      <span className="flex items-center gap-1 text-[#22c55e]">
+                      <span className="flex items-center gap-1 text-primary">
                         <MapPin className="h-3 w-3" />
                         {friend.nearbyDistance}m
                       </span>
@@ -288,36 +288,36 @@ export function FriendsList({
                       跑步中
                     </span>
                   ) : computedStatus === "online" ? (
-                    <span className="text-xs text-[#22c55e]">在线</span>
+                    <span className="text-xs text-primary">在线</span>
                   ) : (
-                    <span className="flex items-center gap-1 text-xs text-white/40">
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
                       <Clock className="h-3 w-3" />
                       {friend.lastActive}
                     </span>
                   )}
                 </div>
 
-                <MoreHorizontal className="h-5 w-5 text-white/40" />
+                <MoreHorizontal className="h-5 w-5 text-muted-foreground" />
               </button>
 
               {/* Expanded Actions */}
               {isSelected && (
-                <div className="flex gap-2 border-t border-white/10 p-3">
+                <div className="flex gap-2 border-t border-border p-3">
                   <button
                     onClick={() => onChallenge?.(friend)}
-                    className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#22c55e]/20 py-2.5 text-sm font-medium text-[#22c55e] transition-all hover:bg-[#22c55e]/30"
+                    className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary/20 py-2.5 text-sm font-medium text-primary transition-all hover:bg-primary/30"
                   >
                     <Swords className="h-4 w-4" />
                     发起挑战
                   </button>
                   <button
                     onClick={() => onMessage?.(friend)}
-                    className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-white/10 py-2.5 text-sm font-medium text-white transition-all hover:bg-white/20"
+                    className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-muted py-2.5 text-sm font-medium text-foreground transition-all hover:bg-muted/80"
                   >
                     <MessageCircle className="h-4 w-4" />
                     发消息
                   </button>
-                  <button className="flex items-center justify-center rounded-xl bg-white/10 px-3 py-2.5 text-white/60 transition-all hover:bg-white/20">
+                  <button className="flex items-center justify-center rounded-xl bg-muted px-3 py-2.5 text-muted-foreground transition-all hover:bg-muted/80">
                     <Trophy className="h-4 w-4" />
                   </button>
                 </div>
@@ -330,11 +330,11 @@ export function FriendsList({
       {/* Empty State */}
       {filteredFriends.length === 0 && (
         <div className="flex flex-col items-center justify-center py-12 text-center">
-          <div className="mb-3 rounded-full bg-white/5 p-4">
-            <UserPlus className="h-8 w-8 text-white/30" />
+          <div className="mb-3 rounded-full bg-muted/50 p-4">
+            <UserPlus className="h-8 w-8 text-muted-foreground" />
           </div>
-          <p className="text-white/60">没有找到好友</p>
-          <p className="mt-1 text-sm text-white/40">
+          <p className="text-muted-foreground">没有找到好友</p>
+          <p className="mt-1 text-sm text-muted-foreground/60">
             {filter === "nearby" ? "附近暂无好友在跑步" : "尝试调整搜索条件"}
           </p>
         </div>

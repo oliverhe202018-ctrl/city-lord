@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "private": true,
   "scripts": {
-    "dev": "kill-port 3000 && next dev --webpack",
+    "dev": "next dev --turbo",
     "build": "npx prisma generate && next build --webpack",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
@@ -66,6 +66,7 @@
     "clsx": "^2.1.1",
     "cmdk": "1.0.4",
     "date-fns": "4.1.0",
+    "dotenv": "^17.3.1",
     "embla-carousel-react": "8.5.1",
     "framer-motion": "^12.29.2",
     "gcoord": "^1.0.7",

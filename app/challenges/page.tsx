@@ -88,7 +88,7 @@ export default function ChallengesPage() {
           cityId: currentCity.id,
           name: a.name,
           description: a.description,
-          type: (['milestone', 'collection', 'dominance', 'social', 'special'].includes(a.type) ? a.type : 'special') as any,
+          type: (['milestone', 'collection', 'dominance', 'social', 'special', 'speed', 'conquest', 'exploration', 'endurance'].includes(a.type) ? a.type : 'special') as any,
           tier: (['bronze', 'silver', 'gold', 'platinum', 'diamond'].includes(a.tier) ? a.tier : 'bronze') as any,
           conditions: { type: 'tiles_captured', threshold: a.condition.threshold }, // Simplified mapping
           rewards: {

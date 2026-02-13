@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useAMap } from "./AMapProvider";
+import { useMap } from "./AMapContext";
 import gcoord from "gcoord";
 
 interface SelfLocationMarkerProps {
@@ -13,7 +13,7 @@ interface SelfLocationMarkerProps {
 }
 
 export function SelfLocationMarker({ position }: SelfLocationMarkerProps) {
-  const { map } = useAMap();
+  const { map } = useMap();
   const markerRef = useRef<any>(null);
 
   // 1. Initialize Marker when map is ready

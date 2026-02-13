@@ -24,6 +24,7 @@ const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false, // 禁止用户缩放，防止组件撑开屏幕
   viewportFit: 'cover',
+  interactiveWidget: 'resizes-content', // 确保软键盘弹出时调整视口高度
   // 针对 iOS 的特殊处理
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: 'white' },
@@ -96,7 +97,7 @@ export default function RootLayout({
         </Script>
         <ErrorBoundary>
           <Providers>
-            <ThemeProvider defaultTheme="cyberpunk">
+            <ThemeProvider>
               <RegionProvider>
                 <CityProvider>
                   <NetworkStatus />

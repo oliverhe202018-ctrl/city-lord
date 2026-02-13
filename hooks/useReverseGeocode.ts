@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from 'react';
-import { useAMap } from '@/components/map/AMapProvider';
+import { useMap } from '@/components/map/AMapContext';
 import { useRegion } from '@/contexts/RegionContext';
 
 interface ReverseGeocodeOptions {
@@ -38,7 +38,7 @@ const normalizeAddressComponent = (addressComponent: any) => {
  * @param options Latitude and longitude
  */
 export const useReverseGeocode = (options: ReverseGeocodeOptions | null) => {
-  const { map } = useAMap();
+  const { map } = useMap();
   const { setRegion } = useRegion();
   const [state, setState] = useState<ReverseGeocodeState>({
     loading: false,

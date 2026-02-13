@@ -40,6 +40,7 @@ interface CreateClubDrawerProps {
 
 export function CreateClubDrawer({ isOpen, onClose, onSuccess }: CreateClubDrawerProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [snapPoint, setSnapPoint] = useState<number | string | null>(1);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -92,8 +93,16 @@ export function CreateClubDrawer({ isOpen, onClose, onSuccess }: CreateClubDrawe
   };
 
   return (
-    <Drawer open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DrawerContent className="h-[85vh] p-0 border-none bg-transparent">
+    <Drawer 
+      open={isOpen} 
+      onOpenChange={(open) => !open && onClose()}
+      snapPoints={[0.4, 1]}
+      activeSnapPoint={snapPoint}
+      onActiveSnapPointChange={setSnapPoint}
+      dismissible={true}
+      repositionInputs={false}
+    >
+      <DrawerContent className="max-h-[96vh] p-0 border-none bg-transparent">
         {/* 1. 全局容器: 确保头部底部固定 */}
         <div className="flex flex-col h-full w-full bg-zinc-900 rounded-t-[10px] overflow-hidden">
           

@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { useAMap } from "@/components/map/AMapProvider";
 import { PlannerTutorial } from "@/components/citylord/map/PlannerTutorial"; 
 import SaveRouteModal from "@/components/citylord/map/SaveRouteModal";
 import { SaveSuccessDialog } from "@/components/citylord/map/SaveSuccessDialog";
@@ -170,13 +169,28 @@ export default function PlannerClientView() {
           showCircle: true,  // Show accuracy circle
           zoomToAccuracy: false, // Don't auto-zoom
         });
-        map.addControl(geolocation);
-        geolocation.getCurrentPosition((status: string, result: any) => {
-          if (status === 'complete' && result?.position) {
-            map.setCenter([result.position.lng, result.position.lat]);
-            map.setZoom(17);
+        
+        // Ensure map instance exists before adding control
+        if (mapInstanceRef.current) {
+          try {
+             mapInstanceRef.current.addControl(geolocation);
+          } catch (e) {
+             console.warn("Failed to add geolocation control, skipping...", e);
           }
-        });
+          
+          geolocation.getCurrentPosition((status: string, result: any) => {
+            if (status === 'complete' && result?.position) {
+              if (mapInstanceRef.current) {
+                  try {
+                    mapInstanceRef.current.setCenter([result.position.lng, result.position.lat]);
+                    mapInstanceRef.current.setZoom(17);
+                  } catch (e) {
+                     console.warn("Failed to center map on location", e);
+                  }
+              }
+            }
+          });
+        }
       });
 
       // Click Handler for Waypoint Mode
@@ -231,7 +245,7 @@ export default function PlannerClientView() {
         MapManager.getInstance().destroyMap();
       }
     };
-  }, [userLat, userLng]);
+  }, []);
 
   // Use ref to access latest mode in event handlers
   const modeRef = useRef(drawMode);

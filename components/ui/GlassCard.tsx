@@ -19,14 +19,14 @@ export function GlassCard({
     "relative overflow-hidden rounded-xl border backdrop-blur-md transition-all duration-300";
   
   const variants = {
-    default: "bg-white/5 border-white/10 shadow-lg shadow-black/20",
-    active: "bg-cyan-500/10 border-cyan-500/30 shadow-[0_0_15px_rgba(6,182,212,0.15)]",
-    danger: "bg-red-500/10 border-red-500/30 shadow-[0_0_15px_rgba(239,68,68,0.15)]",
+    default: "bg-card/60 border-border shadow-lg shadow-black/5",
+    active: "bg-primary/10 border-primary/30 shadow-[0_0_15px_hsl(var(--primary)/0.15)]",
+    danger: "bg-destructive/10 border-destructive/30 shadow-[0_0_15px_hsl(var(--destructive)/0.15)]",
     success: "bg-green-500/10 border-green-500/30 shadow-[0_0_15px_rgba(34,197,94,0.15)]",
   };
 
   const interactiveStyles = interactive
-    ? "hover:bg-white/10 hover:border-white/20 hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+    ? "hover:bg-card/80 hover:border-foreground/20 hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
     : "";
 
   return (
@@ -35,7 +35,7 @@ export function GlassCard({
       {...props}
     >
       {/* Glossy gradient overlay */}
-      <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-br from-foreground/5 to-transparent pointer-events-none" />
       
       {/* Content */}
       <div className="relative z-10">{children}</div>

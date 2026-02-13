@@ -20,9 +20,9 @@ export function RunningStatusBar({
   onPause,
 }: RunningStatusBarProps) {
   const getGpsColor = () => {
-    if (gpsStrength >= 4) return "text-[#22c55e]"
+    if (gpsStrength >= 4) return "text-primary"
     if (gpsStrength >= 2) return "text-yellow-400"
-    return "text-red-500"
+    return "text-destructive"
   }
 
   const getGpsBars = () => {
@@ -32,11 +32,11 @@ export function RunningStatusBar({
         className={`w-1 rounded-full transition-all ${
           i < gpsStrength
             ? gpsStrength >= 4
-              ? "bg-[#22c55e]"
+              ? "bg-primary"
               : gpsStrength >= 2
                 ? "bg-yellow-400"
-                : "bg-red-500"
-            : "bg-white/20"
+                : "bg-destructive"
+            : "bg-muted"
         }`}
         style={{ height: `${8 + i * 3}px` }}
       />
@@ -46,7 +46,7 @@ export function RunningStatusBar({
   return (
     <div className="w-full">
       {/* Compact Top Bar - Always visible */}
-      <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/60 px-4 py-3 backdrop-blur-xl">
+      <div className="flex items-center justify-between rounded-2xl border border-border bg-card/60 px-4 py-3 backdrop-blur-xl">
         {/* GPS Signal */}
         <div className="flex items-center gap-2">
           <div className="flex items-end gap-0.5">
@@ -56,7 +56,7 @@ export function RunningStatusBar({
         </div>
 
         {/* Weather */}
-        <div className="flex items-center gap-1.5 text-white/60">
+        <div className="flex items-center gap-1.5 text-muted-foreground">
           <CloudSun className="h-4 w-4" />
           <span className="text-xs">18°C</span>
         </div>
@@ -67,30 +67,30 @@ export function RunningStatusBar({
 
       {/* Expanded Running HUD - Only when running */}
       {isRunning && (
-        <div className="mt-3 rounded-2xl border border-[#22c55e]/30 bg-black/70 p-4 backdrop-blur-xl">
+        <div className="mt-3 rounded-2xl border border-primary/30 bg-card/70 p-4 backdrop-blur-xl">
           {/* Main Stats Grid */}
           <div className="grid grid-cols-3 gap-4">
             {/* Time */}
             <div className="text-center">
-              <p className="text-xs uppercase tracking-wider text-white/50">时间</p>
-              <p className="font-mono text-2xl font-bold text-white">{time}</p>
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">时间</p>
+              <p className="font-mono text-2xl font-bold text-foreground">{time}</p>
             </div>
             
             {/* Distance */}
             <div className="text-center">
-              <p className="text-xs uppercase tracking-wider text-white/50">距离</p>
-              <p className="font-mono text-2xl font-bold text-[#22c55e]">
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">距离</p>
+              <p className="font-mono text-2xl font-bold text-primary">
                 {distance.toFixed(2)}
-                <span className="ml-1 text-sm font-normal text-white/40">公里</span>
+                <span className="ml-1 text-sm font-normal text-muted-foreground">公里</span>
               </p>
             </div>
             
             {/* Pace */}
             <div className="text-center">
-              <p className="text-xs uppercase tracking-wider text-white/50">配速</p>
-              <p className="font-mono text-2xl font-bold text-white">
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">配速</p>
+              <p className="font-mono text-2xl font-bold text-foreground">
                 {pace}
-                <span className="ml-1 text-sm font-normal text-white/40">/公里</span>
+                <span className="ml-1 text-sm font-normal text-muted-foreground">/公里</span>
               </p>
             </div>
           </div>

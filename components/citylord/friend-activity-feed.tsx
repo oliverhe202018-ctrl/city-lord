@@ -67,17 +67,17 @@ function ActivityCard({ activity, onLike, onComment, isNew }: ActivityCardProps)
 
   return (
     <div
-      className={`overflow-hidden rounded-2xl border border-white/10 bg-black/40 backdrop-blur-xl transition-all duration-500 ${
+      className={`overflow-hidden rounded-2xl border border-border bg-card backdrop-blur-xl transition-all duration-500 ${
         isVisible 
           ? "opacity-100 translate-y-0" 
           : "opacity-0 -translate-y-4"
-      } ${isNew ? "ring-2 ring-[#22c55e]/30" : ""}`}
+      } ${isNew ? "ring-2 ring-green-500/30" : ""}`}
     >
       {/* New indicator */}
       {isNew && (
-        <div className="flex items-center gap-2 border-b border-[#22c55e]/20 bg-[#22c55e]/10 px-4 py-1.5">
-          <Sparkles className="h-3 w-3 text-[#22c55e]" />
-          <span className="text-xs font-medium text-[#22c55e]">新动态</span>
+        <div className="flex items-center gap-2 border-b border-green-500/20 bg-green-500/10 px-4 py-1.5">
+          <Sparkles className="h-3 w-3 text-green-500" />
+          <span className="text-xs font-medium text-green-500">新动态</span>
         </div>
       )}
 
@@ -87,7 +87,7 @@ function ActivityCard({ activity, onLike, onComment, isNew }: ActivityCardProps)
           <div className="flex items-center gap-3">
             {/* Avatar */}
             <div className="relative">
-              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-lg font-bold text-white">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-muted text-lg font-bold text-foreground">
                 {activity.user.avatar || activity.user.name.charAt(0)}
               </div>
               {/* Activity type badge */}
@@ -99,14 +99,14 @@ function ActivityCard({ activity, onLike, onComment, isNew }: ActivityCardProps)
             {/* User info */}
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-semibold text-white">{activity.user.name}</span>
+                <span className="font-semibold text-foreground">{activity.user.name}</span>
                 {activity.user.clan && (
-                  <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-medium text-white/60">
+                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
                     [{activity.user.clan}]
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-2 text-xs text-white/40">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span className={`${config.color}`}>{config.label}</span>
                 <span>|</span>
                 <Clock className="h-3 w-3" />
@@ -115,15 +115,15 @@ function ActivityCard({ activity, onLike, onComment, isNew }: ActivityCardProps)
             </div>
           </div>
 
-          <button className="rounded-full p-1.5 text-white/40 transition-colors hover:bg-white/10 hover:text-white">
+          <button className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
             <MoreHorizontal className="h-4 w-4" />
           </button>
         </div>
 
         {/* Content */}
         <div className="mt-3">
-          <h4 className="font-medium text-white">{activity.content.title}</h4>
-          <p className="mt-0.5 text-sm text-white/60">{activity.content.description}</p>
+          <h4 className="font-medium text-foreground">{activity.content.title}</h4>
+          <p className="mt-0.5 text-sm text-muted-foreground">{activity.content.description}</p>
 
           {/* Stats */}
           {activity.content.stats && activity.content.stats.length > 0 && (
@@ -133,7 +133,7 @@ function ActivityCard({ activity, onLike, onComment, isNew }: ActivityCardProps)
                   key={i}
                   className={`rounded-lg ${config.bg} px-2.5 py-1.5`}
                 >
-                  <span className="text-xs text-white/50">{stat.label}: </span>
+                  <span className="text-xs text-foreground/70">{stat.label}: </span>
                   <span className={`text-sm font-semibold ${config.color}`}>{stat.value}</span>
                 </div>
               ))}
@@ -142,7 +142,7 @@ function ActivityCard({ activity, onLike, onComment, isNew }: ActivityCardProps)
 
           {/* Location */}
           {activity.content.location && (
-            <div className="mt-2 flex items-center gap-1.5 text-xs text-white/40">
+            <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
               <MapPin className="h-3 w-3" />
               {activity.content.location}
             </div>
@@ -150,12 +150,12 @@ function ActivityCard({ activity, onLike, onComment, isNew }: ActivityCardProps)
         </div>
 
         {/* Actions */}
-        <div className="mt-4 flex items-center justify-between border-t border-white/5 pt-3">
+        <div className="mt-4 flex items-center justify-between border-t border-border pt-3">
           <div className="flex items-center gap-4">
             <button
               onClick={handleLike}
               className={`flex items-center gap-1.5 transition-all active:scale-95 ${
-                isLiked ? "text-red-400" : "text-white/40 hover:text-red-400"
+                isLiked ? "text-red-400" : "text-muted-foreground hover:text-red-400"
               }`}
             >
               <Heart className={`h-5 w-5 ${isLiked ? "fill-current" : ""}`} />
@@ -163,13 +163,13 @@ function ActivityCard({ activity, onLike, onComment, isNew }: ActivityCardProps)
             </button>
             <button
               onClick={() => onComment?.(activity.id)}
-              className="flex items-center gap-1.5 text-white/40 transition-all hover:text-[#22c55e] active:scale-95"
+              className="flex items-center gap-1.5 text-muted-foreground transition-all hover:text-green-500 active:scale-95"
             >
               <MessageCircle className="h-5 w-5" />
               <span className="text-sm">{activity.comments}</span>
             </button>
           </div>
-          <button className="rounded-full p-2 text-white/40 transition-all hover:bg-white/10 hover:text-white">
+          <button className="rounded-full p-2 text-muted-foreground transition-all hover:bg-muted hover:text-foreground">
             <Share2 className="h-4 w-4" />
           </button>
         </div>
@@ -215,14 +215,14 @@ export function FriendActivityFeed({
   if (isLoading) {
     return (
       <div className="flex h-32 items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-white/40" />
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     )
   }
 
   if (feedActivities.length === 0) {
     return (
-      <div className="flex h-32 flex-col items-center justify-center text-white/40">
+      <div className="flex h-32 flex-col items-center justify-center text-muted-foreground">
         <p>暂无好友动态</p>
       </div>
     )
@@ -243,7 +243,7 @@ export function FriendActivityFeed({
         <div className="pt-4 text-center">
            <button 
              onClick={onLoadMore}
-             className="text-xs text-white/40 hover:text-white"
+             className="text-xs text-muted-foreground hover:text-foreground"
            >
              加载更多
            </button>

@@ -263,30 +263,54 @@ export function ThemeProvider({ children, defaultTheme = "cyberpunk" }: ThemePro
     },
   }), [themeId])
 
-  // Apply CSS variables
+  // Apply CSS variables and DOM classes
   useEffect(() => {
     const root = document.documentElement
-    const { colors, isDark } = theme
-
-    Object.entries(colors).forEach(([key, value]) => {
-      root.style.setProperty(`--cl-${key}`, value)
-    })
-
-    // Set dark/light mode class on HTML element
-    if (isDark) {
-      document.documentElement.classList.add("dark")
-      document.documentElement.classList.remove("light")
+    
+    // 1. CSS Variables (Standard Tailwind)
+    const vars = {
+      // ... (keep existing custom colors logic if needed, or rely on classes)
+    }
+    
+    // 2. Class List Management
+    root.classList.remove('theme-light', 'theme-nature') // Clean up
+    if (themeId === 'light') root.classList.add('theme-light')
+    if (themeId === 'nature') root.classList.add('theme-nature')
+    
+    // 3. Meta Theme Color
+    // Use theme.colors.background as the theme color
+    const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+    if (metaThemeColor) {
+      metaThemeColor.setAttribute('content', theme.colors.background)
     } else {
-      document.documentElement.classList.add("light")
-      document.documentElement.classList.remove("dark")
+      const meta = document.createElement('meta')
+      meta.name = 'theme-color'
+      meta.content = theme.colors.background
+      document.head.appendChild(meta)
     }
 
-    // Sync Capacitor Status Bar
+    // 4. Capacitor Status Bar
     if (Capacitor.isNativePlatform()) {
-      StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light });
-      StatusBar.setBackgroundColor({ color: colors.background });
+      const isDarkTheme = theme.isDark
+      // Style.Dark -> Light text (for dark backgrounds)
+      // Style.Light -> Dark text (for light backgrounds)
+      StatusBar.setStyle({ style: isDarkTheme ? Style.Dark : Style.Light })
+      StatusBar.setBackgroundColor({ color: theme.colors.background })
+      
+      if (Capacitor.getPlatform() === 'android') {
+        StatusBar.setOverlaysWebView({ overlay: false })
+      }
     }
-  }, [theme])
+
+    // Custom colors application (existing logic)
+    Object.entries(theme.colors).forEach(([key, value]) => {
+      // We can map these to CSS variables if we want detailed control
+      // For now, let's stick to the class-based approach for main theme
+      // but maybe set specific variables for map colors?
+      root.style.setProperty(`--theme-${key}`, value)
+    })
+    
+  }, [theme, themeId])
 
   // Memoize context value to prevent unnecessary re-renders
   const contextValue = React.useMemo(() => ({

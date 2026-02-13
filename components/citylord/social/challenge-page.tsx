@@ -172,7 +172,7 @@ export function ChallengePage({
       {/* Pending Challenges Section */}
       {pendingChallenges.length > 0 && (
         <div>
-          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-white/40">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             <Swords className="h-4 w-4" />
             待处理的挑战 ({pendingChallenges.length})
           </h2>
@@ -184,7 +184,7 @@ export function ChallengePage({
               return (
                 <div
                   key={challenge.id}
-                  className="overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-r from-white/5 to-white/[0.02]"
+                  className="overflow-hidden rounded-2xl border border-border bg-gradient-to-r from-muted/50 to-muted/20"
                 >
                   <div className="p-4">
                     <div className="mb-3 flex items-start justify-between">
@@ -196,10 +196,10 @@ export function ChallengePage({
                           <Icon className="h-5 w-5" style={{ color: option.color }} />
                         </div>
                         <div>
-                          <p className="font-semibold text-white">{option.title}</p>
-                          <p className="text-xs text-white/50">
+                          <p className="font-semibold text-foreground">{option.title}</p>
+                          <p className="text-xs text-muted-foreground">
                             来自 <span style={{ color: option.color }}>{challenge.from.name}</span>
-                            <span className="ml-1 text-white/30">Lv.{challenge.from.level}</span>
+                            <span className="ml-1 text-muted-foreground/60">Lv.{challenge.from.level}</span>
                           </p>
                         </div>
                       </div>
@@ -211,20 +211,20 @@ export function ChallengePage({
 
                     <div className="mb-3 flex flex-wrap gap-2 text-xs">
                       {challenge.distance && (
-                        <span className="rounded-full bg-white/10 px-2 py-1 text-white/70">
+                        <span className="rounded-full bg-muted px-2 py-1 text-muted-foreground">
                           {challenge.distance}公里
                         </span>
                       )}
-                      <span className="rounded-full bg-white/10 px-2 py-1 text-white/70">
+                      <span className="rounded-full bg-muted px-2 py-1 text-muted-foreground">
                         {challenge.duration}
                       </span>
                       {challenge.location && (
-                        <span className="flex items-center gap-1 rounded-full bg-white/10 px-2 py-1 text-white/70">
+                        <span className="flex items-center gap-1 rounded-full bg-muted px-2 py-1 text-muted-foreground">
                           <MapPin className="h-3 w-3" />
                           {challenge.location}
                         </span>
                       )}
-                      <span className="flex items-center gap-1 rounded-full bg-yellow-500/20 px-2 py-1 text-yellow-400">
+                      <span className="flex items-center gap-1 rounded-full bg-yellow-500/20 px-2 py-1 text-yellow-600 dark:text-yellow-400">
                         <Trophy className="h-3 w-3" />
                         +{challenge.reward} XP
                       </span>
@@ -233,14 +233,14 @@ export function ChallengePage({
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleResponse(challenge.id, true)}
-                        className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#22c55e] py-2.5 font-semibold text-black transition-all hover:bg-[#22c55e]/90 active:scale-[0.98]"
+                        className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-green-500 py-2.5 font-semibold text-white transition-all hover:bg-green-600 active:scale-[0.98]"
                       >
                         <Check className="h-4 w-4" />
                         接受挑战
                       </button>
                       <button
                         onClick={() => handleResponse(challenge.id, false)}
-                        className="flex items-center justify-center rounded-xl bg-white/10 px-4 py-2.5 text-white/60 transition-all hover:bg-white/20"
+                        className="flex items-center justify-center rounded-xl bg-muted px-4 py-2.5 text-muted-foreground transition-all hover:bg-muted/80"
                       >
                         <X className="h-4 w-4" />
                       </button>
@@ -255,24 +255,24 @@ export function ChallengePage({
 
       {/* Send Challenge Section */}
       <div>
-        <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-white/40">
+        <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
           <Flame className="h-4 w-4" />
           发起挑战
         </h2>
 
         {selectedFriend ? (
-          <div className="mb-4 flex items-center gap-3 rounded-xl border border-[#22c55e]/30 bg-[#22c55e]/10 p-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#22c55e]/20 text-lg font-bold text-[#22c55e]">
+          <div className="mb-4 flex items-center gap-3 rounded-xl border border-green-500/30 bg-green-500/10 p-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-500/20 text-lg font-bold text-green-500">
               {selectedFriend.avatar || selectedFriend.name[0]}
             </div>
             <div>
-              <p className="font-semibold text-white">向 {selectedFriend.name} 发起挑战</p>
-              <p className="text-xs text-white/50">Lv.{selectedFriend.level}</p>
+              <p className="font-semibold text-foreground">向 {selectedFriend.name} 发起挑战</p>
+              <p className="text-xs text-muted-foreground">Lv.{selectedFriend.level}</p>
             </div>
           </div>
         ) : (
-          <div className="mb-4 rounded-xl border border-dashed border-white/20 bg-white/5 p-4 text-center">
-            <p className="text-sm text-white/50">请先从好友列表选择一位好友</p>
+          <div className="mb-4 rounded-xl border border-dashed border-border bg-muted/30 p-4 text-center">
+            <p className="text-sm text-muted-foreground">请先从好友列表选择一位好友</p>
           </div>
         )}
 
@@ -289,32 +289,32 @@ export function ChallengePage({
                 disabled={!selectedFriend}
                 className={`w-full rounded-2xl border p-4 text-left transition-all ${
                   isSelected
-                    ? "border-[#22c55e] bg-[#22c55e]/10"
-                    : "border-white/10 bg-white/5 hover:bg-white/10"
+                    ? "border-green-500 bg-green-500/10"
+                    : "border-border bg-card hover:bg-muted/50"
                 } ${!selectedFriend ? "opacity-50 cursor-not-allowed" : ""}`}
               >
                 <div className="flex items-center gap-3">
                   <div 
                     className={`flex h-12 w-12 items-center justify-center rounded-xl transition-colors ${
-                      isSelected ? "bg-[#22c55e]/20" : "bg-white/10"
+                      isSelected ? "bg-green-500/20" : "bg-muted"
                     }`}
                   >
                     <Icon className="h-6 w-6" style={{ color: isSelected ? "#22c55e" : option.color }} />
                   </div>
                   <div className="flex-1">
-                    <p className="font-semibold text-white">{option.title}</p>
-                    <p className="text-xs text-white/50">{option.description}</p>
+                    <p className="font-semibold text-foreground">{option.title}</p>
+                    <p className="text-xs text-muted-foreground">{option.description}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-xs text-white/40">{option.duration}</p>
-                    <p className="text-sm font-semibold text-yellow-400">+{option.reward} XP</p>
+                    <p className="text-xs text-muted-foreground/80">{option.duration}</p>
+                    <p className="text-sm font-semibold text-yellow-600 dark:text-yellow-400">+{option.reward} XP</p>
                   </div>
                 </div>
 
                 {/* Distance selector for race type */}
                 {isSelected && option.type === "race" && (
-                  <div className="mt-4 border-t border-white/10 pt-4" onClick={(e) => e.stopPropagation()}>
-                    <p className="mb-2 text-xs text-white/50">选择距离</p>
+                  <div className="mt-4 border-t border-border pt-4" onClick={(e) => e.stopPropagation()}>
+                    <p className="mb-2 text-xs text-muted-foreground">选择距离</p>
                     <div className="flex gap-2">
                       {[1, 3, 5, 10].map((d) => (
                         <button
@@ -322,8 +322,8 @@ export function ChallengePage({
                           onClick={() => setDistance(d)}
                           className={`flex-1 rounded-lg py-2 text-sm font-medium transition-all ${
                             distance === d
-                              ? "bg-[#22c55e] text-black"
-                              : "bg-white/10 text-white hover:bg-white/20"
+                              ? "bg-green-500 text-white"
+                              : "bg-muted text-foreground hover:bg-muted/80"
                           }`}
                         >
                           {d}公里
@@ -343,8 +343,8 @@ export function ChallengePage({
           disabled={!selectedFriend || !selectedType}
           className={`mt-4 flex w-full items-center justify-center gap-2 rounded-xl py-3.5 font-semibold transition-all ${
             selectedFriend && selectedType
-              ? "bg-[#22c55e] text-black hover:bg-[#22c55e]/90 active:scale-[0.98]"
-              : "bg-white/10 text-white/30 cursor-not-allowed"
+              ? "bg-green-500 text-white hover:bg-green-600 active:scale-[0.98]"
+              : "bg-muted text-muted-foreground cursor-not-allowed"
           }`}
         >
           {showConfirm ? (

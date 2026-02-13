@@ -70,12 +70,12 @@ export default function FeedbackPage() {
   };
 
   return (
-    <div className="flex flex-col h-full min-h-screen bg-black text-white">
+    <div className="flex flex-col h-full min-h-screen bg-background text-foreground">
       {/* Navbar */}
-      <div className="flex items-center px-4 py-4 border-b border-white/10 bg-black/50 backdrop-blur-md sticky top-0 z-50">
+      <div className="flex items-center px-4 py-4 border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-50">
         <button 
           onClick={() => router.back()} 
-          className="p-2 -ml-2 rounded-full hover:bg-white/10 transition-colors"
+          className="p-2 -ml-2 rounded-full hover:bg-muted/20 transition-colors"
         >
           <ChevronLeft className="w-6 h-6" />
         </button>
@@ -88,14 +88,14 @@ export default function FeedbackPage() {
           
           {/* Problem Description */}
           <div className="space-y-2">
-            <label htmlFor="content" className="text-sm font-medium text-white/70">
-              问题描述 <span className="text-red-500">*</span>
+            <label htmlFor="content" className="text-sm font-medium text-muted-foreground">
+              问题描述 <span className="text-destructive">*</span>
             </label>
             <Textarea
               id="content"
               name="content"
               placeholder="请详细描述您遇到的问题，发生场景等..."
-              className="bg-zinc-900/50 border-white/10 min-h-[150px] resize-none focus:border-yellow-500/50"
+              className="bg-muted/30 border-border min-h-[150px] resize-none focus:border-primary/50"
               required
               minLength={5}
             />
@@ -103,64 +103,66 @@ export default function FeedbackPage() {
 
           {/* Screenshot Upload */}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-white/70">
+            <label className="text-sm font-medium text-muted-foreground">
               问题截图 (选填)
             </label>
             
-            <input
-              type="file"
-              name="screenshot"
-              ref={fileInputRef}
-              accept="image/*"
-              className="hidden"
-              onChange={handleFileChange}
-            />
-
-            {!previewUrl ? (
+            <div className="grid grid-cols-3 gap-4">
               <div 
                 onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-white/10 rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer hover:border-yellow-500/30 hover:bg-white/5 transition-all group"
+                className="aspect-square rounded-xl border-2 border-dashed border-border bg-muted/20 hover:bg-muted/30 hover:border-primary/50 transition-all cursor-pointer flex flex-col items-center justify-center gap-2 group"
               >
-                <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center mb-3 group-hover:bg-zinc-700">
-                  <ImageIcon className="w-6 h-6 text-white/50" />
+                <Upload className="w-6 h-6 text-muted-foreground group-hover:text-primary transition-colors" />
+                <span className="text-xs text-muted-foreground group-hover:text-primary transition-colors">上传图片</span>
+              </div>
+
+              {previewUrl && (
+                <div className="aspect-square rounded-xl border border-border overflow-hidden relative group">
+                  <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPreviewUrl(null);
+                      if (fileInputRef.current) fileInputRef.current.value = "";
+                    }}
+                    className="absolute top-1 right-1 p-1 rounded-full bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
                 </div>
-                <span className="text-sm text-white/50">点击上传截图</span>
-              </div>
-            ) : (
-              <div className="relative rounded-xl overflow-hidden border border-white/10 group">
-                <img src={previewUrl} alt="Preview" className="w-full h-48 object-cover" />
-                <button
-                  type="button"
-                  onClick={removeImage}
-                  className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 hover:bg-black/80 text-white backdrop-blur-sm transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            )}
+              )}
+            </div>
+            
+            <input 
+              type="file" 
+              ref={fileInputRef}
+              className="hidden" 
+              accept="image/*"
+              onChange={handleFileChange}
+            />
           </div>
 
           {/* Contact Info */}
           <div className="space-y-2">
-            <label htmlFor="contact_info" className="text-sm font-medium text-white/70">
-              联系方式 <span className="text-red-500">*</span>
+            <label htmlFor="contact_info" className="text-sm font-medium text-muted-foreground">
+              联系方式 <span className="text-destructive">*</span>
             </label>
             <Input
               id="contact_info"
               name="contact_info"
               type="text"
               placeholder="手机号 / 微信号 / 邮箱"
-              className="bg-zinc-900/50 border-white/10 h-12 focus:border-yellow-500/50"
+              className="bg-muted/30 border-border h-12 focus:border-primary/50"
               required
             />
-            <p className="text-xs text-white/30">方便我们进一步与您联系解决问题</p>
+            <p className="text-xs text-muted-foreground/60">方便我们进一步与您联系解决问题</p>
           </div>
 
           {/* Submit Button */}
           <div className="pt-4">
             <Button 
               type="submit" 
-              className="w-full h-12 bg-yellow-500 hover:bg-yellow-600 text-black font-bold text-lg rounded-xl"
+              className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-lg rounded-xl shadow-lg shadow-primary/20"
               disabled={isSubmitting}
             >
               {isSubmitting ? (

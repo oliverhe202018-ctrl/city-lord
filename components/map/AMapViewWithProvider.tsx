@@ -2,7 +2,7 @@
 
 import React from 'react';
 import dynamic from 'next/dynamic';
-import { AMapProvider } from './AMapProvider';
+import { MapRoot } from './MapRoot';
 import type { AMapViewHandle, AMapViewProps } from './AMapView';
 
 const AMapView = dynamic(() => import('./AMapView'), {
@@ -11,8 +11,8 @@ const AMapView = dynamic(() => import('./AMapView'), {
 
 export function AMapViewWithProvider(props: AMapViewProps & { ref?: React.Ref<AMapViewHandle> }) {
   return (
-    <AMapProvider>
+    <MapRoot>
       <AMapView {...props} />
-    </AMapProvider>
+    </MapRoot>
   );
 }
