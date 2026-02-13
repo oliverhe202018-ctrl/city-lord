@@ -1,11 +1,12 @@
 "use client"
 
-import { Share2, X, Activity, Flame, Zap, MapPin, Footprints, Timer, Trophy, Share, MessageCircle, MoreHorizontal } from "lucide-react"
+import { Share2, X, Activity, Flame, Zap, MapPin, Footprints, Timer, Trophy, Share, MessageCircle, MoreHorizontal, Camera } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { HEX_AREA_SQ_METERS } from "@/lib/citylord/area-utils"
 import { StaticTrajectoryMap } from "./StaticTrajectoryMap"
 import { useState } from "react"
 import { GlassCard } from "../ui/GlassCard"
+import { toast } from "sonner"
 
 interface RunSummaryViewProps {
   distance: number // km
@@ -48,8 +49,11 @@ export function RunSummaryView({
       e.preventDefault(); 
       e.stopPropagation(); 
     } 
-    // Use replace to destroy current history, prevent user from swiping back
-    window.location.replace('/'); 
+    if (onClose) {
+      onClose();
+    } else {
+      window.location.replace('/');
+    }
   };
   
   return (
@@ -143,6 +147,19 @@ export function RunSummaryView({
            </div>
         </div>
 
+        {/* Task 2: Add Photo Button */}
+        <div className="mx-4 mb-4">
+           <button 
+             className="w-full bg-white rounded-xl p-4 shadow-sm flex flex-col items-center justify-center gap-2 border border-dashed border-gray-300 hover:bg-gray-50 transition-colors"
+             onClick={() => toast.info('添加照片功能开发中')}
+           >
+              <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
+                 <Camera className="w-5 h-5 text-gray-500" />
+              </div>
+              <span className="text-sm font-medium text-gray-600">添加照片</span>
+           </button>
+        </div>
+
         {/* Task 2: Static Trajectory Map */}
         <div className="mx-4 mb-4 rounded-xl overflow-hidden shadow-sm border border-gray-100 relative bg-gray-100 h-72">
           {runTrajectory.length > 0 ? (
@@ -172,12 +189,12 @@ export function RunSummaryView({
       {/* Bottom Actions */}
       <div className="p-4 bg-white border-t border-gray-100 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
         <div className="flex gap-3">
-           <a 
-             href="/"
+           <button 
+             onClick={onClose}
              className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-900 font-bold py-3 rounded-full transition-all active:scale-[0.98] text-center flex items-center justify-center cursor-pointer z-50 pointer-events-auto"
            >
              完成运动
-           </a>
+           </button>
            <button 
              onClick={() => setIsShareModalOpen(true)}
              className="flex-1 bg-[#22c55e] hover:bg-[#16a34a] text-white font-bold py-3 rounded-full transition-all active:scale-[0.98]"

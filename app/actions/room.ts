@@ -172,11 +172,14 @@ export async function createRoom(data: CreateRoomData) {
     const user = authUser
 
     // 1. Create Room
+    // Generate a 6-digit invite code if not provided by DB default (we force it here to be safe)
+    const inviteCode = Math.floor(100000 + Math.random() * 900000).toString();
+
     const { data: room, error: createError } = await (supabase
       .from('rooms' as any) as any)
       .insert({
-        host_id: user.id, // Explicitly bind to user.id (Golden Rule #4)
         name: data.name,
+        host_id: user.id,
         target_distance_km: data.target_distance_km,
         target_duration_minutes: data.target_duration_minutes,
         max_participants: data.max_participants || 10,
@@ -186,7 +189,8 @@ export async function createRoom(data: CreateRoomData) {
         allow_imports: data.allow_imports ?? true,
         allow_member_invite: data.allow_member_invite ?? true,
         avatar_url: data.avatar_url || null,
-        status: 'waiting'
+        status: 'waiting',
+        invite_code: inviteCode
       })
       .select()
       .single()
@@ -356,6 +360,29 @@ export async function leaveRoom(roomId: string) {
     
     const user = authUser
 
+    // 1. Check if user is host
+    const { data: room, error: fetchError } = await (supabase
+        .from('rooms' as any) as any)
+        .select('host_id')
+        .eq('id', roomId)
+        .single()
+
+    if (fetchError || !room) {
+        return { success: false, error: '房间不存在' }
+    }
+
+    // 2. If host, delete the room (dissolve)
+    if (room.host_id === user.id) {
+        const { error: deleteError } = await (supabase
+            .from('rooms' as any) as any)
+            .delete()
+            .eq('id', roomId)
+        
+        if (deleteError) throw deleteError
+        return { success: true, dissolved: true }
+    }
+
+    // 3. If member, just leave
     const { error } = await (supabase
       .from('room_participants' as any) as any)
       .delete()
@@ -364,7 +391,10 @@ export async function leaveRoom(roomId: string) {
 
     if (error) throw error
 
-    // If room is empty, delete it
+    // If room is empty (should ideally be handled by host check, but for safety), delete it
+    // Actually, if host logic covers it, this part is for when last member leaves? 
+    // No, if host leaves room is gone. If member leaves, room stays unless empty?
+    // Let's keep the cleanup logic just in case but usually host check handles dissolution.
     const { count } = await (supabase
       .from('room_participants' as any) as any)
       .select('*', { count: 'exact', head: true })
@@ -374,7 +404,7 @@ export async function leaveRoom(roomId: string) {
        await (supabase.from('rooms' as any) as any).delete().eq('id', roomId)
     }
 
-    return { success: true }
+    return { success: true, dissolved: false }
   } catch (error: any) {
     return { success: false, error: error.message }
   }

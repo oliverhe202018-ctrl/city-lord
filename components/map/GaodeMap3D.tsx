@@ -120,7 +120,7 @@ export function GaodeMap3D({
         center: userLocation,
         pitch: 50, // 3D Tilt (45-60 is recommended)
         rotation: 0,
-        mapStyle: "amap://styles/dark",
+        mapStyle: "amap://styles/22e069175d1afe32e9542abefde02cb5",
         showLabel: false,
         skyColor: '#1f2029'
       })

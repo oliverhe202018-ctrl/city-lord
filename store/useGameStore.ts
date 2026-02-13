@@ -10,6 +10,7 @@ import { touchUserActivity } from '@/app/actions/user';
 // ==================== Types ====================
 
 export type GameMode = 'map' | 'single' | 'private' | 'club';
+export type DrawerType = 'none' | 'city' | 'club' | 'room' | 'createClub' | 'manageClub' | 'mode' | 'runHistory' | 'settings' | 'theme';
 
 export interface UserState {
   userId: string;
@@ -109,6 +110,10 @@ export interface RoomState {
 
 export interface ModeActions {
   setGameMode: (mode: GameMode) => void;
+  // UI Actions
+  openDrawer: (drawer: DrawerType) => void;
+  closeDrawer: () => void;
+  
   setMyClub: (club: MyClub | null) => void;
   updateMyClubInfo: (info: Partial<MyClub>) => void;
   updateAppSettings: (settings: Partial<AppSettings>) => void;
@@ -181,6 +186,7 @@ export interface WorldActions {
 // Combined State and Actions
 export interface GameState extends UserState, LocationState, InventoryState, WorldState, RoomState {
   gameMode: GameMode;
+  activeDrawer: DrawerType;
   myClub: MyClub | null;
   appSettings: AppSettings;
 }
@@ -251,6 +257,8 @@ const initialWorldState: WorldState = {
 
 const createModeSlice: StateCreator<GameStore, [], [], ModeActions> = (set, get) => ({
   setGameMode: (mode) => set({ gameMode: mode }),
+  openDrawer: (drawer) => set({ activeDrawer: drawer }),
+  closeDrawer: () => set({ activeDrawer: 'none' }),
   setMyClub: (club) => set({ myClub: club }),
   updateMyClubInfo: (info) =>
     set((state) => ({
@@ -640,6 +648,7 @@ export const useGameStore = create<GameStore>()(
     (set, get, api) => ({
       // Initial State
       gameMode: 'map',
+      activeDrawer: 'none',
       myClub: null,
       currentRoom: null,
       joinedRooms: [],
@@ -716,6 +725,8 @@ export const useGameActions = () => {
     useShallow((state) => ({
       // Mode Actions
       setGameMode: state.setGameMode,
+      openDrawer: state.openDrawer,
+      closeDrawer: state.closeDrawer,
       setMyClub: state.setMyClub,
       updateMyClubInfo: state.updateMyClubInfo,
       updateAppSettings: state.updateAppSettings,

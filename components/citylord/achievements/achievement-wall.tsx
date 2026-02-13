@@ -273,9 +273,10 @@ export function AchievementWall({
 
   const categories = [
     { id: "all" as const, label: "全部", icon: Trophy },
-    { id: "running" as const, label: "跑步", icon: Footprints },
-    { id: "territory" as const, label: "领地", icon: Hexagon },
-    { id: "social" as const, label: "社交", icon: Users },
+    { id: "speed" as const, label: "速度", icon: Zap },
+    { id: "conquest" as const, label: "征服", icon: Swords },
+    { id: "exploration" as const, label: "探索", icon: MapPin },
+    { id: "endurance" as const, label: "耐力", icon: Footprints },
     { id: "special" as const, label: "特殊", icon: Star },
   ]
 

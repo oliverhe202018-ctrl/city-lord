@@ -158,7 +158,7 @@ export interface Achievement {
   /** 成就描述 */
   description: string
   /** 成就类型 */
-  type: 'milestone' | 'collection' | 'dominance' | 'social' | 'special'
+  type: 'milestone' | 'collection' | 'dominance' | 'social' | 'special' | 'speed' | 'conquest' | 'exploration' | 'endurance'
   /** 成就等级/星级 */
   tier: 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond'
   /** 完成条件 */

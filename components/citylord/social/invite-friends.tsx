@@ -60,27 +60,27 @@ export function InviteFriends({
   return (
     <div className="space-y-4">
       {/* Header Stats */}
-      <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-[#22c55e]/10 to-cyan-500/5 p-4">
+      <div className="rounded-2xl border border-border bg-gradient-to-br from-green-500/10 to-cyan-500/5 p-4">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm text-white/60">已邀请好友</p>
-            <p className="text-3xl font-bold text-[#22c55e]">{invitedCount}</p>
+            <p className="text-sm text-muted-foreground">已邀请好友</p>
+            <p className="text-3xl font-bold text-green-500">{invitedCount}</p>
           </div>
-          <div className="rounded-2xl bg-[#22c55e]/20 p-3">
-            <Gift className="h-8 w-8 text-[#22c55e]" />
+          <div className="rounded-2xl bg-green-500/20 p-3">
+            <Gift className="h-8 w-8 text-green-500" />
           </div>
         </div>
         {nextMilestone && (
           <div className="mt-3">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-white/50">
+              <span className="text-muted-foreground/80">
                 再邀请 {nextMilestone.count - invitedCount} 人获得
               </span>
-              <span className="font-medium text-[#22c55e]">{nextMilestone.reward}</span>
+              <span className="font-medium text-green-500">{nextMilestone.reward}</span>
             </div>
-            <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-white/10">
+            <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-muted">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-[#22c55e] to-cyan-400 transition-all"
+                className="h-full rounded-full bg-gradient-to-r from-green-500 to-cyan-400 transition-all"
                 style={{ width: `${(invitedCount / nextMilestone.count) * 100}%` }}
               />
             </div>
@@ -89,20 +89,20 @@ export function InviteFriends({
       </div>
 
       {/* Invite Code */}
-      <div className="rounded-2xl border border-white/10 bg-black/40 p-4 backdrop-blur-xl">
-        <p className="mb-2 text-xs font-medium uppercase tracking-wider text-white/40">
+      <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+        <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
           你的邀请码
         </p>
         <div className="flex items-center gap-2">
-          <div className="flex-1 rounded-xl bg-white/5 p-3 font-mono text-xl font-bold tracking-widest text-[#22c55e]">
+          <div className="flex-1 rounded-xl bg-muted p-3 font-mono text-xl font-bold tracking-widest text-green-500">
             {inviteCode}
           </div>
           <button
             onClick={() => handleCopy("code")}
             className={`rounded-xl p-3 transition-all ${
               copied === "code"
-                ? "bg-[#22c55e]/20 text-[#22c55e]"
-                : "bg-white/10 text-white/60 hover:bg-white/20 hover:text-white"
+                ? "bg-green-500/20 text-green-500"
+                : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
             }`}
           >
             {copied === "code" ? (
@@ -115,20 +115,20 @@ export function InviteFriends({
       </div>
 
       {/* Invite Link */}
-      <div className="rounded-2xl border border-white/10 bg-black/40 p-4 backdrop-blur-xl">
-        <p className="mb-2 text-xs font-medium uppercase tracking-wider text-white/40">
+      <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+        <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
           邀请链接
         </p>
         <div className="flex items-center gap-2">
-          <div className="flex-1 truncate rounded-xl bg-white/5 p-3 text-sm text-white/70">
+          <div className="flex-1 truncate rounded-xl bg-muted p-3 text-sm text-muted-foreground">
             {inviteLink}
           </div>
           <button
             onClick={() => handleCopy("link")}
             className={`rounded-xl p-3 transition-all ${
               copied === "link"
-                ? "bg-[#22c55e]/20 text-[#22c55e]"
-                : "bg-white/10 text-white/60 hover:bg-white/20 hover:text-white"
+                ? "bg-green-500/20 text-green-500"
+                : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
             }`}
           >
             {copied === "link" ? (
@@ -143,31 +143,31 @@ export function InviteFriends({
       {/* QR Code */}
       <button
         onClick={() => setShowQR(!showQR)}
-        className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-black/40 p-4 text-left transition-all hover:bg-white/5"
+        className="flex w-full items-center justify-between rounded-2xl border border-border bg-card p-4 text-left shadow-sm transition-all hover:bg-muted/50"
       >
         <div className="flex items-center gap-3">
-          <div className="rounded-xl bg-white/10 p-2.5">
-            <QrCode className="h-5 w-5 text-white/60" />
+          <div className="rounded-xl bg-muted p-2.5">
+            <QrCode className="h-5 w-5 text-muted-foreground" />
           </div>
           <div>
-            <p className="font-medium text-white">二维码邀请</p>
-            <p className="text-sm text-white/50">好友扫码即可加入</p>
+            <p className="font-medium text-foreground">二维码邀请</p>
+            <p className="text-sm text-muted-foreground">好友扫码即可加入</p>
           </div>
         </div>
         <ChevronRight
-          className={`h-5 w-5 text-white/40 transition-transform ${showQR ? "rotate-90" : ""}`}
+          className={`h-5 w-5 text-muted-foreground transition-transform ${showQR ? "rotate-90" : ""}`}
         />
       </button>
 
       {showQR && (
-        <div className="flex justify-center rounded-2xl border border-white/10 bg-white p-6">
-          <div className="h-48 w-48 rounded-xl bg-[#1a1a1a] p-4">
+        <div className="flex justify-center rounded-2xl border border-border bg-card p-6 shadow-sm">
+          <div className="h-48 w-48 rounded-xl bg-white p-4 border border-border">
             {/* Placeholder QR pattern */}
             <div className="grid h-full w-full grid-cols-7 gap-1">
               {[...Array(49)].map((_, i) => (
                 <div
                   key={i}
-                  className={`rounded-sm ${Math.random() > 0.5 ? "bg-white" : "bg-transparent"}`}
+                  className={`rounded-sm ${Math.random() > 0.5 ? "bg-black" : "bg-transparent"}`}
                 />
               ))}
             </div>
@@ -176,8 +176,8 @@ export function InviteFriends({
       )}
 
       {/* Social Share Buttons */}
-      <div className="rounded-2xl border border-white/10 bg-black/40 p-4 backdrop-blur-xl">
-        <p className="mb-3 text-xs font-medium uppercase tracking-wider text-white/40">
+      <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+        <p className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
           分享到社交平台
         </p>
         <div className="flex gap-2">
@@ -187,12 +187,12 @@ export function InviteFriends({
               <button
                 key={platform.id}
                 onClick={() => onShare?.(platform.id)}
-                className={`flex flex-1 flex-col items-center gap-1.5 rounded-xl ${platform.color}/20 py-3 transition-all hover:${platform.color}/30 active:scale-95`}
+                className={`flex flex-1 flex-col items-center gap-1.5 rounded-xl ${platform.color}/10 py-3 transition-all hover:${platform.color}/20 active:scale-95`}
               >
-                <div className={`rounded-full ${platform.color}/30 p-2`}>
-                  <Icon className="h-5 w-5 text-white" />
+                <div className={`rounded-full ${platform.color}/20 p-2`}>
+                  <Icon className={`h-5 w-5 text-foreground`} />
                 </div>
-                <span className="text-xs font-medium text-white/70">{platform.name}</span>
+                <span className="text-xs font-medium text-muted-foreground">{platform.name}</span>
               </button>
             )
           })}
@@ -200,36 +200,36 @@ export function InviteFriends({
       </div>
 
       {/* Rewards Info */}
-      <div className="rounded-2xl border border-white/10 bg-black/40 p-4 backdrop-blur-xl">
+      <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
         <div className="mb-3 flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-yellow-400" />
-          <p className="text-sm font-medium text-white">邀请奖励</p>
+          <Sparkles className="h-4 w-4 text-yellow-500" />
+          <p className="text-sm font-medium text-foreground">邀请奖励</p>
         </div>
         <div className="space-y-2">
-          <div className="flex items-center justify-between rounded-xl bg-white/5 p-3">
-            <span className="text-sm text-white/70">每邀请1位好友</span>
-            <span className="font-semibold text-[#22c55e]">+{rewards.perInvite} 金币</span>
+          <div className="flex items-center justify-between rounded-xl bg-muted p-3">
+            <span className="text-sm text-muted-foreground">每邀请1位好友</span>
+            <span className="font-semibold text-green-500">+{rewards.perInvite} 金币</span>
           </div>
           {rewards.milestone.map((milestone, i) => (
             <div
               key={i}
               className={`flex items-center justify-between rounded-xl p-3 ${
                 invitedCount >= milestone.count
-                  ? "bg-[#22c55e]/10 border border-[#22c55e]/30"
-                  : "bg-white/5"
+                  ? "bg-green-500/10 border border-green-500/30"
+                  : "bg-muted"
               }`}
             >
-              <span className="text-sm text-white/70">邀请 {milestone.count} 人</span>
+              <span className="text-sm text-muted-foreground">邀请 {milestone.count} 人</span>
               <div className="flex items-center gap-2">
                 <span
                   className={`font-semibold ${
-                    invitedCount >= milestone.count ? "text-[#22c55e]" : "text-yellow-400"
+                    invitedCount >= milestone.count ? "text-green-500" : "text-yellow-500"
                   }`}
                 >
                   {milestone.reward}
                 </span>
                 {invitedCount >= milestone.count && (
-                  <Check className="h-4 w-4 text-[#22c55e]" />
+                  <Check className="h-4 w-4 text-green-500" />
                 )}
               </div>
             </div>

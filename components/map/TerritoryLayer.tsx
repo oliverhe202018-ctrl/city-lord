@@ -5,7 +5,7 @@ import { Territory } from "@/types/city";
 import { fetchTerritories } from "@/app/actions/city";
 import { useCity } from "@/contexts/CityContext";
 import { cellToBoundary } from "h3-js";
-import { useAMap } from "./AMapProvider";
+import { useMap } from "./AMapContext";
 
 interface TerritoryLayerProps {
   map: any | null;
@@ -70,7 +70,7 @@ const getTerritoryStyle = (territory: Territory, viewMode: 'individual' | 'facti
 const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, onTerritoryClick }) => {
   const [polygons, setPolygons] = useState<any[]>([]);
   const { currentCity: city } = useCity();
-  const { viewMode } = useAMap(); // Use viewMode from context
+  const { viewMode } = useMap(); // Use viewMode from context
 
   useEffect(() => {
     if (!map || !city) return;

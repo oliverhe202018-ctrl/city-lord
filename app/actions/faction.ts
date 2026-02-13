@@ -113,3 +113,15 @@ export async function joinFaction(faction: Faction) {
         return { success: false, error: err.message || 'Unknown error' }
     }
 }
+
+export async function getDailyStats() {
+  try {
+    const stat = await prisma.dailyStat.findFirst({
+      orderBy: { date: 'desc' }
+    })
+    return stat
+  } catch (error) {
+    console.error('Error fetching daily stats:', error)
+    return null
+  }
+}

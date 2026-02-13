@@ -103,23 +103,23 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
   if (!hydrated) return null
 
   if (loading) {
-    return <div className="flex h-full items-center justify-center bg-[#1a1a1a] text-white/60">加载中...</div>;
+    return <div className="flex h-full items-center justify-center bg-background text-muted-foreground">加载中...</div>;
   }
 
   if (!isLoggedIn) {
     return (
-      <div className="flex flex-col items-center justify-center h-full px-4 pt-20 space-y-6">
-        <div className="relative w-24 h-24 rounded-full bg-white/5 flex items-center justify-center border-2 border-white/10">
-          <LogIn className="w-10 h-10 text-white/30" />
+      <div className="flex flex-col items-center justify-center h-full px-4 pt-20 space-y-6 bg-background">
+        <div className="relative w-24 h-24 rounded-full bg-muted/50 flex items-center justify-center border-2 border-border">
+          <LogIn className="w-10 h-10 text-muted-foreground/50" />
         </div>
 
         <div className="text-center space-y-2">
-          <h2 className="text-xl font-bold text-white">未登录</h2>
-          <p className="text-sm text-white/50">登录后查看您的好友、消息等数据</p>
+          <h2 className="text-xl font-bold text-foreground">未登录</h2>
+          <p className="text-sm text-muted-foreground">登录后查看您的好友、消息等数据</p>
         </div>
 
         <Link href="/login" className="w-full max-w-xs block">
-          <div className="w-full bg-[#22c55e] hover:bg-[#16a34a] text-black font-bold h-12 rounded-full flex items-center justify-center uppercase tracking-wider transition-all duration-200 active:scale-95 shadow-[0_0_15px_rgba(34,197,94,0.4)] hover:shadow-[0_0_25px_rgba(34,197,94,0.6)] border border-[#22c55e]/50">
+          <div className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold h-12 rounded-full flex items-center justify-center uppercase tracking-wider transition-all duration-200 active:scale-95 shadow-sm border border-primary/50">
             立即登录 / 注册
           </div>
         </Link>
@@ -130,12 +130,12 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
   // Render Sub-views (Full screen overlay style or nested)
   if (subView === "invite") {
     return (
-      <div className="flex h-full flex-col bg-[#0f172a]">
-        <div className="p-4 border-b border-white/10 flex items-center gap-2 shrink-0">
+      <div className="flex h-full flex-col bg-background">
+        <div className="p-4 border-b border-border flex items-center gap-2 shrink-0">
           <CyberButton variant="ghost" size="sm" onClick={handleBack} className="rotate-180">
             <ChevronRight />
           </CyberButton>
-          <h2 className="text-lg font-bold text-white">邀请好友</h2>
+          <h2 className="text-lg font-bold text-foreground">邀请好友</h2>
         </div>
         <div className="flex-1 overflow-y-auto p-4 pb-24">
           <InviteFriends
@@ -150,12 +150,12 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
 
   if (subView === "discover") {
     return (
-      <div className="flex h-full flex-col bg-[#0f172a]">
-        <div className="p-4 border-b border-white/10 flex items-center gap-2 shrink-0">
+      <div className="flex h-full flex-col bg-background">
+        <div className="p-4 border-b border-border flex items-center gap-2 shrink-0">
           <CyberButton variant="ghost" size="sm" onClick={handleBack} className="rotate-180">
             <ChevronRight />
           </CyberButton>
-          <h2 className="text-lg font-bold text-white">发现跑友</h2>
+          <h2 className="text-lg font-bold text-foreground">发现跑友</h2>
         </div>
         <div className="flex-1 overflow-y-auto p-4 pb-24">
           <RecommendedFriends />
@@ -166,12 +166,12 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
 
   if (subView === "challenge") {
     return (
-      <div className="flex h-full flex-col bg-[#0f172a]">
-        <div className="p-4 border-b border-white/10 flex items-center gap-2 shrink-0">
+      <div className="flex h-full flex-col bg-background">
+        <div className="p-4 border-b border-border flex items-center gap-2 shrink-0">
           <CyberButton variant="ghost" size="sm" onClick={handleBack} className="rotate-180">
             <ChevronRight />
           </CyberButton>
-          <h2 className="text-lg font-bold text-white">发起挑战</h2>
+          <h2 className="text-lg font-bold text-foreground">发起挑战</h2>
         </div>
         <div className="flex-1 overflow-y-auto p-4 pb-24">
           <ChallengePage
@@ -187,23 +187,23 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
   }
 
   return (
-    <div className="flex h-full flex-col bg-[#0f172a]">
+    <div className="flex h-full flex-col bg-background">
       {/* Header */}
-      <div className="border-b border-white/10 px-4 pb-2 pt-6 shrink-0">
+      <div className="border-b border-border px-4 pb-2 pt-6 shrink-0">
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-white">社交中心</h1>
-            <p className="text-sm text-white/60">City Lord Social</p>
+            <h1 className="text-2xl font-bold text-foreground">社交中心</h1>
+            <p className="text-sm text-muted-foreground">City Lord Social</p>
           </div>
         </div>
 
         {/* Main Tab Bar - Simplified */}
-        <div className="grid w-full grid-cols-3 border-b border-white/5">
+        <div className="grid w-full grid-cols-3 border-b border-border">
           <button
             onClick={() => setActiveTab("friends")}
             className={`flex flex-col items-center justify-center pb-2 text-sm font-medium transition-all ${activeTab === "friends"
-                ? "border-b-2 border-[#39ff14] text-[#39ff14]"
-                : "text-white/60 hover:text-white"
+                ? "border-b-2 border-primary text-primary"
+                : "text-muted-foreground hover:text-foreground"
               }`}
           >
             好友列表
@@ -211,8 +211,8 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
           <button
             onClick={() => setActiveTab("activity")}
             className={`flex flex-col items-center justify-center pb-2 text-sm font-medium transition-all ${activeTab === "activity"
-                ? "border-b-2 border-[#39ff14] text-[#39ff14]"
-                : "text-white/60 hover:text-white"
+                ? "border-b-2 border-primary text-primary"
+                : "text-muted-foreground hover:text-foreground"
               }`}
           >
             动态圈
@@ -220,8 +220,8 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
           <button
             onClick={() => setActiveTab("messages")}
             className={`flex flex-col items-center justify-center pb-2 text-sm font-medium transition-all ${activeTab === "messages"
-                ? "border-b-2 border-[#39ff14] text-[#39ff14]"
-                : "text-white/60 hover:text-white"
+                ? "border-b-2 border-primary text-primary"
+                : "text-muted-foreground hover:text-foreground"
               }`}
           >
             消息
@@ -237,27 +237,27 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
             {/* Quick Actions Grid */}
             <div className="grid grid-cols-2 gap-3">
               <GlassCard
-                className="p-3 flex items-center gap-3 cursor-pointer hover:bg-white/5 active:scale-95 transition-all"
+                className="p-3 flex items-center gap-3 cursor-pointer hover:bg-muted/50 active:scale-95 transition-all"
                 onClick={() => setSubView("invite")}
               >
-                <div className="h-10 w-10 rounded-full bg-[#39ff14]/20 flex items-center justify-center text-[#39ff14]">
+                <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary">
                   <UserPlus size={20} />
                 </div>
                 <div>
-                  <div className="text-sm font-bold text-white">邀请好友</div>
-                  <div className="text-[10px] text-white/50">获得奖励</div>
+                  <div className="text-sm font-bold text-foreground">邀请好友</div>
+                  <div className="text-[10px] text-muted-foreground">获得奖励</div>
                 </div>
               </GlassCard>
               <GlassCard
-                className="p-3 flex items-center gap-3 cursor-pointer hover:bg-white/5 active:scale-95 transition-all"
+                className="p-3 flex items-center gap-3 cursor-pointer hover:bg-muted/50 active:scale-95 transition-all"
                 onClick={() => setSubView("discover")}
               >
                 <div className="h-10 w-10 rounded-full bg-cyan-500/20 flex items-center justify-center text-cyan-500">
                   <Search size={20} />
                 </div>
                 <div>
-                  <div className="text-sm font-bold text-white">发现跑友</div>
-                  <div className="text-[10px] text-white/50">附近的人</div>
+                  <div className="text-sm font-bold text-foreground">发现跑友</div>
+                  <div className="text-[10px] text-muted-foreground">附近的人</div>
                 </div>
               </GlassCard>
             </div>
@@ -282,12 +282,12 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
         {activeTab === "activity" && (
           <div className="space-y-4">
             {/* Activity Sub-tabs */}
-            <div className="grid w-full grid-cols-2 rounded-lg bg-white/5 p-1">
+            <div className="grid w-full grid-cols-2 rounded-lg bg-muted p-1">
               <button
                 onClick={() => setActivityFilter("friends")}
                 className={`rounded-md py-1.5 text-xs font-medium transition-all ${activityFilter === "friends"
-                    ? "bg-white/10 text-white shadow-sm"
-                    : "text-white/50 hover:text-white"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
                   }`}
               >
                 好友动态
@@ -295,8 +295,8 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
               <button
                 onClick={() => setActivityFilter("all")}
                 className={`rounded-md py-1.5 text-xs font-medium transition-all ${activityFilter === "all"
-                    ? "bg-white/10 text-white shadow-sm"
-                    : "text-white/50 hover:text-white"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
                   }`}
               >
                 所有动态

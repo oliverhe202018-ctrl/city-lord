@@ -111,150 +111,85 @@ export function MissionCard({
   const RewardIcon = getRewardIcon()
 
   return (
-    <GlassCard
-      onClick={() => !isLocked && onClick?.(id)}
-      className={`group p-4 ${isLocked ? 'opacity-60 grayscale' : ''}`}
-      interactive={!isLocked}
+    <div 
+      className={`relative w-full overflow-hidden rounded-2xl border p-4 transition-all active:scale-[0.99] ${
+        isCompleted 
+          ? "border-primary/30 bg-primary/5" 
+          : "border-border bg-card/60"
+      }`}
+      onClick={() => onClick?.(id)}
     >
-      {/* Glow effect for claimable */}
-      {canClaim && (
-        <div className="absolute inset-0 animate-pulse bg-[radial-gradient(circle_at_center,rgba(34,197,94,0.15)_0%,transparent_70%)] pointer-events-none" />
-      )}
-
-      <div className="relative flex items-start gap-3">
+      <div className="flex items-start gap-4">
         {/* Icon */}
-        <div
-          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${isLocked
-            ? "bg-white/5"
-            : isCompleted
-              ? "bg-[#22c55e]/20"
-              : "bg-white/10"
-            }`}
-        >
-          {isLocked ? (
-            <Lock className="h-5 w-5 text-white/30" />
-          ) : isCompleted ? (
-            <CheckCircle2 className="h-6 w-6 text-[#22c55e]" />
-          ) : (
-            <Icon className={`h-6 w-6 ${diffConfig.color}`} />
-          )}
+        <div className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl ${
+          isCompleted ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+        }`}>
+          <Icon className="h-6 w-6" />
         </div>
 
-        {/* Content */}
-        <div className="min-w-0 flex-1">
-          {/* Header */}
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <h3 className={`truncate font-semibold ${isLocked ? "text-white/40" : "text-white"}`}>
-                  {title}
-                </h3>
-                {type === "daily" && (
-                  <span className="shrink-0 rounded-full bg-cyan-400/20 px-2 py-0.5 text-[10px] font-medium text-cyan-400">
-                    每日
-                  </span>
-                )}
-                {type === "weekly" && (
-                  <span className="shrink-0 rounded-full bg-purple-400/20 px-2 py-0.5 text-[10px] font-medium text-purple-400">
-                    每周
-                  </span>
-                )}
-              </div>
-              <p className={`mt-0.5 text-sm ${isLocked ? "text-white/20" : "text-white/50"}`}>
-                {description}
-              </p>
-            </div>
-
-            {/* Difficulty badge */}
-            {!isLocked && type === "achievement" && (
-              <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${diffConfig.bg} ${diffConfig.color}`}>
-                {diffConfig.label}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between mb-1">
+            <h3 className={`font-bold truncate ${isCompleted ? "text-primary" : "text-foreground"}`}>
+              {title}
+            </h3>
+            {timeRemaining && !isCompleted && (
+              <span className="flex items-center gap-1 text-[10px] text-orange-400 bg-orange-400/10 px-2 py-0.5 rounded-full">
+                <Clock className="h-3 w-3" />
+                {timeRemaining}
               </span>
             )}
           </div>
+          
+          <p className="text-xs text-muted-foreground line-clamp-2 mb-3">
+            {description}
+          </p>
 
-          {/* Progress bar */}
-          {!isLocked && (
-            <div className="mt-3">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-white/50">
-                  {progress} / {maxProgress}
-                </span>
-                {timeRemaining && (
-                  <span className="flex items-center gap-1 text-white/40">
-                    <Clock className="h-3 w-3" />
-                    {timeRemaining}
-                  </span>
-                )}
-              </div>
-              <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-white/10">
-                <div
-                  className={`h-full rounded-full transition-all duration-500 ${isCompleted
-                    ? "bg-[#22c55e]"
-                    : "bg-gradient-to-r from-[#22c55e]/70 to-[#22c55e]"
-                    }`}
-                  style={{ width: `${progressPercent}%` }}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Footer - Reward & Action */}
-          <div className="mt-3 flex items-center justify-between">
-            {/* Reward */}
-            <div className="flex items-center gap-2">
-              {(reward.type === "xp" || reward.type === "both") && (
-                <div className="flex items-center gap-1 rounded-full bg-[#22c55e]/10 px-2.5 py-1">
-                  <Zap className="h-3.5 w-3.5 text-[#22c55e]" />
-                  <span className="text-xs font-medium text-[#22c55e]">
-                    +{reward.xpAmount} 经验
-                  </span>
-                </div>
-              )}
-              {(reward.type === "coins" || reward.type === "both") && (
-                <div className="flex items-center gap-1 rounded-full bg-yellow-400/10 px-2.5 py-1">
-                  <Sparkles className="h-3.5 w-3.5 text-yellow-400" />
-                  <span className="text-xs font-medium text-yellow-400">
-                    +{reward.coinsAmount} 金币
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Action button */}
-            {canClaim ? (
-              <CyberButton
-                size="sm"
-                variant="primary"
-                onClick={handleClaim}
-                isLoading={isClaiming}
-                className="bg-[#22c55e] hover:bg-[#22c55e]/90 border-transparent shadow-[0_0_10px_rgba(34,197,94,0.4)]"
-              >
-                <Gift className="h-4 w-4 mr-1" />
-                领取奖励
-              </CyberButton>
-            ) : status === "claimed" ? (
-              <span className="flex items-center gap-1 text-sm text-[#22c55e]">
-                <CheckCircle2 className="h-4 w-4" />
-                已完成
-              </span>
-            ) : isActive ? (
-               <CyberButton
-                size="sm"
-                variant="default"
-                onClick={handleClaim}
-                className="bg-[#39ff14]/10 text-[#39ff14] hover:bg-[#39ff14]/20 border-[#39ff14]/50"
-              >
-                <Target className="h-4 w-4 mr-1" />
-                去完成
-              </CyberButton>
-            ) : !isLocked ? (
-              <ChevronRight className="h-5 w-5 text-white/30 transition-transform group-hover:translate-x-1" />
-            ) : null}
+          {/* Progress Bar */}
+          <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className={`absolute left-0 top-0 h-full rounded-full transition-all duration-500 ${
+                isCompleted ? "bg-primary" : "bg-primary/80"
+              }`}
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+          <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
+            <span>{progress} / {maxProgress}</span>
+            <span>{Math.round(progressPercent)}%</span>
           </div>
         </div>
       </div>
-    </GlassCard>
+
+      {/* Bottom Action / Reward */}
+      <div className="mt-4 flex items-center justify-between border-t border-border pt-3">
+        <div className="flex items-center gap-2">
+          <span className={`text-xs px-2 py-0.5 rounded-md ${difficultyConfig[difficulty].bg} ${difficultyConfig[difficulty].color}`}>
+            {difficultyConfig[difficulty].label}
+          </span>
+          <span className="flex items-center gap-1 text-xs font-medium text-yellow-500">
+            <Zap className="h-3 w-3" />
+            {reward.label}
+          </span>
+        </div>
+
+        {canClaim ? (
+          <button
+            onClick={handleClaim}
+            disabled={isClaiming}
+            className="flex items-center gap-1 rounded-full bg-primary px-4 py-1.5 text-xs font-bold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
+          >
+            {isClaiming ? "领取中..." : "领取奖励"}
+          </button>
+        ) : isCompleted ? (
+          <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+            <CheckCircle2 className="h-3 w-3" />
+            已完成
+          </span>
+        ) : (
+          <div className="h-6" /> // Spacer
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -419,12 +354,12 @@ export function MissionCenter({ initialData }: { initialData?: any[] }) {
   }
 
   return (
-    <div className="h-full overflow-y-auto bg-[#0f172a] px-4 pb-24 pt-6">
+    <div className="h-full overflow-y-auto bg-background px-4 pb-24 pt-6">
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">任务中心</h1>
-          <p className="text-sm text-white/60">完成挑战获取奖励</p>
+          <h1 className="text-2xl font-bold text-foreground">任务中心</h1>
+          <p className="text-sm text-muted-foreground">完成挑战获取奖励</p>
         </div>
         
         {/* Quick Actions */}
@@ -451,8 +386,8 @@ export function MissionCenter({ initialData }: { initialData?: any[] }) {
             onClick={() => setActiveFilter(filter)}
             className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all whitespace-nowrap ${
               activeFilter === filter
-                ? "bg-[#39ff14] text-black shadow-[0_0_10px_rgba(57,255,20,0.4)]"
-                : "bg-white/5 text-white/60 hover:bg-white/10"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
             }`}
           >
             {filter === "all" ? "全部" : filter === "daily" ? "每日任务" : "每周挑战"}
@@ -486,10 +421,10 @@ export function MissionCenter({ initialData }: { initialData?: any[] }) {
           ))
         ) : (
           <div className="flex h-48 flex-col items-center justify-center text-center">
-            <div className="mb-4 rounded-full bg-white/5 p-4">
-              <Trophy className="h-8 w-8 text-white/20" />
+            <div className="mb-4 rounded-full bg-muted p-4">
+              <Trophy className="h-8 w-8 text-muted-foreground/50" />
             </div>
-            <p className="text-white/40">今日任务已刷新，敬请期待</p>
+            <p className="text-muted-foreground">今日任务已刷新，敬请期待</p>
           </div>
         )}
       </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { useAMap } from '@/components/map/AMapProvider';
+import { useMap } from '@/components/map/AMapContext';
 import { useRegion } from '@/contexts/RegionContext';
 import { Button } from '@/components/ui/button';
 import { LocateFixedIcon, Plus, Minus, Gamepad2, Users, User, Loader2 } from 'lucide-react';
@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import gcoord from 'gcoord';
 
 export const MapControls = () => {
-  const { map, viewMode, setViewMode, centerMap, locationState } = useAMap();
+  const { map, viewMode, setViewMode, centerMap, locationState } = useMap();
   const { region } = useRegion();
   
   const handleLocate = () => {

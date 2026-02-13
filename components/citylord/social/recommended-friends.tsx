@@ -89,15 +89,15 @@ export function RecommendedFriends({ onAddFriend }: RecommendedFriendsProps) {
     <div>
       {/* Header */}
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-white/40">
+        <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
           <Sparkles className="h-4 w-4" />
           推荐好友
         </h2>
-        <span className="text-xs text-white/30">{recommendedUsers.length} 位推荐</span>
+        <span className="text-xs text-muted-foreground/80">{recommendedUsers.length} 位推荐</span>
       </div>
 
       {/* Filter Tabs */}
-      <div className="mb-4 flex gap-2 rounded-xl bg-white/5 p-1">
+      <div className="mb-4 flex gap-2 rounded-xl bg-muted p-1">
         {(["all", "nearby", "similar"] as const).map((f) => {
           const labels = { all: "全部", nearby: "附近的人", similar: "相似跑者" }
           return (
@@ -106,8 +106,8 @@ export function RecommendedFriends({ onAddFriend }: RecommendedFriendsProps) {
               onClick={() => setFilter(f)}
               className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
                 filter === f
-                  ? "bg-[#22c55e] text-black"
-                  : "text-white/60 hover:text-white"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               {labels[f]}
@@ -126,13 +126,13 @@ export function RecommendedFriends({ onAddFriend }: RecommendedFriendsProps) {
           return (
             <div
               key={user.id}
-              className="overflow-hidden rounded-2xl border border-white/10 bg-white/5 transition-all hover:bg-white/10"
+              className="overflow-hidden rounded-2xl border border-border bg-card transition-all hover:bg-muted/50"
             >
               <div className="p-4">
                 <div className="flex items-start gap-3">
                   {/* Avatar */}
                   <div className="relative">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#22c55e]/30 to-cyan-500/30 text-lg font-bold text-white">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-green-500/30 to-cyan-500/30 text-lg font-bold text-foreground">
                       {user.avatar || user.name[0]}
                     </div>
                   </div>
@@ -140,8 +140,8 @@ export function RecommendedFriends({ onAddFriend }: RecommendedFriendsProps) {
                   {/* Info */}
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold text-white">{user.name}</span>
-                      <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-white/60">
+                      <span className="font-semibold text-foreground">{user.name}</span>
+                      <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
                         Lv.{user.level}
                       </span>
                       {user.clan && (
@@ -158,7 +158,7 @@ export function RecommendedFriends({ onAddFriend }: RecommendedFriendsProps) {
                     </div>
 
                     {/* Stats */}
-                    <div className="mt-1 flex items-center gap-3 text-xs text-white/50">
+                    <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
                       <span className="flex items-center gap-1">
                         <MapPin className="h-3 w-3" />
                         {user.hexCount}格
@@ -188,8 +188,8 @@ export function RecommendedFriends({ onAddFriend }: RecommendedFriendsProps) {
                     disabled={isAdded}
                     className={`flex items-center justify-center rounded-xl px-3 py-2 transition-all ${
                       isAdded
-                        ? "bg-[#22c55e]/20 text-[#22c55e]"
-                        : "bg-[#22c55e] text-black hover:bg-[#22c55e]/90 active:scale-95"
+                        ? "bg-green-500/20 text-green-500"
+                        : "bg-primary text-primary-foreground hover:bg-primary/90 active:scale-95"
                     }`}
                   >
                     {isAdded ? (
@@ -208,11 +208,11 @@ export function RecommendedFriends({ onAddFriend }: RecommendedFriendsProps) {
       {/* Empty State */}
       {filteredUsers.length === 0 && (
         <div className="flex flex-col items-center justify-center py-12 text-center">
-          <div className="mb-3 rounded-full bg-white/5 p-4">
-            <Sparkles className="h-8 w-8 text-white/30" />
+          <div className="mb-3 rounded-full bg-muted p-4">
+            <Sparkles className="h-8 w-8 text-muted-foreground" />
           </div>
-          <p className="text-white/60">暂无推荐</p>
-          <p className="mt-1 text-sm text-white/40">多跑步，发现更多跑友</p>
+          <p className="text-muted-foreground">暂无推荐</p>
+          <p className="mt-1 text-sm text-muted-foreground/60">多跑步，发现更多跑友</p>
         </div>
       )}
     </div>

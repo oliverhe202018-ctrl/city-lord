@@ -54,7 +54,7 @@ export function FriendChallengeCard({
   }
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 transition-all hover:border-white/20 hover:bg-white/10">
+    <div className="rounded-2xl border border-border bg-card p-4 transition-all hover:border-primary/20 hover:bg-muted/50">
       <div className="flex items-center gap-3">
         {/* Avatar */}
         <button onClick={onViewProfile} className="relative shrink-0">
@@ -63,7 +63,7 @@ export function FriendChallengeCard({
           </div>
           {/* Online Indicator */}
           {friend.isOnline && (
-            <span className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full border-2 border-[#0a0f1a] bg-[#22c55e]" />
+            <span className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full border-2 border-background bg-green-500" />
           )}
           {/* Level Badge */}
           <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-cyan-400 text-[10px] font-bold text-black">
@@ -73,8 +73,8 @@ export function FriendChallengeCard({
 
         {/* Info */}
         <div className="min-w-0 flex-1">
-          <p className="truncate font-bold text-white">{friend.name}</p>
-          <div className="mt-0.5 flex items-center gap-2 text-xs text-white/50">
+          <p className="truncate font-bold text-foreground">{friend.name}</p>
+          <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
               <MapPin className="h-3 w-3" />
               {formatArea(friend.area)}
@@ -134,26 +134,26 @@ export function ActivityFeed({
   const getTypeIcon = (type: ActivityMessage["type"]) => {
     switch (type) {
       case "capture":
-        return <MapPin className="h-4 w-4 text-[#22c55e]" />
+        return <MapPin className="h-4 w-4 text-green-500" />
       case "challenge":
-        return <Swords className="h-4 w-4 text-orange-400" />
+        return <Swords className="h-4 w-4 text-orange-500" />
       case "achievement":
-        return <Trophy className="h-4 w-4 text-yellow-400" />
+        return <Trophy className="h-4 w-4 text-yellow-500" />
       case "rank":
-        return <Star className="h-4 w-4 text-purple-400" />
+        return <Star className="h-4 w-4 text-purple-500" />
     }
   }
 
   const getTypeBg = (type: ActivityMessage["type"]) => {
     switch (type) {
       case "capture":
-        return "bg-[#22c55e]/20"
+        return "bg-green-500/20"
       case "challenge":
-        return "bg-orange-400/20"
+        return "bg-orange-500/20"
       case "achievement":
-        return "bg-yellow-400/20"
+        return "bg-yellow-500/20"
       case "rank":
-        return "bg-purple-400/20"
+        return "bg-purple-500/20"
     }
   }
 
@@ -166,12 +166,12 @@ export function ActivityFeed({
           <button
             key={message.id}
             onClick={() => onMessageClick?.(message)}
-            className="w-full rounded-2xl border border-white/10 bg-white/5 p-3 text-left transition-all hover:border-white/20 hover:bg-white/10"
+            className="w-full rounded-2xl border border-border bg-card p-3 text-left transition-all hover:border-primary/20 hover:bg-muted/50"
           >
             <div className="flex items-start gap-3">
               {/* Avatar with type indicator */}
               <div className="relative shrink-0">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 font-bold text-white">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted font-bold text-foreground">
                   {message.user.avatar || message.user.name[0]}
                 </div>
                 <span
@@ -183,11 +183,11 @@ export function ActivityFeed({
 
               {/* Content */}
               <div className="min-w-0 flex-1">
-                <p className="text-sm text-white">
-                  <span className="font-bold text-cyan-400">{message.user.name}</span>{" "}
+                <p className="text-sm text-foreground">
+                  <span className="font-bold text-cyan-500">{message.user.name}</span>{" "}
                   {getLocalizedText(message.content, language)}
                 </p>
-                <div className="mt-1 flex items-center gap-2 text-xs text-white/40">
+                <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
                   {cityTheme && (
                     <span className="flex items-center gap-1">
                       <span>{cityTheme.icon}</span>
@@ -198,7 +198,7 @@ export function ActivityFeed({
                 </div>
               </div>
 
-              <ChevronRight className="h-4 w-4 shrink-0 text-white/30" />
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/50" />
             </div>
           </button>
         )
@@ -242,10 +242,10 @@ export function ActivityReminderPopup({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={onClose} />
 
       {/* Popup */}
-      <div className="relative w-full max-w-sm animate-scale-in overflow-hidden rounded-3xl bg-[#0f172a]">
+      <div className="relative w-full max-w-sm animate-scale-in overflow-hidden rounded-3xl bg-popover border border-border shadow-xl">
         {/* Header */}
         <div
           className="relative overflow-hidden p-6 text-center"
@@ -253,43 +253,43 @@ export function ActivityReminderPopup({
             background: `linear-gradient(135deg, ${theme.gradientFrom}60, ${theme.gradientTo}60)`,
           }}
         >
-          <div className="absolute inset-0 bg-black/20" />
+          <div className="absolute inset-0 bg-background/20" />
           <button
             onClick={onClose}
-            className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full bg-black/30 text-white"
+            className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full bg-background/30 text-foreground hover:bg-background/50"
           >
             <X className="h-4 w-4" />
           </button>
-          <Bell className="relative mx-auto mb-3 h-12 w-12 animate-bounce text-white" />
-          <h2 className="relative text-xl font-bold text-white">
+          <Bell className="relative mx-auto mb-3 h-12 w-12 animate-bounce text-foreground" />
+          <h2 className="relative text-xl font-bold text-foreground">
             {getLocalizedText(activity.title, language)}
           </h2>
         </div>
 
         {/* Content */}
         <div className="p-6">
-          <p className="mb-4 text-center text-white/70">
+          <p className="mb-4 text-center text-muted-foreground">
             {getLocalizedText(activity.description, language)}
           </p>
 
           {/* Start Time */}
-          <div className="mb-4 rounded-xl bg-white/5 p-4 text-center">
-            <p className="mb-1 text-xs text-white/50">
+          <div className="mb-4 rounded-xl bg-muted p-4 text-center">
+            <p className="mb-1 text-xs text-muted-foreground">
               {language === "zh" ? "开始时间" : "Start Time"}
             </p>
-            <p className="text-lg font-bold text-white">{activity.startTime}</p>
+            <p className="text-lg font-bold text-foreground">{activity.startTime}</p>
           </div>
 
           {/* Rewards */}
           {activity.rewards && (
             <div className="mb-6 flex justify-center gap-4">
-              <div className="flex items-center gap-2 rounded-xl bg-cyan-400/10 px-4 py-2">
-                <Zap className="h-4 w-4 text-cyan-400" />
-                <span className="font-bold text-white">{activity.rewards.xp} XP</span>
+              <div className="flex items-center gap-2 rounded-xl bg-cyan-500/10 px-4 py-2">
+                <Zap className="h-4 w-4 text-cyan-500" />
+                <span className="font-bold text-foreground">{activity.rewards.xp} XP</span>
               </div>
-              <div className="flex items-center gap-2 rounded-xl bg-yellow-400/10 px-4 py-2">
-                <span className="text-yellow-400">🪙</span>
-                <span className="font-bold text-white">{activity.rewards.coins}</span>
+              <div className="flex items-center gap-2 rounded-xl bg-yellow-500/10 px-4 py-2">
+                <span className="text-yellow-500">🪙</span>
+                <span className="font-bold text-foreground">{activity.rewards.coins}</span>
               </div>
             </div>
           )}
@@ -298,7 +298,7 @@ export function ActivityReminderPopup({
           <div className="flex gap-3">
             <button
               onClick={onClose}
-              className="flex-1 rounded-xl border border-white/20 bg-white/5 py-3 font-medium text-white transition-all hover:bg-white/10"
+              className="flex-1 rounded-xl border border-border bg-muted py-3 font-medium text-foreground transition-all hover:bg-muted/80"
             >
               {language === "zh" ? "稍后提醒" : "Remind Later"}
             </button>
@@ -356,15 +356,15 @@ export function CityFriendRecommendation({
   }
 
   const activityLabels = {
-    high: { zh: "非常活跃", en: "Very Active", color: "text-[#22c55e]", bg: "bg-[#22c55e]/20" },
-    medium: { zh: "较为活跃", en: "Active", color: "text-yellow-400", bg: "bg-yellow-400/20" },
-    low: { zh: "偶尔在线", en: "Occasional", color: "text-white/50", bg: "bg-white/10" },
+    high: { zh: "非常活跃", en: "Very Active", color: "text-green-500", bg: "bg-green-500/20" },
+    medium: { zh: "较为活跃", en: "Active", color: "text-yellow-500", bg: "bg-yellow-500/20" },
+    low: { zh: "偶尔在线", en: "Occasional", color: "text-muted-foreground", bg: "bg-muted" },
   }
 
   const activityInfo = activityLabels[friend.activityScore]
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+    <div className="rounded-2xl border border-border bg-card p-4">
       <div className="flex items-start gap-3">
         {/* Avatar */}
         <button onClick={onViewProfile} className="relative shrink-0">
@@ -386,12 +386,12 @@ export function CityFriendRecommendation({
         {/* Info */}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <p className="truncate font-bold text-white">{friend.name}</p>
+            <p className="truncate font-bold text-foreground">{friend.name}</p>
             {theme && <span className="text-sm">{theme.icon}</span>}
           </div>
 
           {/* Stats */}
-          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-white/50">
+          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
               <MapPin className="h-3 w-3" />
               {friend.distance.toFixed(1)} km
@@ -412,7 +412,7 @@ export function CityFriendRecommendation({
               {activityInfo[language]}
             </span>
             {friend.mutualFriends > 0 && (
-              <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] text-white/60">
+              <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
                 {friend.mutualFriends} {language === "zh" ? "位共同好友" : "mutual friends"}
               </span>
             )}
@@ -423,7 +423,7 @@ export function CityFriendRecommendation({
       {/* Add Button */}
       <button
         onClick={onAdd}
-        className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-cyan-400/30 bg-cyan-400/10 py-2.5 text-sm font-medium text-cyan-400 transition-all hover:bg-cyan-400/20"
+        className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 py-2.5 text-sm font-medium text-cyan-500 transition-all hover:bg-cyan-500/20"
       >
         <Users className="h-4 w-4" />
         {language === "zh" ? "添加好友" : "Add Friend"}

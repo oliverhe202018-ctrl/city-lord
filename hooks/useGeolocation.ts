@@ -51,6 +51,7 @@ export const useGeolocation = ({
   const gpsCorrectionEnabled = useGameStore(state => state.appSettings?.gpsCorrectionEnabled ?? true);
   const lastKnownLocation = useGameStore(state => state.lastKnownLocation);
   const setLastKnownLocation = useGameStore(state => state.setLastKnownLocation);
+  const setGpsStatus = useGameStore(state => state.setGpsStatus);
   
   const isMounted = useRef(true);
   const watchIdRef = useRef<string | null>(null);
@@ -122,6 +123,7 @@ export const useGeolocation = ({
 
       // Update Store
       setLastKnownLocation({ lat: latitude, lng: longitude });
+      setGpsStatus('success');
 
       setState({
         loading: false,

@@ -25,6 +25,7 @@ interface RunHistoryDrawerProps {
 export function RunHistoryDrawer({ isOpen, onClose }: RunHistoryDrawerProps) {
   const [activities, setActivities] = useState<Activity[]>([])
   const [loading, setLoading] = useState(false)
+  const [snapPoint, setSnapPoint] = useState<number | string | null>(1)
 
   useEffect(() => {
     if (isOpen) {
@@ -71,8 +72,15 @@ export function RunHistoryDrawer({ isOpen, onClose }: RunHistoryDrawerProps) {
   // The user didn't explicitly ask to fix the summary cards.
 
   return (
-    <Drawer open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DrawerContent className="max-h-[85vh] h-auto bg-[#0a0f1a] border-t border-white/10 flex flex-col">
+    <Drawer 
+      open={isOpen} 
+      onOpenChange={onClose} 
+      snapPoints={[0.4, 1]}
+      activeSnapPoint={snapPoint}
+      onActiveSnapPointChange={setSnapPoint}
+      dismissible={true}
+    >
+      <DrawerContent className="h-[96vh] flex flex-col bg-zinc-950 border-t border-zinc-800">
         <DrawerHeader className="border-b border-white/10 pb-4 flex-none">
           <div className="flex items-center justify-between">
             <DrawerTitle className="text-white text-lg font-bold flex items-center gap-2">

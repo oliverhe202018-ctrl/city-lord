@@ -95,11 +95,11 @@ export function MapHeader({
         {/* City Badge */}
         <button
           onClick={onCityClick}
-          className="flex items-center gap-2 rounded-2xl border border-white/10 bg-black/60 px-3 py-2 backdrop-blur-xl transition-all hover:border-white/20 hover:bg-black/80"
+          className="flex items-center gap-2 rounded-2xl border border-border bg-card/80 px-3 py-2 backdrop-blur-xl transition-all hover:bg-card/90"
         >
           <span className="text-lg">{theme.icon}</span>
           <div className="text-left">
-            <p className="text-sm font-bold text-white">
+            <p className="text-sm font-bold text-foreground">
               {getLocalizedText(theme.name, language)}
             </p>
             {season && (
@@ -108,7 +108,7 @@ export function MapHeader({
               </p>
             )}
           </div>
-          <ChevronRight className="h-4 w-4 text-white/40" />
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
         </button>
 
         {/* Login Prompt (if not running) */}
@@ -118,17 +118,17 @@ export function MapHeader({
 
         {/* Running Stats (when running) */}
         {isRunning && runningStats && (
-          <div className="flex items-center gap-3 rounded-2xl border border-[#22c55e]/30 bg-black/60 px-4 py-2 backdrop-blur-xl">
+          <div className="flex items-center gap-3 rounded-2xl border border-[#22c55e]/30 bg-card/80 px-4 py-2 backdrop-blur-xl">
             <div className="flex items-center gap-1">
               <Activity className="h-4 w-4 text-[#22c55e]" />
-              <span className="font-mono text-sm font-bold text-white">
+              <span className="font-mono text-sm font-bold text-foreground">
                 {runningStats.distance.toFixed(2)} km
               </span>
             </div>
-            <div className="h-4 w-px bg-white/20" />
+            <div className="h-4 w-px bg-border" />
             <div className="flex items-center gap-1">
               <TrendingUp className="h-4 w-4 text-cyan-400" />
-              <span className="font-mono text-sm font-bold text-white">
+              <span className="font-mono text-sm font-bold text-foreground">
                 {runningStats.pace}
               </span>
             </div>
@@ -152,7 +152,7 @@ export function MapHeader({
             )}
 
             {/* GPS Signal */}
-            <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-black/60 px-3 py-2 backdrop-blur-xl">
+            <div className="flex items-center gap-1 rounded-xl border border-border bg-card/80 px-3 py-2 backdrop-blur-xl">
               <Signal className="h-4 w-4 text-[#22c55e]" />
               <span className="text-xs text-[#22c55e]">GPS</span>
             </div>
@@ -164,7 +164,7 @@ export function MapHeader({
       {!isRunning && season && (
         <button
           onClick={onSeasonClick}
-          className="mx-4 mb-2 flex items-center gap-3 rounded-2xl border border-white/10 bg-black/60 p-3 backdrop-blur-xl transition-all hover:border-white/20"
+          className="mx-4 mb-2 flex items-center gap-3 rounded-2xl border border-border bg-card/80 p-3 backdrop-blur-xl transition-all hover:bg-card/90"
         >
           <div
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
@@ -174,15 +174,15 @@ export function MapHeader({
           </div>
           <div className="min-w-0 flex-1">
             <div className="mb-1 flex items-center justify-between">
-              <span className="text-xs font-medium text-white">
+              <span className="text-xs font-medium text-foreground">
                 {getLocalizedText(season.name, language)}
               </span>
-              <span className="flex items-center gap-1 text-xs text-white/50">
+              <span className="flex items-center gap-1 text-xs text-muted-foreground">
                 <Clock className="h-3 w-3" />
                 {daysRemaining} {language === "zh" ? "天" : "days"}
               </span>
             </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+            <div className="h-1.5 overflow-hidden rounded-full bg-secondary">
               <div
                 className="h-full rounded-full transition-all duration-500"
                 style={{
@@ -192,38 +192,38 @@ export function MapHeader({
               />
             </div>
           </div>
-          <ChevronRight className="h-4 w-4 shrink-0 text-white/40" />
+          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
         </button>
       )}
 
       {/* Running Time Display (when running) */}
       {isRunning && runningStats && (
-        <div className="mx-4 mb-2 rounded-2xl border border-[#22c55e]/30 bg-black/60 p-4 backdrop-blur-xl">
+        <div className="mx-4 mb-2 rounded-2xl border border-[#22c55e]/30 bg-card/80 p-4 backdrop-blur-xl">
           <div className="flex items-center justify-between">
             <div className="text-center">
-              <p className="text-[10px] uppercase tracking-wider text-white/50">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
                 {language === "zh" ? "时间" : "Time"}
               </p>
-              <p className="font-mono text-2xl font-bold text-white">{runningStats.time}</p>
+              <p className="font-mono text-2xl font-bold text-foreground">{runningStats.time}</p>
             </div>
-            <div className="h-8 w-px bg-white/10" />
+            <div className="h-8 w-px bg-border" />
             <div className="text-center">
-              <p className="text-[10px] uppercase tracking-wider text-white/50">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
                 {language === "zh" ? "距离" : "Distance"}
               </p>
               <p className="font-mono text-2xl font-bold text-[#22c55e]">
                 {runningStats.distance.toFixed(2)}
-                <span className="ml-1 text-sm font-normal text-white/40">km</span>
+                <span className="ml-1 text-sm font-normal text-muted-foreground">km</span>
               </p>
             </div>
-            <div className="h-8 w-px bg-white/10" />
+            <div className="h-8 w-px bg-border" />
             <div className="text-center">
-              <p className="text-[10px] uppercase tracking-wider text-white/50">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
                 {language === "zh" ? "面积" : "Area"}
               </p>
               <p className="font-mono text-2xl font-bold text-cyan-400">
                 {runningStats.area}
-                <span className="ml-1 text-sm font-normal text-white/40">m²</span>
+                <span className="ml-1 text-sm font-normal text-muted-foreground">m²</span>
               </p>
             </div>
           </div>
@@ -259,10 +259,10 @@ export function ActivityBanner({
 
   return (
     <div
-      className="mx-4 mt-2 overflow-hidden rounded-2xl border"
+      className="mx-4 mt-2 overflow-hidden rounded-2xl border bg-card/80 backdrop-blur-xl"
       style={{
         borderColor: `${theme.primaryColor}40`,
-        background: `linear-gradient(135deg, ${theme.primaryColor}20, transparent)`,
+        backgroundImage: `linear-gradient(135deg, ${theme.primaryColor}20, transparent)`,
       }}
     >
       <div className="flex items-center gap-3 p-4">
@@ -273,10 +273,10 @@ export function ActivityBanner({
           <Zap className="h-6 w-6" style={{ color: theme.primaryColor }} />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="font-bold text-white">
+          <p className="font-bold text-foreground">
             {getLocalizedText(event.name, language)}
           </p>
-          <p className="text-sm text-white/60">
+          <p className="text-sm text-muted-foreground">
             {event.bonus} - {event.endDate}
           </p>
         </div>

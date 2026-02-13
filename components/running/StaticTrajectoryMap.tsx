@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef } from "react";
 import AMapLoader from "@amap/amap-jsapi-loader";
+import * as turf from '@turf/turf';
 
 interface StaticTrajectoryMapProps {
   path: { lat: number; lng: number }[];
@@ -76,6 +77,44 @@ export function StaticTrajectoryMap({ path, className }: StaticTrajectoryMapProp
 
             // Fit bounds to show the whole path
             mapRef.current.setFitView([polyline], true, [20, 20, 20, 20]);
+
+            // Add KM markers
+            try {
+                const turfLine = turf.lineString(linePath);
+                const length = turf.length(turfLine, { units: 'kilometers' });
+                
+                for (let i = 1; i <= Math.floor(length); i++) {
+                     const point = turf.along(turfLine, i, { units: 'kilometers' });
+                     const coords = point.geometry.coordinates; // [lng, lat]
+                     
+                     const markerContent = `
+                        <div style="
+                            background-color: white; 
+                            color: black; 
+                            border: 1px solid #ccc; 
+                            border-radius: 50%; 
+                            width: 20px; 
+                            height: 20px; 
+                            display: flex; 
+                            align-items: center; 
+                            justify-content: center; 
+                            font-size: 10px; 
+                            font-weight: bold;
+                            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+                        ">${i}</div>
+                     `;
+
+                     const marker = new AMap.Marker({
+                         position: coords,
+                         content: markerContent,
+                         offset: new AMap.Pixel(-10, -10),
+                         zIndex: 100
+                     });
+                     mapRef.current.add(marker);
+                }
+            } catch (e) {
+                console.error("Error calculating KM markers", e);
+            }
         }
 
       }).catch((e) => {

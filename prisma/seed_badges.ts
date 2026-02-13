@@ -160,7 +160,7 @@ const badges = [
     code: 'mysterious',
     name: 'Mysterious',
     description: 'Hidden achievement',
-    icon_name: 'a-cute-myster...png',
+    icon_name: 'a-cute-mysterious-padlock-with-a-glowing-keyhole--.png',
     category: 'Special',
     tier: 'platinum',
     requirement_type: 'hidden',

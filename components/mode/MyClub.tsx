@@ -3,8 +3,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRegion } from '@/contexts/RegionContext';
-import { getClubs } from '@/app/actions/club';
-import { Crown, Users, MapPin, Trophy, LineChart, TrendingUp, CheckCircle2 } from 'lucide-react';
+import { getClubs, getUserClub } from '@/app/actions/club';
+import { Crown, Users, MapPin, Trophy, LineChart, TrendingUp, CheckCircle2, Loader2 } from 'lucide-react';
 import ClubDetails from './ClubDetails';
 
 interface ClubMember {
@@ -144,10 +144,39 @@ function ClubList() {
   );
 }
 
-export function MyClub({ hasClub = false }: { hasClub?: boolean }) {
-  if (!hasClub) {
+export function MyClub({ hasClub: initialHasClub = false }: { hasClub?: boolean }) {
+  const [userClub, setUserClub] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [showList, setShowList] = useState(!initialHasClub);
+
+  useEffect(() => {
+    async function fetchUserClub() {
+      try {
+        const club = await getUserClub();
+        if (club) {
+          setUserClub(club);
+          setShowList(false);
+        } else {
+            // If explicit hasClub=true was passed but we found none, what to do?
+            // Maybe just trust the API.
+            setShowList(true);
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchUserClub();
+  }, []);
+
+  if (loading) {
+    return <div className="flex justify-center items-center min-h-[200px]"><Loader2 className="w-8 h-8 animate-spin text-zinc-400" /></div>;
+  }
+
+  if (showList) {
     return <ClubList />;
   }
 
-  return <ClubDetails />;
+  return <ClubDetails club={userClub} onBack={() => setShowList(true)} />;
 }

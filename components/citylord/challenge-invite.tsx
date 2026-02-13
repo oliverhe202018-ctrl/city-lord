@@ -26,9 +26,9 @@ interface ChallengeInviteProps {
 }
 
 const challengeTypeConfig = {
-  race: { icon: Zap, color: "text-cyan-400", bg: "bg-cyan-400/20", label: "竞速挑战" },
-  capture: { icon: MapPin, color: "text-purple-400", bg: "bg-purple-400/20", label: "占领挑战" },
-  distance: { icon: Trophy, color: "text-yellow-400", bg: "bg-yellow-400/20", label: "里程挑战" },
+  race: { icon: Zap, color: "text-cyan-500", bg: "bg-cyan-500/20", label: "竞速挑战" },
+  capture: { icon: MapPin, color: "text-purple-500", bg: "bg-purple-500/20", label: "占领挑战" },
+  distance: { icon: Trophy, color: "text-yellow-500", bg: "bg-yellow-500/20", label: "里程挑战" },
 }
 
 export function ChallengeInvite({
@@ -93,7 +93,7 @@ export function ChallengeInvite({
     <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center">
       {/* Backdrop */}
       <div
-        className={`absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity duration-300 ${
+        className={`absolute inset-0 bg-background/80 backdrop-blur-sm transition-opacity duration-300 ${
           isExiting ? "opacity-0" : "opacity-100"
         }`}
         onClick={handleDecline}
@@ -101,7 +101,7 @@ export function ChallengeInvite({
 
       {/* Card - slides up on mobile */}
       <div
-        className={`relative w-full max-w-sm transform overflow-hidden rounded-3xl border border-[#22c55e]/30 bg-gradient-to-b from-[#22c55e]/10 to-black/95 shadow-2xl shadow-[#22c55e]/10 backdrop-blur-xl transition-all duration-300 ${
+        className={`relative w-full max-w-sm transform overflow-hidden rounded-3xl border border-green-500/30 bg-gradient-to-b from-green-500/10 to-card shadow-2xl shadow-green-500/10 backdrop-blur-xl transition-all duration-300 ${
           isExiting
             ? "scale-95 opacity-0 translate-y-8"
             : "scale-100 opacity-100 translate-y-0"
@@ -109,7 +109,7 @@ export function ChallengeInvite({
       >
         {/* Shimmer effect */}
         <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute -inset-full animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-white/5 to-transparent" />
+          <div className="absolute -inset-full animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-muted/10 to-transparent" />
         </div>
 
         {/* Countdown ring */}
@@ -121,7 +121,8 @@ export function ChallengeInvite({
                 cy="20"
                 r="16"
                 fill="none"
-                stroke="rgba(255,255,255,0.1)"
+                stroke="currentColor"
+                className="text-muted-foreground/20"
                 strokeWidth="3"
               />
               <circle
@@ -137,14 +138,14 @@ export function ChallengeInvite({
                 className="transition-all duration-1000"
               />
             </svg>
-            <span className="text-xs font-bold text-[#22c55e]">{countdown}</span>
+            <span className="text-xs font-bold text-green-500">{countdown}</span>
           </div>
         </div>
 
         {/* Close button */}
         <button
           onClick={handleDecline}
-          className="absolute left-4 top-4 z-10 rounded-full bg-white/10 p-2 text-white/60 transition-all hover:bg-white/20 hover:text-white"
+          className="absolute left-4 top-4 z-10 rounded-full bg-muted p-2 text-muted-foreground transition-all hover:bg-muted/80 hover:text-foreground"
         >
           <X className="h-4 w-4" />
         </button>
@@ -154,12 +155,12 @@ export function ChallengeInvite({
           <div className="flex flex-col items-center">
             {/* Challenger avatar with glow */}
             <div className="relative">
-              <div className="absolute inset-0 animate-pulse rounded-full bg-[#22c55e]/30 blur-xl" />
-              <div className="relative flex h-20 w-20 items-center justify-center rounded-full border-2 border-[#22c55e]/50 bg-gradient-to-br from-[#22c55e]/30 to-[#22c55e]/10">
+              <div className="absolute inset-0 animate-pulse rounded-full bg-green-500/30 blur-xl" />
+              <div className="relative flex h-20 w-20 items-center justify-center rounded-full border-2 border-green-500/50 bg-gradient-to-br from-green-500/30 to-green-500/10">
                 {challenger.avatar ? (
                   <span className="text-3xl">{challenger.avatar}</span>
                 ) : (
-                  <User className="h-10 w-10 text-[#22c55e]" />
+                  <User className="h-10 w-10 text-green-500" />
                 )}
               </div>
               {/* Challenge badge */}
@@ -171,14 +172,14 @@ export function ChallengeInvite({
             {/* Challenger info */}
             <div className="mt-3 text-center">
               <div className="flex items-center justify-center gap-2">
-                <span className="text-lg font-bold text-white">{challenger.name}</span>
+                <span className="text-lg font-bold text-foreground">{challenger.name}</span>
                 {challenger.clan && (
-                  <span className="rounded bg-[#22c55e]/20 px-1.5 py-0.5 text-xs font-medium text-[#22c55e]">
+                  <span className="rounded bg-green-500/20 px-1.5 py-0.5 text-xs font-medium text-green-500">
                     [{challenger.clan}]
                   </span>
                 )}
               </div>
-              <p className="mt-0.5 text-sm text-white/50">
+              <p className="mt-0.5 text-sm text-muted-foreground">
                 等级 {challenger.level} | {challenger.wins} 胜
               </p>
             </div>
@@ -193,17 +194,17 @@ export function ChallengeInvite({
 
         {/* Challenge details */}
         <div className="relative p-6 pt-4">
-          <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
-            <h3 className="text-lg font-bold text-white">{challenge.title}</h3>
-            <p className="mt-1 text-sm text-white/60">{challenge.description}</p>
+          <div className="rounded-2xl border border-border bg-muted/50 p-4">
+            <h3 className="text-lg font-bold text-foreground">{challenge.title}</h3>
+            <p className="mt-1 text-sm text-muted-foreground">{challenge.description}</p>
             
             <div className="mt-3 flex items-center gap-4 text-sm">
-              <div className="flex items-center gap-1.5 text-white/50">
+              <div className="flex items-center gap-1.5 text-muted-foreground">
                 <Clock className="h-4 w-4" />
                 {challenge.duration}
               </div>
               {challenge.location && (
-                <div className="flex items-center gap-1.5 text-white/50">
+                <div className="flex items-center gap-1.5 text-muted-foreground">
                   <MapPin className="h-4 w-4" />
                   {challenge.location}
                 </div>
@@ -212,13 +213,13 @@ export function ChallengeInvite({
 
             {/* Reward */}
             <div className="mt-3 flex items-center gap-2">
-              <div className="flex items-center gap-1.5 rounded-full bg-[#22c55e]/20 px-3 py-1.5">
-                <Sparkles className="h-4 w-4 text-[#22c55e]" />
-                <span className="text-sm font-semibold text-[#22c55e]">
+              <div className="flex items-center gap-1.5 rounded-full bg-green-500/20 px-3 py-1.5">
+                <Sparkles className="h-4 w-4 text-green-500" />
+                <span className="text-sm font-semibold text-green-500">
                   +{challenge.reward} 经验
                 </span>
               </div>
-              <span className="text-xs text-white/40">获胜奖励</span>
+              <span className="text-xs text-muted-foreground">获胜奖励</span>
             </div>
           </div>
 
@@ -226,13 +227,13 @@ export function ChallengeInvite({
           <div className="mt-4 flex gap-3">
             <button
               onClick={handleDecline}
-              className="flex-1 rounded-2xl border border-white/10 bg-white/5 py-3.5 font-medium text-white/70 transition-all hover:bg-white/10 hover:text-white active:scale-[0.98]"
+              className="flex-1 rounded-2xl border border-border bg-muted py-3.5 font-medium text-muted-foreground transition-all hover:bg-muted/80 hover:text-foreground active:scale-[0.98]"
             >
               拒绝
             </button>
             <button
               onClick={handleAccept}
-              className="group flex flex-1 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#22c55e] to-[#16a34a] py-3.5 font-semibold text-black shadow-lg shadow-[#22c55e]/30 transition-all hover:from-[#16a34a] hover:to-[#22c55e] active:scale-[0.98]"
+              className="group flex flex-1 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-green-500 to-green-600 py-3.5 font-semibold text-white shadow-lg shadow-green-500/30 transition-all hover:from-green-600 hover:to-green-500 active:scale-[0.98]"
             >
               接受挑战
               <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
@@ -259,7 +260,7 @@ export function ChallengeInviteDemo() {
     <div>
       <button
         onClick={() => setIsOpen(true)}
-        className="rounded-xl bg-[#22c55e]/20 px-4 py-2 text-sm font-medium text-[#22c55e] transition-all hover:bg-[#22c55e]/30"
+        className="rounded-xl bg-green-500/20 px-4 py-2 text-sm font-medium text-green-500 transition-all hover:bg-green-500/30"
       >
         模拟挑战邀请
       </button>

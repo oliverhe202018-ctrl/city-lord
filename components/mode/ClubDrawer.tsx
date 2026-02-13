@@ -44,6 +44,7 @@ export function ClubDrawer({ isOpen, onClose, onOpenCreate }: ClubDrawerProps) {
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
   const [clubToLeave, setClubToLeave] = useState<string | null>(null);
   const [isJoining, setIsJoining] = useState(false);
+  const [snapPoint, setSnapPoint] = useState<number | string | null>(1);
 
   // Derived Data
   const joinedClub = clubData?.joinedClub;
@@ -105,10 +106,10 @@ export function ClubDrawer({ isOpen, onClose, onOpenCreate }: ClubDrawerProps) {
         // Refresh everything: SWR cache and local viewing state
         await refreshClubs(); 
         
-        // If joined successfully, force update viewingClubId or close it if needed
-        // But better: since refreshClubs updates joinedClub, and we check joinedClub?.id === viewingClubId,
-        // the ClubDetailView should naturally re-render with isJoined=true
-        // We just need to make sure renderContent picks up the new status.
+        // If status is active, immediately clear viewingClubId so CASE B takes over (My Club View)
+        if (result.status === 'active') {
+            setViewingClubId(null);
+        }
         
         // Wait a tick for SWR to update
         setTimeout(() => {
@@ -149,6 +150,10 @@ export function ClubDrawer({ isOpen, onClose, onOpenCreate }: ClubDrawerProps) {
     setIsLeaveModalOpen(true);
   };
 
+  const handleCloseDetail = () => {
+    setViewingClubId(null);
+  };
+
   const renderContent = () => {
     if (isLoading) {
       return (
@@ -186,6 +191,29 @@ export function ClubDrawer({ isOpen, onClose, onOpenCreate }: ClubDrawerProps) {
 
     // CASE A: Viewing a specific club detail (from list click)
     if (viewingClubId) {
+        // If user has a joined club, redirect to their club detail instead of showing another one
+        // Unless they are just viewing it? But user asked for "jump to self club detail page"
+        // Let's enforce: if joinedClub is active, always show joined club details.
+        // This is actually handled by CASE B being below.
+        // Wait, if viewingClubId is set, it enters CASE A and returns.
+        // So we should check joinedClub here too.
+        
+        if (joinedClub && joinedClub.status === 'active') {
+             // Redirect logic: If user clicked a club but is already a member of one (maybe via deep link or race condition),
+             // show their own club instead.
+             // We can just fall through to CASE B by returning null here? No, renderContent must return JSX.
+             // We can just render the Joined Club View here.
+             return (
+                <div className="h-auto w-full">
+                    <ClubDetailView 
+                      clubId={joinedClub.id} 
+                      isJoined={true}
+                      onChange={() => openLeaveModal(joinedClub.id)}
+                    />
+                </div>
+            );
+        }
+
         const isMember = joinedClub?.id === viewingClubId && joinedClub?.status === 'active';
         return (
             <div className={`w-full ${isMember ? "h-auto" : "h-full"}`}>
@@ -250,13 +278,26 @@ export function ClubDrawer({ isOpen, onClose, onOpenCreate }: ClubDrawerProps) {
     <Drawer 
       open={isOpen} 
       onOpenChange={onClose} 
-      // Removed snapPoints to allow auto-height adaptation globally
+      snapPoints={[0.4, 1]}
+      activeSnapPoint={snapPoint}
+      onActiveSnapPointChange={setSnapPoint}
+      dismissible={true}
+      repositionInputs={false}
     >
       <DrawerContent
-        className="bg-zinc-900/90 border-t border-white/10 rounded-t-[32px] w-full overflow-x-hidden flex flex-col h-auto max-h-[90vh]"
+        className="bg-background border-t border-border rounded-t-[32px] w-full overflow-x-hidden flex flex-col h-[96vh]"
       >
-        <div className="flex justify-center pt-4 pb-2 flex-shrink-0">
-          <div className="w-12 h-1.5 bg-white/20 rounded-full" />
+        <div className="flex justify-center pt-4 pb-2 flex-shrink-0 relative">
+          <div className="w-12 h-1.5 bg-muted rounded-full" />
+          
+          {/* Global Close Button */}
+          <div className="absolute right-4 top-0">
+             <DrawerClose className="p-2 rounded-full bg-muted/50 hover:bg-muted transition-colors cursor-pointer">
+                <svg className="w-5 h-5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+             </DrawerClose>
+          </div>
         </div>
 
         {/* Only show generic header if in discovery mode AND list view AND not viewing detail */}
@@ -264,18 +305,13 @@ export function ClubDrawer({ isOpen, onClose, onOpenCreate }: ClubDrawerProps) {
             <DrawerHeader className="px-6 pb-2 flex-shrink-0">
             <div className="flex items-center justify-between">
                 <div>
-                <DrawerTitle className="text-white text-2xl font-bold">
+                <DrawerTitle className="text-foreground text-2xl font-bold">
                     跑步俱乐部
                 </DrawerTitle>
-                <p className="text-white/50 text-sm mt-1">
+                <p className="text-muted-foreground text-sm mt-1">
                     加入俱乐部，与跑友一起进步
                 </p>
                 </div>
-                <DrawerClose className="p-2 rounded-lg hover:bg-white/10 transition-colors cursor-pointer">
-                <svg className="w-6 h-6 text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-                </DrawerClose>
             </div>
             </DrawerHeader>
         )}

@@ -2,12 +2,28 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { cookies } from 'next/headers'
+import { createClient as createClientBrowser } from '@/lib/supabase/client'
 
 import { ACHIEVEMENT_DEFINITIONS } from '@/lib/achievements'
 
-export async function syncBadges() {
-  const cookieStore = await cookies()
-  const supabase = await createClient(cookieStore)
+export async function syncBadges(useDirectClient = false) {
+  let supabase;
+  
+  if (useDirectClient) {
+      // For scripts where cookies() is not available
+      const { createClient } = await import('@supabase/supabase-js')
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
+      const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY! // Or Service Role if available in env
+      // Note: For write operations, we might need Service Role if RLS blocks anon.
+      // But usually 'badges' table might be protected.
+      // Scripts usually run with full access env vars.
+      // Let's assume we have process.env.SUPABASE_SERVICE_ROLE_KEY
+      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || key
+      supabase = createClient(url, serviceKey)
+  } else {
+      const cookieStore = await cookies()
+      supabase = await createClient(cookieStore)
+  }
   
   // Iterate local definitions
   const upsertData = ACHIEVEMENT_DEFINITIONS.map(def => {
@@ -19,18 +35,22 @@ export async function syncBadges() {
     const desc = def.description
     const cat = def.category
 
-    if (cat === 'running') {
-        reqType = 'distance' // Default for running
-        if (desc.includes('次') || desc.includes('天')) {
-            reqType = 'count' // "Run 30 days" or "Run 1 time"
-        } else if (desc.includes('配速')) {
+    if (cat === 'endurance' || cat === 'speed') {
+        reqType = 'distance' // Default base
+        if (desc.includes('配速') || desc.includes('速度')) {
             reqType = 'pace'
+        } else if (desc.includes('次') || desc.includes('天')) {
+            reqType = 'count'
         }
-    } else if (cat === 'territory') {
-        reqType = 'count' // Default for territory (tiles)
-        if (desc.includes('面积') || desc.includes('占有率')) {
+    } else if (cat === 'conquest' || cat === 'exploration') {
+        reqType = 'count' // Default (tiles/districts)
+        if (desc.includes('里程') || desc.includes('公里')) {
+            reqType = 'distance' // e.g. City Walker
+        } else if (desc.includes('面积')) {
             reqType = 'area'
         }
+    } else if (cat === 'special') {
+        reqType = 'count' // Invites, etc.
     }
 
     // 2. Extract number from description if needed (User requested parsing text)
@@ -79,12 +99,12 @@ export interface Badge {
   name: string
   description: string
   icon_name: string
-  category: 'exploration' | 'endurance' | 'conquest' | 'hidden'
+  category: 'speed' | 'special' | 'conquest' | 'exploration' | 'endurance'
   condition_value: number
   requirement_type?: string
   requirement_value?: number
   icon_path?: string
-  tier: 'bronze' | 'silver' | 'gold' | 'platinum'
+  tier: 'common' | 'rare' | 'epic' | 'legendary'
   level?: string
 }
 
@@ -158,6 +178,8 @@ export async function fetchAllBadges() {
   return data as Badge[]
 }
 
+import { prisma } from '@/lib/prisma'
+
 export async function fetchUserBadges() {
   const cookieStore = await cookies()
   const supabase = await createClient(cookieStore)
@@ -165,25 +187,17 @@ export async function fetchUserBadges() {
 
   if (!user) return []
 
-  const { data, error } = await supabase
-    .from('user_badges')
-    .select(`
-      badge_id,
-      earned_at,
-      badge:badges (*)
-    `)
-    .eq('user_id', user.id)
+  try {
+    const userData = await prisma.users.findUnique({
+      where: { id: user.id },
+      select: { badges: true }
+    })
 
-  if (error) {
+    return userData?.badges || []
+  } catch (error) {
     console.error('Error fetching user badges:', error)
     return []
   }
-
-  return data.map((item: any) => ({
-    badge_id: item.badge_id,
-    earned_at: item.earned_at,
-    badge: item.badge
-  })) as UserBadge[]
 }
 
 /**
@@ -243,18 +257,18 @@ export async function checkHiddenBadges(userId: string, context: { type: 'run_en
   const hour = context.timestamp.getHours()
   const results: string[] = []
 
-  // Logic for 'night_owl': Activity between 22:00 (10 PM) and 04:00 (4 AM)
+  // Logic for 'night-walker': Activity between 22:00 (10 PM) and 04:00 (4 AM)
   // 22, 23, 0, 1, 2, 3
   if (hour >= 22 || hour < 4) {
-    const result = await grantBadge(userId, 'night_owl')
+    const result = await grantBadge(userId, 'night-walker')
     if (result.success && result.badgeName) {
       results.push(result.badgeName)
     }
   }
 
-  // Logic for 'early_bird': Activity between 05:00 and 07:00 (Example)
+  // Logic for 'early-bird': Activity between 05:00 and 07:00
   if (hour >= 5 && hour < 8) {
-     const result = await grantBadge(userId, 'early_bird')
+     const result = await grantBadge(userId, 'early-bird')
      if (result.success && result.badgeName) {
        results.push(result.badgeName)
      }
@@ -301,16 +315,17 @@ export async function checkProgressBadges(userId: string) {
     let qualified = false
     
     switch (badge.category) {
-      case 'exploration': // Based on Tiles Captured
+      case 'conquest': // Based on Tiles Captured
         if (stats.totalTiles >= badge.condition_value) qualified = true
         break
       case 'endurance': // Based on Distance (km)
         if (stats.totalDistance >= badge.condition_value) qualified = true
         break
-      case 'conquest': // Based on Area (km2) or maybe just count
-        // Assuming condition_value for conquest is Area or maybe Tiles too?
-        // Let's assume Area for Conquest.
-        if (stats.totalArea >= badge.condition_value) qualified = true
+      case 'exploration':
+        // Some exploration badges are distance (City Walker)
+        if (badge.requirement_type === 'distance') {
+             if (stats.totalDistance >= badge.condition_value) qualified = true
+        }
         break
     }
 
