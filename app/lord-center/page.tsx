@@ -1,5 +1,9 @@
 "use client"
 
+// Force dynamic rendering to skip static generation at build time
+export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
+
 import React, { useState, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
@@ -21,6 +25,11 @@ export default function LordCenterPage() {
   const [loading, setLoading] = useState(true)
   const [bgImage, setBgImage] = useState("/images/lord-center-bg-default.jpg") // Default placeholder
   const [isBgSettingsOpen, setIsBgSettingsOpen] = useState(false)
+
+  // Defensive coding: Ensure userStats exists to prevent build-time errors
+  if (!userStats) {
+    return null
+  }
 
   // Mock Photos for the top grid (Step 2 photos)
   const photos = [
@@ -45,7 +54,7 @@ export default function LordCenterPage() {
     fetchData()
   }, [userId])
 
-  const level = calculateLevel(userStats.xp)
+  const level = calculateLevel(userStats?.xp || 0)
 
   // Mock Weekly Data
   const weeklyData = [
