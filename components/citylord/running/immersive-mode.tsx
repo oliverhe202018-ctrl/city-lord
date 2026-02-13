@@ -368,7 +368,11 @@ export function ImmersiveRunningMode({
   if (!isActive) return null
 
   return (
-    <div className="fixed inset-0 z-[9999] flex h-[100dvh] w-full flex-col bg-black/60 backdrop-blur-sm">
+    <div 
+      className={`fixed inset-0 z-[9999] flex h-[100dvh] w-full flex-col transition-colors duration-300 ${
+        isMapMode ? 'bg-transparent' : 'bg-black/60 backdrop-blur-sm'
+      }`}
+    >
       {/* Loop Warning Dialog */}
       <AlertDialog open={showLoopWarning} onOpenChange={setShowLoopWarning}>
         <AlertDialogContent className="w-[90%] rounded-xl bg-[#1a1a1a] text-white border-white/10">
@@ -409,7 +413,7 @@ export function ImmersiveRunningMode({
       </AlertDialog>
 
       {/* Map Background Layer */}
-      <div className="absolute inset-0 z-0">
+      <div className={`absolute inset-0 z-0 ${isMapMode ? 'pointer-events-auto' : ''}`}>
         {currentLocation && (
           <GaodeMap3D 
             hexagons={mapHexagons} 
