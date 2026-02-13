@@ -271,10 +271,10 @@ export function RunningHUD({
 
   // 2. Track Progress & Notifications
   useEffect(() => {
-    if (activeMissions.length === 0) return
+    if (!activeMissions || activeMissions.length === 0) return
 
     activeMissions.forEach(mission => {
-      if (completedMissionIds.has(mission.id)) return
+      if (!mission || completedMissionIds.has(mission.id)) return
 
       let currentProgress = mission.current || 0
       let isHit = false
@@ -367,7 +367,7 @@ export function RunningHUD({
 
           {/* Mission Widget (Left Side) */}
           <AnimatePresence>
-            {!isMapMode && activeMissions.length > 0 && (
+            {!isMapMode && activeMissions && activeMissions.length > 0 && (
               <motion.div 
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -375,6 +375,7 @@ export function RunningHUD({
                 className="flex flex-col gap-1 pointer-events-auto"
               >
                 {activeMissions.map(mission => {
+                  if (!mission) return null;
                   let progress = mission.current || 0
                   let unit = ""
                   let target = mission.target
