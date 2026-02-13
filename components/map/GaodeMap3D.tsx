@@ -401,61 +401,13 @@ export function GaodeMap3D({
        ghostPolylineRef.current = null
     }
 
-    // 1. Draw Path (Polyline)
-    if (safePath && safePath.length > 0) {
-      const pathCoords = safePath.map(p => [p.lng, p.lat])
-      
-      if (!polylineRef.current) {
-        polylineRef.current = new AMap.Polyline({
-          path: pathCoords,
-          strokeColor: pathColor, 
-          strokeOpacity: 1,
-          strokeWeight: 6,
-          strokeStyle: "solid",
-          lineJoin: 'round',
-          lineCap: 'round',
-          zIndex: 50,
-        })
-        map.add(polylineRef.current)
-      } else {
-        polylineRef.current.setPath(pathCoords)
-        polylineRef.current.setOptions({ strokeColor: pathColor })
-      }
-    } else if (polylineRef.current) {
-       map.remove(polylineRef.current)
-       polylineRef.current = null
-    }
+    // Note: Path and ClosedPolygons are handled in separate effects to avoid conflicts
 
-    // 2. Draw Closed Polygons
-    // Remove old polygons
-    if (polygonRefs.current && polygonRefs.current.length > 0) {
-        map.remove(polygonRefs.current)
-        polygonRefs.current = []
-    }
-
-    if (safeClosedPolygons && safeClosedPolygons.length > 0) {
-        const newPolygons = safeClosedPolygons.map(polyPath => {
-            const coords = polyPath.map(p => [p.lng, p.lat])
-            return new AMap.Polygon({
-                path: coords,
-                strokeColor: pathColor,
-                strokeWeight: 2,
-                strokeOpacity: 0.8,
-                fillColor: fillColor,
-                fillOpacity: 0.4,
-                zIndex: 40,
-            })
-        })
-        
-        map.add(newPolygons)
-        polygonRefs.current = newPolygons
-    }
-
-  }, [isMapReady, path, closedPolygons, ghostPath, pathColor, fillColor])
+  }, [isMapReady, ghostPath]) // Removed path, closedPolygons from dependencies
 
   // Update User Marker Position
   useEffect(() => {
-    if (markerRef.current) {
+    if (markerRef.current && userLocation) {
         markerRef.current.setPosition(userLocation)
         // Only pan if map is ready
         if (mapInstanceRef.current) {
@@ -466,9 +418,15 @@ export function GaodeMap3D({
 
   // 3. Render Path (Polyline)
   useEffect(() => {
-    if (!mapInstanceRef.current || !window.AMap) return
+    if (!mapInstanceRef.current || !window.AMap || !isMapReady) return
 
-    const pathCoordinates = (safePath || []).map(p => [p.lng, p.lat])
+    const safePathArr = path || []
+    if (!Array.isArray(safePathArr)) return
+
+    // Defensive check: Ensure all points are valid
+    const pathCoordinates = safePathArr
+      .filter(p => p && typeof p.lng === 'number' && typeof p.lat === 'number')
+      .map(p => [p.lng, p.lat])
 
     if (pathCoordinates.length > 0) {
       if (polylineRef.current) {
@@ -496,7 +454,7 @@ export function GaodeMap3D({
 
   // 4. Render Closed Polygons
   useEffect(() => {
-    if (!mapInstanceRef.current || !window.AMap) return
+    if (!mapInstanceRef.current || !window.AMap || !isMapReady) return
 
     // Clear existing polygons
     if (polygonRefs.current && polygonRefs.current.length > 0) {
@@ -504,10 +462,20 @@ export function GaodeMap3D({
         polygonRefs.current = []
     }
 
+    const safePolys = closedPolygons || []
+    if (!Array.isArray(safePolys)) return
+
     // Add new polygons
-    if (safeClosedPolygons && safeClosedPolygons.length > 0) {
-      const newPolygons = safeClosedPolygons.map(poly => {
-          const coords = poly.map(p => [p.lng, p.lat])
+    if (safePolys.length > 0) {
+      const newPolygons = safePolys
+        .filter(poly => Array.isArray(poly) && poly.length > 0)
+        .map(poly => {
+          const coords = poly
+            .filter(p => p && typeof p.lng === 'number' && typeof p.lat === 'number')
+            .map(p => [p.lng, p.lat])
+            
+          if (coords.length < 3) return null // Need at least 3 points for a polygon
+
           return new window.AMap.Polygon({
               path: coords,
               strokeColor: pathColor,
@@ -517,7 +485,7 @@ export function GaodeMap3D({
               fillOpacity: 0.4,
               zIndex: 90
           })
-      })
+      }).filter(Boolean) // Filter out nulls
 
       if (newPolygons.length > 0) {
           mapInstanceRef.current.add(newPolygons)

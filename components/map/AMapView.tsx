@@ -182,7 +182,7 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(({ showTerritory, onM
     AMapLoader.load({
       key,
       version: "2.0",
-      plugins: ["AMap.Scale"],
+      plugins: ["AMap.Scale", "AMap.Geolocation"],
     })
       .then((AMap) => {
         if (destroyed || !mapDomRef.current) return;
@@ -230,6 +230,43 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(({ showTerritory, onM
         handleResize();
 
         mapRef.current.addControl(new AMap.Scale());
+
+        // 1. Optimize AMap.Geolocation Configuration
+        const geolocation = new AMap.Geolocation({
+          enableHighAccuracy: true, // 开启高精度
+          timeout: 15000,           // 15秒超时 (User Request)
+          maximumAge: 0,            // 强制刷新 (User Request)
+          convert: true,            // 自动偏移坐标
+          showButton: false,        // 不显示默认按钮 (Use our custom UI)
+          showMarker: true,         // 显示定位点
+          showCircle: true,         // 显示精度圈
+          panToLocation: true,      // 定位成功后将定位到的位置作为地图中心点
+          zoomToAccuracy: true,     // 定位成功后调整地图视野范围
+          noGeoLocation: 0,         // 0: 强制使用浏览器定位 (User Request for Android WebView fix)
+        });
+
+        mapRef.current.addControl(geolocation);
+
+        // 2. Add Error Feedback
+        geolocation.getCurrentPosition((status: string, result: any) => {
+          if (status === 'complete') {
+            console.log('AMap Location Success:', result);
+            // Optional: You might want to update global store here if needed
+          } else {
+            console.error('AMap Location Error:', result);
+            toast.error("定位失败，请检查手机定位权限或网络", {
+              description: result.message || "无法获取当前位置"
+            });
+            
+            // 3. Fallback Handling
+            if (mapRef.current) {
+              console.log('Falling back to default location (Beijing)');
+              mapRef.current.setCenter([116.397428, 39.90923]);
+              mapRef.current.setZoom(13);
+            }
+          }
+        });
+
       })
       .catch((e) => {
         console.error("AMap load error:", e);
