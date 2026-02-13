@@ -162,7 +162,7 @@ export function RunSummaryView({
 
         {/* Task 2: Static Trajectory Map */}
         <div className="mx-4 mb-4 rounded-xl overflow-hidden shadow-sm border border-gray-100 relative bg-gray-100 h-72">
-          {runTrajectory.length > 0 ? (
+          {runTrajectory && runTrajectory.length > 0 ? (
              <StaticTrajectoryMap path={runTrajectory} className="w-full h-full" />
           ) : (
              <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm">
