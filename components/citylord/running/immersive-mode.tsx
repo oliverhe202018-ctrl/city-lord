@@ -64,6 +64,8 @@ function getDistanceFromLatLonInMeters(lat1: number, lon1: number, lat2: number,
 
 import { playAudio } from "@/utils/audio"
 
+import { RunningMapOverlay } from "./RunningMapOverlay"
+
 export function ImmersiveRunningMode({
   isActive,
   userId,
@@ -418,12 +420,14 @@ export function ImmersiveRunningMode({
             closedPolygons={closedPolygons}
           />
         )}
-        {/* Gradient Overlay for text readability */}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/80 pointer-events-none" />
+        {/* Gradient Overlay for text readability - Hide in Map Mode */}
+        {!isMapMode && (
+          <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/80 pointer-events-none" />
+        )}
       </div>
 
-      {/* Safe Area Top */}
-      <div className="relative z-10 h-[env(safe-area-inset-top)] bg-transparent" />
+      {/* Safe Area Top - Hide in Map Mode as Overlay handles it */}
+      {!isMapMode && <div className="relative z-10 h-[env(safe-area-inset-top)] bg-transparent" />}
 
       {/* New HUD Implementation */}
       <div className={isMapMode ? "opacity-0 pointer-events-none transition-opacity duration-300" : "opacity-100 transition-opacity duration-300"}>
@@ -456,17 +460,17 @@ export function ImmersiveRunningMode({
         />
       </div>
 
-      {/* Return to Stats Button (Only visible in Map Mode) */}
+      {/* Map Overlay Mode (New Design) */}
       {isMapMode && (
-        <div className="absolute bottom-32 left-1/2 -translate-x-1/2 z-50 pointer-events-auto animate-in slide-in-from-bottom-10 fade-in duration-300">
-          <button 
-            onClick={() => setIsMapMode(false)}
-            className="flex items-center gap-2 px-6 py-3 rounded-full bg-black/80 backdrop-blur-md border border-[#22c55e]/50 text-white font-bold shadow-[0_0_20px_rgba(34,197,94,0.3)] active:scale-95 transition-all hover:bg-black"
-          >
-            <ChevronUp className="w-5 h-5 text-[#22c55e]" />
-            返回数据
-          </button>
-        </div>
+        <RunningMapOverlay 
+          distance={distance || 0}
+          duration={time}
+          pace={pace ? String(pace) : "00:00"} // Assuming pace is number or string, check props
+          area={currentPartialArea} // Or totalArea?
+          isPaused={isPaused}
+          onPauseToggle={handlePauseToggle}
+          onBack={() => setIsMapMode(false)}
+        />
       )}
       
       {isGhostMode && <GhostJoystick onMove={handleGhostMove} />}
