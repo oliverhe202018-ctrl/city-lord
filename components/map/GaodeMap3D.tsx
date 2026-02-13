@@ -175,20 +175,23 @@ export function GaodeMap3D({
       addLog("Prism Layer Added")
 
       // Add User Marker
-      const marker = new AMap.Marker({
-        position: userLocation,
-        content: `<div style="
-          width: 20px; 
-          height: 20px; 
-          background: #22c55e; 
-          border-radius: 50%; 
-          box-shadow: 0 0 15px #22c55e;
-          border: 3px solid white;
-        "></div>`,
-        offset: new AMap.Pixel(-10, -10)
-      })
-      map.add(marker)
-      markerRef.current = marker
+      // Only add if there is NO existing marker (shouldn't happen with refs but safety first)
+      if (!markerRef.current) {
+        const marker = new AMap.Marker({
+          position: userLocation,
+          content: `<div style="
+            width: 20px; 
+            height: 20px; 
+            background: #22c55e; 
+            border-radius: 50%; 
+            box-shadow: 0 0 15px #22c55e;
+            border: 3px solid white;
+          "></div>`,
+          offset: new AMap.Pixel(-10, -10)
+        })
+        map.add(marker)
+        markerRef.current = marker
+      }
 
       setIsMapReady(true)
 
@@ -499,6 +502,7 @@ export function GaodeMap3D({
       <div ref={mapContainerRef} className="w-full h-full absolute inset-0 z-0" />
       
       {/* Debug Log Overlay */}
+      {/* 
       <div className="absolute top-20 left-4 z-50 pointer-events-none">
         <div className="bg-black/50 text-green-400 text-[10px] font-mono p-2 rounded max-w-[200px]">
             <p className="font-bold underline mb-1">AMap Debug</p>
@@ -510,6 +514,7 @@ export function GaodeMap3D({
             </div>
         </div>
       </div>
+      */}
 
       {!isMapReady && (
         <div className="absolute inset-0 flex items-center justify-center text-white/50 text-xs z-10">
