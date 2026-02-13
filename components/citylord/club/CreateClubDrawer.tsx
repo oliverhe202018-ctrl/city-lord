@@ -104,18 +104,18 @@ export function CreateClubDrawer({ isOpen, onClose, onSuccess }: CreateClubDrawe
     >
       <DrawerContent className="max-h-[96vh] p-0 border-none bg-transparent">
         {/* 1. 全局容器: 确保头部底部固定 */}
-        <div className="flex flex-col h-full w-full bg-zinc-900 rounded-t-[10px] overflow-hidden">
+        <div className="flex flex-col h-full w-full bg-background rounded-t-[10px] overflow-hidden">
           
           {/* 2. 头部 (Fixed) - 放置 DrawerTitle 消除报错 */}
-          <DrawerHeader className="flex-none border-b border-white/10 px-4 py-4">
+          <DrawerHeader className="flex-none border-b border-border px-4 py-4">
             <div className="flex items-center justify-between">
               {/* 👇 关键点：使用 DrawerTitle 替换普通的 h2/div */}
-              <DrawerTitle className="text-lg font-bold text-white">
+              <DrawerTitle className="text-lg font-bold text-foreground">
                 创建俱乐部
               </DrawerTitle>
               
               <DrawerClose asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-400 hover:bg-white/10 hover:text-white">
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-muted hover:text-foreground">
                   <X className="w-5 h-5" />
                 </Button>
               </DrawerClose>
@@ -133,18 +133,18 @@ export function CreateClubDrawer({ isOpen, onClose, onSuccess }: CreateClubDrawe
                 cropShape="rect"
                 cropAspect={1}
               />
-              <p className="text-xs text-zinc-500 mt-3">上传俱乐部 Logo (必须为正方形)</p>
+              <p className="text-xs text-muted-foreground mt-3">上传俱乐部 Logo (必须为正方形)</p>
             </div>
 
             {/* Club Name */}
             <div className="space-y-2">
-              <Label className="text-zinc-400 text-xs uppercase tracking-wider font-semibold">俱乐部名称</Label>
-              <div className="bg-zinc-900 rounded-xl p-1 border border-zinc-800 focus-within:border-white/20 transition-all">
+              <Label className="text-muted-foreground text-xs uppercase tracking-wider font-semibold">俱乐部名称</Label>
+              <div className="bg-muted/50 rounded-xl p-1 border border-border focus-within:border-primary/50 transition-all">
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-4 py-3 bg-transparent text-white placeholder-zinc-600 focus:outline-none text-base"
+                  className="w-full px-4 py-3 bg-transparent text-foreground placeholder:text-muted-foreground focus:outline-none text-base"
                   placeholder="给你的俱乐部起个名字"
                 />
               </div>
@@ -152,17 +152,17 @@ export function CreateClubDrawer({ isOpen, onClose, onSuccess }: CreateClubDrawe
 
             {/* Province Selection */}
             <div className="space-y-2">
-              <Label className="text-zinc-400 text-xs uppercase tracking-wider font-semibold">所在省份</Label>
+              <Label className="text-muted-foreground text-xs uppercase tracking-wider font-semibold">所在省份</Label>
               <Select 
                 value={formData.province} 
                 onValueChange={(val) => setFormData({ ...formData, province: val })}
               >
-                <SelectTrigger className="w-full h-14 bg-zinc-900 border-zinc-800 text-white rounded-xl px-4 focus:ring-0 focus:ring-offset-0">
+                <SelectTrigger className="w-full h-14 bg-muted/50 border-border text-foreground rounded-xl px-4 focus:ring-0 focus:ring-offset-0">
                   <SelectValue placeholder="选择省份" />
                 </SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-800 text-white max-h-[300px] z-[9999]">
+                <SelectContent className="bg-popover border-border text-popover-foreground max-h-[300px] z-[9999]">
                   {CHINA_PROVINCES.map((p) => (
-                    <SelectItem key={p} value={p} className="focus:bg-zinc-800 focus:text-white cursor-pointer">
+                    <SelectItem key={p} value={p} className="focus:bg-muted focus:text-foreground cursor-pointer">
                       {p}
                     </SelectItem>
                   ))}
@@ -172,40 +172,40 @@ export function CreateClubDrawer({ isOpen, onClose, onSuccess }: CreateClubDrawe
 
             {/* Description */}
             <div className="space-y-2">
-              <Label className="text-zinc-400 text-xs uppercase tracking-wider font-semibold">俱乐部简介</Label>
-              <div className="bg-zinc-900 rounded-xl p-1 border border-zinc-800 focus-within:border-white/20 transition-all">
+              <Label className="text-muted-foreground text-xs uppercase tracking-wider font-semibold">俱乐部简介</Label>
+              <div className="bg-muted/50 rounded-xl p-1 border border-border focus-within:border-primary/50 transition-all">
                 <textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full px-4 py-3 bg-transparent text-white placeholder-zinc-600 focus:outline-none text-base min-h-[120px] resize-none"
+                  className="w-full px-4 py-3 bg-transparent text-foreground placeholder:text-muted-foreground focus:outline-none text-base min-h-[120px] resize-none"
                   placeholder="介绍一下你的俱乐部..."
                 />
               </div>
             </div>
 
             {/* Visibility Toggle */}
-            <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-800 flex items-center justify-between">
+            <div className="bg-muted/50 rounded-xl p-4 border border-border flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label className="text-white font-medium text-base">
+                <Label className="text-foreground font-medium text-base">
                   {formData.isPublic ? '公开加入' : '私密邀请'}
                 </Label>
-                <p className="text-xs text-zinc-500">
+                <p className="text-xs text-muted-foreground">
                   {formData.isPublic ? '允许任何人搜索并加入' : '仅允许邀请加入'}
                 </p>
               </div>
               <Switch 
                 checked={formData.isPublic}
                 onCheckedChange={(checked) => setFormData({ ...formData, isPublic: checked })}
-                className="data-[state=checked]:bg-white data-[state=unchecked]:bg-zinc-700"
+                className="data-[state=checked]:bg-primary data-[state=unchecked]:bg-input"
               />
             </div>
           </div>
 
           {/* 4. 底部 (Fixed) */}
-          <div className="flex-none p-4 border-t border-white/10 bg-zinc-900 safe-area-bottom">
+          <div className="flex-none p-4 border-t border-border bg-background safe-area-bottom">
             <Button
               onClick={handleSubmit}
-              className="w-full h-12 rounded-xl bg-white text-black font-bold text-lg hover:bg-white/90 active:scale-95 transition-all shadow-lg shadow-white/5"
+              className="w-full h-12 rounded-xl bg-primary text-primary-foreground font-bold text-lg hover:bg-primary/90 active:scale-95 transition-all shadow-lg"
               disabled={isLoading}
             >
               {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : '立即创建'}
