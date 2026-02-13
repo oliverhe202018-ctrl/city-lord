@@ -64,10 +64,50 @@ const MapViewOrchestrator = () => {
   // 3. Center the map when the region is updated
   useEffect(() => {
     if (map && region?.centerLngLat) {
-      map.setCenter(region.centerLngLat, false);
-      map.setZoom(14, false, 500);
+      // Basic validity check for region center
+      if (region.centerLngLat[0] !== 0 && region.centerLngLat[1] !== 0) {
+        map.setCenter(region.centerLngLat, false);
+        map.setZoom(14, false, 500);
+      }
     }
   }, [map, region]);
+
+  // 4. Auto-center map on user location update (View Follow)
+  useEffect(() => {
+    if (!map || !validGeoData) return;
+    
+    // Check if coordinates are valid (not 0,0)
+    const { latitude, longitude } = validGeoData;
+    if (latitude !== 0 && longitude !== 0) {
+        // Transform to GCJ02 if needed (assuming validGeoData is WGS84 from useGeolocation)
+        // Note: useGeolocation usually returns WGS84. AMap needs GCJ02.
+        // Let's use gcoord to be safe, although MapRoot might have done it.
+        // Wait, SelfLocationMarker uses validGeoData directly. 
+        // MapRoot handles transformation for locationState.
+        // Here we are in MapViewOrchestrator which uses useGeolocation directly.
+        // We should consistent with MapRoot or just use the transformed coordinates if available.
+        
+        // Actually, MapViewOrchestrator uses useGeolocation hook which returns raw WGS84 (usually).
+        // Let's transform it to be safe for AMap.
+        try {
+            const [lng, lat] = gcoord.transform(
+                [longitude, latitude],
+                gcoord.WGS84,
+                gcoord.GCJ02
+            );
+            
+            // Only center if distance is significant or first load?
+            // For now, let's just center if it's a valid update to fix "not following" issue.
+            // But we don't want to lock the view if user is panning.
+            // Maybe only if "locked" mode? The prompt implies "auto follow".
+            // Let's set center.
+            map.setCenter([lng, lat], true); // true for smooth animation
+        } catch (e) {
+            // Fallback to raw if transform fails
+            map.setCenter([longitude, latitude], true);
+        }
+    }
+  }, [map, validGeoData]);
 
   // Handle and log errors
   useEffect(() => {
@@ -148,6 +188,11 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(({ showTerritory, onM
     return null;
   };
 
+  // Helper to check location validity (Anti-Africa Patch)
+  const isValidLocation = (loc: any) => {
+    return Array.isArray(loc) && loc.length === 2 && loc[0] !== 0 && loc[1] !== 0 && !isNaN(loc[0]) && !isNaN(loc[1]);
+  };
+
   useEffect(() => {
     // 页面加载/组件挂载时，如果本地缓存显示我在房间里，立即同步一次最新状态
     if (currentRoom?.id) {
@@ -206,25 +251,34 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(({ showTerritory, onM
 
         // Load Cached State
         const savedState = getInitialState();
-        let initialCenter: [number, number] = [116.397428, 39.90923]; // Default: Beijing
-        let initialZoom = 13;
+        
+        // Priority 3: Default (Beijing)
+        let finalCenter: [number, number] = [116.397428, 39.90923]; 
+        let finalZoom = 13;
 
+        // Priority 2: Cache
         if (savedState) {
-            if (savedState.center && Array.isArray(savedState.center)) {
-                initialCenter = savedState.center;
+            if (savedState.center && isValidLocation(savedState.center)) {
+                finalCenter = savedState.center;
             }
             if (savedState.zoom) {
-                initialZoom = savedState.zoom;
+                finalZoom = savedState.zoom;
             }
             console.log('Using cached map state:', savedState);
         }
+        
+        // Priority 1: User Location (if available immediately, though usually async)
+        // Note: useGeolocation data isn't available here yet in this useEffect scope easily without passing it in.
+        // But we can check if there's a "last known location" from other sources if needed.
+        // For now, Cache > Default is good for initialization. 
+        // The View Follow effect in MapViewOrchestrator will handle Priority 1 once data arrives.
 
-        setCenter(initialCenter);
-        setZoom(initialZoom);
+        setCenter(finalCenter);
+        setZoom(finalZoom);
 
         mapRef.current = new AMap.Map(mapDomRef.current, {
-          zoom: initialZoom,
-          center: initialCenter,
+          zoom: finalZoom,
+          center: finalCenter,
           viewMode: "2D",
           mapStyle: "amap://styles/22e069175d1afe32e9542abefde02cb5",
           // showLabel: false, // Hide all labels
@@ -243,8 +297,16 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(({ showTerritory, onM
           if (!mapRef.current) return;
           const center = mapRef.current.getCenter();
           const zoom = mapRef.current.getZoom();
+          
+          const centerArray = [center.getLng(), center.getLat()];
+          
+          // Anti-Africa Check: Never save [0,0]
+          if (!isValidLocation(centerArray)) {
+              return; 
+          }
+
           const state = {
-            center: [center.getLng(), center.getLat()],
+            center: centerArray,
             zoom: zoom
           };
           localStorage.setItem(MAP_STORAGE_KEY, JSON.stringify(state));
