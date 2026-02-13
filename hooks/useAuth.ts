@@ -13,13 +13,19 @@ export function useAuth(initialUser?: User | null) {
 
   useEffect(() => {
     const checkAuth = async () => {
-      // If we already have initialUser, we might still want to verify session validity
-      // but for UI responsiveness, we trust it initially.
-      // However, onAuthStateChange will catch updates.
-      
-      const { data: { session } } = await supabase.auth.getSession()
-      setUser(session?.user ?? null)
-      setLoading(false)
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession()
+        if (error) {
+            // Only log non-network errors or if debugging
+            // console.warn("Auth check warning:", error.message)
+        }
+        setUser(session?.user ?? null)
+      } catch (e) {
+        console.error("Auth check failed (network or config):", e)
+        // Fallback or retry logic could go here
+      } finally {
+        setLoading(false)
+      }
     }
 
     checkAuth()

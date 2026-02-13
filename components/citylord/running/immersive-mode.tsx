@@ -11,7 +11,9 @@ import { Haptics, ImpactStyle } from '@capacitor/haptics'
 import { toast } from "sonner"
 import { AchievementPopup } from "../achievement-popup"
 import { RunningHUD } from "@/components/running/RunningHUD"
-import { GaodeMap3D } from "@/components/map/GaodeMap3D"
+import { RunningMap } from "./RunningMap"
+import { RunningMapOverlay } from "./RunningMapOverlay"
+import { GhostJoystick } from "./GhostJoystick"
 import { RunSummaryView } from "@/components/running/RunSummaryView"
 import {
   AlertDialog,
@@ -24,8 +26,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Location } from "@/hooks/useRunningTracker"
-
-import { GhostJoystick } from "./GhostJoystick"
 
 interface ImmersiveModeProps {
   isActive: boolean
@@ -62,10 +62,6 @@ function getDistanceFromLatLonInMeters(lat1: number, lon1: number, lat2: number,
   return d;
 }
 
-import { playAudio } from "@/utils/audio"
-
-import { RunningMapOverlay } from "./RunningMapOverlay"
-
 export function ImmersiveRunningMode({
   isActive,
   userId,
@@ -88,7 +84,7 @@ export function ImmersiveRunningMode({
 }: ImmersiveModeProps) {
   const [isPaused, setIsPaused] = useState(false)
   const [isGhostMode, setIsGhostMode] = useState(false)
-  const [isMapMode, setIsMapMode] = useState(false)
+  const [isMapMode, setIsMapMode] = useState(false) // Default back to HUD mode as requested
   const [showStopConfirm, setShowStopConfirm] = useState(false)
   const [showSummary, setShowSummary] = useState(false)
   const [displayedArea, setDisplayedArea] = useState(0)
@@ -96,10 +92,11 @@ export function ImmersiveRunningMode({
   const [showLoopWarning, setShowLoopWarning] = useState(false)
   const [effectiveHexes, setEffectiveHexes] = useState(0)
   
-  const { currentCity } = useCity() // Removed refreshTerritories as it's not in context
+  const { currentCity } = useCity()
   const { ghostPath } = useGameLocation()
   const [lastClaimedHex, setLastClaimedHex] = useState<string | null>(null)
   const [currentHex, setCurrentHex] = useState<string | null>(null)
+
 
   // Haptic Feedback Logic
   useEffect(() => {
@@ -345,7 +342,14 @@ export function ImmersiveRunningMode({
     
     // 2. 强制执行结束逻辑 (放在 setTimeout 中确保跳出当前事件循环)
     setTimeout(() => {
-      onStop(); 
+      onStop();
+      setShowSummary(false);
+      // 3. 强制跳转回首页
+      if (typeof window !== 'undefined') {
+          // 清除可能残留的恢复数据，防止首页重新加载时自动恢复跑步
+          localStorage.removeItem('CURRENT_RUN_RECOVERY');
+          window.location.replace('/');
+      }
     }, 100);
   };
 
@@ -369,9 +373,7 @@ export function ImmersiveRunningMode({
 
   return (
     <div 
-      className={`fixed inset-0 z-[9999] flex h-[100dvh] w-full flex-col transition-colors duration-300 ${
-        isMapMode ? 'bg-transparent' : 'bg-black/60 backdrop-blur-sm'
-      }`}
+      className="fixed inset-0 z-[9999] flex h-[100dvh] w-full flex-col bg-slate-900"
     >
       {/* Loop Warning Dialog */}
       <AlertDialog open={showLoopWarning} onOpenChange={setShowLoopWarning}>
@@ -413,20 +415,16 @@ export function ImmersiveRunningMode({
       </AlertDialog>
 
       {/* Map Background Layer */}
-      <div className={`absolute inset-0 z-0 ${isMapMode ? 'pointer-events-auto' : ''}`}>
-        {currentLocation && (
-          <GaodeMap3D 
-            hexagons={mapHexagons} 
-            exploredHexes={exploredHexes} 
-            userLocation={[currentLocation.lng, currentLocation.lat]} 
-            path={path}
-            ghostPath={ghostPath?.map(p => ({ lat: p[0], lng: p[1] } as Location)) || []}
-            closedPolygons={closedPolygons}
-          />
-        )}
-        {/* Gradient Overlay for text readability - Hide in Map Mode */}
+      <div className="absolute inset-0 z-0 pointer-events-auto">
+        <RunningMap 
+          userLocation={currentLocation ? [currentLocation.lng, currentLocation.lat] : undefined}
+          path={path}
+          onLocationUpdate={onManualLocation}
+          // If no location, map will default to city center, preventing "stuck" state
+        />
+        {/* Gradient Overlay for text readability - Only in HUD mode */}
         {!isMapMode && (
-          <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/80 pointer-events-none" />
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-none" />
         )}
       </div>
 

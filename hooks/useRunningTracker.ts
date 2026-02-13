@@ -82,6 +82,35 @@ export function useRunningTracker(isRunning: boolean): RunningStats {
   useEffect(() => { pathRef.current = path; }, [path]);
   useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
 
+  // --- Local Recovery (Crash Resilience) ---
+  useEffect(() => {
+    if (isRunning) {
+        try {
+            const recoveryJson = localStorage.getItem(RECOVERY_KEY);
+            if (recoveryJson) {
+                const data = JSON.parse(recoveryJson);
+                // Validate time (e.g. within 24h)
+                if (data.timestamp && (Date.now() - data.timestamp < 24 * 60 * 60 * 1000)) {
+                    console.log('Restoring local run state...', data);
+                    if (data.distance) setDistance(data.distance);
+                    if (data.duration) setDuration(data.duration);
+                    if (data.path && Array.isArray(data.path)) {
+                        setPath(data.path);
+                        pathRef.current = data.path;
+                        if (data.path.length > 0) {
+                            lastLocationRef.current = data.path[data.path.length - 1];
+                            setCurrentLocation(data.path[data.path.length - 1]);
+                        }
+                    }
+                    if (data.closedPolygons) setClosedPolygons(data.closedPolygons);
+                }
+            }
+        } catch (e) {
+            console.error("Failed to restore local run state", e);
+        }
+    }
+  }, [isRunning]);
+
   // --- Server Sync & Recovery ---
   useEffect(() => {
     let isMounted = true;
@@ -149,6 +178,34 @@ export function useRunningTracker(isRunning: boolean): RunningStats {
     }
     return () => clearInterval(interval);
   }, [isRunning, isPaused]);
+
+  // Periodic Save (Every 5 seconds + Initial)
+  useEffect(() => {
+    if (!isRunning) return;
+
+    const saveState = () => {
+        try {
+            const stateToSave = {
+                path: pathRef.current || [],
+                distance: distance, // Current state from closure is stale in setInterval? No, we use dependencies.
+                duration: duration, 
+                startTime: Date.now() - (duration * 1000), 
+                closedPolygons: closedPolygons || [],
+                timestamp: Date.now()
+            };
+            localStorage.setItem(RECOVERY_KEY, JSON.stringify(stateToSave));
+            // console.log("Auto-saved run state", stateToSave);
+        } catch (e) {
+            console.error("Failed to save run state", e);
+        }
+    };
+
+    // Initial save on start
+    saveState();
+
+    const interval = setInterval(saveState, 5000);
+    return () => clearInterval(interval);
+  }, [isRunning, distance, duration, closedPolygons]);
 
   const handleLocationUpdate = useCallback((lat: number, lng: number, accuracy?: number, timestamp?: number) => {
     if (isPausedRef.current) return;
