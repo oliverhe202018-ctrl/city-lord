@@ -95,17 +95,23 @@ export function ClubDetailView({
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return
 
-    const showListener = Keyboard.addListener('keyboardWillShow', (info) => {
-      setKeyboardHeight(info.keyboardHeight)
-    })
+    let showListenerHandle: any;
+    let hideListenerHandle: any;
 
-    const hideListener = Keyboard.addListener('keyboardWillHide', () => {
-      setKeyboardHeight(0)
-    })
+    const setupListeners = async () => {
+        showListenerHandle = await Keyboard.addListener('keyboardWillShow', (info) => {
+            setKeyboardHeight(info.keyboardHeight)
+        })
+        hideListenerHandle = await Keyboard.addListener('keyboardWillHide', () => {
+            setKeyboardHeight(0)
+        })
+    }
+
+    setupListeners();
 
     return () => {
-      showListener.remove()
-      hideListener.remove()
+      if (showListenerHandle) showListenerHandle.remove();
+      if (hideListenerHandle) hideListenerHandle.remove();
     }
   }, [])
 
@@ -278,15 +284,15 @@ export function ClubDetailView({
 
   if (isClubLoading && !club) {
     return (
-      <div className="w-full h-[300px] flex flex-col items-center justify-center bg-black text-white gap-4">
-        <Loader2 className="w-8 h-8 animate-spin text-yellow-500" />
-        <div className="text-sm text-white/50">正在加载俱乐部详情...</div>
+      <div className="w-full h-[300px] flex flex-col items-center justify-center bg-background text-foreground gap-4">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <div className="text-sm text-muted-foreground">正在加载俱乐部详情...</div>
       </div>
     );
   }
 
   if (!club) {
-    return <div className="p-8 text-center text-white">俱乐部信息不存在</div>
+    return <div className="p-8 text-center text-foreground">俱乐部信息不存在</div>
   }
 
   const formatArea = (area: number | undefined) => {
@@ -297,7 +303,7 @@ export function ClubDetailView({
 
   return (
     <div 
-      className="relative w-full h-full flex flex-col bg-black text-white"
+      className="relative w-full h-full flex flex-col bg-background text-foreground"
       style={{
         // ✅ 键盘弹出时向上移动，而不是改变高度
         paddingBottom: keyboardHeight > 0 ? `${keyboardHeight}px` : '0px',
@@ -314,83 +320,83 @@ export function ClubDetailView({
         }`}
       >
         <div className="px-6 pt-6">
-          <div className="relative h-44 overflow-hidden rounded-2xl border border-white/10">
-            <div className="absolute inset-0 bg-gradient-to-br from-zinc-800 via-zinc-900 to-black" />
+          <div className="relative h-44 overflow-hidden rounded-2xl border border-border">
+            <div className="absolute inset-0 bg-gradient-to-br from-muted via-muted/80 to-background" />
             <div className="absolute inset-0 opacity-50">
               {club.avatarUrl ? (
                 <img src={club.avatarUrl} alt={club.name} className="h-full w-full object-cover" />
               ) : null}
             </div>
-            <div className="absolute inset-0 bg-black/40" />
+            <div className="absolute inset-0 bg-background/40" />
             <div className="absolute left-6 top-4 flex items-center justify-between w-[calc(100%-3rem)] z-10">
               <div className="flex items-center gap-2">
                 {onBack && !effectiveIsMember && (
-                  <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full bg-black/40 text-white hover:bg-black/60" onClick={onBack}>
+                  <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full bg-background/40 text-foreground hover:bg-background/60" onClick={onBack}>
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
                   </Button>
                 )}
               </div>
               {effectiveIsMember && (
-                <Button size="sm" className="rounded-full bg-yellow-500 text-black hover:bg-yellow-400 font-bold shadow-lg" onClick={() => onChange?.()}>
+                <Button size="sm" className="rounded-full bg-primary text-primary-foreground hover:bg-primary/90 font-bold shadow-lg" onClick={() => onChange?.()}>
                   更换
                 </Button>
               )}
             </div>
           </div>
           <div className="relative -mt-10 flex items-end gap-4">
-            <div className="h-24 w-24 overflow-hidden rounded-full border-2 border-white/10 bg-zinc-800">
+            <div className="h-24 w-24 overflow-hidden rounded-full border-2 border-background bg-muted">
               {club.avatarUrl ? (
                 <img src={club.avatarUrl} alt={club.name} className="h-full w-full object-cover" />
               ) : (
-                <div className="flex h-full w-full items-center justify-center text-3xl font-bold text-white">
+                <div className="flex h-full w-full items-center justify-center text-3xl font-bold text-muted-foreground">
                   {club.name.slice(0, 1)}
                 </div>
               )}
             </div>
             <div className="pb-2">
-              <div className="text-lg font-semibold text-white">{club.name}</div>
+              <div className="text-lg font-semibold text-foreground">{club.name}</div>
               
               {/* Inline Stats Row */}
-              <div className="flex items-center gap-3 text-base font-medium text-zinc-300 mt-1">
+              <div className="flex items-center gap-3 text-base font-medium text-muted-foreground mt-1">
                 <div className="flex items-center gap-1">
-                  <Footprints className="w-4 h-4 text-zinc-400" />
+                  <Footprints className="w-4 h-4 text-muted-foreground" />
                   <span>{formatArea(club.totalArea)}</span>
                 </div>
-                <div className="w-[1px] h-4 bg-zinc-700" />
+                <div className="w-[1px] h-4 bg-border" />
                 <div className="flex items-center gap-1">
-                  <Users className="w-4 h-4 text-zinc-400" />
+                  <Users className="w-4 h-4 text-muted-foreground" />
                   <span>{stats.memberCount}人</span>
                 </div>
               </div>
 
               {club.description ? (
-                <div className="text-xs text-white/60 mt-1 line-clamp-1">{club.description}</div>
+                <div className="text-xs text-muted-foreground mt-1 line-clamp-1">{club.description}</div>
               ) : null}
             </div>
           </div>
         </div>
 
         <div className="px-6 mt-6">
-          <div className="grid grid-cols-2 gap-3 rounded-2xl border border-white/10 bg-zinc-900/60 p-4">
+          <div className="grid grid-cols-2 gap-3 rounded-2xl border border-border bg-muted/30 p-4">
             <div 
-                className={`text-center border-r border-white/10 flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors ${rankType === 'global' ? 'bg-white/5 rounded-lg -my-2 py-2' : 'hover:bg-white/5 rounded-lg -my-2 py-2'}`}
+                className={`text-center border-r border-border flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors ${rankType === 'global' ? 'bg-background rounded-lg -my-2 py-2 shadow-sm' : 'hover:bg-background/50 rounded-lg -my-2 py-2'}`}
                 onClick={() => setRankType('global')}
             >
-              <div className={`flex items-center gap-1.5 ${rankType === 'global' ? 'text-yellow-500' : 'text-zinc-500'} mb-1`}>
+              <div className={`flex items-center gap-1.5 ${rankType === 'global' ? 'text-primary' : 'text-muted-foreground'} mb-1`}>
                 <Trophy className="w-4 h-4" />
                 <span className="text-xs font-bold">全国排名</span>
               </div>
-              <div className={`text-xl font-black italic ${rankType === 'global' ? 'text-white' : 'text-zinc-500'}`}>#{rankings.global || '-'}</div>
+              <div className={`text-xl font-black italic ${rankType === 'global' ? 'text-foreground' : 'text-muted-foreground'}`}>#{rankings.global || '-'}</div>
             </div>
             <div 
-                className={`text-center flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors ${rankType === 'local' ? 'bg-white/5 rounded-lg -my-2 py-2' : 'hover:bg-white/5 rounded-lg -my-2 py-2'}`}
+                className={`text-center flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors ${rankType === 'local' ? 'bg-background rounded-lg -my-2 py-2 shadow-sm' : 'hover:bg-background/50 rounded-lg -my-2 py-2'}`}
                 onClick={() => setRankType('local')}
             >
-              <div className={`flex items-center gap-1.5 ${rankType === 'local' ? 'text-blue-400' : 'text-zinc-500'} mb-1`}>
+              <div className={`flex items-center gap-1.5 ${rankType === 'local' ? 'text-blue-500' : 'text-muted-foreground'} mb-1`}>
                 <Map className="w-4 h-4" />
                 <span className="text-xs font-bold">省内排名</span>
               </div>
-              <div className={`text-xl font-black italic ${rankType === 'local' ? 'text-white' : 'text-zinc-500'}`}>#{rankings.provincial || '-'}</div>
+              <div className={`text-xl font-black italic ${rankType === 'local' ? 'text-foreground' : 'text-muted-foreground'}`}>#{rankings.provincial || '-'}</div>
             </div>
           </div>
         </div>
@@ -399,66 +405,66 @@ export function ClubDetailView({
         {effectiveIsMember ? (
           <div className="px-6 mt-6 pb-4">
             <Tabs defaultValue="members" className="w-full">
-              <TabsList className="w-full bg-zinc-900/70 border border-white/10">
-                <TabsTrigger value="activity" className="flex-1">动态</TabsTrigger>
-                <TabsTrigger value="members" className="flex-1">成员</TabsTrigger>
-                <TabsTrigger value="data" className="flex-1">数据</TabsTrigger>
+              <TabsList className="w-full bg-muted border border-border">
+                <TabsTrigger value="activity" className="flex-1 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">动态</TabsTrigger>
+                <TabsTrigger value="members" className="flex-1 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">成员</TabsTrigger>
+                <TabsTrigger value="data" className="flex-1 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">数据</TabsTrigger>
               </TabsList>
               
               <TabsContent value="activity" className="mt-4">
-                <div className="rounded-2xl border border-white/5 bg-zinc-900/60 p-6 text-center text-white/50">
+                <div className="rounded-2xl border border-border bg-muted/30 p-6 text-center text-muted-foreground">
                   暂无俱乐部动态
                 </div>
               </TabsContent>
 
               <TabsContent value="members" className="mt-4">
                 {members.length === 0 ? (
-                  <div className="py-8 text-center text-white/50">暂无成员</div>
+                  <div className="py-8 text-center text-muted-foreground">暂无成员</div>
                 ) : (
                   <div className="space-y-4">
                     {/* ✅ 成员列表：固定项高度 */}
                     <div className="space-y-3">
                       {displayMembers.map((member) => (
-                        <div key={member.id} className="flex items-center justify-between rounded-2xl border border-white/5 bg-zinc-900/60 px-4 py-3 min-h-[72px]">
+                        <div key={member.id} className="flex items-center justify-between rounded-2xl border border-border bg-muted/30 px-4 py-3 min-h-[72px]">
                           {/* ... 原有成员卡片内容 ... */}
                           <div className="flex items-center gap-3">
-                            <div className="h-12 w-12 overflow-hidden rounded-full bg-zinc-800">
+                            <div className="h-12 w-12 overflow-hidden rounded-full bg-muted">
                               {member.avatarUrl ? (
                                 <img src={member.avatarUrl} alt={member.name} className="h-full w-full object-cover" />
                               ) : (
-                                <div className="flex h-full w-full items-center justify-center text-sm font-semibold text-white">
+                                <div className="flex h-full w-full items-center justify-center text-sm font-semibold text-muted-foreground">
                                   {member.name.slice(0, 1)}
                                 </div>
                               )}
                             </div>
                             <div>
-                              <div className="text-sm font-semibold text-white">{member.name}</div>
-                              <div className="text-xs text-white/50">Lv.{member.level}</div>
+                              <div className="text-sm font-semibold text-foreground">{member.name}</div>
+                              <div className="text-xs text-muted-foreground">Lv.{member.level}</div>
                             </div>
                           </div>
-                          <div className="text-xs text-white/60">{roleLabel(member.role)}</div>
+                          <div className="text-xs text-muted-foreground">{roleLabel(member.role)}</div>
                         </div>
                       ))}
                     </div>
 
                     {/* ✅ 分页控件 */}
-                    <div className="flex items-center justify-center pt-4 pb-2 text-sm text-white/50 gap-4">
+                    <div className="flex items-center justify-center pt-4 pb-2 text-sm text-muted-foreground gap-4">
                       <Button 
                         variant="ghost" 
                         size="sm" 
                         onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
                         disabled={currentPage === 1} 
-                        className="h-8 w-8 p-0 rounded-full hover:bg-white/10"
+                        className="h-8 w-8 p-0 rounded-full hover:bg-muted"
                       >
                         ←
                       </Button>
-                      <span className="font-medium text-white/70">{currentPage} / {totalPages}</span>
+                      <span className="font-medium text-foreground">{currentPage} / {totalPages}</span>
                       <Button 
                         variant="ghost" 
                         size="sm" 
                         onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
                         disabled={currentPage === totalPages} 
-                        className="h-8 w-8 p-0 rounded-full hover:bg-white/10"
+                        className="h-8 w-8 p-0 rounded-full hover:bg-muted"
                       >
                         →
                       </Button>
@@ -470,17 +476,17 @@ export function ClubDetailView({
               <TabsContent value="data" className="mt-4">
                 {/* ... 原有数据内容 ... */}
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-4">
-                    <div className="text-xs text-white/50">总里程</div>
-                    <div className="text-lg font-semibold text-white">{formatDistance(stats.totalDistanceKm)}</div>
+                  <div className="rounded-2xl border border-border bg-muted/30 p-4">
+                    <div className="text-xs text-muted-foreground">总里程</div>
+                    <div className="text-lg font-semibold text-foreground">{formatDistance(stats.totalDistanceKm)}</div>
                   </div>
-                  <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-4">
-                    <div className="text-xs text-white/50">总消耗</div>
-                    <div className="text-lg font-semibold text-white">{formatCalories(stats.totalCalories)}</div>
+                  <div className="rounded-2xl border border-border bg-muted/30 p-4">
+                    <div className="text-xs text-muted-foreground">总消耗</div>
+                    <div className="text-lg font-semibold text-foreground">{formatCalories(stats.totalCalories)}</div>
                   </div>
-                  <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-4">
-                    <div className="text-xs text-white/50">总人数</div>
-                    <div className="text-lg font-semibold text-white">{stats.memberCount.toLocaleString()}</div>
+                  <div className="rounded-2xl border border-border bg-muted/30 p-4">
+                    <div className="text-xs text-muted-foreground">总人数</div>
+                    <div className="text-lg font-semibold text-foreground">{stats.memberCount.toLocaleString()}</div>
                   </div>
                 </div>
               </TabsContent>
@@ -490,30 +496,30 @@ export function ClubDetailView({
           <div className="px-6 mt-6 pb-4">
             {/* ... 原有的排行榜内容 completely unchanged ... */}
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-white">{rankType === 'global' ? '全国' : '省内'}前5名排行榜</h3>
+              <h3 className="text-lg font-bold text-foreground">{rankType === 'global' ? '全国' : '省内'}前5名排行榜</h3>
             </div>
             <div className="space-y-3">
               {displayTopClubs.length === 0 ? (
-                <div className="py-8 text-center text-white/30 bg-zinc-900/30 rounded-2xl border border-white/5">
+                <div className="py-8 text-center text-muted-foreground bg-muted/30 rounded-2xl border border-border">
                   暂无排行数据
                 </div>
               ) : (
                 displayTopClubs.map((club, index) => (
-                  <div key={club.id} className="flex items-center gap-4 p-3 rounded-2xl bg-zinc-900/60 border border-white/5">
+                  <div key={club.id} className="flex items-center gap-4 p-3 rounded-2xl bg-muted/30 border border-border">
                     <div className={`w-8 h-8 flex items-center justify-center rounded-full font-bold text-sm ${
-                      index === 0 ? 'bg-yellow-500 text-black' : 
-                      index === 1 ? 'bg-gray-300 text-black' : 
-                      index === 2 ? 'bg-orange-700 text-white' : 
-                      'bg-zinc-800 text-white/50'
+                      index === 0 ? 'bg-yellow-500 text-white' : 
+                      index === 1 ? 'bg-gray-400 text-white' : 
+                      index === 2 ? 'bg-orange-600 text-white' : 
+                      'bg-muted text-muted-foreground'
                     }`}>
                       {index + 1}
                     </div>
-                    <div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-800 flex-shrink-0">
+                    <div className="w-10 h-10 rounded-full overflow-hidden bg-muted flex-shrink-0">
                        <img src={club.avatar} alt={club.name} className="w-full h-full object-cover" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-bold text-white truncate">{club.name}</div>
-                      <div className="text-xs text-white/50">{club.displayArea}</div>
+                      <div className="text-sm font-bold text-foreground truncate">{club.name}</div>
+                      <div className="text-xs text-muted-foreground">{club.displayArea}</div>
                     </div>
                   </div>
                 ))
@@ -526,7 +532,7 @@ export function ClubDetailView({
       {/* ✅ 固定底部按钮（未加入时） */}
       {!effectiveIsMember && onJoin && (
         <div
-          className="flex-shrink-0 p-4 bg-zinc-950/95 backdrop-blur border-t border-white/10 z-50"
+          className="flex-shrink-0 p-4 bg-background/95 backdrop-blur border-t border-border z-50"
           style={{
             // ✅ 安全区域适配
             paddingBottom: `calc(1rem + env(safe-area-inset-bottom))`
@@ -534,7 +540,7 @@ export function ClubDetailView({
         >
            <Button 
             size="lg" 
-            className="w-full py-6 text-lg font-bold bg-yellow-500 text-black hover:bg-yellow-400 shadow-xl rounded-xl"
+            className="w-full py-6 text-lg font-bold bg-primary text-primary-foreground hover:bg-primary/90 shadow-xl rounded-xl"
             onClick={handleJoinClick}
             disabled={isJoining}
            >
