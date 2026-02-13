@@ -11,6 +11,7 @@ interface RunningMapOverlayProps {
   area: number // m²
   isPaused: boolean
   onPauseToggle: () => void
+  onStop?: () => void
   onBack: () => void
 }
 
@@ -21,6 +22,7 @@ export function RunningMapOverlay({
   area,
   isPaused,
   onPauseToggle,
+  onStop,
   onBack
 }: RunningMapOverlayProps) {
   return (
@@ -91,22 +93,33 @@ export function RunningMapOverlay({
         </div>
 
         {/* Action Button */}
-        <button
-          onClick={onPauseToggle}
-          className="w-full h-14 bg-[#1a1a1a] rounded-xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all hover:bg-black"
-        >
+        <div className="w-full">
           {isPaused ? (
-             <>
-               <Play className="h-5 w-5 text-white fill-current" />
-               <span className="text-white font-bold">继续跑步</span>
-             </>
+            <div className="flex gap-3 h-14">
+              <button 
+                 onClick={onStop}
+                 className="flex-1 bg-red-500 rounded-xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all hover:bg-red-600"
+               >
+                 <span className="text-white font-bold">结束</span>
+               </button>
+              <button 
+                onClick={onPauseToggle}
+                className="flex-[2] bg-[#22c55e] rounded-xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all hover:bg-[#16a34a] shadow-lg shadow-[#22c55e]/20"
+              >
+                <Play className="h-5 w-5 text-white fill-current" />
+                <span className="text-white font-bold">继续跑步</span>
+              </button>
+            </div>
           ) : (
-             <>
-               <Pause className="h-5 w-5 text-white fill-current" />
-               <span className="text-white font-bold">暂停跑步</span>
-             </>
+            <button
+              onClick={onPauseToggle}
+              className="w-full h-14 bg-[#1a1a1a] rounded-xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all hover:bg-black"
+            >
+              <Pause className="h-5 w-5 text-white fill-current" />
+              <span className="text-white font-bold">暂停跑步</span>
+            </button>
           )}
-        </button>
+        </div>
       </div>
     </div>
   )

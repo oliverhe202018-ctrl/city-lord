@@ -473,6 +473,7 @@ export function ImmersiveRunningMode({
           area={currentPartialArea} // Or totalArea?
           isPaused={isPaused}
           onPauseToggle={handlePauseToggle}
+          onStop={handleAttemptStop}
           onBack={() => setIsMapMode(false)}
         />
       )}
