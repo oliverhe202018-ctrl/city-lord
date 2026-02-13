@@ -6,37 +6,74 @@ import { prisma } from '@/lib/prisma'
 export type Faction = 'RED' | 'BLUE'
 
 export async function getFactionStats() {
-  try {
-    // 1. Get Member Counts (from profiles)
-    // Use Prisma with exact match as per schema (Red/Blue capitalized)
-    const redCount = await prisma.profiles.count({
-      where: { faction: 'Red' }
-    })
-    const blueCount = await prisma.profiles.count({
-      where: { faction: 'Blue' }
+  const fetchLogic = async () => {
+    // 1. Get Member Counts (Optimized with DailyStat)
+    let redCount = 0
+    let blueCount = 0
+
+    // Try to get latest daily stat to avoid slow real-time queries
+    const dailySnapshot = await prisma.dailyStat.findFirst({
+      orderBy: { date: 'desc' }
     })
 
-    // 2. Get Area Counts (from territories)
-    // Note: 'territories' is the correct model name
-    const redTerritories = await prisma.territories.count({
-      where: {
-        profiles: {
-          faction: 'Red'
-        }
+    if (dailySnapshot) {
+      redCount = dailySnapshot.redCount
+      blueCount = dailySnapshot.blueCount
+    } else {
+      // Fallback: Real-time query (only if no snapshot exists)
+      const [rCount, bCount] = await Promise.all([
+        prisma.profiles.count({ where: { faction: 'Red' } }),
+        prisma.profiles.count({ where: { faction: 'Blue' } })
+      ])
+      
+      redCount = rCount
+      blueCount = bCount
+
+      // Write initial snapshot
+      try {
+        await prisma.dailyStat.create({
+          data: {
+            date: new Date(),
+            redCount,
+            blueCount,
+            totalTerritories: 0 // Placeholder
+          }
+        })
+      } catch (e) {
+        console.warn('Failed to create DailyStat snapshot:', e)
       }
-    })
-    
-    const blueTerritories = await prisma.territories.count({
-      where: {
-        profiles: {
-          faction: 'Blue'
-        }
-      }
+    }
+
+    // 2. Get Area Counts (Optimized: Use Snapshot)
+    // The previous real-time calculation on 'territories' table was too slow (causing 10s delay).
+    // We now prefer the cached snapshot or aggregate from profiles.
+    let redArea = 0
+    let blueArea = 0
+
+    const snapshot = await prisma.faction_stats_snapshot.findFirst({
+      orderBy: { updated_at: 'desc' }
     })
 
-    // Calculate Area (1 hex ~= 0.06 sq km)
-    const redArea = redTerritories * 0.06
-    const blueArea = blueTerritories * 0.06
+    if (snapshot) {
+      redArea = snapshot.red_area
+      blueArea = snapshot.blue_area
+    } else {
+      // Fallback: Aggregate from profiles (Faster than territories join)
+      // This assumes profile.total_area is kept in sync with territory captures
+      const [redAgg, blueAgg] = await Promise.all([
+        prisma.profiles.aggregate({
+          _sum: { total_area: true },
+          where: { faction: 'Red' }
+        }),
+        prisma.profiles.aggregate({
+          _sum: { total_area: true },
+          where: { faction: 'Blue' }
+        })
+      ])
+      
+      redArea = redAgg._sum.total_area || 0
+      blueArea = blueAgg._sum.total_area || 0
+    }
 
     // Calculate percentages (based on Members or Area? Usually Area for domination, but Members for balance)
     // Let's use Members for the "RED/BLUE" count return, and Area for "redArea/blueArea"
@@ -76,8 +113,20 @@ export async function getFactionStats() {
         BLUE: blueBonus
       }
     }
+  }
+
+  try {
+    // Timeout wrapper: 3 seconds limit
+    const result = await Promise.race([
+      fetchLogic(),
+      new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Database timeout')), 3000)
+      )
+    ])
+    return result
   } catch (error) {
-    console.error('Unexpected error in getFactionStats:', error)
+    console.error('getFactionStats failed or timed out:', error)
+    // Fallback data to prevent page crash
     return {
       RED: 0,
       BLUE: 0,

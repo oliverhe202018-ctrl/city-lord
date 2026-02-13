@@ -10,15 +10,20 @@ interface FactionComparisonProps {
   initialData?: any
   redArea?: number
   blueArea?: number
+  dailyStat?: {
+    redCount: number
+    blueCount: number
+    date: string | Date
+  } | null
 }
 
-export function FactionComparison({ initialData, redArea: propRedArea, blueArea: propBlueArea }: FactionComparisonProps) {
+export function FactionComparison({ initialData, redArea: propRedArea, blueArea: propBlueArea, dailyStat }: FactionComparisonProps) {
   // Debug log
   console.log('Stats Data:', initialData);
 
-  // 1. Get Member Counts from initialData with robust fallbacks
-  const redMembers = initialData?.red_user_count ?? initialData?.redUserCount ?? initialData?.redCount ?? initialData?.red_faction ?? initialData?.RED ?? 0
-  const blueMembers = initialData?.blue_user_count ?? initialData?.blueUserCount ?? initialData?.blueCount ?? initialData?.blue_faction ?? initialData?.BLUE ?? 0
+  // 1. Get Member Counts: Prioritize dailyStat (snapshot), then initialData
+  const redMembers = dailyStat?.redCount ?? initialData?.red_user_count ?? initialData?.redUserCount ?? initialData?.redCount ?? initialData?.red_faction ?? initialData?.RED ?? 0
+  const blueMembers = dailyStat?.blueCount ?? initialData?.blue_user_count ?? initialData?.blueUserCount ?? initialData?.blueCount ?? initialData?.blue_faction ?? initialData?.BLUE ?? 0
   
   // Member percentages
   const totalMembers = redMembers + blueMembers

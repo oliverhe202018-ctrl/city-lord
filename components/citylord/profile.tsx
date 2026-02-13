@@ -608,17 +608,8 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
           <FactionComparison 
             userFaction={userStats.faction?.toLowerCase() === 'red' ? 'red' : 'blue'}
             initialData={factionStats}
+            dailyStat={dailyStat}
           />
-
-          {dailyStat && (
-            <div className="mb-4 mt-2 rounded-xl border border-border bg-card/30 p-3 text-center text-xs text-muted-foreground">
-              <span className="mr-2">昨日战况:</span>
-              <span className="text-red-400 font-bold">{dailyStat.redCount}</span>
-              <span className="mx-1">vs</span>
-              <span className="text-blue-400 font-bold">{dailyStat.blueCount}</span>
-              <span className="ml-2 opacity-70">({new Date(dailyStat.date).toLocaleDateString()})</span>
-            </div>
-          )}
 
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">勋章墙</h2>
           <div className="rounded-2xl border border-border bg-card/50 p-4">
