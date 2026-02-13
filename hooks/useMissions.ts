@@ -19,8 +19,11 @@ export function useMissions() {
   const { user } = useAuth()
   const [missions, setMissions] = useState<MissionWithStatus[]>([])
   const [loading, setLoading] = useState(true)
+  const [isFetching, setIsFetching] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const supabase = createClient()
+
+  const CACHE_KEY = 'CACHE_TASKS_DATA'
 
   const fetchMissions = useCallback(async () => {
     if (!user) {
@@ -28,7 +31,8 @@ export function useMissions() {
       return
     }
 
-    setLoading(true)
+    // Set fetching state for background updates
+    setIsFetching(true)
     setError(null)
 
     try {
@@ -42,6 +46,7 @@ export function useMissions() {
       if (configError) throw configError
       if (!configs) {
         setMissions([])
+        localStorage.removeItem(CACHE_KEY) // Clear cache if no data
         return
       }
 
@@ -96,16 +101,33 @@ export function useMissions() {
       })
 
       setMissions(mergedMissions)
+      
+      // Update cache
+      localStorage.setItem(CACHE_KEY, JSON.stringify(mergedMissions))
 
     } catch (err: any) {
       console.error('Error fetching missions:', err)
       setError(err.message || '获取任务失败')
     } finally {
       setLoading(false)
+      setIsFetching(false)
     }
   }, [user, supabase])
 
   useEffect(() => {
+    // 1. Try to load from cache immediately
+    const cachedData = localStorage.getItem(CACHE_KEY)
+    if (cachedData) {
+      try {
+        const parsed = JSON.parse(cachedData)
+        setMissions(parsed)
+        setLoading(false) // Show cached data immediately
+      } catch (e) {
+        console.error('Failed to parse cached missions', e)
+      }
+    }
+    
+    // 2. Fetch fresh data
     fetchMissions()
   }, [fetchMissions])
 
@@ -117,6 +139,7 @@ export function useMissions() {
   return {
     missions,
     loading,
+    isFetching,
     error,
     refresh
   }

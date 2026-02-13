@@ -95,10 +95,11 @@ export function useRunningTracker(isRunning: boolean): RunningStats {
         if (isMounted && data.active && data.run) {
           // Restore state from server
           if (data.run.path && Array.isArray(data.run.path) && data.run.path.length > 0) {
-             setPath(data.run.path);
-             pathRef.current = data.run.path;
-             if (data.run.path?.length > 0) {
-                lastLocationRef.current = data.run.path[data.run.path.length - 1];
+             const restoredPath = data.run.path || [];
+             setPath(restoredPath);
+             pathRef.current = restoredPath;
+             if (restoredPath.length > 0) {
+                lastLocationRef.current = restoredPath[restoredPath.length - 1];
              }
           }
           if (data.run.distance) setDistance(data.run.distance * 1000); // Server uses km? No, float. Let's assume meters or km. 
@@ -209,7 +210,8 @@ export function useRunningTracker(isRunning: boolean): RunningStats {
         });
         
         // Loop Detection Logic
-        const currentPath = [...pathRef.current, newLoc];
+        const safePathRef = pathRef.current || [];
+        const currentPath = [...safePathRef, newLoc];
         setPath(currentPath);
         pathRef.current = currentPath; // Update ref immediately to prevent race conditions
         lastLocationRef.current = newLoc;
@@ -221,7 +223,7 @@ export function useRunningTracker(isRunning: boolean): RunningStats {
             distance: distance + dist, // Use calculated new distance
             duration: duration, // Capture current duration
             startTime: Date.now() - (duration * 1000), // Estimate start time if not stored
-            closedPolygons: closedPolygons, // Also save closed polygons
+            closedPolygons: closedPolygons || [], // Also save closed polygons
             timestamp: Date.now()
           };
           localStorage.setItem(RECOVERY_KEY, JSON.stringify(stateToSave));
@@ -241,14 +243,17 @@ export function useRunningTracker(isRunning: boolean): RunningStats {
            if (gap < 20) {
                console.log("Loop Closed! Gap:", gap);
                setClosedPolygons(prev => {
-                 const newPolys = [...prev, currentPath];
+                 const safePrev = prev || [];
+                 const newPolys = [...safePrev, currentPath];
                  // Update recovery with new polygons
                  const recoveryData = localStorage.getItem(RECOVERY_KEY);
                  if (recoveryData) {
-                    const parsed = JSON.parse(recoveryData);
-                    parsed.closedPolygons = newPolys;
-                    parsed.path = [newLoc]; // Path resets
-                    localStorage.setItem(RECOVERY_KEY, JSON.stringify(parsed));
+                    try {
+                        const parsed = JSON.parse(recoveryData);
+                        parsed.closedPolygons = newPolys;
+                        parsed.path = [newLoc]; // Path resets
+                        localStorage.setItem(RECOVERY_KEY, JSON.stringify(parsed));
+                    } catch (e) {}
                  }
                  return newPolys;
                });
