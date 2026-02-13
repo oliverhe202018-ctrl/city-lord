@@ -130,6 +130,23 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(({ showTerritory, onM
   const { setMap } = useMap();
   const { syncCurrentRoom } = useGameActions();
   const currentRoom = useGameStore(state => state.currentRoom);
+  
+  // Cache Key
+  const MAP_STORAGE_KEY = 'city-lord-map-state';
+
+  // Helper to read cache
+  const getInitialState = () => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const saved = localStorage.getItem(MAP_STORAGE_KEY);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error('Failed to load map state', e);
+    }
+    return null;
+  };
 
   useEffect(() => {
     // 页面加载/组件挂载时，如果本地缓存显示我在房间里，立即同步一次最新状态
@@ -187,11 +204,26 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(({ showTerritory, onM
       .then((AMap) => {
         if (destroyed || !mapDomRef.current) return;
 
-        const initialCenter: [number, number] = [116.397428, 39.90923];
+        // Load Cached State
+        const savedState = getInitialState();
+        let initialCenter: [number, number] = [116.397428, 39.90923]; // Default: Beijing
+        let initialZoom = 13;
+
+        if (savedState) {
+            if (savedState.center && Array.isArray(savedState.center)) {
+                initialCenter = savedState.center;
+            }
+            if (savedState.zoom) {
+                initialZoom = savedState.zoom;
+            }
+            console.log('Using cached map state:', savedState);
+        }
+
         setCenter(initialCenter);
+        setZoom(initialZoom);
 
         mapRef.current = new AMap.Map(mapDomRef.current, {
-          zoom: 13,
+          zoom: initialZoom,
           center: initialCenter,
           viewMode: "2D",
           mapStyle: "amap://styles/22e069175d1afe32e9542abefde02cb5",
@@ -206,6 +238,18 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(({ showTerritory, onM
           onMapLoad();
         }
 
+        // Save State Logic
+        const saveMapState = () => {
+          if (!mapRef.current) return;
+          const center = mapRef.current.getCenter();
+          const zoom = mapRef.current.getZoom();
+          const state = {
+            center: [center.getLng(), center.getLat()],
+            zoom: zoom
+          };
+          localStorage.setItem(MAP_STORAGE_KEY, JSON.stringify(state));
+        };
+
         const updateMapState = () => {
           if (!mapRef.current) return;
           const currentZoom = mapRef.current.getZoom();
@@ -216,6 +260,10 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(({ showTerritory, onM
 
         mapRef.current?.on('zoomchange', updateMapState);
         mapRef.current?.on('mapmove', updateMapState);
+        
+        // Add listeners for saving state
+        mapRef.current?.on('moveend', saveMapState);
+        mapRef.current?.on('zoomend', saveMapState);
 
         const handleResize = () => {
           if (mapDomRef.current) {
@@ -238,8 +286,8 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(({ showTerritory, onM
           maximumAge: 0,            // 强制刷新 (User Request)
           convert: true,            // 自动偏移坐标
           showButton: false,        // 不显示默认按钮 (Use our custom UI)
-          showMarker: true,         // 显示定位点
-          showCircle: true,         // 显示精度圈
+          showMarker: false,        // Hide default marker to avoid duplication with RunningMap
+          showCircle: false,        // Hide default circle
           panToLocation: true,      // 定位成功后将定位到的位置作为地图中心点
           zoomToAccuracy: true,     // 定位成功后调整地图视野范围
           noGeoLocation: 0,         // 0: 强制使用浏览器定位 (User Request for Android WebView fix)
@@ -253,17 +301,20 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(({ showTerritory, onM
             console.log('AMap Location Success:', result);
             // Optional: You might want to update global store here if needed
           } else {
-            console.error('AMap Location Error:', result);
-            toast.error("定位失败，请检查手机定位权限或网络", {
-              description: result.message || "无法获取当前位置"
-            });
+            console.warn('AMap Location Warning (Non-fatal):', result);
+            // Suppress visible error toast unless strictly necessary
+            // toast.error("定位失败...", { ... }); 
             
-            // 3. Fallback Handling
+            // 3. Fallback Handling - REMOVED to preserve Cached State
+            // If we have a cached location, we want to stay there on failure, not jump to Beijing.
+            // If we started with default (Beijing), we stay there.
+            /*
             if (mapRef.current) {
               console.log('Falling back to default location (Beijing)');
               mapRef.current.setCenter([116.397428, 39.90923]);
               mapRef.current.setZoom(13);
             }
+            */
           }
         });
 

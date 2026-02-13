@@ -41,7 +41,11 @@ export function SelfLocationMarker({ position }: SelfLocationMarkerProps) {
       anchor: 'center',
     });
 
-    map.add(markerRef.current);
+    if (map && typeof map.add === 'function') {
+        map.add(markerRef.current);
+    } else {
+        console.warn("SelfLocationMarker: Map instance invalid, skipping add");
+    }
 
     // Initial position set if available
     if (position) {

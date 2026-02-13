@@ -354,7 +354,7 @@ export function MapHeader({
                 onClick={handleGPSClick}
                 className={`flex items-center gap-1 px-2 py-1 rounded-lg border ${gpsConfig.bg} ${gpsConfig.border} transition-all active:scale-95`}
               >
-                  <GpsIcon className={`w-3 h-3 ${gpsConfig.color} ${gpsStatus === 'locating' || requestingLocation ? 'animate-spin' : ''}`} />
+                  <GpsIcon className={`w-3 h-3 ${gpsConfig.color} ${(gpsConfig.text === '定位中' || gpsConfig.text === '请求中') ? 'animate-spin' : ''}`} />
                   <span className={`text-[10px] font-bold ${gpsConfig.color}`}>{gpsConfig.text}</span>
               </button>
 

@@ -233,14 +233,26 @@ export function RunSummaryView({
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <button className="flex flex-col items-center gap-3 p-4 rounded-xl bg-gray-50 active:bg-gray-100 transition-colors">
+                <button 
+                  onClick={() => {
+                    toast.success("分享成功");
+                    setIsShareModalOpen(false);
+                  }}
+                  className="flex flex-col items-center gap-3 p-4 rounded-xl bg-gray-50 active:bg-gray-100 transition-colors"
+                >
                   <div className="h-12 w-12 rounded-full bg-[#07c160] flex items-center justify-center text-white">
                     <MessageCircle size={24} fill="currentColor" />
                   </div>
                   <span className="text-sm font-medium text-gray-900">分享到朋友圈</span>
                 </button>
                 
-                <button className="flex flex-col items-center gap-3 p-4 rounded-xl bg-gray-50 active:bg-gray-100 transition-colors">
+                <button 
+                  onClick={() => {
+                    toast.success("更多分享方式开发中");
+                    setIsShareModalOpen(false);
+                  }}
+                  className="flex flex-col items-center gap-3 p-4 rounded-xl bg-gray-50 active:bg-gray-100 transition-colors"
+                >
                   <div className="h-12 w-12 rounded-full bg-blue-500 flex items-center justify-center text-white">
                     <MoreHorizontal size={24} />
                   </div>

@@ -356,9 +356,16 @@ export function GamePageContent({
          return
       }
 
-      const { data: { session } } = await supabase.auth.getSession()
+      const { data: { session }, error } = await supabase.auth.getSession().catch(err => {
+          console.error("Session check failed:", err);
+          return { data: { session: null }, error: err };
+      });
 
       if (!isMounted) return
+
+      if (error) {
+          console.warn("Session check returned error:", error.message);
+      }
 
       if (session) {
         setShowWelcome(false)
@@ -524,15 +531,18 @@ export function GamePageContent({
         <main className="relative flex-1 overflow-hidden">
         {activeTab === "play" && (
           <div className="relative h-dvh w-full overflow-hidden">
-            <div className="absolute inset-0 z-0">
-              <AMapView 
-                ref={mapViewRef} 
-                showTerritory={showTerritory}
-                onMapLoad={() => {}}
-              />
-              <FactionSelector initialUser={initialUser} />
-              <ReferralWelcome />
-            </div>
+            {/* Optimize: Hide main map when in immersive mode to prevent duplicate markers and save resources */}
+            {!showImmersiveMode && (
+              <div className="absolute inset-0 z-0">
+                <AMapView 
+                  ref={mapViewRef} 
+                  showTerritory={showTerritory}
+                  onMapLoad={() => {}}
+                />
+                <FactionSelector initialUser={initialUser} />
+                <ReferralWelcome />
+              </div>
+            )}
 
             <div className="relative z-10 h-full w-full pointer-events-none">
               <div className="pointer-events-auto">
@@ -673,6 +683,11 @@ export function GamePageContent({
           addTotalDistance(currentRunDistance)
           const newTotalDistance = (totalDistance || 0) + currentRunDistance
           
+          // Explicitly clear recovery key again to be safe
+          if (typeof window !== 'undefined') {
+              localStorage.removeItem('CURRENT_RUN_RECOVERY');
+          }
+
           // Check for achievements based on distance
           if (!achievements?.['marathon-god'] && newTotalDistance >= 42195) {
              const def = ACHIEVEMENT_DEFINITIONS.find(a => a.id === 'marathon-god');
@@ -693,7 +708,7 @@ export function GamePageContent({
         }}
         onManualLocation={addManualLocation}
         onExpand={() => {}}
-        currentLocation={currentLocation || undefined}
+        currentLocation={currentLocation || (userLat && userLng ? { lat: userLat, lng: userLng } : undefined)}
         path={path}
         closedPolygons={closedPolygons}
         onHexClaimed={() => {
