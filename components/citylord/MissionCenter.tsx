@@ -203,7 +203,7 @@ export function MissionCenter({ initialData }: { initialData?: any[] }) {
   const queryClient = useQueryClient()
 
   // Use standardized hook
-  const { missions: rawMissions, loading, refresh } = useMissions()
+  const { missions: rawMissions, loading, refresh, isFetching } = useMissions()
   
   // Coalesce
   const currentRawMissions = rawMissions || []
@@ -358,7 +358,15 @@ export function MissionCenter({ initialData }: { initialData?: any[] }) {
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">任务中心</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-foreground">任务中心</h1>
+            {isFetching && (
+               <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20 animate-in fade-in duration-300">
+                 <div className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                 <span className="text-[10px] text-primary font-medium">更新中...</span>
+               </div>
+            )}
+          </div>
           <p className="text-sm text-muted-foreground">完成挑战获取奖励</p>
         </div>
         
