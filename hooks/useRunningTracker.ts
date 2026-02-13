@@ -97,7 +97,9 @@ export function useRunningTracker(isRunning: boolean): RunningStats {
           if (data.run.path && Array.isArray(data.run.path) && data.run.path.length > 0) {
              setPath(data.run.path);
              pathRef.current = data.run.path;
-             lastLocationRef.current = data.run.path[data.run.path.length - 1];
+             if (data.run.path?.length > 0) {
+                lastLocationRef.current = data.run.path[data.run.path.length - 1];
+             }
           }
           if (data.run.distance) setDistance(data.run.distance * 1000); // Server uses km? No, float. Let's assume meters or km. 
           // Wait, native sync accumulates distance in km in the API logic: currentDistance += (dist / 1000)
