@@ -10,7 +10,7 @@ import { touchUserActivity } from '@/app/actions/user';
 // ==================== Types ====================
 
 export type GameMode = 'map' | 'single' | 'private' | 'club';
-export type DrawerType = 'none' | 'city' | 'club' | 'room' | 'createClub' | 'manageClub' | 'mode' | 'runHistory' | 'settings' | 'theme';
+export type DrawerType = 'none' | 'city' | 'club' | 'room' | 'createClub' | 'manageClub' | 'mode' | 'runHistory' | 'settings' | 'theme' | 'leaderboard';
 
 export interface UserState {
   userId: string;

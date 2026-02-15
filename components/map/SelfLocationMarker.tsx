@@ -18,25 +18,32 @@ export function SelfLocationMarker({ position }: SelfLocationMarkerProps) {
   useEffect(() => {
     if (!map || !window.AMap || markerRef.current) return;
 
-    // Create marker content
+    // Create marker content based on source
+    const isCached = position?.source === 'cache';
+    const mainColor = isCached ? '#9ca3af' : '#3b82f6'; // Gray-400 vs Blue-500
+    const pulseColor = isCached ? 'rgba(156, 163, 175, 0.5)' : 'rgba(59, 130, 246, 0.5)';
+
     const markerContent = `
       <div style="position: relative; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;">
-        <div style="position: absolute; width: 100%; height: 100%; border-radius: 50%; background-color: rgba(59, 130, 246, 0.5); animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
-        <div style="position: relative; width: 12px; height: 12px; border-radius: 50%; background-color: #3b82f6; border: 2px solid white; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);"></div>
+        <div style="position: absolute; width: 100%; height: 100%; border-radius: 50%; background-color: ${pulseColor}; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+        <div style="position: relative; width: 12px; height: 12px; border-radius: 50%; background-color: ${mainColor}; border: 2px solid white; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);"></div>
         <!-- Heading Indicator (Triangle) -->
-        <div id="heading-arrow" style="position: absolute; top: -8px; width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-bottom: 6px solid #3b82f6; display: none;"></div>
+        <div id="heading-arrow" style="position: absolute; top: -8px; width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-bottom: 6px solid ${mainColor}; display: none;"></div>
       </div>
     `;
 
-    markerRef.current = new window.AMap.Marker({
-      content: markerContent,
-      offset: new window.AMap.Pixel(-12, -12),
-      zIndex: 200, // Higher than normal markers
-      anchor: 'center',
-      bubble: true, // Allow click events to pass through
-    });
-
-    map.add(markerRef.current);
+    if (markerRef.current) {
+        markerRef.current.setContent(markerContent);
+    } else {
+        markerRef.current = new window.AMap.Marker({
+            content: markerContent,
+            offset: new window.AMap.Pixel(-12, -12),
+            zIndex: 200, // Higher than normal markers
+            anchor: 'center',
+            bubble: true, // Allow click events to pass through
+        });
+        map.add(markerRef.current);
+    }
 
     return () => {
       if (markerRef.current) {
@@ -46,9 +53,27 @@ export function SelfLocationMarker({ position }: SelfLocationMarkerProps) {
     };
   }, [map]);
 
-  // 2. Update Position with Smooth Transition
+  // 2. Update Position and Style
   useEffect(() => {
     if (!map || !markerRef.current || !position) return;
+
+    // Update Marker Content (Color) based on source
+    const isCached = position.source === 'cache';
+    const mainColor = isCached ? '#9ca3af' : '#3b82f6'; // Gray-400 vs Blue-500
+    const pulseColor = isCached ? 'rgba(156, 163, 175, 0.5)' : 'rgba(59, 130, 246, 0.5)';
+    
+    const markerContent = `
+      <div style="position: relative; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;">
+        <div style="position: absolute; width: 100%; height: 100%; border-radius: 50%; background-color: ${pulseColor}; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+        <div style="position: relative; width: 12px; height: 12px; border-radius: 50%; background-color: ${mainColor}; border: 2px solid white; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);"></div>
+        <!-- Heading Indicator (Triangle) -->
+        <div id="heading-arrow" style="position: absolute; top: -8px; width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-bottom: 6px solid ${mainColor}; display: none;"></div>
+      </div>
+    `;
+    
+    // Only update content if changed? AMap setContent is likely optimized, but we can check if source changed if we tracked it.
+    // For now, just set it. It's string replacement.
+    markerRef.current.setContent(markerContent);
 
     // Transform WGS84 (from hook) to GCJ02 (for AMap)
     // Note: hook might already do it, but let's be safe or rely on hook's consistency.

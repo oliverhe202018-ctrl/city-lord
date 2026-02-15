@@ -602,6 +602,7 @@ export function useRunningTracker(isRunning: boolean): RunningStats {
     stop,
     clearRecovery,
     rawDuration: duration,
+    area,
     closedPolygons,
     addManualLocation,
     isSyncing

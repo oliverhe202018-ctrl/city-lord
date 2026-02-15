@@ -12,7 +12,8 @@ import { CityDrawer } from "./CityDrawer"
 import { RoomSelector } from '@/components/room/RoomSelector'
 import { LoadingSpinner } from "@/components/citylord/loading-screen"
 
-interface MapHeaderProps {
+export interface MapHeaderProps {
+  // Toggle for theme switcher
   setShowThemeSwitcher: (show: boolean) => void
   viewMode?: 'user' | 'club'
   onViewModeChange?: (mode: 'user' | 'club') => void

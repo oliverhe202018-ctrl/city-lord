@@ -1,6 +1,5 @@
-'use client'
-
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -33,7 +32,8 @@ const joinFaction = async (faction: Faction) => {
 }
 
 
-import { useRouter } from 'next/navigation'
+
+
 
 interface FactionSelectorProps {
   initialUser?: any
@@ -46,46 +46,7 @@ export function FactionSelector({ initialUser }: FactionSelectorProps) {
   const [loading, setLoading] = useState(false)
   const [selectedFaction, setSelectedFaction] = useState<Faction | null>(null)
 
-  useEffect(() => {
-    // 优先使用传入的 initialUser 避免重复请求
-    checkFactionStatus(initialUser)
-    
-    // 监听登录事件，如果用户之前未登录现在登录了，再次检查
-    const supabase = createClient()
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-        if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
-             if (session?.user) {
-                 checkFactionStatus(session.user)
-             }
-        }
-    })
-
-    return () => {
-        subscription.unsubscribe()
-    }
-  }, [initialUser])
-
-  const checkFactionStatus = async (currentUser?: any) => {
-    const supabase = createClient()
-    let user = currentUser
-    
-    // 只有当 currentUser 为空时才发起请求
-    if (!user) {
-        const { data } = await supabase.auth.getUser()
-        user = data.user
-    }
-    
-    if (user) {
-      // 检查 profiles 表
-      const { data: profile } = await supabase.from('profiles').select('faction').eq('id', user.id).single()
-      if (!profile?.faction) {
-        setIsOpen(true)
-        loadStats()
-      }
-    }
-  }
-
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     try {
       const res = await fetchWithTimeout('/api/faction/stats', { credentials: 'include' })
 
@@ -101,7 +62,46 @@ export function FactionSelector({ initialUser }: FactionSelectorProps) {
     } catch (error) {
       setStats({ RED: 0, BLUE: 0, bonus: { RED: 0, BLUE: 0 } })
     }
-  }
+  }, [])
+
+  const checkFactionStatus = useCallback(async (currentUser?: any) => {
+    const supabase = createClient()
+    let user = currentUser
+
+    // 只有当 currentUser 为空时才发起请求
+    if (!user) {
+      const { data } = await supabase.auth.getUser()
+      user = data.user
+    }
+
+    if (user) {
+      // 检查 profiles 表
+      const { data: profile } = await supabase.from('profiles').select('faction').eq('id', user.id).single()
+      if (!profile?.faction) {
+        setIsOpen(true)
+        loadStats()
+      }
+    }
+  }, [loadStats])
+
+  useEffect(() => {
+    // 优先使用传入的 initialUser 避免重复请求
+    checkFactionStatus(initialUser)
+
+    // 监听登录事件，如果用户之前未登录现在登录了，再次检查
+    const supabase = createClient()
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+        if (session?.user) {
+          checkFactionStatus(session.user)
+        }
+      }
+    })
+
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [initialUser, checkFactionStatus])
 
   const handleJoin = async (faction: Faction) => {
     setLoading(true)

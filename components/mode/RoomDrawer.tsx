@@ -16,6 +16,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Room } from '@/app/actions/room';
 import { toast } from 'sonner';
+import Image from 'next/image';
 
 const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
   const controller = new AbortController()
@@ -125,6 +126,8 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
     password: ''
   });
 
+  const [isCopied, setIsCopied] = React.useState(false);
+
   const { userId, nickname, avatar, currentRoom: selectedRoom } = useGameStore(state => state);
   const { setCurrentRoom, removeJoinedRoom, addJoinedRoom } = useGameActions();
   
@@ -177,7 +180,7 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
     { id: 'losers', label: '失地榜', icon: TrendingDown },
   ] as const;
 
-  const loadRooms = async () => {
+  const loadRooms = React.useCallback(async () => {
     setIsLoading(true);
     try {
       if (activeRoom) {
@@ -199,20 +202,20 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
         // No room found, show list
         const list = await getRooms();
         setRooms(list);
-        if (view === 'my_room') setView('list');
+        setView(v => v === 'my_room' ? 'list' : v);
       }
     } catch (e) {
       console.error(e);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [activeRoom]);
 
   // React to Room Updates
   React.useEffect(() => {
     if (activeRoom) {
        // Only switch view if we are not creating or inviting
-       if (view === 'list') setView('my_room');
+       setView(v => v === 'list' ? 'my_room' : v);
        
        // Update participants list
        if (activeRoom.participants) {
@@ -238,11 +241,11 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
     } else {
       // Reset view delayed
       const timer = setTimeout(() => {
-        if (view !== 'my_room') setView('list');
+        setView(v => v !== 'my_room' ? 'list' : v);
       }, 300);
       return () => clearTimeout(timer);
     }
-  }, [isOpen]);
+  }, [isOpen, refreshRoom, loadRooms]);
 
   // Early return MUST be after all hooks
   if (!userId) return null;
@@ -299,8 +302,6 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
       toast.error('加入失败: ' + (e instanceof Error ? e.message : '未知错误'));
     }
   };
-
-  const [isCopied, setIsCopied] = React.useState(false);
 
   const handleCopyInviteCode = () => {
     if (activeRoom?.invite_code) {
@@ -537,7 +538,14 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
                           </div>
                           <div className="w-10 h-10 rounded-full bg-muted overflow-hidden relative flex-shrink-0">
                             {p.avatar ? (
-                              <img src={p.avatar} alt={p.nickname} className="w-full h-full object-cover" />
+                              <Image 
+                                src={p.avatar} 
+                                alt={p.nickname} 
+                                width={40} 
+                                height={40} 
+                                className="w-full h-full object-cover" 
+                                unoptimized={p.avatar.startsWith('blob:')}
+                              />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center text-sm font-bold text-muted-foreground bg-gradient-to-br from-muted to-muted/80">
                                 {p.nickname?.[0]}
@@ -667,7 +675,14 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
                                        {/* User Avatar */}
                                        <div className="w-8 h-8 rounded-full bg-muted overflow-hidden flex-shrink-0">
                                          {event.user.avatar ? (
-                                           <img src={event.user.avatar} alt={event.user.nickname} className="w-full h-full object-cover" />
+                                           <Image 
+                                             src={event.user.avatar} 
+                                             alt={event.user.nickname} 
+                                             width={32} 
+                                             height={32} 
+                                             className="w-full h-full object-cover" 
+                                             unoptimized={event.user.avatar.startsWith('blob:')}
+                                           />
                                          ) : (
                                            <div className="w-full h-full flex items-center justify-center text-xs font-bold text-muted-foreground">
                                              {event.user.nickname?.[0]}
@@ -700,7 +715,14 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
                                        {/* Thumbnail Placeholder */}
                                        <div className="w-16 h-16 rounded-lg bg-muted overflow-hidden border border-border flex-shrink-0 flex items-center justify-center">
                                          {event.thumbnail ? (
-                                           <img src={event.thumbnail} className="w-full h-full object-cover" />
+                                           <Image 
+                                             src={event.thumbnail} 
+                                             alt="Event location" 
+                                             height={64} 
+                                             width={64} 
+                                             className="w-full h-full object-cover" 
+                                             unoptimized={event.thumbnail.startsWith('blob:')}
+                                           />
                                          ) : (
                                            <MapIcon className="w-6 h-6 text-muted-foreground/50" />
                                          )}

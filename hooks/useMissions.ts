@@ -63,7 +63,7 @@ export function useMissions() {
       
       const mergedMissions: MissionWithStatus[] = configs.map(config => {
         // Find relevant user records for this mission code
-        const relevantRecords = userMissions?.filter(um => um.mission_code === config.code) || []
+        const relevantRecords = userMissions?.filter((um: any) => um.mission_code === config.code) || []
         
         let isCompleted = false
         let status = 'pending'
@@ -73,18 +73,18 @@ export function useMissions() {
           // For one-time missions, look for any completed record
           // Usually reset_key is 'permanent' or similar, but checking existence is enough for now
           // We assume 'completed' status means done.
-          const completedRecord = relevantRecords.find(r => r.status === 'completed' || r.status === 'claimed')
+          const completedRecord = relevantRecords.find((r: any) => r.status === 'completed' || r.status === 'claimed')
           if (completedRecord) {
             isCompleted = true
-            status = completedRecord.status
+            status = completedRecord.status || 'completed'
             currentRecord = completedRecord
           }
         } else if (config.frequency === 'daily') {
           // For daily missions, look for a record with today's reset_key
-          const dailyRecord = relevantRecords.find(r => r.reset_key === today)
+          const dailyRecord = relevantRecords.find((r: any) => r.reset_key === today)
           if (dailyRecord && (dailyRecord.status === 'completed' || dailyRecord.status === 'claimed')) {
             isCompleted = true
-            status = dailyRecord.status
+            status = dailyRecord.status || 'completed'
             currentRecord = dailyRecord
           }
         } else if (config.frequency === 'weekly') {

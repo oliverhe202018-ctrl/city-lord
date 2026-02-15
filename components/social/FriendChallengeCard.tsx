@@ -1,6 +1,7 @@
 "use client"
 
-import React from "react"
+import React, { useEffect, useState } from "react"
+import Image from "next/image"
 import { Swords, TrendingUp, Shield, Crown, Award, ChevronRight } from "lucide-react"
 import { useCity } from "@/contexts/CityContext"
 
@@ -80,6 +81,12 @@ export function FriendChallengeCard({
   compact = false,
 }: FriendChallengeCardProps) {
   const { currentCity } = useCity()
+  const fallbackAvatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(challenge.userName || 'user')}`
+  const [avatarSrc, setAvatarSrc] = useState(challenge.userAvatar)
+
+  useEffect(() => {
+    setAvatarSrc(challenge.userAvatar)
+  }, [challenge.userAvatar])
 
   const getChallengeIcon = (type: FriendChallenge["challengeType"]) => {
     switch (type) {
@@ -131,12 +138,20 @@ export function FriendChallengeCard({
       <div className={`flex items-start gap-3 ${compact ? "" : "mt-1"}`}>
         {/* 头像 */}
         <div className="relative flex-shrink-0">
-          <img
-            src={challenge.userAvatar}
+          <Image
+            src={avatarSrc}
             alt={challenge.userName}
+            width={compact ? 40 : 48}
+            height={compact ? 40 : 48}
+            unoptimized
             className={`rounded-full border-2 ${compact ? "h-10 w-10" : "h-12 w-12"}`}
             style={{
               borderColor: currentCity?.themeColors.primary,
+            }}
+            onError={() => {
+              if (avatarSrc !== fallbackAvatar) {
+                setAvatarSrc(fallbackAvatar)
+              }
             }}
           />
           {/* 在线状态 */}

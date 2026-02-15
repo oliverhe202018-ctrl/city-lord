@@ -16,6 +16,27 @@ export default function Error({
     console.error(error)
   }, [error])
 
+  // In development, show technical details instead of the game-styled error screen
+  if (process.env.NODE_ENV === 'development') {
+    return (
+      <div className="flex h-screen w-full flex-col items-start justify-start bg-zinc-950 p-8 text-left overflow-auto font-mono">
+        <h2 className="text-xl font-bold text-red-500 mb-4">DEV MODE ERROR</h2>
+        <div className="bg-zinc-900 p-4 rounded-lg w-full mb-4 border border-red-900/50">
+          <p className="text-white font-bold mb-2">{error.name}: {error.message}</p>
+          <pre className="text-xs text-zinc-400 whitespace-pre-wrap">{error.stack}</pre>
+        </div>
+        <div className="flex gap-4">
+          <Button onClick={reset} variant="secondary">
+            Retry Render
+          </Button>
+          <Button onClick={() => window.location.reload()} variant="outline">
+            Reload Page
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex h-screen w-full flex-col items-center justify-center bg-zinc-950 p-4 text-center select-none">
       <div className="relative mb-6">

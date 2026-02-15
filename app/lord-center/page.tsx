@@ -26,18 +26,6 @@ export default function LordCenterPage() {
   const [bgImage, setBgImage] = useState("/images/lord-center-bg-default.jpg") // Default placeholder
   const [isBgSettingsOpen, setIsBgSettingsOpen] = useState(false)
 
-  // Defensive coding: Ensure userStats exists to prevent build-time errors
-  if (!userStats) {
-    return null
-  }
-
-  // Mock Photos for the top grid (Step 2 photos)
-  const photos = [
-    "/placeholder-photo-1.jpg",
-    "/placeholder-photo-2.jpg",
-    "/placeholder-photo-3.jpg",
-  ]
-
   useEffect(() => {
     const fetchData = async () => {
       if (userId) {
@@ -53,6 +41,18 @@ export default function LordCenterPage() {
     }
     fetchData()
   }, [userId])
+
+  // Defensive coding: Ensure userStats exists to prevent build-time errors
+  if (!userStats) {
+    return null
+  }
+
+  // Mock Photos for the top grid (Step 2 photos)
+  const photos = [
+    "/placeholder-photo-1.jpg",
+    "/placeholder-photo-2.jpg",
+    "/placeholder-photo-3.jpg",
+  ]
 
   const level = calculateLevel(userStats?.xp || 0)
 

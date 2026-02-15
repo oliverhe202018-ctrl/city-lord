@@ -33,7 +33,7 @@ interface ImmersiveModeProps {
   isActive: boolean
   userId?: string
   distance?: number
-  pace?: number
+  pace?: number | string
   time: string // e.g., "00:12:34"
   calories: number
   heartRate?: number
@@ -90,6 +90,7 @@ export function ImmersiveRunningMode({
   const [isGhostMode, setIsGhostMode] = useState(false)
   const [isMapMode, setIsMapMode] = useState(false) // Default back to HUD mode as requested
   const [showStopConfirm, setShowStopConfirm] = useState(false)
+  const [recenterTrigger, setRecenterTrigger] = useState(0)
   const [showSummary, setShowSummary] = useState(false)
   const [displayedArea, setDisplayedArea] = useState(0)
   const [areaFlash, setAreaFlash] = useState(false)
@@ -446,6 +447,7 @@ export function ImmersiveRunningMode({
           userLocation={currentLocation ? [currentLocation.lng, currentLocation.lat] : undefined}
           path={path}
           onLocationUpdate={onManualLocation}
+          recenterTrigger={recenterTrigger}
           // If no location, map will default to city center, preventing "stuck" state
         />
         {/* Gradient Overlay for text readability - Only in HUD mode */}
@@ -483,7 +485,10 @@ export function ImmersiveRunningMode({
              })
           }}
           // Pass map toggle handler to HUD
-          onToggleMap={() => setIsMapMode(true)}
+          onToggleMap={() => {
+            setIsMapMode(true)
+            setRecenterTrigger(prev => prev + 1)
+          }}
         />
       </div>
 
@@ -498,6 +503,7 @@ export function ImmersiveRunningMode({
           onPauseToggle={handlePauseToggle}
           onStop={handleAttemptStop}
           onBack={() => setIsMapMode(false)}
+          onRecenter={() => setRecenterTrigger(prev => prev + 1)}
         />
       )}
       

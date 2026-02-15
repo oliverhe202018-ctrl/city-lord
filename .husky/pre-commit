@@ -1,6 +1,3 @@
-#!/usr/bin/env sh
-. "$(dirname -- "$0")/_/husky.sh"
-
 # 扫描危险顶层 import
 node scripts/check-dangerous-imports.js --staged
 

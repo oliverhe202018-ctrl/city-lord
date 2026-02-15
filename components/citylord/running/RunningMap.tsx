@@ -15,6 +15,7 @@ interface RunningMapProps {
   startLocation?: [number, number]
   closedPolygons?: Location[][]
   onLocationUpdate?: (lat: number, lng: number) => void
+  recenterTrigger?: number
 }
 
 export function RunningMap({ 
@@ -22,7 +23,8 @@ export function RunningMap({
   path = [],
   startLocation,
   closedPolygons = [],
-  onLocationUpdate
+  onLocationUpdate,
+  recenterTrigger = 0
 }: RunningMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
@@ -208,6 +210,13 @@ export function RunningMap({
     }
     
   }, [userLocation])
+
+  // Recenter Trigger Effect
+  useEffect(() => {
+    if (!mapInstanceRef.current || !userLocation) return
+    mapInstanceRef.current.panTo(userLocation)
+    mapInstanceRef.current.setZoom(17) // Reset zoom too
+  }, [recenterTrigger])
 
   // 3. Render Polygons (Territories)
   useEffect(() => {

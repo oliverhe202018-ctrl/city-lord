@@ -14,8 +14,8 @@ const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, ti
   }
 }
 
-const getRunReport = async (period: ReportPeriod) => {
-  const res = await fetchWithTimeout(`/api/report/get-run-report?period=${period}`, { credentials: 'include' })
+const getRunReport = async (userId: string, period: ReportPeriod) => {
+  const res = await fetchWithTimeout(`/api/report/get-run-report?userId=${userId}&period=${period}`, { credentials: 'include' })
   if (!res.ok) throw new Error('Failed to fetch report')
   return await res.json()
 }
