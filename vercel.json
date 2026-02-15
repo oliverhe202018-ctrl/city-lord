@@ -1,6 +1,8 @@
 {
-  "buildCommand": "npx prisma generate && next build",
-  "devCommand": "next dev",
-  "installCommand": "npm install",
-  "framework": "nextjs"
+  "crons": [
+    {
+      "path": "/api/cron/update-province",
+      "schedule": "0 15 * * *"
+    }
+  ]
 }

@@ -61,7 +61,7 @@ export function RoomChat({ roomId, participants = [], currentUser }: RoomChatPro
     const fetchMessages = async () => {
       try {
         const { data, error } = await supabase
-          .from('room_messages')
+          .from('room_messages' as any)
           .select('*')
           .eq('room_id', roomId)
           .order('created_at', { ascending: true })
@@ -165,7 +165,7 @@ export function RoomChat({ roomId, participants = [], currentUser }: RoomChatPro
     const content = newMessage.trim();
     setNewMessage(''); // 立即清空输入框
 
-    const { error } = await supabase.from('room_messages').insert({
+    const { error } = await supabase.from('room_messages' as any).insert({
       room_id: roomId,
       user_id: userId,
       content: content,

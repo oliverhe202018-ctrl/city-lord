@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
+import Image from "next/image"
 import { MapPin, Trophy, Zap, Award, X, Minus } from "lucide-react"
 import { useCity } from "@/contexts/CityContext"
 import { useShallow } from "zustand/react/shallow"
@@ -61,6 +62,7 @@ export function SocialFeed({
   const [collapsed, setCollapsed] = useState(false)
   const [currentItemIndex, setCurrentItemIndex] = useState(0)
   const [feedItems, setFeedItems] = useState<SocialFeedItem[]>([])
+  const [avatarSrc, setAvatarSrc] = useState<string>("")
   const { currentCity } = useCity()
   // Use selector to avoid re-renders on every store update
   const touchActivity = useGameStore(useShallow(state => state.touchActivity))
@@ -174,12 +176,20 @@ export function SocialFeed({
     return items.slice(0, maxItems)
   }
 
-  if (!visible || feedItems.length === 0) return null
-
   const items = getCurrentItems()
   const currentItem = items[currentItemIndex]
 
+  useEffect(() => {
+    if (currentItem?.userAvatar) {
+      setAvatarSrc(currentItem.userAvatar)
+    }
+  }, [currentItem?.userAvatar, currentItem?.userName])
+
+  if (!visible || feedItems.length === 0) return null
+
   if (!currentItem) return null
+
+  const fallbackAvatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(currentItem.userName || 'user')}`
 
   return (
     <div
@@ -227,10 +237,18 @@ export function SocialFeed({
               <div className="relative flex items-start gap-3">
                 {/* 头像 */}
                 <div className="relative flex-shrink-0">
-                  <img
-                    src={currentItem.userAvatar}
+                  <Image
+                    src={avatarSrc || currentItem.userAvatar}
                     alt={currentItem.userName}
+                    width={40}
+                    height={40}
+                    unoptimized
                     className="h-10 w-10 rounded-full border-2 border-white/20"
+                    onError={() => {
+                      if (avatarSrc !== fallbackAvatar) {
+                        setAvatarSrc(fallbackAvatar)
+                      }
+                    }}
                   />
                   {/* 等级徽章 */}
                   <div className="absolute -bottom-1 -right-1 rounded-full bg-gradient-to-r from-yellow-400 to-orange-500 px-1.5 py-0.5 text-[10px] font-bold text-white shadow-lg">

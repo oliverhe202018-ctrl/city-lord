@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import {
   Dialog,
   DialogContent,
@@ -281,11 +282,14 @@ export function RoomManagerModal({ open, onOpenChange, onRoomEnter }: RoomManage
             ) : (
               <div className="w-full space-y-6 py-4 animate-in fade-in zoom-in-95 duration-300">
                 <div className="flex flex-col items-center gap-4">
-                  <div className="w-24 h-24 rounded-2xl bg-muted overflow-hidden ring-4 ring-cyan-500/20 shadow-xl shadow-cyan-500/10">
-                    <img 
-                      src={foundRoom.avatar_url || `https://avatar.vercel.sh/${foundRoom.name}`} 
+                  <div className="relative w-24 h-24 rounded-2xl bg-muted overflow-hidden ring-4 ring-cyan-500/20 shadow-xl shadow-cyan-500/10">
+                    <Image
+                      src={foundRoom.avatar_url || `https://avatar.vercel.sh/${encodeURIComponent(foundRoom.name)}`}
                       alt={foundRoom.name}
-                      className="w-full h-full object-cover"
+                      fill
+                      unoptimized={!!foundRoom.avatar_url?.startsWith('blob:')}
+                      sizes="96px"
+                      className="object-cover"
                     />
                   </div>
                   <div className="text-center">

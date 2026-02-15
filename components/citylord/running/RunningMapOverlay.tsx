@@ -45,7 +45,10 @@ export function RunningMapOverlay({
         </button>
 
         <div className="flex gap-3">
-           <button className="h-10 w-10 rounded-full bg-slate-800/90 backdrop-blur-sm shadow-lg flex items-center justify-center active:scale-95 transition-transform border border-white/10">
+           <button 
+             onClick={onRecenter}
+             className="h-10 w-10 rounded-full bg-slate-800/90 backdrop-blur-sm shadow-lg flex items-center justify-center active:scale-95 transition-transform border border-white/10"
+           >
              <MapPin className="h-5 w-5 text-blue-400" />
            </button>
            <button className="h-10 w-10 rounded-full bg-slate-800/90 backdrop-blur-sm shadow-lg flex items-center justify-center active:scale-95 transition-transform border border-white/10">

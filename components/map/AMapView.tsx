@@ -62,9 +62,10 @@ export type AMapViewHandle = {
 export interface AMapViewProps {
   showTerritory: boolean;
   onMapLoad?: () => void;
+  viewMode?: 'user' | 'club';
 }
 
-const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(({ showTerritory, onMapLoad }, ref) => {
+const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(({ showTerritory, onMapLoad, viewMode }, ref) => {
   const mapDomRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any | null>(null);
   const { setMap, currentLocation } = useMap();

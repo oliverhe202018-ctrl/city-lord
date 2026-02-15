@@ -1,28 +1,58 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, memo, useCallback, useMemo } from 'react';
+import useSWR from 'swr';
 import { mockPublicRooms } from '@/data/public-rooms';
 import { RoomCard } from './RoomCard';
 import type { PublicRoom } from '@/data/public-rooms';
+import { toast } from 'sonner';
 
-export function PrivateLobby() {
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
+
+export const PrivateLobby = memo(function PrivateLobby() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
-  const [rooms, setRooms] = useState(mockPublicRooms);
 
-  const handleCreateRoom = () => {
+  // Use SWR for data fetching with caching
+  const { data: serverRooms, mutate } = useSWR<any[]>('/api/room/get-rooms', fetcher, {
+    revalidateOnFocus: false, // Prevent re-fetching when window gains focus
+    dedupingInterval: 60000,  // Cache for 1 minute
+    fallbackData: [],         // Initial empty state
+  });
+
+  // Transform server data to UI format
+  const rooms: PublicRoom[] = useMemo(() => {
+    if (!serverRooms || serverRooms.length === 0) return mockPublicRooms;
+    
+    return serverRooms.map(r => ({
+      id: r.id,
+      name: r.name,
+      memberCount: r.participants_count || r.memberCount || 0,
+      maxMembers: r.max_participants || r.maxMembers || 10,
+      distance: (r.target_distance_km || 0) * 1000,
+      isPrivate: r.is_private || false,
+    }));
+  }, [serverRooms]);
+
+  // 使用 useCallback 确保函数引用稳定
+  const handleCreateRoom = useCallback(async () => {
     const roomName = prompt('请输入房间名称:');
     if (!roomName) return;
 
-    const maxMembers = parseInt(prompt('请输入最大人数 (2-10):', '10') || '10');
+    const maxMembersStr = prompt('请输入最大人数 (2-10):', '10');
+    if (maxMembersStr === null) return;
+    const maxMembers = parseInt(maxMembersStr);
+    
     if (isNaN(maxMembers) || maxMembers < 2 || maxMembers > 10) {
       alert('人数必须在 2-10 之间！');
       return;
     }
 
+    // Optimistic Update
+    const tempId = `temp-${Date.now()}`;
     const newRoom: PublicRoom = {
-      id: `room-${Date.now()}`,
+      id: tempId,
       name: roomName,
       memberCount: 1,
       maxMembers,
@@ -30,50 +60,96 @@ export function PrivateLobby() {
       isPrivate: false,
     };
 
-    setRooms([newRoom, ...rooms]);
-    alert(`房间 "${roomName}" 创建成功！`);
-  };
+    // Update local cache immediately
+    mutate((currentData: any[] = []) => {
+        return [{
+            id: tempId,
+            name: roomName,
+            participants_count: 1,
+            max_participants: maxMembers,
+            target_distance_km: 0,
+            is_private: false
+        }, ...currentData];
+    }, false);
 
-  const handleJoinRoom = () => {
+    try {
+        const res = await fetch('/api/room/create-room', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: roomName, max_participants: maxMembers })
+        });
+        
+        if (!res.ok) throw new Error('Failed to create room');
+        
+        toast.success(`房间 "${roomName}" 创建成功！`);
+        // Re-fetch to get real ID
+        mutate();
+    } catch (e) {
+        console.error(e);
+        toast.error('创建房间失败');
+        // Revert on error
+        mutate();
+    }
+  }, [mutate]);
+
+  const handleJoinRoom = useCallback(async () => {
     const roomId = prompt('请输入房间ID:');
     if (!roomId) return;
 
-    const room = rooms.find(r => r.id === roomId);
-    if (room) {
-      if (room.memberCount >= room.maxMembers) {
-        alert('该房间已满！');
-        return;
-      }
+    // API Call
+    try {
+        const res = await fetch('/api/room/join-room', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ roomId })
+        });
 
-      setRooms(rooms.map(r =>
-        r.id === roomId ? { ...r, memberCount: r.memberCount + 1 } : r
-      ));
-      alert(`成功加入房间: ${room.name}`);
-    } else {
-      alert('未找到该房间，请检查房间ID！');
+        if (res.ok) {
+            toast.success('加入房间成功');
+            mutate(); // Refresh list
+        } else {
+            const err = await res.json();
+            toast.error(err.error || '加入房间失败');
+        }
+    } catch (e) {
+        toast.error('加入请求失败');
     }
-  };
+  }, [mutate]); 
 
-  const handleRoomJoin = (room: PublicRoom) => {
+  const handleRoomJoin = useCallback(async (room: PublicRoom) => {
     if (room.isPrivate) {
       const password = prompt('请输入房间密码:');
       if (password === null) return;
 
+      // Verify password via API (Need specific API for this, fallback to generic join for now)
+      // Assuming generic join handles password if we pass it, but current UI mock logic was simple '1234'
+      // We will stick to simple mock logic for private rooms unless we upgrade the API
       if (password === '1234') {
-        setRooms(rooms.map(r =>
-          r.id === room.id ? { ...r, memberCount: r.memberCount + 1 } : r
-        ));
-        alert(`成功加入房间: ${room.name}`);
+         // Mock success for private
+         toast.success(`成功加入房间: ${room.name}`);
       } else {
-        alert('密码错误！');
+         alert('密码错误！');
       }
     } else {
-      setRooms(rooms.map(r =>
-        r.id === room.id ? { ...r, memberCount: r.memberCount + 1 } : r
-      ));
-      alert(`成功加入房间: ${room.name}`);
+      // Public room join
+      try {
+          const res = await fetch('/api/room/join-room', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ roomId: room.id })
+          });
+          
+          if (res.ok) {
+              toast.success(`成功加入房间: ${room.name}`);
+              mutate();
+          } else {
+              toast.error('加入失败');
+          }
+      } catch (e) {
+          toast.error('网络错误');
+      }
     }
-  };
+  }, [mutate]);
 
   return (
     <div className="p-4 text-white">
@@ -109,4 +185,4 @@ export function PrivateLobby() {
       )}
     </div>
   );
-}
+});

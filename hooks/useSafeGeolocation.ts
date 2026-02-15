@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { toast } from 'sonner';
-import { isNativePlatform, safeCheckGeolocationPermission, safeRequestGeolocationPermission, safeWatchPosition, safeClearWatch, type SafePosition } from '@/lib/capacitor/safe-plugins';
+import { isNativePlatform, safeCheckGeolocationPermission, safeRequestGeolocationPermission, safeWatchPosition, safeClearWatch, safeGetCurrentPosition, type SafePosition } from '@/lib/capacitor/safe-plugins';
 import gcoord from 'gcoord';
 
 export interface GeoPoint {
@@ -10,6 +10,7 @@ export interface GeoPoint {
   heading?: number | null;
   speed?: number | null;
   timestamp?: number;
+  source?: 'cache' | 'network-coarse' | 'gps-precise';
 }
 
 interface UseSafeGeolocationOptions {
@@ -36,16 +37,12 @@ export function useSafeGeolocation(options: UseSafeGeolocationOptions = {}): Use
   const lastValidLocation = useRef<GeoPoint | null>(null);
   const retryCount = useRef(0);
   const isMounted = useRef(false);
+  const phaseRef = useRef<'init' | 'coarse' | 'precise'>('init');
 
   // Constants
   const MAX_ACCURACY_THRESHOLD = 1000; // meters
   const SIGNAL_TIMEOUT = 10000; // 10 seconds to consider signal weak
-  const DEFAULT_OPTIONS = {
-    enableHighAccuracy: true,
-    timeout: 30000, // Increased to 30s to allow user time to accept permission
-    maximumAge: 0,
-    ...options
-  };
+  const STORAGE_KEY = 'last_known_location';
 
   const signalTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -56,7 +53,6 @@ export function useSafeGeolocation(options: UseSafeGeolocationOptions = {}): Use
     signalTimeoutRef.current = setTimeout(() => {
       if (isMounted.current) {
         setGpsSignalStrength('weak');
-        // Toast only if we had a location before but lost it
         if (lastValidLocation.current) {
            toast.warning("GPS信号弱", { description: "正在尝试恢复连接..." });
         }
@@ -68,7 +64,7 @@ export function useSafeGeolocation(options: UseSafeGeolocationOptions = {}): Use
     return lat !== 0 && lng !== 0 && !isNaN(lat) && !isNaN(lng);
   };
 
-  const processPosition = useCallback((position: SafePosition) => {
+  const processPosition = useCallback((position: SafePosition, source: 'network-coarse' | 'gps-precise') => {
     if (!isMounted.current) return;
 
     const { lat: latitude, lng: longitude, accuracy, heading, speed } = position;
@@ -81,19 +77,17 @@ export function useSafeGeolocation(options: UseSafeGeolocationOptions = {}): Use
 
     // 2. Accuracy Filter
     // Allow first point regardless of accuracy (to show *something*), then filter
-    if (lastValidLocation.current && accuracy > MAX_ACCURACY_THRESHOLD) {
+    // For coarse location, we accept lower accuracy
+    const threshold = source === 'network-coarse' ? 5000 : MAX_ACCURACY_THRESHOLD;
+    if (lastValidLocation.current && accuracy > threshold) {
       console.debug(`Skipping low accuracy point: ${accuracy}m`);
       return;
     }
 
     // 3. Coordinate Transformation (WGS84 -> GCJ02 for AMap)
-    // Capacitor and Navigator return WGS84. AMap needs GCJ02.
-    // Note: If using AMap's Geolocation plugin, it might already do this, 
-    // but here we are using Capacitor/Browser native API directly.
     let finalLat = latitude;
     let finalLng = longitude;
 
-    // We assume we need GCJ02 for the map in China
     try {
         const result = gcoord.transform(
           [longitude, latitude],
@@ -112,7 +106,8 @@ export function useSafeGeolocation(options: UseSafeGeolocationOptions = {}): Use
       accuracy,
       heading,
       speed,
-      timestamp: position.timestamp
+      timestamp: position.timestamp,
+      source
     };
 
     lastValidLocation.current = newLocation;
@@ -120,6 +115,13 @@ export function useSafeGeolocation(options: UseSafeGeolocationOptions = {}): Use
     setLoading(false);
     setError(null);
     resetSignalTimeout();
+    
+    // Save to cache
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newLocation));
+    } catch (e) {
+      console.error("Failed to save location to cache", e);
+    }
   }, [resetSignalTimeout]);
 
   const handleError = useCallback(async (err: any) => {
@@ -128,7 +130,10 @@ export function useSafeGeolocation(options: UseSafeGeolocationOptions = {}): Use
     console.error("Geolocation error:", err);
     
     // Don't clear last location on error, just update status
-    setLoading(false);
+    // If we have cached location, we are not strictly "loading"
+    if (!lastValidLocation.current) {
+        setLoading(false);
+    }
     
     // Check real permission status if possible (for Web)
     let realPermissionState = 'unknown';
@@ -139,38 +144,23 @@ export function useSafeGeolocation(options: UseSafeGeolocationOptions = {}): Use
         } catch (e) {}
     }
 
-    // User denied permission
-    // Only treat as hard denial if error says so AND (native OR web state is explicitly denied)
-    // If web state is 'prompt', it means the user ignored it or it timed out while prompting -> Don't show "Denied" error yet.
     const isDeniedError = err.code === 1 || err.message?.includes('denied') || err.message?.includes('permission');
     
     if (isDeniedError) {
         if (realPermissionState === 'prompt') {
-            // It timed out or failed while prompting. Do NOT show error, maybe retry silently?
-            // Actually, if it's prompt, we should just stay loading or show a soft hint?
-            console.log("Permission error but state is prompt - likely timeout waiting for user.");
-            // We can extend the wait? Or just do nothing and let the user decide?
-            // If we set error, the modal shows.
             return; 
         }
 
         setError('PERMISSION_DENIED');
         setGpsSignalStrength('none');
-        // Only toast if it's a fresh hard failure
         if (!lastValidLocation.current) {
-             // Only toast if explicitly denied
              toast.error("定位权限被拒绝", { description: "请前往设置允许访问位置信息" });
         }
     } else if (err.code === 3 || err.message?.includes('timeout')) {
-        // Timeout
-        // If we are still 'prompt', it means user is slow.
         if (realPermissionState === 'prompt') {
-             console.log("Geolocation timeout while prompting.");
-             // Retry with longer timeout?
              return;
         }
 
-        // Keep "weak" status if we have data, otherwise error
         if (!lastValidLocation.current) {
             setError('TIMEOUT');
         }
@@ -179,10 +169,7 @@ export function useSafeGeolocation(options: UseSafeGeolocationOptions = {}): Use
     }
   }, []);
 
-  const startWatching = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-
+  const startWatching = useCallback(async (enableHighAccuracy: boolean, source: 'network-coarse' | 'gps-precise') => {
     try {
         // Native Permission Check
         if (await isNativePlatform()) {
@@ -198,6 +185,7 @@ export function useSafeGeolocation(options: UseSafeGeolocationOptions = {}): Use
         // Clear existing watch
         if (watchId.current) {
             await safeClearWatch(watchId.current);
+            watchId.current = null;
         }
 
         // Start Watch
@@ -206,25 +194,79 @@ export function useSafeGeolocation(options: UseSafeGeolocationOptions = {}): Use
                 if (err) {
                     handleError(err);
                 } else if (position) {
-                    processPosition(position);
+                    processPosition(position, source);
                 }
             },
-            DEFAULT_OPTIONS
+            {
+                enableHighAccuracy,
+                timeout: enableHighAccuracy ? 30000 : 5000, // Shorter timeout for coarse
+                maximumAge: 0
+            }
         );
 
     } catch (e: any) {
         handleError(e);
     }
-  }, [DEFAULT_OPTIONS, handleError, processPosition]);
+  }, [handleError, processPosition]);
+
+  const initStrategy = useCallback(async () => {
+      // Level 1: Load from Cache (0ms) - Immediate feedback
+      try {
+          const cached = localStorage.getItem(STORAGE_KEY);
+          if (cached) {
+              const parsed = JSON.parse(cached);
+              // Basic validation
+              if (parsed && parsed.lat && parsed.lng) {
+                  parsed.source = 'cache';
+                  setLocation(parsed);
+                  lastValidLocation.current = parsed;
+                  setLoading(false); // Immediate display
+              }
+          }
+      } catch (e) {
+          console.error("Failed to load location from cache", e);
+      }
+
+      // Level 2: Fast Coarse Location (<2s) - Network based
+      // Use getCurrentPosition for a quick "one-shot" estimate
+      phaseRef.current = 'coarse';
+      try {
+          // Don't await if we want to start Level 3 in parallel? 
+          // User asked for: "This will utilize cell towers and Wi-Fi to quickly return an approximate location"
+          // and "Do not wait for any API" (for Level 1).
+          // For Level 2, we can await it with a short timeout.
+          const coarsePos = await safeGetCurrentPosition({
+              enableHighAccuracy: false,
+              timeout: 2000, // Short timeout as requested
+              maximumAge: Infinity // Accept any cached position
+          });
+          
+          if (coarsePos && isMounted.current) {
+             processPosition(coarsePos, 'network-coarse');
+          }
+      } catch (e) {
+          // Ignore error, proceed to precise
+          console.debug("Coarse location failed or timed out, proceeding to precise...", e);
+      }
+
+      // Level 3: Precise GPS Correction (>2s)
+      if (isMounted.current) {
+          phaseRef.current = 'precise';
+          console.log("Starting precise GPS watch...");
+          // Enable high accuracy for the long-running watch
+          startWatching(true, 'gps-precise');
+      }
+
+  }, [startWatching, processPosition]);
 
   const retry = useCallback(() => {
     retryCount.current += 1;
-    startWatching();
-  }, [startWatching]);
+    initStrategy();
+  }, [initStrategy]);
 
   useEffect(() => {
     isMounted.current = true;
-    startWatching();
+    initStrategy();
 
     return () => {
       isMounted.current = false;

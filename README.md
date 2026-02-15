@@ -2,121 +2,104 @@
 
 City Lord 是一款结合真实地理位置（LBS）的跑步领地争夺游戏。玩家通过在现实世界中跑步来占领地图上的六边形地块，加入阵营（赤红先锋 vs 蔚蓝联盟），与同城的跑者竞争，扩张领地，赢取荣誉。
 
+## ✨ 功能特性 (Features)
+
+*   **实时地理位置追踪**: 使用高德地图与 GPS，精准追踪用户跑步路径。
+*   **领地争夺**: 在地图上绘制闭环路径以占领六边形地块，扩大你的领地。
+*   **阵营对抗**: 加入两大阵营之一，参与城市级别的领地争夺战。
+*   **俱乐部系统**: 创建或加入俱乐部，与伙伴共同战斗，参与俱乐部排名。
+*   **沉浸式跑步模式**: 专为跑步设计的 UI，实时显示速度、距离、卡路里等数据。
+*   **智能路径规划器**: 预先规划跑步路线，支持打点和手绘模式，并能预估占领面积。
+*   **离线优先架构 (PWA)**: 极速加载，支持离线使用，网络恢复后自动同步数据。
+*   **成就与排行榜**: 解锁各种成就，在个人、俱乐部和省级排行榜上争夺荣耀。
+
+## 💻 技术栈 (Tech Stack)
+
+*   **前端**: Next.js 16 (App Router), React 19, Tailwind CSS v4, TypeScript
+*   **地图**: 高德地图 JS API, Turf.js, H3.js
+*   **原生容器**: Capacitor 6 (iOS & Android)
+*   **后端 & 数据库**: Supabase (PostgreSQL, Auth, Realtime)
+*   **状态管理**: Zustand, TanStack Query (SWR)
+*   **UI 组件**: Shadcn UI
+
+## 🚀 本地开发 (Getting Started)
+
+**环境要求:**
+*   Node.js >= 20.x
+*   pnpm (推荐)
+
+**安装与启动:**
+
+1.  **克隆仓库**
+    ```bash
+    git clone <repository-url>
+    cd city-lord-game-interface
+    ```
+
+2.  **安装依赖**
+    ```bash
+    npm install
+    ```
+
+3.  **配置环境变量**
+    *   复制 `.env.example` 文件为 `.env.local`。
+    *   填入你的 Supabase 项目 URL, anon key, 以及高德地图 API Key。
+    ```env
+    # Supabase
+    NEXT_PUBLIC_SUPABASE_URL=YOUR_SUPABASE_URL
+    NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
+    SUPABASE_SERVICE_ROLE_KEY=YOUR_SUPABASE_SERVICE_ROLE_KEY
+
+    # Database URLs (for Prisma)
+    DATABASE_URL="postgresql://..."
+    DIRECT_URL="postgresql://..."
+
+    # Gaode Maps API Key
+    NEXT_PUBLIC_AMAP_KEY=YOUR_AMAP_KEY
+    ```
+
+4.  **生成 Prisma Client**
+    *   每次修改 `prisma/schema.prisma` 后都需要执行此命令。
+    ```bash
+    npx prisma generate
+    ```
+
+5.  **启动开发服务器**
+    ```bash
+    npm run dev
+    ```
+    应用将运行在 `http://localhost:3000`。
+
+## 部署 (Deployment)
+
+项目已配置为可以部署到 Vercel 或其他支持 Next.js 的平台。
+
+1.  **构建项目**
+    ```bash
+    npm run build
+    ```
+2.  确保所有环境变量都已在部署平台上正确配置。
+
+---
+
 ## 📅 更新日志 (Changelog)
 
-### 2026-02-15: 📱 原生体验增强与离线架构升级 (Native UX & Offline-First)
+### 2026-02-15: 🚀 性能重构与部署准备
 
-**核心体验升级：**
+**核心优化:**
 
-1.  **🎮 沉浸式游戏体验 (Immersive UI)**
-    *   **全局锁定**: 全面屏蔽了浏览器的默认交互（长按、右键菜单、文本选择、橡皮筋滚动），使 Web App 操作手感无限接近原生游戏。
-    *   **错误边界**: 引入了游戏风格的“系统故障”全屏错误页，替代了默认的 Next.js 报错栈，并在生产环境屏蔽调试快捷键。
+1.  **React 性能优化**:
+    *   对核心组件 `game-page-content.tsx` 进行了全面的性能重构。
+    *   通过 `React.memo` 包裹所有主要子组件，并使用 `useCallback` 稳定事件处理函数，有效阻止了由高频 GPS 更新引起的非必要重渲染，确保 UI 流畅。
+2.  **构建与类型修复**:
+    *   解决了大量 TypeScript 类型错误，包括 `room_messages`、`user_missions` 等模型的类型推断问题。
+    *   通过添加类型声明文件 (`capacitor-modules.d.ts`) 解决了 Capacitor 插件 `@capacitor/sensors` 和 `@capacitor/sound` 缺失模块的报错。
+    *   修复了 `lord-center` 页面的 React Hook 条件渲染错误，确保了组件渲染的稳定性。
+    *   修复了 `RankItem.tsx` 中 `User` 组件未定义的构建错误。
 
-2.  **⚡ 离线优先架构 (Offline-First)**
-    *   **App Shell**: 升级为 PWA 架构，采用 App Shell 模型。框架层与静态资源（图片/字体）永久缓存，再次访问实现 **0ms 秒开**。
-    *   **数据持久化**: 集成 TanStack Query + IndexedDB。业务数据自动本地持久化，断网时优先展示旧数据，联网后后台静默更新，彻底告别白屏等待。
-    *   **离线感知**: 新增全局网络状态监测，断网时顶部自动弹出红色提示横幅。
+3.  **部署验证**:
+    *   成功执行 `npm run build`，验证项目已具备部署条件。
+    *   清理了 Prisma 缓存并重新生成了 Prisma Client，解决了 `EPERM` 文件权限问题。
 
-3.  **🗺️ 地图性能与交互优化 (Map Optimization)**
-    *   **极速加载**: 优化地图 SDK 加载策略，实现预加载与无缝衔接的 Loading 动画，消除了“白屏->加载中->渲染”的顿挫感。
-    *   **领地闭环**: 完善了跑步过程中的领地判定逻辑。现在跑出一个闭环后，地图上会即时绘制出绿色的领地多边形，并计算真实占领面积。
-    *   **定位优化**: 修复了定位蓝圈不显示的问题，并优化了地图跟随逻辑，现在会平滑过渡（FlyTo）而非生硬跳转。
-
-4.  **🎨 视觉与交互细节 (UI/UX Polish)**
-    *   **全屏覆盖**: 将“俱乐部”和“房间”页面重构为全屏覆盖层（Overlay），交互更符合移动端直觉。
-    *   **主题修复**: 修复了 Tailwind v4 升级导致的主题色丢失问题，确保深色/浅色模式完美切换。
-    *   **头部优化**: 优化了各页面的顶部导航栏，根据当前状态（我的房间/创建模式）动态显示精准的标题。
-
-### 2026-02-13: 🗺️ 地图体验深度优化 (Map UX Polish)
-
-**核心体验升级：**
-
-1.  **📍 智能位置记忆 (Smart Location Cache)**
-    *   **最后位置缓存**: 实现了地图状态持久化。App 启动时优先加载上一次的中心点和缩放级别，彻底告别“北京跳转”问题。
-    *   **坐标归零修复**: 增加了严格的坐标合法性校验，拦截了 (0,0) 等无效坐标，防止地图跳转至大西洋。
-
-2.  **👀 视野自动跟随 (Auto View Follow)**
-    *   **动态同步**: 在 GPS 信号更新时，地图中心点会自动平滑移动至当前位置，确保用户始终处于视野中心。
-    *   **交互优化**: 优化了跟随逻辑，避免了手动拖拽地图时的冲突。
-
-### 2026-02-13: 🏃‍♂️ 跑步模式重构与体验优化 (Running Mode & UX Polish)
-
-**核心体验升级：**
-
-1.  **🗺️ 沉浸式跑步模式 (Immersive Running Mode)**
-    *   **独立渲染**: 重构了跑步模式的地图渲染逻辑，进入跑步状态时自动卸载主地图，彻底解决了“双重标记”和性能损耗问题。
-    *   **操作优化**: 新增“双击暂停/结束”快捷操作，提升运动中的交互效率。
-    *   **视觉降噪**: 移除了 GPS 信号图标的呼吸动画，保持界面清爽专注。
-    *   **定位修复**: 修复了手动/自动定位同步逻辑，解决了进入跑步模式后地图中心不跟随的问题。
-
-2.  **📍 地图状态记忆 (Map State Persistence)**
-    *   **位置缓存**: 实现了“最后已知位置”缓存功能。App 启动时优先加载上一次的地图中心点和缩放级别，告别了每次启动都先跳回北京再定位的突兀体验。
-    *   **智能初始化**: 仅在无缓存或首次安装时使用默认坐标，大幅提升冷启动流畅度。
-
-3.  **🛡️ 系统稳定性 (Stability)**
-    *   **Auth 容错**: 增强了 Supabase 客户端初始化逻辑，增加了环境变量完整性校验和 Key 格式检查。
-    *   **网络鲁棒性**: 为 Auth Hook 添加了全局错误捕获，在网络波动或配置错误时提供友好的控制台提示，防止应用白屏。
-
-### 2026-02-13: 🛠️ 数据库架构优化与性能修复 (Database Optimization)
-
-**核心架构升级：**
-
-1.  **🚀 性能飞跃 (Performance Boost)**
-    *   **缓存优先策略**: 重构 `getFactionStats` 接口，引入“快照优先 + 3秒熔断”机制。优先读取 `DailyStat` 快照表，仅在快照缺失时降级为实时计算，并自动回写快照，彻底解决了阵营战况加载超时（10s+）的问题。
-    *   **Prisma 权限隔离**: 重写 `schema.prisma`，移除所有对 Supabase 系统表（`auth.users`）的直接关联，改为松耦合的 ID 引用，消除了 `EPERM` 和跨 Schema 权限校验错误。
-
-2.  **🎨 UI/UX 优化**
-    *   **战况展示**: 优化了个人主页的阵营战况卡片，移除冗余的“昨日战况”独立模块，将昨日数据智能整合进主卡片标题栏，界面更清爽。
-    *   **数据可视化**: 优化了进度条与数字展示逻辑，确保在极端数据（如 0 vs 0）下 UI 依然优雅。
-
-3.  **🔧 构建与部署 (Build & Deploy)**
-    *   **Android 适配**: 完善了 `capacitor.config.ts` 配置，确保 Android Scheme 正确指向 HTTPS，为打包发布做好准备。
-    *   **依赖清理**: 清理了不必要的 Prisma 生成文件，修复了 Windows 环境下的文件占用锁死问题。
-
-### 2026-02-12: 🏢 俱乐部系统全面重构 (Club System Overhaul)
-
-**核心架构升级：**
-
-1.  **🚀 性能飞跃 (Performance Boost)**
-    *   **服务端缓存**: 引入 Next.js `unstable_cache`，将俱乐部详情查询（`getClubDetailsCached`）缓存 1 小时，配合 Tag Revalidation 实现“秒开”体验。
-    *   **SQL 视图优化**: 创建 `v_clubs_summary` 数据库视图，预聚合成员数、总面积等高频字段，彻底告别实时遍历计算，查询延迟从 5s+ 降至 50ms。
-    *   **前端 SWR 集成**: 详情页采用 `useSWR` + Server Action 混合模式，利用客户端缓存实现无感加载与自动更新。
-
-2.  **🔗 智能路由与状态管理 (Smart Routing & State)**
-    *   **自动跳转逻辑**: 完善了“加入俱乐部”全流程。申请成功后，系统自动更新 Zustand 全局状态并无缝跳转至俱乐部详情页。
-    *   **路由守卫**: 重构 `/club` 路由入口，智能判断用户状态（Pending/Active/None），自动分流至详情页或发现列表，并具备自动修复数据一致性（Self-healing）能力。
-    *   **数据库触发器**: 部署 PostgreSQL 触发器，在 `club_members` 状态变更时自动同步 `profiles.club_id`，从数据库层面保障数据绝对一致。
-
-3.  **🐛 关键修复 (Critical Fixes)**
-    *   **导航闭环**: 修复了“退出俱乐部后仍停留在详情页”及“关闭详情页后无法返回列表”的导航 Bug。
-    *   **API 稳定性**: 解决了 Server Action 中 `cookies()` 调用与缓存上下文冲突的问题，改用 Service Role Client 确保后台任务稳定性。
-    *   **地理编码容错**: 优化 `useReverseGeocode` Hook，优雅处理海洋等无地址区域（`no_data`），消除控制台红字报错。
-
-### 2026-02-10: 🗺️ 智能路径规划器 (Smart Route Planner)
-
-**核心功能上线：**
-
-1.  **🧠 全屏沉浸式规划 (Immersive Planner)**
-    *   **独立页面**: 全新的 `/game/planner` 全屏页面，提供更大的视野和更专业的操作空间。
-    *   **自动定位**: 进入页面自动定位到用户当前位置，并切换至高精度地图模式。
-
-2.  **✍️ 双模式绘图 (Dual-Mode Drawing)**
-    *   **Waypoints (打点模式)**: 点击地图添加关键点，系统自动连线，适合长距离规划。
-    *   **Freehand (手绘模式)**: 自由拖拽绘制复杂轨迹，松手自动切回打点模式，防止误操作。
-    *   **手势防冲突**: 绘图模式下智能锁定地图拖拽，确保线条流畅。
-
-3.  **⚡ 智能辅助 (Smart Assists)**
-    *   **Snap to Road (路网吸附)**: (Beta) 支持将路径自动吸附至真实道路网。
-    *   **Loop Closure (智能闭环)**: 当终点距离起点 <50m 时，自动识别闭环并高亮显示领地范围。
-    *   **Real-time Stats (实时数据)**: 顶部 HUD 实时显示路径总里程 (km) 和预计占领面积 (ha)。
-
-4.  **💾 路线管理闭环 (Save & Manage)**
-    *   **保存与编辑**: 支持保存规划好的路线，自定义命名。
-    *   **我的路线**: 侧边栏管理所有历史路线，支持预览、删除和**二次编辑**。
-    *   **一键开跑**: 从列表直接加载路线并跳转至跑步模式 (Runner)。
-
-5.  **🎓 新手引导 (Onboarding)**
-    *   **聚光灯教程**: 首次进入自动触发分步引导，通过 Spotlight 效果高亮核心功能区。
-    *   **交互式学习**: 引导用户亲自尝试打点、绘图和保存操作。
-
-### 2026-02-10: 🚀 发布前终极体检与推送增强 (Pre-Release Health Check & Push Notification)
+---
+*之前的更新日志...*

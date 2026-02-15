@@ -310,31 +310,7 @@ export function RunningHUD({
                  )})}
              </div>
              
-             <div className="flex flex-col gap-3">
-                 <button 
-                   onClick={() => setShowSettings(true)}
-                   className="h-10 w-10 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white border border-white/10 active:scale-95 transition-all shadow-lg"
-                 >
-                    <Settings className="w-5 h-5" />
-                 </button>
-                 {onToggleMap && (
-                   <button 
-                     onClick={onToggleMap}
-                     className="h-10 w-10 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white border border-white/10 active:scale-95 transition-all shadow-lg"
-                   >
-                      <MapIcon className="w-5 h-5" />
-                   </button>
-                 )}
-                 <button 
-                   onClick={() => setIsLocked(!isLocked)}
-                   className={cn(
-                     "h-10 w-10 rounded-full backdrop-blur-md flex items-center justify-center border active:scale-95 transition-all shadow-lg",
-                     isLocked ? "bg-amber-500/80 text-white border-amber-400" : "bg-black/40 text-white border-white/10"
-                   )}
-                 >
-                    {isLocked ? <Lock className="w-5 h-5" /> : <Unlock className="w-5 h-5" />}
-                 </button>
-             </div>
+             {/* Top Right Buttons Removed as requested - moved to bottom */}
           </div>
 
           {/* Main Stats Display (Center) */}
@@ -383,6 +359,38 @@ export function RunningHUD({
           {/* Controls Bottom */}
           <div className="pointer-events-auto px-8 w-full flex flex-col items-center gap-6 mb-8">
              
+             {/* Action Buttons: Lock, Map, Settings */}
+             <div className="flex items-center gap-6 mb-2">
+                 {/* Lock Button */}
+                 <button 
+                   onClick={() => setIsLocked(!isLocked)}
+                   className={cn(
+                     "h-12 w-12 rounded-full backdrop-blur-md flex items-center justify-center border active:scale-95 transition-all shadow-lg",
+                     isLocked ? "bg-amber-500/80 text-white border-amber-400" : "bg-black/40 text-white border-white/10"
+                   )}
+                 >
+                    {isLocked ? <Lock className="w-5 h-5" /> : <Unlock className="w-5 h-5" />}
+                 </button>
+
+                 {/* Map Button (Larger) */}
+                 {onToggleMap && (
+                   <button 
+                     onClick={onToggleMap}
+                     className="h-16 w-16 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center text-white border-2 border-white/20 active:scale-95 transition-all shadow-[0_0_20px_rgba(0,0,0,0.5)]"
+                   >
+                      <MapIcon className="w-7 h-7" />
+                   </button>
+                 )}
+
+                 {/* Settings Button */}
+                 <button 
+                   onClick={() => setShowSettings(true)}
+                   className="h-12 w-12 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white border border-white/10 active:scale-95 transition-all shadow-lg"
+                 >
+                    <Settings className="w-5 h-5" />
+                 </button>
+             </div>
+
              {!isLocked && (
                  <div className="w-full flex justify-center items-center">
                     {isPaused ? (

@@ -244,6 +244,16 @@ model clubs {
   runs                              runs[]
   
   @@index([owner_id], map: "idx_clubs_owner_id")
+  @@index([province])
+  @@schema("public")
+}
+
+model ProvinceStat {
+  id                 Int      @id @default(autoincrement())
+  provinceName       String   @unique
+  totalTerritoryArea Float
+  updatedAt          DateTime @updatedAt
+
   @@schema("public")
 }
 
@@ -300,7 +310,8 @@ model messages {
   profiles   profiles? @relation(fields: [sender_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([sender_id], map: "idx_messages_sender_id")
-  @@index([user_id])
+  // @@index([user_id])
+  @@index([user_id, is_read], map: "idx_messages_user_unread")
   @@schema("public")
 }
 

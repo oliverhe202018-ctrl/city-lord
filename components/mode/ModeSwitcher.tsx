@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useGameStore, useGameActions } from '@/store/useGameStore';
 import { RoomSelector } from '@/components/room/RoomSelector';
 import { ClubDrawer } from './ClubDrawer';
@@ -9,13 +9,36 @@ import { CreateClubDrawer } from '@/components/citylord/club/CreateClubDrawer';
 import { useHydration } from '@/hooks/useHydration';
 import { cn } from '@/lib/utils';
 
-export function ModeSwitcher() {
+export interface ModeSwitcherProps {
+  onDrawerOpenChange?: (isOpen: boolean) => void;
+}
+
+export function ModeSwitcher({ onDrawerOpenChange }: ModeSwitcherProps) {
   const hydrated = useHydration();
   const gameMode = useGameStore((state) => state.gameMode);
   const activeDrawer = useGameStore((state) => state.activeDrawer);
   const { setGameMode, openDrawer, closeDrawer } = useGameActions();
   
   const [isRoomSelectorOpen, setIsRoomSelectorOpen] = useState(false);
+
+  // Notify parent about drawer state changes if needed
+  // But wait, onDrawerOpenChange is passed to detect if ANY drawer is open?
+  // In GamePageContent: setShouldHideButtons(isOpen)
+  // But ModeSwitcher doesn't know about ALL drawers, only its own?
+  // Actually, GamePageContent uses ModeSwitcher to pass this callback...
+  // But ModeSwitcher renders ClubDrawer, CreateClubDrawer, RoomDrawer.
+  // So when these are open, it should call onDrawerOpenChange(true).
+  // But activeDrawer is in store! GamePageContent can just observe store!
+  // The prop onDrawerOpenChange seems redundant if we use store.
+  // However, I will add the prop to fix the type error and make it work as existing code expects.
+  
+  useEffect(() => {
+    if (onDrawerOpenChange) {
+      // If any of the drawers managed by this switcher are open, or room selector
+      const isAnyDrawerOpen = activeDrawer === 'club' || activeDrawer === 'createClub' || activeDrawer === 'room';
+      onDrawerOpenChange(isAnyDrawerOpen || isRoomSelectorOpen);
+    }
+  }, [activeDrawer, isRoomSelectorOpen, onDrawerOpenChange]);
 
   // 核心逻辑：点击“创建”时，关闭列表，打开创建页
   const handleOpenCreateClub = () => {
