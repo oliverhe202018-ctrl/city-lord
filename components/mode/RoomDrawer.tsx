@@ -9,12 +9,67 @@ import {
   MessageSquare, // 修复 MessageSquare is not defined
   Info,          // 修复 Info is not defined (详情页图标)
   Map as MapIcon, // 修复 MapIcon is not defined (领地图标)
-  Copy, Share2   // Added Copy and Share2
+  Copy, Share2,   // Added Copy and Share2
+  ChevronLeft
 } from 'lucide-react';
 
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from '@/components/ui/drawer';
-import { getRooms, createRoom, joinRoom, leaveRoom, type Room } from '@/app/actions/room';
+import { motion, AnimatePresence } from 'framer-motion';
+import type { Room } from '@/app/actions/room';
 import { toast } from 'sonner';
+
+const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const getRooms = async () => {
+  const res = await fetchWithTimeout('/api/room/get-rooms', { credentials: 'include' })
+  if (!res.ok) throw new Error('Failed to fetch rooms')
+  return await res.json()
+}
+
+const createRoom = async (payload: {
+  name: string
+  target_distance_km: number
+  is_private: boolean
+  password?: string
+}) => {
+  const res = await fetchWithTimeout('/api/room/create-room', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    credentials: 'include'
+  })
+  if (!res.ok) throw new Error('Failed to create room')
+  return await res.json()
+}
+
+const joinRoom = async (roomId: string, password?: string) => {
+  const res = await fetchWithTimeout('/api/room/join-room', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ roomId, password }),
+    credentials: 'include'
+  })
+  if (!res.ok) throw new Error('Failed to join room')
+  return await res.json()
+}
+
+const leaveRoom = async (roomId: string) => {
+  const res = await fetchWithTimeout('/api/room/leave-room', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ roomId }),
+    credentials: 'include'
+  })
+  if (!res.ok) throw new Error('Failed to leave room')
+  return await res.json()
+}
 import { PlayerStatsDrawer } from './PlayerStatsDrawer';
 import { useGameStore, useGameActions, useGameUser } from '@/store/useGameStore';
 import { useMyRoomData, useRoomDetails } from '@/hooks/useGameData';
@@ -71,7 +126,7 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
   });
 
   const { userId, nickname, avatar, currentRoom: selectedRoom } = useGameStore(state => state);
-  const { setCurrentRoom } = useGameActions();
+  const { setCurrentRoom, removeJoinedRoom, addJoinedRoom } = useGameActions();
   
   // 1. Fetch My Room (Background/Default) - "My Joined Room"
   const { data: myRoomData } = useMyRoomData();
@@ -204,15 +259,22 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
 
     try {
       console.log('Starting createRoom', formData);
-      await createRoom({
+      const result = await createRoom({
         name: formData.name,
         target_distance_km: formData.target_distance_km,
         is_private: formData.is_private,
         password: formData.password
       });
-      console.log('createRoom success');
-      toast.success('创建成功');
-      loadRooms(); // Will switch to my_room
+
+      if (result.success && result.room) {
+        console.log('createRoom success');
+        toast.success('创建成功');
+        addJoinedRoom(result.room); // Sync to global store
+        setCurrentRoom(result.room);
+        loadRooms(); // Will switch to my_room
+      } else {
+        toast.error(result.error || '创建失败');
+      }
     } catch (e) {
       console.error('createRoom failed', e);
       toast.error('创建失败: ' + (e instanceof Error ? e.message : '未知错误'));
@@ -229,6 +291,7 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
     try {
       await joinRoom(room.id, password);
       toast.success(`成功加入：${room.name}`);
+      addJoinedRoom(room); // Sync to global store
       setCurrentRoom(room); // Update store
       refreshRoom(); // Refetch SWR
       setView('my_room');
@@ -282,6 +345,7 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
       
       if (result.success) {
           toast.success(result.dissolved ? '房间已解散' : '已退出房间');
+          removeJoinedRoom(activeRoom.id); // Sync to global store
           setCurrentRoom(null);
           
           // Close drawer
@@ -305,48 +369,41 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
   };
 
   return (
-    <Drawer 
-      open={isOpen} 
-      onOpenChange={onClose} 
-      snapPoints={[0.4, 1]}
-      activeSnapPoint={snapPoint}
-      onActiveSnapPointChange={setSnapPoint}
-      dismissible={true}
-      repositionInputs={false}
-    >
-      <DrawerContent
-        className="bg-background border-t border-border rounded-t-[32px] w-full overflow-x-hidden flex flex-col h-full max-h-[96vh]"
-      >
-        {/* 顶部拖拽手柄 */}
-        <div className="flex justify-center pt-4 pb-2">
-          <div className="w-12 h-1.5 bg-muted rounded-full" />
-        </div>
-
-        <DrawerHeader className="px-6 pb-2">
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <DrawerTitle className="text-foreground text-2xl font-bold flex items-center gap-2">
-                {view === 'create' ? '创建私人房间' : view === 'my_room' ? activeRoom?.name || '我的房间' : view === 'invite' ? '邀请好友' : '选择跑步房间'}
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ y: "100%" }}
+          animate={{ y: 0 }}
+          exit={{ y: "100%" }}
+          transition={{ type: "spring", damping: 25, stiffness: 200 }}
+          className="fixed inset-0 z-[200] bg-background flex flex-col overflow-hidden"
+        >
+          {/* Header */}
+          <div className="flex items-center px-4 py-3 border-b border-border pt-[calc(env(safe-area-inset-top)+12px)] bg-background/80 backdrop-blur-md z-10 shrink-0">
+            <button 
+              onClick={onClose}
+              className="p-2 -ml-2 rounded-full hover:bg-muted/50 active:scale-95 transition-all text-foreground"
+            >
+              <ChevronLeft className="w-6 h-6" />
+            </button>
+            <div className="flex-1 ml-2 overflow-hidden">
+              <h1 className="text-lg font-bold flex items-center gap-2 truncate text-foreground">
+                {view === 'create' ? '创建私人房间' : view === 'my_room' ? activeRoom?.name || '我的房间' : view === 'invite' ? '邀请好友' : '跑步房间'}
                 {view === 'my_room' && activeRoom && (activeRoom.host_id === userId || activeRoom.allow_member_invite) && (
                   <button 
                     onClick={() => setView('invite')}
-                    className="p-1.5 rounded-full bg-muted hover:bg-muted/80 transition-colors ml-2"
+                    className="p-1.5 rounded-full bg-muted hover:bg-muted/80 transition-colors flex-shrink-0"
                   >
                     <UserPlus className="w-4 h-4 text-primary" />
                   </button>
                 )}
-              </DrawerTitle>
-              <p className="text-muted-foreground text-sm mt-1">
+              </h1>
+              <p className="text-muted-foreground text-xs truncate">
                 {view === 'create' ? '设置房间参数' : view === 'my_room' ? `房主: ${activeRoom?.host_name || 'Unknown'}` : view === 'invite' ? '分享房间码' : '加入好友创建的私人房间'}
               </p>
             </div>
-            <DrawerClose className="p-2 rounded-lg hover:bg-muted transition-colors cursor-pointer">
-              <svg className="w-6 h-6 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </DrawerClose>
           </div>
-        </DrawerHeader>
+          <div className="flex-1 overflow-y-auto overflow-x-hidden relative">
 
         {view === 'invite' && activeRoom ? (
           <InviteRoomView room={activeRoom} onBack={() => setView('my_room')} />
@@ -805,12 +862,14 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
             </div>
           </>
         )}
-      </DrawerContent>
-      <PlayerStatsDrawer
-        isOpen={isStatsOpen}
-        onClose={() => setIsStatsOpen(false)}
-        player={selectedPlayer}
-      />
-    </Drawer>
+          </div>
+          <PlayerStatsDrawer
+            isOpen={isStatsOpen}
+            onClose={() => setIsStatsOpen(false)}
+            player={selectedPlayer}
+          />
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

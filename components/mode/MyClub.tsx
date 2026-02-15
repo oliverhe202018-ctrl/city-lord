@@ -3,8 +3,29 @@
 
 import { useState, useEffect } from 'react';
 import { useRegion } from '@/contexts/RegionContext';
-import { getClubs, getUserClub } from '@/app/actions/club';
 import { Crown, Users, MapPin, Trophy, LineChart, TrendingUp, CheckCircle2, Loader2 } from 'lucide-react';
+
+const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const getClubs = async () => {
+  const res = await fetchWithTimeout('/api/club/get-clubs', { credentials: 'include' })
+  if (!res.ok) throw new Error('Failed to fetch clubs')
+  return await res.json()
+}
+
+const getUserClub = async () => {
+  const res = await fetchWithTimeout('/api/club/get-user-club', { credentials: 'include' })
+  if (!res.ok) throw new Error('Failed to fetch user club')
+  return await res.json()
+}
 import ClubDetails from './ClubDetails';
 
 interface ClubMember {

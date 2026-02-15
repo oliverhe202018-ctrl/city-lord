@@ -17,8 +17,43 @@ import {
   Check,
   X
 } from "lucide-react"
-import { fetchFriends, getFriendRequests, respondToFriendRequest, type Friend, type FriendRequest } from "@/app/actions/social"
+import type { Friend, FriendRequest } from "@/types/social"
+
 import { toast } from "sonner"
+
+const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const fetchFriends = async (): Promise<Friend[]> => {
+  const res = await fetchWithTimeout('/api/social/friends', { credentials: 'include' })
+  if (!res.ok) throw new Error('Failed to fetch friends')
+  return await res.json()
+}
+
+const getFriendRequests = async (): Promise<FriendRequest[]> => {
+  const res = await fetchWithTimeout('/api/social/friend-requests', { credentials: 'include' })
+  if (!res.ok) throw new Error('Failed to fetch friend requests')
+  return await res.json()
+}
+
+const respondToFriendRequest = async (userId: string, action: 'accept' | 'reject') => {
+  const res = await fetchWithTimeout('/api/social/friend-request/respond', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, action }),
+    credentials: 'include'
+  })
+  if (!res.ok) throw new Error('Failed to respond')
+  return await res.json()
+}
+
 
 interface FriendsListProps {
   onSelectFriend?: (friend: Friend) => void

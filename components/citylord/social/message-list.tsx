@@ -2,8 +2,35 @@
 
 import { useState, useEffect } from "react"
 import { Send, User, Bell, AlertCircle, Check, X, Swords, Clock, MapPin } from "lucide-react"
-import { getMessages, sendMessage, markAsRead } from "@/app/actions/message"
 import { toast } from "sonner"
+
+const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const fetchMessages = async (): Promise<Message[]> => {
+  const res = await fetchWithTimeout('/api/message/get-messages', { credentials: 'include' })
+  if (!res.ok) throw new Error('Failed to fetch messages')
+  return await res.json()
+}
+
+const sendMessage = async (receiverId: string, content: string) => {
+  const res = await fetchWithTimeout('/api/message/send-message', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ receiverId, content }),
+    credentials: 'include'
+  })
+  if (!res.ok) throw new Error('Failed to send message')
+  return await res.json()
+}
+
 import { GlassCard } from "@/components/ui/GlassCard"
 import { formatDistanceToNow } from "date-fns"
 import { zhCN } from "date-fns/locale"
@@ -38,7 +65,8 @@ export function MessageList({ initialFriendId }: MessageListProps) {
 
   const loadMessages = async () => {
     try {
-      const data = await getMessages()
+      const data = await fetchMessages()
+
       // @ts-ignore
       setMessages(data)
     } catch (error) {

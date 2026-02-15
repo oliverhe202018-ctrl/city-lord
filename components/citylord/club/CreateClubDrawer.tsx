@@ -1,7 +1,30 @@
+"use client"
+
 import React, { useState } from 'react';
 import { X, Loader2, Upload } from 'lucide-react';
-import { createClub } from '@/app/actions/club';
 import { toast } from 'sonner';
+
+const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const createClub = async (payload: { name: string; description?: string; avatar_url?: string; province?: string; is_public?: boolean }) => {
+  const res = await fetchWithTimeout('/api/club/create-club', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    credentials: 'include'
+  })
+  if (!res.ok) throw new Error('Failed to create club')
+  return await res.json()
+}
+
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';

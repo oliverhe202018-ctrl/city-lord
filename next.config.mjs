@@ -1,39 +1,91 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
-import withPWA from 'next-pwa';
+import withPWAInit from "@ducanh2912/next-pwa";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const withPWA = withPWAInit({
+  dest: "public",
+  cacheOnFrontEndNav: true,
+  aggressiveFrontEndNavCaching: true,
+  reloadOnOnline: false,
+  swcMinify: true,
+  disable: process.env.NODE_ENV === "development",
+  workboxOptions: {
+    disableDevLogs: true,
+    runtimeCaching: [
+      // 1. Static Assets (Images, Audio, Fonts) -> Cache First
+      {
+        urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp|avif|mp3|wav|woff2?|ttf|eot)$/i,
+        handler: 'CacheFirst',
+        options: {
+          cacheName: 'static-assets',
+          expiration: {
+            maxEntries: 200,
+            maxAgeSeconds: 30 * 24 * 60 * 60, // 30 Days
+          },
+        },
+      },
+      // 2. Next.js Static Resources (_next/static) -> Stale While Revalidate
+      {
+        urlPattern: /_next\/static\/.*/i,
+        handler: 'StaleWhileRevalidate',
+        options: {
+          cacheName: 'next-static-js-assets',
+          expiration: {
+            maxEntries: 64,
+            maxAgeSeconds: 24 * 60 * 60, // 24 hours
+          },
+        },
+      },
+      // 3. API Routes -> Network First (or StaleWhileRevalidate if we want offline access)
+      // Since we use TanStack Query for data persistence, we can rely on NetworkFirst here
+      // to get fresh data when online, and let TanStack handle the offline cache via IDB.
+      // HOWEVER, for App Shell architecture, critical APIs could be SWR.
+      // Let's stick to NetworkFirst for API to ensure freshness, as Query will handle the persistence layer.
+      {
+        urlPattern: /\/api\/.*/i,
+        handler: 'NetworkFirst',
+        options: {
+          cacheName: 'apis',
+          expiration: {
+            maxEntries: 32,
+            maxAgeSeconds: 24 * 60 * 60, // 24 hours
+          },
+          networkTimeoutSeconds: 10, // Fallback to cache if network is slow
+        },
+      },
+      // 4. Document/Pages -> Stale While Revalidate (Instant App Shell)
+      {
+        urlPattern: ({ request, url }) => request.mode === 'navigate',
+        handler: 'StaleWhileRevalidate',
+        options: {
+          cacheName: 'pages',
+          expiration: {
+            maxEntries: 32,
+            maxAgeSeconds: 24 * 60 * 60, 
+          },
+        },
+      },
+    ],
+  },
+});
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // ESLint 配置已移除，Next.js 16+ 不再支持在 next.config.mjs 中配置 eslint
-  // ESLint 错误现在由 ESLint 本身处理，不需要在构建时忽略
-
-  //2. 忽略 TypeScript 类型错误 (关键！你的数据库类型改动可能导致这里卡住)
+  // 1. 忽略 TypeScript 类型错误
   typescript: {
     ignoreBuildErrors: true,
   },
-  // Capacitor 需要静态导出
-  // output: 'export',
   
-  // 启用 Next.js 16 Turbopack 特性 (SVG 加载)
-  // 注意：Next.js 16 可能将 turbo 移至根节点或保持在 experimental
-  // 如果 experimental.turbo 报错，尝试根节点 turbo
-  turbo: {
-    rules: {
-      '*.svg': {
-        loaders: ['@svgr/webpack'],
-        as: '*.js',
-      },
-    },
-  },
+  // 2. 启用 Standalone 模式
+  output: 'standalone',
 
-  //3. 图片域名配置
+  // 3. 图片域名配置
   images: {
-    // unoptimized: true, // 移除以启用优化 (AVIF/WebP)
     formats: ['image/avif', 'image/webp'],
-    minimumCacheTTL: 2592000, // 30 天缓存
+    minimumCacheTTL: 2592000,
     remotePatterns: [
       {
         protocol: 'https',
@@ -47,56 +99,9 @@ const nextConfig = {
     dangerouslyAllowSVG: true,
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
-  webpack: (config, { isServer }) => {
-    if (!isServer) {
-      config.resolve.alias['next/headers'] = path.resolve(__dirname, 'mock-headers.js');
-      config.resolve.alias['@/lib/supabase/server'] = path.resolve(__dirname, 'mock-supabase.js');
 
-      // Webpack 分包优化
-      // 保留 Next.js 默认的 splitChunks 配置 (如 framework, main 等)，并合并自定义配置
-      const splitChunks = config.optimization.splitChunks || {};
-      const cacheGroups = splitChunks.cacheGroups || {};
-
-      config.optimization.splitChunks = {
-        ...splitChunks,
-        name: false, // 禁用基于路径的命名，防止广告拦截 (e.g. client_ad.js)
-        chunks: 'all',
-        minSize: 20000,
-        maxSize: 244000,
-        minChunks: 1,
-        maxAsyncRequests: 30,
-        maxInitialRequests: 30,
-        cacheGroups: {
-          ...cacheGroups,
-          amap: {
-            name: 'maps-sdk', // 重命名 amap -> maps-sdk 避免包含 'ad'
-            test: /[\\/]node_modules[\\/](@amap|amap-jsapi-loader)[\\/]/,
-            chunks: 'all',
-            priority: 20,
-            enforce: true,
-          },
-          vendors: {
-            name: 'vendors',
-            test: /[\\/]node_modules[\\/]/,
-            chunks: 'all',
-            priority: 10,
-            reuseExistingChunk: true,
-          },
-          default: {
-            minChunks: 2,
-            priority: -20,
-            reuseExistingChunk: true,
-          },
-        },
-      };
-    }
-    return config;
-  },
+  // 4. Turbopack 配置
+  turbopack: {},
 };
 
-export default withPWA({
-  dest: 'public', // 编译后的 worker 放在 public 目录
-  register: true,
-  skipWaiting: true,
-  disable: process.env.NODE_ENV === 'development', // 开发环境不启用
-})(nextConfig);
+export default withPWA(nextConfig);

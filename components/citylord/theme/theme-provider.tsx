@@ -1,8 +1,8 @@
 "use client"
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react"
-import { StatusBar, Style } from '@capacitor/status-bar';
-import { Capacitor } from '@capacitor/core';
+import { isNativePlatform, safeGetPlatform, safeStatusBarSetBackgroundColor, safeStatusBarSetOverlaysWebView, safeStatusBarSetStyle } from "@/lib/capacitor/safe-plugins";
+
 
 // ============================================================
 // Theme Definitions
@@ -290,17 +290,22 @@ export function ThemeProvider({ children, defaultTheme = "cyberpunk" }: ThemePro
     }
 
     // 4. Capacitor Status Bar
-    if (Capacitor.isNativePlatform()) {
-      const isDarkTheme = theme.isDark
-      // Style.Dark -> Light text (for dark backgrounds)
-      // Style.Light -> Dark text (for light backgrounds)
-      StatusBar.setStyle({ style: isDarkTheme ? Style.Dark : Style.Light })
-      StatusBar.setBackgroundColor({ color: theme.colors.background })
-      
-      if (Capacitor.getPlatform() === 'android') {
-        StatusBar.setOverlaysWebView({ overlay: false })
+    const applyStatusBar = async () => {
+      if (await isNativePlatform()) {
+        const isDarkTheme = theme.isDark
+        // Style.Dark -> Light text (for dark backgrounds)
+        // Style.Light -> Dark text (for light backgrounds)
+        safeStatusBarSetStyle(isDarkTheme ? 'dark' : 'light')
+        safeStatusBarSetBackgroundColor(theme.colors.background)
+        
+        const platform = await safeGetPlatform()
+        if (platform === 'android') {
+          safeStatusBarSetOverlaysWebView(false)
+        }
       }
     }
+    applyStatusBar()
+
 
     // Custom colors application (existing logic)
     Object.entries(theme.colors).forEach(([key, value]) => {

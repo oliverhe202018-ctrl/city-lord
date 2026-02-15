@@ -1,13 +1,12 @@
 import { useEffect, useRef } from 'react';
-import { App } from '@capacitor/app';
-import { BackgroundTask } from '@capawesome/capacitor-background-task';
-import { Capacitor } from '@capacitor/core';
+import { isNativePlatform, safeAppAddListener, safeBackgroundTaskBeforeExit, safeBackgroundTaskFinish } from "@/lib/capacitor/safe-plugins";
+
 
 export const useBackgroundLocation = () => {
   const taskIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return;
+    let listenerPromise: Promise<any> | null = null;
 
     const onAppStateChange = async (state: any) => {
       if (!state.isActive) {
@@ -15,7 +14,7 @@ export const useBackgroundLocation = () => {
         console.log('App entered background, requesting background task...');
         
         try {
-          const taskId = await BackgroundTask.beforeExit(async () => {
+          const taskId = await safeBackgroundTaskBeforeExit(async () => {
             console.log('Background task executing. Geolocation should stay alive.');
             
             // Here we don't actually need to do heavy work, 
@@ -26,7 +25,7 @@ export const useBackgroundLocation = () => {
             // We will finish this task only when app resumes or system kills us
           });
           
-          taskIdRef.current = taskId;
+          if (taskId) taskIdRef.current = taskId;
         } catch (err) {
           console.error('Failed to start background task:', err);
         }
@@ -34,19 +33,27 @@ export const useBackgroundLocation = () => {
         // App resumes
         if (taskIdRef.current) {
           console.log('App resumed, finishing background task:', taskIdRef.current);
-          BackgroundTask.finish({ taskId: taskIdRef.current });
+          safeBackgroundTaskFinish(taskIdRef.current);
           taskIdRef.current = null;
         }
       }
     };
 
-    const listener = App.addListener('appStateChange', onAppStateChange);
+    const setup = async () => {
+      if (!(await isNativePlatform())) return;
+      listenerPromise = safeAppAddListener('appStateChange', onAppStateChange);
+    };
+
+    setup();
 
     return () => {
-      listener.then(l => l.remove());
+      if (listenerPromise) {
+        listenerPromise.then(l => l?.remove());
+      }
       if (taskIdRef.current) {
-        BackgroundTask.finish({ taskId: taskIdRef.current });
+        safeBackgroundTaskFinish(taskIdRef.current);
       }
     };
   }, []);
+
 };

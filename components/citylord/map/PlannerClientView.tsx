@@ -26,7 +26,8 @@ import { useGameStore } from "@/store/useGameStore";
 import { calculateSmartRoute } from "@/lib/utils/routing";
 import { latLngToCell } from "h3-js";
 import MapManager from "@/lib/mapManager";
-import { Capacitor } from "@capacitor/core";
+import { isNativePlatform } from "@/lib/capacitor/safe-plugins";
+
 
 // Security Config
 const AMAP_KEY = process.env.NEXT_PUBLIC_AMAP_KEY || "2f65c697074e0d4c8270195561578e06";
@@ -109,18 +110,28 @@ export default function PlannerClientView() {
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
-    // Capacitor Touch Handling for Android
-    if (Capacitor.isNativePlatform()) {
-      const container = mapContainerRef.current;
-      const handleTouch = (e: TouchEvent) => {
-        e.stopPropagation();
-      };
-      container.addEventListener('touchstart', handleTouch, { passive: false });
-      return () => {
-        container.removeEventListener('touchstart', handleTouch);
-      };
-    }
+    const container = mapContainerRef.current;
+    let cleanup: (() => void) | undefined;
+
+    const setupNativeTouch = async () => {
+      if (await isNativePlatform()) {
+        const handleTouch = (e: TouchEvent) => {
+          e.stopPropagation();
+        };
+        container.addEventListener('touchstart', handleTouch, { passive: false });
+        cleanup = () => {
+          container.removeEventListener('touchstart', handleTouch);
+        };
+      }
+    };
+
+    setupNativeTouch();
+
+    return () => {
+      cleanup?.();
+    };
   }, []);
+
 
   useEffect(() => {
     if (!mapContainerRef.current) return;
@@ -209,13 +220,20 @@ export default function PlannerClientView() {
         container.addEventListener('mouseup', handleDrawEnd);
         
         // Capacitor Touch Protection
-        if (Capacitor.isNativePlatform()) {
-          container.addEventListener('touchstart', (e) => {
-            if (modeRef.current === 'draw') {
-              e.stopPropagation();
-            }
-          }, { passive: false });
-        }
+        const handleNativeTouch = (e: TouchEvent) => {
+          if (modeRef.current === 'draw') {
+            e.stopPropagation();
+          }
+        };
+
+        const setupNativeTouch = async () => {
+          if (await isNativePlatform()) {
+            container.addEventListener('touchstart', handleNativeTouch, { passive: false });
+          }
+        };
+
+        setupNativeTouch();
+
       }
       
       // Mark map as ready
@@ -233,12 +251,14 @@ export default function PlannerClientView() {
       const container = mapContainerRef.current;
       if (container) {
         container.removeEventListener('touchstart', handleDrawStart);
+        container.removeEventListener('touchstart', handleNativeTouch);
         container.removeEventListener('touchmove', handleDrawMove);
         container.removeEventListener('touchend', handleDrawEnd);
         container.removeEventListener('mousedown', handleDrawStart);
         container.removeEventListener('mousemove', handleDrawMove);
         container.removeEventListener('mouseup', handleDrawEnd);
       }
+
       
       if (mapInstanceRef.current) {
         mapInstanceRef.current.off('click', handleMapClick);

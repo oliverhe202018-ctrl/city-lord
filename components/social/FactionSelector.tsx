@@ -6,10 +6,32 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Shield, Zap, User, Users } from 'lucide-react'
-import { joinFaction, Faction } from '@/app/actions/faction'
+import type { Faction } from '@/app/actions/faction'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+
+const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const joinFaction = async (faction: Faction) => {
+  const res = await fetchWithTimeout('/api/faction/join-faction', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ faction }),
+    credentials: 'include'
+  })
+  if (!res.ok) throw new Error('Failed to join faction')
+  return await res.json()
+}
+
 
 import { useRouter } from 'next/navigation'
 
@@ -65,7 +87,8 @@ export function FactionSelector({ initialUser }: FactionSelectorProps) {
 
   const loadStats = async () => {
     try {
-      const res = await fetch('/api/faction/stats')
+      const res = await fetchWithTimeout('/api/faction/stats', { credentials: 'include' })
+
       if (!res.ok) {
         throw new Error(`Failed to fetch: ${res.status}`)
       }

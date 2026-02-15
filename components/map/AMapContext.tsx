@@ -1,6 +1,7 @@
 "use client"
 
 import { createContext, useContext, ReactNode } from 'react';
+import { GeoPoint } from '@/hooks/useSafeGeolocation';
 
 export interface LocationState {
   status: 'loading' | 'success' | 'error';
@@ -14,8 +15,9 @@ export interface AMapContextProps {
   isLoaded: boolean;
   viewMode: 'individual' | 'faction';
   setViewMode: (mode: 'individual' | 'faction') => void;
-  locationState: LocationState;
-  initLocation: () => Promise<void>;
+  locationState: LocationState; // Keep for backward compatibility if needed, or deprecate
+  currentLocation: GeoPoint | null; // New field
+  initLocation: () => Promise<void>; // Keep for compatibility, maybe alias to retry
   centerMap: () => void;
 }
 

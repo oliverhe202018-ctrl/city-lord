@@ -2,9 +2,30 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRegion } from '@/contexts/RegionContext';
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from '@/components/ui/drawer';
-import { leaveClub } from '@/app/actions/club';
 import { toast } from 'sonner';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ChevronLeft } from 'lucide-react';
+
+const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const leaveClub = async (clubId: string) => {
+  const res = await fetchWithTimeout('/api/club/leave-club', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ clubId }),
+    credentials: 'include'
+  })
+  if (!res.ok) throw new Error('Failed to leave club')
+  return await res.json()
+}
 import { useGameStore } from '@/store/useGameStore';
 import { createClient } from "@/lib/supabase/client";
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -28,6 +49,7 @@ export function ClubDrawer({ isOpen, onClose, onOpenCreate }: ClubDrawerProps) {
   
   // Navigation
   const router = useRouter();
+
   const searchParams = useSearchParams();
 
   // Context & Store Hooks
@@ -69,9 +91,11 @@ export function ClubDrawer({ isOpen, onClose, onOpenCreate }: ClubDrawerProps) {
   useEffect(() => {
     // Lazy fetch top clubs when drawer opens or mode changes
     const fetchTopClubs = async () => {
-        const { getTopClubsByArea } = await import('@/app/actions/club');
-        const data = await getTopClubsByArea();
-        setTopClubs(data);
+        const res = await fetchWithTimeout('/api/club/get-top-clubs-by-area', { credentials: 'include' })
+        if (res.ok) {
+          const data = await res.json()
+          setTopClubs(data)
+        }
     };
     fetchTopClubs();
   }, []);
@@ -98,8 +122,14 @@ export function ClubDrawer({ isOpen, onClose, onOpenCreate }: ClubDrawerProps) {
   const handleJoinClub = async (clubId: string) => {
     setIsJoining(true);
     try {
-      const { joinClub } = await import('@/app/actions/club');
-      const result = await joinClub(clubId);
+      const res = await fetchWithTimeout('/api/club/join-club', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clubId }),
+        credentials: 'include'
+      })
+      if (!res.ok) throw new Error('Failed to join club')
+      const result = await res.json();
       if (result.success) {
         toast.success(result.status === 'active' ? '加入成功！' : '申请已提交，等待审核');
         
@@ -275,67 +305,64 @@ export function ClubDrawer({ isOpen, onClose, onOpenCreate }: ClubDrawerProps) {
   const isViewingJoined = joinedClub && joinedClub.status === 'active';
 
   return (
-    <Drawer 
-      open={isOpen} 
-      onOpenChange={onClose} 
-      snapPoints={[0.4, 1]}
-      activeSnapPoint={snapPoint}
-      onActiveSnapPointChange={setSnapPoint}
-      dismissible={true}
-      repositionInputs={false}
-    >
-      <DrawerContent
-        className="bg-background border-t border-border rounded-t-[32px] w-full overflow-x-hidden flex flex-col h-[96vh]"
-      >
-        <div className="flex justify-center pt-4 pb-2 flex-shrink-0 relative">
-          <div className="w-12 h-1.5 bg-muted rounded-full" />
-          
-          {/* Global Close Button */}
-          <div className="absolute right-4 top-0">
-             <DrawerClose className="p-2 rounded-full bg-muted/50 hover:bg-muted transition-colors cursor-pointer">
-                <svg className="w-5 h-5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-             </DrawerClose>
-          </div>
-        </div>
-
-        {/* Only show generic header if in discovery mode AND list view AND not viewing detail */}
-        {(!joinedClub || joinedClub.status !== 'active') && !viewingClubId && (
-            <DrawerHeader className="px-6 pb-2 flex-shrink-0">
-            <div className="flex items-center justify-between">
-                <div>
-                <DrawerTitle className="text-foreground text-2xl font-bold">
-                    跑步俱乐部
-                </DrawerTitle>
-                <p className="text-muted-foreground text-sm mt-1">
-                    加入俱乐部，与跑友一起进步
-                </p>
-                </div>
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div 
+          initial={{ y: "100%" }}
+          animate={{ y: 0 }}
+          exit={{ y: "100%" }}
+          transition={{ type: "spring", damping: 25, stiffness: 200 }}
+          className="fixed inset-0 z-[200] bg-background flex flex-col overflow-hidden"
+        >
+          <div className="flex items-center px-4 py-3 border-b border-border pt-[calc(env(safe-area-inset-top)+12px)] bg-background/80 backdrop-blur-md z-10 shrink-0">
+            <button 
+              onClick={onClose}
+              className="p-2 -ml-2 rounded-full hover:bg-muted/50 active:scale-95 transition-all text-foreground"
+            >
+              <ChevronLeft className="w-6 h-6" />
+            </button>
+            <div className="flex-1 ml-2 overflow-hidden">
+              <h1 className="text-lg font-bold flex items-center gap-2 truncate text-foreground">
+                {viewingClubId 
+                  ? allClubs.find(c => c.id === viewingClubId)?.name || '俱乐部详情'
+                  : joinedClub?.status === 'active' 
+                    ? joinedClub.name 
+                    : '跑步俱乐部'}
+              </h1>
+              <p className="text-muted-foreground text-xs truncate">
+                 {viewingClubId 
+                  ? '查看俱乐部信息'
+                  : joinedClub?.status === 'active' 
+                    ? '我的俱乐部' 
+                    : '加入俱乐部，与跑友一起进步'}
+              </p>
             </div>
-            </DrawerHeader>
-        )}
+          </div>
 
-        {renderContent()}
+          {/* Scrollable Content */}
+          <div className="flex-1 overflow-y-auto overflow-x-hidden pb-safe">
+             {renderContent()}
+          </div>
 
-        <ClubManageDrawer
-          isOpen={isManageOpen}
-          onClose={() => setIsManageOpen(false)}
-          club={joinedClub ? {
-            id: joinedClub.id,
-            name: joinedClub.name,
-            description: joinedClub.description,
-            avatar_url: joinedClub.avatar_url,
-            owner_id: joinedClub.owner_id
-          } : undefined}
-        />
+          <ClubManageDrawer
+            isOpen={isManageOpen}
+            onClose={() => setIsManageOpen(false)}
+            club={joinedClub ? {
+              id: joinedClub.id,
+              name: joinedClub.name,
+              description: joinedClub.description,
+              avatar_url: joinedClub.avatar_url,
+              owner_id: joinedClub.owner_id
+            } : undefined}
+          />
 
-        <LeaveClubModal
-          isOpen={isLeaveModalOpen}
-          onClose={() => setIsLeaveModalOpen(false)}
-          onConfirm={handleLeaveClub}
-        />
-      </DrawerContent>
-    </Drawer>
+          <LeaveClubModal
+            isOpen={isLeaveModalOpen}
+            onClose={() => setIsLeaveModalOpen(false)}
+            onConfirm={handleLeaveClub}
+          />
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

@@ -7,42 +7,44 @@ export type Faction = 'RED' | 'BLUE'
 
 export async function getFactionStats() {
   const fetchLogic = async () => {
-    // 1. Get Member Counts (Optimized with DailyStat)
+    // 1. Get Member Counts (Always Real-time for Accuracy)
+    // User requested "real numbers", so we skip the potentially stale snapshot for current display.
     let redCount = 0
     let blueCount = 0
 
-    // Try to get latest daily stat to avoid slow real-time queries
-    const dailySnapshot = await prisma.dailyStat.findFirst({
-      orderBy: { date: 'desc' }
-    })
+    const [rCount, bCount] = await Promise.all([
+      prisma.profiles.count({ where: { faction: 'Red' } }),
+      prisma.profiles.count({ where: { faction: 'Blue' } })
+    ])
+    
+    redCount = rCount
+    blueCount = bCount;
 
-    if (dailySnapshot) {
-      redCount = dailySnapshot.redCount
-      blueCount = dailySnapshot.blueCount
-    } else {
-      // Fallback: Real-time query (only if no snapshot exists)
-      const [rCount, bCount] = await Promise.all([
-        prisma.profiles.count({ where: { faction: 'Red' } }),
-        prisma.profiles.count({ where: { faction: 'Blue' } })
-      ])
-      
-      redCount = rCount
-      blueCount = bCount
-
-      // Write initial snapshot
+    // Background: Update or Create Daily Snapshot for History
+    // We don't await this to keep UI fast
+    (async () => {
       try {
-        await prisma.dailyStat.create({
-          data: {
-            date: new Date(),
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        
+        await prisma.dailyStat.upsert({
+          where: { date: today },
+          update: {
             redCount,
             blueCount,
-            totalTerritories: 0 // Placeholder
+            // We don't update totalTerritories here as it requires another query
+          },
+          create: {
+            date: today,
+            redCount,
+            blueCount,
+            totalTerritories: 0
           }
         })
       } catch (e) {
-        console.warn('Failed to create DailyStat snapshot:', e)
+        console.warn('Failed to update DailyStat:', e)
       }
-    }
+    })()
 
     // 2. Get Area Counts (Optimized: Use Snapshot)
     // The previous real-time calculation on 'territories' table was too slow (causing 10s delay).
@@ -116,11 +118,11 @@ export async function getFactionStats() {
   }
 
   try {
-    // Timeout wrapper: 3 seconds limit
+    // Timeout wrapper: 10 seconds limit (increased from 3s for cold starts)
     const result = await Promise.race([
       fetchLogic(),
       new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error('Database timeout')), 3000)
+        setTimeout(() => reject(new Error('Database timeout')), 10000)
       )
     ])
     return result

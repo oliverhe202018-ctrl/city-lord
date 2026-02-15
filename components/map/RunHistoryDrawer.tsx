@@ -5,9 +5,24 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from "@
 import { X, Calendar, MapPin, ChevronRight, Trophy, TrendingUp, Loader2 } from "lucide-react"
 import { format } from "date-fns"
 import { zhCN } from "date-fns/locale"
-import { getRecentActivities } from "@/app/actions/activities"
 import { toast } from "sonner"
 import Link from "next/link"
+
+const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const getRecentActivities = async (limit: number = 5) => {
+  const res = await fetchWithTimeout(`/api/activities/get-recent-activities?limit=${limit}`, { credentials: 'include' })
+  if (!res.ok) throw new Error('Failed to fetch activities')
+  return await res.json()
+}
 
 interface Activity {
   id: string
@@ -32,7 +47,7 @@ export function RunHistoryDrawer({ isOpen, onClose }: RunHistoryDrawerProps) {
       const fetchActivities = async () => {
         setLoading(true)
         try {
-          const { data } = await getRecentActivities(5)
+          const data = await getRecentActivities(5)
           setActivities(data || [])
         } catch (error) {
           console.error(error)

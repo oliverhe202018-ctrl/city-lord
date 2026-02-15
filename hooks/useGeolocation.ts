@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Geolocation } from '@capacitor/geolocation';
-import { Capacitor } from '@capacitor/core';
 import { toast } from 'sonner';
+import { isNativePlatform, safeCheckGeolocationPermission, safeRequestGeolocationPermission, safeGetCurrentPosition, safeWatchPosition, safeClearWatch, type SafePosition } from '@/lib/capacitor/safe-plugins';
+
 import gcoord from 'gcoord';
 
 interface GeolocationOptions {
@@ -75,38 +75,30 @@ export const useGeolocation = ({
     }
 
     try {
-      let position: any;
+      let position: SafePosition | null = null;
       
-      if (Capacitor.isNativePlatform()) {
+      if (await isNativePlatform()) {
         // Request permissions first
-        const permissionStatus = await Geolocation.checkPermissions();
-        if (permissionStatus.location !== 'granted') {
-            const requestStatus = await Geolocation.requestPermissions();
-            if (requestStatus.location !== 'granted') {
+        const permissionStatus = await safeCheckGeolocationPermission();
+        if (permissionStatus !== 'granted') {
+            const requestStatus = await safeRequestGeolocationPermission();
+            if (requestStatus !== 'granted') {
                 throw new Error('User denied location permission');
             }
         }
-
-        position = await Geolocation.getCurrentPosition({
-          enableHighAccuracy,
-          timeout: timeout || 10000,
-          maximumAge
-        });
-      } else {
-        // Web Fallback
-        position = await new Promise((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, {
-            enableHighAccuracy,
-            timeout: timeout || 10000,
-            maximumAge
-          });
-        });
       }
 
-      if (!isMounted.current) return;
+      position = await safeGetCurrentPosition({
+        enableHighAccuracy,
+        timeout: timeout || 10000,
+        maximumAge
+      });
 
-      let latitude = position.coords.latitude;
-      let longitude = position.coords.longitude;
+      if (!position || !isMounted.current) return;
+
+      let latitude = position.lat;
+      let longitude = position.lng;
+
       let coordType: 'gcj02' | 'wgs84' = 'wgs84';
 
       if (gpsCorrectionEnabled) {
@@ -177,68 +169,49 @@ export const useGeolocation = ({
   useEffect(() => {
     if (disabled || !watch) {
       if (watchIdRef.current) {
-        Geolocation.clearWatch({ id: watchIdRef.current });
+        safeClearWatch(watchIdRef.current);
         watchIdRef.current = null;
       }
       return;
     }
 
+
     const startWatch = async () => {
       try {
-        if (Capacitor.isNativePlatform()) {
-          const id = await Geolocation.watchPosition(
-            {
-              enableHighAccuracy,
-              timeout,
-              maximumAge
-            },
-            (position, err) => {
-              if (!isMounted.current) return;
+        const id = await safeWatchPosition(
+          (position, err) => {
+            if (!isMounted.current) return;
 
-              if (err) {
-                // Suppress error if we are just starting up or if it's a transient issue
-                // But for watchPosition, err is usually significant. 
-                // However, we want to match the "silence initial errors" philosophy.
-                setState((prev) => ({ ...prev, loading: false, error: err }));
-                return;
-              }
-
-              if (position) {
-                processPosition(position);
-              }
-            }
-          );
-          watchIdRef.current = id;
-        } else {
-          // Web Watch
-          const id = navigator.geolocation.watchPosition(
-            (position) => {
-              if (!isMounted.current) return;
-              processPosition(position);
-            },
-            (err) => {
-              if (!isMounted.current) return;
+            if (err) {
+              // Suppress error if we are just starting up or if it's a transient issue
+              // But for watchPosition, err is usually significant. 
+              // However, we want to match the "silence initial errors" philosophy.
               setState((prev) => ({ ...prev, loading: false, error: err }));
-            },
-            {
-              enableHighAccuracy,
-              timeout,
-              maximumAge
+              return;
             }
-          );
-          // Store ID as string for consistency (though web returns number)
-          watchIdRef.current = String(id);
-        }
+
+            if (position) {
+              processPosition(position);
+            }
+          },
+          {
+            enableHighAccuracy,
+            timeout,
+            maximumAge
+          }
+        );
+        watchIdRef.current = id;
       } catch (err) {
         console.error("Failed to start watch:", err);
       }
     };
 
     // Helper to process position (deduplicate logic)
-    const processPosition = (position: any) => {
-      let latitude = position.coords.latitude;
-      let longitude = position.coords.longitude;
+    const processPosition = (position: SafePosition) => {
+      let latitude = position.lat;
+      let longitude = position.lng;
       let coordType: 'gcj02' | 'wgs84' = 'wgs84';
+
 
       if (gpsCorrectionEnabled) {
         // Transform WGS-84 (Capacitor/Web) to GCJ-02 (AMap)
@@ -270,14 +243,11 @@ export const useGeolocation = ({
 
     return () => {
       if (watchIdRef.current) {
-        if (Capacitor.isNativePlatform()) {
-          Geolocation.clearWatch({ id: watchIdRef.current });
-        } else {
-          navigator.geolocation.clearWatch(Number(watchIdRef.current));
-        }
+        safeClearWatch(watchIdRef.current);
         watchIdRef.current = null;
       }
     };
+
   }, [watch, enableHighAccuracy, timeout, maximumAge, disabled]);
 
   const refetch = useCallback(() => {

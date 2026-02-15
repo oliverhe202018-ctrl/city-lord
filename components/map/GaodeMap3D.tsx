@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import AMapLoader from "@amap/amap-jsapi-loader"
+import { safeLoadAMap, safeDestroyMap } from '@/lib/map/safe-amap';
 import { h3ToAmapGeoJSON } from "@/lib/citylord/map-utils"
 import { useTheme } from "next-themes"
 import { toast } from "sonner"
@@ -95,118 +95,122 @@ export function GaodeMap3D({
   useEffect(() => {
     if (!mapContainerRef.current) return
 
-    // Ensure Security Config is set BEFORE loading (Force hardcoded key for safety)
-    if (typeof window !== "undefined") {
-      (window as any)._AMapSecurityConfig = {
-        securityJsCode: 'e827ba611fad4802c48dd900d01eb4bf',
-      }
-      addLog("Security Config Set (Hardcoded)")
-    }
+    (async () => {
+      try {
+        const AMap = await safeLoadAMap({
+          plugins: ["AMap.Scale", "AMap.ToolBar", "AMap.ControlBar", "AMap.MoveAnimation"],
+          Loca: {
+            version: "2.0.0"
+          }
+        });
 
-    AMapLoader.load({
-      key: AMAP_KEY,
-      version: "2.0",
-      plugins: ["AMap.Scale", "AMap.ToolBar", "AMap.ControlBar", "AMap.MoveAnimation"],
-      Loca: {
-        version: "2.0.0"
-      }
-    }).then((AMap) => {
-      addLog("AMap Loader Success")
-
-      // Create Map Instance
-      const map = new AMap.Map(mapContainerRef.current, {
-        viewMode: "3D",
-        zoom: 16, // Force zoom level for Loca
-        center: userLocation,
-        pitch: 50, // 3D Tilt (45-60 is recommended)
-        rotation: 0,
-        mapStyle: "amap://styles/22e069175d1afe32e9542abefde02cb5",
-        showLabel: false,
-        skyColor: '#1f2029'
-      })
-
-      mapInstanceRef.current = map
-      addLog("Map Instance Created")
-
-      // Add ControlBar for Manual Tilt/Rotation
-      const controlBar = new AMap.ControlBar({
-        position: {
-          right: '10px',
-          top: '10px'
+        if (!AMap || !mapContainerRef.current) {
+             addLog("AMap Load Failed or Container Missing");
+             return;
         }
-      })
-      map.addControl(controlBar)
 
-      // Create Loca Container
-      const loca = new window.Loca.Container({
-        map,
-      })
-      locaInstanceRef.current = loca
-      addLog("Loca Container Created")
+        addLog("AMap Loader Success")
 
-      // Add Lights
-      loca.ambLight = {
-        intensity: 0.6,
-        color: '#fff',
-      }
-      loca.dirLight = {
-        intensity: 1.0,
-        color: '#fff',
-        target: [0, 0, 0],
-        position: [0, -1, 1],
-      }
-      loca.pointLight = {
-        color: 'rgb(100,100,100)',
-        position: [userLocation[0], userLocation[1], 1000],
-        intensity: 1.5,
-        distance: 5000,
-      }
-      addLog("Lights Added")
-
-      // Initialize Prism Layer
-      const prismLayer = new window.Loca.PrismLayer({
-        zIndex: 10,
-        opacity: 1,
-        cullface: 'none', // Ensure both sides visible
-        hasSide: true
-      })
-      loca.add(prismLayer)
-      prismLayerRef.current = prismLayer
-      addLog("Prism Layer Added")
-
-      // Add User Marker
-      // Only add if there is NO existing marker (shouldn't happen with refs but safety first)
-      if (!markerRef.current) {
-        const marker = new AMap.Marker({
-          position: userLocation,
-          content: `<div style="
-            width: 20px; 
-            height: 20px; 
-            background: #22c55e; 
-            border-radius: 50%; 
-            box-shadow: 0 0 15px #22c55e;
-            border: 3px solid white;
-          "></div>`,
-          offset: new AMap.Pixel(-10, -10)
+        // Create Map Instance
+        const map = new AMap.Map(mapContainerRef.current, {
+          viewMode: "3D",
+          zoom: 16, // Force zoom level for Loca
+          center: userLocation,
+          pitch: 50, // 3D Tilt (45-60 is recommended)
+          rotation: 0,
+          mapStyle: "amap://styles/22e069175d1afe32e9542abefde02cb5",
+          showLabel: false,
+          skyColor: '#1f2029'
         })
-        map.add(marker)
-        markerRef.current = marker
+
+        mapInstanceRef.current = map
+        addLog("Map Instance Created")
+
+        // Add ControlBar for Manual Tilt/Rotation
+        const controlBar = new AMap.ControlBar({
+          position: {
+            right: '10px',
+            top: '10px'
+          }
+        })
+        map.addControl(controlBar)
+
+        // Create Loca Container
+        // Ensure Loca is available on window
+        if (!window.Loca) {
+             throw new Error("Loca not loaded");
+        }
+
+        const loca = new window.Loca.Container({
+          map,
+        })
+        locaInstanceRef.current = loca
+        addLog("Loca Container Created")
+
+        // Add Lights
+        loca.ambLight = {
+          intensity: 0.6,
+          color: '#fff',
+        }
+        loca.dirLight = {
+          intensity: 1.0,
+          color: '#fff',
+          target: [0, 0, 0],
+          position: [0, -1, 1],
+        }
+        loca.pointLight = {
+          color: 'rgb(100,100,100)',
+          position: [userLocation[0], userLocation[1], 1000],
+          intensity: 1.5,
+          distance: 5000,
+        }
+        addLog("Lights Added")
+
+        // Initialize Prism Layer
+        const prismLayer = new window.Loca.PrismLayer({
+          zIndex: 10,
+          opacity: 1,
+          cullface: 'none', // Ensure both sides visible
+          hasSide: true
+        })
+        loca.add(prismLayer)
+        prismLayerRef.current = prismLayer
+        addLog("Prism Layer Added")
+
+        // Add User Marker
+        // Only add if there is NO existing marker (shouldn't happen with refs but safety first)
+        if (!markerRef.current) {
+          const marker = new AMap.Marker({
+            position: userLocation,
+            content: `<div style="
+              width: 20px; 
+              height: 20px; 
+              background: #22c55e; 
+              border-radius: 50%; 
+              box-shadow: 0 0 15px #22c55e;
+              border: 3px solid white;
+            "></div>`,
+            offset: new AMap.Pixel(-10, -10)
+          })
+          map.add(marker)
+          markerRef.current = marker
+        }
+
+        setIsMapReady(true)
+
+        // Animation Loop
+        const animate = () => {
+          // loca.viewControl.addAnimFrame(animate) // Deprecated in some versions, simpler way:
+          requestAnimationFrame(animate)
+          loca.animate.start()
+        }
+        animate()
+
+      } catch (e: any) {
+        console.error("AMap Load Failed:", e)
+        addLog(`Load Error: ${e.message}`)
       }
-
-      setIsMapReady(true)
-
-      // Animation Loop
-      const animate = () => {
-        // loca.viewControl.addAnimFrame(animate) // Deprecated in some versions, simpler way:
-        requestAnimationFrame(animate)
-        loca.animate.start()
-      }
-      animate()
-
-    }).catch(e => {
-      console.error("AMap Load Failed:", e)
-      addLog(`Load Error: ${e.message}`)
-    })
+    })();
 
     return () => {
       if (mapInstanceRef.current) {
@@ -221,7 +225,8 @@ export function GaodeMap3D({
         
         markerRef.current?.remove?.()
         
-        mapInstanceRef.current.destroy()
+        safeDestroyMap(mapInstanceRef.current);
+        mapInstanceRef.current = null;
       }
     }
   }, [])

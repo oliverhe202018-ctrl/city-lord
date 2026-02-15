@@ -22,9 +22,49 @@ import {
 import { AvatarUploader } from '@/components/ui/AvatarUploader';
 import { Loader2, Users, MapPin, Clock, ArrowRight, Copy, Check } from 'lucide-react';
 import { toast } from 'sonner';
-import { createRoom, joinRoomByCode } from '@/app/actions/room';
 import { useGameActions } from '@/store/useGameStore';
 import { Room } from '@/types/room';
+
+const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const joinRoomByCode = async (code: string) => {
+  const res = await fetchWithTimeout('/api/room/join-room-by-code', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code }),
+    credentials: 'include'
+  })
+  if (!res.ok) throw new Error('Failed to join room by code')
+  return await res.json()
+}
+
+const createRoom = async (payload: {
+  name: string
+  avatar_url: string
+  allow_chat: boolean
+  allow_imports: boolean
+  allow_member_invite: boolean
+  max_participants: number
+  is_private: boolean
+}) => {
+  const res = await fetchWithTimeout('/api/room/create-room', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    credentials: 'include'
+  })
+  if (!res.ok) throw new Error('Failed to create room')
+  return await res.json()
+}
+
 
 interface RoomManagerModalProps {
   open: boolean;

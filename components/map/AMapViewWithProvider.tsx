@@ -1,18 +1,20 @@
 "use client"
 
-import React from 'react';
-import dynamic from 'next/dynamic';
+import React, { forwardRef } from 'react';
+import AMapView from './AMapView';
 import { MapRoot } from './MapRoot';
 import type { AMapViewHandle, AMapViewProps } from './AMapView';
 
-const AMapView = dynamic(() => import('./AMapView'), {
-  ssr: false,
-});
+// ✅ 使用 forwardRef 正确处理 ref
+export const AMapViewWithProvider = forwardRef<AMapViewHandle, AMapViewProps>(
+  function AMapViewWithProvider(props, ref) {
+    return (
+      <MapRoot>
+        <AMapView {...props} ref={ref} />
+      </MapRoot>
+    );
+  }
+);
 
-export function AMapViewWithProvider(props: AMapViewProps & { ref?: React.Ref<AMapViewHandle> }) {
-  return (
-    <MapRoot>
-      <AMapView {...props} />
-    </MapRoot>
-  );
-}
+// ✅ 添加 displayName（用于调试）
+AMapViewWithProvider.displayName = 'AMapViewWithProvider';

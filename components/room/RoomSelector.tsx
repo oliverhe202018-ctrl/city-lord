@@ -4,8 +4,24 @@ import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Plus, Users, Globe, Check, Settings2 } from 'lucide-react';
 import { useGameStore, useGameActions } from '@/store/useGameStore';
-import { getJoinedRooms } from '@/app/actions/room';
 import { Room } from '@/types/room';
+
+const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const getJoinedRooms = async () => {
+  const res = await fetchWithTimeout('/api/room/get-joined-rooms', { credentials: 'include' })
+  if (!res.ok) throw new Error('Failed to fetch joined rooms')
+  return await res.json()
+}
+
 import { cn } from '@/lib/utils';
 import {
   DropdownMenu,

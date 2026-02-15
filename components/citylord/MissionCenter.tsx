@@ -11,8 +11,29 @@ import { useGameStore, useGameActions } from "@/store/useGameStore"
 import { useHydration } from "@/hooks/useHydration"
 import { GlassCard } from "@/components/ui/GlassCard"
 import { CyberButton } from "@/components/ui/CyberButton"
-import { fetchUserMissions, claimMissionReward } from "@/app/actions/mission"
 import { createClient } from "@/lib/supabase/client"
+
+const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const claimMissionReward = async (missionId: string) => {
+  const res = await fetchWithTimeout('/api/mission/claim-mission-reward', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ missionId }),
+    credentials: 'include'
+  })
+  if (!res.ok) throw new Error('Failed to claim reward')
+  return await res.json()
+}
+
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { LogIn } from "lucide-react"

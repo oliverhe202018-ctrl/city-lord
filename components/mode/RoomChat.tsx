@@ -86,18 +86,19 @@ export function RoomChat({ roomId, participants = [], currentUser }: RoomChatPro
     if (!roomId) return;
 
     let channel: RealtimeChannel | null = null;
-    let isMounted = true; // 1. 防止组件卸载后更新状态
+    let isMounted = true; 
     let retryTimeout: NodeJS.Timeout;
 
     const connect = async () => {
         // 如果已经有连接，先清理
         if (channel) await supabase.removeChannel(channel);
 
-        console.log('[RoomChat] Initiating connection...');
+        console.log('[RoomChat] Initiating connection for room:', roomId);
         setConnectionStatus('CONNECTING');
         
-        // 2. 创建频道
-        channel = supabase.channel(`room-chat-${roomId}`, {
+        // 2. 创建频道 - Include timestamp to force new channel
+        const channelName = `room-chat-${roomId}-${Date.now()}`;
+        channel = supabase.channel(channelName, {
             config: {
                 broadcast: { self: true },
                 presence: { key: userId || 'anon' },
@@ -125,8 +126,8 @@ export function RoomChat({ roomId, participants = [], currentUser }: RoomChatPro
                 setTimeout(scrollToBottom, 100);
               }
             )
-            .subscribe((status) => {
-                console.log(`[RoomChat] Status changed: ${status}`);
+            .subscribe((status, err) => {
+                console.log(`[RoomChat] Status changed: ${status}`, err);
                 
                 if (!isMounted) return;
 
@@ -135,7 +136,7 @@ export function RoomChat({ roomId, participants = [], currentUser }: RoomChatPro
                 } 
                 else if (status === 'CLOSED' || status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
                     setConnectionStatus('DISCONNECTED');
-                    // 4. 遇到错误，3秒后自动重试 (关键!)
+                    // 4. 遇到错误，3秒后自动重试
                     console.log('[RoomChat] Connection lost, retrying in 3s...');
                     clearTimeout(retryTimeout);
                     retryTimeout = setTimeout(() => {

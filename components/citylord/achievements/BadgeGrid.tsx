@@ -93,7 +93,7 @@ export function BadgeGrid() {
               onClick={() => setSelectedBadge(badge)}
               className={`
                 relative aspect-[4/5] rounded-xl border p-2 flex flex-col items-center justify-between
-                transition-all duration-200 active:scale-95 touch-none select-none
+                transition-all duration-200 active:scale-95 select-none
                 ${unlocked
                   ? `${tierColor}`
                   : 'bg-zinc-900/50 border-zinc-800 text-zinc-600 grayscale'}

@@ -1,35 +1,39 @@
 'use server'
 
+// export type { Friend, FriendRequest } from '@/types/social'
+
+import type { Friend, FriendRequest } from '@/types/social'
 import { createClient } from '@/lib/supabase/server'
 import { sendMessage, markAsRead, getMessages } from './message'
 import { Database } from '@/types/supabase'
 import { cookies } from 'next/headers'
 
+
 type Profile = Database['public']['Tables']['profiles']['Row']
 
-export interface FriendRequest {
-  id: string
-  userId: string
-  name: string
-  avatar?: string | null
-  level: number
-  timestamp: string
-}
+//export interface FriendRequest {
+//  id: string
+//  userId: string
+//  name: string
+//  avatar?: string | null
+//  level: number
+//  timestamp: string
+//}
 
-export interface Friend {
-  id: string
-  name: string
-  avatar?: string | null
-  level: number
-  status: "online" | "running" | "offline"
-  lastActive?: string
-  lastActiveAt?: string
-  hexCount: number
-  totalKm: number
-  clan?: string
-  clanColor?: string
-  nearbyDistance?: number
-}
+//export interface Friend {
+//  id: string
+//  name: string
+//  avatar?: string | null
+//  level: number
+//  status: "online" | "running" | "offline"
+//  lastActive?: string
+//  lastActiveAt?: string
+//  hexCount: number
+//  totalKm: number
+//  clan?: string
+//  clanColor?: string
+//  nearbyDistance?: number
+//}
 
 // ... existing code ...
 

@@ -1,9 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Territory } from "@/types/city";
-import { fetchTerritories } from "@/app/actions/city";
+import type { Territory } from "@/types/city";
 import { useCity } from "@/contexts/CityContext";
+
+const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const fetchTerritories = async (cityId: string): Promise<Territory[]> => {
+  const res = await fetchWithTimeout(`/api/city/fetch-territories?cityId=${cityId}`, { credentials: 'include' })
+  if (!res.ok) throw new Error('Failed to fetch territories')
+  return await res.json()
+}
 import { cellToBoundary } from "h3-js";
 import { useMap } from "./AMapContext";
 

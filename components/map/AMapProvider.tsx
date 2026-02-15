@@ -1,49 +1,25 @@
-"use client";
+"use client"
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { ReactNode } from "react"
 
-// 1. 定义 Context 类型
-interface AMapContextType {
-  map: any | null;
-  AMap: any | null;
-  setMap: (map: any) => void;
-  setAMap: (AMap: any) => void;
+// MapRoot 已经是 client-only 组件，如果路径不同自行调整
+import { MapRoot } from "./MapRoot"
+
+/**
+ * 兼容旧引用的 AMapProvider，占位 + 转发到 MapRoot。
+ * 让所有 legacy chunk / 动态 import 都能顺利拿到一个合法组件。
+ */
+interface AMapProviderProps {
+  children: ReactNode
 }
 
-// 2. 创建 Context
-const AMapContext = createContext<AMapContextType | null>(null);
-
-// 3. 导出 Hook (供 AMapViewWithProvider 使用)
-export const useAMap = () => {
-  const context = useContext(AMapContext);
-  if (!context) {
-    // 为了防止报错，如果 context 为空先返回空对象，或者抛出友好的错误
-    // 这里为了稳健，我们允许它暂时为空，但在组件里要注意判空
-    throw new Error('useAMap must be used within an AMapProvider');
-  }
-  return context;
-};
-
-// 4. 定义 Provider 组件
-export function AMapProvider({ children }: { children: ReactNode }) {
-  const [map, setMap] = useState<any>(null);
-  const [AMapInstance, setAMapInstance] = useState<any>(null);
-
-  // 这里可以放地图初始化的逻辑，或者仅仅作为一个状态容器
-  // 为了让项目先跑起来，我们先把它作为一个纯粹的状态容器
-  
-  const value = {
-    map,
-    AMap: AMapInstance,
-    setMap,
-    setAMap: setAMapInstance,
-  };
-
+export function AMapProvider({ children }: AMapProviderProps) {
   return (
-    <AMapContext.Provider value={value}>
+    <MapRoot>
       {children}
-    </AMapContext.Provider>
-  );
+    </MapRoot>
+  )
 }
 
-export default AMapProvider;
+// 保持默认导出（以防某些旧代码 default import）
+export default AMapProvider

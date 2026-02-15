@@ -2,8 +2,24 @@
 
 import React, { useState, useEffect } from 'react';
 import { Users, MapPin, Search, Plus, Filter, ArrowUpDown, Loader2, CheckCircle2, Camera, ChevronRight, Upload } from 'lucide-react';
-import { createClub, joinClub, getAvailableProvinces } from '@/app/actions/club';
 import { toast } from 'sonner';
+
+const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const getAvailableProvinces = async (): Promise<string[]> => {
+  const res = await fetchWithTimeout('/api/club/get-available-provinces', { credentials: 'include' })
+  if (!res.ok) throw new Error('Failed to fetch provinces')
+  return await res.json()
+}
+
 import { useGameStore } from '@/store/useGameStore';
 import { createClient } from "@/lib/supabase/client";
 import { Button } from '@/components/ui/button';

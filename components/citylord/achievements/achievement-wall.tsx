@@ -19,8 +19,24 @@ import {
 } from "lucide-react"
 import { formatArea, getAreaEquivalent } from "@/lib/citylord/area-utils"
 import { ACHIEVEMENT_DEFINITIONS, AchievementCategory, AchievementRarity } from "@/lib/achievements"
-import { fetchUserAchievements, UserAchievementProgress } from "@/app/actions/achievement"
 import Image from "next/image"
+
+const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const fetchUserAchievements = async () => {
+  const res = await fetchWithTimeout('/api/achievement/fetch-user-achievements', { credentials: 'include' })
+  if (!res.ok) throw new Error('Failed to fetch achievements')
+  return await res.json()
+}
+
 
 interface Achievement {
   id: string

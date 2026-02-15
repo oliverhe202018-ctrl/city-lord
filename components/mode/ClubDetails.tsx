@@ -3,8 +3,30 @@
 import { useState, useEffect } from 'react';
 import { useRegion } from '@/contexts/RegionContext';
 import { Crown, Users, Trophy, MapPin, Calendar, Activity, TrendingUp, LineChart, Clock, MapPin as LocationIcon, ExternalLink } from 'lucide-react';
-import { getClubLeaderboard, getClubTerritories, type Club } from '@/app/actions/club';
+import type { Club } from '@/app/actions/club';
 import { TabGroup } from '@/components/ui/TabGroup';
+
+const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const getClubLeaderboard = async (clubId: string) => {
+  const res = await fetchWithTimeout(`/api/club/get-club-leaderboard?clubId=${clubId}`, { credentials: 'include' })
+  if (!res.ok) throw new Error('Failed to fetch club leaderboard')
+  return await res.json()
+}
+
+const getClubTerritories = async (clubId: string) => {
+  const res = await fetchWithTimeout(`/api/club/get-club-territories?clubId=${clubId}`, { credentials: 'include' })
+  if (!res.ok) throw new Error('Failed to fetch club territories')
+  return await res.json()
+}
 
 interface UIClubMember {
   id: string;
