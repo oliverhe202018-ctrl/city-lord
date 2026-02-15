@@ -357,11 +357,7 @@ export function ClubDetailView({
       {/* ✅ 固定高度的可滚动内容区 */}
       <div
         ref={scrollContainerRef}
-        className={`flex-1 w-full min-h-0 ${
-          effectiveIsMember 
-            ? "overflow-y-auto overscroll-contain" 
-            : "overflow-y-auto overscroll-contain"
-        }`}
+        className={`flex-1 w-full min-h-0 overflow-y-auto overscroll-contain pb-32`}
       >
         <div className="px-6 pt-6">
           <div className="relative h-44 overflow-hidden rounded-2xl border border-border">
