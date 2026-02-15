@@ -80,13 +80,15 @@ export default function LordCenterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white pb-20 overflow-x-hidden">
+    <div className="h-screen bg-black text-white flex flex-col">
       {/* Top Navigation */}
       <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between p-4 bg-transparent pointer-events-none">
         <button onClick={() => router.back()} className="pointer-events-auto p-2 rounded-full bg-black/40 backdrop-blur-md">
            <ChevronLeft className="w-6 h-6 text-white" />
         </button>
       </div>
+
+      <div className="flex-grow overflow-y-auto pb-20">
 
       {/* Top Photo Grid */}
       <div className="grid grid-cols-4 h-32 gap-0.5">
@@ -265,6 +267,7 @@ export default function LordCenterPage() {
             <div className="text-center text-white/30 py-10">暂无记录</div>
          )}
       </div>
+    </div>
     </div>
   )
 }

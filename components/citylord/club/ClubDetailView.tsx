@@ -133,6 +133,8 @@ export function ClubDetailView({
   // ✅ 新增：键盘高度管理
   const [keyboardHeight, setKeyboardHeight] = useState(0)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const joinButtonContainerRef = useRef<HTMLDivElement>(null);
+  const [joinButtonHeight, setJoinButtonHeight] = useState(0);
 
   // ✅ 新增：监听键盘事件
   useEffect(() => {
@@ -156,6 +158,12 @@ export function ClubDetailView({
       if (hideListenerHandle) hideListenerHandle.remove();
     }
   }, [])
+
+  useEffect(() => {
+    if (joinButtonContainerRef.current) {
+      setJoinButtonHeight(joinButtonContainerRef.current.offsetHeight);
+    }
+  }, [effectiveIsMember]);
 
 
   // Optimized Data Fetching with SWR & Server Action Cache
@@ -312,7 +320,7 @@ export function ClubDetailView({
       }, 0)
       const totalCalories = Math.round(totalDistanceKm * 60)
       // Fix: Prefer actual member list count over cached count which might be out of sync
-      const memberCount = mappedMembers.length > 0 ? mappedMembers.length : (cachedClub?.member_count || 0)
+      const memberCount = mappedMembers.length
 
       setStats({
         totalDistanceKm,
@@ -357,7 +365,8 @@ export function ClubDetailView({
       {/* ✅ 固定高度的可滚动内容区 */}
       <div
         ref={scrollContainerRef}
-        className={`flex-1 w-full min-h-0 overflow-y-auto overscroll-contain pb-32`}
+        className={`flex-1 w-full min-h-0 overflow-y-auto overscroll-contain`}
+        style={{ paddingBottom: joinButtonHeight ? `${joinButtonHeight}px` : '0px' }}
       >
         <div className="px-6 pt-6">
           <div className="relative h-44 overflow-hidden rounded-2xl border border-border">
@@ -572,6 +581,7 @@ export function ClubDetailView({
       {/* ✅ 固定底部按钮（未加入时） */}
       {!effectiveIsMember && onJoin && (
         <div
+          ref={joinButtonContainerRef}
           className="flex-shrink-0 p-4 bg-background/95 backdrop-blur border-t border-border z-50"
           style={{
             // ✅ 安全区域适配
