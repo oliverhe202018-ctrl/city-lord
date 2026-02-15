@@ -5,8 +5,24 @@ import { useSearchParams } from 'next/navigation'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Gift, UserPlus } from 'lucide-react'
-import { getReferrerProfile } from '@/app/actions/referral'
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+
+const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const getReferrerProfile = async (referralCode: string) => {
+  const res = await fetchWithTimeout(`/api/referral/get-referrer-profile?referralCode=${referralCode}`, { credentials: 'include' })
+  if (!res.ok) throw new Error('Failed to fetch referrer profile')
+  return await res.json()
+}
+
 
 export function ReferralWelcome() {
   const searchParams = useSearchParams()

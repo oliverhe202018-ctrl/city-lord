@@ -110,7 +110,14 @@ export function FactionBattleBackground({
         transition={{ duration: 0.5 }}
       >
         <span>赤红先锋</span>
-        <span className="text-xs opacity-80 font-normal">{Math.round(redPercent)}%</span>
+        <div className="flex flex-col items-start">
+          <span className="text-xs opacity-80 font-normal">{Math.round(redPercent)}%</span>
+          {userFaction === 'red' && (
+            <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded-sm mt-0.5 font-normal tracking-normal text-white/90">
+              我的阵营
+            </span>
+          )}
+        </div>
       </motion.div>
 
       {/* Blue Faction Text */}
@@ -126,7 +133,14 @@ export function FactionBattleBackground({
         transition={{ duration: 0.5 }}
       >
         <span>蔚蓝联盟</span>
-        <span className="text-xs opacity-80 font-normal">{Math.round(bluePercent)}%</span>
+        <div className="flex flex-col items-end">
+          <span className="text-xs opacity-80 font-normal">{Math.round(bluePercent)}%</span>
+          {userFaction === 'blue' && (
+            <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded-sm mt-0.5 font-normal tracking-normal text-white/90">
+              我的阵营
+            </span>
+          )}
+        </div>
       </motion.div>
 
       {/* Title (Optional, keeping it subtle or removing as per 'remove Scanning text' instruction, but 'Faction Battle' title might still be wanted? User said remove 'Scanning...', didn't say remove title. I will keep a subtle title at top if needed, or just leave it clean. The requirement 3 says 'Remove scanning text', implies keep others? But Requirement 3 also says 'Display faction names'. I'll stick to just Faction names to be safe and clean.) */}

@@ -1,70 +1,35 @@
-
 "use client";
 
-import React, { useEffect, useRef, useState, forwardRef, useImperativeHandle, useMemo } from "react";
-import AMapLoader from "@amap/amap-jsapi-loader";
-import { useCity } from "@/contexts/CityContext";
-import FogLayer from "./FogLayer";
-import TerritoryLayer from "./TerritoryLayer";
-import { toast } from "sonner";
-import gcoord from "gcoord";
-
-// Declare AMap globally
-declare global {
-  interface Window {
-    _AMapSecurityConfig: any;
-    AMap: any;
-  }
-}
-
-import { KeepAwake } from '@capacitor-community/keep-awake';
-import { Capacitor } from '@capacitor/core';
-
-import { SelfLocationMarker } from "./SelfLocationMarker";
+import React, { forwardRef, useEffect, useRef, useState, useImperativeHandle, useMemo } from 'react';
+import { safeLoadAMap, safeDestroyMap, safeAddControl } from '@/lib/map/safe-amap';
+import { useMap } from './AMapContext';
+import { MapControls } from './MapControls';
+import { SelfLocationMarker } from './SelfLocationMarker';
+import { CenterOverlay } from './CenterOverlay';
+import { useRegion } from '@/contexts/RegionContext';
+import { useGameActions, useGameStore } from '@/store/useGameStore';
+import { useHydration } from '@/hooks/useHydration';
+import { isNativePlatform, safeKeepAwake } from "@/lib/capacitor/safe-plugins";
+import { Loader2 } from 'lucide-react';
 
 const MapViewOrchestrator = () => {
   const { region } = useRegion();
-  const { map, setMap } = useMap();
+  const { map, currentLocation, centerMap } = useMap();
   const { setGpsStatus } = useGameActions();
-  const hasDismissedGeolocationPrompt = useGameStore(
-    (state) => state.hasDismissedGeolocationPrompt
-  );
-  const hydrated = useHydration();
 
-  // 0. Ensure screen stays on for native apps (Double Insurance)
+  // 0. Ensure screen stays on for native apps
   useEffect(() => {
-    if (Capacitor.isNativePlatform()) {
-      KeepAwake.keepAwake();
-    }
-    // Note: We deliberately DO NOT call allowSleep() on unmount to keep GPS alive 
-    // if the user switches tabs but stays in the app context.
-    // BackgroundTask will handle the process lifecycle.
+    const run = async () => {
+      if (await isNativePlatform()) {
+        safeKeepAwake();
+      }
+    };
+    run();
   }, []);
 
-  // 1. Geolocation with watch enabled
-  const { data: geoData, error: geoError } = useGeolocation({ 
-    disabled: !hydrated || hasDismissedGeolocationPrompt,
-    watch: true,
-    options: {
-      enableHighAccuracy: true,
-      maximumAge: 0,      // Force fresh data
-      timeout: 30000,     // 30s timeout for GPS fix
-    }
-  });
-
-  // 2. Reverse geocode when geolocation data is available
-  const validGeoData = useMemo(() => {
-    if (!geoData) return null
-    if (geoData.latitude === 0 && geoData.longitude === 0) return null
-    return geoData
-  }, [geoData])
-
-  const { address, error: geocodeError } = useReverseGeocode(validGeoData);
-
-  // 3. Center the map when the region is updated
+  // 1. Center the map when the region is updated
   useEffect(() => {
     if (map && region?.centerLngLat) {
-      // Basic validity check for region center
       if (region.centerLngLat[0] !== 0 && region.centerLngLat[1] !== 0) {
         map.setCenter(region.centerLngLat, false);
         map.setZoom(14, false, 500);
@@ -72,87 +37,22 @@ const MapViewOrchestrator = () => {
     }
   }, [map, region]);
 
-  // 4. Auto-center map on user location update (View Follow)
+  // 2. Auto-center map on first valid user location update (if map is ready)
+  // We only want to do this once or when specifically requested, 
+  // but "View Follow" implies following? 
+  // User requirement: "打开首页时，地图应停留在上次位置或默认城市，直到获取到真实坐标才 FlyTo 到当前位置"
+  // This implies an automatic FlyTo when first location arrives.
+  const hasCenteredRef = useRef(false);
   useEffect(() => {
-    if (!map || !validGeoData) return;
-    
-    // Check if coordinates are valid (not 0,0)
-    const { latitude, longitude } = validGeoData;
-    if (latitude !== 0 && longitude !== 0) {
-        // Transform to GCJ02 if needed (assuming validGeoData is WGS84 from useGeolocation)
-        // Note: useGeolocation usually returns WGS84. AMap needs GCJ02.
-        // Let's use gcoord to be safe, although MapRoot might have done it.
-        // Wait, SelfLocationMarker uses validGeoData directly. 
-        // MapRoot handles transformation for locationState.
-        // Here we are in MapViewOrchestrator which uses useGeolocation directly.
-        // We should consistent with MapRoot or just use the transformed coordinates if available.
-        
-        // Actually, MapViewOrchestrator uses useGeolocation hook which returns raw WGS84 (usually).
-        // Let's transform it to be safe for AMap.
-        try {
-            const [lng, lat] = gcoord.transform(
-                [longitude, latitude],
-                gcoord.WGS84,
-                gcoord.GCJ02
-            );
-            
-            // Only center if distance is significant or first load?
-            // For now, let's just center if it's a valid update to fix "not following" issue.
-            // But we don't want to lock the view if user is panning.
-            // Maybe only if "locked" mode? The prompt implies "auto follow".
-            // Let's set center.
-            map.setCenter([lng, lat], true); // true for smooth animation
-        } catch (e) {
-            // Fallback to raw if transform fails
-            map.setCenter([longitude, latitude], true);
-        }
+    if (map && currentLocation && !hasCenteredRef.current) {
+        // First valid location -> Center
+        centerMap();
+        hasCenteredRef.current = true;
     }
-  }, [map, validGeoData]);
+  }, [map, currentLocation, centerMap]);
 
-  // Handle and log errors
-  useEffect(() => {
-    if (geoError) {
-      // Filter out common "Network service" errors in dev/China without VPN
-      const isNetworkServiceError = geoError.message?.includes("network service") || geoError.message?.includes("Network location provider");
-      
-      if (isNetworkServiceError) {
-        console.warn("Geolocation network service failed (likely due to network/proxy). Falling back to default location.");
-        setGpsStatus('weak', "网络定位服务不可用，使用默认位置");
-        // Don't toast for this common dev environment issue, just fallback
-        return;
-      }
-
-      console.error("Geolocation Error:", geoError.message);
-      setGpsStatus('error', geoError.message);
-      
-      // Show user-friendly toast
-      if (geoError.message.includes("User denied") || geoError.message.includes("permission")) {
-        toast.error("定位失败：权限被拒绝", {
-          description: "请在浏览器设置中允许获取位置信息，以便开始探索。",
-          duration: 5000,
-        });
-      } else {
-        toast.error("定位失败", {
-          description: geoError.message || "无法获取当前位置",
-        });
-      }
-    }
-    if (geocodeError) {
-      console.error("Reverse Geocode Error:", geocodeError);
-    }
-  }, [geoError, geocodeError, setGpsStatus]);
-
-  return <SelfLocationMarker position={geoData} />;
+  return <SelfLocationMarker position={currentLocation} />;
 };
-
-import { useGeolocation } from "@/hooks/useGeolocation";
-import { useReverseGeocode } from "@/hooks/useReverseGeocode";
-import { useRegion } from "@/contexts/RegionContext";
-import { MapControls } from "./MapControls";
-import { useMap } from "./AMapContext";
-import { useGameActions, useGameStore } from "@/store/useGameStore";
-import { useHydration } from "@/hooks/useHydration";
-import { SmartRoutingMode } from "@/components/citylord/map/SmartRoutingMode";
 
 export type AMapViewHandle = {
   zoomIn: () => void;
@@ -167,46 +67,49 @@ export interface AMapViewProps {
 const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(({ showTerritory, onMapLoad }, ref) => {
   const mapDomRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any | null>(null);
-  const { setMap } = useMap();
+  const { setMap, currentLocation } = useMap();
   const { syncCurrentRoom } = useGameActions();
   const currentRoom = useGameStore(state => state.currentRoom);
   
   // Cache Key
   const MAP_STORAGE_KEY = 'city-lord-map-state';
 
-  // Helper to read cache
+  // Helper to load/save state
   const getInitialState = () => {
     if (typeof window === 'undefined') return null;
     try {
       const saved = localStorage.getItem(MAP_STORAGE_KEY);
-      if (saved) {
-        return JSON.parse(saved);
-      }
+      return saved ? JSON.parse(saved) : null;
     } catch (e) {
-      console.error('Failed to load map state', e);
+      return null;
     }
-    return null;
   };
 
-  // Helper to check location validity (Anti-Africa Patch)
+  const saveMapState = () => {
+    if (!mapRef.current) return;
+    const center = mapRef.current.getCenter();
+    const zoom = mapRef.current.getZoom();
+    const state = {
+      center: [center.lng, center.lat],
+      zoom,
+      timestamp: Date.now()
+    };
+    localStorage.setItem(MAP_STORAGE_KEY, JSON.stringify(state));
+  };
+
   const isValidLocation = (loc: any) => {
     return Array.isArray(loc) && loc.length === 2 && loc[0] !== 0 && loc[1] !== 0 && !isNaN(loc[0]) && !isNaN(loc[1]);
   };
 
   useEffect(() => {
-    // 页面加载/组件挂载时，如果本地缓存显示我在房间里，立即同步一次最新状态
     if (currentRoom?.id) {
       syncCurrentRoom().catch((e: any) => {
-        if (e?.name !== 'AbortError' && e?.digest !== 'NEXT_REDIRECT') {
-          console.error("Failed to sync room", e)
-        }
+         console.warn("Sync room failed", e);
       });
     }
-  }, []); // 空依赖数组，只在挂载时执行一次
+  }, []); 
 
   const [err, setErr] = useState<string | null>(null);
-  const [zoom, setZoom] = useState(13);
-  const [center, setCenter] = useState<[number, number] | undefined>();
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
 
   useImperativeHandle(ref, () => ({
@@ -219,113 +122,58 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(({ showTerritory, onM
   }));
 
   useEffect(() => {
-    // Force security config again before load
-    if (typeof window !== "undefined") {
-        (window as any)._AMapSecurityConfig = { 
-            securityJsCode: 'e827ba611fad4802c48dd900d01eb4bf',
-        };
-    }
-
-    const key = process.env.NEXT_PUBLIC_AMAP_KEY;
-
-    if (!key) {
-      setErr("缺少 NEXT_PUBLIC_AMAP_KEY：请检查 .env.local 并重启 pnpm dev");
-      return;
-    }
-
-    const securityCode = process.env.NEXT_PUBLIC_AMAP_SECURITY_CODE;
-    if (securityCode && typeof window !== "undefined") {
-      // @ts-ignore
-      window._AMapSecurityConfig = { securityJsCode: securityCode };
-    }
-
     let destroyed = false;
 
-    AMapLoader.load({
-      key,
-      version: "2.0",
-      plugins: ["AMap.Scale", "AMap.Geolocation"],
-    })
-      .then((AMap) => {
-        if (destroyed || !mapDomRef.current) return;
+    (async () => {
+      const AMap = await safeLoadAMap({ plugins: ["AMap.Scale", "AMap.MoveAnimation"] });
+      
+      if (destroyed || !mapDomRef.current || !AMap) {
+        if (!AMap && !destroyed) setErr('高德地图加载失败');
+        return;
+      }
 
-        // Load Cached State
-        const savedState = getInitialState();
-        
-        // Priority 3: Default (Beijing)
-        let finalCenter: [number, number] = [116.397428, 39.90923]; 
-        let finalZoom = 13;
+      // Load Cached State
+      const savedState = getInitialState();
+      
+      // Priority 3: Default (Beijing)
+      let finalCenter: [number, number] = [116.397428, 39.90923]; 
+      let finalZoom = 13;
 
-        // Priority 2: Cache
-        if (savedState) {
-            if (savedState.center && isValidLocation(savedState.center)) {
-                finalCenter = savedState.center;
-            }
-            if (savedState.zoom) {
-                finalZoom = savedState.zoom;
-            }
-            console.log('Using cached map state:', savedState);
-        }
-        
-        // Priority 1: User Location (if available immediately, though usually async)
-        // Note: useGeolocation data isn't available here yet in this useEffect scope easily without passing it in.
-        // But we can check if there's a "last known location" from other sources if needed.
-        // For now, Cache > Default is good for initialization. 
-        // The View Follow effect in MapViewOrchestrator will handle Priority 1 once data arrives.
+      // Priority 2: Cache
+      if (savedState) {
+          if (savedState.center && isValidLocation(savedState.center)) {
+              finalCenter = savedState.center;
+          }
+          if (savedState.zoom) {
+              finalZoom = savedState.zoom;
+          }
+      }
+      
+      // Note: We do NOT wait for user location here to avoid blocking render.
+      // MapViewOrchestrator will flyTo user location when it arrives.
 
-        setCenter(finalCenter);
-        setZoom(finalZoom);
-
+      try {
         mapRef.current = new AMap.Map(mapDomRef.current, {
           zoom: finalZoom,
           center: finalCenter,
-          viewMode: "2D",
-          mapStyle: "amap://styles/22e069175d1afe32e9542abefde02cb5",
-          // showLabel: false, // Hide all labels
+          viewMode: "2D", // 2D is lighter and better for this game style
+          pitch: 0,
+          mapStyle: 'amap://styles/22e069175d1afe32e9542abefde02cb5', // Dark
+          showLabel: true, // Show POI labels
         });
 
-        // Set the map in the context
         setMap(mapRef.current);
-        
-        // Notify parent that map is loaded
-        if (onMapLoad) {
-          onMapLoad();
-        }
 
-        // Save State Logic
-        const saveMapState = () => {
-          if (!mapRef.current) return;
-          const center = mapRef.current.getCenter();
-          const zoom = mapRef.current.getZoom();
-          
-          const centerArray = [center.getLng(), center.getLat()];
-          
-          // Anti-Africa Check: Never save [0,0]
-          if (!isValidLocation(centerArray)) {
-              return; 
-          }
-
-          const state = {
-            center: centerArray,
-            zoom: zoom
-          };
-          localStorage.setItem(MAP_STORAGE_KEY, JSON.stringify(state));
-        };
+        if (onMapLoad) onMapLoad();
 
         const updateMapState = () => {
-          if (!mapRef.current) return;
-          const currentZoom = mapRef.current.getZoom();
-          const currentCenter = mapRef.current.getCenter();
-          setZoom(currentZoom);
-          setCenter([currentCenter.getLng(), currentCenter.getLat()]);
+             // Optional: update React state if needed
         };
 
-        mapRef.current?.on('zoomchange', updateMapState);
-        mapRef.current?.on('mapmove', updateMapState);
-        
-        // Add listeners for saving state
-        mapRef.current?.on('moveend', saveMapState);
-        mapRef.current?.on('zoomend', saveMapState);
+        mapRef.current.on('zoomchange', updateMapState);
+        mapRef.current.on('mapmove', updateMapState);
+        mapRef.current.on('moveend', saveMapState);
+        mapRef.current.on('zoomend', saveMapState);
 
         const handleResize = () => {
           if (mapDomRef.current) {
@@ -339,93 +187,58 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(({ showTerritory, onM
         window.addEventListener('resize', handleResize);
         handleResize();
 
-        mapRef.current.addControl(new AMap.Scale());
+        await safeAddControl(mapRef.current, 'Scale');
 
-        // 1. Optimize AMap.Geolocation Configuration
-        const geolocation = new AMap.Geolocation({
-          enableHighAccuracy: true, // 开启高精度
-          timeout: 15000,           // 15秒超时 (User Request)
-          maximumAge: 0,            // 强制刷新 (User Request)
-          convert: true,            // 自动偏移坐标
-          showButton: false,        // 不显示默认按钮 (Use our custom UI)
-          showMarker: false,        // Hide default marker to avoid duplication with RunningMap
-          showCircle: false,        // Hide default circle
-          panToLocation: true,      // 定位成功后将定位到的位置作为地图中心点
-          zoomToAccuracy: true,     // 定位成功后调整地图视野范围
-          noGeoLocation: 0,         // 0: 强制使用浏览器定位 (User Request for Android WebView fix)
-        });
-
-        mapRef.current.addControl(geolocation);
-
-        // 2. Add Error Feedback
-        geolocation.getCurrentPosition((status: string, result: any) => {
-          if (status === 'complete') {
-            console.log('AMap Location Success:', result);
-            // Optional: You might want to update global store here if needed
-          } else {
-            console.warn('AMap Location Warning (Non-fatal):', result);
-            // Suppress visible error toast unless strictly necessary
-            // toast.error("定位失败...", { ... }); 
-            
-            // 3. Fallback Handling - REMOVED to preserve Cached State
-            // If we have a cached location, we want to stay there on failure, not jump to Beijing.
-            // If we started with default (Beijing), we stay there.
-            /*
-            if (mapRef.current) {
-              console.log('Falling back to default location (Beijing)');
-              mapRef.current.setCenter([116.397428, 39.90923]);
-              mapRef.current.setZoom(13);
-            }
-            */
-          }
-        });
-
-      })
-      .catch((e) => {
-        console.error("AMap load error:", e);
-        setErr(String(e?.message || e));
-      });
+      } catch (e: any) {
+        if (!destroyed) {
+            console.error(e);
+            setErr(e?.message || "地图加载失败");
+        }
+      }
+    })();
 
     return () => {
       destroyed = true;
-      if (mapRef.current) {
-        mapRef.current.destroy();
-        mapRef.current = null;
-      }
+      safeDestroyMap(mapRef.current);
+      mapRef.current = null;
+      setMap(null);
+      window.removeEventListener('resize', () => {});
     };
   }, []);
 
   return (
-    <div className="absolute inset-0 z-0 bg-black">
-      <div ref={mapDomRef} className="h-full w-full bg-black" />
-
-      {mapRef.current && (
-        <>
-          <MapViewOrchestrator />
-          <FogLayer map={mapRef.current} />
-          <TerritoryLayer 
-            map={mapRef.current} 
-            isVisible={showTerritory} 
-            onTerritoryClick={(territory) => {
-              console.log("Clicked territory:", territory);
-            }}
-          />
-          <MapControls />
-        </>
-      )}
+    <div className="relative w-full h-full">
+      <div 
+        ref={mapDomRef} 
+        className="w-full h-full z-0" 
+        style={{ touchAction: 'none' }} // Prevent browser zoom gestures
+      />
+      
+      {/* Map Controls Overlay */}
+      <div className="absolute inset-0 pointer-events-none z-10">
+        <MapControls />
+        <MapViewOrchestrator />
+        {/* Removed CenterOverlay per user request: "Remove green circle and dot in the center" */}
+        {/* {showTerritory && <CenterOverlay />} */}
+      </div>
 
       {err && (
-        <div className="absolute left-3 right-3 top-3 z-[9999] rounded-xl border border-red-500/30 bg-black/70 p-3 text-sm text-red-200">
-          地图加载失败：{err}
-          <div className="mt-1 text-xs text-red-200/70">
-            打开浏览器 Console 看 AMap 详细报错（通常是 KEY/域名白名单/SCODE）
+        <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-50">
+          <div className="text-destructive font-medium p-4 bg-background border border-destructive rounded-lg shadow-lg">
+            {err}
           </div>
+        </div>
+      )}
+      
+      {!mapRef.current && !err && (
+        <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-40">
+           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
       )}
     </div>
   );
 });
 
-AMapView.displayName = "AMapView";
+AMapView.displayName = 'AMapView';
 
 export default AMapView;

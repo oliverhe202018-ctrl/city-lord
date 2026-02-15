@@ -16,8 +16,46 @@ import {
   Target,
   Flame
 } from "lucide-react"
-import { createChallenge, getPendingChallenges, respondToChallenge } from "@/app/actions/social"
 import { toast } from "sonner"
+
+const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const fetchPendingChallenges = async () => {
+  const res = await fetchWithTimeout('/api/social/pending-challenges', { credentials: 'include' })
+  if (!res.ok) throw new Error('Failed to fetch pending challenges')
+  return await res.json()
+}
+
+const createChallenge = async (payload: { targetId: string; type: string; distance?: number; duration?: string; rewardXp?: number }) => {
+  const res = await fetchWithTimeout('/api/social/create-challenge', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    credentials: 'include'
+  })
+  if (!res.ok) throw new Error('Failed to create challenge')
+  return await res.json()
+}
+
+const respondToChallenge = async (challengeId: string, accept: boolean) => {
+  const res = await fetchWithTimeout('/api/social/respond-challenge', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ challengeId, accept }),
+    credentials: 'include'
+  })
+  if (!res.ok) throw new Error('Failed to respond to challenge')
+  return await res.json()
+}
+
 
 type ChallengeType = "race" | "territory" | "distance"
 
@@ -103,7 +141,8 @@ export function ChallengePage({
   useEffect(() => {
     const loadChallenges = async () => {
       try {
-        const data = await getPendingChallenges()
+        const data = await fetchPendingChallenges()
+
         // Map DB response to UI model
         const mapped = data.map((c: any) => ({
           id: c.id,

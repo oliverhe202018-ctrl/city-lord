@@ -5,7 +5,36 @@ import { createClient } from "@/lib/supabase/client"
 import { useGameStore } from "@/store/useGameStore"
 import { toast } from "sonner"
 import { Database } from "@/types/supabase"
-import { touchUserActivity, ensureUserProfile } from "@/app/actions/user"
+
+const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const touchUserActivity = async () => {
+  const res = await fetchWithTimeout('/api/user/touch-user-activity', {
+    method: 'POST',
+    credentials: 'include'
+  })
+  if (!res.ok) throw new Error('Failed to touch user activity')
+  return await res.json()
+}
+
+const ensureUserProfile = async (userId: string) => {
+  const res = await fetchWithTimeout('/api/user/ensure-user-profile', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId }),
+    credentials: 'include'
+  })
+  if (!res.ok) throw new Error('Failed to ensure user profile')
+  return await res.json()
+}
 
 export function AuthSync() {
   const setNickname = useGameStore((state) => state.setNickname)
@@ -58,9 +87,7 @@ export function AuthSync() {
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_IN" && session?.user) {
         syncUserProfile(session.user.id)
-        toast.success("登录成功", {
-          description: "正在同步游戏数据..."
-        })
+        console.log("AuthSync: Signed in, syncing data...")
         
         // Clear existing interval if any
         if (heartbeatInterval) clearInterval(heartbeatInterval)

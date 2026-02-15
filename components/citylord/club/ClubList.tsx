@@ -4,8 +4,35 @@ import { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRegion } from '@/contexts/RegionContext'
 import { Users, MapPin, CheckCircle2, Loader2 } from 'lucide-react'
-import { joinClub, getClubs } from '@/app/actions/club'
 import { useToast } from '@/components/ui/use-toast'
+
+const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const getClubs = async () => {
+  const res = await fetchWithTimeout('/api/club/get-clubs', { credentials: 'include' })
+  if (!res.ok) throw new Error('Failed to fetch clubs')
+  return await res.json()
+}
+
+const joinClub = async (clubId: string) => {
+  const res = await fetchWithTimeout('/api/club/join-club', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ clubId }),
+    credentials: 'include'
+  })
+  if (!res.ok) throw new Error('Failed to join club')
+  return await res.json()
+}
+
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
 

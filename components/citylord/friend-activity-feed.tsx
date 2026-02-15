@@ -4,7 +4,25 @@ import React from "react"
 
 import { useState, useEffect } from "react"
 import { toast } from "sonner"
-import { fetchFriendActivities, type FriendActivity } from "@/app/actions/social"
+import type { FriendActivity } from "@/types/social"
+
+
+const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const fetchFriendActivities = async (): Promise<FriendActivity[]> => {
+  const res = await fetchWithTimeout('/api/social/friend-activities', { credentials: 'include' })
+  if (!res.ok) throw new Error('Failed to fetch friend activities')
+  return await res.json()
+}
+
 import { 
   Loader2,
   Hexagon, 

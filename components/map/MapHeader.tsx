@@ -108,9 +108,9 @@ function LoginModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void 
   )
 }
 
-import { Capacitor } from '@capacitor/core';
-import { Geolocation } from '@capacitor/geolocation';
 import { toast } from "sonner";
+import { isNativePlatform, safeRequestGeolocationPermission } from "@/lib/capacitor/safe-plugins";
+
 
 /**
  * 地图头部状态栏组件
@@ -184,20 +184,21 @@ export function MapHeader({
     
     setRequestingLocation(true);
     try {
-        if (!Capacitor.isNativePlatform()) {
+        const isNative = await isNativePlatform();
+        if (!isNative) {
              toast.info("网页端请允许浏览器定位权限");
              window.location.reload();
              return;
         }
 
         // Native Permission Flow
-        const status = await Geolocation.requestPermissions();
+        const status = await safeRequestGeolocationPermission();
         
-        if (status.location === 'denied' || status.coarseLocation === 'denied') {
+        if (status === 'denied') {
              toast.error("定位权限被拒绝", {
                description: "请前往系统设置中手动开启定位权限"
              });
-        } else if (status.location === 'granted' || status.coarseLocation === 'granted') {
+        } else if (status === 'granted') {
              toast.success("授权成功，正在定位...");
              // 重载页面以触发 useGeolocation 的初始化
              window.location.reload();
@@ -205,6 +206,7 @@ export function MapHeader({
              toast.warning("请允许定位权限以继续");
         }
     } catch (e) {
+
         console.error("GPS Permission Error", e);
         toast.error("请求权限失败", { description: "请检查设备设置" });
     } finally {
@@ -268,7 +270,10 @@ export function MapHeader({
             >
               <span className="text-xl">{currentCity.icon}</span>
               <div className="flex flex-col items-start">
-                <span className="text-xs font-bold text-white">{region?.countyName || region?.cityName || currentCity.name}</span>
+                <span className="text-xs font-bold text-white">
+                  {/* Show "Locating..." if GPS is active but no region yet */}
+                  {gpsStatus === 'locating' ? '定位中...' : (region?.countyName || region?.cityName || currentCity.name)}
+                </span>
                 <ChevronDown className="w-3 h-3 text-white/40" />
               </div>
             </button>

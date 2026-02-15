@@ -55,27 +55,36 @@ const metadata: Metadata = {
   },
 }
 
-import { StatusBar, Style } from '@capacitor/status-bar';
-import { Capacitor } from '@capacitor/core';
 import { useEffect } from "react";
+import { isNativePlatform, safeGetPlatform, safeStatusBarSetBackgroundColor, safeStatusBarSetOverlaysWebView, safeStatusBarSetStyle } from "@/lib/capacitor/safe-plugins";
+
 
 import { useBackgroundLocation } from '@/hooks/useBackgroundLocation';
+import { useImmersiveMode } from "@/hooks/useImmersiveMode";
 
 // Client Component Wrapper for Status Bar
 function StatusBarConfig() {
   // Integrate Background Location Logic
   useBackgroundLocation();
+  
+  // Activate Immersive Mode Locks
+  useImmersiveMode();
 
   useEffect(() => {
-    if (Capacitor.isNativePlatform()) {
-      StatusBar.setStyle({ style: Style.Dark });
-      if (Capacitor.getPlatform() === 'android') {
-        // 关键修复：关闭 Overlay，让 WebView 位于状态栏下方
-        StatusBar.setOverlaysWebView({ overlay: false });
-        StatusBar.setBackgroundColor({ color: '#000000' });
+    const applyStatusBar = async () => {
+      if (await isNativePlatform()) {
+        safeStatusBarSetStyle('dark');
+        const platform = await safeGetPlatform();
+        if (platform === 'android') {
+          // 关键修复：关闭 Overlay，让 WebView 位于状态栏下方
+          safeStatusBarSetOverlaysWebView(false);
+          safeStatusBarSetBackgroundColor('#000000');
+        }
       }
-    }
+    };
+    applyStatusBar();
   }, []);
+
   return null;
 }
 

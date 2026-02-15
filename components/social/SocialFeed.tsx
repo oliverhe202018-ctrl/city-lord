@@ -5,7 +5,25 @@ import { MapPin, Trophy, Zap, Award, X, Minus } from "lucide-react"
 import { useCity } from "@/contexts/CityContext"
 import { useShallow } from "zustand/react/shallow"
 import { useGameStore } from "@/store/useGameStore"
-import { fetchFriendActivities, type FriendActivity } from "@/app/actions/social"
+import type { FriendActivity } from "@/types/social"
+
+
+const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const fetchFriendActivities = async (): Promise<FriendActivity[]> => {
+  const res = await fetchWithTimeout('/api/social/friend-activities', { credentials: 'include' })
+  if (!res.ok) throw new Error('Failed to fetch friend activities')
+  return await res.json()
+}
+
 
 export interface SocialFeedItem {
   id: string

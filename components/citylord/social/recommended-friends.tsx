@@ -1,8 +1,37 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { getRecommendedUsers, sendFriendRequest, type RecommendedUser } from "@/app/actions/social"
+import type { RecommendedUser } from "@/types/social"
+
 import { toast } from "sonner"
+
+const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const fetchRecommendedUsers = async (): Promise<RecommendedUser[]> => {
+  const res = await fetchWithTimeout('/api/social/recommended-users', { credentials: 'include' })
+  if (!res.ok) throw new Error('Failed to fetch recommended users')
+  return await res.json()
+}
+
+const sendFriendRequest = async (userId: string) => {
+  const res = await fetchWithTimeout('/api/social/send-friend-request', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId }),
+    credentials: 'include'
+  })
+  if (!res.ok) throw new Error('Failed to send friend request')
+  return await res.json()
+}
+
 import { 
   Loader2,
   MapPin, 
@@ -55,7 +84,8 @@ export function RecommendedFriends({ onAddFriend }: RecommendedFriendsProps) {
   useEffect(() => {
     const loadUsers = async () => {
       try {
-        const data = await getRecommendedUsers()
+        const data = await fetchRecommendedUsers()
+
         setRecommendedUsers(data)
       } catch (error) {
         console.error("Failed to load recommended users:", error)

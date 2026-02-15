@@ -11,8 +11,6 @@ import { useHydration } from "@/hooks/useHydration";
 import { formatAreaFromHexCount, getAreaEquivalentFromHexCount } from "@/lib/citylord/area-utils"
 import { useQuery } from '@tanstack/react-query'
 import { createClient } from "@/lib/supabase/client"
-import { getUserProfileStats } from "@/app/actions/user"
-import { getDailyStats } from "@/app/actions/faction"
 import { toast } from "sonner"
 import { calculateLevel, getNextLevelProgress, getTitle } from "@/lib/game-logic/level-system"
 import { BadgeGrid } from "@/components/citylord/achievements/BadgeGrid"
@@ -28,9 +26,10 @@ import { Dialog,
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { FactionBattleBackground } from "@/components/Faction/FactionBattleBackground"
-import { getRecentActivities } from "@/app/actions/activities"
 import { Loader2, TrendingUp } from "lucide-react"
 import { ThemeSwitcher } from "@/components/citylord/theme/ThemeSwitcher"
+
+import { ReportButton } from '@/components/report/ReportButton'
 
 interface ProfileProps {
   onOpenSettings: () => void
@@ -69,7 +68,11 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
   // Use React Query for stats
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['userProfileStats', userId],
-    queryFn: getUserProfileStats,
+    queryFn: async () => {
+      const res = await fetch('/api/user/stats', { credentials: 'include' })
+      if (!res.ok) throw new Error('Failed to fetch stats')
+      return res.json()
+    },
     enabled: !!userId,
     staleTime: 5 * 60 * 1000,
   })
@@ -82,7 +85,9 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
   React.useEffect(() => {
     const fetchRuns = async () => {
       try {
-        const runs = await getRecentActivities(userId, 3);
+        const res = await fetch(`/api/user/activities?limit=3`, { credentials: 'include' });
+        if (!res.ok) throw new Error('Failed to fetch activities');
+        const runs = await res.json();
         setRecentRuns(runs);
       } catch (e) {
         console.error("Failed to fetch recent runs", e);
@@ -110,7 +115,10 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
   const [dailyStat, setDailyStat] = React.useState<any>(null);
 
   React.useEffect(() => {
-    getDailyStats().then(setDailyStat)
+    fetch('/api/faction/daily-stats', { credentials: 'include' })
+      .then(res => res.ok ? res.json() : null)
+      .then(setDailyStat)
+      .catch(err => console.error('Failed to fetch daily stats:', err))
   }, [])
 
   // Fetch complete stats including member counts
@@ -502,9 +510,12 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
         <div className="p-4 pb-0">
            <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">我的跑步记录</h2>
-              <Link href="/lord-center" className="text-xs text-cyan-400 hover:text-cyan-300 transition-colors flex items-center gap-1">
-                 查看全部 <ChevronRight className="w-3 h-3" />
-              </Link>
+              <div className="flex items-center gap-2">
+                 <ReportButton userId={userId} period="daily" variant="ghost" className="h-6 px-2 text-xs" />
+                 <Link href="/lord-center" className="text-xs text-cyan-400 hover:text-cyan-300 transition-colors flex items-center gap-1">
+                    查看全部 <ChevronRight className="w-3 h-3" />
+                 </Link>
+              </div>
            </div>
            
            <div className="space-y-3">
@@ -606,7 +617,7 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
         {/* Badges Grid */}
         <div className="px-4 pb-4">
           <FactionComparison 
-            userFaction={userStats.faction?.toLowerCase() === 'red' ? 'red' : 'blue'}
+            userFaction={userStats.faction?.toLowerCase() === 'red' ? 'RED' : userStats.faction?.toLowerCase() === 'blue' ? 'BLUE' : null}
             initialData={factionStats}
             dailyStat={dailyStat}
           />

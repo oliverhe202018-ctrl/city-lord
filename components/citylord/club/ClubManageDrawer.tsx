@@ -16,14 +16,73 @@ import { Textarea } from '@/components/ui/textarea'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useToast } from '@/components/ui/use-toast'
-import { 
-  updateClubInfo, 
-  getClubJoinRequests, 
-  processJoinRequest, 
-  getClubMembers, 
-  kickMember, 
-  disbandClub 
-} from '@/app/actions/club'
+
+const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const updateClubInfo = async (clubId: string, payload: { name: string; description?: string; avatarUrl?: string }) => {
+  const res = await fetchWithTimeout('/api/club/update-club-info', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ clubId, ...payload }),
+    credentials: 'include'
+  })
+  if (!res.ok) throw new Error('Failed to update club info')
+  return await res.json()
+}
+
+const getClubJoinRequests = async (clubId: string) => {
+  const res = await fetchWithTimeout(`/api/club/get-club-join-requests?clubId=${clubId}`, { credentials: 'include' })
+  if (!res.ok) throw new Error('Failed to fetch join requests')
+  return await res.json()
+}
+
+const processJoinRequest = async (clubId: string, requestId: string, action: 'approve' | 'reject') => {
+  const res = await fetchWithTimeout('/api/club/process-join-request', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ clubId, requestId, action }),
+    credentials: 'include'
+  })
+  if (!res.ok) throw new Error('Failed to process join request')
+  return await res.json()
+}
+
+const getClubMembers = async (clubId: string) => {
+  const res = await fetchWithTimeout(`/api/club/get-club-members?clubId=${clubId}`, { credentials: 'include' })
+  if (!res.ok) throw new Error('Failed to fetch club members')
+  return await res.json()
+}
+
+const kickMember = async (clubId: string, memberId: string) => {
+  const res = await fetchWithTimeout('/api/club/kick-member', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ clubId, memberId }),
+    credentials: 'include'
+  })
+  if (!res.ok) throw new Error('Failed to kick member')
+  return await res.json()
+}
+
+const disbandClub = async (clubId: string) => {
+  const res = await fetchWithTimeout('/api/club/disband-club', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ clubId }),
+    credentials: 'include'
+  })
+  if (!res.ok) throw new Error('Failed to disband club')
+  return await res.json()
+}
+
 import { useGameStore } from '@/store/useGameStore'
 import { 
   Settings, 

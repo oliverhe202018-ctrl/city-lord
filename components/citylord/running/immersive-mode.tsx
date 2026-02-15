@@ -3,12 +3,14 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { Pause, Play, Square, ChevronUp, MapPin, Zap, Heart, Hexagon, Trophy } from "lucide-react"
 import { hexCountToArea, formatArea, HEX_AREA_SQ_METERS } from "@/lib/citylord/area-utils"
-import { claimTerritory, fetchTerritories } from "@/app/actions/city"
+// import { claimTerritory, fetchTerritories } from "@/app/actions/city"
 import { latLngToCell } from "h3-js"
 import { useCity } from "@/contexts/CityContext"
 import { useGameLocation } from "@/store/useGameStore"
-import { Haptics, ImpactStyle } from '@capacitor/haptics'
+import { safeHapticImpact, safeHapticVibrate } from "@/lib/capacitor/safe-plugins"
 import { toast } from "sonner"
+
+import { useSearchParams, useRouter } from 'next/navigation'
 import { AchievementPopup } from "../achievement-popup"
 import { RunningHUD } from "@/components/running/RunningHUD"
 import { RunningMap } from "./RunningMap"
@@ -49,6 +51,8 @@ interface ImmersiveModeProps {
 }
 
 // Helper: Calculate distance between two points in meters
+
+
 function getDistanceFromLatLonInMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371e3; // Radius of the earth in meters
   const dLat = (lat2 - lat1) * (Math.PI / 180);
@@ -96,6 +100,7 @@ export function ImmersiveRunningMode({
   const { ghostPath } = useGameLocation()
   const [lastClaimedHex, setLastClaimedHex] = useState<string | null>(null)
   const [currentHex, setCurrentHex] = useState<string | null>(null)
+  const router = useRouter()
 
 
   // Haptic Feedback Logic
@@ -109,10 +114,14 @@ export function ImmersiveRunningMode({
       const territory = currentCity.territories.find(t => t.id === hex)
       if (territory) {
         if (territory.ownerId === userId) {
-           Haptics.impact({ style: ImpactStyle.Light })
+           safeHapticImpact("light")
+
+
            toast.success("这是朕的江山", { duration: 2000 })
         } else if (territory.ownerId && territory.ownerId !== userId) {
-           Haptics.vibrate()
+           safeHapticVibrate()
+
+
            toast.warning("入侵敌方领地！", { duration: 3000 })
         }
       }
@@ -127,10 +136,15 @@ export function ImmersiveRunningMode({
   const loadTerritories = useCallback(async () => {
     if (!currentCity) return
     try {
-      const territories = await fetchTerritories(currentCity.id)
+      const res = await fetch(`/api/territory/list?cityId=${currentCity.id}`, {
+        credentials: 'include'
+      })
+      if (!res.ok) throw new Error('Failed to fetch')
+      const territories = await res.json()
+      
       if (territories && Array.isArray(territories)) {
-        setMapHexagons(territories.map(t => t.id))
-        setExploredHexes(territories.filter(t => t.ownerType === 'me').map(t => t.id))
+        setMapHexagons(territories.map((t: any) => t.id))
+        setExploredHexes(territories.filter((t: any) => t.ownerType === 'me').map((t: any) => t.id))
       }
     } catch (e: any) {
       if (e?.name !== 'AbortError' && e?.digest !== 'NEXT_REDIRECT') {
@@ -169,8 +183,19 @@ export function ImmersiveRunningMode({
 
         isClaimingRef.current = true
 
-        // Call server action
-        const result = await claimTerritory(currentCity.id, h3Index)
+        // Call API route
+        const res = await fetch('/api/territory/claim', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cityId: currentCity.id, h3Index }),
+          credentials: 'include'
+        })
+
+        if (!res.ok) {
+          throw new Error('Failed to claim territory')
+        }
+
+        const result = await res.json()
         
         if (result.success) {
           setLastClaimedHex(h3Index)
@@ -181,7 +206,7 @@ export function ImmersiveRunningMode({
 
           // Show badge notifications
           if (result.grantedBadges && result.grantedBadges.length > 0) {
-            result.grantedBadges.forEach(badgeName => {
+            result.grantedBadges.forEach((badgeName: string) => {
               toast.success(`解锁勋章: ${badgeName}`, {
                 icon: <Trophy className="h-4 w-4 text-yellow-400" />,
                 style: { 
@@ -348,7 +373,8 @@ export function ImmersiveRunningMode({
       if (typeof window !== 'undefined') {
           // 清除可能残留的恢复数据，防止首页重新加载时自动恢复跑步
           localStorage.removeItem('CURRENT_RUN_RECOVERY');
-          window.location.replace('/');
+          // 使用 Next.js router 进行导航，避免全页刷新
+          router.replace('/');
       }
     }, 100);
   };
@@ -440,14 +466,13 @@ export function ImmersiveRunningMode({
           calories={calories}
           hexesCaptured={hexesCaptured}
           isPaused={isPaused}
-          onPauseToggle={() => {
-            if (isPaused) {
-              setIsPaused(false)
-              onResume()
-            } else {
-              setIsPaused(true)
-              onPause()
-            }
+          onPause={() => {
+            setIsPaused(true)
+            onPause()
+          }}
+          onResume={() => {
+            setIsPaused(false)
+            onResume()
           }}
           onStop={handleAttemptStop}
           onGhostModeTrigger={() => {
@@ -458,7 +483,7 @@ export function ImmersiveRunningMode({
              })
           }}
           // Pass map toggle handler to HUD
-          onMapClick={() => setIsMapMode(true)}
+          onToggleMap={() => setIsMapMode(true)}
         />
       </div>
 

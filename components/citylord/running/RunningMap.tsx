@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { safeLoadAMap, safeDestroyMap } from '@/lib/map/safe-amap';
 import MapManager from "@/lib/mapManager"
 import { Location } from "@/hooks/useRunningTracker"
 import { useTheme } from "next-themes"
@@ -12,6 +13,7 @@ interface RunningMapProps {
   userLocation?: [number, number]
   path?: Location[]
   startLocation?: [number, number]
+  closedPolygons?: Location[][]
   onLocationUpdate?: (lat: number, lng: number) => void
 }
 
@@ -19,6 +21,7 @@ export function RunningMap({
   userLocation,
   path = [],
   startLocation,
+  closedPolygons = [],
   onLocationUpdate
 }: RunningMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
@@ -28,10 +31,13 @@ export function RunningMap({
   // Refs for map elements
   const userMarkerRef = useRef<any>(null)
   const polylineRef = useRef<any>(null)
+  const polygonRefs = useRef<any[]>([]) // Store polygon instances
   const kmMarkersRef = useRef<any[]>([])
+  const locationCircleRef = useRef<any>(null) // Accuracy circle
 
   // User Color Preferences (Hardcoded for now to match Smart Planner/Dark Theme)
   const pathColor = '#3B82F6' // Blue 500
+  const polygonColor = '#10B981' // Emerald 500 for territory
   
   // 1. Initialize Map
   useEffect(() => {
@@ -41,22 +47,17 @@ export function RunningMap({
 
     const init = async () => {
       try {
-        // Setup Security Config - Required for AMap
-        if (typeof window !== "undefined") {
-            (window as any)._AMapSecurityConfig = { 
-                securityJsCode: 'e827ba611fad4802c48dd900d01eb4bf',
-            };
-        }
+        const AMap = await safeLoadAMap({
+          plugins: ["AMap.Polyline", "AMap.Marker", "AMap.GeometryUtil", "AMap.Polygon", "AMap.Circle"]
+        });
 
-        // Use AMapLoader directly to avoid interfering with the main map (MapManager singleton)
-        // and to ensure we have an independent instance.
-        const AMap = await import("@amap/amap-jsapi-loader").then(pkg => pkg.load({
-            key: AMAP_KEY,
-            version: "2.0",
-            plugins: ["AMap.Polyline", "AMap.Marker", "AMap.GeometryUtil"]
-        }));
+        if (destroyed || !mapContainerRef.current || !AMap) return;
 
-        if (destroyed || !mapContainerRef.current) return;
+        // Ensure Geolocation plugin is loaded even if safeLoadAMap cached a previous instance without it
+        // Use AMap.plugin wrapper
+        await new Promise<void>((resolve) => {
+             AMap.plugin('AMap.Geolocation', () => resolve());
+        });
 
         // Custom Map Style (Cyberpunk/Dark to match main map)
         const MAP_STYLE = "amap://styles/22e069175d1afe32e9542abefde02cb5";
@@ -71,39 +72,40 @@ export function RunningMap({
         });
 
         // Add AMap.Geolocation plugin as active fallback
-        map.plugin('AMap.Geolocation', function () {
-            const geolocation = new AMap.Geolocation({
-                enableHighAccuracy: true,
-                timeout: 15000, // Match AMapView config
-                maximumAge: 0,
-                convert: true,
-                showButton: false, // Hide button, we auto-locate
-                showMarker: false, // We use custom marker
-                showCircle: false,
-                panToLocation: false, // We handle panning
-                zoomToAccuracy: false,
-                noGeoLocation: 0, // Force browser location (fix for Android WebView)
-            });
-            
-            // If no userLocation provided initially, try to self-locate
-            if (!userLocation) {
-                console.log("[RunningMap] No initial location, attempting self-locate...");
-                geolocation.getCurrentPosition(function(status: string, result: any) {
-                    if (status === 'complete' && result.position) {
-                        console.log("[RunningMap] Self-locate success:", result.position);
-                        const { lat, lng } = result.position;
-                        // Center map
-                        map.setCenter([lng, lat]);
-                        // Notify parent to sync
-                        if (onLocationUpdate) {
-                            onLocationUpdate(lat, lng);
-                        }
-                    } else {
-                        console.warn("[RunningMap] Self-locate failed:", result);
-                    }
-                });
-            }
+        // Plugin is already loaded via safeLoadAMap plugins
+        const geolocation = new AMap.Geolocation({
+            enableHighAccuracy: true,
+            timeout: 15000, // Match AMapView config
+            maximumAge: 0,
+            convert: true,
+            showButton: false, // Hide button, we auto-locate
+            showMarker: false, // We use custom marker
+            showCircle: false, // We use custom circle
+            panToLocation: false, // We handle panning
+            zoomToAccuracy: false,
+            noGeoLocation: 0, // Force browser location (fix for Android WebView)
         });
+        
+        map.addControl(geolocation);
+        
+        // If no userLocation provided initially, try to self-locate
+        if (!userLocation) {
+            console.log("[RunningMap] No initial location, attempting self-locate...");
+            geolocation.getCurrentPosition(function(status: string, result: any) {
+                if (status === 'complete' && result.position) {
+                    console.log("[RunningMap] Self-locate success:", result.position);
+                    const { lat, lng } = result.position;
+                    // Center map
+                    map.setCenter([lng, lat]);
+                    // Notify parent to sync
+                    if (onLocationUpdate) {
+                        onLocationUpdate(lat, lng);
+                    }
+                } else {
+                    console.warn("[RunningMap] Self-locate failed:", result);
+                }
+            });
+        }
 
         // Ensure map is actually created
         if (!map) {
@@ -159,18 +161,15 @@ export function RunningMap({
     return () => {
       destroyed = true;
       // Destroy this independent map instance on unmount
-      if (mapInstanceRef.current) {
-          try {
-            mapInstanceRef.current.destroy();
-          } catch(e) {}
-          mapInstanceRef.current = null;
-      }
+      safeDestroyMap(mapInstanceRef.current);
+      mapInstanceRef.current = null;
     }
   }, []) // Init once
 
   // 2. Update User Location & Center
   useEffect(() => {
     if (!mapInstanceRef.current || !userMarkerRef.current || !userLocation) return
+    const AMap = amapRef.current;
     
     // Update marker
     userMarkerRef.current.setPosition(userLocation)
@@ -179,17 +178,82 @@ export function RunningMap({
     // Smooth Pan to user - Only pan if map center is far from user to allow manual interaction?
     // Or always center for running mode? Usually running apps lock to center.
     // Let's enforce center.
-    mapInstanceRef.current.setCenter(userLocation)
+    mapInstanceRef.current.panTo(userLocation)
+    
+    // Accuracy Circle
+    // Assuming 50m default if accuracy not passed, or we should pass accuracy from parent
+    // For now, draw a small circle to indicate "range"
+    if (!locationCircleRef.current) {
+         locationCircleRef.current = new AMap.Circle({
+             center: userLocation,
+             radius: 30, // Default 30m range? Or use real accuracy if passed
+             strokeColor: "#3B82F6",
+             strokeOpacity: 0.2,
+             strokeWeight: 1,
+             fillColor: "#3B82F6",
+             fillOpacity: 0.1,
+             zIndex: 90
+         })
+         
+         // 确保 mapInstanceRef.current 有效再添加
+         if (mapInstanceRef.current && typeof mapInstanceRef.current.add === 'function') {
+             mapInstanceRef.current.add(locationCircleRef.current);
+         }
+    } else {
+         locationCircleRef.current.setCenter(userLocation)
+         // 如果之前没有添加到地图（比如初始化时失败），这里再试一次
+         if (!locationCircleRef.current.getMap() && mapInstanceRef.current) {
+             mapInstanceRef.current.add(locationCircleRef.current);
+         }
+    }
     
   }, [userLocation])
 
-  // 3. Render Path & KM Markers
+  // 3. Render Polygons (Territories)
+  useEffect(() => {
+    if (!mapInstanceRef.current || !amapRef.current) return
+    const map = mapInstanceRef.current
+    const AMap = amapRef.current
+
+    // Clear old polygons
+    if (polygonRefs.current.length > 0) {
+        map.remove(polygonRefs.current);
+        polygonRefs.current = [];
+    }
+    
+    if (closedPolygons && closedPolygons.length > 0) {
+        closedPolygons.forEach(polyPath => {
+             const pathCoords = polyPath.map(p => [p.lng, p.lat]);
+             const polygon = new AMap.Polygon({
+                 path: pathCoords,
+                 fillColor: '#10B981', // Emerald
+                 fillOpacity: 0.3,
+                 strokeColor: '#059669',
+                 strokeWeight: 2,
+                 zIndex: 40
+             });
+             map.add(polygon);
+             polygonRefs.current.push(polygon);
+        });
+    }
+  }, [closedPolygons])
+
+  // 4. Render Path & KM Markers
   useEffect(() => {
     if (!mapInstanceRef.current || !amapRef.current || !path || path.length < 2) return
     const map = mapInstanceRef.current
     const AMap = amapRef.current
+    
+    // --- Draw Polygons (Territories) ---
+    // Moved to separate effect to prevent flickering if path updates fast but polygons don't
+    if (polygonRefs.current.length > 0) {
+        // Optimization: if polygon count hasn't changed, don't redraw?
+        // But closedPolygons prop changes only when new one added.
+        // For simplicity, we cleared them in previous effect, but I moved it here?
+        // Wait, I messed up the SearchReplace. The previous effect (3) was correct but I replaced it with (4).
+        // I need to RESTORE the polygon drawing logic.
+    }
 
-    // Draw Polyline
     const pathCoords = path.map(p => [p.lng, p.lat])
     
     if (!polylineRef.current) {

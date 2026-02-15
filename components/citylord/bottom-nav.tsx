@@ -3,7 +3,24 @@
 import { Map, Trophy, User, Target, Users, Gamepad2 } from "lucide-react"
 import { useGameStore } from "@/store/useGameStore"
 import { useEffect } from "react"
-import { getUnreadMessageCount } from "@/app/actions/message"
+
+const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const getUnreadMessageCount = async () => {
+  const res = await fetchWithTimeout('/api/message/get-unread-message-count', { credentials: 'include' })
+  if (!res.ok) throw new Error('Failed to fetch unread message count')
+  const data = await res.json()
+  return data?.count || 0
+}
+
 
 export type TabType = "play" | "missions" | "social" | "profile" | "leaderboard" | "mode"
 

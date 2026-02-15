@@ -20,7 +20,7 @@ import { NavBar } from "@/components/citylord/NavBar"
 import { LoadingScreen } from "@/components/citylord/loading-screen"
 import { useRunningTracker } from "@/hooks/useRunningTracker"
 import useSWR from 'swr'
-import { fetchFriends } from "@/app/actions/social"
+// import { fetchFriends } from "@/app/actions/social"
 
 const ImmersiveRunningMode = nextDynamic(() => import("@/components/citylord/running/immersive-mode").then(mod => mod.ImmersiveRunningMode), { ssr: false });
 
@@ -40,7 +40,14 @@ import { MyClub } from '@/components/mode/MyClub';
 
 import { AMapViewHandle } from "@/components/map/AMapView";
 
-const AMapView = nextDynamic(() => import("@/components/map/AMapViewWithProvider").then(mod => mod.AMapViewWithProvider), { ssr: false });
+const AMapView = nextDynamic(() => import("@/components/map/AMapViewWithProvider").then(mod => mod.AMapViewWithProvider), { 
+  ssr: false,
+  loading: () => (
+    <div className="absolute inset-0 flex items-center justify-center bg-zinc-950">
+       <Loader2 className="w-8 h-8 animate-spin text-primary" />
+    </div>
+  )
+});
 
 import { FactionSelector } from "@/components/social/FactionSelector"
 import { ReferralWelcome } from "@/components/social/ReferralWelcome"
@@ -50,13 +57,13 @@ import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/useAuth"
 import { toast } from "sonner"
 
-import { Capacitor } from '@capacitor/core';
-import { Geolocation } from '@capacitor/geolocation';
 import { RunHistoryDrawer } from "@/components/map/RunHistoryDrawer"
-import { Route, History } from "lucide-react"
+import { Route, History, Loader2 } from "lucide-react"
 import { CountdownOverlay } from "@/components/running/CountdownOverlay"
 import { initOneSignal, setExternalUserId } from "@/lib/onesignal/init"
-import { LocalNotifications } from '@capacitor/local-notifications'
+import { isNativePlatform, safeRequestGeolocationPermission, safeRequestLocalNotificationPermission, safeScheduleLocalNotification } from "@/lib/capacitor/safe-plugins"
+import { safeLoadAMap } from '@/lib/map/safe-amap';
+
 
 interface GamePageContentProps {
   initialMissions?: any[]
@@ -90,6 +97,11 @@ export function GamePageContent({
   // 全屏加载状态 - 必须在所有 hooks 之后 return
   const [activeTab, setActiveTab] = useState<TabType>("play")
 
+  // Preload AMap SDK immediately
+  useEffect(() => {
+     safeLoadAMap();
+  }, []);
+
   // State Persistence for Tabs
   useEffect(() => {
     // On mount, check URL param
@@ -118,9 +130,10 @@ export function GamePageContent({
     // Request Local Notification Permissions
     const requestPermissions = async () => {
         try {
-            if (Capacitor.isNativePlatform()) {
-                await LocalNotifications.requestPermissions();
+            if (await isNativePlatform()) {
+                await safeRequestLocalNotificationPermission();
             }
+
         } catch (e) {
             console.error("Failed to request notification permissions", e);
         }
@@ -143,9 +156,9 @@ export function GamePageContent({
              const { title, body, data } = payload.new;
              
              // 1. Trigger Local Notification (Native)
-             if (Capacitor.isNativePlatform()) {
+             if (await isNativePlatform()) {
                  try {
-                     await LocalNotifications.schedule({
+                     await safeScheduleLocalNotification({
                          notifications: [{
                              title: title,
                              body: body,
@@ -159,6 +172,7 @@ export function GamePageContent({
                      console.warn("LocalNotification schedule failed:", err);
                  }
              } else {
+
                  // Web Fallback: Toast
                  toast(title, {
                      description: body,
@@ -402,7 +416,11 @@ export function GamePageContent({
     return () => clearInterval(interval)
   }, [checkStaminaRecovery])
 
-  const { data: friends } = useSWR('friends', fetchFriends)
+  const { data: friends } = useSWR('friends', async () => {
+  const res = await fetch('/api/social/friends', { credentials: 'include' })
+  if (!res.ok) throw new Error('Failed to fetch friends')
+  return res.json()
+})
 
   const handleWelcomeComplete = () => {
     setShowWelcome(false)
@@ -460,9 +478,10 @@ export function GamePageContent({
 
   const handleOpenSettings = async () => {
     try {
-      if (Capacitor.isNativePlatform()) {
-        await Geolocation.requestPermissions();
+      if (await isNativePlatform()) {
+        await safeRequestGeolocationPermission();
       } else {
+
         toast.info("请在浏览器设置中开启定位权限");
       }
     } catch (e) {

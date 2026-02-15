@@ -1,4 +1,4 @@
-import AMapLoader from "@amap/amap-jsapi-loader";
+import { safeLoadAMap, safeDestroyMap } from '@/lib/map/safe-amap';
 
 // 定义 AMap 类型 (简化的)
 // 由于 @amap/amap-jsapi-loader 加载的类型比较复杂，这里使用 any 并添加注释
@@ -55,26 +55,18 @@ class MapManager {
       this.destroyMap();
     }
 
-    // 设置安全密钥
-    if (typeof window !== "undefined" && config.securityCode) {
-      (window as any)._AMapSecurityConfig = {
-        securityJsCode: config.securityCode,
-      };
-    }
-
     try {
       this.isLoading = true;
 
-      // 复用加载 Promise，防止多次调用 AMapLoader.load
-      if (!this.loadingPromise) {
-        this.loadingPromise = AMapLoader.load({
-          key: config.key,
-          version: config.version || "2.0",
-          plugins: config.plugins || [],
-        });
-      }
+      // 使用 safeLoadAMap 替代直接调用 AMapLoader
+      this.amap = await safeLoadAMap({
+        version: config.version || "2.0",
+        plugins: config.plugins || [],
+      });
 
-      this.amap = await this.loadingPromise;
+      if (!this.amap) {
+        throw new Error("Failed to load AMap SDK");
+      }
 
       if (!config.container) {
         throw new Error("Map container is required");
@@ -91,7 +83,6 @@ class MapManager {
       return { map: this.map, AMap: this.amap };
     } catch (error) {
       console.error("MapManager: Failed to load map", error);
-      this.loadingPromise = null; // 重置 promise 以便重试
       throw error;
     } finally {
       this.isLoading = false;
@@ -111,11 +102,7 @@ class MapManager {
    */
   public destroyMap() {
     if (this.map) {
-      try {
-        this.map.destroy();
-      } catch (e) {
-        console.warn("MapManager: Error destroying map", e);
-      }
+      safeDestroyMap(this.map);
       this.map = null;
     }
     // 注意：AMap SDK (this.amap) 不需要销毁，它加载在 window 上

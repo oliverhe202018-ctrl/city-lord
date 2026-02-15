@@ -5,8 +5,25 @@ import { formatAreaFromHexCount } from "@/lib/citylord/area-utils"
 import { GlassCard } from "@/components/ui/GlassCard"
 import { useContext } from "react"
 import { CityContext } from "@/contexts/CityContext"
-import { CityLeaderboardEntry, fetchCityLeaderboard } from "@/app/actions/city"
+import type { CityLeaderboardEntry } from "@/app/actions/city"
 import useSWR from "swr"
+
+const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const fetchCityLeaderboardApi = async (cityId: string): Promise<CityLeaderboardEntry[]> => {
+  const res = await fetchWithTimeout(`/api/city/fetch-city-leaderboard?cityId=${cityId}`, { credentials: 'include' })
+  if (!res.ok) throw new Error('Failed to fetch city leaderboard')
+  return await res.json()
+}
+
 
 function PodiumItem({ entry, size }: { entry?: CityLeaderboardEntry, size: 'lg' | 'md' | 'sm' }) {
   if (!entry) return null
@@ -66,7 +83,8 @@ export function Leaderboard() {
   // We use context.leaderboard as fallbackData if available (from initial context load)
   const { data: leaderboardData = [] } = useSWR(
     currentCity?.id ? ['cityLeaderboard', currentCity.id] : null,
-    () => fetchCityLeaderboard(currentCity!.id),
+    () => fetchCityLeaderboardApi(currentCity!.id),
+
     {
       fallbackData: context?.leaderboard || [],
       revalidateOnFocus: true,

@@ -1,7 +1,4 @@
-import { registerPlugin } from '@capacitor/core';
-import { BackgroundGeolocationPlugin } from '@capacitor-community/background-geolocation';
-
-const BackgroundGeolocation = registerPlugin<BackgroundGeolocationPlugin>('BackgroundGeolocation');
+import { isCapacitorAvailable, safeBackgroundGeolocationAddWatcher, safeBackgroundGeolocationRemoveWatcher } from "@/lib/capacitor/safe-plugins";
 
 export const LocationService = {
   // 启动跑步记录
@@ -18,13 +15,13 @@ export const LocationService = {
 
       // Capacitor logic skipped in Web View to prevent console spam
       // We only use this in native app context
-      if (typeof window !== 'undefined' && !(window as any).Capacitor?.isNative) {
+      if (typeof window !== 'undefined' && !isCapacitorAvailable()) {
           console.log('[LocationService] Web environment detected, skipping native background geolocation');
           return 'web-watcher-id';
       }
 
       // 1. 先添加 Watcher
-      const watcherId = await BackgroundGeolocation.addWatcher(
+      const watcherId = await safeBackgroundGeolocationAddWatcher(
         {
           backgroundMessage: "正在记录您的领地征程...",
           backgroundTitle: "City Lord 跑步中",
@@ -44,6 +41,7 @@ export const LocationService = {
           }
         }
       );
+      if (!watcherId) return 'web-watcher-id';
       return watcherId;
     } catch (e) {
       console.error("Start tracking failed", e);
@@ -55,7 +53,17 @@ export const LocationService = {
   stopTracking: async (watcherId: string) => {
     if (watcherId === 'web-watcher-id') return;
     if (watcherId) {
-      await BackgroundGeolocation.removeWatcher({ id: watcherId });
+      try {
+        await safeBackgroundGeolocationRemoveWatcher(watcherId);
+      } catch (e) {
+        console.warn("Stop tracking failed or already stopped", e);
+      }
     }
+  },
+
+  // Check status (Optional helper)
+  checkStatus: async () => {
+      // Not directly exposed by plugin usually, but we can try to re-request permissions or just assume alive
+      // Or check internal state if we maintained it
   }
 };

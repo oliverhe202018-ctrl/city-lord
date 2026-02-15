@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef } from "react";
-import AMapLoader from "@amap/amap-jsapi-loader";
+import { safeLoadAMap, safeDestroyMap } from '@/lib/map/safe-amap';
 import * as turf from '@turf/turf';
 
 interface StaticTrajectoryMapProps {
@@ -14,31 +14,14 @@ export function StaticTrajectoryMap({ path, className }: StaticTrajectoryMapProp
   const mapRef = useRef<any | null>(null);
 
   useEffect(() => {
-    // Force security config again before load
-    if (typeof window !== "undefined") {
-        (window as any)._AMapSecurityConfig = { 
-            securityJsCode: 'e827ba611fad4802c48dd900d01eb4bf',
-        };
-    }
-
-    const key = process.env.NEXT_PUBLIC_AMAP_KEY;
-    if (!key) return;
-
-    const securityCode = process.env.NEXT_PUBLIC_AMAP_SECURITY_CODE;
-    if (securityCode && typeof window !== "undefined") {
-      // @ts-ignore
-      window._AMapSecurityConfig = { securityJsCode: securityCode };
-    }
-
     let destroyed = false;
 
-    AMapLoader.load({
-      key,
-      version: "2.0",
-      plugins: [],
-    }).then((AMap) => {
-        if (destroyed || !mapDomRef.current) return;
+    (async () => {
+      const AMap = await safeLoadAMap({ plugins: [] });
+      
+      if (destroyed || !mapDomRef.current || !AMap) return;
 
+      try {
         // Initialize map in static mode
         mapRef.current = new AMap.Map(mapDomRef.current, {
           zoom: 13,
@@ -117,16 +100,15 @@ export function StaticTrajectoryMap({ path, className }: StaticTrajectoryMapProp
             }
         }
 
-      }).catch((e) => {
+      } catch (e) {
         console.error("AMap load error:", e);
-      });
+      }
+    })();
 
     return () => {
       destroyed = true;
-      if (mapRef.current) {
-        mapRef.current.destroy();
-        mapRef.current = null;
-      }
+      safeDestroyMap(mapRef.current);
+      mapRef.current = null;
     };
   }, [path]);
 

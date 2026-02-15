@@ -1,7 +1,7 @@
 import React from 'react';
 import { Copy, Share2, ArrowLeft, Check, Link as LinkIcon } from 'lucide-react';
 import { toast } from 'sonner';
-import { type Room } from '@/app/actions/room';
+import type { Room } from '@/app/actions/room';
 
 interface InviteRoomViewProps {
   room: Room;

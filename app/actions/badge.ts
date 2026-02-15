@@ -188,7 +188,7 @@ export async function fetchUserBadges() {
   if (!user) return []
 
   try {
-    const userData = await prisma.users.findUnique({
+    const userData = await prisma.profiles.findUnique({
       where: { id: user.id },
       select: { badges: true }
     })

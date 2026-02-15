@@ -1,0 +1,13 @@
+name: Lint
+on: [push, pull_request]
+
+jobs:
+  dangerous-imports:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/check-dangerous-imports.js
+        name: 🛡️ Check dangerous top-level imports

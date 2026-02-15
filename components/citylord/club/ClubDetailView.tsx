@@ -3,15 +3,58 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
 import useSWR from 'swr'
 import { createClient } from '@/lib/supabase/client'
-import { getClubDetailsCached } from '@/app/actions/club'
+
+const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const fetchClubDetailsCached = async (clubId: string) => {
+  const res = await fetchWithTimeout(`/api/club/get-club-details-cached?clubId=${clubId}`, { credentials: 'include' })
+  if (!res.ok) throw new Error('Failed to fetch club details')
+  return await res.json()
+}
+
+const joinClub = async (clubId: string) => {
+  const res = await fetchWithTimeout('/api/club/join-club', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ clubId }),
+    credentials: 'include'
+  })
+  if (!res.ok) throw new Error('Failed to join club')
+  return await res.json()
+}
+
+const fetchClubRankStats = async (clubId: string) => {
+  const res = await fetchWithTimeout(`/api/club/get-club-rank-stats?clubId=${clubId}`, { credentials: 'include' })
+  if (!res.ok) throw new Error('Failed to fetch rank stats')
+  return await res.json()
+}
+
+const fetchTopClubsByArea = async (limit?: number, province?: string) => {
+  const params = new URLSearchParams()
+  if (limit) params.set('limit', String(limit))
+  if (province) params.set('province', province)
+  const qs = params.toString()
+  const res = await fetchWithTimeout(`/api/club/get-top-clubs-by-area${qs ? `?${qs}` : ''}`, { credentials: 'include' })
+  if (!res.ok) throw new Error('Failed to fetch top clubs')
+  return await res.json()
+}
+
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Trophy, Map, Users, Footprints, Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useGameStore } from '@/store/useGameStore'
 import { toast } from 'sonner'
-import { Keyboard } from '@capacitor/keyboard'
-import { Capacitor } from '@capacitor/core'
+import { isNativePlatform, safeKeyboardAddListener } from "@/lib/capacitor/safe-plugins"
+
 
 type ClubDetailInfo = {
   id: string
@@ -93,16 +136,15 @@ export function ClubDetailView({
 
   // ✅ 新增：监听键盘事件
   useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return
-
     let showListenerHandle: any;
     let hideListenerHandle: any;
 
     const setupListeners = async () => {
-        showListenerHandle = await Keyboard.addListener('keyboardWillShow', (info) => {
+        if (!(await isNativePlatform())) return
+        showListenerHandle = await safeKeyboardAddListener('keyboardWillShow', (info) => {
             setKeyboardHeight(info.keyboardHeight)
         })
-        hideListenerHandle = await Keyboard.addListener('keyboardWillHide', () => {
+        hideListenerHandle = await safeKeyboardAddListener('keyboardWillHide', () => {
             setKeyboardHeight(0)
         })
     }
@@ -115,10 +157,12 @@ export function ClubDetailView({
     }
   }, [])
 
+
   // Optimized Data Fetching with SWR & Server Action Cache
   const { data: cachedClub, isLoading: isClubLoading } = useSWR(
     clubId ? ['club-details', clubId] : null,
-    ([_, id]) => getClubDetailsCached(id),
+    ([_, id]) => fetchClubDetailsCached(id),
+
     {
       revalidateOnFocus: false,
       dedupingInterval: 60000, // 1 minute
@@ -150,10 +194,9 @@ export function ClubDetailView({
         setHasJoined(true);
       }
     } else {
-        // Direct Server Action Call
+        // API route call
         try {
-            const { joinClub } = await import('@/app/actions/club');
-            const result = await joinClub(clubId);
+            const result = await joinClub(clubId)
             
             if (result.success) {
                 setHasJoined(true);
@@ -184,6 +227,7 @@ export function ClubDetailView({
     }
   };
 
+
   useEffect(() => {
     if (!clubId) return
 
@@ -209,9 +253,8 @@ export function ClubDetailView({
       }
 
       // 2. Fetch additional details (rankings, members, stats)
-      const { getClubRankStats, getTopClubsByArea } = await import('@/app/actions/club');
-      
-      const rankStatsPromise = getClubRankStats(clubId);
+      const rankStatsPromise = fetchClubRankStats(clubId)
+
       const memberRowsPromise = supabase
         .from('club_members')
         .select(`
@@ -242,9 +285,10 @@ export function ClubDetailView({
       // Fetch local top clubs if province is available
       const currentProvince = cachedClub?.province || club?.province;
       if (currentProvince) {
-          const localData = await getTopClubsByArea(5, currentProvince);
-          setTopClubsLocal(localData);
+          const localData = await fetchTopClubsByArea(5, currentProvince)
+          setTopClubsLocal(localData)
       }
+
 
       const toPublicUrl = (path: string | null | undefined, bucket: string) => {
         if (!path) return null

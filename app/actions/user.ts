@@ -8,7 +8,8 @@ import { calculateLevel } from '@/lib/game-logic/level-system'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 
-import { checkAndAwardBadges } from '@/app/actions/check-achievements'
+import { fetchUserProfileStats } from '@/lib/game-logic/user-core'
+import { checkAndAwardBadges } from '@/lib/game-logic/achievement-core'
 
 export async function stopRunningAction(context: RunContext) {
   const supabase = await createClient()
@@ -161,8 +162,8 @@ export async function stopRunningAction(context: RunContext) {
                user_id: user.id,
                club_id: userProfile.club_id,
                area: Number(capturedArea.toFixed(4)),
-               duration: Math.floor(context.duration * 60),
-               province: userProvince || context.regionId,
+              duration: Math.floor(durationMinutes * 60),
+              province: userProvince || context.regionId,
                created_at: new Date()
              }
            })
@@ -172,7 +173,7 @@ export async function stopRunningAction(context: RunContext) {
             data: {
               user_id: user.id,
               area: Number(((context.newHexCount || 0) * 0.00065).toFixed(4)),
-              duration: Math.floor(context.duration * 60),
+              duration: Math.floor(durationMinutes * 60),
               province: userProvince || context.regionId,
               created_at: new Date()
             }
@@ -214,47 +215,13 @@ export async function getUserProfileStats() {
       battlesWon: 0,
       level: 1,
       xp: 0,
-      coins: 0
+      coins: 0,
+      faction: null
     }
   }
 
-  // Get Profile Data
-  const { data: profileData } = await supabase
-    .from('profiles')
-    .select('level, current_exp, total_distance_km, coins, faction')
-    .eq('id', user.id)
-    .single()
-    
-  const profile = profileData as any;
-
-  // Get User City Progress for Area/Tiles
-  const { data: progressData } = await supabase
-    .from('user_city_progress')
-    .select('tiles_captured, area_controlled')
-    .eq('user_id', user.id)
-    
-  const progress = progressData as any;
-
-  let totalTiles = 0
-  let totalArea = 0
-  
-  if (progress) {
-    (progress as any[]).forEach((p: any) => {
-      totalTiles += (p.tiles_captured || 0)
-      totalArea += Number(p.area_controlled || 0)
-    })
-  }
-
-  return {
-    totalTiles,
-    totalArea,
-    totalDistance: profile?.total_distance_km || 0,
-    battlesWon: 0, // Future: fetch from battle logs
-    level: profile?.level || 1,
-    xp: profile?.current_exp || 0,
-    coins: profile?.coins || 0,
-    faction: profile?.faction || null
-  }
+  // Use shared logic to avoid circular dependency
+  return await fetchUserProfileStats(user.id)
 }
 
 export async function touchUserActivity() {
@@ -269,7 +236,8 @@ export async function touchUserActivity() {
     .eq('id', user.id)
 }
 
-export const ensureUserProfile = cache(async (userId: string) => {
+// Internal cached function
+const _ensureUserProfile = cache(async (userId: string) => {
   const supabase = await createClient()
 
   // 🚀 Fast Path: Check ID existence only (<50ms)
@@ -317,6 +285,11 @@ export const ensureUserProfile = cache(async (userId: string) => {
 
   return { success: true, isNew: true }
 })
+
+// Export as async function for Server Action compatibility
+export async function ensureUserProfile(userId: string) {
+  return _ensureUserProfile(userId)
+}
 
 export async function addExperience(amount: number) {
   const supabase = await createClient()

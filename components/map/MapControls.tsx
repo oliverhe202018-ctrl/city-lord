@@ -6,8 +6,7 @@ import { useRegion } from '@/contexts/RegionContext';
 import { Button } from '@/components/ui/button';
 import { LocateFixedIcon, Plus, Minus, Gamepad2, Users, User, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { Capacitor } from '@capacitor/core';
-import { Geolocation } from '@capacitor/geolocation';
+
 import { toast } from 'sonner';
 import gcoord from 'gcoord';
 
