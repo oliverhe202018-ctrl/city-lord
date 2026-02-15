@@ -119,10 +119,12 @@ export function AvatarUploader({
           onClick={() => !isLoading && fileInputRef.current?.click()}
         >
            {currentAvatarUrl ? (
-             <img 
+             <Image 
                src={currentAvatarUrl} 
                alt="Avatar" 
-               className="w-full h-full object-cover transition-opacity group-hover:opacity-75"
+               fill
+               className="object-cover transition-opacity group-hover:opacity-75"
+               unoptimized={currentAvatarUrl.startsWith('blob:')}
              />
            ) : (
              <div className="flex h-full w-full items-center justify-center bg-muted text-muted-foreground">
