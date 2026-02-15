@@ -1,3 +1,8 @@
+// app/api/territory/list/route.ts
+
+// 👇 1. 添加这一行，强制声明为动态路由
+export const dynamic = 'force-dynamic';
+
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
