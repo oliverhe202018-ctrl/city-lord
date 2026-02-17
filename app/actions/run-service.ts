@@ -143,6 +143,26 @@ export async function saveRunActivity(
         revalidatePath('/dashboard');
         revalidatePath('/profile/me');
 
+        // Trigger Task Center Event (Async, non-blocking)
+        try {
+            const { TaskService } = await import('@/lib/services/task');
+            // Avoid blocking the response for too long, but wait enough to ensure no race condition on immediate fetch?
+            // Actually, we should catch errors so run save doesn't fail.
+            const eventPayload = {
+                type: 'RUN_FINISHED' as const,
+                userId: userId,
+                timestamp: new Date(),
+                data: {
+                    distance: runData.distance, // meters
+                    duration: runData.duration, // seconds
+                    pace: (runData.duration / (runData.distance / 1000)), // s/km
+                }
+            };
+            await TaskService.processEvent(userId, eventPayload);
+        } catch (taskError) {
+            console.error('Task event processing failed', taskError);
+        }
+
         return {
             success: true,
             runId: result.runId,

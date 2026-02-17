@@ -68,6 +68,7 @@ model profiles {
   blockedByMe                                   blocked_users[]      @relation("blocked_users_blocker")
   blockedMe                                     blocked_users[]      @relation("blocked_users_blocked")
   userBackgrounds                               user_backgrounds[]
+  userTaskProgress                              UserTaskProgress[]
 
   @@index([club_id], map: "idx_profiles_club_id")
   @@index([faction], map: "idx_profiles_faction")
@@ -634,4 +635,42 @@ model user_backgrounds {
   @@unique([userId, backgroundId])
   @@index([userId])
   @@schema("public")
+}
+model Task {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code        String   @unique // e.g., "daily_run_1km"
+  type        String   // DAILY, WEEKLY
+  title       String
+  description String
+  targetValue Int      @map("target_value")
+  unit        String   // "meters", "count", "times"
+  reward      Json     // { coins: 100, xp: 20 }
+  condition   String   // Strategy key: DISTANCE_SUM, PACE_LIMIT, GRID_COUNT, etc.
+  isVisible   Boolean  @default(true) @map("is_visible")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  userTaskProgress UserTaskProgress[]
+
+  @@schema("public")
+  @@map("tasks")
+}
+
+model UserTaskProgress {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  taskId       String    @map("task_id") @db.Uuid
+  currentValue Int       @default(0) @map("current_value")
+  status       String    @default("IN_PROGRESS") // IN_PROGRESS, COMPLETED, CLAIMED
+  completedAt  DateTime? @map("completed_at") @db.Timestamptz(6)
+  expiresAt    DateTime  @map("expires_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user profiles @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, taskId, expiresAt])
+  @@index([userId, status])
+  @@schema("public")
+  @@map("user_task_progress")
 }
