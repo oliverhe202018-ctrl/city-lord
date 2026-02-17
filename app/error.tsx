@@ -107,31 +107,43 @@ export default function Error({
 
   // === Production: Critical error full-screen ===
   return (
-    <div className="flex h-screen w-full flex-col items-center justify-center bg-zinc-950 p-4 text-center select-none">
-      <div className="relative mb-6">
-        <div className="absolute inset-0 animate-pulse rounded-full bg-red-500/20 blur-xl"></div>
-        <AlertTriangle className="relative h-20 w-20 text-red-500" />
-      </div>
+    <div className="flex h-screen w-full flex-col items-center justify-center bg-zinc-50 dark:bg-zinc-950 p-4 text-center select-none">
+      <div className="bg-white dark:bg-zinc-900 p-8 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 max-w-md w-full">
+        <div className="flex justify-center mb-6">
+          <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-full">
+            <AlertTriangle className="h-10 w-10 text-red-600 dark:text-red-500" />
+          </div>
+        </div>
 
-      <h2 className="mb-2 text-2xl font-bold tracking-tight text-white font-mono">
-        系统故障 SYSTEM FAILURE
-      </h2>
-      <p className="mb-8 max-w-xs text-sm text-zinc-400 font-mono">
-        检测到异常信号干扰。请尝试重启系统以恢复连接。
-      </p>
+        <h2 className="mb-2 text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
+          系统遇到了一点问题
+        </h2>
+        <p className="mb-6 text-sm text-zinc-500 dark:text-zinc-400">
+          应用运行过程中发生了异常。如果是网络问题，请尝试刷新。
+        </p>
 
-      <div className="flex gap-4">
-        <Button
-          onClick={reset}
-          className="bg-red-600 hover:bg-red-700 text-white gap-2 font-bold px-8 py-6 rounded-xl border-b-4 border-red-800 active:border-b-0 active:translate-y-1 transition-all"
-        >
-          <RefreshCcw className="h-5 w-5" />
-          重启系统 REBOOT
-        </Button>
-      </div>
+        <div className="flex flex-col gap-3">
+          <Button
+            onClick={reset}
+            className="w-full bg-zinc-900 hover:bg-zinc-800 text-white rounded-lg py-2"
+          >
+            <RefreshCcw className="h-4 w-4 mr-2" />
+            重试
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => window.location.reload()}
+            className="w-full"
+          >
+            刷新页面
+          </Button>
+        </div>
 
-      <div className="mt-12 font-mono text-[10px] text-zinc-600">
-        ERROR_CODE: {error.digest || 'UNKNOWN_ANOMALY'}
+        <div className="mt-6 pt-6 border-t border-zinc-100 dark:border-zinc-800">
+          <p className="font-mono text-[10px] text-zinc-400">
+            CODE: {error.digest || 'UNKNOWN_ERROR'}
+          </p>
+        </div>
       </div>
     </div>
   )
