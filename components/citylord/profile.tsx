@@ -505,7 +505,7 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
       </div>
 
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto pb-24">
+      <div className="flex-1 overflow-y-auto pb-24 themed-scrollbar">
 
         {/* Task 3: My Run Records */}
         <div className="p-4 pb-0">
