@@ -46,7 +46,7 @@ export function KingdomLayer({ map, userId }: KingdomLayerProps) {
 
         // Clear existing polygons
         polygonRefs.current.forEach(poly => {
-            if (poly) map.remove(poly);
+            if (poly) map?.remove?.(poly);
         });
         polygonRefs.current = [];
 
@@ -88,7 +88,7 @@ export function KingdomLayer({ map, userId }: KingdomLayerProps) {
                 polygonRefs.current.forEach(poly => {
                     if (poly) {
                         try {
-                            map.remove(poly);
+                            map?.remove?.(poly);
                         } catch (e) {
                             console.warn('[KingdomLayer] Cleanup error:', e);
                         }

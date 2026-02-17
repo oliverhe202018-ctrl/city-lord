@@ -65,6 +65,18 @@ export function MapRoot({ children }: { children: ReactNode }) {
   // --- GPS Status → Game Store Sync ---
   const setGpsStatus = useGameStore(state => state.setGpsStatus);
   const updateStoreLocation = useGameStore(state => state.updateLocation);
+  const resetRunState = useGameStore(state => state.resetRunState);
+  const isRunning = useGameStore(state => state.isRunning);
+
+  // Bug5: On mount, if not actively running, clear persisted run path to prevent ghost lines
+  useEffect(() => {
+    if (!isRunning) {
+      resetRunState();
+    }
+    // Also reset fly flag for fresh login
+    hasInitialFlown.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Sync useSafeGeolocation status → game store gpsStatus
   useEffect(() => {
@@ -74,7 +86,13 @@ export function MapRoot({ children }: { children: ReactNode }) {
       error: 'error',
       initializing: 'locating',
     };
-    setGpsStatus(statusMap[status] || 'locating');
+    const mappedStatus = statusMap[status] || 'locating';
+    setGpsStatus(mappedStatus);
+
+    // Bug5: Dismiss lingering GPS weak-signal toasts when GPS locks
+    if (status === 'locked') {
+      toast.dismiss();
+    }
   }, [status, setGpsStatus]);
 
   // Sync GPS coordinates → game store so MapHeader's reverse geocoding triggers
