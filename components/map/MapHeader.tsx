@@ -71,7 +71,7 @@ function LoginModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void 
   return (
     <div className="fixed inset-0 z-[500] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-300">
       <div className="relative w-full max-w-sm">
-        <GlassCard className="p-6 flex flex-col items-center gap-4 border border-[#22c55e]/30 shadow-[0_0_30px_rgba(34,197,94,0.2)]">
+        <GlassCard className="p-6 flex flex-col items-center gap-4 border border-primary/30 shadow-[0_0_30px_hsl(var(--primary)/0.2)]">
           <button
             onClick={onClose}
             className="absolute right-4 top-4 p-1 rounded-full hover:bg-white/10 transition-colors"
@@ -79,8 +79,8 @@ function LoginModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void 
             <X className="w-4 h-4 text-white/60" />
           </button>
 
-          <div className="w-16 h-16 rounded-full bg-[#22c55e]/20 flex items-center justify-center mb-2">
-            <LogIn className="w-8 h-8 text-[#22c55e]" />
+          <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center mb-2">
+            <LogIn className="w-8 h-8 text-primary" />
           </div>
 
           <div className="text-center space-y-2">
@@ -92,7 +92,7 @@ function LoginModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void 
           </div>
 
           <Link href="/login" className="w-full mt-2">
-            <Button className="w-full bg-[#22c55e] hover:bg-[#16a34a] text-black font-bold h-11 rounded-xl shadow-lg shadow-green-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]">
+            <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold h-11 rounded-xl shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98]">
               立即登录 / 注册
             </Button>
           </Link>
@@ -410,7 +410,7 @@ export function MapHeader({
             {viewMode === 'user' ? (
               <User className="w-5 h-5" />
             ) : (
-              <Users className="w-5 h-5 text-[#22c55e]" />
+              <Users className="w-5 h-5 text-primary" />
             )}
           </button>
         )}

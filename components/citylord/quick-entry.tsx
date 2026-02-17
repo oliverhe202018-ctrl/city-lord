@@ -31,15 +31,15 @@ export function QuickEntry({ onNavigate, missionCount = 0, friendCount = 0, rank
       {/* Running Entry - Enlarged 1.3x GO Button */}
       <button
         onClick={() => onNavigate("running")}
-        className="group absolute -top-20 left-1/2 -translate-x-1/2 z-20 flex h-[104px] w-[104px] items-center justify-center rounded-full bg-gradient-to-br from-[#22c55e] to-[#16a34a] shadow-[0_4px_24px_rgba(34,197,94,0.6)] transition-all active:scale-95"
+        className="group absolute -top-20 left-1/2 -translate-x-1/2 z-20 flex h-[104px] w-[104px] items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary/80 shadow-[0_4px_24px_hsl(var(--primary)/0.6)] transition-all active:scale-95"
       >
         {/* Ripple Effects - Non-interactive glow */}
-        <span className="absolute h-full w-full animate-ping rounded-full bg-[#22c55e]/40 pointer-events-none" style={{ animationDuration: '2s' }}></span>
-        <span className="absolute h-[120%] w-[120%] animate-ping rounded-full bg-[#22c55e]/20 pointer-events-none" style={{ animationDuration: '2s', animationDelay: '0.5s' }}></span>
+        <span className="absolute h-full w-full animate-ping rounded-full bg-primary/40 pointer-events-none" style={{ animationDuration: '2s' }}></span>
+        <span className="absolute h-[120%] w-[120%] animate-ping rounded-full bg-primary/20 pointer-events-none" style={{ animationDuration: '2s', animationDelay: '0.5s' }}></span>
 
         <div className="flex flex-col items-center justify-center">
-          <span className="text-lg font-extrabold text-white drop-shadow-md">GO!</span>
-          <span className="text-xs font-medium text-white/90">跑步</span>
+          <span className="text-lg font-extrabold text-primary-foreground drop-shadow-md">GO!</span>
+          <span className="text-xs font-medium text-primary-foreground/90">跑步</span>
         </div>
       </button>
 

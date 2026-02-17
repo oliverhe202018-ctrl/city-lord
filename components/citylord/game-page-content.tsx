@@ -636,7 +636,7 @@ export function GamePageContent({
       <QuickNavPopup
         isOpen={showQuickNav}
         onClose={handleCloseQuickNav}
-        onNavigate={setActiveTab}
+        onNavigate={(tab) => setActiveTab(tab)}
         missionCount={missionCount}
       />
 
@@ -699,21 +699,21 @@ export function GamePageContent({
                   <div className="pointer-events-auto absolute top-[130px] left-4 z-20 flex flex-col gap-4">
                     <button
                       onClick={handlePlannerOpen}
-                      className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg text-white active:scale-95 transition-all hover:bg-black/80"
+                      className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg text-white active:scale-95 transition-all hover:bg-primary/20 hover:border-primary/50 hover:text-primary-foreground"
                     >
                       <Route className="h-5 w-5" />
                     </button>
 
                     <button
                       onClick={handleRunHistoryOpen}
-                      className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg text-white active:scale-95 transition-all hover:bg-black/80"
+                      className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg text-white active:scale-95 transition-all hover:bg-primary/20 hover:border-primary/50 hover:text-primary-foreground"
                     >
                       <History className="h-5 w-5" />
                     </button>
 
                     <button
                       onClick={handleLeaderboardOpen}
-                      className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg text-white active:scale-95 transition-all hover:bg-black/80"
+                      className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg text-white active:scale-95 transition-all hover:bg-primary/20 hover:border-primary/50 hover:text-primary-foreground"
                     >
                       <Trophy className="h-5 w-5" />
                     </button>
