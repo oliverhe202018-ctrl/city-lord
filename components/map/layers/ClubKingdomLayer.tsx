@@ -133,8 +133,12 @@ export function ClubKingdomLayer({ map, userId }: ClubKingdomLayerProps) {
         map.add(customLayer);
 
         return () => {
-            if (customLayer) {
-                map.remove(customLayer);
+            if (map && customLayer) {
+                try {
+                    map.remove(customLayer);
+                } catch (e) {
+                    console.warn('[ClubKingdomLayer] Cleanup error:', e);
+                }
             }
             customLayerRef.current = null;
         };

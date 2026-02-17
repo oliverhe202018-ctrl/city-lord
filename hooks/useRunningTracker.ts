@@ -286,6 +286,10 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       return;
     }
 
+    // ⚠️ ANTI-CHEAT TEMPORARILY DISABLED FOR TESTING
+    // TODO: Re-enable with more tolerant threshold (e.g., 50 km/h) or implement server-side validation
+    // Original logic was blocking legitimate GPS jumps during normal running
+    /*
     // Speed Check (Anti-Cheat)
     if (lastLocationRef.current) {
       const prevLoc = lastLocationRef.current;
@@ -300,6 +304,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         }
       }
     }
+    */
 
     let newLoc: Location = { lat, lng, timestamp: now };
 
