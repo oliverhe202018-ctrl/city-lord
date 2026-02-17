@@ -636,7 +636,7 @@ export function GamePageContent({
       <QuickNavPopup
         isOpen={showQuickNav}
         onClose={handleCloseQuickNav}
-        onNavigate={(tab) => setActiveTab(tab)}
+        onNavigate={handleQuickNavigate}
         missionCount={missionCount}
       />
 
