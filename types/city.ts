@@ -73,6 +73,8 @@ export interface City {
   description?: string
   /** 下属区县 */
   districts?: District[]
+  /** 领地列表 (可选，通常在详情接口返回) */
+  territories?: Territory[]
 }
 
 /**

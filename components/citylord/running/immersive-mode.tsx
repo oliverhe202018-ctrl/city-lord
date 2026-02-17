@@ -48,6 +48,7 @@ interface ImmersiveModeProps {
   closedPolygons?: Location[][]
   onHexClaimed?: () => void
   onManualLocation?: (lat: number, lng: number) => void
+  saveRun?: (isFinal?: boolean) => Promise<void>
 }
 
 // Helper: Calculate distance between two points in meters
@@ -85,6 +86,7 @@ export function ImmersiveRunningMode({
   closedPolygons = [],
   onHexClaimed,
   onManualLocation,
+  saveRun
 }: ImmersiveModeProps) {
   const [isPaused, setIsPaused] = useState(false)
   const [isGhostMode, setIsGhostMode] = useState(false)
@@ -96,7 +98,7 @@ export function ImmersiveRunningMode({
   const [areaFlash, setAreaFlash] = useState(false)
   const [showLoopWarning, setShowLoopWarning] = useState(false)
   const [effectiveHexes, setEffectiveHexes] = useState(0)
-  
+
   const { currentCity } = useCity()
   const { ghostPath } = useGameLocation()
   const [lastClaimedHex, setLastClaimedHex] = useState<string | null>(null)
@@ -107,28 +109,28 @@ export function ImmersiveRunningMode({
   // Haptic Feedback Logic
   useEffect(() => {
     if (!currentLocation || !currentCity?.territories || !userId) return
-    
+
     const hex = latLngToCell(currentLocation.lat, currentLocation.lng, 9)
     if (hex !== currentHex) {
       setCurrentHex(hex)
-      
+
       const territory = currentCity.territories.find(t => t.id === hex)
       if (territory) {
         if (territory.ownerId === userId) {
-           safeHapticImpact("light")
+          safeHapticImpact("light")
 
 
-           toast.success("这是朕的江山", { duration: 2000 })
+          toast.success("这是朕的江山", { duration: 2000 })
         } else if (territory.ownerId && territory.ownerId !== userId) {
-           safeHapticVibrate()
+          safeHapticVibrate()
 
 
-           toast.warning("入侵敌方领地！", { duration: 3000 })
+          toast.warning("入侵敌方领地！", { duration: 3000 })
         }
       }
     }
   }, [currentLocation, currentHex, userId, currentCity])
-  
+
   // Map Data State
   const [mapHexagons, setMapHexagons] = useState<string[]>([])
   const [exploredHexes, setExploredHexes] = useState<string[]>([])
@@ -142,7 +144,7 @@ export function ImmersiveRunningMode({
       })
       if (!res.ok) throw new Error('Failed to fetch')
       const territories = await res.json()
-      
+
       if (territories && Array.isArray(territories)) {
         setMapHexagons(territories.map((t: any) => t.id))
         setExploredHexes(territories.filter((t: any) => t.ownerType === 'me').map((t: any) => t.id))
@@ -178,7 +180,7 @@ export function ImmersiveRunningMode({
       try {
         // Calculate H3 index (resolution 9 is standard for gameplay)
         const h3Index = latLngToCell(currentLocation.lat, currentLocation.lng, 9)
-        
+
         // Prevent spamming the same hex or if currently claiming
         if (h3Index === lastClaimedHex || isClaimingRef.current) return
 
@@ -197,7 +199,7 @@ export function ImmersiveRunningMode({
         }
 
         const result = await res.json()
-        
+
         if (result.success) {
           setLastClaimedHex(h3Index)
           toast.success("占领成功!", {
@@ -210,10 +212,10 @@ export function ImmersiveRunningMode({
             result.grantedBadges.forEach((badgeName: string) => {
               toast.success(`解锁勋章: ${badgeName}`, {
                 icon: <Trophy className="h-4 w-4 text-yellow-400" />,
-                style: { 
-                  backgroundColor: 'rgba(0,0,0,0.8)', 
-                  color: 'white', 
-                  border: '1px solid rgba(250, 204, 21, 0.5)' 
+                style: {
+                  backgroundColor: 'rgba(0,0,0,0.8)',
+                  color: 'white',
+                  border: '1px solid rgba(250, 204, 21, 0.5)'
                 }
               })
             })
@@ -221,7 +223,7 @@ export function ImmersiveRunningMode({
 
           // Refresh map overlay
           loadTerritories()
-          
+
           // Notify parent
           onHexClaimed?.()
         }
@@ -238,9 +240,9 @@ export function ImmersiveRunningMode({
     // For simplicity, we just run this effect when currentLocation changes
     // Debounce could be added if location updates are very frequent
     checkAndClaimTerritory()
-    
+
   }, [isActive, isPaused, currentLocation, currentCity, lastClaimedHex, loadTerritories])
-  
+
   // Animate area counter with jumping effect
   useEffect(() => {
     if (!isActive || isPaused) return
@@ -255,7 +257,7 @@ export function ImmersiveRunningMode({
       return () => clearTimeout(timer)
     }
   }, [isActive, isPaused, totalArea])
-  
+
   // Flash effect when capturing new hex
   useEffect(() => {
     if (hexesCaptured > 0) {
@@ -265,27 +267,27 @@ export function ImmersiveRunningMode({
     }
   }, [hexesCaptured])
 
-  const handleGhostMove = useCallback((vector: {x: number, y: number}) => {
+  const handleGhostMove = useCallback((vector: { x: number, y: number }) => {
     if (!currentLocation || !onManualLocation) return
-    
+
     // Max speed 15km/h ~= 4.16 m/s
     // Update rate 50ms => 0.05s
     // Max dist per update = 4.16 * 0.05 = 0.208 meters
-    
+
     const speedMps = 15 / 3.6 // ~4.16
     const timeStep = 0.05 // 50ms
     const dist = speedMps * timeStep
-    
+
     // North/South distance (dLat)
     // 1 degree lat ~= 111,320 meters
     // Joystick Y+ is down (South), so Lat decreases.
     const dLat = -(dist * vector.y) / 111320
-    
+
     // East/West distance (dLng)
     // 1 degree lng ~= 111320 * cos(lat)
     const latRad = currentLocation.lat * (Math.PI / 180)
     const dLng = (dist * vector.x) / (111320 * Math.cos(latRad))
-    
+
     onManualLocation(currentLocation.lat + dLat, currentLocation.lng + dLng)
   }, [currentLocation, onManualLocation])
 
@@ -323,23 +325,23 @@ export function ImmersiveRunningMode({
 
     const startPoint = safePath[0]
     const endPoint = safePath[safePath.length - 1]
-    
+
     // Calculate gap between start and end
     const gap = getDistanceFromLatLonInMeters(
-        startPoint.lat, startPoint.lng,
-        endPoint.lat, endPoint.lng
+      startPoint.lat, startPoint.lng,
+      endPoint.lat, endPoint.lng
     )
 
     const LOOP_THRESHOLD = 50 // meters
 
     if (gap <= LOOP_THRESHOLD) {
-        // Closed loop
-        setEffectiveHexes(hexesCaptured)
-        // 1. Audio logic moved to handleStop (final confirm)
-        setShowSummary(true)
+      // Closed loop
+      setEffectiveHexes(hexesCaptured)
+      // 1. Audio logic moved to handleStop (final confirm)
+      setShowSummary(true)
     } else {
-        // Open loop - Warn user
-        setShowLoopWarning(true)
+      // Open loop - Warn user
+      setShowLoopWarning(true)
     }
   }
 
@@ -356,33 +358,39 @@ export function ImmersiveRunningMode({
       e.preventDefault();
       e.stopPropagation();
     }
-    
+
     // 1. 尝试播放音频 (放在 try-catch 中，绝不阻塞)
     try {
-        const audio = new Audio('/sounds/run_finish.mp3');
-        (window as any).finishAudio = audio; // Critical: Keep alive
-        audio.play().catch(e => console.log('Audio error handled:', e));
+      const audio = new Audio('/sounds/run_finish.mp3');
+      (window as any).finishAudio = audio; // Critical: Keep alive
+      audio.play().catch(e => console.log('Audio error handled:', e));
     } catch (err) {
-        console.log('Audio init error:', err);
+      console.log('Audio init error:', err);
     }
-    
+
     // 2. 强制执行结束逻辑 (放在 setTimeout 中确保跳出当前事件循环)
-    setTimeout(() => {
+    setTimeout(async () => {
+      // Trigger final save if available
+      if (saveRun) {
+        toast.info("正在保存跑步数据...");
+        await saveRun(true);
+      }
+
       onStop();
       setShowSummary(false);
       // 3. 强制跳转回首页
       if (typeof window !== 'undefined') {
-          // 清除可能残留的恢复数据，防止首页重新加载时自动恢复跑步
-          localStorage.removeItem('CURRENT_RUN_RECOVERY');
-          // 使用 Next.js router 进行导航，避免全页刷新
-          router.replace('/');
+        // 清除可能残留的恢复数据，防止首页重新加载时自动恢复跑步
+        localStorage.removeItem('CURRENT_RUN_RECOVERY');
+        // 使用 Next.js router 进行导航，避免全页刷新
+        router.replace('/');
       }
     }, 100);
   };
 
   if (showSummary) {
     return (
-      <RunSummaryView 
+      <RunSummaryView
         distance={distance}
         duration={time}
         pace={pace}
@@ -399,7 +407,7 @@ export function ImmersiveRunningMode({
   if (!isActive) return null
 
   return (
-    <div 
+    <div
       className="fixed inset-0 z-[9999] flex h-[100dvh] w-full flex-col bg-slate-900"
     >
       {/* Loop Warning Dialog */}
@@ -409,18 +417,18 @@ export function ImmersiveRunningMode({
             <AlertDialogTitle className="text-xl font-bold text-center">未形成闭环</AlertDialogTitle>
             <AlertDialogDescription className="text-white/60 text-center text-base">
               当前跑步路径未回到起点附近，无法形成有效领地闭环。
-              <br/><br/>
+              <br /><br />
               如果现在结束，<span className="text-red-400 font-bold">将不会计算</span>本次圈地面积。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-row gap-3 sm:gap-0 mt-4">
-            <AlertDialogCancel 
+            <AlertDialogCancel
               className="flex-1 bg-white/10 border-0 text-white hover:bg-white/20 h-12 rounded-full"
               onClick={() => setShowLoopWarning(false)}
             >
               继续跑步
             </AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               className="flex-1 bg-red-500 text-white hover:bg-red-600 h-12 rounded-full border-0"
               onClick={() => {
                 setShowLoopWarning(false)
@@ -431,7 +439,7 @@ export function ImmersiveRunningMode({
                 // Wait, logic says: setShowSummary(true). So summary opens.
                 // Then user clicks "Finish" in Summary -> handleStop -> Audio + onStop.
                 // So we DON'T need audio here.
-                
+
                 setShowSummary(true)
               }}
             >
@@ -443,12 +451,12 @@ export function ImmersiveRunningMode({
 
       {/* Map Background Layer */}
       <div className="absolute inset-0 z-0 pointer-events-auto">
-        <RunningMap 
+        <RunningMap
           userLocation={currentLocation ? [currentLocation.lng, currentLocation.lat] : undefined}
           path={path}
           onLocationUpdate={onManualLocation}
           recenterTrigger={recenterTrigger}
-          // If no location, map will default to city center, preventing "stuck" state
+        // If no location, map will default to city center, preventing "stuck" state
         />
         {/* Gradient Overlay for text readability - Only in HUD mode */}
         {!isMapMode && (
@@ -461,7 +469,7 @@ export function ImmersiveRunningMode({
 
       {/* New HUD Implementation */}
       <div className={isMapMode ? "opacity-0 pointer-events-none transition-opacity duration-300" : "opacity-100 transition-opacity duration-300"}>
-        <RunningHUD 
+        <RunningHUD
           distance={distance}
           pace={pace}
           duration={time}
@@ -478,11 +486,11 @@ export function ImmersiveRunningMode({
           }}
           onStop={handleAttemptStop}
           onGhostModeTrigger={() => {
-             setIsGhostMode(true)
-             toast.success("幽灵模式已开启", {
-               description: "使用右下角摇杆控制移动",
-               icon: <Zap className="h-4 w-4 text-purple-400" />
-             })
+            setIsGhostMode(true)
+            toast.success("幽灵模式已开启", {
+              description: "使用右下角摇杆控制移动",
+              icon: <Zap className="h-4 w-4 text-purple-400" />
+            })
           }}
           // Pass map toggle handler to HUD
           onToggleMap={() => {
@@ -494,7 +502,7 @@ export function ImmersiveRunningMode({
 
       {/* Map Overlay Mode (New Design) */}
       {isMapMode && (
-        <RunningMapOverlay 
+        <RunningMapOverlay
           distance={distance || 0}
           duration={time}
           pace={pace ? String(pace) : "00:00"} // Assuming pace is number or string, check props
@@ -506,7 +514,7 @@ export function ImmersiveRunningMode({
           onRecenter={() => setRecenterTrigger(prev => prev + 1)}
         />
       )}
-      
+
       {isGhostMode && <GhostJoystick onMove={handleGhostMove} />}
     </div>
   )

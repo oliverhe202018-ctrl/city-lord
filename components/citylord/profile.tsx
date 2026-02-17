@@ -16,7 +16,8 @@ import { calculateLevel, getNextLevelProgress, getTitle } from "@/lib/game-logic
 import { BadgeGrid } from "@/components/citylord/achievements/BadgeGrid"
 import { FactionComparison } from "@/components/citylord/FactionComparison"
 import { useUserBadges } from "@/hooks/useGameData"
-import { Dialog,
+import {
+  Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -64,7 +65,7 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
   const [userEmail, setUserEmail] = React.useState<string | null>(null)
   const [isLoggedIn, setIsLoggedIn] = React.useState(false)
   const [loading, setLoading] = React.useState(true)
-  
+
   // Use React Query for stats
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['userProfileStats', userId],
@@ -97,7 +98,7 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
     };
     if (userId) fetchRuns();
   }, [userId]);
-  
+
   // Use a derived isLoading that combines profile and badges loading
   const isLoading = loading || badgesLoading
 
@@ -136,30 +137,30 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
         setFactionStats({ red_faction: 0, blue_faction: 0, red_area: 0, blue_area: 0 });
       }
     };
-    
+
     fetchStats();
   }, []);
 
   React.useEffect(() => {
     const checkUser = async () => {
-        const supabase = createClient()
-        // Use getSession instead of getUser for faster client-side check
-        const { data: { session } } = await supabase.auth.getSession()
-        const user = session?.user
-        
-        if (user) {
-            setIsLoggedIn(true)
-            if (user.email) setUserEmail(user.email)
-            
-            // Immediate UI render
-            setLoading(false)
+      const supabase = createClient()
+      // Use getSession instead of getUser for faster client-side check
+      const { data: { session } } = await supabase.auth.getSession()
+      const user = session?.user
 
-            // Sync global store in background
-            syncUserProfile()
-        } else {
-            setIsLoggedIn(false)
-            setLoading(false)
-        }
+      if (user) {
+        setIsLoggedIn(true)
+        if (user.email) setUserEmail(user.email)
+
+        // Immediate UI render
+        setLoading(false)
+
+        // Sync global store in background
+        syncUserProfile()
+      } else {
+        setIsLoggedIn(false)
+        setLoading(false)
+      }
     }
     checkUser()
   }, [])
@@ -167,20 +168,20 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
   // Load colors when editing starts
   React.useEffect(() => {
     if (isEditing && userId) {
-        const loadColors = async () => {
-            const supabase = createClient()
-            const { data } = await (supabase
-                .from('profiles' as any) as any)
-                .select('path_color, fill_color')
-                .eq('id', userId)
-                .single()
-            
-            if (data) {
-                if (data.path_color) setPathColor(data.path_color)
-                if (data.fill_color) setFillColor(data.fill_color)
-            }
+      const loadColors = async () => {
+        const supabase = createClient()
+        const { data } = await (supabase
+          .from('profiles' as any) as any)
+          .select('path_color, fill_color')
+          .eq('id', userId)
+          .single()
+
+        if (data) {
+          if (data.path_color) setPathColor(data.path_color)
+          if (data.fill_color) setFillColor(data.fill_color)
         }
-        loadColors()
+      }
+      loadColors()
     }
   }, [isEditing, userId])
 
@@ -199,20 +200,20 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
   // while "loading" might still be true for the session check.
   // But to be safe, we use the local loading state for the auth check.
   if (loading) {
-     // Show skeleton or simple loading
-     return (
-        <div className="flex h-full flex-col bg-background animate-pulse">
-            <div className="border-b border-border bg-card/40 px-4 pb-6 pt-6 shrink-0 h-[280px]">
-               <div className="w-32 h-32 rounded-full bg-muted mx-auto mt-4"/>
-               <div className="w-32 h-8 rounded bg-muted mx-auto mt-4"/>
-            </div>
-            <div className="p-4 space-y-4">
-                <div className="h-20 bg-muted/50 rounded-xl"/>
-                <div className="h-20 bg-muted/50 rounded-xl"/>
-                <div className="h-20 bg-muted/50 rounded-xl"/>
-            </div>
+    // Show skeleton or simple loading
+    return (
+      <div className="flex h-full flex-col bg-background animate-pulse">
+        <div className="border-b border-border bg-card/40 px-4 pb-6 pt-6 shrink-0 h-[280px]">
+          <div className="w-32 h-32 rounded-full bg-muted mx-auto mt-4" />
+          <div className="w-32 h-8 rounded bg-muted mx-auto mt-4" />
         </div>
-     )
+        <div className="p-4 space-y-4">
+          <div className="h-20 bg-muted/50 rounded-xl" />
+          <div className="h-20 bg-muted/50 rounded-xl" />
+          <div className="h-20 bg-muted/50 rounded-xl" />
+        </div>
+      </div>
+    )
   }
 
   if (!isLoggedIn) {
@@ -221,14 +222,14 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
         <div className="relative w-24 h-24 rounded-full bg-muted/50 flex items-center justify-center border-2 border-border">
           <LogIn className="w-10 h-10 text-muted-foreground/50" />
         </div>
-        
+
         <div className="text-center space-y-2">
           <h2 className="text-xl font-bold text-foreground">未登录</h2>
           <p className="text-sm text-muted-foreground">登录后查看您的个人档案、成就和领地数据</p>
         </div>
 
         <Link href="/login" className="w-full max-w-xs">
-          <Button 
+          <Button
             className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold h-12 rounded-full shadow-sm border border-primary/50"
           >
             立即登录 / 注册
@@ -240,41 +241,41 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
 
   const handleSaveProfile = async () => {
     if (!editName.trim()) {
-        toast.error("昵称不能为空")
-        return
+      toast.error("昵称不能为空")
+      return
     }
-    
+
     // 更新本地状态
     setNickname(editName)
     if (editAvatar) {
-        setAvatar(editAvatar)
+      setAvatar(editAvatar)
     }
-    
+
     // 如果已登录，同步到 Supabase
     if (userEmail) {
-        const supabase = createClient()
-        const updates: any = { 
-            nickname: editName,
-            path_color: pathColor,
-            fill_color: fillColor
-        }
-        if (editAvatar) {
-            updates.avatar_url = editAvatar
-        }
+      const supabase = createClient()
+      const updates: any = {
+        nickname: editName,
+        path_color: pathColor,
+        fill_color: fillColor
+      }
+      if (editAvatar) {
+        updates.avatar_url = editAvatar
+      }
 
-        const { error } = await (supabase
-            .from('profiles' as any) as any)
-            .update(updates)
-            .eq('id', userId)
-            
-        if (error) {
-            toast.error("同步失败")
-            console.error(error)
-        } else {
-            toast.success("保存成功")
-        }
+      const { error } = await (supabase
+        .from('profiles' as any) as any)
+        .update(updates)
+        .eq('id', userId)
+
+      if (error) {
+        toast.error("同步失败")
+        console.error(error)
+      } else {
+        toast.success("保存成功")
+      }
     } else {
-        toast.success("保存成功 (本地)")
+      toast.success("保存成功 (本地)")
     }
     setIsEditing(false)
   }
@@ -288,7 +289,7 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
       resetUser()
       setUserEmail(null)
       toast.success("已退出登录")
-      
+
       // Force refresh to update server components (like avatar in header)
       router.refresh()
       // Replace to prevent back navigation
@@ -317,11 +318,11 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
       <div className="relative border-b border-border bg-card/40 px-4 pb-6 pt-6 backdrop-blur-xl shrink-0">
         {/* Dynamic Faction Background */}
         <div className="absolute inset-0 overflow-hidden rounded-b-3xl z-0">
-          <FactionBattleBackground 
+          <FactionBattleBackground
             userFaction={userStats.faction?.toLowerCase() === 'red' ? 'red' : 'blue'}
-            red_area={factionStats?.red_area ?? factionStats?.redArea ?? 0} 
-            blue_area={factionStats?.blue_area ?? factionStats?.blueArea ?? 0} 
-            isLoading={!factionStats} 
+            red_area={factionStats?.red_area ?? factionStats?.redArea ?? 0}
+            blue_area={factionStats?.blue_area ?? factionStats?.blueArea ?? 0}
+            isLoading={!factionStats}
             className="opacity-50 pointer-events-none"
           />
         </div>
@@ -365,7 +366,7 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
               </defs>
             </svg>
             {/* Avatar */}
-            <button 
+            <button
               className="absolute inset-4 flex items-center justify-center rounded-full bg-gradient-to-br from-[#39ff14] to-[#39ff14]/50 overflow-hidden group cursor-pointer transition-transform active:scale-95 z-10"
               onClick={() => {
                 setEditName(nickname)
@@ -373,15 +374,15 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
                 setIsEditing(true)
               }}
             >
-               {avatar ? (
-                 <img src={avatar} alt="Avatar" className="w-full h-full object-cover" />
-               ) : (
-                 <span className="text-5xl">🎯</span>
-               )}
-               {/* Edit Overlay */}
-               <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Edit2 className="w-8 h-8 text-white drop-shadow-md" />
-               </div>
+              {avatar ? (
+                <img src={avatar} alt="Avatar" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-5xl">🎯</span>
+              )}
+              {/* Edit Overlay */}
+              <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <Edit2 className="w-8 h-8 text-white drop-shadow-md" />
+              </div>
             </button>
             {/* Level Badge */}
             <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 rounded-full border border-[#39ff14]/50 bg-background px-3 py-1 z-20">
@@ -392,83 +393,83 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
           <h1 className="mt-4 text-2xl font-bold text-foreground flex items-center gap-2">
             {nickname}
             <Dialog open={isEditing} onOpenChange={setIsEditing}>
-                <DialogTrigger asChild>
-                    <button 
-                        onClick={() => {
-                            setEditName(nickname)
-                            setEditAvatar(avatar)
-                        }}
-                        className="p-1.5 rounded-full bg-muted/20 hover:bg-muted/40 transition-colors"
-                    >
-                        <Edit2 className="w-3.5 h-3.5 text-muted-foreground" />
-                    </button>
-                </DialogTrigger>
-                <DialogContent className="bg-card border-border text-foreground sm:max-w-[425px]">
-                    <DialogHeader>
-                        <DialogTitle>修改资料</DialogTitle>
-                        <DialogDescription className="text-muted-foreground">
-                            更新您的个人信息，包括头像、昵称和个性化颜色。
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium text-foreground/70">头像</label>
-                            <div className="flex items-center gap-4">
-                                <AvatarUploader
-                                    currentAvatarUrl={editAvatar}
-                                    onUploadComplete={(url) => setEditAvatar(url)}
-                                    size={80}
-                                />
-                                <div className="text-xs text-muted-foreground flex-1">
-                                    点击头像上传新图片。<br/>
-                                    支持 JPG, PNG 格式，最大 2MB。
-                                </div>
-                            </div>
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium text-foreground/70">昵称</label>
-                            <Input 
-                                value={editName} 
-                                onChange={(e) => setEditName(e.target.value)}
-                                className="bg-muted/20 border-border text-foreground"
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium text-foreground/70">主题风格</label>
-                            <ThemeSwitcher />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium text-foreground/70">路径颜色</label>
-                                <div className="flex items-center gap-2">
-                                    <Input 
-                                        type="color"
-                                        value={pathColor}
-                                        onChange={(e) => setPathColor(e.target.value)}
-                                        className="h-10 w-full p-1 bg-muted/20 border-border cursor-pointer"
-                                    />
-                                    <span className="text-xs text-muted-foreground font-mono">{pathColor}</span>
-                                </div>
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium text-foreground/70">领地填充</label>
-                                <div className="flex items-center gap-2">
-                                    <Input 
-                                        type="color"
-                                        value={fillColor}
-                                        onChange={(e) => setFillColor(e.target.value)}
-                                        className="h-10 w-full p-1 bg-muted/20 border-border cursor-pointer"
-                                    />
-                                    <span className="text-xs text-muted-foreground font-mono">{fillColor}</span>
-                                </div>
-                            </div>
-                        </div>
+              <DialogTrigger asChild>
+                <button
+                  onClick={() => {
+                    setEditName(nickname)
+                    setEditAvatar(avatar)
+                  }}
+                  className="p-1.5 rounded-full bg-muted/20 hover:bg-muted/40 transition-colors"
+                >
+                  <Edit2 className="w-3.5 h-3.5 text-muted-foreground" />
+                </button>
+              </DialogTrigger>
+              <DialogContent className="bg-card border-border text-foreground sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>修改资料</DialogTitle>
+                  <DialogDescription className="text-muted-foreground">
+                    更新您的个人信息，包括头像、昵称和个性化颜色。
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground/70">头像</label>
+                    <div className="flex items-center gap-4">
+                      <AvatarUploader
+                        currentAvatarUrl={editAvatar}
+                        onUploadComplete={(url) => setEditAvatar(url)}
+                        size={80}
+                      />
+                      <div className="text-xs text-muted-foreground flex-1">
+                        点击头像上传新图片。<br />
+                        支持 JPG, PNG 格式，最大 2MB。
+                      </div>
                     </div>
-                    <div className="flex justify-end gap-3">
-                        <Button variant="ghost" onClick={() => setIsEditing(false)} className="text-muted-foreground hover:text-foreground hover:bg-muted/10">取消</Button>
-                        <Button onClick={handleSaveProfile} className="bg-primary text-primary-foreground hover:bg-primary/90">保存</Button>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground/70">昵称</label>
+                    <Input
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      className="bg-muted/20 border-border text-foreground"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground/70">主题风格</label>
+                    <ThemeSwitcher />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-foreground/70">路径颜色</label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="color"
+                          value={pathColor}
+                          onChange={(e) => setPathColor(e.target.value)}
+                          className="h-10 w-full p-1 bg-muted/20 border-border cursor-pointer"
+                        />
+                        <span className="text-xs text-muted-foreground font-mono">{pathColor}</span>
+                      </div>
                     </div>
-                </DialogContent>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-foreground/70">领地填充</label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="color"
+                          value={fillColor}
+                          onChange={(e) => setFillColor(e.target.value)}
+                          className="h-10 w-full p-1 bg-muted/20 border-border cursor-pointer"
+                        />
+                        <span className="text-xs text-muted-foreground font-mono">{fillColor}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-3">
+                  <Button variant="ghost" onClick={() => setIsEditing(false)} className="text-muted-foreground hover:text-foreground hover:bg-muted/10">取消</Button>
+                  <Button onClick={handleSaveProfile} className="bg-primary text-primary-foreground hover:bg-primary/90">保存</Button>
+                </div>
+              </DialogContent>
             </Dialog>
           </h1>
           <p className="text-sm text-muted-foreground">ID: {userId.slice(-8)}</p>
@@ -505,63 +506,63 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
 
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto pb-24">
-        
+
         {/* Task 3: My Run Records */}
         <div className="p-4 pb-0">
-           <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">我的跑步记录</h2>
-              <div className="flex items-center gap-2">
-                 <ReportButton userId={userId} period="daily" variant="ghost" className="h-6 px-2 text-xs" />
-                 <Link href="/lord-center" className="text-xs text-cyan-400 hover:text-cyan-300 transition-colors flex items-center gap-1">
-                    查看全部 <ChevronRight className="w-3 h-3" />
-                 </Link>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">我的跑步记录</h2>
+            <div className="flex items-center gap-2">
+              <ReportButton userId={userId} period="daily" variant="ghost" className="h-6 px-2 text-xs" />
+              <Link href="/profile/me" className="text-xs text-cyan-400 hover:text-cyan-300 transition-colors flex items-center gap-1">
+                查看全部 <ChevronRight className="w-3 h-3" />
+              </Link>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {loadingRuns ? (
+              <div className="flex justify-center py-4">
+                <Loader2 className="w-6 h-6 text-muted-foreground animate-spin" />
               </div>
-           </div>
-           
-           <div className="space-y-3">
-              {loadingRuns ? (
-                 <div className="flex justify-center py-4">
-                    <Loader2 className="w-6 h-6 text-muted-foreground animate-spin" />
-                 </div>
-              ) : recentRuns.length > 0 ? (
-                 recentRuns.map((run) => (
-                    <Link href={`/run/${run.id}`} key={run.id} className="block rounded-2xl border border-border bg-card/50 p-3 transition-all hover:bg-card/80 active:scale-[0.99]">
-                       <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                             {/* Map Thumbnail Placeholder or Icon */}
-                             <div className="w-12 h-12 rounded-xl bg-muted/30 flex items-center justify-center border border-white/5">
-                                <Footprints className="w-6 h-6 text-muted-foreground/50" />
-                             </div>
-                             
-                             <div>
-                                <div className="flex items-center gap-2 mb-1">
-                                   <span className="text-sm font-bold text-foreground">{run.distance_km?.toFixed(2) || '0.00'} km</span>
-                                   <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
-                                      {run.pace_min_per_km || '--'}/km
-                                   </span>
-                                </div>
-                                <div className="text-xs text-muted-foreground">
-                                   {new Date(run.created_at).toLocaleDateString()} · {new Date(run.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                                </div>
-                             </div>
-                          </div>
-                          
-                          <div className="text-right">
-                             <div className="text-sm font-mono font-medium text-foreground">{run.duration_str || '--:--'}</div>
-                             <div className="text-[10px] text-muted-foreground flex items-center justify-end gap-1 mt-1">
-                                <TrendingUp className="w-3 h-3" />
-                                <span>{run.calories || 0} kcal</span>
-                             </div>
-                          </div>
-                       </div>
-                    </Link>
-                 ))
-              ) : (
-                 <div className="text-center py-8 text-muted-foreground text-sm bg-card/30 rounded-2xl border border-border/50 border-dashed">
-                    暂无跑步记录，快去跑一场吧！
-                 </div>
-              )}
-           </div>
+            ) : recentRuns.length > 0 ? (
+              recentRuns.map((run) => (
+                <Link href={`/run/${run.id}`} key={run.id} className="block rounded-2xl border border-border bg-card/50 p-3 transition-all hover:bg-card/80 active:scale-[0.99]">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      {/* Map Thumbnail Placeholder or Icon */}
+                      <div className="w-12 h-12 rounded-xl bg-muted/30 flex items-center justify-center border border-white/5">
+                        <Footprints className="w-6 h-6 text-muted-foreground/50" />
+                      </div>
+
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm font-bold text-foreground">{run.distance_km?.toFixed(2) || '0.00'} km</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                            {run.pace_min_per_km || '--'}/km
+                          </span>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {new Date(run.created_at).toLocaleDateString()} · {new Date(run.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <div className="text-sm font-mono font-medium text-foreground">{run.duration_str || '--:--'}</div>
+                      <div className="text-[10px] text-muted-foreground flex items-center justify-end gap-1 mt-1">
+                        <TrendingUp className="w-3 h-3" />
+                        <span>{run.calories || 0} kcal</span>
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              ))
+            ) : (
+              <div className="text-center py-8 text-muted-foreground text-sm bg-card/30 rounded-2xl border border-border/50 border-dashed">
+                暂无跑步记录，快去跑一场吧！
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Stats Grid */}
@@ -593,7 +594,7 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
             <StatCard
               icon={<Eye className="h-5 w-5" />}
               label="迷雾探索"
-              value="0" 
+              value="0"
               unit="%"
               color="text-yellow-400"
             />
@@ -616,7 +617,7 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
 
         {/* Badges Grid */}
         <div className="px-4 pb-4">
-          <FactionComparison 
+          <FactionComparison
             userFaction={userStats.faction?.toLowerCase() === 'red' ? 'RED' : userStats.faction?.toLowerCase() === 'blue' ? 'BLUE' : null}
             initialData={factionStats}
             dailyStat={dailyStat}
@@ -658,33 +659,33 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
           </Link>
 
           {userEmail ? (
-            <button 
-                onClick={handleLogout}
-                className="mt-3 flex w-full items-center justify-between rounded-2xl border border-border bg-card/50 p-4 transition-all active:bg-muted/10 hover:bg-card/80"
+            <button
+              onClick={handleLogout}
+              className="mt-3 flex w-full items-center justify-between rounded-2xl border border-border bg-card/50 p-4 transition-all active:bg-muted/10 hover:bg-card/80"
             >
-                <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-500/20">
-                    <LogOut className="h-5 w-5 text-red-500" />
+                  <LogOut className="h-5 w-5 text-red-500" />
                 </div>
                 <div className="text-left">
-                    <p className="font-semibold text-foreground">退出登录</p>
-                    <p className="text-sm text-muted-foreground">当前账号: {userEmail}</p>
+                  <p className="font-semibold text-foreground">退出登录</p>
+                  <p className="text-sm text-muted-foreground">当前账号: {userEmail}</p>
                 </div>
-                </div>
-                <ChevronRight className="h-5 w-5 text-muted-foreground/50" />
+              </div>
+              <ChevronRight className="h-5 w-5 text-muted-foreground/50" />
             </button>
           ) : (
             <Link href="/login" className="mt-3 flex w-full items-center justify-between rounded-2xl border border-border bg-card/50 p-4 transition-all active:bg-muted/10 hover:bg-card/80">
-                <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-cyan-400/20">
-                    <LogIn className="h-5 w-5 text-cyan-400" />
+                  <LogIn className="h-5 w-5 text-cyan-400" />
                 </div>
                 <div className="text-left">
-                    <p className="font-semibold text-foreground">登录账号</p>
-                    <p className="text-sm text-muted-foreground">同步数据并保护进度</p>
+                  <p className="font-semibold text-foreground">登录账号</p>
+                  <p className="text-sm text-muted-foreground">同步数据并保护进度</p>
                 </div>
-                </div>
-                <ChevronRight className="h-5 w-5 text-muted-foreground/50" />
+              </div>
+              <ChevronRight className="h-5 w-5 text-muted-foreground/50" />
             </Link>
           )}
         </div>

@@ -1,19 +1,25 @@
 "use client";
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useMap } from '@/components/map/AMapContext';
-import { useRegion } from '@/contexts/RegionContext';
 import { Button } from '@/components/ui/button';
-import { LocateFixedIcon, Plus, Minus, Gamepad2, Users, User, Loader2 } from 'lucide-react';
+import { LocateFixedIcon, Plus, Minus, Gamepad2, Users, User, Loader2, Layers } from 'lucide-react';
 import Link from 'next/link';
 
-import { toast } from 'sonner';
-import gcoord from 'gcoord';
-
 export const MapControls = () => {
-  const { map, viewMode, setViewMode, centerMap, locationState } = useMap();
-  const { region } = useRegion();
-  
+  const {
+    map,
+    viewMode,
+    setViewMode,
+    centerMap,
+    locationStatus,
+    isTracking,
+    showKingdom,
+    toggleKingdom,
+  } = useMap();
+
+  const isLocating = locationStatus === 'locating' || locationStatus === 'initializing';
+
   const handleLocate = () => {
     centerMap();
   };
@@ -25,13 +31,25 @@ export const MapControls = () => {
   const handleZoomOut = () => {
     map?.zoomOut();
   };
-  
+
   const toggleViewMode = () => {
-      setViewMode(viewMode === 'individual' ? 'faction' : 'individual');
+    setViewMode?.(viewMode === 'individual' ? 'faction' : 'individual');
   };
 
   return (
-    <div className="absolute bottom-60 right-4 z-10 flex flex-col gap-4 items-center">
+    <div className="absolute bottom-60 right-4 z-10 flex flex-col gap-4 items-center pointer-events-auto">
+      {/* Kingdom Layer Toggle */}
+      <Button
+        variant="outline"
+        size="icon"
+        onClick={toggleKingdom}
+        className={`h-12 w-12 rounded-full backdrop-blur-sm shadow-lg transition-all border-white/20 ${showKingdom ? 'bg-amber-500/50 text-white hover:bg-amber-500/70' : 'bg-background/30 text-white/50 hover:bg-background/50'}`}
+        title={showKingdom ? "隐藏领地" : "显示领地"}
+      >
+        <Layers className="h-6 w-6" />
+        <span className="sr-only">图层控制</span>
+      </Button>
+
       <Button
         variant="outline"
         size="icon"
@@ -43,13 +61,23 @@ export const MapControls = () => {
         <span className="sr-only">切换视图</span>
       </Button>
 
+      {/* Location Button with Tracking Indicator */}
       <Button
         variant="outline"
         size="icon"
         onClick={handleLocate}
-        className="h-12 w-12 rounded-full bg-background/30 backdrop-blur-sm shadow-lg transition-all hover:bg-background/50 border-white/20 text-white"
+        disabled={isLocating}
+        className={`h-12 w-12 rounded-full backdrop-blur-sm shadow-lg transition-all ${isTracking
+          ? 'bg-primary/70 hover:bg-primary/90 border-primary text-white'
+          : 'bg-background/30 hover:bg-background/50 border-white/20 text-white'
+          }`}
+        title={isTracking ? "跟随模式 (已开启)" : "点击回到当前位置"}
       >
-        <LocateFixedIcon className="h-6 w-6" />
+        {isLocating ? (
+          <Loader2 className="h-6 w-6 animate-spin" />
+        ) : (
+          <LocateFixedIcon className={`h-6 w-6 ${isTracking ? 'text-white' : ''}`} />
+        )}
         <span className="sr-only">回到定位</span>
       </Button>
 

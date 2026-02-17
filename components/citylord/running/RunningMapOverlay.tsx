@@ -1,9 +1,10 @@
 "use client"
 
-import { Pause, Play, ChevronLeft, Settings, MapPin, Signal } from "lucide-react"
+import { Pause, Play, ChevronLeft, Settings, MapPin, Signal, Eye, EyeOff } from "lucide-react"
 import { motion } from "framer-motion"
 import { formatArea } from "@/lib/citylord/area-utils"
 import { useState, useEffect } from "react"
+import { useMap } from "@/components/map/AMapContext"
 
 interface RunningMapOverlayProps {
   distance: number // km
@@ -14,6 +15,7 @@ interface RunningMapOverlayProps {
   onPauseToggle: () => void
   onStop?: () => void
   onBack: () => void
+  onRecenter: () => void
 }
 
 export function RunningMapOverlay({
@@ -24,20 +26,22 @@ export function RunningMapOverlay({
   isPaused,
   onPauseToggle,
   onStop,
-  onBack
+  onBack,
+  onRecenter
 }: RunningMapOverlayProps) {
   const [confirmStop, setConfirmStop] = useState(false);
-  
+  const { showKingdom, toggleKingdom } = useMap();
+
   // Reset confirm state if paused state changes
   useEffect(() => {
-      setConfirmStop(false);
+    setConfirmStop(false);
   }, [isPaused]);
 
   return (
     <div className="absolute inset-0 z-50 flex flex-col justify-between pointer-events-none">
       {/* Top Bar */}
       <div className="pt-[calc(env(safe-area-inset-top)+12px)] px-4 flex items-center justify-between pointer-events-auto">
-        <button 
+        <button
           onClick={onBack}
           className="h-10 w-10 rounded-full bg-slate-800/90 backdrop-blur-sm shadow-lg flex items-center justify-center active:scale-95 transition-transform border border-white/10"
         >
@@ -45,15 +49,22 @@ export function RunningMapOverlay({
         </button>
 
         <div className="flex gap-3">
-           <button 
-             onClick={onRecenter}
-             className="h-10 w-10 rounded-full bg-slate-800/90 backdrop-blur-sm shadow-lg flex items-center justify-center active:scale-95 transition-transform border border-white/10"
-           >
-             <MapPin className="h-5 w-5 text-blue-400" />
-           </button>
-           <button className="h-10 w-10 rounded-full bg-slate-800/90 backdrop-blur-sm shadow-lg flex items-center justify-center active:scale-95 transition-transform border border-white/10">
-             <Settings className="h-5 w-5 text-white" />
-           </button>
+          <button
+            onClick={toggleKingdom}
+            className={`h-10 w-10 rounded-full backdrop-blur-sm shadow-lg flex items-center justify-center active:scale-95 transition-all border ${showKingdom ? 'bg-amber-500/40 border-amber-500/30' : 'bg-slate-800/90 border-white/10'}`}
+            title={showKingdom ? "隐藏领地" : "显示领地"}
+          >
+            {showKingdom ? <Eye className="h-5 w-5 text-amber-300" /> : <EyeOff className="h-5 w-5 text-white/50" />}
+          </button>
+          <button
+            onClick={onRecenter}
+            className="h-10 w-10 rounded-full bg-slate-800/90 backdrop-blur-sm shadow-lg flex items-center justify-center active:scale-95 transition-transform border border-white/10"
+          >
+            <MapPin className="h-5 w-5 text-blue-400" />
+          </button>
+          <button className="h-10 w-10 rounded-full bg-slate-800/90 backdrop-blur-sm shadow-lg flex items-center justify-center active:scale-95 transition-transform border border-white/10">
+            <Settings className="h-5 w-5 text-white" />
+          </button>
         </div>
       </div>
 
@@ -65,17 +76,17 @@ export function RunningMapOverlay({
         {/* Area Stats (Centered) */}
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-baseline gap-1">
-             <span className="text-4xl font-black text-white">{area}</span>
-             <span className="text-sm font-bold text-white/60">m²</span>
+            <span className="text-4xl font-black text-white">{area}</span>
+            <span className="text-sm font-bold text-white/60">m²</span>
           </div>
           <div className="flex items-center gap-2 mt-1">
-             <span className="text-xs font-medium text-white/40 uppercase tracking-wider">正在占领中</span>
-             <div className="flex items-end gap-0.5 h-3">
-                <div className="w-0.5 h-1 bg-[#22c55e] rounded-full" />
-                <div className="w-0.5 h-2 bg-[#22c55e] rounded-full" />
-                <div className="w-0.5 h-3 bg-[#22c55e] rounded-full" />
-             </div>
-             <span className="text-xs font-bold text-[#22c55e]">GPS 强</span>
+            <span className="text-xs font-medium text-white/40 uppercase tracking-wider">正在占领中</span>
+            <div className="flex items-end gap-0.5 h-3">
+              <div className="w-0.5 h-1 bg-[#22c55e] rounded-full" />
+              <div className="w-0.5 h-2 bg-[#22c55e] rounded-full" />
+              <div className="w-0.5 h-3 bg-[#22c55e] rounded-full" />
+            </div>
+            <span className="text-xs font-bold text-[#22c55e]">GPS 强</span>
           </div>
         </div>
 
@@ -83,23 +94,23 @@ export function RunningMapOverlay({
         <div className="grid grid-cols-3 gap-4 mb-8">
           {/* Distance */}
           <div className="flex flex-col items-center">
-             <div className="flex items-baseline gap-0.5">
-                <span className="text-2xl font-black text-white">{distance.toFixed(2)}</span>
-                <span className="text-xs font-bold text-white/60">km</span>
-             </div>
-             <span className="text-[10px] font-medium text-white/40 uppercase mt-1">距离</span>
+            <div className="flex items-baseline gap-0.5">
+              <span className="text-2xl font-black text-white">{distance.toFixed(2)}</span>
+              <span className="text-xs font-bold text-white/60">km</span>
+            </div>
+            <span className="text-[10px] font-medium text-white/40 uppercase mt-1">距离</span>
           </div>
 
           {/* Duration */}
           <div className="flex flex-col items-center">
-             <span className="text-2xl font-black text-white tracking-tight">{duration}</span>
-             <span className="text-[10px] font-medium text-white/40 uppercase mt-1">时长</span>
+            <span className="text-2xl font-black text-white tracking-tight">{duration}</span>
+            <span className="text-[10px] font-medium text-white/40 uppercase mt-1">时长</span>
           </div>
 
           {/* Pace */}
           <div className="flex flex-col items-center">
-             <span className="text-2xl font-black text-white">{pace}</span>
-             <span className="text-[10px] font-medium text-white/40 uppercase mt-1">平均配速</span>
+            <span className="text-2xl font-black text-white">{pace}</span>
+            <span className="text-[10px] font-medium text-white/40 uppercase mt-1">平均配速</span>
           </div>
         </div>
 
@@ -107,27 +118,26 @@ export function RunningMapOverlay({
         <div className="w-full">
           {isPaused ? (
             <div className="flex gap-3 h-14">
-              <button 
-                 onClick={() => {
-                   if (confirmStop) {
-                     if (onStop) onStop();
-                   } else {
-                     setConfirmStop(true);
-                     // Auto-reset after 3 seconds
-                     setTimeout(() => setConfirmStop(false), 3000);
-                   }
-                 }}
-                 className={`flex-1 rounded-xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all ${
-                    confirmStop 
-                      ? 'bg-red-600 hover:bg-red-700 animate-pulse' 
-                      : 'bg-red-500/20 border border-red-500/50 hover:bg-red-500/30'
-                 }`}
-               >
-                 <span className={`${confirmStop ? 'text-white' : 'text-red-400'} font-bold`}>
-                    {confirmStop ? "确认结束?" : "结束"}
-                 </span>
-               </button>
-              <button 
+              <button
+                onClick={() => {
+                  if (confirmStop) {
+                    if (onStop) onStop();
+                  } else {
+                    setConfirmStop(true);
+                    // Auto-reset after 3 seconds
+                    setTimeout(() => setConfirmStop(false), 3000);
+                  }
+                }}
+                className={`flex-1 rounded-xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all ${confirmStop
+                  ? 'bg-red-600 hover:bg-red-700 animate-pulse'
+                  : 'bg-red-500/20 border border-red-500/50 hover:bg-red-500/30'
+                  }`}
+              >
+                <span className={`${confirmStop ? 'text-white' : 'text-red-400'} font-bold`}>
+                  {confirmStop ? "确认结束?" : "结束"}
+                </span>
+              </button>
+              <button
                 onClick={onPauseToggle}
                 className="flex-[2] bg-[#22c55e] rounded-xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all hover:bg-[#16a34a] shadow-lg shadow-[#22c55e]/20"
               >

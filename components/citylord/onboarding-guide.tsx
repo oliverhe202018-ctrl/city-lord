@@ -3,7 +3,7 @@
 import React from "react"
 
 import { useState, useEffect } from "react"
-import { X, ChevronRight, Footprints, Target, Trophy, Sparkles } from "lucide-react"
+import { X, ChevronRight, Footprints, Target, Trophy, Sparkles, MapPin, Layers } from "lucide-react"
 
 interface OnboardingStep {
   id: number
@@ -17,32 +17,32 @@ interface OnboardingStep {
 const steps: OnboardingStep[] = [
   {
     id: 1,
-    title: "开始跑步",
-    description: "点击这里开始跑步，占领你的第一个领地区域！",
+    title: "欢迎来到 City Lord",
+    description: "点击下方的「开始跑步」按钮，出发占领你的第一块领地！",
     targetArea: "start-button",
     icon: Footprints,
     position: "bottom",
   },
   {
     id: 2,
-    title: "今日目标",
-    description: "查看今日目标，完成挑战获取更多经验和奖励。",
+    title: "闭环占领",
+    description: "跑出一个闭环路线，当你回到起点 20米内 时，路径围成的区域将自动吸附成为你的领地！",
     targetArea: "daily-goal",
-    icon: Target,
+    icon: MapPin,
     position: "top",
   },
   {
     id: 3,
-    title: "任务系统",
-    description: "通过完成每日和每周任务来快速提升等级。",
+    title: "你的江山",
+    description: "金色区域是你已打下的江山。点击右侧「图层」按钮可以隐藏它，让跑步视野更清爽。",
     targetArea: "missions",
-    icon: Target,
+    icon: Layers,
     position: "center",
   },
   {
     id: 4,
-    title: "排行榜",
-    description: "与其他跑者竞争，争夺城市霸主地位！",
+    title: "争霸天下",
+    description: "点击排行榜查看其他跑者，点击头像可访问TA的主页！",
     targetArea: "leaderboard",
     icon: Trophy,
     position: "center",
@@ -116,14 +116,13 @@ export function OnboardingGuide({ onComplete, isVisible }: OnboardingGuideProps)
   return (
     <div className="fixed inset-0 z-50">
       {/* Dark overlay */}
-      <div 
-        className={`absolute inset-0 bg-black/80 transition-opacity duration-500 ${
-          isAnimating ? "opacity-100" : "opacity-0"
-        }`}
+      <div
+        className={`absolute inset-0 bg-black/80 transition-opacity duration-500 ${isAnimating ? "opacity-100" : "opacity-0"
+          }`}
       />
 
       {/* Spotlight effect */}
-      <div 
+      <div
         className={`absolute ${getSpotlightStyles()} pointer-events-none transition-all duration-500`}
         style={{
           boxShadow: "0 0 0 9999px rgba(0,0,0,0.8), 0 0 40px 10px rgba(34,197,94,0.4)",
@@ -131,7 +130,7 @@ export function OnboardingGuide({ onComplete, isVisible }: OnboardingGuideProps)
       />
 
       {/* Pulsing ring around spotlight */}
-      <div 
+      <div
         className={`absolute ${getSpotlightStyles()} pointer-events-none animate-ping opacity-30`}
         style={{
           boxShadow: "0 0 0 4px rgba(34,197,94,0.6)",
@@ -140,10 +139,9 @@ export function OnboardingGuide({ onComplete, isVisible }: OnboardingGuideProps)
       />
 
       {/* Guide card */}
-      <div 
-        className={`absolute left-4 right-4 ${getPositionStyles()} z-10 transition-all duration-500 ${
-          isAnimating ? "opacity-100 scale-100" : "opacity-0 scale-95"
-        }`}
+      <div
+        className={`absolute left-4 right-4 ${getPositionStyles()} z-10 transition-all duration-500 ${isAnimating ? "opacity-100 scale-100" : "opacity-0 scale-95"
+          }`}
       >
         <div className="rounded-2xl border border-[#22c55e]/30 bg-[#0f172a]/95 p-4 shadow-[0_0_30px_rgba(34,197,94,0.2)] backdrop-blur-xl">
           {/* Step indicator */}
@@ -156,9 +154,8 @@ export function OnboardingGuide({ onComplete, isVisible }: OnboardingGuideProps)
                 {steps.map((_, i) => (
                   <div
                     key={i}
-                    className={`h-1.5 w-6 rounded-full transition-colors ${
-                      i <= currentStep ? "bg-[#22c55e]" : "bg-white/20"
-                    }`}
+                    className={`h-1.5 w-6 rounded-full transition-colors ${i <= currentStep ? "bg-[#22c55e]" : "bg-white/20"
+                      }`}
                   />
                 ))}
               </div>

@@ -21,7 +21,10 @@ const touchUserActivity = async () => {
     method: 'POST',
     credentials: 'include'
   })
-  if (!res.ok) throw new Error('Failed to touch user activity')
+  if (!res.ok) {
+    console.warn('[AuthSync] Background sync skipped:', res.statusText)
+    return null // Graceful exit - don't interrupt user experience
+  }
   return await res.json()
 }
 
@@ -39,7 +42,7 @@ const ensureUserProfile = async (userId: string) => {
 export function AuthSync() {
   const setNickname = useGameStore((state) => state.setNickname)
   const setAvatar = useGameStore((state) => state.setAvatar)
-  
+
   useEffect(() => {
     const supabase = createClient()
     let heartbeatInterval: NodeJS.Timeout
@@ -88,24 +91,24 @@ export function AuthSync() {
       if (event === "SIGNED_IN" && session?.user) {
         syncUserProfile(session.user.id)
         console.log("AuthSync: Signed in, syncing data...")
-        
+
         // Clear existing interval if any
         if (heartbeatInterval) clearInterval(heartbeatInterval)
-        
+
         // Start heartbeat
         touchUserActivity().catch((e) => {
-           if (e?.name !== 'AbortError' && e?.digest !== 'NEXT_REDIRECT') {
-             console.error(e)
-           }
+          if (e?.name !== 'AbortError' && e?.digest !== 'NEXT_REDIRECT') {
+            console.error(e)
+          }
         })
         heartbeatInterval = setInterval(() => {
           touchUserActivity().catch((e) => {
-             if (e?.name !== 'AbortError' && e?.digest !== 'NEXT_REDIRECT') {
-               console.error(e)
-             }
+            if (e?.name !== 'AbortError' && e?.digest !== 'NEXT_REDIRECT') {
+              console.error(e)
+            }
           })
         }, 2 * 60 * 1000)
-        
+
       } else if (event === "SIGNED_OUT") {
         // 可选：重置 Store
         // useGameStore.getState().resetUser()
@@ -122,7 +125,7 @@ export function AuthSync() {
 
   const syncUserProfile = async (userId: string) => {
     const supabase = createClient()
-    
+
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -160,7 +163,7 @@ export function AuthSync() {
         // 注意：这里我们只同步了部分字段，需要根据实际 Store 结构扩展
         if (profile.nickname) setNickname(profile.nickname)
         if (profile.avatar_url) setAvatar(profile.avatar_url)
-        
+
         // 如果 Store 支持设置 ID、等级等，也应该同步
         // useGameStore.setState({ userId: profile.id, level: profile.level ... })
         useGameStore.setState((state) => ({
@@ -176,7 +179,7 @@ export function AuthSync() {
           faction: profile.faction ?? state.faction ?? null,
           role: adminData?.role ?? null,
         }))
-        
+
         console.log("User profile synced:", profile)
       }
     } catch (error: any) {
