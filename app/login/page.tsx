@@ -33,7 +33,7 @@ export default function LoginPage() {
         window.location.href = "/"
       }
     }
-    
+
     checkSession()
 
     // 监听 Auth 状态变化 (例如 Magic Link 完成后)
@@ -61,6 +61,9 @@ export default function LoginPage() {
   // ==========================================
   // 核心逻辑: 发送验证码 (Register & Login)
   // ==========================================
+  // ==========================================
+  // 核心逻辑: 发送验证码 (Register & Login)
+  // ==========================================
   const handleSendCode = async (type: 'register' | 'login') => {
     if (!email) {
       toast.error("请输入邮箱")
@@ -70,70 +73,34 @@ export default function LoginPage() {
 
     setLoading(true)
     try {
+      // Server Action 调用
+      const { sendAuthCode } = await import('@/app/actions/auth')
+
+      let res
       if (type === 'register') {
-        // [Register Logic]
-        // 1. Strict Requirement: Call signUp only
         if (!password) {
-           toast.error("请先输入密码")
-           setLoading(false)
-           return
+          toast.error("请先输入密码")
+          setLoading(false)
+          return
         }
-
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-        })
-
-        // 2. Intercept "User already registered" error
-        if (error) {
-          if (error.message.includes("already registered") || error.status === 422) { 
-             toast.error("该账号已存在，请直接登录")
-             return // Stop flow
-          }
-          throw error
-        }
-        
-        // 3. Handle "Prevent User Enumeration" fake success
-        // If identities is empty/null, it means the user exists but Supabase hid the error
-        if (data.user && (!data.user.identities || data.user.identities.length === 0)) {
-            toast.error("该账号已存在，请直接登录")
-            return // Stop flow
-        }
-
-        // Success: Only now start countdown
-        setCodeSent(true)
-        setCountdown(60)
-        toast.success("验证码已发送", { description: "请查看您的邮箱" })
-
+        res = await sendAuthCode(email, 'register', password)
       } else {
-        // [Login Logic]
-        // 1. Strict Requirement: Call signInWithOtp with shouldCreateUser: false
-        const { error } = await supabase.auth.signInWithOtp({
-          email,
-          options: {
-            shouldCreateUser: false, // Prevent new users from getting code here
-          },
-        })
-
-        if (error) {
-           if (error.message.includes("Signups not allowed") || error.message.includes("not found")) {
-              toast.error("账号未注册，请先注册")
-              return
-           }
-           throw error
-        }
-
-        setCodeSent(true)
-        setCountdown(60)
-        toast.success("验证码已发送", { description: "请登录邮箱查看" })
+        res = await sendAuthCode(email, 'login')
       }
+
+      if (!res.success) {
+        toast.error(res.message, { description: res.error })
+        return
+      }
+
+      // Success
+      setCodeSent(true)
+      setCountdown(60)
+      toast.success("验证码已发送", { description: "请查看您的邮箱 (注意检查垃圾箱)" })
+
     } catch (error: any) {
       console.error('Send code error:', error)
-      let msg = error?.message
-      if (msg?.includes("already registered")) msg = "该账号已存在，请直接登录"
-      if (msg?.includes("Signups not allowed")) msg = "账号未注册，请先注册"
-      
-      toast.error("发送失败", { description: msg ?? "请检查网络或稍后再试" })
+      toast.error("发送异常", { description: "服务连接失败，请检查网络" })
     } finally {
       setLoading(false)
     }
@@ -149,7 +116,7 @@ export default function LoginPage() {
     setLoading(true)
     try {
       // [注册验证]
-      // 必须使用 type: 'signup'
+      // 对应 Admin generateLink type: 'signup'
       const { data, error } = await supabase.auth.verifyOtp({
         email,
         token: verificationCode,
@@ -162,7 +129,7 @@ export default function LoginPage() {
       // Session 建立后，useEffect 会自动跳转
     } catch (error: any) {
       console.error('Register verify error:', error)
-      toast.error("注册验证失败", { description: error.message || "验证码错误" })
+      toast.error("注册验证失败", { description: error.message || "验证码错误或已失效" })
     } finally {
       setLoading(false)
     }
@@ -178,13 +145,12 @@ export default function LoginPage() {
     setLoading(true)
     try {
       // [登录验证]
-      // 必须使用 type: 'email' (Magic Link / OTP 登录)
-      // 注意：signInWithOtp 发送的是 magiclink 或 recovery 或 otp，
-      // 对于 type，通常是 'email' 或 'magiclink'，这里 verifyOtp 文档推荐 'email' 对应 signInWithOtp
+      // 对应 Admin generateLink type: 'magiclink'
+      // 注意：这里必须使用 'magiclink' (或 'recovery')，取决于 generateLink 的 type
       const { data, error } = await supabase.auth.verifyOtp({
         email,
         token: verificationCode,
-        type: 'email', 
+        type: 'magiclink',
       })
 
       if (error) throw error
@@ -192,7 +158,18 @@ export default function LoginPage() {
       toast.success("登录成功")
     } catch (error: any) {
       console.error('Login verify error:', error)
-      toast.error("登录失败", { description: error.message || "验证码错误" })
+      // 尝试降级：如果 magiclink 失败，尝试 email 类型 (兼容旧数据)
+      try {
+        const retry = await supabase.auth.verifyOtp({
+          email,
+          token: verificationCode,
+          type: 'email',
+        })
+        if (retry.error) throw retry.error
+        toast.success("登录成功")
+      } catch (retryError) {
+        toast.error("登录失败", { description: error.message || "验证码错误或已失效" })
+      }
     } finally {
       setLoading(false)
     }
@@ -214,7 +191,7 @@ export default function LoginPage() {
       }
 
       toast.success("登录成功")
-      
+
       // 强制重定向，确保状态同步
       window.location.href = "/"
     } catch (error: any) {
@@ -263,22 +240,20 @@ export default function LoginPage() {
                   <button
                     type="button"
                     onClick={() => setLoginMethod("password")}
-                    className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${
-                      loginMethod === "password"
+                    className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${loginMethod === "password"
                         ? "bg-green-600 text-white shadow-lg"
                         : "text-white/60 hover:text-white hover:bg-white/5"
-                    }`}
+                      }`}
                   >
                     密码登录
                   </button>
                   <button
                     type="button"
                     onClick={() => setLoginMethod("code")}
-                    className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${
-                      loginMethod === "code"
+                    className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${loginMethod === "code"
                         ? "bg-green-600 text-white shadow-lg"
                         : "text-white/60 hover:text-white hover:bg-white/5"
-                    }`}
+                      }`}
                   >
                     验证码登录
                   </button>
@@ -311,8 +286,8 @@ export default function LoginPage() {
                         />
                       </div>
                     </div>
-                    <Button 
-                      type="submit" 
+                    <Button
+                      type="submit"
                       className="w-full bg-green-600 hover:bg-green-700 text-white"
                       disabled={loading}
                     >
@@ -337,7 +312,7 @@ export default function LoginPage() {
                           required
                         />
                       </div>
-                      
+
                       <div className="flex gap-2">
                         <div className="relative flex-1">
                           <KeyRound className="absolute left-3 top-3 h-4 w-4 text-white/40" />
@@ -351,19 +326,19 @@ export default function LoginPage() {
                             maxLength={6}
                           />
                         </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-[120px] bg-white/5 border-white/10 text-white hover:bg-white/10 hover:text-white"
-                      disabled={loading || countdown > 0}
-                      onClick={() => handleSendCode('login')}
-                    >
-                      {countdown > 0 ? `${countdown}s` : "获取验证码"}
-                    </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-[120px] bg-white/5 border-white/10 text-white hover:bg-white/10 hover:text-white"
+                          disabled={loading || countdown > 0}
+                          onClick={() => handleSendCode('login')}
+                        >
+                          {countdown > 0 ? `${countdown}s` : "获取验证码"}
+                        </Button>
                       </div>
                     </div>
-                    <Button 
-                      type="submit" 
+                    <Button
+                      type="submit"
                       className="w-full bg-green-600 hover:bg-green-700 text-white"
                       disabled={loading}
                     >
@@ -398,7 +373,7 @@ export default function LoginPage() {
                         required
                       />
                     </div>
-                    
+
                     <div className="flex gap-2">
                       <div className="relative flex-1">
                         <KeyRound className="absolute left-3 top-3 h-4 w-4 text-white/40" />
@@ -412,7 +387,7 @@ export default function LoginPage() {
                           maxLength={6}
                         />
                       </div>
-                      <Button 
+                      <Button
                         type="button"
                         variant="outline"
                         onClick={() => handleSendCode('register')}
@@ -436,8 +411,8 @@ export default function LoginPage() {
                       />
                     </div>
                   </div>
-                  <Button 
-                    type="submit" 
+                  <Button
+                    type="submit"
                     className="w-full bg-green-600 hover:bg-green-700 text-white"
                     disabled={loading}
                   >
