@@ -173,9 +173,13 @@ export function MapHeader({
             // Priority: District (区/县) > City > Province
             const districtName = addressComponent.district || addressComponent.city || addressComponent.province || '未知区域';
             setCurrentDistrict(districtName);
+          } else {
+            setCurrentDistrict('未知位置');
           }
         } else {
           console.warn('Reverse geocoding failed:', status, result);
+          // Fallback: don't stay stuck on "定位中"
+          setCurrentDistrict('未知位置');
         }
       });
     });
@@ -299,7 +303,7 @@ export function MapHeader({
               <div className="flex flex-col items-start">
                 <span className="text-xs font-bold text-white">
                   {/* Show district name if available and GPS locked, otherwise show "Locating..." */}
-                  {(gpsStatus === 'locating' || !currentDistrict) ? '定位中...' : currentDistrict}
+                  {gpsStatus === 'locating' ? '定位中...' : (currentDistrict || '未知位置')}
                 </span>
                 <ChevronDown className="w-3 h-3 text-white/40" />
               </div>

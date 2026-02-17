@@ -27,13 +27,16 @@ export function TrajectoryLayer({
     useEffect(() => {
         if (!map || !window.AMap) return;
 
+        // Capture map ref at effect creation time to avoid stale closure
+        const mapInstance = map;
+
         // Convert GeoPoint[] to AMap path format [[lng, lat], ...]
         const amapPath = path.map(p => [p.lng, p.lat]);
 
         if (amapPath.length === 0) {
             // No path yet, remove existing polyline if any
             if (polylineRef.current) {
-                map.remove(polylineRef.current);
+                mapInstance?.remove?.(polylineRef.current);
                 polylineRef.current = null;
             }
             return;
@@ -50,7 +53,7 @@ export function TrajectoryLayer({
                 lineJoin: 'round',
                 lineCap: 'round',
             });
-            map.add(polylineRef.current);
+            mapInstance?.add?.(polylineRef.current);
         } else {
             // Update existing polyline path
             polylineRef.current.setPath(amapPath);
@@ -58,10 +61,8 @@ export function TrajectoryLayer({
 
         return () => {
             if (polylineRef.current) {
-                // Critical fix: Check if map exists before removing to prevent crash
-                if (map) {
-                    map.remove(polylineRef.current);
-                }
+                // Safe cleanup: map instance may already be destroyed
+                mapInstance?.remove?.(polylineRef.current);
                 polylineRef.current = null;
             }
         };
