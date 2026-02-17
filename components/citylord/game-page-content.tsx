@@ -452,7 +452,7 @@ export function GamePageContent({
 
   // --- Step 2: Stable Handlers ---
 
-  const handleQuickNavigate = useCallback((tab: "missions" | "social" | "running") => {
+  const handleQuickNavigate = useCallback((tab: string) => {
     if (tab === "running") {
       if (!isAuthenticated) {
         toast.warning('请先登录才能开始占领领地！')
