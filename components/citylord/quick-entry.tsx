@@ -11,7 +11,7 @@ interface QuickEntryProps {
 
 export function QuickEntry({ onNavigate, missionCount = 0, friendCount = 0, rank = 42 }: QuickEntryProps) {
   return (
-    <div className="grid grid-cols-3 gap-3">
+    <div className="grid grid-cols-3 gap-8">
       {/* Missions Entry - Shrunk 0.66x */}
       <button
         onClick={() => onNavigate("missions")}
@@ -33,9 +33,9 @@ export function QuickEntry({ onNavigate, missionCount = 0, friendCount = 0, rank
         onClick={() => onNavigate("running")}
         className="group absolute -top-20 left-1/2 -translate-x-1/2 z-20 flex h-[104px] w-[104px] items-center justify-center rounded-full bg-gradient-to-br from-[#22c55e] to-[#16a34a] shadow-[0_4px_24px_rgba(34,197,94,0.6)] transition-all active:scale-95"
       >
-        {/* Ripple Effects */}
-        <span className="absolute h-full w-full animate-ping rounded-full bg-[#22c55e]/40" style={{ animationDuration: '2s' }}></span>
-        <span className="absolute h-[120%] w-[120%] animate-ping rounded-full bg-[#22c55e]/20" style={{ animationDuration: '2s', animationDelay: '0.5s' }}></span>
+        {/* Ripple Effects - Non-interactive glow */}
+        <span className="absolute h-full w-full animate-ping rounded-full bg-[#22c55e]/40 pointer-events-none" style={{ animationDuration: '2s' }}></span>
+        <span className="absolute h-[120%] w-[120%] animate-ping rounded-full bg-[#22c55e]/20 pointer-events-none" style={{ animationDuration: '2s', animationDelay: '0.5s' }}></span>
 
         <div className="flex flex-col items-center justify-center">
           <span className="text-lg font-extrabold text-white drop-shadow-md">GO!</span>
