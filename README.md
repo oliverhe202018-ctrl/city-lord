@@ -80,6 +80,49 @@ City Lord 是一款结合真实地理位置（LBS）的跑步领地争夺游戏�
     ```
 2.  确保所有环境变量都已在部署平台上正确配置。
 
+## 📂 项目结构 (Project Structure)
+
+```
+/
+├── app/                # Next.js App Router - 页面和路由
+│   ├── (main)/         # 主应用页面
+│   ├── api/            # API 路由 (Serverless Functions)
+│   └── admin/          # 后台管理页面
+├── components/         # React 组件
+│   ├── ui/             # Shadcn UI 组件
+│   ├── map/            # 地图相关组件
+│   └── citylord/       # 核心游戏逻辑组件
+├── hooks/              # 自定义 React Hooks
+├── lib/                # 库函数和工具函数
+├── prisma/             # Prisma schema 和 migrations
+├── public/             # 静态资源
+├── scripts/            # 辅助脚本
+└── android/            # Capacitor Android 项目
+```
+
+## 📜 可用脚本 (Available Scripts)
+
+在 `package.json` 中，你可以找到以下常用脚本：
+
+- `npm run dev`: 启动开发服务器。
+- `npm run build`: 构建生产版本。
+- `npm run start`: 启动生产服务器。
+- `npm run typecheck`: 运行 TypeScript 类型检查。
+- `npm run lint`: 使用 ESLint 检查代码。
+- `npm run android`: 为 Android 平台构建 Web 资源。
+
+## 🤝 贡献指南 (Contributing)
+
+我们欢迎任何形式的贡献！请遵循以下步骤：
+
+1.  **Fork** 本仓库。
+2.  创建你的特性分支 (`git checkout -b feature/AmazingFeature`)。
+3.  提交你的更改 (`git commit -m 'Add some AmazingFeature'`)。
+4.  推送到分支 (`git push origin feature/AmazingFeature`)。
+5.  打开一个 **Pull Request**。
+
+请确保你的代码通过了 `lint` 和 `typecheck` 检查。
+
 ---
 
 ## 📅 更新日志 (Changelog)
