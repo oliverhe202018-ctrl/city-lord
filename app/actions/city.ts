@@ -68,7 +68,7 @@ export async function claimTerritory(cityId: string, cellId: string): Promise<{ 
   try {
     const result = await prisma.$transaction(async (tx) => {
       // 1. Fetch User Profile for Faction
-      const profile = await tx.profiles.findUnique({ 
+      const profile = await tx.profiles.findUnique({
         where: { id: user.id },
         select: { faction: true, id: true }
       })
@@ -80,25 +80,25 @@ export async function claimTerritory(cityId: string, cellId: string): Promise<{ 
       if (profile.faction) {
         // Fetch snapshot for balance check
         const snapshot = await tx.faction_stats_snapshot.findFirst({
-           orderBy: { updated_at: 'desc' }
+          orderBy: { updated_at: 'desc' }
         })
 
         if (snapshot) {
-           const redScore = snapshot.red_area || 0
-           const blueScore = snapshot.blue_area || 0
-           const { underdog, multiplier: bonus, diffRatio } = calculateFactionBalance(
-             redScore,
-             blueScore
-           )
-           console.log('Faction bonus debug:', {
-             redScore,
-             blueScore,
-             scoreDiffRatio: diffRatio,
-             bonusMultiplier: bonus
-           })
-           if (underdog && underdog.toUpperCase() === profile.faction.toUpperCase()) {
-              multiplier = bonus
-           }
+          const redScore = snapshot.red_area || 0
+          const blueScore = snapshot.blue_area || 0
+          const { underdog, multiplier: bonus, diffRatio } = calculateFactionBalance(
+            redScore,
+            blueScore
+          )
+          console.log('Faction bonus debug:', {
+            redScore,
+            blueScore,
+            scoreDiffRatio: diffRatio,
+            bonusMultiplier: bonus
+          })
+          if (underdog && underdog.toUpperCase() === profile.faction.toUpperCase()) {
+            multiplier = bonus
+          }
         }
       }
 
@@ -126,7 +126,7 @@ export async function claimTerritory(cityId: string, cellId: string): Promise<{ 
       if (updateResult.count === 0) {
         // Check if it exists
         const exists = await tx.territories.findUnique({ where: { id: cellId } })
-        
+
         if (!exists) {
           // Create new
           await tx.territories.create({
@@ -140,22 +140,22 @@ export async function claimTerritory(cityId: string, cellId: string): Promise<{ 
             }
           })
         } else {
-           // It exists and didn't match criteria (owned by someone else and healthy)
-           // If I already own it, maybe just heal it?
-           if (exists.owner_id === user.id) {
-              await tx.territories.update({
-                where: { id: cellId },
-                data: {
-                  health: Math.min(100, (exists.health || 0) + 10), // Heal
-                  last_maintained_at: new Date()
-                }
-              })
-              return { action: 'healed' }
-           }
-           
-           // Owned by enemy and healthy -> Attack logic (reduce health) could go here
-           // But for now, we assume failure to capture
-           throw new Error('Territory is protected')
+          // It exists and didn't match criteria (owned by someone else and healthy)
+          // If I already own it, maybe just heal it?
+          if (exists.owner_id === user.id) {
+            await tx.territories.update({
+              where: { id: cellId },
+              data: {
+                health: Math.min(100, (exists.health || 0) + 10), // Heal
+                last_maintained_at: new Date()
+              }
+            })
+            return { action: 'healed' }
+          }
+
+          // Owned by enemy and healthy -> Attack logic (reduce health) could go here
+          // But for now, we assume failure to capture
+          throw new Error('Territory is protected')
         }
       }
 
@@ -194,6 +194,28 @@ export async function claimTerritory(cityId: string, cellId: string): Promise<{ 
     const newBadges = await checkAndAwardBadges(user.id, 'TERRITORY_CAPTURE')
     const grantedBadges = newBadges.map(b => b.code)
 
+    // [NEW] Trigger Task Center Event
+    try {
+      const { TaskService } = await import('@/lib/services/task')
+      await TaskService.processEvent(user.id, {
+        type: 'GRID_CAPTURED',
+        userId: user.id,
+        timestamp: new Date(),
+        data: {
+          gridId: cellId,
+          isNew: true, // Optimistic: we don't track isNew perfectly here without history check, but claimTerritory usually implies capture.
+          // Requirement says "解锁或占领一个新的网格". 
+          // If we captured it, it's new ownership. Even if we owned it before?
+          // "New" usually means "I didn't own it just before".
+          // Since we updated owner_id to me, and previous owner might have been null or enemy.
+          // Yes, it is a capture.
+          isSelf: true
+        }
+      })
+    } catch (e) {
+      console.error('Task event failed:', e)
+    }
+
     return { success: true, grantedBadges }
 
   } catch (err: any) {
@@ -215,7 +237,7 @@ export async function fetchCityStats(cityId: string) {
   // 2. Count active players (e.g., active in last 7 days)
   const lastWeek = new Date()
   lastWeek.setDate(lastWeek.getDate() - 7)
-  
+
   const { count: activePlayers } = await supabase
     .from('user_city_progress')
     .select('*', { count: 'exact', head: true })
@@ -227,16 +249,16 @@ export async function fetchCityStats(cityId: string) {
     .from('territories')
     .select('*', { count: 'exact', head: true })
     .eq('city_id', cityId)
-  
+
   // Approximate area (e.g. 1 tile = 0.01 km2, just an example constant)
   // Real calculation depends on H3 resolution.
-  const ESTIMATED_AREA_PER_TILE = 0.01 
+  const ESTIMATED_AREA_PER_TILE = 0.01
   const totalArea = (totalTiles || 0) * ESTIMATED_AREA_PER_TILE
 
   return {
     totalPlayers: totalPlayers || 0,
     activePlayers: activePlayers || 0,
-    totalArea: parseFloat(totalArea.toFixed(2)), 
+    totalArea: parseFloat(totalArea.toFixed(2)),
     totalTiles: totalTiles || 0
   }
 }
@@ -297,7 +319,7 @@ export async function getUserCityProgress(cityId: string): Promise<UserCityProgr
   const cookieStore = await cookies()
   const supabase = createClient(cookieStore)
   const { data: { user } } = await supabase.auth.getUser()
-  
+
   if (!user) return null
 
   const { data, error } = await supabase
@@ -347,7 +369,7 @@ export async function initUserCityProgress(cityId: string) {
   const cookieStore = await cookies()
   const supabase = createClient(cookieStore)
   const { data: { user } } = await supabase.auth.getUser()
-  
+
   if (!user) throw new Error('Unauthorized')
 
   const { data, error } = await supabase
