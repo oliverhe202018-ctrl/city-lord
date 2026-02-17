@@ -58,7 +58,10 @@ export function TrajectoryLayer({
 
         return () => {
             if (polylineRef.current) {
-                map.remove(polylineRef.current);
+                // Critical fix: Check if map exists before removing to prevent crash
+                if (map) {
+                    map.remove(polylineRef.current);
+                }
                 polylineRef.current = null;
             }
         };
