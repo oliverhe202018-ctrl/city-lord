@@ -22,7 +22,7 @@ export function UserMarkerLayer({ map, position, isTracking }: UserMarkerLayerPr
     if (!map || !window.AMap || !position) {
       // Remove marker if no position
       if (markerRef.current) {
-        map?.remove(markerRef.current);
+        map?.remove?.(markerRef.current);
         markerRef.current = null;
       }
       return;
@@ -116,7 +116,7 @@ export function UserMarkerLayer({ map, position, isTracking }: UserMarkerLayerPr
     return () => {
       if (map && markerRef.current) {
         try {
-          map.remove(markerRef.current);
+          map?.remove?.(markerRef.current);
         } catch (e) {
           console.warn('[UserMarkerLayer] Cleanup error:', e);
         }

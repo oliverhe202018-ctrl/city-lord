@@ -572,7 +572,7 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
             <StatCard
               icon={<Footprints className="h-5 w-5" />}
               label="总里程"
-              value={userStats.totalDistance.toString()}
+              value={Number(userStats.totalDistance || 0).toFixed(2)}
               unit="公里"
               color="text-[#39ff14]"
             />
@@ -587,7 +587,7 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
             <StatCard
               icon={<Swords className="h-5 w-5" />}
               label="战斗胜利"
-              value={userStats.battlesWon.toString()}
+              value={Number(userStats.battlesWon || 0).toString()}
               unit="胜"
               color="text-purple-400"
             />
@@ -608,7 +608,7 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
             <StatCard
               icon={<Target className="h-5 w-5" />}
               label="总占领地块"
-              value={userStats.totalTiles.toLocaleString()}
+              value={Number(userStats.totalTiles || 0).toLocaleString()}
               unit="块"
               color="text-pink-400"
             />

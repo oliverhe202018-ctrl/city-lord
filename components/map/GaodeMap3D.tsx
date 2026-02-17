@@ -33,9 +33,9 @@ interface GaodeMap3DProps {
 const AMAP_KEY = process.env.NEXT_PUBLIC_AMAP_KEY || "2f65c697074e0d4c8270195561578e06"
 const AMAP_SECURITY_CODE = process.env.NEXT_PUBLIC_AMAP_SECURITY_CODE || "37887556a31362e92c2810e742886e29"
 
-export function GaodeMap3D({ 
-  hexagons, 
-  exploredHexes, 
+export function GaodeMap3D({
+  hexagons,
+  exploredHexes,
   userLocation,
   initialZoom = 17,
   territories = [],
@@ -50,7 +50,7 @@ export function GaodeMap3D({
   const markerRef = useRef<any>(null)
   const [isMapReady, setIsMapReady] = useState(false)
   const [debugLog, setDebugLog] = useState<string[]>([])
-  
+
   // Path & Polygon Refs
   const polylineRef = useRef<any>(null)
   const ghostPolylineRef = useRef<any>(null)
@@ -63,19 +63,19 @@ export function GaodeMap3D({
   // Load user colors
   useEffect(() => {
     const loadColors = async () => {
-        const supabase = createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user) {
-            const { data } = await supabase
-                .from('profiles')
-                .select('path_color, fill_color')
-                .eq('id', user.id)
-                .single()
-            if (data) {
-                if (data.path_color) setPathColor(data.path_color)
-                if (data.fill_color) setFillColor(data.fill_color)
-            }
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data } = await supabase
+          .from('profiles')
+          .select('path_color, fill_color')
+          .eq('id', user.id)
+          .single()
+        if (data) {
+          if (data.path_color) setPathColor(data.path_color)
+          if (data.fill_color) setFillColor(data.fill_color)
         }
+      }
     }
     loadColors()
   }, [])
@@ -105,8 +105,8 @@ export function GaodeMap3D({
         });
 
         if (!AMap || !mapContainerRef.current) {
-             addLog("AMap Load Failed or Container Missing");
-             return;
+          addLog("AMap Load Failed or Container Missing");
+          return;
         }
 
         addLog("AMap Loader Success")
@@ -138,7 +138,7 @@ export function GaodeMap3D({
         // Create Loca Container
         // Ensure Loca is available on window
         if (!window.Loca) {
-             throw new Error("Loca not loaded");
+          throw new Error("Loca not loaded");
         }
 
         const loca = new window.Loca.Container({
@@ -217,14 +217,14 @@ export function GaodeMap3D({
         // Safe Cleanup using optional chaining
         ghostPolylineRef.current?.remove?.()
         polylineRef.current?.remove?.()
-        
+
         // Handle array cleanup
         if (Array.isArray(polygonRefs.current)) {
-             polygonRefs.current.forEach((p: any) => p?.remove?.())
+          polygonRefs.current.forEach((p: any) => p?.remove?.())
         }
-        
+
         markerRef.current?.remove?.()
-        
+
         safeDestroyMap(mapInstanceRef.current);
         mapInstanceRef.current = null;
       }
@@ -241,29 +241,29 @@ export function GaodeMap3D({
     // [116.397, 39.909]
     // Standard GeoJSON Polygon
     const debugFeature = {
-        "type": "Feature",
-        "properties": {
-            "h3Index": "DEBUG_HEX",
-            "color": "#ff0000",
-            "height": 500
-        },
-        "geometry": {
-            "type": "Polygon",
-            "coordinates": [
-                [
-                    [116.397, 39.909],
-                    [116.398, 39.909],
-                    [116.398, 39.910],
-                    [116.397, 39.910],
-                    [116.397, 39.909]
-                ]
-            ]
-        }
+      "type": "Feature",
+      "properties": {
+        "h3Index": "DEBUG_HEX",
+        "color": "#ff0000",
+        "height": 500
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [116.397, 39.909],
+            [116.398, 39.909],
+            [116.398, 39.910],
+            [116.397, 39.910],
+            [116.397, 39.909]
+          ]
+        ]
+      }
     }
 
     // Convert Real Data
     const realGeoJSON = h3ToAmapGeoJSON(safeHexagons)
-    
+
     // Enrich with Health Data if available
     if (safeTerritories.length > 0) {
       realGeoJSON.features.forEach((feature: any) => {
@@ -281,11 +281,11 @@ export function GaodeMap3D({
     // Merge Debug Data if list is empty
     let finalFeatures = realGeoJSON.features
     if (finalFeatures.length === 0) {
-        addLog("No hexagons provided, adding DEBUG feature")
-        finalFeatures = [debugFeature as any]
+      addLog("No hexagons provided, adding DEBUG feature")
+      finalFeatures = [debugFeature as any]
     } else {
-        // Optional: Always add debug feature to ensure rendering works
-        // finalFeatures.push(debugFeature as any)
+      // Optional: Always add debug feature to ensure rendering works
+      // finalFeatures.push(debugFeature as any)
     }
 
     const source = new window.Loca.GeoJSONSource({
@@ -301,54 +301,54 @@ export function GaodeMap3D({
     layer.setStyle({
       unit: 'meter',
       sideColor: (index: number, feature: any) => {
-         const props = feature.properties
-         if (props.h3Index === 'DEBUG_HEX') return 'rgba(255, 0, 0, 0.5)'
-         
-         const health = props.health ?? 100
-         const ownerType = props.ownerType || (exploredHexes.includes(props.h3Index) ? 'me' : 'neutral')
-         
-         // Base color by faction
-         let baseColor = 'rgba(100, 100, 100, 0.3)'
-         if (ownerType === 'me') baseColor = 'rgba(34, 197, 94, 0.6)' // Green
-         else if (ownerType === 'enemy') baseColor = 'rgba(168, 85, 247, 0.6)' // Purple
-         
-         // Health Modifier (Darker/Greyer as health drops)
-         if (health < 40) {
-            // Critical: Flashing Red/Grey look (simulated by low opacity or red tint)
-            return 'rgba(239, 68, 68, 0.4)' 
-         } else if (health < 80) {
-            // Damaged: Yellow tint
-            return 'rgba(234, 179, 8, 0.5)'
-         }
-         
-         return baseColor
+        const props = feature.properties
+        if (props.h3Index === 'DEBUG_HEX') return 'rgba(255, 0, 0, 0.5)'
+
+        const health = props.health ?? 100
+        const ownerType = props.ownerType || (exploredHexes.includes(props.h3Index) ? 'me' : 'neutral')
+
+        // Base color by faction
+        let baseColor = 'rgba(100, 100, 100, 0.3)'
+        if (ownerType === 'me') baseColor = 'rgba(34, 197, 94, 0.6)' // Green
+        else if (ownerType === 'enemy') baseColor = 'rgba(168, 85, 247, 0.6)' // Purple
+
+        // Health Modifier (Darker/Greyer as health drops)
+        if (health < 40) {
+          // Critical: Flashing Red/Grey look (simulated by low opacity or red tint)
+          return 'rgba(239, 68, 68, 0.4)'
+        } else if (health < 80) {
+          // Damaged: Yellow tint
+          return 'rgba(234, 179, 8, 0.5)'
+        }
+
+        return baseColor
       },
       topColor: (index: number, feature: any) => {
-         const props = feature.properties
-         if (props.h3Index === 'DEBUG_HEX') return '#ff0000'
-         
-         const health = props.health ?? 100
-         const ownerType = props.ownerType || (exploredHexes.includes(props.h3Index) ? 'me' : 'neutral')
+        const props = feature.properties
+        if (props.h3Index === 'DEBUG_HEX') return '#ff0000'
 
-         // Base color
-         let color = '#3f3f46'
-         if (ownerType === 'me') color = '#22c55e'
-         else if (ownerType === 'enemy') color = '#a855f7'
-         
-         // Health Modifier
-         if (health < 40) {
-            return '#ef4444' // Red for critical
-         } else if (health < 80) {
-            return '#eab308' // Yellow for damaged
-         }
-         
-         return color
+        const health = props.health ?? 100
+        const ownerType = props.ownerType || (exploredHexes.includes(props.h3Index) ? 'me' : 'neutral')
+
+        // Base color
+        let color = '#3f3f46'
+        if (ownerType === 'me') color = '#22c55e'
+        else if (ownerType === 'enemy') color = '#a855f7'
+
+        // Health Modifier
+        if (health < 40) {
+          return '#ef4444' // Red for critical
+        } else if (health < 80) {
+          return '#eab308' // Yellow for damaged
+        }
+
+        return color
       },
       height: (index: number, feature: any) => {
-         // Lower height for low health?
-         const health = feature.properties.health ?? 100
-         const baseHeight = feature.properties.height || 100
-         return baseHeight * (0.5 + (health / 200)) // 50% to 100% height based on health
+        // Lower height for low health?
+        const health = feature.properties.health ?? 100
+        const baseHeight = feature.properties.height || 100
+        return baseHeight * (0.5 + (health / 200)) // 50% to 100% height based on health
       },
       altitude: 0
     })
@@ -360,25 +360,25 @@ export function GaodeMap3D({
     // Loca 2.0 PrismLayer usually supports events if configured? 
     // Actually Loca is for visualization. Interaction is often done via picking.
     // For simplicity, we just log health on click if we can.
-    
+
     // Note: Loca 2.0 requires manual picking often.
     mapInstanceRef.current.on('click', (e: any) => {
-        const feat = layer.queryFeature(e.pixel)
-        if (feat) {
-            const props = feat.properties
-            const health = props.health ?? 100
-            let status = "Healthy"
-            if (health < 40) status = "Critical (Lost in <4 days)"
-            else if (health < 80) status = "Damaged"
-            
-            toast(`Hex ${props.h3Index.substring(0,6)}...`, {
-                description: `Health: ${health}% (${status})`
-            })
-        }
+      const feat = layer.queryFeature(e.pixel)
+      if (feat) {
+        const props = feat.properties
+        const health = props.health ?? 100
+        let status = "Healthy"
+        if (health < 40) status = "Critical (Lost in <4 days)"
+        else if (health < 80) status = "Damaged"
+
+        toast(`Hex ${props.h3Index.substring(0, 6)}...`, {
+          description: `Health: ${health}% (${status})`
+        })
+      }
     })
 
     addLog("Layer Style Set & Rendered")
-    
+
   }, [isMapReady, safeHexagons, exploredHexes, safeTerritories])
 
   // Path & Polygon Rendering
@@ -389,11 +389,11 @@ export function GaodeMap3D({
     // 0. Draw Ghost Path (Polyline)
     if (ghostPath && ghostPath.length > 0) {
       const ghostCoords = ghostPath.map(p => [p.lng, p.lat])
-      
+
       if (!ghostPolylineRef.current) {
         ghostPolylineRef.current = new window.AMap.Polyline({
           path: ghostCoords,
-          strokeColor: "#a855f7", 
+          strokeColor: "#a855f7",
           strokeOpacity: 0.6,
           strokeWeight: 6,
           strokeStyle: "dashed",
@@ -405,8 +405,8 @@ export function GaodeMap3D({
         ghostPolylineRef.current.setPath(ghostCoords)
       }
     } else if (ghostPolylineRef.current) {
-       map.remove(ghostPolylineRef.current)
-       ghostPolylineRef.current = null
+      map?.remove?.(ghostPolylineRef.current)
+      ghostPolylineRef.current = null
     }
 
     // Note: Path and ClosedPolygons are handled in separate effects to avoid conflicts
@@ -416,11 +416,11 @@ export function GaodeMap3D({
   // Update User Marker Position
   useEffect(() => {
     if (markerRef.current && userLocation) {
-        markerRef.current.setPosition(userLocation)
-        // Only pan if map is ready
-        if (mapInstanceRef.current) {
-             mapInstanceRef.current.panTo(userLocation)
-        }
+      markerRef.current.setPosition(userLocation)
+      // Only pan if map is ready
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.panTo(userLocation)
+      }
     }
   }, [userLocation])
 
@@ -438,25 +438,25 @@ export function GaodeMap3D({
 
     if (pathCoordinates.length > 0) {
       if (polylineRef.current) {
-          // Update existing polyline
-          polylineRef.current.setPath(pathCoordinates)
-          polylineRef.current.setOptions({ strokeColor: pathColor })
+        // Update existing polyline
+        polylineRef.current.setPath(pathCoordinates)
+        polylineRef.current.setOptions({ strokeColor: pathColor })
       } else {
-          // Create new polyline
-          polylineRef.current = new window.AMap.Polyline({
-              path: pathCoordinates,
-              strokeColor: pathColor,
-              strokeWeight: 6,
-              strokeOpacity: 0.9,
-              zIndex: 100,
-              showDir: true
-          })
-          mapInstanceRef.current.add(polylineRef.current)
+        // Create new polyline
+        polylineRef.current = new window.AMap.Polyline({
+          path: pathCoordinates,
+          strokeColor: pathColor,
+          strokeWeight: 6,
+          strokeOpacity: 0.9,
+          zIndex: 100,
+          showDir: true
+        })
+        mapInstanceRef.current.add(polylineRef.current)
       }
     } else if (polylineRef.current) {
-       // Clear if empty
-       mapInstanceRef.current.remove(polylineRef.current)
-       polylineRef.current = null
+      // Clear if empty
+      mapInstanceRef.current?.remove?.(polylineRef.current)
+      polylineRef.current = null
     }
   }, [path, pathColor, isMapReady])
 
@@ -466,8 +466,8 @@ export function GaodeMap3D({
 
     // Clear existing polygons
     if (polygonRefs.current && polygonRefs.current.length > 0) {
-        mapInstanceRef.current.remove(polygonRefs.current)
-        polygonRefs.current = []
+      mapInstanceRef.current?.remove?.(polygonRefs.current)
+      polygonRefs.current = []
     }
 
     const safePolys = closedPolygons || []
@@ -481,23 +481,23 @@ export function GaodeMap3D({
           const coords = poly
             .filter(p => p && typeof p.lng === 'number' && typeof p.lat === 'number')
             .map(p => [p.lng, p.lat])
-            
+
           if (coords.length < 3) return null // Need at least 3 points for a polygon
 
           return new window.AMap.Polygon({
-              path: coords,
-              strokeColor: pathColor,
-              strokeWeight: 2,
-              strokeOpacity: 0.8,
-              fillColor: fillColor,
-              fillOpacity: 0.4,
-              zIndex: 90
+            path: coords,
+            strokeColor: pathColor,
+            strokeWeight: 2,
+            strokeOpacity: 0.8,
+            fillColor: fillColor,
+            fillOpacity: 0.4,
+            zIndex: 90
           })
-      }).filter(Boolean) // Filter out nulls
+        }).filter(Boolean) // Filter out nulls
 
       if (newPolygons.length > 0) {
-          mapInstanceRef.current.add(newPolygons)
-          polygonRefs.current = newPolygons
+        mapInstanceRef.current.add(newPolygons)
+        polygonRefs.current = newPolygons
       }
     }
   }, [closedPolygons, pathColor, fillColor, isMapReady])
@@ -505,7 +505,7 @@ export function GaodeMap3D({
   return (
     <div className="w-full h-full relative bg-black">
       <div ref={mapContainerRef} className="w-full h-full absolute inset-0 z-0" />
-      
+
       {/* Debug Log Overlay */}
       {/* 
       <div className="absolute top-20 left-4 z-50 pointer-events-none">

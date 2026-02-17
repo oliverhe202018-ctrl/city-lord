@@ -43,7 +43,7 @@ export function ClaimedPolygonLayer({
 
         // Clear existing polygons
         polygonRefs.current.forEach(poly => {
-            if (poly) map.remove(poly);
+            if (poly) map?.remove?.(poly);
         });
         polygonRefs.current = [];
 
@@ -82,7 +82,7 @@ export function ClaimedPolygonLayer({
                 polygonRefs.current.forEach(poly => {
                     if (poly) {
                         try {
-                            map.remove(poly);
+                            map?.remove?.(poly);
                         } catch (e) {
                             console.warn('[ClaimedPolygonLayer] Cleanup error:', e);
                         }

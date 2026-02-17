@@ -135,7 +135,7 @@ export function ClubKingdomLayer({ map, userId }: ClubKingdomLayerProps) {
         return () => {
             if (map && customLayer) {
                 try {
-                    map.remove(customLayer);
+                    map?.remove?.(customLayer);
                 } catch (e) {
                     console.warn('[ClubKingdomLayer] Cleanup error:', e);
                 }

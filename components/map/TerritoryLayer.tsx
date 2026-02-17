@@ -42,9 +42,9 @@ const getTerritoryStyle = (territory: Territory, viewMode: 'individual' | 'facti
   if (viewMode === 'faction') {
     // Faction Mode
     if (territory.ownerType === 'me') {
-        return { fillColor: "#22c55e", strokeColor: "#16a34a", opacity: 0.6, strokeWeight: 3 };
+      return { fillColor: "#22c55e", strokeColor: "#16a34a", opacity: 0.6, strokeWeight: 3 };
     }
-    
+
     // We need faction data in Territory type. Assuming it might be extended or we infer from somewhere.
     // Since current Territory type might not have faction, let's assume we need to update it or use placeholder logic for now.
     // If backend doesn't return faction yet, we might need to rely on 'ownerType' being enough for now, 
@@ -52,21 +52,21 @@ const getTerritoryStyle = (territory: Territory, viewMode: 'individual' | 'facti
     // Let's assume for now: 'enemy' -> check if we have faction info? 
     // If not available, we fallback to red.
     // Ideally, `fetchTerritories` should return faction info.
-    
+
     // For this task, since we updated profiles table but maybe not the territory fetch join...
     // Let's try to simulate or use what we have.
     // If we assume the user is RED, enemies are BLUE? No, multiple factions.
-    
+
     // Let's check if Territory type has faction. 
     // If not, we'll just color enemies Red for now in faction mode, or distinct.
-    
+
     if (territory.ownerType === 'enemy') {
-       // If we had faction: 
-       // if (territory.faction === 'RED') return { ...red }
-       // if (territory.faction === 'BLUE') return { ...blue }
-       return { fillColor: "#ef4444", strokeColor: "#dc2626", opacity: 0.5 };
+      // If we had faction: 
+      // if (territory.faction === 'RED') return { ...red }
+      // if (territory.faction === 'BLUE') return { ...blue }
+      return { fillColor: "#ef4444", strokeColor: "#dc2626", opacity: 0.5 };
     }
-    
+
     return { fillColor: "#f59e0b", strokeColor: "#d97706", opacity: 0.5 };
   } else {
     // Individual Mode
@@ -95,7 +95,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, onTerri
     const loadTerritories = async () => {
       try {
         const data = await fetchTerritories(city.id);
-        
+
         if (!mounted) return;
 
         const createdPolygons = (Array.isArray(data) ? data : []).map((territory) => {
@@ -124,14 +124,14 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, onTerri
 
         // Clear old polygons before adding new ones
         setPolygons(prev => {
-           prev.forEach(p => {
-               if (p && typeof p.setMap === 'function') {
-                   p.setMap(null);
-               }
-           }); 
-           return createdPolygons;
+          prev.forEach(p => {
+            if (p && typeof p.setMap === 'function') {
+              p.setMap(null);
+            }
+          });
+          return createdPolygons;
         });
-        
+
         map.add(createdPolygons);
 
       } catch (error: any) {
@@ -160,12 +160,12 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, onTerri
         if (map && polygons.length > 0) {
           // map.remove(polygons) is standard, but defensive coding:
           polygons.forEach(p => {
-              if (p && typeof p.setMap === 'function') {
-                  p.setMap(null); // Safer than map.remove([p]) sometimes
-              }
+            if (p && typeof p.setMap === 'function') {
+              p.setMap(null); // Safer than map.remove([p]) sometimes
+            }
           });
-          if (typeof map.remove === 'function') {
-              map.remove(polygons.filter(p => !!p));
+          if (typeof map?.remove === 'function') {
+            map.remove(polygons.filter(p => !!p));
           }
         }
       } catch (error) {
