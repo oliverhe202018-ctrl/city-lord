@@ -78,9 +78,17 @@ export function ClaimedPolygonLayer({
 
         return () => {
             // Cleanup on unmount
-            polygonRefs.current.forEach(poly => {
-                if (poly) map.remove(poly);
-            });
+            if (map) {
+                polygonRefs.current.forEach(poly => {
+                    if (poly) {
+                        try {
+                            map.remove(poly);
+                        } catch (e) {
+                            console.warn('[ClaimedPolygonLayer] Cleanup error:', e);
+                        }
+                    }
+                });
+            }
             polygonRefs.current = [];
         };
     }, [map, polygons, fillColor, fillOpacity, strokeColor, strokeWeight]);

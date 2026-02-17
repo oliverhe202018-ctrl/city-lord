@@ -36,7 +36,7 @@ interface MissionTrackerItemProps {
 
 function MissionTrackerItem({ title, current, target, unit, isCompleted }: MissionTrackerItemProps) {
   const progress = Math.min(100, (current / target) * 100)
-  
+
   return (
     <div className="mb-3 w-full max-w-[260px] rounded-xl bg-black/60 backdrop-blur-md p-3 text-sm text-white border border-white/10 shadow-lg">
       <div className="flex justify-between items-center mb-2">
@@ -48,7 +48,7 @@ function MissionTrackerItem({ title, current, target, unit, isCompleted }: Missi
         )}
       </div>
       <div className="h-2.5 w-full rounded-full bg-white/10 overflow-hidden ring-1 ring-white/5">
-        <motion.div 
+        <motion.div
           className={cn("h-full rounded-full shadow-[0_0_8px_rgba(34,197,94,0.4)]", isCompleted ? "bg-[#22c55e]" : "bg-blue-500")}
           initial={{ width: 0 }}
           animate={{ width: `${progress}%` }}
@@ -109,16 +109,16 @@ function SlideToPause({ onPause }: { onPause: () => void }) {
   const SLIDE_THRESHOLD = 150 // Reduced threshold for easier trigger
 
   return (
-    <div className="relative w-full max-w-[280px] h-16 bg-[#22c55e] rounded-full overflow-hidden shadow-lg shadow-[#22c55e]/20 touch-none select-none" ref={containerRef} style={{ WebkitTouchCallout: 'none' }}>
+    <div className="relative w-full max-w-[280px] h-16 bg-[#22c55e] rounded-full overflow-hidden shadow-lg shadow-[#22c55e]/20 touch-none select-none z-[100]" ref={containerRef} style={{ WebkitTouchCallout: 'none' }}>
       {/* Background Text */}
       <div className="absolute inset-0 flex items-center justify-center text-black/60 text-sm font-bold pointer-events-none tracking-widest pl-12 animate-pulse">
         {"> 滑动暂停"}
       </div>
 
       {/* Progress Overlay (Darken as we slide) */}
-      <motion.div 
-        className="absolute inset-y-0 left-0 bg-black/10" 
-        style={{ width: dragX + 64 }} 
+      <motion.div
+        className="absolute inset-y-0 left-0 bg-black/10"
+        style={{ width: dragX + 64 }}
       />
 
       {/* Draggable Knob */}
@@ -146,14 +146,14 @@ function SlideToPause({ onPause }: { onPause: () => void }) {
   )
 }
 
-export function RunningHUD({ 
-  distance, 
-  duration, 
-  pace, 
-  calories, 
-  isPaused, 
-  onResume, 
-  onPause, 
+export function RunningHUD({
+  distance,
+  duration,
+  pace,
+  calories,
+  isPaused,
+  onResume,
+  onPause,
   onStop,
   onToggleMap,
   isMapExpanded,
@@ -171,8 +171,8 @@ export function RunningHUD({
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
     return () => {
-        window.removeEventListener('online', handleOnline)
-        window.removeEventListener('offline', handleOffline)
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
     }
   }, [])
 
@@ -204,7 +204,7 @@ export function RunningHUD({
         const missions = await fetchUserMissions()
         // Filter: Active, Daily, Not Claimed
         // FIX: Ensure missions have frequency property or filter safely
-        const dailyActive = missions.filter(m => 
+        const dailyActive = missions.filter(m =>
           m.missions?.frequency === 'daily' && // Access nested relation if necessary or check type
           m.status !== 'claimed' &&
           m.status !== 'completed'
@@ -223,7 +223,7 @@ export function RunningHUD({
 
     activeMissions.forEach(um => {
       // FIX: Access nested mission data safely
-      const mission = um.missions || um; 
+      const mission = um.missions || um;
       if (!mission || completedMissionIds.has(mission.id)) return
 
       let currentProgress = um.current || 0 // Use user_mission progress if available
@@ -239,9 +239,9 @@ export function RunningHUD({
         const target = mission.target
         const current = distance * 1000 // meters
         if (target < 50) { // likely KM
-            if (distance >= target) isHit = true
+          if (distance >= target) isHit = true
         } else {
-            if (current >= target) isHit = true
+          if (current >= target) isHit = true
         }
         currentProgress = distance
       }
@@ -258,179 +258,180 @@ export function RunningHUD({
 
   return (
     <>
-    <AnimatePresence>
-      {!isMapExpanded && (
-        <motion.div 
-          className="absolute inset-0 pointer-events-none flex flex-col justify-between z-40 pb-[calc(env(safe-area-inset-bottom)+20px)] pt-[calc(env(safe-area-inset-top)+60px)]"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-        >
-          {/* Top Info Bar */}
-          <div className="pointer-events-auto px-6 w-full flex justify-between items-start">
-             <div className="flex flex-col gap-2">
-                 {/* Connection Status */}
-                 <div className={cn(
-                     "flex items-center gap-2 px-3 py-1.5 rounded-full backdrop-blur-md text-xs font-medium border shadow-sm transition-colors",
-                     isOnline 
-                        ? (isSyncing ? "bg-blue-500/20 text-blue-200 border-blue-500/30" : "bg-black/30 text-white/50 border-white/10")
-                        : "bg-red-500/20 text-red-200 border-red-500/30"
-                 )}>
-                    {isOnline ? (
-                        isSyncing ? (
-                            <>
-                                <RefreshCw className="w-3 h-3 animate-spin" />
-                                <span>同步中...</span>
-                            </>
-                        ) : (
-                            <>
-                                <Cloud className="w-3 h-3 opacity-70" />
-                                <span>已同步</span>
-                            </>
-                        )
+      <AnimatePresence>
+        {!isMapExpanded && (
+          <motion.div
+            className="absolute inset-0 pointer-events-none flex flex-col justify-between z-40 pb-[calc(env(safe-area-inset-bottom)+20px)] pt-[calc(env(safe-area-inset-top)+60px)]"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            {/* Top Info Bar */}
+            <div className="pointer-events-auto px-6 w-full flex justify-between items-start">
+              <div className="flex flex-col gap-2">
+                {/* Connection Status */}
+                <div className={cn(
+                  "flex items-center gap-2 px-3 py-1.5 rounded-full backdrop-blur-md text-xs font-medium border shadow-sm transition-colors",
+                  isOnline
+                    ? (isSyncing ? "bg-blue-500/20 text-blue-200 border-blue-500/30" : "bg-black/30 text-white/50 border-white/10")
+                    : "bg-red-500/20 text-red-200 border-red-500/30"
+                )}>
+                  {isOnline ? (
+                    isSyncing ? (
+                      <>
+                        <RefreshCw className="w-3 h-3 animate-spin" />
+                        <span>同步中...</span>
+                      </>
                     ) : (
-                        <>
-                            <CloudOff className="w-3 h-3" />
-                            <span>离线模式 (已缓存)</span>
-                        </>
-                    )}
-                 </div>
+                      <>
+                        <Cloud className="w-3 h-3 opacity-70" />
+                        <span>已同步</span>
+                      </>
+                    )
+                  ) : (
+                    <>
+                      <CloudOff className="w-3 h-3" />
+                      <span>离线模式 (已缓存)</span>
+                    </>
+                  )}
+                </div>
 
-                 {activeMissions.slice(0, 2).map(um => {
+                {activeMissions.slice(0, 2).map(um => {
                   const mission = um.missions || um;
                   return (
-                  <MissionTrackerItem 
-                    key={mission.id}
-                    title={mission.title}
-                    current={mission.type === 'DISTANCE_DAILY' ? (mission.target < 50 ? distance : distance * 1000) : 0}
-                    target={mission.target}
-                    unit={mission.type === 'DISTANCE_DAILY' ? (mission.target < 50 ? 'km' : 'm') : ''}
-                    isCompleted={completedMissionIds.has(mission.id)}
-                  />
-                 )})}
-             </div>
-             
-             {/* Top Right Buttons Removed as requested - moved to bottom */}
-          </div>
+                    <MissionTrackerItem
+                      key={mission.id}
+                      title={mission.title}
+                      current={mission.type === 'DISTANCE_DAILY' ? (mission.target < 50 ? distance : distance * 1000) : 0}
+                      target={mission.target}
+                      unit={mission.type === 'DISTANCE_DAILY' ? (mission.target < 50 ? 'km' : 'm') : ''}
+                      isCompleted={completedMissionIds.has(mission.id)}
+                    />
+                  )
+                })}
+              </div>
 
-          {/* Main Stats Display (Center) */}
-          <div className="pointer-events-auto px-6 flex flex-col items-center justify-center flex-1 gap-8">
+              {/* Top Right Buttons Removed as requested - moved to bottom */}
+            </div>
+
+            {/* Main Stats Display (Center) */}
+            <div className="pointer-events-auto px-6 flex flex-col items-center justify-center flex-1 gap-8">
               {/* Distance (Main) */}
               <div className="flex flex-col items-center">
-                  <AnimatedCounter value={distance} className="text-[6rem] font-black text-white leading-none drop-shadow-2xl italic" decimals={2} />
-                  <span className="text-white/60 font-bold tracking-widest uppercase mt-2 text-lg">Kilometers</span>
+                <AnimatedCounter value={distance} className="text-[6rem] font-black text-white leading-none drop-shadow-2xl italic" decimals={2} />
+                <span className="text-white/60 font-bold tracking-widest uppercase mt-2 text-lg">Kilometers</span>
               </div>
 
               {/* Secondary Stats Grid */}
               <div className="grid grid-cols-3 gap-8 w-full max-w-sm">
-                  <div 
-                    className="flex flex-col items-center cursor-pointer active:scale-95 transition-transform"
-                    onTouchStart={handlePacePressStart}
-                    onTouchEnd={handlePacePressEnd}
-                    onMouseDown={handlePacePressStart}
-                    onMouseUp={handlePacePressEnd}
-                    onMouseLeave={handlePacePressEnd}
-                  >
-                      <div className="flex items-center gap-1.5 text-white/60 mb-1">
-                          <Zap className="w-4 h-4" />
-                          <span className="text-xs font-bold uppercase tracking-wider">Pace</span>
-                      </div>
-                      <span className="text-2xl font-black text-white font-mono">{pace}</span>
+                <div
+                  className="flex flex-col items-center cursor-pointer active:scale-95 transition-transform"
+                  onTouchStart={handlePacePressStart}
+                  onTouchEnd={handlePacePressEnd}
+                  onMouseDown={handlePacePressStart}
+                  onMouseUp={handlePacePressEnd}
+                  onMouseLeave={handlePacePressEnd}
+                >
+                  <div className="flex items-center gap-1.5 text-white/60 mb-1">
+                    <Zap className="w-4 h-4" />
+                    <span className="text-xs font-bold uppercase tracking-wider">Pace</span>
                   </div>
+                  <span className="text-2xl font-black text-white font-mono">{pace}</span>
+                </div>
 
-                  <div className="flex flex-col items-center">
-                      <div className="flex items-center gap-1.5 text-white/60 mb-1">
-                          <Flame className="w-4 h-4" />
-                          <span className="text-xs font-bold uppercase tracking-wider">Kcal</span>
-                      </div>
-                      <AnimatedCounter value={calories} className="text-2xl font-black text-white font-mono" decimals={0} />
+                <div className="flex flex-col items-center">
+                  <div className="flex items-center gap-1.5 text-white/60 mb-1">
+                    <Flame className="w-4 h-4" />
+                    <span className="text-xs font-bold uppercase tracking-wider">Kcal</span>
                   </div>
+                  <AnimatedCounter value={calories} className="text-2xl font-black text-white font-mono" decimals={0} />
+                </div>
 
-                  <div className="flex flex-col items-center">
-                      <div className="flex items-center gap-1.5 text-white/60 mb-1">
-                          <Trophy className="w-4 h-4" />
-                          <span className="text-xs font-bold uppercase tracking-wider">Time</span>
-                      </div>
-                      <span className="text-2xl font-black text-white font-mono">{duration}</span>
+                <div className="flex flex-col items-center">
+                  <div className="flex items-center gap-1.5 text-white/60 mb-1">
+                    <Trophy className="w-4 h-4" />
+                    <span className="text-xs font-bold uppercase tracking-wider">Time</span>
                   </div>
+                  <span className="text-2xl font-black text-white font-mono">{duration}</span>
+                </div>
               </div>
-          </div>
+            </div>
 
-          {/* Controls Bottom */}
-          <div className="pointer-events-auto px-8 w-full flex flex-col items-center gap-6 mb-8">
-             
-             {/* Action Buttons: Lock, Map, Settings */}
-             <div className="flex items-center gap-6 mb-2">
-                 {/* Lock Button */}
-                 <button 
-                   onClick={() => setIsLocked(!isLocked)}
-                   className={cn(
-                     "h-12 w-12 rounded-full backdrop-blur-md flex items-center justify-center border active:scale-95 transition-all shadow-lg",
-                     isLocked ? "bg-amber-500/80 text-white border-amber-400" : "bg-black/40 text-white border-white/10"
-                   )}
-                 >
-                    {isLocked ? <Lock className="w-5 h-5" /> : <Unlock className="w-5 h-5" />}
-                 </button>
+            {/* Controls Bottom */}
+            <div className="pointer-events-auto px-8 w-full flex flex-col items-center gap-6 mb-8">
 
-                 {/* Map Button (Larger) */}
-                 {onToggleMap && (
-                   <button 
-                     onClick={onToggleMap}
-                     className="h-16 w-16 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center text-white border-2 border-white/20 active:scale-95 transition-all shadow-[0_0_20px_rgba(0,0,0,0.5)]"
-                   >
-                      <MapIcon className="w-7 h-7" />
-                   </button>
-                 )}
+              {/* Action Buttons: Lock, Map, Settings */}
+              <div className="flex items-center gap-6 mb-2">
+                {/* Lock Button */}
+                <button
+                  onClick={() => setIsLocked(!isLocked)}
+                  className={cn(
+                    "h-12 w-12 rounded-full backdrop-blur-md flex items-center justify-center border active:scale-95 transition-all shadow-lg",
+                    isLocked ? "bg-amber-500/80 text-white border-amber-400" : "bg-black/40 text-white border-white/10"
+                  )}
+                >
+                  {isLocked ? <Lock className="w-5 h-5" /> : <Unlock className="w-5 h-5" />}
+                </button>
 
-                 {/* Settings Button */}
-                 <button 
-                   onClick={() => setShowSettings(true)}
-                   className="h-12 w-12 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white border border-white/10 active:scale-95 transition-all shadow-lg"
-                 >
-                    <Settings className="w-5 h-5" />
-                 </button>
-             </div>
+                {/* Map Button (Larger) */}
+                {onToggleMap && (
+                  <button
+                    onClick={onToggleMap}
+                    className="h-16 w-16 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center text-white border-2 border-white/20 active:scale-95 transition-all shadow-[0_0_20px_rgba(0,0,0,0.5)]"
+                  >
+                    <MapIcon className="w-7 h-7" />
+                  </button>
+                )}
 
-             {!isLocked && (
-                 <div className="w-full flex justify-center items-center">
-                    {isPaused ? (
-                        <div className="flex items-center gap-8 animate-in slide-in-from-bottom-4 fade-in duration-300">
-                             {/* Resume Button */}
-                             <motion.button
-                               whileTap={{ scale: 0.9 }}
-                               onClick={onResume}
-                               className="h-20 w-20 rounded-full bg-[#22c55e] flex items-center justify-center shadow-[0_0_30px_rgba(34,197,94,0.4)] border-4 border-[#16a34a] text-white z-20"
-                             >
-                                <Play className="w-8 h-8 fill-current ml-1" />
-                             </motion.button>
+                {/* Settings Button */}
+                <button
+                  onClick={() => setShowSettings(true)}
+                  className="h-12 w-12 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white border border-white/10 active:scale-95 transition-all shadow-lg"
+                >
+                  <Settings className="w-5 h-5" />
+                </button>
+              </div>
 
-                             {/* Stop Button (Long Press handled in parent?) or simple click */}
-                             <motion.button
-                               whileTap={{ scale: 0.9 }}
-                               onClick={onStop}
-                               className="h-20 w-20 rounded-full bg-[#ef4444] flex items-center justify-center shadow-[0_0_30px_rgba(239,68,68,0.4)] border-4 border-[#b91c1c] text-white z-20"
-                             >
-                                <Square className="w-8 h-8 fill-current" />
-                             </motion.button>
-                        </div>
-                    ) : (
-                        /* Slide to Pause */
-                        <SlideToPause onPause={onPause} />
-                    )}
-                 </div>
-             )}
+              {!isLocked && (
+                <div className="w-full flex justify-center items-center relative z-[100]">
+                  {isPaused ? (
+                    <div className="flex items-center gap-8 animate-in slide-in-from-bottom-4 fade-in duration-300">
+                      {/* Resume Button */}
+                      <motion.button
+                        whileTap={{ scale: 0.9 }}
+                        onClick={onResume}
+                        className="h-20 w-20 rounded-full bg-[#22c55e] flex items-center justify-center shadow-[0_0_30px_rgba(34,197,94,0.4)] border-4 border-[#16a34a] text-white z-20"
+                      >
+                        <Play className="w-8 h-8 fill-current ml-1" />
+                      </motion.button>
 
-             {isLocked && (
-                 <div className="text-white/40 text-sm font-medium animate-pulse">
-                    屏幕已锁定 · 点击锁图标解锁
-                 </div>
-             )}
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+                      {/* Stop Button (Long Press handled in parent?) or simple click */}
+                      <motion.button
+                        whileTap={{ scale: 0.9 }}
+                        onClick={onStop}
+                        className="h-20 w-20 rounded-full bg-[#ef4444] flex items-center justify-center shadow-[0_0_30px_rgba(239,68,68,0.4)] border-4 border-[#b91c1c] text-white z-20"
+                      >
+                        <Square className="w-8 h-8 fill-current" />
+                      </motion.button>
+                    </div>
+                  ) : (
+                    /* Slide to Pause */
+                    <SlideToPause onPause={onPause} />
+                  )}
+                </div>
+              )}
 
-    <RunningSettings isOpen={showSettings} onClose={() => setShowSettings(false)} />
+              {isLocked && (
+                <div className="text-white/40 text-sm font-medium animate-pulse">
+                  屏幕已锁定 · 点击锁图标解锁
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <RunningSettings isOpen={showSettings} onClose={() => setShowSettings(false)} />
     </>
   )
 }

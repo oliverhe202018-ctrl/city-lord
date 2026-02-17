@@ -114,8 +114,12 @@ export function UserMarkerLayer({ map, position, isTracking }: UserMarkerLayerPr
     }
 
     return () => {
-      if (markerRef.current) {
-        map.remove(markerRef.current);
+      if (map && markerRef.current) {
+        try {
+          map.remove(markerRef.current);
+        } catch (e) {
+          console.warn('[UserMarkerLayer] Cleanup error:', e);
+        }
         markerRef.current = null;
       }
     };

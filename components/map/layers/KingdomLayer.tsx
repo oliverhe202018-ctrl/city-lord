@@ -84,9 +84,17 @@ export function KingdomLayer({ map, userId }: KingdomLayerProps) {
 
         return () => {
             // Cleanup on unmount
-            polygonRefs.current.forEach(poly => {
-                if (poly) map.remove(poly);
-            });
+            if (map) {
+                polygonRefs.current.forEach(poly => {
+                    if (poly) {
+                        try {
+                            map.remove(poly);
+                        } catch (e) {
+                            console.warn('[KingdomLayer] Cleanup error:', e);
+                        }
+                    }
+                });
+            }
             polygonRefs.current = [];
         };
     }, [map, polygons]);
