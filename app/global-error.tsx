@@ -1,10 +1,10 @@
 'use client'
- 
+
 import { useEffect } from 'react'
 import { AlertTriangle, RefreshCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import './globals.css'
- 
+
 export default function GlobalError({
   error,
   reset,
@@ -15,37 +15,36 @@ export default function GlobalError({
   useEffect(() => {
     console.error(error)
   }, [error])
- 
+
   return (
     <html lang="zh-CN" className="h-full">
-      <body className="h-full bg-zinc-950 text-white font-sans antialiased overflow-hidden">
-        <div className="flex h-full w-full flex-col items-center justify-center p-4 text-center select-none">
-          <div className="relative mb-6">
-            <div className="absolute inset-0 animate-pulse rounded-full bg-red-500/20 blur-xl"></div>
-            <AlertTriangle className="relative h-20 w-20 text-red-500" />
+      <body className="flex h-full w-full flex-col items-center justify-center bg-zinc-50 dark:bg-zinc-950 p-4 text-center select-none font-sans antialiased overflow-hidden">
+        <div className="bg-white dark:bg-zinc-900 p-8 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 max-w-md w-full">
+          <div className="flex justify-center mb-6">
+            <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-full">
+              <AlertTriangle className="h-10 w-10 text-red-600 dark:text-red-500" />
+            </div>
           </div>
-          
-          <h2 className="mb-2 text-3xl font-bold tracking-tight text-white font-mono">
-            CRITICAL ERROR
+
+          <h2 className="mb-2 text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
+            发生严重错误
           </h2>
-          <p className="mb-8 max-w-xs text-sm text-zinc-400 font-mono">
-            系统遇到不可恢复的错误。
-            <br />
-            System encountered an unrecoverable error.
+          <p className="mb-6 text-sm text-zinc-500 dark:text-zinc-400">
+            系统遇到不可恢复的错误。您可能需要联系管理员或尝试重启。
           </p>
 
-          <div className="flex gap-4">
-            <Button 
-              onClick={() => reset()}
-              className="bg-red-600 hover:bg-red-700 text-white gap-2 font-bold px-8 py-6 rounded-xl border-b-4 border-red-800 active:border-b-0 active:translate-y-1 transition-all"
-            >
-              <RefreshCcw className="h-5 w-5" />
-              紧急重启 FORCE REBOOT
-            </Button>
-          </div>
-          
-          <div className="mt-12 font-mono text-[10px] text-zinc-600">
-            ERROR_HASH: {error.digest || 'FATAL_EXCEPTION'}
+          <Button
+            onClick={() => reset()}
+            className="w-full bg-zinc-900 hover:bg-zinc-800 text-white rounded-lg py-2"
+          >
+            <RefreshCcw className="h-4 w-4 mr-2" />
+            重启系统
+          </Button>
+
+          <div className="mt-6 pt-6 border-t border-zinc-100 dark:border-zinc-800">
+            <p className="font-mono text-[10px] text-zinc-400">
+              ErrorCode: {error.digest || 'FATAL_EXCEPTION'}
+            </p>
           </div>
         </div>
       </body>
