@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/client"
 import { prisma } from "@/lib/prisma"
 import { unstable_cache } from "next/cache"
 
-export type LeaderboardType = 'PERSONAL' | 'CLUB_NATIONAL' | 'CLUB_PROVINCE' | 'PROVINCE';
+export type LeaderboardType = 'PERSONAL' | 'PERSONAL_PROVINCE' | 'CLUB_NATIONAL' | 'CLUB_PROVINCE' | 'PROVINCE';
 
 export interface LeaderboardEntry {
   rank: number;
@@ -21,13 +21,22 @@ export async function getLeaderboardData(type: LeaderboardType, userId?: string)
   // Use unstable_cache to cache results for performance (e.g. 1 hour for heavy queries)
   // For 'PERSONAL' maybe less cache or no cache if we want real-time.
   // For now, we fetch directly for simplicity, but in production consider caching.
-  
+
   try {
     let data: LeaderboardEntry[] = [];
 
     switch (type) {
       case 'PERSONAL':
         data = await getPersonalLeaderboard(userId);
+        break;
+      case 'PERSONAL_PROVINCE':
+        if (!userId) return []; // Need user to determine province
+        const userForProvince = await prisma.profiles.findUnique({
+          where: { id: userId },
+          select: { province: true }
+        });
+        if (!userForProvince?.province) return []; // User has no province set
+        data = await getPersonalLeaderboard(userId, userForProvince.province);
         break;
       case 'CLUB_NATIONAL':
         data = await getClubLeaderboard(null, userId);
@@ -51,9 +60,12 @@ export async function getLeaderboardData(type: LeaderboardType, userId?: string)
   }
 }
 
-async function getPersonalLeaderboard(currentUserId?: string): Promise<LeaderboardEntry[]> {
+async function getPersonalLeaderboard(currentUserId?: string, province?: string): Promise<LeaderboardEntry[]> {
   // Fetch top 50 users by total_area
+  const where = province ? { province } : {};
+
   const users = await prisma.profiles.findMany({
+    where,
     orderBy: { total_area: 'desc' },
     take: 50,
     select: {
@@ -80,7 +92,7 @@ async function getPersonalLeaderboard(currentUserId?: string): Promise<Leaderboa
 
 async function getClubLeaderboard(province: string | null, currentUserId?: string, userClubId?: string | null): Promise<LeaderboardEntry[]> {
   const where = province ? { province } : {};
-  
+
   const clubs = await prisma.clubs.findMany({
     where,
     orderBy: { total_area: 'desc' },
@@ -97,8 +109,8 @@ async function getClubLeaderboard(province: string | null, currentUserId?: strin
   // If userClubId is not passed, try to fetch it
   let myClubId = userClubId;
   if (currentUserId && !myClubId) {
-     const user = await prisma.profiles.findUnique({ where: { id: currentUserId }, select: { club_id: true }});
-     myClubId = user?.club_id;
+    const user = await prisma.profiles.findUnique({ where: { id: currentUserId }, select: { club_id: true } });
+    myClubId = user?.club_id;
   }
 
   return clubs.map((club, index) => ({
@@ -137,7 +149,7 @@ export async function updateProvinceStats() {
     // Let's assume User.province is the source of truth for "Province Power".
     // Alternatively, aggregate from Territories if Territories had a province field (which they don't seem to have directly, they link to City).
     // Simplest approach for now: Sum total_area of all Users grouped by Province.
-    
+
     const aggregated = await prisma.profiles.groupBy({
       by: ['province'],
       _sum: {
@@ -151,12 +163,12 @@ export async function updateProvinceStats() {
     // 2. Update ProvinceStat table
     for (const group of aggregated) {
       if (!group.province) continue;
-      
+
       const totalArea = group._sum.total_area || 0;
-      
+
       await prisma.provinceStat.upsert({
         where: { provinceName: group.province },
-        update: { 
+        update: {
           totalTerritoryArea: totalArea,
           updatedAt: new Date()
         },
@@ -166,7 +178,7 @@ export async function updateProvinceStats() {
         }
       });
     }
-    
+
     return { success: true, count: aggregated.length };
   } catch (error) {
     console.error("Failed to update province stats:", error);

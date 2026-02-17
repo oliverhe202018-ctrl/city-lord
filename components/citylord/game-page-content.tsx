@@ -49,11 +49,11 @@ import { safeLoadAMap } from '@/lib/map/safe-amap';
 
 const MemoizedImmersiveRunningMode = memo(nextDynamic(() => import("@/components/citylord/running/immersive-mode").then(mod => mod.ImmersiveRunningMode), { ssr: false }));
 
-const MemoizedAMapView = memo(nextDynamic(() => import("@/components/map/AMapViewWithProvider").then(mod => mod.AMapViewWithProvider), { 
+const MemoizedAMapView = memo(nextDynamic(() => import("@/components/map/AMapViewWithProvider").then(mod => mod.AMapViewWithProvider), {
   ssr: false,
   loading: () => (
     <div className="absolute inset-0 flex items-center justify-center bg-zinc-950">
-       <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <Loader2 className="w-8 h-8 animate-spin text-primary" />
     </div>
   )
 }));
@@ -89,14 +89,14 @@ interface GamePageContentProps {
   initialUser?: any
 }
 
-export function GamePageContent({ 
-  initialMissions = [], 
-  initialStats, 
-  initialFactionStats, 
+export function GamePageContent({
+  initialMissions = [],
+  initialStats,
+  initialFactionStats,
   initialBadges = [],
   initialFriends = [],
   initialFriendRequests = [],
-  initialUser 
+  initialUser
 }: GamePageContentProps) {
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -113,100 +113,100 @@ export function GamePageContent({
 
   // Preload AMap SDK immediately
   useEffect(() => {
-     safeLoadAMap();
+    safeLoadAMap();
   }, []);
 
   // State Persistence for Tabs
   useEffect(() => {
     // On mount, check URL param
     if (typeof window !== 'undefined') {
-        const params = new URLSearchParams(window.location.search);
-        const tab = params.get('tab');
-        if (tab && ['play', 'missions', 'social', 'profile', 'leaderboard', 'mode'].includes(tab)) {
-            setActiveTab(tab as TabType);
-        }
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get('tab');
+      if (tab && ['play', 'missions', 'social', 'profile', 'leaderboard', 'mode'].includes(tab)) {
+        setActiveTab(tab as TabType);
+      }
     }
   }, []);
 
   // Sync state to URL
   useEffect(() => {
     if (typeof window !== 'undefined') {
-        const url = new URL(window.location.href);
-        url.searchParams.set('tab', activeTab);
-        window.history.replaceState({}, '', url.toString());
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', activeTab);
+      window.history.replaceState({}, '', url.toString());
     }
   }, [activeTab]);
 
   // Realtime Battle Alerts
   useEffect(() => {
     if (!user?.id) return;
-    
+
     // Request Local Notification Permissions
     const requestPermissions = async () => {
-        try {
-            if (await isNativePlatform()) {
-                await safeRequestLocalNotificationPermission();
-            }
-
-        } catch (e) {
-            console.error("Failed to request notification permissions", e);
+      try {
+        if (await isNativePlatform()) {
+          await safeRequestLocalNotificationPermission();
         }
+
+      } catch (e) {
+        console.error("Failed to request notification permissions", e);
+      }
     };
     requestPermissions();
 
     const supabase = createClient();
-    
+
     // Listen to NOTIFICATIONS table instead of territories
     const channel = supabase.channel('personal-notifications')
-      .on('postgres_changes', { 
-          event: 'INSERT', 
-          schema: 'public', 
-          table: 'notifications',
-          filter: `user_id=eq.${user.id}` 
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'notifications',
+        filter: `user_id=eq.${user.id}`
       }, async (payload: any) => {
-          console.log('New Notification Received:', payload);
-          
-          if (payload.new) {
-             const { title, body, data } = payload.new;
-             
-             // 1. Trigger Local Notification (Native)
-             if (await isNativePlatform()) {
-                 try {
-                     await safeScheduleLocalNotification({
-                         notifications: [{
-                             title: title,
-                             body: body,
-                             id: Math.floor(Math.random() * 100000),
-                             schedule: { at: new Date(Date.now() + 100) }, // Immediate
-                             sound: 'res://raw/notification_sound', // Optional: Custom sound if added
-                             extra: data
-                         }]
-                     });
-                 } catch (err) {
-                     console.warn("LocalNotification schedule failed:", err);
-                 }
-             } else {
+        console.log('New Notification Received:', payload);
 
-                 // Web Fallback: Toast
-                 toast(title, {
-                     description: body,
-                     duration: 5000,
-                     action: {
-                         label: "查看",
-                         onClick: () => setActiveTab('social') // Or specific tab
-                     }
-                 });
-             }
-             
-             // 2. Play Sound (In-App)
-             try {
-                 const audio = new Audio('/sounds/alert.mp3');
-                 audio.play().catch(e => console.log('Audio play failed', e));
-             } catch(e) {}
+        if (payload.new) {
+          const { title, body, data } = payload.new;
+
+          // 1. Trigger Local Notification (Native)
+          if (await isNativePlatform()) {
+            try {
+              await safeScheduleLocalNotification({
+                notifications: [{
+                  title: title,
+                  body: body,
+                  id: Math.floor(Math.random() * 100000),
+                  schedule: { at: new Date(Date.now() + 100) }, // Immediate
+                  sound: 'res://raw/notification_sound', // Optional: Custom sound if added
+                  extra: data
+                }]
+              });
+            } catch (err) {
+              console.warn("LocalNotification schedule failed:", err);
+            }
+          } else {
+
+            // Web Fallback: Toast
+            toast(title, {
+              description: body,
+              duration: 5000,
+              action: {
+                label: "查看",
+                onClick: () => setActiveTab('social') // Or specific tab
+              }
+            });
           }
+
+          // 2. Play Sound (In-App)
+          try {
+            const audio = new Audio('/sounds/alert.mp3');
+            audio.play().catch(e => console.log('Audio play failed', e));
+          } catch (e) { }
+        }
       })
       .subscribe();
-      
+
     return () => { supabase.removeChannel(channel); }
   }, [user?.id]);
 
@@ -216,8 +216,8 @@ export function GamePageContent({
   // Initialize mission count from props
   useEffect(() => {
     if (initialMissions && initialMissions.length > 0) {
-        const claimable = initialMissions.filter((m: any) => m.status === 'completed').length
-        setMissionCount(claimable)
+      const claimable = initialMissions.filter((m: any) => m.status === 'completed').length
+      setMissionCount(claimable)
     }
   }, [initialMissions])
 
@@ -226,39 +226,41 @@ export function GamePageContent({
   const [showOnboarding, setShowOnboarding] = useState(false)
 
   // Running Tracker
-  const { 
-    distance, 
-    pace, 
-    duration, 
-    calories, 
-    currentLocation, 
+  const {
+    distance,
+    pace,
+    duration,
+    calories,
+    currentLocation,
     path,
     closedPolygons,
-    togglePause: toggleTrackerPause, 
+    sessionClaims, // NEW: Claimed polygons for rendering
+    togglePause: toggleTrackerPause,
     stop: stopTracker,
     clearRecovery,
-    addManualLocation
-  } = useRunningTracker(isRunning)
+    addManualLocation,
+    saveRun // NEW: Persistence function
+  } = useRunningTracker(isRunning, user?.id)
 
   // Crash Recovery Check
   useEffect(() => {
-      const RECOVERY_KEY = 'CURRENT_RUN_RECOVERY';
-      const recoveryJson = localStorage.getItem(RECOVERY_KEY);
-      if (recoveryJson) {
-          try {
-              const data = JSON.parse(recoveryJson);
-              // Check 24h validity
-              if (data.startTime && (Date.now() - data.startTime < 24 * 60 * 60 * 1000)) {
-                  console.log("Found crash recovery data, restoring run...");
-                  setIsRunning(true);
-                  setShowImmersiveMode(true);
-              } else {
-                  localStorage.removeItem(RECOVERY_KEY);
-              }
-          } catch (e) {
-              localStorage.removeItem(RECOVERY_KEY);
-          }
+    const RECOVERY_KEY = 'CURRENT_RUN_RECOVERY';
+    const recoveryJson = localStorage.getItem(RECOVERY_KEY);
+    if (recoveryJson) {
+      try {
+        const data = JSON.parse(recoveryJson);
+        // Check 24h validity
+        if (data.startTime && (Date.now() - data.startTime < 24 * 60 * 60 * 1000)) {
+          console.log("Found crash recovery data, restoring run...");
+          setIsRunning(true);
+          setShowImmersiveMode(true);
+        } else {
+          localStorage.removeItem(RECOVERY_KEY);
+        }
+      } catch (e) {
+        localStorage.removeItem(RECOVERY_KEY);
       }
+    }
   }, []);
 
   const [sessionHexes, setSessionHexes] = useState(0)
@@ -295,7 +297,7 @@ export function GamePageContent({
   const [showPermissionPrompt, setShowPermissionPrompt] = useState(false)
   const [isOffline, setIsOffline] = useState(false)
   const [gpsStrength, setGpsStrength] = useState(5)
-  
+
   // Map View Mode (User vs Club)
   const [mapViewMode, setMapViewMode] = useState<'user' | 'club'>('user');
 
@@ -308,23 +310,23 @@ export function GamePageContent({
   const hasDismissedGeolocationPrompt = useGameStore((state) => state.hasDismissedGeolocationPrompt);
   const isSmartRunStarting = useGameStore((state) => state.isSmartRunStarting);
   const setSmartRunStarting = useGameStore((state) => state.setSmartRunStarting);
-  
+
   // Smart Run Start Listener
   useEffect(() => {
     if (isSmartRunStarting) {
-        setIsRunning(true);
-        setShowImmersiveMode(true);
-        setSmartRunStarting(false);
+      setIsRunning(true);
+      setShowImmersiveMode(true);
+      setSmartRunStarting(false);
     }
   }, [isSmartRunStarting, setSmartRunStarting]);
-  
+
   // Check if first visit - 只在首次挂载时执行
   useEffect(() => {
     let isMounted = true
-    
+
     // Initialize OneSignal
     initOneSignal();
-    
+
     async function checkSession() {
       // If we have initialUser from server, we can skip some checks or just verify
       if (initialUser) {
@@ -336,14 +338,14 @@ export function GamePageContent({
       console.log('[Page] Checking session...')
       // 检查 Supabase Session
       const supabase = createClient()
-      
+
       // Check for session_refreshed param
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.get('session_refreshed') === 'true') {
-          console.log('[Page] Detected session_refreshed param, forcing re-check');
-          // Clear the param
-          const newUrl = window.location.pathname;
-          window.history.replaceState({}, '', newUrl);
+        console.log('[Page] Detected session_refreshed param, forcing re-check');
+        // Clear the param
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, '', newUrl);
       }
 
       // Check if we have an access token in the URL (implicit grant/magic link)
@@ -351,48 +353,48 @@ export function GamePageContent({
       const hasAccessToken = hash.includes('access_token')
 
       if (hasAccessToken) {
-         if (isMounted) setShowWelcome(false)
+        if (isMounted) setShowWelcome(false)
 
-         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-             if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
-                 if (isMounted) setShowWelcome(false)
-                 if (window.history.replaceState) {
-                    window.history.replaceState(null, '', window.location.pathname);
-                 }
-             }
-         })
-         
-         setTimeout(() => {
-             if (isMounted) {
-                 supabase.auth.getSession().then(({ data: { session } }) => {
-                     if (session) {
-                         setShowWelcome(false)
-                         if (window.history.replaceState && window.location.hash.includes('access_token')) {
-                            window.history.replaceState(null, '', window.location.pathname);
-                         }
-                     } else {
-                         const hasVisited = localStorage.getItem('hasVisited')
-                         if (!hasVisited) {
-                             setShowWelcome(true)
-                             localStorage.setItem('hasVisited', 'true')
-                         }
-                     }
-                 })
-             }
-         }, 3000)
-         
-         return
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+          if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
+            if (isMounted) setShowWelcome(false)
+            if (window.history.replaceState) {
+              window.history.replaceState(null, '', window.location.pathname);
+            }
+          }
+        })
+
+        setTimeout(() => {
+          if (isMounted) {
+            supabase.auth.getSession().then(({ data: { session } }) => {
+              if (session) {
+                setShowWelcome(false)
+                if (window.history.replaceState && window.location.hash.includes('access_token')) {
+                  window.history.replaceState(null, '', window.location.pathname);
+                }
+              } else {
+                const hasVisited = localStorage.getItem('hasVisited')
+                if (!hasVisited) {
+                  setShowWelcome(true)
+                  localStorage.setItem('hasVisited', 'true')
+                }
+              }
+            })
+          }
+        }, 3000)
+
+        return
       }
 
       const { data: { session }, error } = await supabase.auth.getSession().catch(err => {
-          console.error("Session check failed:", err);
-          return { data: { session: null }, error: err };
+        console.error("Session check failed:", err);
+        return { data: { session: null }, error: err };
       });
 
       if (!isMounted) return
 
       if (error) {
-          console.warn("Session check returned error:", error.message);
+        console.warn("Session check returned error:", error.message);
       }
 
       if (session) {
@@ -402,7 +404,7 @@ export function GamePageContent({
       }
 
       const hasVisited = localStorage.getItem('hasVisited')
-      
+
       if (!hasVisited) {
         setShowWelcome(true)
         localStorage.setItem('hasVisited', 'true')
@@ -410,7 +412,7 @@ export function GamePageContent({
     }
 
     checkSession()
-    
+
     return () => { isMounted = false }
   }, [initialUser])
 
@@ -431,10 +433,10 @@ export function GamePageContent({
   }, [checkStaminaRecovery])
 
   const { data: friends } = useSWR('friends', async () => {
-  const res = await fetch('/api/social/friends', { credentials: 'include' })
-  if (!res.ok) throw new Error('Failed to fetch friends')
-  return res.json()
-})
+    const res = await fetch('/api/social/friends', { credentials: 'include' })
+    if (!res.ok) throw new Error('Failed to fetch friends')
+    return res.json()
+  })
 
   const handleWelcomeComplete = useCallback(() => {
     setShowWelcome(false)
@@ -479,9 +481,9 @@ export function GamePageContent({
   }, [])
 
   const triggerCaptureEffect = useCallback(() => {
-    setCapturePosition({ 
-      x: 100 + Math.random() * 200, 
-      y: 200 + Math.random() * 200 
+    setCapturePosition({
+      x: 100 + Math.random() * 200,
+      y: 200 + Math.random() * 200
     })
     setShowCaptureEffect(true)
   }, [])
@@ -543,7 +545,7 @@ export function GamePageContent({
 
   const handleAcceptChallenge = useCallback(() => {
     setShowChallengeInvite(false)
-    setIsCountingDown(true) 
+    setIsCountingDown(true)
     setActiveTab("play")
   }, []);
 
@@ -580,38 +582,38 @@ export function GamePageContent({
     clearRecovery()
     setIsRunning(false)
     setShowImmersiveMode(false)
-    
+
     const currentRunDistance = distance || 0
     addTotalDistance(currentRunDistance)
     const newTotalDistance = (totalDistance || 0) + currentRunDistance
-    
+
     // Explicitly clear recovery key again to be safe
     if (typeof window !== 'undefined') {
-        localStorage.removeItem('CURRENT_RUN_RECOVERY');
+      localStorage.removeItem('CURRENT_RUN_RECOVERY');
     }
 
     // Check for achievements based on distance
     if (!achievements?.['marathon-god'] && newTotalDistance >= 42195) {
-       const def = ACHIEVEMENT_DEFINITIONS.find(a => a.id === 'marathon-god');
-       if (def) {
-           setCurrentUnlockedAchievement(def);
-           setShowAchievement(true);
-           return;
-       }
+      const def = ACHIEVEMENT_DEFINITIONS.find(a => a.id === 'marathon-god');
+      if (def) {
+        setCurrentUnlockedAchievement(def);
+        setShowAchievement(true);
+        return;
+      }
     }
 
     if (!achievements?.['city-walker'] && newTotalDistance >= 10000) {
-       const def = ACHIEVEMENT_DEFINITIONS.find(a => a.id === 'city-walker');
-       if (def) {
-           setCurrentUnlockedAchievement(def);
-           setShowAchievement(true);
-       }
+      const def = ACHIEVEMENT_DEFINITIONS.find(a => a.id === 'city-walker');
+      if (def) {
+        setCurrentUnlockedAchievement(def);
+        setShowAchievement(true);
+      }
     }
   }, [distance, totalDistance, achievements, stopTracker, clearRecovery, addTotalDistance]);
 
-  const handleMapLoad = useCallback(() => {}, []);
+  const handleMapLoad = useCallback(() => { }, []);
 
-  const handleExpand = useCallback(() => {}, []);
+  const handleExpand = useCallback(() => { }, []);
 
   return (
     <div className="relative w-full h-[100dvh] max-w-md mx-auto bg-[#0f172a] overflow-hidden">
@@ -667,125 +669,126 @@ export function GamePageContent({
 
       {hydrated && currentCity && (
         <main className="relative flex-1 overflow-hidden">
-        {activeTab === "play" && (
-          <div className="relative h-dvh w-full overflow-hidden">
-            {/* Optimize: Hide main map when in immersive mode to prevent duplicate markers and save resources */}
-            {!showImmersiveMode && (
-              <div className="absolute inset-0 z-0">
-                {/* --- Step 3: Replace JSX with Memoized Components --- */}
-                <MemoizedAMapView 
-                  ref={mapViewRef} 
-                  showTerritory={showTerritory}
-                  onMapLoad={handleMapLoad}
-                />
-                <MemoizedFactionSelector initialUser={initialUser} />
-                <MemoizedReferralWelcome />
-              </div>
-            )}
+          {activeTab === "play" && (
+            <div className="relative h-dvh w-full overflow-hidden">
+              {/* Optimize: Hide main map when in immersive mode to prevent duplicate markers and save resources */}
+              {!showImmersiveMode && (
+                <div className="absolute inset-0 z-0">
+                  {/* --- Step 3: Replace JSX with Memoized Components --- */}
+                  <MemoizedAMapView
+                    ref={mapViewRef}
+                    showTerritory={showTerritory}
+                    onMapLoad={handleMapLoad}
+                    sessionClaims={sessionClaims}
+                  />
+                  <MemoizedFactionSelector initialUser={initialUser} />
+                  <MemoizedReferralWelcome />
+                </div>
+              )}
 
-            <div className="relative z-10 h-full w-full pointer-events-none">
-              <div className="pointer-events-auto">
-                <MemoizedMapHeader setShowThemeSwitcher={setShowThemeSwitcher} />
-              </div>
+              <div className="relative z-10 h-full w-full pointer-events-none">
+                <div className="pointer-events-auto">
+                  <MemoizedMapHeader setShowThemeSwitcher={setShowThemeSwitcher} />
+                </div>
 
-              <div className="pointer-events-auto">
-                <MemoizedModeSwitcher onDrawerOpenChange={handleDrawerOpenChange} />
-              </div>
+                <div className="pointer-events-auto">
+                  <MemoizedModeSwitcher onDrawerOpenChange={handleDrawerOpenChange} />
+                </div>
 
-              {!shouldHideButtons && (
-                <div className="pointer-events-auto absolute top-[130px] left-4 z-20 flex flex-col gap-4">
-                  <button
+                {!shouldHideButtons && (
+                  <div className="pointer-events-auto absolute top-[130px] left-4 z-20 flex flex-col gap-4">
+                    <button
                       onClick={handlePlannerOpen}
                       className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg text-white active:scale-95 transition-all hover:bg-black/80"
                     >
                       <Route className="h-5 w-5" />
                     </button>
-                    
-                  <button
+
+                    <button
                       onClick={handleRunHistoryOpen}
                       className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg text-white active:scale-95 transition-all hover:bg-black/80"
                     >
                       <History className="h-5 w-5" />
                     </button>
 
-                  <button
+                    <button
                       onClick={handleLeaderboardOpen}
                       className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg text-white active:scale-95 transition-all hover:bg-black/80"
                     >
                       <Trophy className="h-5 w-5" />
                     </button>
+                  </div>
+                )}
+
+                {gameMode === 'map' && !shouldHideButtons && (
+                  <div className="pointer-events-auto absolute bottom-[80px] left-4 right-4 z-20 flex justify-center">
+                    <MemoizedQuickEntry
+                      onNavigate={handleQuickNavigate}
+                      missionCount={missionCount}
+                      friendCount={friends?.length || 0}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {gameMode !== 'map' && !shouldHideButtons && (
+                <div className="pointer-events-auto absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 w-[calc(100%-2rem)] max-w-md">
+                  <div className="mx-auto max-h-[70vh] overflow-y-auto rounded-3xl border border-white/10 bg-black/60 backdrop-blur-xl shadow-2xl p-6">
+                    {gameMode === 'single' && <MemoizedSinglePlayer />}
+                    {gameMode === 'private' && <MemoizedPrivateLobby />}
+                    {gameMode === 'club' && <MemoizedMyClub hasClub={true} />}
+                  </div>
                 </div>
               )}
+            </div>
+          )}
 
-              {gameMode === 'map' && !shouldHideButtons && (
-                <div className="pointer-events-auto absolute bottom-[80px] left-4 right-4 z-20 flex justify-center">
-                  <MemoizedQuickEntry 
-                    onNavigate={handleQuickNavigate} 
-                    missionCount={missionCount} 
-                    friendCount={friends?.length || 0} 
+          {activeTab === "mode" && (
+            <div className="relative h-dvh w-full overflow-hidden">
+              <MemoizedAMapView ref={mapViewRef} showTerritory={showTerritory} viewMode={mapViewMode} sessionClaims={sessionClaims} />
+              <div className="relative z-10 h-full w-full pointer-events-none">
+                <div className="pointer-events-auto">
+                  <MemoizedMapHeader
+                    setShowThemeSwitcher={setShowThemeSwitcher}
+                    viewMode={mapViewMode}
+                    onViewModeChange={setMapViewMode}
                   />
                 </div>
-              )}
-            </div>
-
-            {gameMode !== 'map' && !shouldHideButtons && (
-              <div className="pointer-events-auto absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 w-[calc(100%-2rem)] max-w-md">
-                <div className="mx-auto max-h-[70vh] overflow-y-auto rounded-3xl border border-white/10 bg-black/60 backdrop-blur-xl shadow-2xl p-6">
-                  {gameMode === 'single' && <MemoizedSinglePlayer />}
-                  {gameMode === 'private' && <MemoizedPrivateLobby />}
-                  {gameMode === 'club' && <MemoizedMyClub hasClub={true} />}
+                <div className="pointer-events-auto">
+                  <MemoizedModeSwitcher onDrawerOpenChange={handleDrawerOpenChange} />
                 </div>
               </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === "mode" && (
-          <div className="relative h-dvh w-full overflow-hidden">
-            <MemoizedAMapView ref={mapViewRef} showTerritory={showTerritory} viewMode={mapViewMode} />
-            <div className="relative z-10 h-full w-full pointer-events-none">
-              <div className="pointer-events-auto">
-                <MemoizedMapHeader 
-                  setShowThemeSwitcher={setShowThemeSwitcher} 
-                  viewMode={mapViewMode}
-                  onViewModeChange={setMapViewMode}
-                />
-              </div>
-              <div className="pointer-events-auto">
-                <MemoizedModeSwitcher onDrawerOpenChange={handleDrawerOpenChange} />
-              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {activeTab === "missions" && (
-          <div className="flex-1 w-full h-full bg-[#0f172a] z-40 relative">
-            <MemoizedMissionCenter initialData={initialMissions} />
-          </div>
-        )}
+          {activeTab === "missions" && (
+            <div className="flex-1 w-full h-full bg-[#0f172a] z-40 relative">
+              <MemoizedMissionCenter initialData={initialMissions} />
+            </div>
+          )}
 
-        {/* Leaderboard replaced by Drawer */}
+          {/* Leaderboard replaced by Drawer */}
 
-        {activeTab === "social" && (
-          <div id="nav-social" className="flex-1 w-full h-full bg-[#0f172a] z-40 relative">
-            <MemoizedSocialPage 
-              onShowDemo={handleShowDemo} 
-              initialFriends={initialFriends}
-              initialRequests={initialFriendRequests}
-            />
-          </div>
-        )}
+          {activeTab === "social" && (
+            <div id="nav-social" className="flex-1 w-full h-full bg-[#0f172a] z-40 relative">
+              <MemoizedSocialPage
+                onShowDemo={handleShowDemo}
+                initialFriends={initialFriends}
+                initialRequests={initialFriendRequests}
+              />
+            </div>
+          )}
 
-        {activeTab === "profile" && (
-          <div className="flex-1 w-full h-full bg-[#0f172a] z-40 relative">
-            <MemoizedProfile 
-              onOpenSettings={handleOpenThemeSettings} 
-              initialFactionStats={initialFactionStats}
-              initialBadges={initialBadges}
-            />
-          </div>
-        )}
-      </main>
+          {activeTab === "profile" && (
+            <div className="flex-1 w-full h-full bg-[#0f172a] z-40 relative">
+              <MemoizedProfile
+                onOpenSettings={handleOpenThemeSettings}
+                initialFactionStats={initialFactionStats}
+                initialBadges={initialBadges}
+              />
+            </div>
+          )}
+        </main>
       )}
 
       <MemoizedImmersiveRunningMode
@@ -807,6 +810,7 @@ export function GamePageContent({
         path={path}
         closedPolygons={closedPolygons}
         onHexClaimed={handleHexClaimed}
+        saveRun={saveRun}
       />
 
       {hydrated && currentCity && <MemoizedBottomNav activeTab={activeTab} onTabChange={setActiveTab} />}
@@ -871,12 +875,12 @@ export function GamePageContent({
           { type: "badge", amount: 1, label: "专属徽章" },
         ]}
         onClaim={handleClaimAchievement}
-        onShare={() => {}}
+        onShare={() => { }}
       />
 
-      <MemoizedNetworkBanner 
-        isOffline={isOffline} 
-        onRetry={() => setIsOffline(false)} 
+      <MemoizedNetworkBanner
+        isOffline={isOffline}
+        onRetry={() => setIsOffline(false)}
       />
 
       <MemoizedGpsWeakPopup
@@ -892,9 +896,9 @@ export function GamePageContent({
         onOpenSettings={handleOpenSettings}
       />
 
-      <MemoizedRunHistoryDrawer 
-        isOpen={activeDrawer === 'runHistory'} 
-        onClose={closeDrawer} 
+      <MemoizedRunHistoryDrawer
+        isOpen={activeDrawer === 'runHistory'}
+        onClose={closeDrawer}
       />
       <MemoizedLeaderboardDrawer />
     </div>

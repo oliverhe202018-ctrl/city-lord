@@ -77,7 +77,7 @@ export function RoomManagerModal({ open, onOpenChange, onRoomEnter }: RoomManage
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<string>('join');
   const [isLoading, setIsLoading] = useState(false);
-  
+
   // Join Room State
   const [inviteCode, setInviteCode] = useState('');
   const [foundRoom, setFoundRoom] = useState<Room | null>(null);
@@ -123,11 +123,11 @@ export function RoomManagerModal({ open, onOpenChange, onRoomEnter }: RoomManage
   // Handle Join Room
   const handleJoinRoom = async (code: string) => {
     if (code.length !== 6) return;
-    
+
     setIsLoading(true);
     try {
       const result = await joinRoomByCode(code);
-      
+
       if (result.success && result.room) {
         setFoundRoom(result.room as Room);
         toast.success('找到房间！');
@@ -203,7 +203,7 @@ export function RoomManagerModal({ open, onOpenChange, onRoomEnter }: RoomManage
       setCurrentRoom(createdRoom);
       onOpenChange(false);
       resetState();
-      
+
       // Trigger callback to open RoomDrawer
       if (onRoomEnter) {
         onRoomEnter(createdRoom.id);
@@ -263,12 +263,12 @@ export function RoomManagerModal({ open, onOpenChange, onRoomEnter }: RoomManage
                   disabled={isLoading}
                 >
                   <InputOTPGroup>
-                    <InputOTPSlot index={0} className="w-12 h-14 text-2xl border-white/20" />
-                    <InputOTPSlot index={1} className="w-12 h-14 text-2xl border-white/20" />
-                    <InputOTPSlot index={2} className="w-12 h-14 text-2xl border-white/20" />
-                    <InputOTPSlot index={3} className="w-12 h-14 text-2xl border-white/20" />
-                    <InputOTPSlot index={4} className="w-12 h-14 text-2xl border-white/20" />
-                    <InputOTPSlot index={5} className="w-12 h-14 text-2xl border-white/20" />
+                    <InputOTPSlot index={0} className="w-12 h-14 text-2xl border-white/20 bg-zinc-800/80 text-white" />
+                    <InputOTPSlot index={1} className="w-12 h-14 text-2xl border-white/20 bg-zinc-800/80 text-white" />
+                    <InputOTPSlot index={2} className="w-12 h-14 text-2xl border-white/20 bg-zinc-800/80 text-white" />
+                    <InputOTPSlot index={3} className="w-12 h-14 text-2xl border-white/20 bg-zinc-800/80 text-white" />
+                    <InputOTPSlot index={4} className="w-12 h-14 text-2xl border-white/20 bg-zinc-800/80 text-white" />
+                    <InputOTPSlot index={5} className="w-12 h-14 text-2xl border-white/20 bg-zinc-800/80 text-white" />
                   </InputOTPGroup>
                 </InputOTP>
 
@@ -340,7 +340,7 @@ export function RoomManagerModal({ open, onOpenChange, onRoomEnter }: RoomManage
             {!createdRoom ? (
               <div className="space-y-6">
                 <div className="flex justify-center">
-                   <AvatarUploader
+                  <AvatarUploader
                     currentAvatarUrl={roomAvatar}
                     onUploadComplete={(url) => {
                       console.log("Image uploaded:", url);
@@ -358,7 +358,7 @@ export function RoomManagerModal({ open, onOpenChange, onRoomEnter }: RoomManage
                       placeholder="给你的房间起个名字..."
                       value={roomName}
                       onChange={(e) => setRoomName(e.target.value)}
-                      className="bg-muted/50 border-white/10"
+                      className="bg-zinc-800/80 border-white/20 text-white placeholder:text-zinc-400"
                     />
                   </div>
 
@@ -389,21 +389,21 @@ export function RoomManagerModal({ open, onOpenChange, onRoomEnter }: RoomManage
                         <Label>最大人数限制</Label>
                         <p className="text-xs text-muted-foreground">设置房间内允许的最大成员数量</p>
                       </div>
-                      <div className="flex items-center gap-3 bg-muted/50 rounded-lg p-1">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-6 w-6" 
+                      <div className="flex items-center gap-3 bg-zinc-800/80 border border-white/20 rounded-lg p-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-zinc-400 hover:text-white hover:bg-white/10"
                           onClick={() => setMaxMembers(Math.max(2, maxMembers - 1))}
                           disabled={maxMembers <= 2}
                         >
                           -
                         </Button>
-                        <span className="w-8 text-center text-sm font-medium">{maxMembers}</span>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-6 w-6" 
+                        <span className="w-8 text-center text-sm font-medium text-white">{maxMembers}</span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-zinc-400 hover:text-white hover:bg-white/10"
                           onClick={() => setMaxMembers(Math.min(100, maxMembers + 1))}
                           disabled={maxMembers >= 100}
                         >
@@ -414,7 +414,7 @@ export function RoomManagerModal({ open, onOpenChange, onRoomEnter }: RoomManage
                   </div>
                 </div>
 
-                <Button 
+                <Button
                   className="w-full bg-cyan-600 hover:bg-cyan-700 text-white mt-4"
                   onClick={handleCreateRoom}
                   disabled={isLoading}

@@ -18,11 +18,13 @@ export function LeaderboardDrawer() {
   const myClub = useGameStore((state) => state.myClub);
   const { closeDrawer } = useGameActions();
   const { user } = useAuth();
-  
+
   // Tabs: 'personal' | 'club' | 'province'
   const [activeTab, setActiveTab] = useState("personal");
   // Club Sub-tabs: 'local' | 'national'
   const [clubSubTab, setClubSubTab] = useState<"local" | "national">("local");
+  // Personal Sub-tabs: 'national' | 'province'
+  const [personalSubTab, setPersonalSubTab] = useState<"national" | "province">("national");
 
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -33,15 +35,15 @@ export function LeaderboardDrawer() {
     if (isOpen) {
       fetchData();
     }
-  }, [isOpen, activeTab, clubSubTab]);
+  }, [isOpen, activeTab, clubSubTab, personalSubTab]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      let type: 'PERSONAL' | 'CLUB_NATIONAL' | 'CLUB_PROVINCE' | 'PROVINCE' = 'PERSONAL';
-      
+      let type: 'PERSONAL' | 'PERSONAL_PROVINCE' | 'CLUB_NATIONAL' | 'CLUB_PROVINCE' | 'PROVINCE' = 'PERSONAL';
+
       if (activeTab === 'personal') {
-        type = 'PERSONAL';
+        type = personalSubTab === 'province' ? 'PERSONAL_PROVINCE' : 'PERSONAL';
       } else if (activeTab === 'club') {
         type = clubSubTab === 'local' ? 'CLUB_PROVINCE' : 'CLUB_NATIONAL';
       } else if (activeTab === 'province') {
@@ -82,8 +84,8 @@ export function LeaderboardDrawer() {
     return (
       <div className="space-y-2 p-1">
         {leaderboardData.map((item) => (
-          <RankItem 
-            key={item.id} 
+          <RankItem
+            key={item.id}
             data={{
               rank: item.rank,
               name: item.name,
@@ -92,7 +94,7 @@ export function LeaderboardDrawer() {
               change: item.change || 'same',
               aux: item.secondary_info,
               isMe: item.is_me
-            }} 
+            }}
           />
         ))}
       </div>
@@ -101,8 +103,8 @@ export function LeaderboardDrawer() {
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && closeDrawer()}>
-      <SheetContent 
-        side="bottom" 
+      <SheetContent
+        side="bottom"
         className="w-full sm:max-w-md p-0 flex flex-col bg-background/80 backdrop-blur-xl border-t border-white/10 h-[85vh] rounded-t-3xl"
       >
         <SheetHeader className="px-6 pt-6 pb-2 shrink-0">
@@ -124,7 +126,35 @@ export function LeaderboardDrawer() {
               <TabsTrigger value="province" className="rounded-lg text-xs">省份</TabsTrigger>
             </TabsList>
 
-            {/* Level 2 Navigation (Only for Club) */}
+            {/* Level 2 Navigation (Personal & Club) */}
+            {activeTab === 'personal' && (
+              <div className="flex justify-center animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="bg-muted/30 p-1 rounded-lg flex gap-1">
+                  <button
+                    onClick={() => setPersonalSubTab("national")}
+                    className={cn(
+                      "px-4 py-1.5 text-xs font-medium rounded-md transition-all",
+                      personalSubTab === "national"
+                        ? "bg-primary/20 text-primary shadow-sm"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                    )}
+                  >
+                    全国
+                  </button>
+                  <button
+                    onClick={() => setPersonalSubTab("province")}
+                    className={cn(
+                      "px-4 py-1.5 text-xs font-medium rounded-md transition-all",
+                      personalSubTab === "province"
+                        ? "bg-primary/20 text-primary shadow-sm"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                    )}
+                  >
+                    省内
+                  </button>
+                </div>
+              </div>
+            )}
             {activeTab === 'club' && (
               <div className="flex justify-center animate-in fade-in slide-in-from-top-2 duration-200">
                 <div className="bg-muted/30 p-1 rounded-lg flex gap-1">
@@ -132,8 +162,8 @@ export function LeaderboardDrawer() {
                     onClick={() => setClubSubTab("local")}
                     className={cn(
                       "px-4 py-1.5 text-xs font-medium rounded-md transition-all",
-                      clubSubTab === "local" 
-                        ? "bg-primary/20 text-primary shadow-sm" 
+                      clubSubTab === "local"
+                        ? "bg-primary/20 text-primary shadow-sm"
                         : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                     )}
                   >
@@ -143,8 +173,8 @@ export function LeaderboardDrawer() {
                     onClick={() => setClubSubTab("national")}
                     className={cn(
                       "px-4 py-1.5 text-xs font-medium rounded-md transition-all",
-                      clubSubTab === "national" 
-                        ? "bg-primary/20 text-primary shadow-sm" 
+                      clubSubTab === "national"
+                        ? "bg-primary/20 text-primary shadow-sm"
                         : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                     )}
                   >
@@ -160,17 +190,17 @@ export function LeaderboardDrawer() {
               {renderList()}
             </div>
           </ScrollArea>
-          
+
           {/* Sticky Bottom for My Rank */}
           {!loading && leaderboardData.length > 0 && (
-             <StickyBottom 
-               data={getMyRank()} 
-               label={
-                 activeTab === 'personal' ? '我的排名' : 
-                 activeTab === 'club' ? '我的俱乐部' : 
-                 '我的省份'
-               } 
-             />
+            <StickyBottom
+              data={getMyRank()}
+              label={
+                activeTab === 'personal' ? '我的排名' :
+                  activeTab === 'club' ? '我的俱乐部' :
+                    '我的省份'
+              }
+            />
           )}
         </Tabs>
       </SheetContent>
@@ -180,7 +210,7 @@ export function LeaderboardDrawer() {
 
 function StickyBottom({ data, label }: { data?: LeaderboardEntry; label: string }) {
   if (!data) return null;
-  
+
   // Map LeaderboardEntry to RankData for RankItem
   const rankData: RankData = {
     rank: data.rank,
@@ -199,7 +229,7 @@ function StickyBottom({ data, label }: { data?: LeaderboardEntry; label: string 
           {label}
         </div>
         <div className="flex-1 min-w-0">
-           <RankItem data={rankData} />
+          <RankItem data={rankData} />
         </div>
       </div>
     </div>

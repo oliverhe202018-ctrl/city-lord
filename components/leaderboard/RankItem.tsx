@@ -5,6 +5,7 @@ import { Trophy, Medal, ChevronUp, ChevronDown, Minus, User } from "lucide-react
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { RankData } from "./mock-data";
+import { useRouter } from 'next/navigation';
 
 interface RankItemProps {
   data: RankData;
@@ -12,6 +13,7 @@ interface RankItemProps {
 
 export function RankItem({ data }: RankItemProps) {
   const { rank, name, avatar, score, change, aux, isMe } = data;
+  const router = useRouter();
 
   const getRankIcon = (r: number) => {
     switch (r) {
@@ -37,13 +39,22 @@ export function RankItem({ data }: RankItemProps) {
     }
   };
 
+  const handleClick = () => {
+    if (data.id) {
+      router.push(`/profile/${data.id}`);
+    }
+  };
+
   return (
-    <div className={cn(
-      "flex items-center p-3 rounded-xl transition-all duration-200 border",
-      isMe 
-        ? "bg-primary/10 border-primary/30 shadow-[0_0_15px_rgba(var(--primary),0.1)]" 
-        : "bg-white/5 border-white/5 hover:bg-white/10"
-    )}>
+    <div
+      onClick={handleClick}
+      className={cn(
+        "flex items-center p-3 rounded-xl transition-all duration-200 border cursor-pointer",
+        isMe
+          ? "bg-primary/10 border-primary/30 shadow-[0_0_15px_rgba(var(--primary),0.1)]"
+          : "bg-white/5 border-white/5 hover:bg-white/10 active:scale-[0.98]"
+      )}
+    >
       {/* Rank */}
       <div className="flex flex-col items-center justify-center w-10 mr-2 gap-1">
         {getRankIcon(rank)}
@@ -53,10 +64,10 @@ export function RankItem({ data }: RankItemProps) {
       </div>
 
       {/* Avatar */}
-      <Avatar className={cn("h-10 w-10 mr-3 border-2", 
-        rank === 1 ? "border-yellow-500" : 
-        rank === 2 ? "border-gray-400" : 
-        rank === 3 ? "border-amber-700" : "border-transparent"
+      <Avatar className={cn("h-10 w-10 mr-3 border-2",
+        rank === 1 ? "border-yellow-500" :
+          rank === 2 ? "border-gray-400" :
+            rank === 3 ? "border-amber-700" : "border-transparent"
       )}>
         <AvatarImage src={avatar} alt={name} />
         <AvatarFallback className="bg-muted">

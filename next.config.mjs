@@ -64,7 +64,7 @@ const withPWA = withPWAInit({
           cacheName: 'pages',
           expiration: {
             maxEntries: 32,
-            maxAgeSeconds: 24 * 60 * 60, 
+            maxAgeSeconds: 24 * 60 * 60,
           },
         },
       },
@@ -78,12 +78,13 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  
+
   // 2. 启用 Standalone 模式
   output: 'standalone',
 
   // 3. 图片域名配置
   images: {
+    unoptimized: true,
     formats: ['image/avif', 'image/webp'],
     minimumCacheTTL: 2592000,
     remotePatterns: [

@@ -1,9 +1,10 @@
 
 export interface RankData {
   rank: number;
+  id?: string; // User ID for navigation
   name: string;
   avatar?: string;
-  score: string | number; // 贡献值/战力/人数
+  score: number | string;
   change: 'up' | 'down' | 'same';
   aux?: string; // 辅助信息：所属公会/头衔/省份
   isMe?: boolean;
