@@ -155,4 +155,28 @@
     @apply pointer-events-none select-none;
     -webkit-user-drag: none;
   }
+
+  /* 主题色滚动条 (Theme-aware Scrollbar) */
+  .themed-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--primary) / 0.4) hsl(var(--muted) / 0.3);
+  }
+
+  .themed-scrollbar::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .themed-scrollbar::-webkit-scrollbar-track {
+    background: hsl(var(--muted) / 0.3);
+    border-radius: 4px;
+  }
+
+  .themed-scrollbar::-webkit-scrollbar-thumb {
+    background: hsl(var(--primary) / 0.4);
+    border-radius: 4px;
+  }
+
+  .themed-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--primary) / 0.6);
+  }
 }

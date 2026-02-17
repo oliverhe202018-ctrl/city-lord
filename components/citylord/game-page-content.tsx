@@ -616,7 +616,7 @@ export function GamePageContent({
   const handleExpand = useCallback(() => { }, []);
 
   return (
-    <div className="relative w-full h-[100dvh] max-w-md mx-auto bg-[#0f172a] overflow-hidden">
+    <div className="relative w-full h-[100dvh] max-w-md mx-auto bg-[#0f172a] overflow-hidden flex flex-col">
       {!hydrated && <LoadingScreen message="正在初始化..." />}
       {(isCityLoading || !currentCity) && hydrated && <LoadingScreen message="正在加载城市数据..." />}
 
@@ -780,7 +780,7 @@ export function GamePageContent({
           )}
 
           {activeTab === "profile" && (
-            <div className="flex-1 w-full h-full bg-[#0f172a] z-40 relative">
+            <div className="flex-1 w-full h-full bg-[#0f172a] z-40 relative overflow-hidden">
               <MemoizedProfile
                 onOpenSettings={handleOpenThemeSettings}
                 initialFactionStats={initialFactionStats}
