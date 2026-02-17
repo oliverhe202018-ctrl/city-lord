@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { MapProvider, LocationState, AMapInstance } from './AMapContext';
 import { useTheme } from '@/components/citylord/theme/theme-provider';
 import { useSafeGeolocation, GeoPoint } from '@/hooks/useSafeGeolocation';
+import { useGameStore } from '@/store/useGameStore';
 
 const MAP_STYLES: Record<string, string> = {
   cyberpunk: 'amap://styles/22e069175d1afe32e9542abefde02cb5',
@@ -60,6 +61,28 @@ export function MapRoot({ children }: { children: ReactNode }) {
     timeout: 30000,
     maximumAge: 0
   });
+
+  // --- GPS Status → Game Store Sync ---
+  const setGpsStatus = useGameStore(state => state.setGpsStatus);
+  const updateStoreLocation = useGameStore(state => state.updateLocation);
+
+  // Sync useSafeGeolocation status → game store gpsStatus
+  useEffect(() => {
+    const statusMap: Record<string, 'locating' | 'success' | 'error' | 'weak'> = {
+      locked: 'success',
+      locating: 'locating',
+      error: 'error',
+      initializing: 'locating',
+    };
+    setGpsStatus(statusMap[status] || 'locating');
+  }, [status, setGpsStatus]);
+
+  // Sync GPS coordinates → game store so MapHeader's reverse geocoding triggers
+  useEffect(() => {
+    if (location?.lat && location?.lng && location.lat !== 0 && location.lng !== 0) {
+      updateStoreLocation(location.lat, location.lng);
+    }
+  }, [location, updateStoreLocation]);
 
   // Init with cache (Client-side only to avoid hydration mismatch)
   useEffect(() => {

@@ -52,7 +52,7 @@ export const useGeolocation = ({
   const lastKnownLocation = useGameStore(state => state.lastKnownLocation);
   const setLastKnownLocation = useGameStore(state => state.setLastKnownLocation);
   const setGpsStatus = useGameStore(state => state.setGpsStatus);
-  
+
   const isMounted = useRef(true);
   const watchIdRef = useRef<string | null>(null);
 
@@ -68,7 +68,7 @@ export const useGeolocation = ({
 
   const getLocation = useCallback(async (retryCount = 0) => {
     if (disabled) return;
-    
+
     // Only set loading on first try
     if (retryCount === 0) {
       setState((prev) => ({ ...prev, loading: true, error: null }));
@@ -76,15 +76,15 @@ export const useGeolocation = ({
 
     try {
       let position: SafePosition | null = null;
-      
+
       if (await isNativePlatform()) {
         // Request permissions first
         const permissionStatus = await safeCheckGeolocationPermission();
         if (permissionStatus !== 'granted') {
-            const requestStatus = await safeRequestGeolocationPermission();
-            if (requestStatus !== 'granted') {
-                throw new Error('User denied location permission');
-            }
+          const requestStatus = await safeRequestGeolocationPermission();
+          if (requestStatus !== 'granted') {
+            throw new Error('User denied location permission');
+          }
         }
       }
 
@@ -128,16 +128,16 @@ export const useGeolocation = ({
       });
     } catch (error: any) {
       console.error(`Geolocation Error (Attempt ${retryCount + 1}):`, error);
-      
+
       if (!isMounted.current) return;
 
       // Retry Logic
       if (retryCount < 3) {
-         console.log(`Retrying geolocation in 1s... (${retryCount + 1}/3)`);
-         setTimeout(() => {
-             if (isMounted.current) getLocation(retryCount + 1);
-         }, 1000);
-         return;
+        console.log(`Retrying geolocation in 1s... (${retryCount + 1}/3)`);
+        setTimeout(() => {
+          if (isMounted.current) getLocation(retryCount + 1);
+        }, 1000);
+        return;
       }
 
       setState({
@@ -234,9 +234,10 @@ export const useGeolocation = ({
           coordType,
         },
       });
-      
+
       // Update Store
       setLastKnownLocation({ lat: latitude, lng: longitude });
+      setGpsStatus('success');
     };
 
     startWatch();
