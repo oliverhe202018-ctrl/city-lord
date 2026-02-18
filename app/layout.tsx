@@ -13,6 +13,7 @@ import { AuthSync } from "@/components/auth/AuthSync"
 import { NetworkStatus } from "@/components/NetworkStatus"
 import Script from 'next/script'
 import { Providers } from '@/components/Providers'
+import { PendingRunUploadRetry } from '@/components/running/PendingRunUploadRetry'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] });
@@ -66,7 +67,7 @@ import { useImmersiveMode } from "@/hooks/useImmersiveMode";
 function StatusBarConfig() {
   // Integrate Background Location Logic
   useBackgroundLocation();
-  
+
   // Activate Immersive Mode Locks
   useImmersiveMode();
 
@@ -111,6 +112,7 @@ export default function RootLayout({
                 <CityProvider>
                   <NetworkStatus />
                   <AuthSync />
+                  <PendingRunUploadRetry />
                   {children}
                   <Toaster />
                 </CityProvider>

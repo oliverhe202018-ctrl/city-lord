@@ -18,7 +18,8 @@ export interface Location {
 }
 
 interface RunningStats {
-  distance: number; // km
+  // Formatted display values (legacy)
+  distance: number; // km (legacy, use distanceMeters for calculations)
   pace: string; // "mm:ss"
   duration: string; // "HH:MM:SS"
   calories: number;
@@ -35,6 +36,10 @@ interface RunningStats {
   addManualLocation: (lat: number, lng: number) => void;
   isSyncing: boolean;
   saveRun: (isFinal?: boolean) => Promise<void>;
+  // Raw data for UI calculations (preferred)
+  distanceMeters: number; // meters — use this for display/calculations
+  durationSeconds: number; // seconds — use this for speed/pace calculations
+  steps: number; // estimated steps (Math.floor(distanceMeters * 1.3))
 }
 
 // Haversine formula to calculate distance between two points in meters
@@ -617,6 +622,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     }
   }, [sessionClaims.length, lastSavedClaimsCount, saveRun]);
 
+  // Estimated steps: 1.3 steps per meter (average walking/running cadence)
+  const estimatedSteps = Math.floor(distance * 1.3); // distance is in meters here
+
   return {
     distance: distanceKm,
     pace,
@@ -634,6 +642,10 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     sessionClaims,
     addManualLocation,
     isSyncing: isSaving,
-    saveRun // Expose for manual final save
+    saveRun, // Expose for manual final save
+    // Raw data contract (preferred for calculations)
+    distanceMeters: distance, // raw meters
+    durationSeconds: duration, // raw seconds
+    steps: estimatedSteps,
   };
 }

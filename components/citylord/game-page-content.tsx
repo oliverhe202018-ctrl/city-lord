@@ -239,7 +239,12 @@ export function GamePageContent({
     stop: stopTracker,
     clearRecovery,
     addManualLocation,
-    saveRun // NEW: Persistence function
+    saveRun, // NEW: Persistence function
+    // Raw data contract
+    distanceMeters,
+    durationSeconds,
+    steps,
+    area,
   } = useRunningTracker(isRunning, user?.id)
 
   // Crash Recovery Check
@@ -804,6 +809,10 @@ export function GamePageContent({
         isActive={showImmersiveMode}
         userId={user?.id}
         distance={distance}
+        distanceMeters={distanceMeters}
+        durationSeconds={durationSeconds}
+        steps={steps}
+        area={area}
         pace={pace}
         time={duration}
         calories={calories}

@@ -14,10 +14,10 @@ function formatDistance(meters: number): { value: string; unit: string } {
 }
 
 interface RunningMapOverlayProps {
-  distance: number // meters
+  distanceMeters: number // meters (raw)
   duration: string // "HH:MM:SS"
   pace: string // "MM:SS"
-  area: number // m²
+  area: number // m² (total claimed area)
   isPaused: boolean
   onPauseToggle: () => void
   onStop?: () => void
@@ -29,7 +29,7 @@ interface RunningMapOverlayProps {
 }
 
 export function RunningMapOverlay({
-  distance,
+  distanceMeters,
   duration,
   pace,
   area,
@@ -42,7 +42,7 @@ export function RunningMapOverlay({
   onToggleKingdom,
 }: RunningMapOverlayProps) {
   const [confirmStop, setConfirmStop] = useState(false);
-  const { value: distValue, unit: distUnit } = formatDistance(distance);
+  const { value: distValue, unit: distUnit } = formatDistance(distanceMeters);
 
   // Reset confirm state if paused state changes
   useEffect(() => {
@@ -90,7 +90,7 @@ export function RunningMapOverlay({
         {/* Area Stats (Centered) */}
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-baseline gap-1">
-            <span className="text-4xl font-black text-white">{area}</span>
+            <span className="text-4xl font-black text-white">{area > 0 ? Math.round(area).toLocaleString() : '--'}</span>
             <span className="text-sm font-bold text-white/60">m²</span>
           </div>
           <div className="flex items-center gap-2 mt-1">
