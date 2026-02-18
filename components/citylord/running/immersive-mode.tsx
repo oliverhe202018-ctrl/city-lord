@@ -32,7 +32,13 @@ import { Location } from "@/hooks/useRunningTracker"
 interface ImmersiveModeProps {
   isActive: boolean
   userId?: string
-  distance?: number
+  // Raw data (preferred for calculations)
+  distanceMeters?: number // meters
+  durationSeconds?: number // seconds
+  steps?: number // estimated steps
+  area?: number // m² total claimed area
+  // Legacy formatted values (for display)
+  distance?: number // km (legacy)
   pace?: number | string
   time: string // e.g., "00:12:34"
   calories: number
@@ -70,6 +76,10 @@ function getDistanceFromLatLonInMeters(lat1: number, lon1: number, lat2: number,
 export function ImmersiveRunningMode({
   isActive,
   userId,
+  distanceMeters = 0,
+  durationSeconds = 0,
+  steps = 0,
+  area = 0,
   distance,
   pace,
   time,
@@ -355,49 +365,55 @@ export function ImmersiveRunningMode({
     }
   }, [showStopConfirm])
 
-  const handleStop = (e?: any) => {
+  const handleStop = (e?: React.MouseEvent) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
     }
 
-    // 1. 尝试播放音频 (放在 try-catch 中，绝不阻塞)
+    // 1. Play audio (non-blocking, never delays navigation)
     try {
       const audio = new Audio('/sounds/run_finish.mp3');
-      (window as any).finishAudio = audio; // Critical: Keep alive
-      audio.play().catch(e => console.log('Audio error handled:', e));
-    } catch (err) {
-      console.log('Audio init error:', err);
+      (window as typeof window & { finishAudio?: HTMLAudioElement }).finishAudio = audio;
+      audio.play().catch(() => { });
+    } catch { }
+
+    // 2. IMMEDIATE navigation (Optimistic UI — 0 delay)
+    onStop();
+    setShowSummary(false);
+    localStorage.removeItem('CURRENT_RUN_RECOVERY');
+    router.replace('/');
+
+    // 3. Background save (fire-and-forget, never blocks navigation)
+    if (saveRun) {
+      saveRun(true).catch(() => {
+        // Fallback: cache run data for retry on next app start
+        try {
+          localStorage.setItem('PENDING_RUN_UPLOAD', JSON.stringify({
+            distanceMeters,
+            durationSeconds,
+            steps,
+            area,
+            calories,
+            timestamp: Date.now(),
+          }));
+        } catch {
+          // localStorage full or unavailable — silently ignore
+        }
+      });
     }
-
-    // 2. 强制执行结束逻辑 (放在 setTimeout 中确保跳出当前事件循环)
-    setTimeout(async () => {
-      // Trigger final save if available
-      if (saveRun) {
-        toast.info("正在保存跑步数据...");
-        await saveRun(true);
-      }
-
-      onStop();
-      setShowSummary(false);
-      // 3. 强制跳转回首页
-      if (typeof window !== 'undefined') {
-        // 清除可能残留的恢复数据，防止首页重新加载时自动恢复跑步
-        localStorage.removeItem('CURRENT_RUN_RECOVERY');
-        // 使用 Next.js router 进行导航，避免全页刷新
-        router.replace('/');
-      }
-    }, 100);
   };
 
   if (showSummary) {
     return (
       <RunSummaryView
-        distance={distance ?? 0}
+        distanceMeters={distanceMeters}
+        durationSeconds={durationSeconds}
         duration={time}
         pace={pace !== undefined ? String(pace) : '00:00'}
         calories={calories}
         hexesCaptured={effectiveHexes}
+        steps={steps}
         onClose={handleStop}
         onShare={() => {
           toast.success("分享图片已生成 (模拟)")
@@ -458,7 +474,7 @@ export function ImmersiveRunningMode({
           path={path}
           onLocationUpdate={onManualLocation}
           recenterTrigger={recenterTrigger}
-        // If no location, map will default to city center, preventing "stuck" state
+          showKingdom={showKingdom}
         />
         {/* Gradient Overlay for text readability - Only in HUD mode */}
         {!isMapMode && (
@@ -505,10 +521,10 @@ export function ImmersiveRunningMode({
       {/* Map Overlay Mode (New Design) */}
       {isMapMode && (
         <RunningMapOverlay
-          distance={distance || 0}
+          distanceMeters={distanceMeters}
           duration={time}
           pace={pace ? String(pace) : "00:00"}
-          area={currentPartialArea}
+          area={area}
           isPaused={isPaused}
           onPauseToggle={handlePauseToggle}
           onStop={handleAttemptStop}
