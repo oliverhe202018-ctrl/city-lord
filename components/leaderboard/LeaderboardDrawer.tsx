@@ -12,14 +12,12 @@ import { Trophy, AlertCircle, Map, Globe, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getLeaderboardData, LeaderboardEntry } from "@/app/actions/leaderboard";
 import { useAuth } from "@/hooks/useAuth";
-import { useRegion } from "@/contexts/RegionContext";
 
 export function LeaderboardDrawer() {
   const activeDrawer = useGameStore((state) => state.activeDrawer);
   const myClub = useGameStore((state) => state.myClub);
   const { closeDrawer } = useGameActions();
   const { user } = useAuth();
-  const { region } = useRegion();
 
   // Tabs: 'personal' | 'club' | 'province'
   const [activeTab, setActiveTab] = useState("personal");
@@ -44,9 +42,6 @@ export function LeaderboardDrawer() {
     try {
       let type: 'PERSONAL' | 'PERSONAL_PROVINCE' | 'CLUB_NATIONAL' | 'CLUB_PROVINCE' | 'PROVINCE' = 'PERSONAL';
 
-      // Pass current province from RegionContext (GPS/Map determined)
-      const currentProvince = region?.province;
-
       if (activeTab === 'personal') {
         type = personalSubTab === 'province' ? 'PERSONAL_PROVINCE' : 'PERSONAL';
       } else if (activeTab === 'club') {
@@ -55,7 +50,7 @@ export function LeaderboardDrawer() {
         type = 'PROVINCE';
       }
 
-      const data = await getLeaderboardData(type, user?.id, currentProvince);
+      const data = await getLeaderboardData(type, user?.id);
       setLeaderboardData(data);
     } catch (error) {
       console.error("Failed to fetch leaderboard:", error);
@@ -122,7 +117,7 @@ export function LeaderboardDrawer() {
           </SheetDescription>
         </SheetHeader>
 
-        <Tabs defaultValue="personal" value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <Tabs defaultValue="personal" value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
           <div className="px-6 pb-2 shrink-0 space-y-3">
             {/* Level 1 Navigation */}
             <TabsList className="grid w-full grid-cols-3 h-10 p-1 bg-muted/50 rounded-xl">
@@ -190,7 +185,8 @@ export function LeaderboardDrawer() {
             )}
           </div>
 
-          <div className="h-[calc(85vh-180px)] overflow-y-auto overscroll-contain px-4 pb-20 -webkit-overflow-scrolling-touch">
+          {/* Scrollable content area with absolute height to guarantee scrolling */}
+          <div className="h-[calc(85vh-180px)] overflow-y-auto px-4 pb-20 overscroll-contain">
             <div className="mt-2 pb-4">
               {renderList()}
             </div>

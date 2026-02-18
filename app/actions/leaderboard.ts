@@ -17,11 +17,7 @@ export interface LeaderboardEntry {
   change?: 'up' | 'down' | 'same';
 }
 
-export async function getLeaderboardData(
-  type: LeaderboardType,
-  userId?: string,
-  currentProvince?: string // Added support for frontend-detected province
-): Promise<LeaderboardEntry[]> {
+export async function getLeaderboardData(type: LeaderboardType, userId?: string): Promise<LeaderboardEntry[]> {
   // Use unstable_cache to cache results for performance (e.g. 1 hour for heavy queries)
   // For 'PERSONAL' maybe less cache or no cache if we want real-time.
   // For now, we fetch directly for simplicity, but in production consider caching.
@@ -34,35 +30,23 @@ export async function getLeaderboardData(
         data = await getPersonalLeaderboard(userId);
         break;
       case 'PERSONAL_PROVINCE':
-        // Priority: Passed province > DB province > return empty
-        let targetProvince = currentProvince;
-        if (!targetProvince && userId) {
-          const userForProvince = await prisma.profiles.findUnique({
-            where: { id: userId },
-            select: { province: true }
-          });
-          targetProvince = userForProvince?.province || undefined;
-        }
-
-        if (!targetProvince) return []; // User has no province set and none provided
-        data = await getPersonalLeaderboard(userId, targetProvince);
+        if (!userId) return []; // Need user to determine province
+        const userForProvince = await prisma.profiles.findUnique({
+          where: { id: userId },
+          select: { province: true }
+        });
+        if (!userForProvince?.province) return []; // User has no province set
+        data = await getPersonalLeaderboard(userId, userForProvince.province);
         break;
       case 'CLUB_NATIONAL':
         data = await getClubLeaderboard(null, userId);
         break;
       case 'CLUB_PROVINCE':
-        // Priority: Passed province > DB province > return empty
-        let clubProvince = currentProvince;
-        let myClubId: string | undefined;
-
-        if (userId) {
-          const user = await prisma.profiles.findUnique({ where: { id: userId }, select: { province: true, club_id: true } });
-          if (!clubProvince) clubProvince = user?.province || undefined;
-          myClubId = user?.club_id || undefined;
-        }
-
-        if (!clubProvince) return []; // User has no province set and none provided
-        data = await getClubLeaderboard(clubProvince, userId, myClubId);
+        if (!userId) return []; // Need user to determine province
+        // First get user's province
+        const user = await prisma.profiles.findUnique({ where: { id: userId }, select: { province: true, club_id: true } });
+        if (!user?.province) return []; // User has no province set
+        data = await getClubLeaderboard(user.province, userId, user.club_id);
         break;
       case 'PROVINCE':
         data = await getProvinceLeaderboard();

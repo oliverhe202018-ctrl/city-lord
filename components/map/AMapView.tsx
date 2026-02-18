@@ -53,16 +53,10 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
 
     const { user } = useAuth();
 
-    // Removed blocking showMap logic - Always render map
-    // const showMap = locationStatus === 'locked' || locationStatus === 'error';
-
     return (
       <div className="relative w-full h-full">
         {/* New Non-blocking Location Indicator */}
         <LocationIndicator status={locationStatus || 'initializing'} />
-
-        {/* Loading Skeleton - hides everything until GPS locked */}
-        {/* {!showMap && <LoadingSkeleton />} */}
 
         {/* Layer 1: Pure Map */}
         <div className="w-full h-full">
@@ -112,7 +106,7 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
             isTracking={isTracking}
           />
 
-          {/* Map Controls (Location button, etc.) */}
+          {/* Map Controls (includes fog toggle, mode switch, zoom, locate) */}
           <MapControls />
 
           {/* Fog Layer — only when fog toggle is ON */}
