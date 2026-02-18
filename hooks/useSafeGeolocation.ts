@@ -89,7 +89,7 @@ export function useSafeGeolocation(options: UseSafeGeolocationOptions = {}): Use
   const isMounted = useRef(false);
 
   const STORAGE_KEY = 'last_known_location';
-  const SIGNAL_TIMEOUT = 10000;
+  const SIGNAL_TIMEOUT = 30000;
   const signalTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const resetSignalTimeout = useCallback(() => {
@@ -133,17 +133,9 @@ export function useSafeGeolocation(options: UseSafeGeolocationOptions = {}): Use
     const threshold = source === 'network-coarse' ? ACCURACY_THRESHOLD_NETWORK : ACCURACY_THRESHOLD_GPS;
 
     if (accuracy > threshold) {
-      // Always reject low accuracy to protect polygon calculations
+      // Reject low accuracy to protect polygon calculations
+      // No per-point toast — the sustained SIGNAL_TIMEOUT (30s) handles weak signal UX
       console.debug(`[useSafeGeolocation] Rejected low accuracy: ${accuracy}m (threshold: ${threshold}m, source: ${source})`);
-
-      // UX: Show toast for weak GPS signal (only for GPS source, and only occasionally)
-      if (source === 'gps-precise' && Math.random() < 0.1) { // 10% chance to avoid spam
-        toast.warning("GPS信号较弱", {
-          description: `精度: ${Math.round(accuracy)}m (需要<${threshold}m)`,
-          duration: 2000
-        });
-      }
-
       return;
     }
 

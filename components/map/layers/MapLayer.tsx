@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { safeLoadAMap, safeDestroyMap } from '@/lib/map/safe-amap';
+import type { AMapInstance } from '@/components/map/AMapContext';
 
 export interface MapLayerProps {
     initialCenter: [number, number];
@@ -9,6 +10,7 @@ export interface MapLayerProps {
     onMoveEnd?: (center: [number, number]) => void;
     onZoomEnd?: (zoom: number) => void;
     onMapLoad?: () => void;
+    onMapReady?: (map: AMapInstance | null) => void;
     mapStyle?: string;
 }
 
@@ -28,7 +30,7 @@ export interface MapLayerHandle {
  * - NO GPS logic, NO state management
  */
 export const MapLayer = forwardRef<MapLayerHandle, MapLayerProps>(
-    ({ initialCenter, initialZoom, onMoveEnd, onZoomEnd, onMapLoad, mapStyle }, ref) => {
+    ({ initialCenter, initialZoom, onMoveEnd, onZoomEnd, onMapLoad, onMapReady, mapStyle }, ref) => {
         const mapDomRef = useRef<HTMLDivElement>(null);
         const mapRef = useRef<any>(null);
 
@@ -78,6 +80,11 @@ export const MapLayer = forwardRef<MapLayerHandle, MapLayerProps>(
                 // Notify parent that map is loaded
                 if (onMapLoad) {
                     onMapLoad();
+                }
+
+                // Expose map instance to parent
+                if (onMapReady) {
+                    onMapReady(mapRef.current);
                 }
             })();
 

@@ -8,6 +8,7 @@ import { LoadingSkeleton } from './LoadingSkeleton';
 import { LocationIndicator } from './LocationIndicator';
 import { KingdomLayer } from './layers/KingdomLayer';
 import { ClubKingdomLayer } from './layers/ClubKingdomLayer';
+import FogLayer from './FogLayer';
 import { MapControls } from './MapControls';
 import { KingdomModeSwitch } from './KingdomModeSwitch';
 import { useAuth } from '@/hooks/useAuth';
@@ -48,6 +49,7 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
       locationStatus, // State machine status
       showKingdom, // Kingdom layer visibility
       kingdomMode, // 'personal' | 'club'
+      showFog, // Fog layer visibility
     } = useMap();
 
     const { user } = useAuth();
@@ -70,7 +72,7 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
             initialCenter={mapCenter || [116.397428, 39.90923]}
             initialZoom={13}
             onMoveEnd={handleMapMoveEnd}
-            onLoad={onMapLoad}
+            onMapLoad={onMapLoad}
             onMapReady={setMap}
           />
 
@@ -114,10 +116,17 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
           {/* Map Controls (Location button, etc.) */}
           <MapControls />
 
-          {/* Kingdom Mode Switch (Personal/Club toggle) */}
-          <div className="absolute bottom-60 right-[72px] z-10 pointer-events-auto">
-            <KingdomModeSwitch />
-          </div>
+          {/* Fog Layer — only when fog toggle is ON */}
+          {showFog && (
+            <FogLayer map={mapLayerRef?.current?.map} />
+          )}
+
+          {/* Kingdom Mode Switch (Personal/Club toggle) — only when fog is ON AND kingdom is visible */}
+          {showFog && showKingdom && (
+            <div className="absolute bottom-60 right-[72px] z-10 pointer-events-auto">
+              <KingdomModeSwitch />
+            </div>
+          )}
         </div>
       </div>
     );

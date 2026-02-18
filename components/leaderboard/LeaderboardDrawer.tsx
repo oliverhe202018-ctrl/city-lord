@@ -117,7 +117,7 @@ export function LeaderboardDrawer() {
           </SheetDescription>
         </SheetHeader>
 
-        <Tabs defaultValue="personal" value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
+        <Tabs defaultValue="personal" value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0 overflow-hidden">
           <div className="px-6 pb-2 shrink-0 space-y-3">
             {/* Level 1 Navigation */}
             <TabsList className="grid w-full grid-cols-3 h-10 p-1 bg-muted/50 rounded-xl">
@@ -185,11 +185,11 @@ export function LeaderboardDrawer() {
             )}
           </div>
 
-          <ScrollArea className="flex-1 px-4 pb-20">
+          <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-20">
             <div className="mt-2 pb-4">
               {renderList()}
             </div>
-          </ScrollArea>
+          </div>
 
           {/* Sticky Bottom for My Rank */}
           {!loading && leaderboardData.length > 0 && (

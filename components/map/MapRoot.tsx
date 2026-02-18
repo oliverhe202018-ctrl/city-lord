@@ -47,9 +47,14 @@ export function MapRoot({ children }: { children: ReactNode }) {
   const [isTracking, setIsTracking] = useState<boolean>(true); // Auto-follow initially
   const [showKingdom, setShowKingdom] = useState<boolean>(true); // Kingdom layer visible by default
   const [kingdomMode, setKingdomMode] = useState<'personal' | 'club'>('personal');
+  const [showFog, setShowFog] = useState<boolean>(false); // Fog layer off by default
 
   const toggleKingdom = useCallback(() => {
     setShowKingdom(prev => !prev);
+  }, []);
+
+  const toggleFog = useCallback(() => {
+    setShowFog(prev => !prev);
   }, []);
 
   const mapLayerRef = useRef<any>(null);
@@ -126,27 +131,36 @@ export function MapRoot({ children }: { children: ReactNode }) {
     }
   }, [map, themeId]);
 
-  // Update user position and trajectory
+  // Update user position (always) and trajectory (only when running)
   useEffect(() => {
     if (location && location.lat !== 0 && location.lng !== 0) {
       setUserPosition(location);
 
-      // Add to trajectory (filtered GPS points only)
-      // This is the source of truth for territory claims
-      setUserPath(prev => {
-        // Prevent duplicate points (within 1m)
-        if (prev.length > 0) {
-          const last = prev[prev.length - 1];
-          const dist = Math.sqrt(
-            Math.pow((location.lat - last.lat) * 111000, 2) +
-            Math.pow((location.lng - last.lng) * 111000 * Math.cos(location.lat * Math.PI / 180), 2)
-          );
-          if (dist < 1) return prev; // Skip if too close
-        }
-        return [...prev, location];
-      });
+      // CRITICAL: Only accumulate trajectory when actively running
+      // This prevents ghost polylines on cold start / initial GPS lock
+      if (isRunning) {
+        setUserPath(prev => {
+          // Prevent duplicate points (within 1m)
+          if (prev.length > 0) {
+            const last = prev[prev.length - 1];
+            const dist = Math.sqrt(
+              Math.pow((location.lat - last.lat) * 111000, 2) +
+              Math.pow((location.lng - last.lng) * 111000 * Math.cos(location.lat * Math.PI / 180), 2)
+            );
+            if (dist < 1) return prev; // Skip if too close
+          }
+          return [...prev, location];
+        });
+      }
     }
-  }, [location]);
+  }, [location, isRunning]);
+
+  // Clear trajectory when run stops
+  useEffect(() => {
+    if (!isRunning) {
+      setUserPath([]);
+    }
+  }, [isRunning]);
 
   // Force Initial FlyTo (Fix: Ensure map flies to user even if signal isn't 'precise' yet)
   useEffect(() => {
@@ -272,6 +286,8 @@ export function MapRoot({ children }: { children: ReactNode }) {
       toggleKingdom,
       kingdomMode,
       setKingdomMode,
+      showFog,
+      toggleFog,
     }}>
       {children}
     </MapProvider>

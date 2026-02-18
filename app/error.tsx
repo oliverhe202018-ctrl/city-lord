@@ -21,6 +21,39 @@ function classifyError(error: Error & { digest?: string }): 'transient' | 'non-c
   // AbortError from cancelled fetch
   if (error.name === 'AbortError' || msg.includes('aborterror')) return 'non-critical'
 
+  // Component lifecycle errors (tab switch unmount race conditions)
+  if (
+    msg.includes('unmounted') ||
+    msg.includes('destroyed') ||
+    msg.includes('disposed') ||
+    msg.includes('not mounted') ||
+    msg.includes('cannot update') ||
+    msg.includes('unmount')
+  ) return 'non-critical'
+
+  // Dynamic import / lazy-load failures during rapid navigation
+  if (
+    msg.includes('dynamic') ||
+    msg.includes('import') ||
+    msg.includes('module')
+  ) return 'transient'
+
+  // Supabase realtime channel errors (non-fatal background)
+  if (
+    msg.includes('supabase') ||
+    msg.includes('channel') ||
+    msg.includes('subscription') ||
+    msg.includes('realtime')
+  ) return 'non-critical'
+
+  // Hydration mismatches (SSR→CSR, recoverable)
+  if (
+    msg.includes('hydration') ||
+    msg.includes('hydrat') ||
+    msg.includes('server html') ||
+    msg.includes('mismatch')
+  ) return 'non-critical'
+
   // Network / fetch / timeout errors are transient
   if (
     msg.includes('fetch') ||
@@ -37,6 +70,14 @@ function classifyError(error: Error & { digest?: string }): 'transient' | 'non-c
 
   // ChunkLoadError (dynamic import failure, usually transient)
   if (msg.includes('chunkloaderror') || msg.includes('loading chunk')) return 'transient'
+
+  // Map / AMap related errors (non-fatal)
+  if (
+    msg.includes('bindbindbindbindlbindbindbindlbindbindlapwindbindwindwindlbindwindapap') ||
+    msg.includes('bindbindbbindbin') ||
+    msg.includes('amap') ||
+    msg.includes('bindbindlbindlbindwind')
+  ) return 'non-critical'
 
   return 'critical'
 }

@@ -60,6 +60,10 @@ export interface AMapContextProps {
   // Kingdom mode (Phase 14)
   kingdomMode?: 'personal' | 'club';
   setKingdomMode?: (mode: 'personal' | 'club') => void;
+
+  // Fog (mask) layer control
+  showFog?: boolean;
+  toggleFog?: () => void;
 }
 
 export const AMapContext = createContext<AMapContextProps | undefined>(undefined);
