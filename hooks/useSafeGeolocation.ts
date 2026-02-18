@@ -99,7 +99,8 @@ export function useSafeGeolocation(options: UseSafeGeolocationOptions = {}): Use
     signalTimeoutRef.current = setTimeout(() => {
       if (isMounted.current) {
         setGpsSignalStrength('weak');
-        toast.warning("GPS信号弱", { description: "正在尝试恢复连接..." });
+        // Silent: no toast. The UI can read gpsSignalStrength for indicator.
+        console.debug('[useSafeGeolocation] GPS signal weak (30s no update)');
       }
     }, SIGNAL_TIMEOUT);
   }, []);

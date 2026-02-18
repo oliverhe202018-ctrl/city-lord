@@ -6,6 +6,7 @@ import { MapProvider, LocationState, AMapInstance } from './AMapContext';
 import { useTheme } from '@/components/citylord/theme/theme-provider';
 import { useSafeGeolocation, GeoPoint } from '@/hooks/useSafeGeolocation';
 import { useGameStore } from '@/store/useGameStore';
+import { useReverseGeocode } from '@/hooks/useReverseGeocode';
 
 const MAP_STYLES: Record<string, string> = {
   cyberpunk: 'amap://styles/22e069175d1afe32e9542abefde02cb5',
@@ -66,6 +67,9 @@ export function MapRoot({ children }: { children: ReactNode }) {
     timeout: 30000,
     maximumAge: 0
   });
+
+  // Reverse Geocode to populate RegionContext (Province/City)
+  useReverseGeocode(userPosition ? { latitude: userPosition.lat, longitude: userPosition.lng } : null);
 
   // --- GPS Status → Game Store Sync ---
   const setGpsStatus = useGameStore(state => state.setGpsStatus);
