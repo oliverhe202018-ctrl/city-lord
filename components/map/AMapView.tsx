@@ -10,7 +10,6 @@ import { KingdomLayer } from './layers/KingdomLayer';
 import { ClubKingdomLayer } from './layers/ClubKingdomLayer';
 import FogLayer from './FogLayer';
 import { MapControls } from './MapControls';
-import { KingdomModeSwitch } from './KingdomModeSwitch';
 import { useAuth } from '@/hooks/useAuth';
 
 export type AMapViewHandle = {
@@ -119,13 +118,6 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
           {/* Fog Layer — only when fog toggle is ON */}
           {showFog && (
             <FogLayer map={mapLayerRef?.current?.map} />
-          )}
-
-          {/* Kingdom Mode Switch (Personal/Club toggle) — only when fog is ON AND kingdom is visible */}
-          {showFog && showKingdom && (
-            <div className="absolute bottom-60 right-[72px] z-10 pointer-events-auto">
-              <KingdomModeSwitch />
-            </div>
           )}
         </div>
       </div>

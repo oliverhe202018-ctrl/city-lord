@@ -12,12 +12,14 @@ import { Trophy, AlertCircle, Map, Globe, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getLeaderboardData, LeaderboardEntry } from "@/app/actions/leaderboard";
 import { useAuth } from "@/hooks/useAuth";
+import { useRegion } from "@/contexts/RegionContext";
 
 export function LeaderboardDrawer() {
   const activeDrawer = useGameStore((state) => state.activeDrawer);
   const myClub = useGameStore((state) => state.myClub);
   const { closeDrawer } = useGameActions();
   const { user } = useAuth();
+  const { region } = useRegion();
 
   // Tabs: 'personal' | 'club' | 'province'
   const [activeTab, setActiveTab] = useState("personal");
@@ -42,6 +44,9 @@ export function LeaderboardDrawer() {
     try {
       let type: 'PERSONAL' | 'PERSONAL_PROVINCE' | 'CLUB_NATIONAL' | 'CLUB_PROVINCE' | 'PROVINCE' = 'PERSONAL';
 
+      // Pass current province from RegionContext (GPS/Map determined)
+      const currentProvince = region?.province;
+
       if (activeTab === 'personal') {
         type = personalSubTab === 'province' ? 'PERSONAL_PROVINCE' : 'PERSONAL';
       } else if (activeTab === 'club') {
@@ -50,7 +55,7 @@ export function LeaderboardDrawer() {
         type = 'PROVINCE';
       }
 
-      const data = await getLeaderboardData(type, user?.id);
+      const data = await getLeaderboardData(type, user?.id, currentProvince);
       setLeaderboardData(data);
     } catch (error) {
       console.error("Failed to fetch leaderboard:", error);
@@ -185,7 +190,7 @@ export function LeaderboardDrawer() {
             )}
           </div>
 
-          <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-20">
+          <div className="h-[calc(85vh-180px)] overflow-y-auto overscroll-contain px-4 pb-20 -webkit-overflow-scrolling-touch">
             <div className="mt-2 pb-4">
               {renderList()}
             </div>
