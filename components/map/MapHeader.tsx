@@ -7,7 +7,7 @@ import { useCity } from "@/contexts/CityContext";
 import { useRegion } from "@/contexts/RegionContext";
 import { useGameStore, useGameActions } from "@/store/useGameStore"
 import { useHydration } from "@/hooks/useHydration";
-import { ChevronDown, Calendar, Activity, MapPin, Navigation, User, Zap, Palette, Trophy, LogIn, X, Check, Users, Signal } from "lucide-react"
+import { ChevronDown, Calendar, Activity, MapPin, Navigation, User, Zap, Trophy, LogIn, X, Check, Users, Signal } from "lucide-react"
 import { CityDrawer } from "./CityDrawer"
 import { RoomSelector } from '@/components/room/RoomSelector'
 import { LoadingSpinner } from "@/components/citylord/loading-screen"
@@ -132,7 +132,19 @@ export function MapHeader({
 
   const [isLoggedIn, setIsLoggedIn] = useState(true)
   const [showLoginModal, setShowLoginModal] = useState(false)
+  // Start as null (SSR-safe). Populated from localStorage in useEffect (client-only).
   const [currentDistrict, setCurrentDistrict] = useState<string | null>(null)
+
+  // Hydration-safe: read cached district name immediately after mount (client-only)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const cached = localStorage.getItem('last_known_district');
+      if (cached) setCurrentDistrict(cached);
+    } catch (e) {
+      // Ignore storage errors, graceful degradation
+    }
+  }, []);
 
   useEffect(() => {
     const checkUser = async () => {
@@ -156,7 +168,7 @@ export function MapHeader({
     checkUser()
   }, [])
 
-  // Reverse Geocoding: Convert lat/lng to district name
+  // Reverse Geocoding: Convert lat/lng to district name, with localStorage caching
   useEffect(() => {
     // Only run if we have valid coordinates and AMap is loaded
     if (!latitude || !longitude || latitude === 0 || longitude === 0) return;
@@ -172,14 +184,23 @@ export function MapHeader({
           if (addressComponent) {
             // Priority: District (区/县) > City > Province
             const districtName = addressComponent.district || addressComponent.city || addressComponent.province || '未知区域';
-            setCurrentDistrict(districtName);
+
+            // Only update UI + cache if value actually changed (prevents flicker)
+            setCurrentDistrict(prev => {
+              if (prev !== districtName) {
+                try {
+                  localStorage.setItem('last_known_district', districtName);
+                } catch (e) { /* ignore storage errors */ }
+                return districtName;
+              }
+              return prev; // Same value — silent, no re-render
+            });
           } else {
-            setCurrentDistrict('未知位置');
+            setCurrentDistrict(prev => prev ?? '未知位置');
           }
         } else {
-          console.warn('Reverse geocoding failed:', status, result);
-          // Fallback: don't stay stuck on "定位中"
-          setCurrentDistrict('未知位置');
+          // Fallback: don't stay stuck on "定位中", but keep cached value if available
+          setCurrentDistrict(prev => prev ?? '未知位置');
         }
       });
     });
@@ -302,8 +323,8 @@ export function MapHeader({
               <span className="text-xl">{currentCity.icon}</span>
               <div className="flex flex-col items-start">
                 <span className="text-xs font-bold text-white">
-                  {/* Show district name if available and GPS locked, otherwise show "Locating..." */}
-                  {gpsStatus === 'locating' ? '定位中...' : (currentDistrict || '未知位置')}
+                  {/* Show cached district immediately; only show "定位中..." if locating AND no cached value */}
+                  {(gpsStatus === 'locating' && !currentDistrict) ? '定位中...' : (currentDistrict || '未知位置')}
                 </span>
                 <ChevronDown className="w-3 h-3 text-white/40" />
               </div>
@@ -399,10 +420,9 @@ export function MapHeader({
         </GlassCard>
       </div>
 
-      {/* Floating Action Buttons */}
-      <div className="absolute right-4 top-[calc(env(safe-area-inset-top)+6rem)] flex flex-col gap-3 pointer-events-auto">
-        {/* Layer Toggle Button */}
-        {onViewModeChange && (
+      {/* Floating Action Buttons — only shown when view mode toggle is needed */}
+      {onViewModeChange && (
+        <div className="absolute right-4 top-[calc(env(safe-area-inset-top)+6rem)] flex flex-col gap-3 pointer-events-auto">
           <button
             onClick={() => onViewModeChange(viewMode === 'user' ? 'club' : 'user')}
             className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white shadow-lg active:scale-95 transition-all"
@@ -413,15 +433,8 @@ export function MapHeader({
               <Users className="w-5 h-5 text-primary" />
             )}
           </button>
-        )}
-
-        <button
-          onClick={() => setShowThemeSwitcher(true)}
-          className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white shadow-lg active:scale-95 transition-all"
-        >
-          <Palette className="w-5 h-5 text-white/80" />
-        </button>
-      </div>
+        </div>
+      )}
 
       {/* 城市切换抽屉 */}
       <CityDrawer isOpen={activeDrawer === 'city'} onClose={closeDrawer} />

@@ -46,7 +46,7 @@ export function useMissions() {
       if (configError) throw configError
       if (!configs) {
         setMissions([])
-        localStorage.removeItem(CACHE_KEY) // Clear cache if no data
+        if (typeof window !== 'undefined') localStorage.removeItem(CACHE_KEY) // Clear cache if no data
         return
       }
 
@@ -60,11 +60,11 @@ export function useMissions() {
 
       // 3. Merge data
       const today = format(new Date(), 'yyyy-MM-dd')
-      
+
       const mergedMissions: MissionWithStatus[] = configs.map(config => {
         // Find relevant user records for this mission code
         const relevantRecords = userMissions?.filter((um: any) => um.mission_code === config.code) || []
-        
+
         let isCompleted = false
         let status = 'pending'
         let currentRecord: UserMission | undefined
@@ -88,8 +88,8 @@ export function useMissions() {
             currentRecord = dailyRecord
           }
         } else if (config.frequency === 'weekly') {
-           // Logic for weekly can be added here (e.g., reset_key = '2023-W42')
-           // For now, treat same as daily logic logic if needed or default to not completed
+          // Logic for weekly can be added here (e.g., reset_key = '2023-W42')
+          // For now, treat same as daily logic logic if needed or default to not completed
         }
 
         return {
@@ -101,9 +101,11 @@ export function useMissions() {
       })
 
       setMissions(mergedMissions)
-      
-      // Update cache
-      localStorage.setItem(CACHE_KEY, JSON.stringify(mergedMissions))
+
+      // Update cache (SSR-safe)
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(CACHE_KEY, JSON.stringify(mergedMissions))
+      }
 
     } catch (err: any) {
       console.error('Error fetching missions:', err)
@@ -115,18 +117,20 @@ export function useMissions() {
   }, [user, supabase])
 
   useEffect(() => {
-    // 1. Try to load from cache immediately
-    const cachedData = localStorage.getItem(CACHE_KEY)
-    if (cachedData) {
-      try {
-        const parsed = JSON.parse(cachedData)
-        setMissions(parsed)
-        setLoading(false) // Show cached data immediately
-      } catch (e) {
-        console.error('Failed to parse cached missions', e)
+    // 1. Try to load from cache immediately (SSR-safe)
+    if (typeof window !== 'undefined') {
+      const cachedData = localStorage.getItem(CACHE_KEY)
+      if (cachedData) {
+        try {
+          const parsed = JSON.parse(cachedData)
+          setMissions(parsed)
+          setLoading(false) // Show cached data immediately
+        } catch (e) {
+          console.error('[useMissions] Failed to parse cached missions:', e)
+        }
       }
     }
-    
+
     // 2. Fetch fresh data
     fetchMissions()
   }, [fetchMissions])

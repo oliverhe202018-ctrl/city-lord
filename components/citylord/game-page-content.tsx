@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, useCallback, memo } from "react"
 import { BottomNav, TabType } from "@/components/citylord/bottom-nav"
 import { MissionCenter } from "@/components/citylord/MissionCenter"
 import { Profile } from "@/components/citylord/profile"
-import { Trophy, Route, History, Loader2 } from "lucide-react";
+import { Trophy, Route, History, Loader2, Palette } from "lucide-react";
 import { OnboardingGuide } from "@/components/citylord/onboarding-guide"
 import { QuickEntry } from "@/components/citylord/quick-entry"
 import { TerritoryAlert } from "@/components/citylord/territory-alert"
@@ -697,6 +697,15 @@ export function GamePageContent({
 
                 {!shouldHideButtons && (
                   <div className="pointer-events-auto absolute top-[130px] left-4 z-20 flex flex-col gap-4">
+                    {/* Theme Switcher — moved here from MapHeader right panel */}
+                    <button
+                      onClick={handleOpenThemeSettings}
+                      className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg text-white active:scale-95 transition-all hover:bg-primary/20 hover:border-primary/50 hover:text-primary-foreground"
+                      title="切换主题"
+                    >
+                      <Palette className="h-5 w-5" />
+                    </button>
+
                     <button
                       onClick={handlePlannerOpen}
                       className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg text-white active:scale-95 transition-all hover:bg-primary/20 hover:border-primary/50 hover:text-primary-foreground"

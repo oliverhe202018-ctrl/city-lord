@@ -59,6 +59,7 @@ export function MapRoot({ children }: { children: ReactNode }) {
 
   const mapLayerRef = useRef<any>(null);
   const hasInitialFlown = useRef(false);
+  const userInteracted = useRef(false); // Track manual map drag to prevent auto-jump
 
   // Safe geolocation with 50m accuracy filtering
   const { location, loading, error, gpsSignalStrength, status, retry } = useSafeGeolocation({
@@ -162,20 +163,39 @@ export function MapRoot({ children }: { children: ReactNode }) {
     }
   }, [isRunning]);
 
-  // Force Initial FlyTo (Fix: Ensure map flies to user even if signal isn't 'precise' yet)
+  // Force Initial FlyTo: Triggers when BOTH userPosition AND map instance are ready
+  // Uses map as dependency so it fires even if userPosition arrived before map was initialized
   useEffect(() => {
-    // 核心逻辑：只要有坐标，且还没飞过，且距离默认点（北京）超过 1km，就飞！
-    if (userPosition && !hasInitialFlown.current && mapLayerRef.current?.map) {
-      // 计算距离 (简单勾股定理即可，无需高精度)
-      const dist = Math.abs(userPosition.lat - 39.909) + Math.abs(userPosition.lng - 116.397);
+    // Guard: only fly once, only if user hasn't manually interacted, only if map is ready
+    if (!userPosition || hasInitialFlown.current || userInteracted.current) return;
 
-      // 阈值：只要不是还停留在默认的北京坐标 (dist > 0.01 约等于 1km)
-      if (dist > 0.01) {
-        mapLayerRef.current.map.setZoomAndCenter(16, [userPosition.lng, userPosition.lat]); // 使用 setZoomAndCenter 瞬间跳转
-        hasInitialFlown.current = true; // 标记已飞过
-      }
+    // Try mapLayerRef first (preferred), fall back to map state
+    const mapInstance = mapLayerRef.current?.map || map;
+    if (!mapInstance) return;
+
+    // 计算距离 (简单勾股定理即可，无需高精度)
+    const dist = Math.abs(userPosition.lat - 39.909) + Math.abs(userPosition.lng - 116.397);
+
+    // 阈值：只要不是还停留在默认的北京坐标 (dist > 0.01 约等于 1km)
+    if (dist > 0.01) {
+      mapInstance.setZoomAndCenter(16, [userPosition.lng, userPosition.lat]);
+      hasInitialFlown.current = true;
     }
-  }, [userPosition, mapLayerRef]);
+  }, [userPosition, map]); // Depend on both: triggers when either becomes available
+
+  // GPS Timeout: If no fix within 5s, show toast if we have a cached location
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!hasInitialFlown.current && typeof window !== 'undefined') {
+        const cachedDistrict = localStorage.getItem('last_known_district');
+        const cachedLocation = localStorage.getItem('last_known_location');
+        if (cachedDistrict && cachedLocation) {
+          toast.info('正在使用上次已知位置', { description: cachedDistrict, duration: 3000 });
+        }
+      }
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, []); // Run once on mount
 
   // Auto-follow user if tracking enabled (Smart FlyTo)
   useEffect(() => {
@@ -219,6 +239,7 @@ export function MapRoot({ children }: { children: ReactNode }) {
       // Disable tracking if user dragged more than 20m away
       if (dist > 20) {
         setIsTracking(false);
+        userInteracted.current = true; // Prevent auto-jump after manual drag
       }
     }
   }, [isTracking, userPosition]);
