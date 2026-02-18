@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { toast } from 'sonner';
 import { isNativePlatform, safeCheckGeolocationPermission, safeRequestGeolocationPermission, safeWatchPosition, safeClearWatch, safeGetCurrentPosition, type SafePosition } from '@/lib/capacitor/safe-plugins';
 import gcoord from 'gcoord';
 
@@ -99,8 +98,8 @@ export function useSafeGeolocation(options: UseSafeGeolocationOptions = {}): Use
     signalTimeoutRef.current = setTimeout(() => {
       if (isMounted.current) {
         setGpsSignalStrength('weak');
-        // Silent: no toast. The UI can read gpsSignalStrength for indicator.
-        console.debug('[useSafeGeolocation] GPS signal weak (30s no update)');
+        // Silent — no toast per UX requirement. Background state only.
+        console.debug('[useSafeGeolocation] GPS signal weak (30s timeout)');
       }
     }, SIGNAL_TIMEOUT);
   }, []);
@@ -192,21 +191,17 @@ export function useSafeGeolocation(options: UseSafeGeolocationOptions = {}): Use
     if (message.includes('denied')) {
       setError('PERMISSION_DENIED');
       setLocation(null); // Clear location on permission denial
-      toast.error("定位权限被拒绝", { description: "请在系统设置中允许应用访问位置信息。" });
+      console.warn('[useSafeGeolocation] Location permission denied');
     } else if (message.includes('timeout')) {
       setError('TIMEOUT');
-      if (!lastValidLocation.current) {
-        toast.error("定位超时", { description: "请检查网络和GPS信号后重试。" });
-      }
+      console.warn('[useSafeGeolocation] Location timeout');
     } else if (message.includes('unavailable') || message.includes('not available')) {
       setError('UNAVAILABLE');
       setLocation(null);
-      toast.error("定位服务不可用", { description: "请检查设备是否开启GPS或定位服务。" });
+      console.warn('[useSafeGeolocation] Location service unavailable');
     } else {
       setError('UNKNOWN');
-      if (!lastValidLocation.current) {
-        toast.error("定位失败", { description: "发生未知错误，请稍后重试。" });
-      }
+      console.warn('[useSafeGeolocation] Unknown location error:', err.message);
     }
   }, []);
 
