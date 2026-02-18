@@ -110,8 +110,8 @@ function SlideToPause({ onPause }: { onPause: () => void }) {
 
   return (
     <div className="relative w-full max-w-[280px] h-16 bg-[#22c55e] rounded-full overflow-hidden shadow-lg shadow-[#22c55e]/20 touch-none select-none z-[100]" ref={containerRef} style={{ WebkitTouchCallout: 'none' }}>
-      {/* Background Text */}
-      <div className="absolute inset-0 flex items-center justify-center text-black/60 text-sm font-bold pointer-events-none tracking-widest pl-12 animate-pulse">
+      {/* Background Text — z-10 ensures it's above track, pointer-events-none so it doesn't block the knob drag */}
+      <div className="absolute inset-0 flex items-center justify-center text-black/60 text-sm font-bold pointer-events-none tracking-widest pl-12 animate-pulse z-10">
         {"> 滑动暂停"}
       </div>
 
@@ -121,9 +121,9 @@ function SlideToPause({ onPause }: { onPause: () => void }) {
         style={{ width: dragX + 64 }}
       />
 
-      {/* Draggable Knob */}
+      {/* Draggable Knob — z-20 keeps it above the text layer */}
       <motion.div
-        className="absolute top-1 left-1 bottom-1 w-14 bg-white rounded-full flex items-center justify-center shadow-md cursor-grab active:cursor-grabbing z-10"
+        className="absolute top-1 left-1 bottom-1 w-14 bg-white rounded-full flex items-center justify-center shadow-md cursor-grab active:cursor-grabbing z-20"
         drag="x"
         dragConstraints={{ left: 0, right: SLIDE_THRESHOLD }}
         dragElastic={0.05} // Less elastic for more direct feel

@@ -98,6 +98,8 @@ export function ImmersiveRunningMode({
   const [areaFlash, setAreaFlash] = useState(false)
   const [showLoopWarning, setShowLoopWarning] = useState(false)
   const [effectiveHexes, setEffectiveHexes] = useState(0)
+  // Local kingdom toggle — independent of MapRoot context (avoids useMap crash)
+  const [showKingdom, setShowKingdom] = useState(false)
 
   const { currentCity } = useCity()
   const { ghostPath } = useGameLocation()
@@ -391,9 +393,9 @@ export function ImmersiveRunningMode({
   if (showSummary) {
     return (
       <RunSummaryView
-        distance={distance}
+        distance={distance ?? 0}
         duration={time}
-        pace={pace}
+        pace={pace !== undefined ? String(pace) : '00:00'}
         calories={calories}
         hexesCaptured={effectiveHexes}
         onClose={handleStop}
@@ -470,8 +472,8 @@ export function ImmersiveRunningMode({
       {/* New HUD Implementation */}
       <div className={isMapMode ? "opacity-0 pointer-events-none transition-opacity duration-300" : "opacity-100 transition-opacity duration-300"}>
         <RunningHUD
-          distance={distance}
-          pace={pace}
+          distance={distance ?? 0}
+          pace={typeof pace === 'number' ? String(pace) : (pace ?? '00:00')}
           duration={time}
           calories={calories}
           hexesCaptured={hexesCaptured}
@@ -505,13 +507,15 @@ export function ImmersiveRunningMode({
         <RunningMapOverlay
           distance={distance || 0}
           duration={time}
-          pace={pace ? String(pace) : "00:00"} // Assuming pace is number or string, check props
-          area={currentPartialArea} // Or totalArea?
+          pace={pace ? String(pace) : "00:00"}
+          area={currentPartialArea}
           isPaused={isPaused}
           onPauseToggle={handlePauseToggle}
           onStop={handleAttemptStop}
           onBack={() => setIsMapMode(false)}
           onRecenter={() => setRecenterTrigger(prev => prev + 1)}
+          showKingdom={showKingdom}
+          onToggleKingdom={() => setShowKingdom(v => !v)}
         />
       )}
 
