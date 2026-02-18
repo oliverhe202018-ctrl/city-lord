@@ -132,19 +132,17 @@ export function MissionCard({
   const RewardIcon = getRewardIcon()
 
   return (
-    <div 
-      className={`relative w-full overflow-hidden rounded-2xl border p-4 transition-all active:scale-[0.99] ${
-        isCompleted 
-          ? "border-primary/30 bg-primary/5" 
+    <div
+      className={`relative w-full overflow-hidden rounded-2xl border p-4 transition-all active:scale-[0.99] ${isCompleted
+          ? "border-primary/30 bg-primary/5"
           : "border-border bg-card/60"
-      }`}
+        }`}
       onClick={() => onClick?.(id)}
     >
       <div className="flex items-start gap-4">
         {/* Icon */}
-        <div className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl ${
-          isCompleted ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-        }`}>
+        <div className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl ${isCompleted ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+          }`}>
           <Icon className="h-6 w-6" />
         </div>
 
@@ -160,7 +158,7 @@ export function MissionCard({
               </span>
             )}
           </div>
-          
+
           <p className="text-xs text-muted-foreground line-clamp-2 mb-3">
             {description}
           </p>
@@ -168,9 +166,8 @@ export function MissionCard({
           {/* Progress Bar */}
           <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-muted">
             <div
-              className={`absolute left-0 top-0 h-full rounded-full transition-all duration-500 ${
-                isCompleted ? "bg-primary" : "bg-primary/80"
-              }`}
+              className={`absolute left-0 top-0 h-full rounded-full transition-all duration-500 ${isCompleted ? "bg-primary" : "bg-primary/80"
+                }`}
               style={{ width: `${progressPercent}%` }}
             />
           </div>
@@ -224,8 +221,8 @@ export function MissionCenter({ initialData }: { initialData?: any[] }) {
   const queryClient = useQueryClient()
 
   // Use standardized hook
-  const { missions: rawMissions, loading, refresh, isFetching } = useMissions()
-  
+  const { missions: rawMissions, loading, refresh, isFetching, error } = useMissions()
+
   // Coalesce
   const currentRawMissions = rawMissions || []
   const isLoading = loading && rawMissions.length === 0
@@ -233,11 +230,11 @@ export function MissionCenter({ initialData }: { initialData?: any[] }) {
   // Format missions data
   const missions = React.useMemo(() => {
     if (!currentRawMissions) return []
-    
+
     return currentRawMissions.map((m: any) => {
       const hasXp = false // m.reward_experience > 0 (TODO: check if these fields exist in config)
       const hasCoins = m.points_reward > 0
-      
+
       let rewardType: "xp" | "coins" | "both" = "coins"
       let rewardLabel = "积分"
       let rewardAmount = m.points_reward
@@ -287,28 +284,28 @@ export function MissionCenter({ initialData }: { initialData?: any[] }) {
     onSuccess: (result, variables) => {
       if (result.success) {
         const { reward } = variables
-        
+
         // Revalidate SWR
         refresh()
 
         // Show toast
         const data = result.data as any
-        
+
         if (data?.bonus) {
-             const bonus = data.bonus
-             toast.success(
-               <div className="flex flex-col gap-1">
-                 <span className="font-bold">领取成功！</span>
-                 <span className="text-sm opacity-90">获得 +{reward.coinsAmount} 积分</span>
-                 <span className="text-xs text-yellow-300 font-bold bg-yellow-500/20 px-2 py-1 rounded w-fit">
-                   阵营加成 +{bonus.percentage}%
-                 </span>
-               </div>
-             )
+          const bonus = data.bonus
+          toast.success(
+            <div className="flex flex-col gap-1">
+              <span className="font-bold">领取成功！</span>
+              <span className="text-sm opacity-90">获得 +{reward.coinsAmount} 积分</span>
+              <span className="text-xs text-yellow-300 font-bold bg-yellow-500/20 px-2 py-1 rounded w-fit">
+                阵营加成 +{bonus.percentage}%
+              </span>
+            </div>
+          )
         } else {
-             toast.success("领取成功！", {
-               description: `获得 +${reward.coinsAmount} 积分`
-             })
+          toast.success("领取成功！", {
+            description: `获得 +${reward.coinsAmount} 积分`
+          })
         }
 
         // Update local store
@@ -333,17 +330,17 @@ export function MissionCenter({ initialData }: { initialData?: any[] }) {
     if (claimable.length === 0) return
 
     for (const mission of claimable) {
-       handleClaimReward(mission.id, mission.reward)
+      handleClaimReward(mission.id, mission.reward)
     }
   }
 
   const filteredMissions = missions.filter(m => {
     if (activeFilter === "all") return true
-    
+
     // Prefer using frequency field if available
     if (m.frequency) {
-        if (activeFilter === "daily") return m.frequency === "daily"
-        if (activeFilter === "weekly") return m.frequency === "weekly"
+      if (activeFilter === "daily") return m.frequency === "daily"
+      if (activeFilter === "weekly") return m.frequency === "weekly"
     }
 
     // Fallback for legacy/missing frequency
@@ -356,20 +353,41 @@ export function MissionCenter({ initialData }: { initialData?: any[] }) {
 
   // Check login state via userId from store
   if (!userId) {
-     return (
-        <div className="flex h-64 flex-col items-center justify-center gap-4 text-center">
-          <p className="text-white/60">请先登录以查看任务</p>
-          <Button asChild className="bg-[#39ff14] text-black hover:bg-[#39ff14]/90">
-             <Link href="/login"><LogIn className="mr-2 h-4 w-4" /> 去登录</Link>
-          </Button>
-        </div>
-     )
+    return (
+      <div className="flex h-64 flex-col items-center justify-center gap-4 text-center">
+        <p className="text-white/60">请先登录以查看任务</p>
+        <Button asChild className="bg-[#39ff14] text-black hover:bg-[#39ff14]/90">
+          <Link href="/login"><LogIn className="mr-2 h-4 w-4" /> 去登录</Link>
+        </Button>
+      </div>
+    )
   }
 
   if (isLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#39ff14] border-t-transparent" />
+      </div>
+    )
+  }
+
+  // Error state: show error message + retry button
+  if (error && rawMissions.length === 0) {
+    return (
+      <div className="flex h-64 flex-col items-center justify-center gap-4 text-center px-4">
+        <div className="rounded-full bg-red-500/10 p-4">
+          <Target className="h-8 w-8 text-red-400" />
+        </div>
+        <div>
+          <p className="font-semibold text-foreground">加载失败</p>
+          <p className="text-sm text-muted-foreground mt-1">{error}</p>
+        </div>
+        <button
+          onClick={refresh}
+          className="flex items-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-bold text-primary-foreground shadow-lg transition-all hover:scale-105 active:scale-95"
+        >
+          重试
+        </button>
       </div>
     )
   }
@@ -382,21 +400,21 @@ export function MissionCenter({ initialData }: { initialData?: any[] }) {
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold text-foreground">任务中心</h1>
             {isFetching && (
-               <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20 animate-in fade-in duration-300">
-                 <div className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                 <span className="text-[10px] text-primary font-medium">更新中...</span>
-               </div>
+              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20 animate-in fade-in duration-300">
+                <div className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                <span className="text-[10px] text-primary font-medium">更新中...</span>
+              </div>
             )}
           </div>
           <p className="text-sm text-muted-foreground">完成挑战获取奖励</p>
         </div>
-        
+
         {/* Quick Actions */}
         <div className="flex gap-2">
           {/* Claim All Button */}
           {missions.some(m => m.status === "completed") && (
-            <CyberButton 
-              size="sm" 
+            <CyberButton
+              size="sm"
               onClick={handleClaimAll}
               className="bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 border-yellow-500/50"
             >
@@ -413,11 +431,10 @@ export function MissionCenter({ initialData }: { initialData?: any[] }) {
           <button
             key={filter}
             onClick={() => setActiveFilter(filter)}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all whitespace-nowrap ${
-              activeFilter === filter
+            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all whitespace-nowrap ${activeFilter === filter
                 ? "bg-primary text-primary-foreground shadow-sm"
                 : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
-            }`}
+              }`}
           >
             {filter === "all" ? "全部" : filter === "daily" ? "每日任务" : "每周挑战"}
           </button>
@@ -442,7 +459,7 @@ export function MissionCenter({ initialData }: { initialData?: any[] }) {
                   // If we are in a modal/drawer over the map, closing it is better.
                   // Assuming MissionCenter is used in a tab/drawer context:
                   toast.info("请关闭任务面板，在地图上完成任务", {
-                      description: "点击底部导航栏返回地图"
+                    description: "点击底部导航栏返回地图"
                   })
                 }
               }}
