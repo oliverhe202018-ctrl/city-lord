@@ -6,7 +6,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { Database } from '@/types/supabase'
 import { format } from 'date-fns'
 
-type MissionConfig = Database['public']['Tables']['mission_configs']['Row']
+type MissionConfig = Database['public']['Tables']['missions']['Row']
 type UserMission = Database['public']['Tables']['user_missions']['Row']
 
 export type MissionWithStatus = MissionConfig & {
@@ -36,12 +36,11 @@ export function useMissions() {
     setError(null)
 
     try {
-      // 1. Fetch all active mission configs
+      // 1. Fetch all active mission configs (from missions table)
       const { data: configs, error: configError } = await supabase
-        .from('mission_configs')
+        .from('missions')
         .select('*')
-        .eq('is_active', true)
-        .order('points_reward', { ascending: true }) // Sort by points or whatever preference
+        .order('reward_coins', { ascending: true }) // Sort by reward
 
       if (configError) throw configError
       if (!configs) {
@@ -62,8 +61,8 @@ export function useMissions() {
       const today = format(new Date(), 'yyyy-MM-dd')
 
       const mergedMissions: MissionWithStatus[] = configs.map(config => {
-        // Find relevant user records for this mission code
-        const relevantRecords = userMissions?.filter((um: any) => um.mission_code === config.code) || []
+        // Find relevant user records for this mission id
+        const relevantRecords = userMissions?.filter((um: any) => um.mission_id === config.id) || []
 
         let isCompleted = false
         let status = 'pending'

@@ -1,69 +1,91 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { toast } from "sonner";
+import { RunRecordDTO } from "@/types/run-sync";
 
 const PENDING_KEY = "PENDING_RUN_UPLOAD";
 
-/**
- * PendingRunUploadRetry
- *
- * Silently retries failed run uploads on app start.
- * Runs once on mount, checks localStorage for PENDING_RUN_UPLOAD,
- * and POSTs to /api/run/save if data exists.
- * Clears the cache on success; leaves it for the next retry on failure.
- */
 export function PendingRunUploadRetry() {
+    const isSyncingRef = useRef(false);
+
     useEffect(() => {
-        const retryPendingUpload = async () => {
+        const syncPendingRuns = async () => {
+            if (typeof window === 'undefined' || !navigator.onLine || isSyncingRef.current) return;
+
             try {
                 const raw = localStorage.getItem(PENDING_KEY);
                 if (!raw) return;
 
-                const data = JSON.parse(raw) as {
-                    distanceMeters: number;
-                    durationSeconds: number;
-                    steps: number;
-                    area: number;
-                    calories: number;
-                    timestamp: number;
-                };
+                const pendingRuns: RunRecordDTO[] = JSON.parse(raw);
+                if (!Array.isArray(pendingRuns) || pendingRuns.length === 0) return;
 
-                // Only retry if data is less than 7 days old
-                const AGE_LIMIT_MS = 7 * 24 * 60 * 60 * 1000;
-                if (Date.now() - data.timestamp > AGE_LIMIT_MS) {
-                    localStorage.removeItem(PENDING_KEY);
-                    return;
+                isSyncingRef.current = true;
+                let successCount = 0;
+                let newPending = [...pendingRuns];
+
+                // Process sequentially
+                for (let i = 0; i < pendingRuns.length; i++) {
+                    const record = pendingRuns[i];
+
+                    // Age limit check (7 days)
+                    const AGE_LIMIT_MS = 7 * 24 * 60 * 60 * 1000;
+                    if (Date.now() - record.timestamp > AGE_LIMIT_MS) {
+                        newPending = newPending.filter(r => r.idempotencyKey !== record.idempotencyKey);
+                        continue;
+                    }
+
+                    try {
+                        const res = await fetch("/api/run/save-pending", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            credentials: "include",
+                            body: JSON.stringify(record),
+                        });
+
+                        if (res.ok) {
+                            successCount++;
+                            newPending = newPending.filter(r => r.idempotencyKey !== record.idempotencyKey);
+                        } else if (res.status === 401) {
+                            console.warn("[PendingRunUploadRetry] Unauthorized, suspending sync.");
+                            break;
+                        } else {
+                            console.warn(`[PendingRunUploadRetry] Sync failed for ${record.idempotencyKey}`);
+                        }
+                    } catch (e) {
+                        console.error("[PendingRunUploadRetry] Fetch error:", e);
+                        break;
+                    }
                 }
 
-                // Attempt silent retry via API route (avoids importing server actions in client)
-                const res = await fetch("/api/run/save-pending", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    credentials: "include",
-                    body: JSON.stringify({
-                        distanceMeters: data.distanceMeters,
-                        durationSeconds: data.durationSeconds,
-                        steps: data.steps,
-                        area: data.area,
-                        calories: data.calories,
-                    }),
-                });
-
-                if (res.ok) {
-                    localStorage.removeItem(PENDING_KEY);
-                    console.log("[PendingRunUploadRetry] Pending run uploaded successfully.");
-                } else {
-                    console.warn("[PendingRunUploadRetry] Retry failed, will try again next session.");
+                if (successCount > 0) {
+                    if (newPending.length === 0) {
+                        localStorage.removeItem(PENDING_KEY);
+                    } else {
+                        localStorage.setItem(PENDING_KEY, JSON.stringify(newPending));
+                    }
+                    toast.success(`后台已成功同步 ${successCount} 条离线运动记录 🏃`, {
+                        description: "离线数据未丢失"
+                    });
+                } else if (newPending.length < pendingRuns.length) {
+                    // Just removed expired ones
+                    localStorage.setItem(PENDING_KEY, JSON.stringify(newPending));
                 }
+
             } catch (e) {
-                // Network error or JSON parse error — leave data for next retry
-                console.warn("[PendingRunUploadRetry] Retry error:", e);
+                console.warn("[PendingRunUploadRetry] Parse error:", e);
+            } finally {
+                isSyncingRef.current = false;
             }
         };
 
-        // Delay slightly to avoid blocking initial render
-        const timer = setTimeout(retryPendingUpload, 3000);
-        return () => clearTimeout(timer);
+        const timer = setTimeout(syncPendingRuns, 3000);
+        window.addEventListener('online', syncPendingRuns);
+
+        return () => {
+            clearTimeout(timer);
+            window.removeEventListener('online', syncPendingRuns);
+        };
     }, []);
 
     return null;

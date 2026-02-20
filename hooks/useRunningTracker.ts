@@ -8,6 +8,7 @@ import { saveRunActivity } from '@/app/actions/run-service';
 import { v4 as uuidv4 } from 'uuid';
 import { isNativePlatform, safeGetBatteryInfo } from "@/lib/capacitor/safe-plugins";
 import { useSafeGeolocation, GeoPoint } from '@/hooks/useSafeGeolocation';
+import { getDistanceFromLatLonInMeters } from '@/lib/geometry-utils';
 
 const RECOVERY_KEY = 'CURRENT_RUN_RECOVERY';
 
@@ -42,23 +43,8 @@ interface RunningStats {
   steps: number; // estimated steps (Math.floor(distanceMeters * 1.3))
 }
 
-// Haversine formula to calculate distance between two points in meters
-function getDistanceFromLatLonInMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
-  const R = 6371e3;
-  const dLat = deg2rad(lat2 - lat1);
-  const dLon = deg2rad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const d = R * c;
-  return d;
-}
-
-function deg2rad(deg: number) {
-  return deg * (Math.PI / 180);
-}
+// Haversine formula — now imported from @/lib/geometry-utils
+// (getDistanceFromLatLonInMeters is imported above)
 
 function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -581,21 +567,24 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     try {
       setIsSaving(true);
       const result = await saveRunActivity(userId, {
+        idempotencyKey: crypto.randomUUID(), // NEW: Prevent duplicate processing
         distance: distanceKm * 1000, // convert to meters for DB
         duration: duration,
         path: path,
         polygons: sessionClaims,
-        manualLocationCount: 0 // Track if needed
+        timestamp: Date.now(), // NEW: Required by DTO
+        manualLocationCount: 0
       });
 
       if (result.success) {
         if (isFinal) {
-          console.log("Run saved successfully:", result.runId);
+          // Note: result.data.runId is the new structure
+          console.log("Run saved successfully:", result.data?.runId);
         }
 
         // Handle new task rewards if any
-        if (result.newTasks && result.newTasks.length > 0) {
-          const tasks = result.newTasks;
+        if (result.data?.newTasks && result.data.newTasks.length > 0) {
+          const tasks = result.data.newTasks;
           const totalCoins = tasks.reduce((sum, t) => sum + t.reward, 0);
           toast.success(`达成 ${tasks.length} 个目标!`, {
             description: `获得 +${totalCoins} 金币`,

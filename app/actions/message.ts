@@ -23,7 +23,7 @@ export async function createSystemMessage(receiverId: string, content: string) {
   // FOR NOW: We will try to insert with the current user's client. If RLS blocks sender_id=NULL, we might need to adjust RLS.
   // User asked to fix RLS for user_missions, maybe messages RLS is also strict.
   // Let's assume the user wants us to try to insert it.
-  
+
   const { error } = await (supabase
     .from('messages' as any) as any)
     .insert({
@@ -43,7 +43,7 @@ export async function createSystemMessage(receiverId: string, content: string) {
 
 export async function sendMessage(receiverId: string, content: string, type: 'text' | 'system' | 'challenge' = 'text') {
   const supabase = await createClient()
-  
+
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Unauthorized')
 
@@ -64,7 +64,7 @@ export async function sendMessage(receiverId: string, content: string, type: 'te
 
 export async function getMessages() {
   const supabase = await createClient()
-  
+
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
@@ -81,13 +81,13 @@ export async function getMessages() {
     console.error('Error fetching messages:', error)
     return []
   }
-  
+
   return messages
 }
 
 export async function markAsRead(messageId: string) {
   const supabase = await createClient()
-  
+
   const { error } = await (supabase
     .from('messages' as any) as any)
     .update({ is_read: true })
@@ -99,7 +99,7 @@ export async function markAsRead(messageId: string) {
 
 export async function getUnreadMessageCount() {
   const supabase = await createClient()
-  
+
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return 0
 
@@ -112,6 +112,6 @@ export async function getUnreadMessageCount() {
   if (error) {
     return 0
   }
-  
+
   return count || 0
 }

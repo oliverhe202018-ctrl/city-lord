@@ -2,13 +2,13 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from '@/components/ui/table'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -111,7 +111,7 @@ export default function RoomsPage() {
       await logAction(action, room.id, details)
 
       // 3. Update local state
-      setRooms(prev => prev.map(r => 
+      setRooms(prev => prev.map(r =>
         r.id === room.id ? { ...r, is_banned: newBanStatus } : r
       ))
 
@@ -178,8 +178,8 @@ export default function RoomsPage() {
               </TableHeader>
               <TableBody>
                 {rooms.map((room) => (
-                  <TableRow 
-                    key={room.id} 
+                  <TableRow
+                    key={room.id}
                     className={room.is_banned ? 'bg-muted/50 opacity-60' : ''}
                   >
                     <TableCell className="font-medium">

@@ -134,8 +134,8 @@ export function MissionCard({
   return (
     <div
       className={`relative w-full overflow-hidden rounded-2xl border p-4 transition-all active:scale-[0.99] ${isCompleted
-          ? "border-primary/30 bg-primary/5"
-          : "border-border bg-card/60"
+        ? "border-primary/30 bg-primary/5"
+        : "border-border bg-card/60"
         }`}
       onClick={() => onClick?.(id)}
     >
@@ -232,25 +232,24 @@ export function MissionCenter({ initialData }: { initialData?: any[] }) {
     if (!currentRawMissions) return []
 
     return currentRawMissions.map((m: any) => {
-      const hasXp = false // m.reward_experience > 0 (TODO: check if these fields exist in config)
-      const hasCoins = m.points_reward > 0
+      const hasXp = m.reward_experience > 0
+      const hasCoins = m.reward_coins > 0
 
       let rewardType: "xp" | "coins" | "both" = "coins"
       let rewardLabel = "积分"
-      let rewardAmount = m.points_reward
+      let rewardAmount = m.reward_coins
 
-      // TODO: If we add XP back to mission_configs, uncomment this
-      /*
       if (hasXp && hasCoins) {
         rewardType = "both"
         rewardLabel = "奖励"
-        rewardAmount = 0 
+        rewardAmount = 0
       } else if (hasXp) {
         rewardType = "xp"
         rewardLabel = "经验"
         rewardAmount = m.reward_experience
       }
-      */
+
+      // removed the commented out segment representing the XP logic that was just implemented above
 
       return {
         id: m.id,
@@ -260,11 +259,11 @@ export function MissionCenter({ initialData }: { initialData?: any[] }) {
         frequency: m.frequency,
         status: m.status as MissionStatus,
         progress: m.progress?.progress || 0, // Use progress from joined user_mission
-        maxProgress: 1, // Default to 1 if no target in config (TODO: add target to config?)
+        maxProgress: m.target || 1,
         reward: {
           type: rewardType,
-          xpAmount: 0, // m.reward_experience
-          coinsAmount: m.points_reward,
+          xpAmount: m.reward_experience || 0,
+          coinsAmount: m.reward_coins || 0,
           label: rewardLabel
         },
         difficulty: "medium",
@@ -290,13 +289,15 @@ export function MissionCenter({ initialData }: { initialData?: any[] }) {
 
         // Show toast
         const data = result.data as any
+        const earnedCoins = data?.rewards?.coins || reward.coinsAmount
+        const earnedXp = data?.rewards?.experience || reward.xpAmount
 
         if (data?.bonus) {
           const bonus = data.bonus
           toast.success(
             <div className="flex flex-col gap-1">
               <span className="font-bold">领取成功！</span>
-              <span className="text-sm opacity-90">获得 +{reward.coinsAmount} 积分</span>
+              <span className="text-sm opacity-90">获得 +{earnedCoins} 积分</span>
               <span className="text-xs text-yellow-300 font-bold bg-yellow-500/20 px-2 py-1 rounded w-fit">
                 阵营加成 +{bonus.percentage}%
               </span>
@@ -304,13 +305,13 @@ export function MissionCenter({ initialData }: { initialData?: any[] }) {
           )
         } else {
           toast.success("领取成功！", {
-            description: `获得 +${reward.coinsAmount} 积分`
+            description: `获得 +${earnedCoins} 积分`
           })
         }
 
-        // Update local store
-        if (reward.xpAmount) addExperience(reward.xpAmount)
-        if (reward.coinsAmount) addCoins(reward.coinsAmount)
+        // Update local store with the actual amount returned from the server (which includes the bonus)
+        if (earnedXp) addExperience(earnedXp)
+        if (earnedCoins) addCoins(earnedCoins)
       } else {
         toast.error("领取失败")
       }
@@ -432,8 +433,8 @@ export function MissionCenter({ initialData }: { initialData?: any[] }) {
             key={filter}
             onClick={() => setActiveFilter(filter)}
             className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all whitespace-nowrap ${activeFilter === filter
-                ? "bg-primary text-primary-foreground shadow-sm"
-                : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+              ? "bg-primary text-primary-foreground shadow-sm"
+              : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}
           >
             {filter === "all" ? "全部" : filter === "daily" ? "每日任务" : "每周挑战"}

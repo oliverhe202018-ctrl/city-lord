@@ -1,3 +1,4 @@
+/// <reference types="@amap/amap-jsapi-types" />
 "use client"
 
 import { useEffect, useRef, useState } from "react"
@@ -5,6 +6,7 @@ import { safeLoadAMap, safeDestroyMap } from '@/lib/map/safe-amap';
 import MapManager from "@/lib/mapManager"
 import { Location } from "@/hooks/useRunningTracker"
 import { useTheme } from "next-themes"
+import { useSmoothMapCamera } from "@/hooks/useSmoothMapCamera"
 
 // Security Config
 const AMAP_KEY = process.env.NEXT_PUBLIC_AMAP_KEY || "2f65c697074e0d4c8270195561578e06"
@@ -29,15 +31,17 @@ export function RunningMap({
   showKingdom = true,
 }: RunningMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
-  const mapInstanceRef = useRef<any>(null)
-  const amapRef = useRef<any>(null)
+  const mapInstanceRef = useRef<AMap.Map | null>(null)
+  const amapRef = useRef<typeof AMap | null>(null)
 
   // Refs for map elements
-  const userMarkerRef = useRef<any>(null)
-  const polylineRef = useRef<any>(null)
-  const polygonRefs = useRef<any[]>([]) // Store polygon instances
-  const kmMarkersRef = useRef<any[]>([])
-  const locationCircleRef = useRef<any>(null) // Accuracy circle
+  const userMarkerRef = useRef<AMap.Marker | null>(null)
+  const polylineRef = useRef<AMap.Polyline | null>(null)
+  const polygonRefs = useRef<AMap.Polygon[]>([]) // Store polygon instances
+  const kmMarkersRef = useRef<AMap.Marker[]>([])
+  const locationCircleRef = useRef<AMap.Circle | null>(null) // Accuracy circle
+
+  const { smoothPanTo } = useSmoothMapCamera(mapInstanceRef.current)
 
   // User Color Preferences (Hardcoded for now to match Smart Planner/Dark Theme)
   const pathColor = '#3B82F6' // Blue 500
@@ -165,6 +169,9 @@ export function RunningMap({
     return () => {
       destroyed = true;
       // Destroy this independent map instance on unmount
+      if (mapInstanceRef.current && typeof mapInstanceRef.current.destroy === 'function') {
+        mapInstanceRef.current.destroy()
+      }
       safeDestroyMap(mapInstanceRef.current);
       mapInstanceRef.current = null;
     }
@@ -179,10 +186,8 @@ export function RunningMap({
     userMarkerRef.current.setPosition(userLocation)
     userMarkerRef.current.show()
 
-    // Smooth Pan to user - Only pan if map center is far from user to allow manual interaction?
-    // Or always center for running mode? Usually running apps lock to center.
-    // Let's enforce center.
-    mapInstanceRef.current.panTo(userLocation)
+    // Smooth Pan to user using the new hook
+    smoothPanTo(userLocation)
 
     // Accuracy Circle
     // Assuming 50m default if accuracy not passed, or we should pass accuracy from parent
@@ -234,7 +239,7 @@ export function RunningMap({
 
     if (closedPolygons && closedPolygons.length > 0) {
       closedPolygons.forEach(polyPath => {
-        const pathCoords = polyPath.map(p => [p.lng, p.lat]);
+        const pathCoords = polyPath.map(p => [p.lng, p.lat] as [number, number]);
         const polygon = new AMap.Polygon({
           path: pathCoords,
           fillColor: '#10B981', // Emerald
@@ -265,7 +270,8 @@ export function RunningMap({
 
   // 4. Render Path & KM Markers
   useEffect(() => {
-    if (!mapInstanceRef.current || !amapRef.current || !path || path.length < 2) return
+    if (!path || path.length === 0) return;
+    if (!mapInstanceRef.current || !amapRef.current || path.length < 2) return
     const map = mapInstanceRef.current
     const AMap = amapRef.current
 
@@ -279,7 +285,7 @@ export function RunningMap({
       // I need to RESTORE the polygon drawing logic.
     }
 
-    const pathCoords = path.map(p => [p.lng, p.lat])
+    const pathCoords = path.map(p => [p.lng, p.lat] as [number, number])
 
     if (!polylineRef.current) {
       polylineRef.current = new AMap.Polyline({
@@ -321,8 +327,8 @@ export function RunningMap({
     kmMarkersRef.current = []
 
     for (let i = 0; i < path.length - 1; i++) {
-      const p1 = [path[i].lng, path[i].lat]
-      const p2 = [path[i + 1].lng, path[i + 1].lat]
+      const p1 = [path[i].lng, path[i].lat] as [number, number]
+      const p2 = [path[i + 1].lng, path[i + 1].lat] as [number, number]
       const d = AMap.GeometryUtil.distance(p1, p2)
 
       if (totalDist + d >= nextKmTarget) {

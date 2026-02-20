@@ -48,6 +48,7 @@ export function GaodeMap3D({
   const locaInstanceRef = useRef<any>(null)
   const prismLayerRef = useRef<any>(null)
   const markerRef = useRef<any>(null)
+  const isUserInteracting = useRef(false)
   const [isMapReady, setIsMapReady] = useState(false)
   const [debugLog, setDebugLog] = useState<string[]>([])
 
@@ -111,17 +112,38 @@ export function GaodeMap3D({
 
         addLog("AMap Loader Success")
 
+        // Read cached location for instant center (avoid distant default)
+        let initCenter: [number, number] = userLocation;
+        if (typeof window !== 'undefined') {
+          try {
+            const cached = localStorage.getItem('last_known_location')
+            if (cached) {
+              const parsed = JSON.parse(cached)
+              if (parsed?.lat && parsed?.lng &&
+                typeof parsed.lat === 'number' && typeof parsed.lng === 'number') {
+                initCenter = [parsed.lng, parsed.lat]
+              }
+            }
+          } catch {
+            // Silently fall back to prop center
+          }
+        }
+
         // Create Map Instance
         const map = new AMap.Map(mapContainerRef.current, {
           viewMode: "3D",
           zoom: 16, // Force zoom level for Loca
-          center: userLocation,
+          center: initCenter,
           pitch: 50, // 3D Tilt (45-60 is recommended)
           rotation: 0,
           mapStyle: "amap://styles/22e069175d1afe32e9542abefde02cb5",
           showLabel: false,
           skyColor: '#1f2029'
         })
+
+        // Register drag interaction tracking
+        map.on('dragstart', () => { isUserInteracting.current = true })
+        map.on('dragend', () => { isUserInteracting.current = false })
 
         mapInstanceRef.current = map
         addLog("Map Instance Created")
@@ -413,14 +435,55 @@ export function GaodeMap3D({
 
   }, [isMapReady, ghostPath]) // Removed path, closedPolygons from dependencies
 
-  // Update User Marker Position
+  // Update User Marker Position (with distance guard and interaction check)
   useEffect(() => {
-    if (markerRef.current && userLocation) {
+    if (!markerRef.current || !userLocation) return
+
+    try {
       markerRef.current.setPosition(userLocation)
-      // Only pan if map is ready
-      if (mapInstanceRef.current) {
+    } catch {
+      // Marker may have been removed
+      return
+    }
+
+    // Don't recenter if user is dragging or map not ready
+    if (isUserInteracting.current || !mapInstanceRef.current) return
+
+    try {
+      // Use AMap.GeometryUtil.distance for accurate distance check
+      const currentCenter = mapInstanceRef.current.getCenter()
+      if (!currentCenter) return
+
+      const AMapLib = window.AMap
+      let dist = 0
+      if (AMapLib?.GeometryUtil?.distance) {
+        dist = AMapLib.GeometryUtil.distance(
+          userLocation,
+          [currentCenter.lng, currentCenter.lat]
+        )
+      } else {
+        // Fallback approximation
+        dist = Math.sqrt(
+          Math.pow((currentCenter.lat - userLocation[1]) * 111000, 2) +
+          Math.pow((currentCenter.lng - userLocation[0]) * 111000 * Math.cos(currentCenter.lat * Math.PI / 180), 2)
+        )
+      }
+
+      // Only panTo if drift > 100m (prevents micro-jitter)
+      if (dist > 100) {
         mapInstanceRef.current.panTo(userLocation)
       }
+    } catch {
+      // Silently handle panTo/distance errors on unmounted map
+    }
+
+    // Save to cache for next cold start
+    try {
+      localStorage.setItem('last_known_location', JSON.stringify({
+        lat: userLocation[1], lng: userLocation[0], zoom: 16
+      }))
+    } catch {
+      // localStorage may be full or unavailable
     }
   }, [userLocation])
 

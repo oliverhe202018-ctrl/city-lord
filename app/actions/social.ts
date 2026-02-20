@@ -71,14 +71,14 @@ export async function fetchFriends(): Promise<Friend[]> {
     friend_profile: Profile | null
     user_profile: Profile | null
   }
-  
+
   const friendships = rawData as unknown as FriendshipResult[]
 
   // Map to Friend interface
   const friends = friendships.map((f) => {
     const isUserInitiator = f.user_id === user.id
     const friendProfile = isUserInitiator ? f.friend_profile : f.user_profile
-    
+
     if (!friendProfile) return null
 
     const lastActiveTime = new Date(friendProfile.updated_at).getTime()
@@ -92,13 +92,13 @@ export async function fetchFriends(): Promise<Friend[]> {
       avatar: friendProfile.avatar_url,
       level: friendProfile.level || 1,
       status: status as "online" | "offline" | "running",
-      lastActive: diffMinutes < 60 
-        ? `${Math.floor(diffMinutes)}分钟前` 
-        : diffMinutes < 1440 
-          ? `${Math.floor(diffMinutes / 60)}小时前` 
+      lastActive: diffMinutes < 60
+        ? `${Math.floor(diffMinutes)}分钟前`
+        : diffMinutes < 1440
+          ? `${Math.floor(diffMinutes / 60)}小时前`
           : new Date(friendProfile.updated_at).toLocaleDateString(),
       lastActiveAt: friendProfile.updated_at,
-      hexCount: friendProfile.total_area || 0, 
+      hexCount: friendProfile.total_area || 0,
       totalKm: friendProfile.total_distance_km || 0,
       clan: undefined,
       clanColor: undefined
@@ -111,7 +111,7 @@ export async function fetchFriends(): Promise<Friend[]> {
 export async function searchUsers(query: string): Promise<Friend[]> {
   const cookieStore = await cookies()
   const supabase = await createClient(cookieStore)
-  
+
   if (!query || query.length < 2) return []
 
   const { data: profiles, error } = await supabase
@@ -171,7 +171,7 @@ export async function fetchFriendActivities(): Promise<FriendActivity[]> {
 
   if (!friendships) return []
 
-  const friendIds = friendships.map((f) => 
+  const friendIds = friendships.map((f) =>
     f.user_id === user.id ? f.friend_id : f.user_id
   )
 
@@ -351,7 +351,7 @@ export async function getRecommendedUsers(): Promise<RecommendedUser[]> {
   const cookieStore = await cookies()
   const supabase = await createClient(cookieStore)
   const { data: { user } } = await supabase.auth.getUser()
-  
+
   if (!user) return []
 
   // 1. Get all existing friend IDs (accepted or pending) to exclude
@@ -359,10 +359,10 @@ export async function getRecommendedUsers(): Promise<RecommendedUser[]> {
     .from('friendships')
     .select('user_id, friend_id')
     .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`)
-  
+
   const excludeIds = new Set<string>()
   excludeIds.add(user.id)
-  
+
   if (friendships) {
     friendships.forEach((f) => {
       excludeIds.add(f.user_id)
@@ -373,12 +373,12 @@ export async function getRecommendedUsers(): Promise<RecommendedUser[]> {
   // 2. Fetch profiles not in the exclude list
   // We can't pass a huge array to .not('id', 'in', array) if it's too large, but for now it's fine.
   // If the list is empty (new user), we just fetch randoms.
-  
+
   let query = supabase
     .from('profiles')
     .select('*')
     .limit(20) // Fetch a bit more to filter/randomize
-  
+
   if (excludeIds.size > 0) {
     query = query.not('id', 'in', `(${Array.from(excludeIds).join(',')})`)
   } else {
@@ -398,7 +398,7 @@ export async function getRecommendedUsers(): Promise<RecommendedUser[]> {
     // For now, we simulate reasons based on data
     const reasons: RecommendedUser['reason'][] = ["nearby", "similar_level", "similar_achievement"]
     const randomReason = reasons[Math.floor(Math.random() * reasons.length)]
-    
+
     let reasonDetail = "附近的跑者"
     if (randomReason === "similar_level") reasonDetail = "等级相近"
     if (randomReason === "similar_achievement") reasonDetail = "活跃度相似"
@@ -487,7 +487,7 @@ export async function getFriendRequests() {
     created_at: string
     profile: Profile | null
   }
-  
+
   const requests = requestsData as unknown as FriendRequestRow[]
 
   return (requests || []).map((r) => ({
@@ -543,7 +543,7 @@ export async function createChallenge(params: {
   const cookieStore = await cookies()
   const supabase = await createClient(cookieStore)
   const { data: { user } } = await supabase.auth.getUser()
-  
+
   if (!user) throw new Error('Not authenticated')
 
   // Create a message representing the challenge
@@ -577,7 +577,7 @@ export async function getPendingChallenges() {
   const cookieStore = await cookies()
   const supabase = await createClient(cookieStore)
   const { data: { user } } = await supabase.auth.getUser()
-  
+
   if (!user) return []
 
   const { data: messages } = await supabase
@@ -590,7 +590,7 @@ export async function getPendingChallenges() {
     `)
     .eq('receiver_id', user.id)
     .eq('type', 'challenge')
-    .eq('is_read', false) 
+    .eq('is_read', false)
     .order('created_at', { ascending: false })
 
   if (!messages) return []
@@ -609,7 +609,7 @@ export async function getPendingChallenges() {
     const now = new Date()
     const diffHours = Math.max(0, Math.ceil((expires.getTime() - now.getTime()) / (1000 * 60 * 60)))
     const expiresIn = `${diffHours}h`
-    
+
     // Type guard or safe access for sender
     // The query returns sender as an object because of the relationship
     const sender = m.sender as unknown as Profile | null
@@ -628,16 +628,16 @@ export async function getPendingChallenges() {
 }
 
 export async function respondToChallenge(challengeId: string, accept: boolean) {
-   const cookieStore = await cookies()
-   const supabase = await createClient(cookieStore)
-   
-   // Mark message as read (handled)
-   const { error } = await supabase
-     .from('messages')
-     .update({ is_read: true })
-     .eq('id', challengeId)
+  const cookieStore = await cookies()
+  const supabase = await createClient(cookieStore)
 
-   if (error) return { success: false, error: error.message }
-   
-   return { success: true }
+  // Mark message as read (handled)
+  const { error } = await supabase
+    .from('messages')
+    .update({ is_read: true })
+    .eq('id', challengeId)
+
+  if (error) return { success: false, error: error.message }
+
+  return { success: true }
 }

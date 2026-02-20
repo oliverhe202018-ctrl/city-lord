@@ -37,14 +37,26 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  // 3. Protected Routes Logic
+  // 3. Admin Routes Logic (Hardcoded Login)
+  const isAdminRoute = request.nextUrl.pathname.startsWith('/admin') &&
+    !request.nextUrl.pathname.startsWith('/admin/login')
+
+  if (isAdminRoute) {
+    const hasAdminCookie = request.cookies.get('citylord_admin_session')?.value === 'authenticated'
+    if (!hasAdminCookie) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/admin/login'
+      return NextResponse.redirect(url)
+    }
+  }
+
+  // 4. Protected Routes Logic (User Supabase Auth)
   // Only check auth status strictly if we are on a protected route.
   // This reduces latency for static assets and public pages.
-  const isProtectedRoute = request.nextUrl.pathname.startsWith('/city-lord') || 
-                           request.nextUrl.pathname.startsWith('/profile') ||
-                           request.nextUrl.pathname.startsWith('/admin')
+  const isUserProtectedRoute = request.nextUrl.pathname.startsWith('/city-lord') ||
+    request.nextUrl.pathname.startsWith('/profile')
 
-  if (isProtectedRoute) {
+  if (isUserProtectedRoute) {
     // Check user only when necessary
     const { data: { user } } = await supabase.auth.getUser()
 

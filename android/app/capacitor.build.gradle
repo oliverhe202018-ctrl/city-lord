@@ -19,6 +19,7 @@ dependencies {
     implementation project(':capacitor-local-notifications')
     implementation project(':capacitor-status-bar')
     implementation project(':capawesome-capacitor-background-task')
+    implementation project(':capacitor-health-connect')
     implementation "com.onesignal:OneSignal:5.6.1"
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.7.10"
 }

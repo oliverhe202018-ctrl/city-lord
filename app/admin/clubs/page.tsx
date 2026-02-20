@@ -2,13 +2,13 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { Badge } from "@/components/ui/badge"
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from '@/components/ui/table'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -26,7 +26,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useClubAudit } from '@/hooks/useClubAudit'
-import { getPendingClubs, approveClub, rejectClub, getApprovedClubs } from '@/app/actions/club'
+import { getPendingClubs, approveClub, rejectClub, getApprovedClubs, PendingClubDTO, ApprovedClubDTO } from '@/app/actions/club'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from '@/components/ui/use-toast'
 
@@ -66,22 +66,22 @@ function ClubTable({ clubs, onApprove, onReject, processingId, showActions = tru
       <TableBody>
         {clubs.map((club) => (
           <TableRow key={club.id}>
-             <TableCell>
-                <div className="h-10 w-10 rounded-full overflow-hidden bg-muted border border-border">
-                  {club.avatar_url ? (
-                    <img 
-                      src={club.avatar_url} 
-                      alt={club.name} 
-                      className="h-full w-full object-cover" 
-                    />
-                  ) : (
-                    <div className="h-full w-full flex items-center justify-center text-xs text-muted-foreground">
-                      无
-                    </div>
-                  )}
-                </div>
+            <TableCell>
+              <div className="h-10 w-10 rounded-full overflow-hidden bg-muted border border-border">
+                {club.avatar_url ? (
+                  <img
+                    src={club.avatar_url}
+                    alt={club.name}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="h-full w-full flex items-center justify-center text-xs text-muted-foreground">
+                    无
+                  </div>
+                )}
+              </div>
             </TableCell>
-             <TableCell className="whitespace-nowrap text-muted-foreground text-sm">
+            <TableCell className="whitespace-nowrap text-muted-foreground text-sm">
               {format(new Date(club.created_at), 'yyyy-MM-dd')}
             </TableCell>
             <TableCell className="font-medium">
@@ -106,9 +106,9 @@ function ClubTable({ clubs, onApprove, onReject, processingId, showActions = tru
             </TableCell>
             {showActions ? (
               <TableCell className="text-right space-x-2">
-                <Button 
-                  size="sm" 
-                  variant="default" 
+                <Button
+                  size="sm"
+                  variant="default"
                   className="bg-green-600 hover:bg-green-700"
                   onClick={() => onApprove && onApprove(club.id)}
                   disabled={processingId === club.id}
@@ -116,8 +116,8 @@ function ClubTable({ clubs, onApprove, onReject, processingId, showActions = tru
                   {processingId === club.id ? <Spinner className="mr-2 h-4 w-4" /> : <Check className="mr-1 h-4 w-4" />}
                   通过
                 </Button>
-                <Button 
-                  size="sm" 
+                <Button
+                  size="sm"
                   variant="destructive"
                   onClick={() => onReject && onReject(club.id)}
                   disabled={processingId === club.id}
@@ -127,9 +127,9 @@ function ClubTable({ clubs, onApprove, onReject, processingId, showActions = tru
                 </Button>
               </TableCell>
             ) : (
-               <TableCell className="text-right">
-                  <Badge variant="outline">{club.member_count} 人</Badge>
-               </TableCell>
+              <TableCell className="text-right">
+                <Badge variant="outline">{club.member_count} 人</Badge>
+              </TableCell>
             )}
           </TableRow>
         ))}
@@ -168,11 +168,11 @@ function RejectDialog({ open, onOpenChange, onConfirm, processing }: RejectDialo
         <div className="grid gap-4 py-4">
           <div className="grid gap-2">
             <Label htmlFor="reason">拒绝原因 <span className="text-destructive">*</span></Label>
-            <Textarea 
-              id="reason" 
-              value={reason} 
+            <Textarea
+              id="reason"
+              value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="例如：名称包含违规词汇 / 描述不当..." 
+              placeholder="例如：名称包含违规词汇 / 描述不当..."
               className="h-24"
             />
           </div>
@@ -190,11 +190,11 @@ function RejectDialog({ open, onOpenChange, onConfirm, processing }: RejectDialo
 }
 
 export default function AdminClubsPage() {
-  const [clubs, setClubs] = useState<any[]>([])
-  const [approvedClubs, setApprovedClubs] = useState<any[]>([])
+  const [clubs, setClubs] = useState<PendingClubDTO[]>([])
+  const [approvedClubs, setApprovedClubs] = useState<ApprovedClubDTO[]>([])
   const [loading, setLoading] = useState(true)
   const [processingId, setProcessingId] = useState<string | null>(null)
-  
+
   const { toast } = useToast()
 
   // Reject Dialog State
@@ -204,17 +204,28 @@ export default function AdminClubsPage() {
   const loadClubs = useCallback(async () => {
     setLoading(true)
     try {
-      const [pending, approved] = await Promise.all([
+      const [pendingRes, approvedRes] = await Promise.all([
         getPendingClubs(),
         getApprovedClubs()
       ])
-      setClubs(pending)
-      setApprovedClubs(approved)
-    } catch (error) {
+
+      if (pendingRes.success) {
+        setClubs(pendingRes.data)
+      } else {
+        throw new Error(`获取待审核列表失败: ${pendingRes.error}`)
+      }
+
+      if (approvedRes.success) {
+        setApprovedClubs(approvedRes.data)
+      } else {
+        throw new Error(`获取已通过列表失败: ${approvedRes.error}`)
+      }
+
+    } catch (error: any) {
       toast({
         variant: "destructive",
         title: "加载失败",
-        description: "无法获取俱乐部列表"
+        description: error.message || "无法获取俱乐部列表"
       })
     } finally {
       setLoading(false)
@@ -252,7 +263,7 @@ export default function AdminClubsPage() {
 
   const handleRejectConfirm = async (reason: string) => {
     if (!selectedClubId) return
-    
+
     setProcessingId(selectedClubId)
     try {
       await rejectClub(selectedClubId, reason)
@@ -296,7 +307,7 @@ export default function AdminClubsPage() {
           <TabsTrigger value="pending">待审核 ({clubs.length})</TabsTrigger>
           <TabsTrigger value="approved">已通过 ({approvedClubs.length})</TabsTrigger>
         </TabsList>
-        
+
         <TabsContent value="pending" className="mt-4">
           <Card>
             <CardHeader>
@@ -306,17 +317,17 @@ export default function AdminClubsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <ClubTable 
-                clubs={clubs} 
-                onApprove={handleApprove} 
-                onReject={openRejectDialog} 
+              <ClubTable
+                clubs={clubs}
+                onApprove={handleApprove}
+                onReject={openRejectDialog}
                 processingId={processingId}
-                showActions={true} 
+                showActions={true}
               />
             </CardContent>
           </Card>
         </TabsContent>
-        
+
         <TabsContent value="approved" className="mt-4">
           <Card>
             <CardHeader>
@@ -326,8 +337,8 @@ export default function AdminClubsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <ClubTable 
-                clubs={approvedClubs} 
+              <ClubTable
+                clubs={approvedClubs}
                 showActions={false}
               />
             </CardContent>
@@ -335,8 +346,8 @@ export default function AdminClubsPage() {
         </TabsContent>
       </Tabs>
 
-      <RejectDialog 
-        open={rejectDialogOpen} 
+      <RejectDialog
+        open={rejectDialogOpen}
         onOpenChange={setRejectDialogOpen}
         onConfirm={handleRejectConfirm}
         processing={!!processingId}

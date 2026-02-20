@@ -8,23 +8,23 @@ import { ACHIEVEMENT_DEFINITIONS } from '@/lib/achievements'
 
 export async function syncBadges(useDirectClient = false) {
   let supabase;
-  
+
   if (useDirectClient) {
-      // For scripts where cookies() is not available
-      const { createClient } = await import('@supabase/supabase-js')
-      const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
-      const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY! // Or Service Role if available in env
-      // Note: For write operations, we might need Service Role if RLS blocks anon.
-      // But usually 'badges' table might be protected.
-      // Scripts usually run with full access env vars.
-      // Let's assume we have process.env.SUPABASE_SERVICE_ROLE_KEY
-      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || key
-      supabase = createClient(url, serviceKey)
+    // For scripts where cookies() is not available
+    const { createClient } = await import('@supabase/supabase-js')
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY! // Or Service Role if available in env
+    // Note: For write operations, we might need Service Role if RLS blocks anon.
+    // But usually 'badges' table might be protected.
+    // Scripts usually run with full access env vars.
+    // Let's assume we have process.env.SUPABASE_SERVICE_ROLE_KEY
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || key
+    supabase = createClient(url, serviceKey)
   } else {
-      const cookieStore = await cookies()
-      supabase = await createClient(cookieStore)
+    const cookieStore = await cookies()
+    supabase = await createClient(cookieStore)
   }
-  
+
   // Iterate local definitions
   const upsertData = ACHIEVEMENT_DEFINITIONS.map(def => {
     // Smart Parsing Logic
@@ -36,21 +36,21 @@ export async function syncBadges(useDirectClient = false) {
     const cat = def.category
 
     if (cat === 'endurance' || cat === 'speed') {
-        reqType = 'distance' // Default base
-        if (desc.includes('配速') || desc.includes('速度')) {
-            reqType = 'pace'
-        } else if (desc.includes('次') || desc.includes('天')) {
-            reqType = 'count'
-        }
+      reqType = 'distance' // Default base
+      if (desc.includes('配速') || desc.includes('速度')) {
+        reqType = 'pace'
+      } else if (desc.includes('次') || desc.includes('天')) {
+        reqType = 'count'
+      }
     } else if (cat === 'conquest' || cat === 'exploration') {
-        reqType = 'count' // Default (tiles/districts)
-        if (desc.includes('里程') || desc.includes('公里')) {
-            reqType = 'distance' // e.g. City Walker
-        } else if (desc.includes('面积')) {
-            reqType = 'area'
-        }
+      reqType = 'count' // Default (tiles/districts)
+      if (desc.includes('里程') || desc.includes('公里')) {
+        reqType = 'distance' // e.g. City Walker
+      } else if (desc.includes('面积')) {
+        reqType = 'area'
+      }
     } else if (cat === 'special') {
-        reqType = 'count' // Invites, etc.
+      reqType = 'count' // Invites, etc.
     }
 
     // 2. Extract number from description if needed (User requested parsing text)
@@ -58,26 +58,26 @@ export async function syncBadges(useDirectClient = false) {
     // But let's respect the "Smart Parse" request if maxProgress is 1 (generic) but text has a number.
     // However, looking at the data, maxProgress seems accurate (e.g. 100km -> 100).
     // Let's stick to maxProgress for value to be safe, but use text for type inference.
-    
+
     // Override type if description strongly suggests otherwise
     if (desc.includes('公里') || desc.includes('km')) {
-        // If it's a cumulative distance badge, ensure type is distance
-        if (!desc.includes('次') && !desc.includes('天')) {
-             reqType = 'distance'
-        }
+      // If it's a cumulative distance badge, ensure type is distance
+      if (!desc.includes('次') && !desc.includes('天')) {
+        reqType = 'distance'
+      }
     }
 
     return {
-        code: def.id,
-        name: def.title,
-        description: def.description, // Requirement Description
-        icon_path: def.image || null,
-        category: def.category, // 'territory' | 'running' | 'special'
-        level: def.rarity, // Map rarity to level/tier
-        requirement_type: reqType,
-        requirement_value: reqValue,
-        tier: def.rarity, // Keep tier column sync
-        condition_value: reqValue // Legacy column
+      code: def.id,
+      name: def.title,
+      description: def.description, // Requirement Description
+      icon_path: def.image || null,
+      category: def.category, // 'territory' | 'running' | 'special'
+      level: def.rarity, // Map rarity to level/tier
+      requirement_type: reqType,
+      requirement_value: reqValue,
+      tier: def.rarity, // Keep tier column sync
+      condition_value: reqValue // Legacy column
     }
   })
 
@@ -142,7 +142,7 @@ export async function upsertBadge(data: Partial<Badge>) {
 
   // Ensure tier is set if level is present (sync logic)
   // And ensure category is valid
-  
+
   const upsertData = {
     ...data,
     tier: data.level || data.tier || 'common', // fallback
@@ -164,7 +164,7 @@ export async function upsertBadge(data: Partial<Badge>) {
 export async function fetchAllBadges() {
   const cookieStore = await cookies()
   const supabase = await createClient(cookieStore)
-  
+
   const { data, error } = await supabase
     .from('badges')
     .select('*')
@@ -268,10 +268,10 @@ export async function checkHiddenBadges(userId: string, context: { type: 'run_en
 
   // Logic for 'early-bird': Activity between 05:00 and 07:00
   if (hour >= 5 && hour < 8) {
-     const result = await grantBadge(userId, 'early-bird')
-     if (result.success && result.badgeName) {
-       results.push(result.badgeName)
-     }
+    const result = await grantBadge(userId, 'early-bird')
+    if (result.success && result.badgeName) {
+      results.push(result.badgeName)
+    }
   }
 
   // Also check progress badges whenever hidden badges are checked (e.g. after a claim)
@@ -291,13 +291,13 @@ export async function checkProgressBadges(userId: string) {
 
   // 1. Get User Stats
   const stats = await getUserProfileStats()
-  
+
   // 2. Get All Badges (that are not hidden)
   const { data: badges } = await supabase
     .from('badges')
     .select('*')
     .neq('category', 'hidden')
-  
+
   if (!badges) return []
 
   // 3. Get User's Existing Badges
@@ -313,7 +313,7 @@ export async function checkProgressBadges(userId: string) {
     if (ownedBadgeIds.has(badge.id)) continue
 
     let qualified = false
-    
+
     switch (badge.category) {
       case 'conquest': // Based on Tiles Captured
         if (stats.totalTiles >= badge.condition_value) qualified = true
@@ -324,7 +324,7 @@ export async function checkProgressBadges(userId: string) {
       case 'exploration':
         // Some exploration badges are distance (City Walker)
         if (badge.requirement_type === 'distance') {
-             if (stats.totalDistance >= badge.condition_value) qualified = true
+          if (stats.totalDistance >= badge.condition_value) qualified = true
         }
         break
     }
@@ -338,7 +338,7 @@ export async function checkProgressBadges(userId: string) {
           badge_id: badge.id,
           earned_at: new Date().toISOString()
         })
-      
+
       if (!error) {
         results.push(badge.name)
       }

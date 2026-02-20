@@ -3,13 +3,12 @@
 import { prisma } from '@/lib/prisma';
 import { evaluateTasks, RunData, TaskResult } from '@/lib/game/task-engine';
 import { revalidatePath } from 'next/cache';
+import { RunRecordDTO, ActionResponse } from '@/types/run-sync';
 
 export interface SaveRunResult {
-    success: boolean;
     runId?: string;
     newTasks?: TaskResult[];
     totalReward?: { coins: number; xp: number };
-    error?: string;
 }
 
 /**
@@ -18,23 +17,32 @@ export interface SaveRunResult {
  */
 export async function saveRunActivity(
     userId: string,
-    runData: {
-        distance: number;
-        duration: number;
-        path: any[]; // JSON
-        polygons: any[]; // JSON
-        manualLocationCount?: number;
-    }
-): Promise<SaveRunResult> {
+    runData: RunRecordDTO
+): Promise<ActionResponse<SaveRunResult>> {
     try {
         if (!userId) throw new Error('User ID is required');
+
+        // 0. Strong Idempotency Check
+        if (runData.idempotencyKey) {
+            const existingRun = await prisma.runs.findUnique({
+                where: { idempotency_key: runData.idempotencyKey }
+            });
+            if (existingRun) {
+                console.log(`[saveRunActivity] Idempotent replay blocked for key: ${runData.idempotencyKey}`);
+                return {
+                    success: true,
+                    message: "Run already processed securely.",
+                    data: { runId: existingRun.id }
+                };
+            }
+        }
 
         // 1. Prepare Run Data for Evaluation
         const evaluationData: RunData = {
             distance: runData.distance,
             duration: runData.duration,
             claims: runData.polygons,
-            timestamp: new Date(),
+            timestamp: new Date(runData.timestamp || Date.now()),
         };
 
         // 2. Evaluate Tasks (In-Memory)
@@ -51,8 +59,9 @@ export async function saveRunActivity(
                     path: runData.path as any,
                     polygons: runData.polygons as any,
                     status: 'completed',
-                    created_at: new Date(),
+                    created_at: new Date(runData.timestamp || Date.now()),
                     updated_at: new Date(),
+                    idempotency_key: runData.idempotencyKey,
                     // Province/City logic could be added here if needed
                 },
             });
@@ -165,9 +174,11 @@ export async function saveRunActivity(
 
         return {
             success: true,
-            runId: result.runId,
-            newTasks: result.newTasks,
-            totalReward: result.rewards
+            data: {
+                runId: result.runId,
+                newTasks: result.newTasks,
+                totalReward: result.rewards
+            }
         };
 
     } catch (error: any) {
