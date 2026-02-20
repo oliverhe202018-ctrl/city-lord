@@ -39,7 +39,7 @@ export const MapLayer = forwardRef<MapLayerHandle, MapLayerProps>(
             flyTo: (center, zoom = 17, duration = 1000) => {
                 if (!mapRef.current) return;
                 // AMap 2.0: setZoomAndCenter(zoom, center, immediately, duration)
-                mapRef.current.setZoomAndCenter(zoom, center, true, duration);
+                mapRef.current.setZoomAndCenter(zoom, center, false, duration);
             },
             getCenter: () => {
                 if (!mapRef.current) return null;

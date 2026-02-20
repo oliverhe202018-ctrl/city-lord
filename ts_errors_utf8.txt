@@ -1,0 +1,170 @@
+﻿app/actions/badge.ts(297,6): error TS2339: Property 'from' does not exist on type 'Promise<SupabaseClient<any, "public", "public", any, any>>'.
+app/actions/badge.ts(305,6): error TS2339: Property 'from' does not exist on type 'Promise<SupabaseClient<any, "public", "public", any, any>>'.
+app/actions/badge.ts(309,49): error TS7006: Parameter 'ub' implicitly has an 'any' type.
+app/actions/badge.ts(335,10): error TS2339: Property 'from' does not exist on type 'Promise<SupabaseClient<any, "public", "public", any, any>>'.
+app/actions/city.ts(22,31): error TS2339: Property 'id' does not exist on type 'never'.
+app/actions/city.ts(25,13): error TS2339: Property 'data' does not exist on type '{ single: () => Promise<{ data: null; error: null; }>; maybeSingle: () => Promise<{ data: null; error: null; }>; order: (col: string, opts?: any) => { limit: (n: number) => Promise<{ data: never[]; error: null; }>; }; in: () => { ...; }; is: () => { ...; }; }'.
+app/actions/city.ts(25,19): error TS2339: Property 'error' does not exist on type '{ single: () => Promise<{ data: null; error: null; }>; maybeSingle: () => Promise<{ data: null; error: null; }>; order: (col: string, opts?: any) => { limit: (n: number) => Promise<{ data: never[]; error: null; }>; }; in: () => { ...; }; is: () => { ...; }; }'.
+app/actions/city.ts(61,33): error TS2554: Expected 0 arguments, but got 1.
+app/actions/city.ts(72,27): error TS2339: Property 'id' does not exist on type 'never'.
+app/actions/city.ts(116,26): error TS2339: Property 'id' does not exist on type 'never'.
+app/actions/city.ts(136,30): error TS2339: Property 'id' does not exist on type 'never'.
+app/actions/city.ts(145,40): error TS2339: Property 'id' does not exist on type 'never'.
+app/actions/city.ts(165,51): error TS2339: Property 'id' does not exist on type 'never'.
+app/actions/city.ts(170,53): error TS2339: Property 'id' does not exist on type 'never'.
+app/actions/city.ts(180,27): error TS2339: Property 'id' does not exist on type 'never'.
+app/actions/city.ts(194,54): error TS2339: Property 'id' does not exist on type 'never'.
+app/actions/city.ts(200,43): error TS2339: Property 'id' does not exist on type 'never'.
+app/actions/city.ts(202,22): error TS2339: Property 'id' does not exist on type 'never'.
+app/actions/city.ts(229,33): error TS2554: Expected 0 arguments, but got 1.
+app/actions/city.ts(232,11): error TS2339: Property 'count' does not exist on type '{ single: () => Promise<{ data: null; error: null; }>; maybeSingle: () => Promise<{ data: null; error: null; }>; order: (col: string, opts?: any) => { limit: (n: number) => Promise<{ data: never[]; error: null; }>; }; in: () => { ...; }; is: () => { ...; }; }'.
+app/actions/city.ts(234,18): error TS2554: Expected 0-1 arguments, but got 2.
+app/actions/city.ts(243,18): error TS2554: Expected 0-1 arguments, but got 2.
+app/actions/city.ts(245,6): error TS2339: Property 'gt' does not exist on type '{ single: () => Promise<{ data: null; error: null; }>; maybeSingle: () => Promise<{ data: null; error: null; }>; order: (col: string, opts?: any) => { limit: (n: number) => Promise<{ data: never[]; error: null; }>; }; in: () => { ...; }; is: () => { ...; }; }'.
+app/actions/city.ts(248,11): error TS2339: Property 'count' does not exist on type '{ single: () => Promise<{ data: null; error: null; }>; maybeSingle: () => Promise<{ data: null; error: null; }>; order: (col: string, opts?: any) => { limit: (n: number) => Promise<{ data: never[]; error: null; }>; }; in: () => { ...; }; is: () => { ...; }; }'.
+app/actions/city.ts(250,18): error TS2554: Expected 0-1 arguments, but got 2.
+app/actions/city.ts(268,33): error TS2554: Expected 0 arguments, but got 1.
+app/actions/city.ts(320,33): error TS2554: Expected 0 arguments, but got 1.
+app/actions/city.ts(328,25): error TS2339: Property 'id' does not exist on type 'never'.
+app/actions/city.ts(329,6): error TS2339: Property 'eq' does not exist on type '{ single: () => Promise<{ data: null; error: null; }>; maybeSingle: () => Promise<{ data: null; error: null; }>; order: (col: string, opts?: any) => { limit: (n: number) => Promise<{ data: never[]; error: null; }>; }; in: () => { ...; }; is: () => { ...; }; }'.
+app/actions/city.ts(345,18): error TS2554: Expected 0-1 arguments, but got 2.
+app/actions/city.ts(347,6): error TS2339: Property 'gt' does not exist on type '{ single: () => Promise<{ data: null; error: null; }>; maybeSingle: () => Promise<{ data: null; error: null; }>; order: (col: string, opts?: any) => { limit: (n: number) => Promise<{ data: never[]; error: null; }>; }; in: () => { ...; }; is: () => { ...; }; }'.
+app/actions/city.ts(370,33): error TS2554: Expected 0 arguments, but got 1.
+app/actions/city.ts(378,21): error TS2339: Property 'id' does not exist on type 'never'.
+app/actions/city.ts(383,6): error TS2339: Property 'select' does not exist on type 'Promise<{ data: null; error: null; select: () => { single: () => Promise<{ data: null; error: null; }>; }; }>'.
+app/actions/club.ts(178,11): error TS2353: Object literal may only specify known properties, and 'message' does not exist in type 'Without<notificationsCreateInput, notificationsUncheckedCreateInput> & notificationsUncheckedCreateInput'.
+app/actions/club.ts(205,11): error TS2353: Object literal may only specify known properties, and 'message' does not exist in type 'Without<notificationsCreateInput, notificationsUncheckedCreateInput> & notificationsUncheckedCreateInput'.
+app/actions/club.ts(1154,7): error TS2552: Cannot find name 'error'. Did you mean 'Error'?
+app/actions/club.ts(1155,53): error TS2552: Cannot find name 'error'. Did you mean 'Error'?
+app/actions/club.ts(1161,50): error TS2304: Cannot find name 'data'.
+app/actions/referral.ts(32,22): error TS2339: Property 'id' does not exist on type 'never'.
+app/actions/referral.ts(40,13): error TS2339: Property 'data' does not exist on type '{ limit: (n: number) => Promise<{ data: never[]; error: null; }>; }'.
+app/actions/referral.ts(40,29): error TS2339: Property 'error' does not exist on type '{ limit: (n: number) => Promise<{ data: never[]; error: null; }>; }'.
+app/actions/referral.ts(43,31): error TS2339: Property 'id' does not exist on type 'never'.
+app/actions/referral.ts(66,31): error TS2339: Property 'referral_code' does not exist on type 'never'.
+app/actions/referral.ts(84,35): error TS2554: Expected 0 arguments, but got 1.
+app/actions/referral.ts(95,25): error TS2339: Property 'nickname' does not exist on type 'never'.
+app/actions/referral.ts(96,27): error TS2339: Property 'avatar_url' does not exist on type 'never'.
+app/actions/social.ts(76,19): error TS2352: Conversion of type '({ id: string; name: string; avatar: string | null; level: number; status: "online" | "offline" | "running"; lastActive: string; lastActiveAt: Date; hexCount: number; totalKm: number; clan: undefined; clanColor: undefined; } | null)[]' to type 'Friend[]' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type '{ id: string; name: string; avatar: string | null; level: number; status: "online" | "offline" | "running"; lastActive: string; lastActiveAt: Date; hexCount: number; totalKm: number; clan: undefined; clanColor: undefined; } | null' is not comparable to type 'Friend'.
+    Type '{ id: string; name: string; avatar: string | null; level: number; status: "online" | "offline" | "running"; lastActive: string; lastActiveAt: Date; hexCount: number; totalKm: number; clan: undefined; clanColor: undefined; }' is not comparable to type 'Friend'.
+      Types of property 'lastActiveAt' are incompatible.
+        Type 'Date' is not comparable to type 'string'.
+app/actions/social.ts(201,9): error TS2322: Type '{ id: string; user: { name: any; avatar: any; level: any; }; type: "capture"; content: { title: string; description: string; stats: { label: string; value: string; }[]; }; timestamp: string; likes: number; comments: number; }[]' is not assignable to type 'FriendActivity[]'.
+  Type '{ id: string; user: { name: any; avatar: any; level: any; }; type: "capture"; content: { title: string; description: string; stats: { label: string; value: string; }[]; }; timestamp: string; likes: number; comments: number; }' is not assignable to type 'FriendActivity'.
+    Types of property 'user' are incompatible.
+      Property 'id' is missing in type '{ name: any; avatar: any; level: any; }' but required in type '{ id: string; name: string; avatar?: string | undefined; level: number; clan?: string | undefined; }'.
+app/actions/social.ts(240,9): error TS2322: Type '{ id: string; user: { name: any; avatar: any; level: any; }; type: "achievement"; content: { title: string; description: string; stats: never[]; }; timestamp: string; likes: number; comments: number; }[]' is not assignable to type 'FriendActivity[]'.
+  Type '{ id: string; user: { name: any; avatar: any; level: any; }; type: "achievement"; content: { title: string; description: string; stats: never[]; }; timestamp: string; likes: number; comments: number; }' is not assignable to type 'FriendActivity'.
+    Types of property 'user' are incompatible.
+      Property 'id' is missing in type '{ name: any; avatar: any; level: any; }' but required in type '{ id: string; name: string; avatar?: string | undefined; level: number; clan?: string | undefined; }'.
+app/admin/badges/page.tsx(50,18): error TS2322: Type '{ image: string; rarity: string; requirement_value: number; maxProgress: number; name: string; id: string; description: string | null; level: string | null; code: string; category: string | null; ... 5 more ...; requirement_description: string | null; }[]' is not assignable to type 'Badge[]'.
+  Type '{ image: string; rarity: string; requirement_value: number; maxProgress: number; name: string; id: string; description: string | null; level: string | null; code: string; category: string | null; ... 5 more ...; requirement_description: string | null; }' is not assignable to type 'Badge'.
+    Types of property 'description' are incompatible.
+      Type 'string | null' is not assignable to type 'string'.
+        Type 'null' is not assignable to type 'string'.
+app/admin/clubs/page.tsx(213,18): error TS2345: Argument of type 'never[] | { name: string; id: string; description: string | null; owner_id: string | null; created_at: { toString: {}; toDateString: {}; toTimeString: {}; toLocaleString: {}; toLocaleDateString: {}; ... 38 more ...; [Symbol.toPrimitive]: {}; }; ... 10 more ...; is_public: boolean | null; }[]' is not assignable to parameter of type 'SetStateAction<PendingClubDTO[]>'.
+  Type '{ name: string; id: string; description: string | null; owner_id: string | null; created_at: { toString: {}; toDateString: {}; toTimeString: {}; toLocaleString: {}; toLocaleDateString: {}; toLocaleTimeString: {}; ... 37 more ...; [Symbol.toPrimitive]: {}; }; ... 10 more ...; is_public: boolean | null; }[]' is not assignable to type 'SetStateAction<PendingClubDTO[]>'.
+    Type '{ name: string; id: string; description: string | null; owner_id: string | null; created_at: { toString: {}; toDateString: {}; toTimeString: {}; toLocaleString: {}; toLocaleDateString: {}; toLocaleTimeString: {}; ... 37 more ...; [Symbol.toPrimitive]: {}; }; ... 10 more ...; is_public: boolean | null; }[]' is not assignable to type 'PendingClubDTO[]'.
+      Type '{ name: string; id: string; description: string | null; owner_id: string | null; created_at: { toString: {}; toDateString: {}; toTimeString: {}; toLocaleString: {}; toLocaleDateString: {}; toLocaleTimeString: {}; ... 37 more ...; [Symbol.toPrimitive]: {}; }; ... 10 more ...; is_public: boolean | null; }' is missing the following properties from type 'PendingClubDTO': creator_name, creator_avatar
+app/admin/clubs/page.tsx(219,26): error TS2345: Argument of type 'never[] | { name: string; id: string; description: string | null; owner_id: string | null; created_at: { toString: {}; toDateString: {}; toTimeString: {}; toLocaleString: {}; toLocaleDateString: {}; ... 38 more ...; [Symbol.toPrimitive]: {}; }; ... 10 more ...; is_public: boolean | null; }[]' is not assignable to parameter of type 'SetStateAction<ApprovedClubDTO[]>'.
+  Type '{ name: string; id: string; description: string | null; owner_id: string | null; created_at: { toString: {}; toDateString: {}; toTimeString: {}; toLocaleString: {}; toLocaleDateString: {}; toLocaleTimeString: {}; ... 37 more ...; [Symbol.toPrimitive]: {}; }; ... 10 more ...; is_public: boolean | null; }[]' is not assignable to type 'SetStateAction<ApprovedClubDTO[]>'.
+    Type '{ name: string; id: string; description: string | null; owner_id: string | null; created_at: { toString: {}; toDateString: {}; toTimeString: {}; toLocaleString: {}; toLocaleDateString: {}; toLocaleTimeString: {}; ... 37 more ...; [Symbol.toPrimitive]: {}; }; ... 10 more ...; is_public: boolean | null; }[]' is not assignable to type 'ApprovedClubDTO[]'.
+      Property 'creator_name' is missing in type '{ name: string; id: string; description: string | null; owner_id: string | null; created_at: { toString: {}; toDateString: {}; toTimeString: {}; toLocaleString: {}; toLocaleDateString: {}; toLocaleTimeString: {}; ... 37 more ...; [Symbol.toPrimitive]: {}; }; ... 10 more ...; is_public: boolean | null; }' but required in type 'ApprovedClubDTO'.
+app/challenges/page.tsx(63,17): error TS2339: Property 'id' does not exist on type 'UserMission'.
+app/challenges/page.tsx(65,19): error TS2339: Property 'title' does not exist on type 'UserMission'.
+app/challenges/page.tsx(66,26): error TS2339: Property 'description' does not exist on type 'UserMission'.
+app/challenges/page.tsx(67,87): error TS2339: Property 'type' does not exist on type 'UserMission'.
+app/challenges/page.tsx(67,97): error TS2339: Property 'type' does not exist on type 'UserMission'.
+app/challenges/page.tsx(68,49): error TS2339: Property 'target' does not exist on type 'UserMission'.
+app/challenges/page.tsx(68,68): error TS2339: Property 'current' does not exist on type 'UserMission'.
+app/challenges/page.tsx(70,27): error TS2339: Property 'reward' does not exist on type 'UserMission'.
+app/challenges/page.tsx(71,23): error TS2339: Property 'reward' does not exist on type 'UserMission'.
+app/challenges/page.tsx(76,34): error TS2339: Property 'current' does not exist on type 'UserMission'.
+app/challenges/page.tsx(76,55): error TS2339: Property 'target' does not exist on type 'UserMission'.
+app/challenges/page.tsx(77,26): error TS2339: Property 'type' does not exist on type 'UserMission'.
+app/feedback/actions.ts(35,47): error TS2339: Property 'auth' does not exist on type 'Promise<SupabaseClient<any, "public", "public", any, any>>'.
+app/feedback/actions.ts(52,53): error TS2339: Property 'storage' does not exist on type 'Promise<SupabaseClient<any, "public", "public", any, any>>'.
+app/feedback/actions.ts(62,48): error TS2339: Property 'storage' does not exist on type 'Promise<SupabaseClient<any, "public", "public", any, any>>'.
+app/feedback/actions.ts(71,8): error TS2339: Property 'from' does not exist on type 'Promise<SupabaseClient<any, "public", "public", any, any>>'.
+app/lord-center/page.tsx(23,11): error TS2339: Property 'userStats' does not exist on type 'GameStore'.
+capacitor.config.ts(21,7): error TS2322: Type '"native"' is not assignable to type 'KeyboardResize | undefined'.
+capacitor.config.ts(23,7): error TS2820: Type '"dark"' is not assignable to type 'KeyboardStyle | undefined'. Did you mean 'KeyboardStyle.Dark'?
+components/citylord/achievements/achievement-wall.tsx(262,46): error TS7006: Parameter 'p' implicitly has an 'any' type.
+components/citylord/club/ClubManageDrawer.tsx(504,7): error TS2322: Type '{ children: Element; open: boolean; onOpenChange: () => void; snapPoints: number[]; activeSnapPoint: string | number | null; onActiveSnapPointChange: Dispatch<SetStateAction<string | number | null>>; dismissible: true; repositionInputs: false; }' is not assignable to type 'IntrinsicAttributes & DialogProps'.
+  Property 'onActiveSnapPointChange' does not exist on type 'IntrinsicAttributes & DialogProps'.
+components/citylord/club/CreateClubDrawer.tsx(124,7): error TS2322: Type '{ children: Element; open: boolean; onOpenChange: (open: boolean) => false | void; snapPoints: number[]; activeSnapPoint: string | number | null; onActiveSnapPointChange: Dispatch<SetStateAction<...>>; dismissible: true; repositionInputs: false; }' is not assignable to type 'IntrinsicAttributes & DialogProps'.
+  Property 'onActiveSnapPointChange' does not exist on type 'IntrinsicAttributes & DialogProps'.
+components/citylord/club/CreateClubDrawer.tsx(157,17): error TS2322: Type '{ currentAvatarUrl: string; onUploadComplete: (url: string) => void; size: number; cropShape: "rect"; cropAspect: number; }' is not assignable to type 'IntrinsicAttributes & AvatarUploaderProps'.
+  Property 'cropAspect' does not exist on type 'IntrinsicAttributes & AvatarUploaderProps'.
+components/citylord/map/PlannerClientView.tsx(254,53): error TS2304: Cannot find name 'handleNativeTouch'.
+components/citylord/running/RunningMap.tsx(196,39): error TS18047: 'AMap' is possibly 'null'.
+components/citylord/running/RunningMap.tsx(243,42): error TS2554: Expected 0 arguments, but got 1.
+components/citylord/social/social-page.tsx(178,13): error TS2322: Type '{ id: string; name: string; level: number; avatar?: string | null | undefined; } | undefined' is not assignable to type '{ id?: string | undefined; name: string; level: number; avatar?: string | undefined; } | undefined'.
+  Type '{ id: string; name: string; level: number; avatar?: string | null | undefined; }' is not assignable to type '{ id?: string | undefined; name: string; level: number; avatar?: string | undefined; }'.
+    Types of property 'avatar' are incompatible.
+      Type 'string | null | undefined' is not assignable to type 'string | undefined'.
+        Type 'null' is not assignable to type 'string | undefined'.
+components/map/AMapView.tsx(95,15): error TS2322: Type 'AMapInstance | null | undefined' is not assignable to type 'Map_2 | null'.
+  Type 'undefined' is not assignable to type 'Map_2 | null'.
+components/map/CityDrawer.tsx(51,7): error TS2322: Type '{ children: Element; open: boolean; onOpenChange: (open: boolean) => false | void; snapPoints: number[]; activeSnapPoint: string | number | null; onActiveSnapPointChange: Dispatch<SetStateAction<...>>; dismissible: true; }' is not assignable to type 'IntrinsicAttributes & DialogProps'.
+  Property 'onActiveSnapPointChange' does not exist on type 'IntrinsicAttributes & DialogProps'.
+components/map/GaodeMap3D.tsx(15,5): error TS2717: Subsequent property declarations must have the same type.  Property 'AMap' must be of type 'typeof AMap', but here has type 'any'.
+components/map/GaodeMap3D.tsx(287,41): error TS2345: Argument of type 'string[]' is not assignable to parameter of type 'string'.
+components/map/GaodeMap3D.tsx(291,19): error TS2339: Property 'features' does not exist on type '{ type: string; geometry: { type: string; coordinates: number[][][]; }; properties: any; }'.
+components/map/GaodeMap3D.tsx(304,37): error TS2339: Property 'features' does not exist on type '{ type: string; geometry: { type: string; coordinates: number[][][]; }; properties: any; }'.
+components/map/GaodeMap3D.tsx(417,11): error TS2322: Type 'number[][]' is not assignable to type 'LngLatLike[] | LngLatLike[][] | undefined'.
+  Type 'number[][]' is not assignable to type 'LngLatLike[]'.
+    Type 'number[]' is not assignable to type 'LngLatLike'.
+      Type 'number[]' is not assignable to type '[number, number]'.
+        Target requires 2 element(s) but source may have fewer.
+components/map/GaodeMap3D.tsx(510,11): error TS2322: Type 'number[][]' is not assignable to type 'LngLatLike[] | LngLatLike[][] | undefined'.
+  Type 'number[][]' is not assignable to type 'LngLatLike[]'.
+    Type 'number[]' is not assignable to type 'LngLatLike'.
+      Type 'number[]' is not assignable to type '[number, number]'.
+        Target requires 2 element(s) but source may have fewer.
+components/map/GaodeMap3D.tsx(550,42): error TS2554: Expected 0 arguments, but got 1.
+components/map/layers/ClaimedPolygonLayer.tsx(65,50): error TS2554: Expected 0 arguments, but got 1.
+components/map/layers/ClubKingdomLayer.tsx(73,65): error TS2345: Argument of type '{ zIndex: number; zooms: [number, number]; }' is not assignable to parameter of type 'CustomLayerOption'.
+  Property 'render' is missing in type '{ zIndex: number; zooms: [number, number]; }' but required in type 'CustomLayerOption'.
+components/map/layers/ClubKingdomLayer.tsx(81,21): error TS2339: Property 'render' does not exist on type 'CustomLayer'.
+components/map/layers/KingdomLayer.tsx(69,54): error TS2554: Expected 0 arguments, but got 1.
+components/map/layers/UserMarkerLayer.tsx(94,9): error TS2322: Type 'number[]' is not assignable to type 'LngLat | Vector2 | undefined'.
+  Type 'number[]' is not assignable to type 'Vector2'.
+    Target requires 2 element(s) but source may have fewer.
+components/map/MapHeader.tsx(179,40): error TS2339: Property 'Geocoder' does not exist on type 'typeof AMap'.
+components/map/RunHistoryDrawer.tsx(95,7): error TS2322: Type '{ children: Element; open: boolean; onOpenChange: () => void; snapPoints: number[]; activeSnapPoint: string | number | null; onActiveSnapPointChange: Dispatch<SetStateAction<string | number | null>>; dismissible: true; }' is not assignable to type 'IntrinsicAttributes & DialogProps'.
+  Property 'onActiveSnapPointChange' does not exist on type 'IntrinsicAttributes & DialogProps'.
+components/mode/ClubDrawer.tsx(327,35): error TS7006: Parameter 'c' implicitly has an 'any' type.
+components/mode/ModeDrawer.tsx(75,7): error TS2322: Type '{ children: Element; open: boolean; onOpenChange: () => void; snapPoints: number[]; activeSnapPoint: string | number | null; onActiveSnapPointChange: Dispatch<SetStateAction<string | number | null>>; dismissible: true; }' is not assignable to type 'IntrinsicAttributes & DialogProps'.
+  Property 'onActiveSnapPointChange' does not exist on type 'IntrinsicAttributes & DialogProps'.
+components/mode/PlayerStatsDrawer.tsx(50,7): error TS2322: Type '{ children: Element; open: boolean; onOpenChange: () => void; snapPoints: number[]; activeSnapPoint: string | number | null; onActiveSnapPointChange: Dispatch<SetStateAction<string | number | null>>; dismissible: true; }' is not assignable to type 'IntrinsicAttributes & DialogProps'.
+  Property 'onActiveSnapPointChange' does not exist on type 'IntrinsicAttributes & DialogProps'.
+components/mode/RoomDrawer.tsx(724,75): error TS2339: Property 'startsWith' does not exist on type 'never'.
+components/room/RoomSelector.tsx(104,7): error TS2722: Cannot invoke an object which is possibly 'undefined'.
+components/running/RunningHUD.tsx(207,45): error TS7006: Parameter 'm' implicitly has an 'any' type.
+lib/capacitor/safe-plugins.ts(299,5): error TS2322: Type 'string' is not assignable to type '"unknown" | "android" | "ios" | "web"'.
+lib/data-fetcher.ts(2,30): error TS2307: Cannot find module './CacheManager' or its corresponding type declarations.
+lib/game-logic/mission-checker.ts(26,33): error TS2554: Expected 0 arguments, but got 1.
+lib/game-logic/mission-checker.ts(46,6): error TS2339: Property 'neq' does not exist on type '{ single: () => Promise<{ data: null; error: null; }>; maybeSingle: () => Promise<{ data: null; error: null; }>; order: (col: string, opts?: any) => { limit: (n: number) => Promise<{ data: never[]; error: null; }>; }; in: () => { ...; }; is: () => { ...; }; }'.
+lib/game-logic/mission-checker.ts(137,17): error TS2339: Property 'count' does not exist on type '{ single: () => Promise<{ data: null; error: null; }>; maybeSingle: () => Promise<{ data: null; error: null; }>; order: (col: string, opts?: any) => { limit: (n: number) => Promise<{ data: never[]; error: null; }>; }; in: () => { ...; }; is: () => { ...; }; }'.
+lib/game-logic/mission-checker.ts(139,24): error TS2554: Expected 0-1 arguments, but got 2.
+lib/game-logic/mission-checker.ts(190,10): error TS2339: Property 'eq' does not exist on type 'Promise<{ data: null; error: null; }>'.
+lib/game-logic/mission-service.ts(171,33): error TS2554: Expected 0 arguments, but got 1.
+lib/game-logic/mission-service.ts(191,13): error TS2339: Property 'data' does not exist on type '{ single: () => Promise<{ data: null; error: null; }>; maybeSingle: () => Promise<{ data: null; error: null; }>; order: (col: string, opts?: any) => { limit: (n: number) => Promise<{ data: never[]; error: null; }>; }; in: () => { ...; }; is: () => { ...; }; }'.
+lib/game-logic/mission-service.ts(191,37): error TS2339: Property 'error' does not exist on type '{ single: () => Promise<{ data: null; error: null; }>; maybeSingle: () => Promise<{ data: null; error: null; }>; order: (col: string, opts?: any) => { limit: (n: number) => Promise<{ data: never[]; error: null; }>; }; in: () => { ...; }; is: () => { ...; }; }'.
+lib/game-logic/mission-service.ts(205,55): error TS7006: Parameter 'm' implicitly has an 'any' type.
+lib/game-logic/mission-service.ts(228,21): error TS2339: Property 'updated_at' does not exist on type '{}'.
+lib/game-logic/mission-service.ts(230,44): error TS2339: Property 'updated_at' does not exist on type '{}'.
+lib/game-logic/mission-service.ts(285,10): error TS2339: Property 'in' does not exist on type 'Promise<{ data: null; error: null; }>'.
+lib/onesignal/init.ts(16,20): error TS2551: Property 'plugins' does not exist on type 'Window & typeof globalThis'. Did you mean 'Plugin'?
+lib/onesignal/init.ts(16,38): error TS2551: Property 'plugins' does not exist on type 'Window & typeof globalThis'. Did you mean 'Plugin'?
+lib/onesignal/init.ts(17,20): error TS2551: Property 'plugins' does not exist on type 'Window & typeof globalThis'. Did you mean 'Plugin'?
+lib/onesignal/init.ts(19,20): error TS2551: Property 'plugins' does not exist on type 'Window & typeof globalThis'. Did you mean 'Plugin'?
+lib/onesignal/init.ts(19,76): error TS7006: Parameter 'jsonData' implicitly has an 'any' type.
+lib/onesignal/init.ts(24,20): error TS2551: Property 'plugins' does not exist on type 'Window & typeof globalThis'. Did you mean 'Plugin'?
+lib/onesignal/init.ts(24,90): error TS7006: Parameter 'accepted' implicitly has an 'any' type.
+lib/onesignal/init.ts(37,49): error TS2551: Property 'plugins' does not exist on type 'Window & typeof globalThis'. Did you mean 'Plugin'?
+lib/onesignal/init.ts(37,67): error TS2551: Property 'plugins' does not exist on type 'Window & typeof globalThis'. Did you mean 'Plugin'?
+lib/onesignal/init.ts(38,16): error TS2551: Property 'plugins' does not exist on type 'Window & typeof globalThis'. Did you mean 'Plugin'?
+scripts/test-notification.ts(14,42): error TS2339: Property 'display_name' does not exist on type '{ badges: string[]; id: string; created_at: Date; province: string | null; total_area: number | null; avatar_url: string | null; level: number | null; club_id: string | null; nickname: string | null; ... 17 more ...; api_key: string | null; }'.

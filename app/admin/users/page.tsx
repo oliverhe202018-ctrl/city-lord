@@ -2,13 +2,13 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from '@/components/ui/table'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -46,7 +46,7 @@ export default function UsersPage() {
         .from('profiles')
         .select('*')
         .order('created_at', { ascending: false })
-      
+
       if (debouncedSearch) {
         query = query.ilike('nickname', `%${debouncedSearch}%`)
       }
@@ -54,7 +54,7 @@ export default function UsersPage() {
       const { data, error } = await query
 
       if (error) throw error
-      
+
       setProfiles(data || [])
     } catch (err: any) {
       console.error('Error fetching profiles:', err)

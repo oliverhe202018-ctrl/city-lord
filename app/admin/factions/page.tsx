@@ -28,7 +28,7 @@ export default function FactionsPage() {
   const [config, setConfig] = useState<any | null>(null)
   const [loadingConfig, setLoadingConfig] = useState(true)
   const [saving, setSaving] = useState(false)
-  
+
   // Use DB column names for state to avoid confusion
   const [formData, setFormData] = useState({
     imbalance_threshold: 20,
@@ -48,7 +48,7 @@ export default function FactionsPage() {
     try {
       // Use Server Action directly instead of API fetch
       const stats = await getFactionStats()
-      
+
       setRedCount(stats.RED)
       setBlueCount(stats.BLUE)
     } catch (err: any) {
@@ -88,25 +88,25 @@ export default function FactionsPage() {
           underdog_multiplier: 1.5,
           auto_balance_enabled: true
         }
-        
+
         const { data: newData, error: insertError } = await supabase
-            .from('faction_balance_configs')
-            .insert(defaultConfig)
-            .select()
-            .single()
-            
+          .from('faction_balance_configs')
+          .insert(defaultConfig)
+          .select()
+          .single()
+
         if (insertError) {
-             console.error("Failed to auto-initialize config:", insertError)
-             // Set form data anyway so user can try manual save
-             setFormData(defaultConfig)
+          console.error("Failed to auto-initialize config:", insertError)
+          // Set form data anyway so user can try manual save
+          setFormData(defaultConfig)
         } else {
-             setConfig(newData)
-             setFormData({
-               imbalance_threshold: (newData as any).imbalance_threshold,
-               underdog_multiplier: (newData as any).underdog_multiplier,
-               auto_balance_enabled: (newData as any).auto_balance_enabled
-             })
-             toast.success("已自动初始化阵营平衡配置")
+          setConfig(newData)
+          setFormData({
+            imbalance_threshold: (newData as any).imbalance_threshold,
+            underdog_multiplier: (newData as any).underdog_multiplier,
+            auto_balance_enabled: (newData as any).auto_balance_enabled
+          })
+          toast.success("已自动初始化阵营平衡配置")
         }
       }
     } catch (err: any) {
@@ -178,9 +178,9 @@ export default function FactionsPage() {
       }
 
       setConfig(data)
-      
+
       await logAction(
-        'update_faction_balance', 
+        'update_faction_balance',
         `更新阵营平衡配置: 自动平衡 ${payload.auto_balance_enabled ? '开' : '关'} (动态倍率算法已启用)`
       )
 
@@ -188,7 +188,7 @@ export default function FactionsPage() {
     } catch (err: any) {
       console.error('Error saving config:', err)
       toast.error(`保存失败: ${err.message || '未知错误'}`, {
-         description: err.details || '请检查控制台获取更多信息'
+        description: err.details || '请检查控制台获取更多信息'
       })
     } finally {
       setSaving(false)
@@ -197,19 +197,19 @@ export default function FactionsPage() {
 
   // --- Real-time Calculations ---
   const currentBalance = calculateFactionBalance(
-    redCount, 
-    blueCount, 
+    redCount,
+    blueCount,
     formData.auto_balance_enabled
   )
 
   const totalUsers = redCount + blueCount
   const redPercentage = totalUsers > 0 ? (redCount / totalUsers) * 100 : 50
   const bluePercentage = totalUsers > 0 ? (blueCount / totalUsers) * 100 : 50
-  
+
   // --- Simulation Calculations ---
   const simBalance = calculateFactionBalance(
-    simRed, 
-    simBlue, 
+    simRed,
+    simBlue,
     formData.auto_balance_enabled
   )
   const simTotal = simRed + simBlue
@@ -219,13 +219,13 @@ export default function FactionsPage() {
   // Custom Progress Bar Component
   const FactionProgressBar = ({ red, blue }: { red: number, blue: number }) => (
     <div className="relative h-8 w-full overflow-hidden rounded-full bg-slate-800">
-      <div 
+      <div
         className="absolute left-0 top-0 h-full bg-red-500 transition-all duration-500 flex items-center justify-start pl-3 text-xs font-bold text-white"
         style={{ width: `${red}%` }}
       >
         {red.toFixed(1)}%
       </div>
-      <div 
+      <div
         className="absolute right-0 top-0 h-full bg-blue-500 transition-all duration-500 flex items-center justify-end pr-3 text-xs font-bold text-white"
         style={{ width: `${blue}%` }}
       >
@@ -267,13 +267,13 @@ export default function FactionsPage() {
         <CardContent>
           <div className="space-y-6">
             <FactionProgressBar red={redPercentage} blue={bluePercentage} />
-            
+
             <div className="flex justify-between text-sm">
               <div className="flex flex-col items-start">
                 <span className="font-bold text-red-500 text-lg">{redCount}</span>
                 <span className="text-muted-foreground">红方人数</span>
               </div>
-              
+
               <div className="flex flex-col items-center">
                 {currentBalance.multiplier > 1.0 ? (
                   <Badge variant="default" className="bg-yellow-500 hover:bg-yellow-600 text-black font-bold animate-pulse">
@@ -374,7 +374,7 @@ export default function FactionsPage() {
                   <ul className="list-disc list-inside mt-2 space-y-1 text-white/70">
                     <li>总人数: {simTotal}，差距: {simDiffPercent.toFixed(1)}%</li>
                     <li>
-                      判定结果: 
+                      判定结果:
                       {simBalance.multiplier > 1.0 ? (
                         <>
                           <span className={`font-bold mx-1 ${simBalance.underdog === 'red' ? 'text-red-400' : 'text-blue-400'}`}>
@@ -403,8 +403,8 @@ export default function FactionsPage() {
           </CardTitle>
           {!config?.id && !loadingConfig && (
             <CardDescription className="text-yellow-500 flex items-center gap-2">
-               <AlertCircle className="h-4 w-4" />
-               当前无配置数据，请点击下方按钮初始化。
+              <AlertCircle className="h-4 w-4" />
+              当前无配置数据，请点击下方按钮初始化。
             </CardDescription>
           )}
         </CardHeader>

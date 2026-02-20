@@ -35,16 +35,37 @@ export function MapRoot({ children }: { children: ReactNode }) {
   const { themeId } = useTheme();
 
   // Running Game State Model
-  const DEFAULT_LOCATION: GeoPoint = {
-    lat: 39.90923,
-    lng: 116.397428,
-    source: 'cache'
-  };
+  const DEFAULT_CENTER: [number, number] = [116.397428, 39.90923];
 
   const [userPosition, setUserPosition] = useState<GeoPoint | null>(null);
   const [userPath, setUserPath] = useState<GeoPoint[]>([]); // GPS trajectory (source of truth)
-  const [mapCenter, setMapCenter] = useState<[number, number]>([116.397428, 39.90923]);
+
+  // Synchronous cache read for instant map center (avoids Beijing flash)
+  // Wrapped in typeof window check to prevent Next.js hydration mismatch
+  const [mapCenter, setMapCenter] = useState<[number, number]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('last_known_location');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed?.lat && parsed?.lng &&
+            typeof parsed.lat === 'number' && typeof parsed.lng === 'number') {
+            return [parsed.lng, parsed.lat] as [number, number];
+          }
+        }
+      } catch {
+        // Silently fall back to default on parse error
+      }
+    }
+    return DEFAULT_CENTER;
+  });
+
   const [isTracking, setIsTracking] = useState<boolean>(true); // Auto-follow initially
+  const isTrackingRef = useRef(isTracking);
+  useEffect(() => {
+    isTrackingRef.current = isTracking;
+  }, [isTracking]);
+
   const [showKingdom, setShowKingdom] = useState<boolean>(true); // Kingdom layer visible by default
   const [kingdomMode, setKingdomMode] = useState<'personal' | 'club'>('personal');
   const [showFog, setShowFog] = useState<boolean>(false); // Fog layer off by default
@@ -58,15 +79,77 @@ export function MapRoot({ children }: { children: ReactNode }) {
   }, []);
 
   const mapLayerRef = useRef<any>(null);
-  const hasInitialFlown = useRef(false);
+  const positionStage = useRef<'cache' | 'network-coarse' | 'gps-precise' | null>(null);
+  const initRendered = useRef<boolean>(false); // C.3: Stage initialization deduplication (prevent double fly)
+  const lastFlyTime = useRef<number>(0);
+  const flyReason = useRef<string>('none');
+
+  // C.1: Pending cannot just be the fix. Store the entire parameter set.
+  const pendingFlyRef = useRef<{
+    fix: GeoPoint,
+    duration: number,
+    zoom: number, // not strictly used yet but reserved for semantic completeness
+    reason: string,
+    ts: number
+  } | null>(null);
+
+  const throttleTimerRef = useRef<NodeJS.Timeout | null>(null);
   const userInteracted = useRef(false); // Track manual map drag to prevent auto-jump
 
+  // B.1: Cleanup throttle timer on unmount
+  useEffect(() => {
+    return () => {
+      if (throttleTimerRef.current) {
+        clearTimeout(throttleTimerRef.current);
+      }
+    };
+  }, []);
+
   // Safe geolocation with 50m accuracy filtering
-  const { location, loading, error, gpsSignalStrength, status, retry } = useSafeGeolocation({
+  const { location, loading, error, gpsSignalStrength, status, retry, getDebugData } = useSafeGeolocation({
     enableHighAccuracy: true,
     timeout: 30000,
     maximumAge: 0
   });
+
+  // Debug states (C.7)
+  const userPositionRef = useRef<GeoPoint | null>(null);
+  useEffect(() => {
+    userPositionRef.current = userPosition;
+  }, [userPosition]);
+
+  const [debugInfo, setDebugInfo] = useState<any>(null);
+  const getDebugDataRef = useRef<(() => any) | null>(null);
+  const statusRef = useRef(status);
+  const gpsSignalStrengthRef = useRef(gpsSignalStrength);
+  useEffect(() => { getDebugDataRef.current = getDebugData; }, [getDebugData]);
+  useEffect(() => { statusRef.current = status; }, [status]);
+  useEffect(() => { gpsSignalStrengthRef.current = gpsSignalStrength; }, [gpsSignalStrength]);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (process.env.NODE_ENV === 'development' || (typeof window !== 'undefined' && window.location.search.includes('debug=1'))) {
+      interval = setInterval(() => {
+        const hookDebug = getDebugDataRef.current?.() || {};
+        setDebugInfo({
+          source: userPositionRef.current?.source || 'none',
+          accuracy: userPositionRef.current?.accuracy || 'N/A',
+          isTracking: isTrackingRef.current,
+          userInteracted: userInteracted.current,
+          hasTimer: throttleTimerRef.current !== null,
+          pendingReason: pendingFlyRef.current?.reason || 'none',
+          lastFlyReason: flyReason.current,
+          watchIdExists: hookDebug.watchIdExists,
+          restartInFlight: hookDebug.restartInFlight,
+          gpsSignalStrength: gpsSignalStrengthRef.current,
+          status: statusRef.current
+        });
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, []);
 
   // --- GPS Status → Game Store Sync ---
   const setGpsStatus = useGameStore(state => state.setGpsStatus);
@@ -79,8 +162,8 @@ export function MapRoot({ children }: { children: ReactNode }) {
     if (!isRunning) {
       resetRunState();
     }
-    // Also reset fly flag for fresh login
-    hasInitialFlown.current = false;
+    // Also reset stage for fresh login
+    positionStage.current = null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -108,22 +191,49 @@ export function MapRoot({ children }: { children: ReactNode }) {
     }
   }, [location, updateStoreLocation]);
 
-  // Init with cache (Client-side only to avoid hydration mismatch)
+  // Init userPosition from cache (Client-side only)
+  // Note: mapCenter is already initialized synchronously in useState above.
   useEffect(() => {
     try {
       const cached = localStorage.getItem('last_known_location');
       if (cached) {
         const parsed = JSON.parse(cached);
-        if (parsed?.lat && parsed?.lng) {
+        if (parsed?.lat && parsed?.lng &&
+          typeof parsed.lat === 'number' && typeof parsed.lng === 'number') {
           // Only set if we don't have a real GPS lock yet
-          setUserPosition(prev => prev ? prev : { ...parsed, source: 'cache' });
-          setMapCenter([parsed.lng, parsed.lat]);
+          setUserPosition(prev => prev ? prev : { ...parsed, source: 'cache' as const });
         }
       }
-    } catch (e) {
-      // Ignore cache errors
+    } catch {
+      // Silently ignore cache errors
     }
   }, []);
+
+  // Setup Map Interaction Listeners for dragstart/touchstart to disable tracking
+  useEffect(() => {
+    if (!map) return;
+    const handleInteraction = () => {
+      if (isTracking) {
+        setIsTracking(false);
+      }
+      userInteracted.current = true;
+      // B.2: Clear pending flyTo timer immediately when user interacts
+      if (throttleTimerRef.current) {
+        clearTimeout(throttleTimerRef.current);
+        throttleTimerRef.current = null;
+      }
+      pendingFlyRef.current = null;
+    };
+
+    // Bind to map events
+    map.on('dragstart', handleInteraction);
+    map.on('touchstart', handleInteraction);
+
+    return () => {
+      map.off('dragstart', handleInteraction);
+      map.off('touchstart', handleInteraction);
+    };
+  }, [map, isTracking, setIsTracking]);
 
   // Sync Map Style
   useEffect(() => {
@@ -163,69 +273,155 @@ export function MapRoot({ children }: { children: ReactNode }) {
     }
   }, [isRunning]);
 
-  // Force Initial FlyTo: Triggers when BOTH userPosition AND map instance are ready
-  // Uses map as dependency so it fires even if userPosition arrived before map was initialized
+  // Stage-based Locating and FlyTo Animation Control
   useEffect(() => {
-    // Guard: only fly once, only if user hasn't manually interacted, only if map is ready
-    if (!userPosition || hasInitialFlown.current || userInteracted.current) return;
-
-    // Try mapLayerRef first (preferred), fall back to map state
+    if (!userPosition) return;
     const mapInstance = mapLayerRef.current?.map || map;
     if (!mapInstance) return;
 
-    // 计算距离 (简单勾股定理即可，无需高精度)
-    const dist = Math.abs(userPosition.lat - 39.909) + Math.abs(userPosition.lng - 116.397);
+    const source = userPosition.source || 'cache';
+    const accuracy = userPosition.accuracy || 9999;
+    const now = Date.now();
 
-    // 阈值：只要不是还停留在默认的北京坐标 (dist > 0.01 约等于 1km)
-    if (dist > 0.01) {
-      mapInstance.setZoomAndCenter(16, [userPosition.lng, userPosition.lat]);
-      hasInitialFlown.current = true;
-    }
-  }, [userPosition, map]); // Depend on both: triggers when either becomes available
+    // Helper to get precise distance
+    const getDistance = () => {
+      try {
+        const currentCenter = mapInstance.getCenter();
+        if (!currentCenter) return Infinity;
+        const AMap = (window as { AMap?: { GeometryUtil?: { distance: (a: [number, number], b: [number, number]) => number } } }).AMap;
+        if (AMap?.GeometryUtil?.distance) {
+          return AMap.GeometryUtil.distance(
+            [userPosition.lng, userPosition.lat],
+            [currentCenter.lng, currentCenter.lat]
+          );
+        } else {
+          // Fallback approximation
+          return Math.sqrt(
+            Math.pow((userPosition.lat - currentCenter.lat) * 111000, 2) +
+            Math.pow((userPosition.lng - currentCenter.lng) * 111000 * Math.cos(userPosition.lat * Math.PI / 180), 2)
+          );
+        }
+      } catch {
+        return Infinity;
+      }
+    };
 
-  // GPS Timeout: If no fix within 5s, show toast if we have a cached location
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (!hasInitialFlown.current && typeof window !== 'undefined') {
-        const cachedDistrict = localStorage.getItem('last_known_district');
-        const cachedLocation = localStorage.getItem('last_known_location');
-        if (cachedDistrict && cachedLocation) {
-          toast.info('正在使用上次已知位置', { description: cachedDistrict, duration: 3000 });
+    const executeFly = (lng: number, lat: number, duration: number, reason: string) => {
+      try {
+        if (mapLayerRef.current?.flyTo) {
+          mapLayerRef.current.flyTo([lng, lat], 17, duration);
+        } else if (mapInstance.setZoomAndCenter) {
+          mapInstance.setZoomAndCenter(17, [lng, lat], false, duration);
+        } else {
+          mapInstance.setCenter([lng, lat]);
+        }
+        lastFlyTime.current = Date.now();
+        flyReason.current = reason;
+      } catch { /* silently handle map errors */ }
+    };
+
+    const doFlyTo = (duration: number, force: boolean = false, reason: string = 'auto') => {
+      // Ignore if user is manually browsing and we're not forcing
+      if (!force && (!isTracking || userInteracted.current)) {
+        // B.2: isTracking=false: only update marker/trajectory, don't trigger or queue FlyTo.
+        return;
+      }
+
+      const timeSinceLastFly = now - lastFlyTime.current;
+      if (timeSinceLastFly < 1000) {
+        // C.1: Trailing throttle updates the ENTIRE payload (uses latest condition)
+        pendingFlyRef.current = {
+          fix: userPosition,
+          duration,
+          zoom: 17,
+          reason,
+          ts: Date.now()
+        };
+        if (!throttleTimerRef.current) {
+          throttleTimerRef.current = setTimeout(() => {
+            throttleTimerRef.current = null;
+            if (pendingFlyRef.current) {
+              // Ensure we only fly if tracking or forced later
+              if (isTrackingRef.current || force) {
+                const p = pendingFlyRef.current;
+                executeFly(p.fix.lng, p.fix.lat, p.duration, p.reason);
+              }
+              pendingFlyRef.current = null;
+            }
+          }, 1000 - timeSinceLastFly);
+        }
+        return;
+      }
+
+      executeFly(userPosition.lng, userPosition.lat, duration, reason);
+    };
+
+    // Stage Upgrade & Action Logic
+    if (source === 'cache') {
+      if (positionStage.current === null) {
+        positionStage.current = 'cache';
+        // C.3: Guarantee initialization executes only once
+        if (!initRendered.current) {
+          initRendered.current = true;
+          try { mapInstance.setCenter([userPosition.lng, userPosition.lat]); flyReason.current = 'cache-init'; } catch { }
         }
       }
-    }, 5000);
-    return () => clearTimeout(timer);
-  }, []); // Run once on mount
-
-  // Auto-follow user if tracking enabled (Smart FlyTo)
-  useEffect(() => {
-    if (isTracking && userPosition && mapLayerRef.current?.flyTo) {
-      // Only fly if GPS is locked (source is gps-precise)
-      if (userPosition.source === 'gps-precise') {
-        const currentCenter = map?.getCenter();
-        if (currentCenter) {
-          // Calculate distance between current view center and user position
-          // Simple Haversine approximation
-          const R = 6371e3; // metres
-          const φ1 = userPosition.lat * Math.PI / 180;
-          const φ2 = currentCenter.lat * Math.PI / 180;
-          const Δφ = (currentCenter.lat - userPosition.lat) * Math.PI / 180;
-          const Δλ = (currentCenter.lng - userPosition.lng) * Math.PI / 180;
-
-          const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-            Math.cos(φ1) * Math.cos(φ2) *
-            Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-          const dist = R * c;
-
-          // Only fly if distance > 200m to avoid jarring jumps during minor GPS drift
-          if (dist > 200) {
-            mapLayerRef.current.flyTo([userPosition.lng, userPosition.lat], 17, 800);
+    }
+    else if (source === 'network-coarse') {
+      if (positionStage.current !== 'gps-precise') {
+        positionStage.current = 'network-coarse';
+        const dist = getDistance();
+        // C.2: Explicit gate and comment for network-coarse isTracking=false
+        // Do not fly unless tracking is on AND the user is far away enough.
+        if (dist > 30) {
+          if (isTracking) {
+            doFlyTo(500, false, 'network-correction');
+          } else {
+            console.debug('[MapRoot] Skipped network-coarse flyTo because isTracking is false');
+            // Marker updates implicitly because userPosition state was set
           }
         }
       }
     }
-  }, [isTracking, userPosition, map]);
+    else if (source === 'gps-precise') {
+      positionStage.current = 'gps-precise';
+      const dist = getDistance();
+
+      // Dual Threshold FlyTo Rule + Accuracy Fallback
+      if (Number.isNaN(accuracy) || accuracy === undefined || accuracy === null || accuracy === 9999) {
+        // Fallback rule for unknown accuracy: only jump if VERY far
+        if (dist > 200) {
+          if (isTracking) {
+            doFlyTo(1000, false, 'gps-fallback-correction');
+          }
+        }
+      } else if (dist > 150 && accuracy <= 200) {
+        // Force correction (high priority)
+        if (isTracking) {
+          doFlyTo(1000, false, 'gps-high-priority-correction');
+        }
+      } else if (dist > 50 && accuracy <= 80) {
+        // Normal correction (only if tracking)
+        if (isTracking) {
+          doFlyTo(1000, false, 'gps-normal-correction');
+        }
+      }
+    }
+  }, [userPosition, map, isTracking, setIsTracking]);
+
+  // GPS Timeout: If no fix within 15s, show friendly notice
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (positionStage.current !== 'gps-precise' && typeof window !== 'undefined') {
+        const cachedDistrict = localStorage.getItem('last_known_district');
+        const cachedLocation = localStorage.getItem('last_known_location');
+        if (cachedDistrict && cachedLocation) {
+          toast.info('GPS信号弱，已为您显示大概位置', { description: cachedDistrict, duration: 3000 });
+        }
+      }
+    }, 15000);
+    return () => clearTimeout(timer);
+  }, []); // Run once on mount
 
   // Map move handler (reverse data flow)
   const handleMapMoveEnd = useCallback((center: [number, number]) => {
@@ -247,18 +443,36 @@ export function MapRoot({ children }: { children: ReactNode }) {
   // Center map with flyTo (Locate Me)
   const centerMap = useCallback(() => {
     if (userPosition) {
-      // Use the helper on the ref check if available, otherwise fallback
-      if (mapLayerRef.current?.flyTo) {
-        mapLayerRef.current.flyTo([userPosition.lng, userPosition.lat], 17);
-      } else if (mapLayerRef.current?.map?.setZoomAndCenter) {
-        mapLayerRef.current.map.setZoomAndCenter(17, [userPosition.lng, userPosition.lat]);
+      // B.4: Cancel any pendingFix/timer BEFORE setIsTracking(true)
+      if (throttleTimerRef.current) {
+        clearTimeout(throttleTimerRef.current);
+        throttleTimerRef.current = null;
       }
+      pendingFlyRef.current = null;
+
+      // Force return to center, enable tracking, bypass all thresholds
+      userInteracted.current = false;
       setIsTracking(true);
+
+      try {
+        if (mapLayerRef.current?.flyTo) {
+          mapLayerRef.current.flyTo([userPosition.lng, userPosition.lat], 17, 1000);
+        } else if (mapLayerRef.current?.map?.setZoomAndCenter) {
+          mapLayerRef.current.map.setZoomAndCenter(17, [userPosition.lng, userPosition.lat], false, 1000);
+        } else if (map && map.setZoomAndCenter) {
+          map.setZoomAndCenter(17, [userPosition.lng, userPosition.lat], false, 1000);
+        } else if (map) {
+          map.setCenter([userPosition.lng, userPosition.lat]);
+        }
+        lastFlyTime.current = Date.now();
+      } catch {
+        // Silently handle map operation errors
+      }
     } else {
       toast.error("暂未获取到定位");
       retry();
     }
-  }, [userPosition, retry]);
+  }, [userPosition, retry, map]);
 
   // Backward compatibility location state
   const locationState: LocationState = {
@@ -311,6 +525,20 @@ export function MapRoot({ children }: { children: ReactNode }) {
       toggleFog,
     }}>
       {children}
+      {debugInfo && (
+        <div style={{
+          position: 'absolute', top: 50, left: 10, zIndex: 9999, background: 'rgba(0,0,0,0.7)',
+          color: 'lime', fontSize: '10px', padding: '8px', pointerEvents: 'none', borderRadius: '4px',
+          fontFamily: 'monospace', whiteSpace: 'pre', lineHeight: '1.2'
+        }}>
+          <div>src: {debugInfo.source} | acc: {debugInfo.accuracy}</div>
+          <div>track: {String(debugInfo.isTracking)} | drag: {String(debugInfo.userInteracted)}</div>
+          <div>timer: {String(debugInfo.hasTimer)}</div>
+          <div>pend: {debugInfo.pendingReason} | fly: {debugInfo.lastFlyReason}</div>
+          <div>watch: {String(debugInfo.watchIdExists)} | lock: {String(debugInfo.restartInFlight)}</div>
+          <div>sig: {debugInfo.gpsSignalStrength} | status: {debugInfo.status}</div>
+        </div>
+      )}
     </MapProvider>
   );
 }

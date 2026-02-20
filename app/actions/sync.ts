@@ -3,24 +3,10 @@
 import { prisma } from '@/lib/prisma';
 import { createClient } from '@/lib/supabase/server';
 import { OfflineRecord } from '@/lib/sync/types';
+import { getDistanceFromLatLonInKm } from '@/lib/geometry-utils';
 
-// Haversine distance in km
-function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number) {
-  var R = 6371; // Radius of the earth in km
-  var dLat = deg2rad(lat2 - lat1);
-  var dLon = deg2rad(lon2 - lon1);
-  var a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat1)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  var d = R * c; // Distance in km
-  return d;
-}
-
-function deg2rad(deg: number) {
-  return deg * (Math.PI / 180);
-}
+// Haversine distance — now imported from @/lib/geometry-utils
+// (getDistanceFromLatLonInKm is imported above)
 
 interface SyncResult {
   success: boolean;
@@ -93,32 +79,32 @@ export async function uploadTrajectoryBatch(batch: OfflineRecord[]): Promise<Syn
       if (lastPoint) {
         const distKm = getDistanceFromLatLonInKm(lastPoint.lat, lastPoint.lng, record.lat, record.lng);
         const timeDiffSec = (record.timestamp - lastPoint.timestamp) / 1000;
-        
+
         // Gap Detection (> 30s or > 500m)
         if (timeDiffSec > 30 || distKm > 0.5) {
-             // console.log(`Gap detected: ${distKm.toFixed(2)}km in ${timeDiffSec}s`);
-             
-             // Check feasibility
-             const speedKmh = (distKm / (timeDiffSec / 3600));
-             
-             if (speedKmh > 30) {
-                 // Teleport/Vehicle? Skip adding distance, but record point as "jump"
-                 // Or just filter out?
-                 // Requirement: "若距离过远，标记为“数据缺失路段”"
-                 // We add the point but don't add full distance (maybe just 0 or straight line if reasonable)
-             } else {
-                 // Reasonable speed.
-                 // Requirement: "use Google/AMap API for shortest path"
-                 // TODO: Call Google Maps/AMap Route API here to get actual path distance
-                 // const routeDist = await fetchRouteDistance(lastPoint, record);
-                 // currentDistance += routeDist;
-                 
-                 // Fallback: Linear distance
-                 currentDistance += distKm;
-             }
-        } else {
-            // Normal segment
+          // console.log(`Gap detected: ${distKm.toFixed(2)}km in ${timeDiffSec}s`);
+
+          // Check feasibility
+          const speedKmh = (distKm / (timeDiffSec / 3600));
+
+          if (speedKmh > 30) {
+            // Teleport/Vehicle? Skip adding distance, but record point as "jump"
+            // Or just filter out?
+            // Requirement: "若距离过远，标记为“数据缺失路段”"
+            // We add the point but don't add full distance (maybe just 0 or straight line if reasonable)
+          } else {
+            // Reasonable speed.
+            // Requirement: "use Google/AMap API for shortest path"
+            // TODO: Call Google Maps/AMap Route API here to get actual path distance
+            // const routeDist = await fetchRouteDistance(lastPoint, record);
+            // currentDistance += routeDist;
+
+            // Fallback: Linear distance
             currentDistance += distKm;
+          }
+        } else {
+          // Normal segment
+          currentDistance += distKm;
         }
       }
 
@@ -135,24 +121,24 @@ export async function uploadTrajectoryBatch(batch: OfflineRecord[]): Promise<Syn
     // Note: Prisma JSON append might be slow for huge arrays. 
     // In production, use separate `run_points` table. 
     // Here we follow existing schema.
-    
+
     // Transform to simple format for DB to save space
     const pointsToSave = validPoints.map(p => ({
-        lat: p.lat,
-        lng: p.lng,
-        timestamp: p.timestamp,
-        // accuracy: p.accuracy, // Optional to save space
+      lat: p.lat,
+      lng: p.lng,
+      timestamp: p.timestamp,
+      // accuracy: p.accuracy, // Optional to save space
     }));
 
     const newPath = [...currentPath, ...pointsToSave];
 
     await prisma.runs.update({
-        where: { id: activeRun.id },
-        data: {
-            path: newPath,
-            distance: currentDistance,
-            updated_at: new Date()
-        }
+      where: { id: activeRun.id },
+      data: {
+        path: newPath,
+        distance: currentDistance,
+        updated_at: new Date()
+      }
     });
 
     return { success: true, syncedIds, serverDistance: currentDistance };

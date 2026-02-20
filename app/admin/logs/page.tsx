@@ -2,13 +2,13 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from '@/components/ui/table'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -42,7 +42,7 @@ export default function AdminLogsPage() {
       // Since our schema.ts shows FK to 'users', standard join to 'profiles' might fail unless we define it.
       // For now, let's fetch logs first, then fetch profile names in a batch if needed, 
       // OR just rely on the fact that if profile id = user id, we can try to join if Supabase allows.
-      
+
       // Let's stick to simple fetch first to avoid Postgrest errors if relation isn't perfect.
       const { data: logsData, error: logsError } = await supabase
         .from('admin_logs')

@@ -1,0 +1,14 @@
+app/actions/club.ts(101,15): error TS2769: No overload matches this call.
+app/actions/club.ts(206,25): error TS2769: No overload matches this call.
+app/actions/club.ts(236,25): error TS2769: No overload matches this call.
+app/actions/club.ts(380,20): error TS2339: Property 'status' does not exist on type 'SelectQueryError<"column 'status' does not exist on 'club_members'.">'.
+app/actions/club.ts(381,20): error TS2339: Property 'status' does not exist on type 'SelectQueryError<"column 'status' does not exist on 'club_members'.">'.
+app/actions/club.ts(386,27): error TS2339: Property 'is_public' does not exist on type 'SelectQueryError<"column 'is_public' does not exist on 'clubs'.">'.
+app/actions/club.ts(406,26): error TS2345: Argument of type '"increment_club_member_count"' is not assignable to parameter of type '"claim_mission_reward_rpc" | "claim_territory" | "decay_territories_daily" | "get_dashboard_summary" | "get_faction_stats" | "get_faction_stats_rpc" | "get_user_growth_trend" | ... 4 more ... | "simulate_game_stats"'.
+app/actions/club.ts(443,22): error TS2345: Argument of type '"decrement_club_member_count"' is not assignable to parameter of type '"claim_mission_reward_rpc" | "claim_territory" | "decay_territories_daily" | "get_dashboard_summary" | "get_faction_stats" | "get_faction_stats_rpc" | "get_user_growth_trend" | ... 4 more ... | "simulate_game_stats"'.
+app/actions/club.ts(526,53): error TS2345: Argument of type 'string | null' is not assignable to parameter of type 'string'.
+app/actions/club.ts(665,15): error TS2339: Property 'status' does not exist on type 'SelectQueryError<"column 'status' does not exist on 'club_members'.">'.
+app/actions/club.ts(888,119): error TS2339: Property 'total_area' does not exist on type 'SelectQueryError<"column 'avatar_url' does not exist on 'clubs'.">'.
+app/actions/club.ts(976,11): error TS2769: No overload matches this call.
+app/actions/club.ts(1026,11): error TS2769: No overload matches this call.
+app/actions/club.ts(1186,56): error TS2339: Property 'province' does not exist on type 'SelectQueryError<"column 'province' does not exist on 'clubs'.">'.

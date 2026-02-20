@@ -7,21 +7,18 @@ export interface BalanceResult {
 /**
  * Calculates the dynamic bonus multiplier based on faction population difference.
  * 
- * Rules:
- * - Difference >= 80% -> 4.0x
- * - Difference >= 60% -> 3.0x
- * - Difference >= 40% -> 2.0x
- * - Difference >= 20% -> 1.5x
- * - Difference < 20%  -> 1.0x
- * 
  * @param redCount Total population of Red faction
  * @param blueCount Total population of Blue faction
  * @param isEnabled Whether the auto-balance system is enabled (default: true)
+ * @param imbalanceThreshold Configured threshold (in percentage points eg 20 for 20%) to trigger the buff
+ * @param underdogMultiplier Configured multiplier to apply if triggered (eg 1.5)
  */
 export function calculateFactionBalance(
-  redCount: number, 
-  blueCount: number, 
-  isEnabled: boolean = true
+  redCount: number,
+  blueCount: number,
+  isEnabled: boolean = true,
+  imbalanceThreshold: number = 20,
+  underdogMultiplier: number = 1.5
 ): BalanceResult {
   // If disabled or counts are invalid, return neutral state
   if (!isEnabled || redCount < 0 || blueCount < 0) {
@@ -29,7 +26,7 @@ export function calculateFactionBalance(
   }
 
   const total = redCount + blueCount
-  
+
   // Edge case: no users
   if (total === 0) {
     return { underdog: null, multiplier: 1.0, diffRatio: 0 }
@@ -46,14 +43,9 @@ export function calculateFactionBalance(
 
   let multiplier = 1.0
 
-  if (diffRatio >= 0.80) {
-    multiplier = 3.0
-  } else if (diffRatio >= 0.60) {
-    multiplier = 2.5
-  } else if (diffRatio >= 0.40) {
-    multiplier = 2.0
-  } else if (diffRatio >= 0.20) {
-    multiplier = 1.5
+  // Apply configs if ratio crosses the threshold
+  if (diffRatio >= (imbalanceThreshold / 100)) {
+    multiplier = underdogMultiplier
   }
 
   // If multiplier is 1.0, effectively there is no underdog advantage
@@ -61,7 +53,7 @@ export function calculateFactionBalance(
 
   return {
     underdog: finalUnderdog,
-    multiplier,
+    multiplier: finalUnderdog ? multiplier : 1.0,
     diffRatio
   }
 }

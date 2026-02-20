@@ -93,7 +93,7 @@ export async function fetchUserMissions() {
     console.error('Error fetching user missions:', error)
     return []
   }
-  
+
   if (!data || data.length === 0) {
     console.log('[MissionAction] No user missions found after initialization.')
     return []
@@ -138,10 +138,34 @@ export async function claimMissionReward(missionId: string) {
 
   const reward = (userMission.missions as any) || { reward_coins: 0, reward_experience: 0 }
 
+  // 1.5 Calculate Faction Bonus
+  let finalCoins = reward.reward_coins || 0
+  let finalExp = reward.reward_experience || 0
+  let appliedBonusPercentage = 0
+
+  try {
+    // Get user faction
+    const { data: profile } = await supabase.from('profiles').select('faction').eq('id', user.id).single()
+    if (profile?.faction && profile.faction !== 'Neutral' && profile.faction !== 'Unknown') {
+      const stats = await getFactionStats()
+      const factionKey = profile.faction.toUpperCase() as 'RED' | 'BLUE'
+      const bonusPercentage = stats.bonus?.[factionKey] || 0
+
+      if (bonusPercentage > 0) {
+        appliedBonusPercentage = bonusPercentage
+        const multiplier = 1 + (bonusPercentage / 100)
+        finalCoins = Math.round(finalCoins * multiplier)
+        finalExp = Math.round(finalExp * multiplier)
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to calculate faction bonus for mission claim:', e)
+  }
+
   // 2. Transaction (Update status + Give rewards)
   // Supabase doesn't support transactions in client lib easily, so we do sequential updates
   // Ideally this should be an RPC or RLS protected flow
-  
+
   // A. Update status to claimed
   const { error: updateError } = await supabase
     .from('user_missions')
@@ -153,31 +177,32 @@ export async function claimMissionReward(missionId: string) {
     return { success: false, error: 'Failed to claim reward' }
   }
 
-  // B. Give Rewards
+  // B. Give Rewards (using boosted values)
   const { error: profileError } = await supabase.rpc('increment_user_stats', {
     p_user_id: user.id,
-    p_coins: reward.reward_coins,
-    p_exp: reward.reward_experience
+    p_coins: finalCoins,
+    p_exp: finalExp
   })
 
   // If RPC fails (e.g. function missing), fallback to manual update
   if (profileError) {
-      console.warn('RPC increment_user_stats failed, falling back to manual update', profileError)
-      // Fetch current profile
-      const { data: profile } = await supabase.from('profiles').select('coins, current_exp').eq('id', user.id).single()
-      if (profile) {
-          await supabase.from('profiles').update({
-              coins: (profile.coins || 0) + reward.reward_coins,
-              current_exp: (profile.current_exp || 0) + reward.reward_experience
-          }).eq('id', user.id)
-      }
+    console.warn('RPC increment_user_stats failed, falling back to manual update', profileError)
+    // Fetch current profile
+    const { data: profile } = await supabase.from('profiles').select('coins, current_exp').eq('id', user.id).single()
+    if (profile) {
+      await supabase.from('profiles').update({
+        coins: (profile.coins || 0) + finalCoins,
+        current_exp: (profile.current_exp || 0) + finalExp
+      }).eq('id', user.id)
+    }
   }
 
-  return { 
-    success: true, 
-    rewards: { 
-      coins: reward.reward_coins, 
-      experience: reward.reward_experience 
-    } 
+  return {
+    success: true,
+    rewards: {
+      coins: finalCoins,
+      experience: finalExp
+    },
+    bonus: appliedBonusPercentage > 0 ? { percentage: appliedBonusPercentage } : null
   }
 }

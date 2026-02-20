@@ -1,0 +1,44 @@
+
+> Configure project :app
+WARNING: Using flatDir should be avoided because it doesn't support any meta-data formats.
+
+> Configure project :capacitor-cordova-android-plugins
+WARNING: Using flatDir should be avoided because it doesn't support any meta-data formats.
+
+> Task :capacitor-android:preBuild UP-TO-DATE
+> Task :capacitor-android:preDebugBuild UP-TO-DATE
+> Task :capacitor-android:generateDebugResValues UP-TO-DATE
+> Task :capacitor-android:generateDebugResources UP-TO-DATE
+> Task :capacitor-android:packageDebugResources UP-TO-DATE
+> Task :capacitor-android:parseDebugLocalResources UP-TO-DATE
+> Task :capacitor-android:processDebugManifest UP-TO-DATE
+> Task :capacitor-android:generateDebugRFile UP-TO-DATE
+> Task :capacitor-android:javaPreCompileDebug UP-TO-DATE
+> Task :capacitor-android:compileDebugJavaWithJavac UP-TO-DATE
+> Task :capacitor-android:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :capacitor-health-connect:preBuild UP-TO-DATE
+> Task :capacitor-health-connect:preDebugBuild UP-TO-DATE
+> Task :capacitor-health-connect:generateDebugResValues UP-TO-DATE
+> Task :capacitor-health-connect:generateDebugResources UP-TO-DATE
+> Task :capacitor-health-connect:packageDebugResources UP-TO-DATE
+> Task :capacitor-health-connect:parseDebugLocalResources UP-TO-DATE
+> Task :capacitor-health-connect:processDebugManifest UP-TO-DATE
+> Task :capacitor-health-connect:generateDebugRFile UP-TO-DATE
+> Task :capacitor-health-connect:compileDebugKotlin FAILED
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':capacitor-health-connect:compileDebugKotlin'.
+> Error while evaluating property 'compilerOptions.jvmTarget' of task ':capacitor-health-connect:compileDebugKotlin'.
+   > Failed to calculate the value of property 'jvmTarget'.
+      > Unknown Kotlin JVM target: 21
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 2s
+14 actionable tasks: 1 executed, 13 up-to-date

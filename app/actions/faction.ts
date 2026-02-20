@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
+import { calculateFactionBalance } from '@/utils/faction-balance'
 
 export type Faction = 'RED' | 'BLUE'
 
@@ -16,7 +17,7 @@ export async function getFactionStats() {
       prisma.profiles.count({ where: { faction: 'Red' } }),
       prisma.profiles.count({ where: { faction: 'Blue' } })
     ])
-    
+
     redCount = rCount
     blueCount = bCount;
 
@@ -26,7 +27,7 @@ export async function getFactionStats() {
       try {
         const today = new Date()
         today.setHours(0, 0, 0, 0)
-        
+
         await prisma.dailyStat.upsert({
           where: { date: today },
           update: {
@@ -72,33 +73,54 @@ export async function getFactionStats() {
           where: { faction: 'Blue' }
         })
       ])
-      
+
       redArea = redAgg._sum.total_area || 0
       blueArea = blueAgg._sum.total_area || 0
     }
 
-    // Calculate percentages (based on Members or Area? Usually Area for domination, but Members for balance)
-    // Let's use Members for the "RED/BLUE" count return, and Area for "redArea/blueArea"
-    // The "percentages" usually refer to population balance in this context
+    // Calculate percentages
     const totalCount = redCount + blueCount
     const redPercent = totalCount > 0 ? (redCount / totalCount) * 100 : 50
     const bluePercent = totalCount > 0 ? (blueCount / totalCount) * 100 : 50
 
-    // Calculate Bonus (Mock logic or derived from stats)
-    // If one faction is significantly behind, give them a bonus
-    const imbalanceThreshold = 20 // 20% difference
-    const diff = Math.abs(redPercent - bluePercent)
-    
+    // Fetch config for calculateFactionBalance
+    let balanceConfig = {
+      imbalance_threshold: 20,
+      underdog_multiplier: 1.5,
+      auto_balance_enabled: true
+    }
+
+    try {
+      const configSnapshot = await prisma.faction_balance_configs.findFirst({
+        orderBy: { id: 'asc' }
+      })
+      if (configSnapshot) {
+        balanceConfig = {
+          imbalance_threshold: configSnapshot.imbalance_threshold ? Number(configSnapshot.imbalance_threshold) : 20,
+          underdog_multiplier: configSnapshot.underdog_multiplier ? Number(configSnapshot.underdog_multiplier) : 1.5,
+          auto_balance_enabled: configSnapshot.auto_balance_enabled ?? true
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to fetch faction_balance_configs, using defaults', e)
+    }
+
+    // Calculate Bonus using dynamic utility
+    const balanceResult = calculateFactionBalance(
+      redCount,
+      blueCount,
+      balanceConfig.auto_balance_enabled,
+      balanceConfig.imbalance_threshold,
+      balanceConfig.underdog_multiplier
+    )
+
     let redBonus = 0
     let blueBonus = 0
 
-    if (diff > imbalanceThreshold) {
-      // The underdog gets a bonus
-      if (redPercent < bluePercent) {
-        redBonus = 10 // 10% bonus
-      } else {
-        blueBonus = 10
-      }
+    if (balanceResult.underdog === 'red') {
+      redBonus = Math.round((balanceResult.multiplier - 1.0) * 100)
+    } else if (balanceResult.underdog === 'blue') {
+      blueBonus = Math.round((balanceResult.multiplier - 1.0) * 100)
     }
 
     return {
@@ -121,7 +143,7 @@ export async function getFactionStats() {
     // Timeout wrapper: 10 seconds limit (increased from 3s for cold starts)
     const result = await Promise.race([
       fetchLogic(),
-      new Promise<never>((_, reject) => 
+      new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('Database timeout')), 10000)
       )
     ])
@@ -141,28 +163,28 @@ export async function getFactionStats() {
 }
 
 export async function joinFaction(faction: Faction) {
-    const supabase = await createClient()
-    
-    try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return { success: false, error: 'Not authenticated' }
-        
-        // Update profile
-        const { error } = await supabase
-            .from('profiles')
-            .update({ faction: faction === 'RED' ? 'Red' : 'Blue' })
-            .eq('id', user.id)
-            
-        if (error) {
-            console.error('Join faction error:', error)
-            return { success: false, error: error.message }
-        }
-        
-        return { success: true }
-    } catch (err: any) {
-        console.error('Join faction exception:', err)
-        return { success: false, error: err.message || 'Unknown error' }
+  const supabase = await createClient()
+
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: 'Not authenticated' }
+
+    // Update profile
+    const { error } = await supabase
+      .from('profiles')
+      .update({ faction: faction === 'RED' ? 'Red' : 'Blue' })
+      .eq('id', user.id)
+
+    if (error) {
+      console.error('Join faction error:', error)
+      return { success: false, error: error.message }
     }
+
+    return { success: true }
+  } catch (err: any) {
+    console.error('Join faction exception:', err)
+    return { success: false, error: err.message || 'Unknown error' }
+  }
 }
 
 export async function getDailyStats() {

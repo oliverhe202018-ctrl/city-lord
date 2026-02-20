@@ -11,6 +11,7 @@ buildscript {
     dependencies {
         // 确保使用 8.2.1 以匹配你的 Gradle Wrapper
         classpath 'com.android.tools.build:gradle:8.2.1'
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.10"
         classpath 'com.google.gms:google-services:4.4.1'
 
         // NOTE: Do not place your application dependencies here; they belong
@@ -27,6 +28,32 @@ allprojects {
         maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }
         google()
         mavenCentral()
+    }
+
+    // ── Global dependency resolution strategy ──────────────────────────────
+    // Unify Kotlin stdlib: capacitor.build.gradle pins 1.7.10, Health Connect
+    // pins 1.8.20 via its own buildscript — force everything to 1.9.10.
+    configurations.all {
+        resolutionStrategy {
+            force "org.jetbrains.kotlin:kotlin-stdlib:1.9.10"
+            force "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.10"
+            force "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.10"
+        }
+    }
+}
+
+// ── Kotlin JVM target override for all subprojects ───────────────────────────────
+// `capacitor.build.gradle` sets compileOptions to JavaVersion.VERSION_21 globally.
+// However capacitor-health-connect uses kotlin-gradle-plugin:1.8.20, which does NOT
+// support JVM target 21 (support was added in Kotlin 1.9.0).
+// Inject jvmTarget = '17' into every sub-module's kotlin compile task after evaluation.
+subprojects {
+    afterEvaluate {
+        tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+            kotlinOptions {
+                jvmTarget = '17'
+            }
+        }
     }
 }
 

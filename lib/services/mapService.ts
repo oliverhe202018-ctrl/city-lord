@@ -86,7 +86,7 @@ export const MapService = {
   async createTerritory(data: CreateTerritoryInput): Promise<void> {
     try {
       const { id, cityId, ownerId, geojson, h3Index, status = 'active' } = data;
-      
+
       // Use ST_GeomFromGeoJSON to convert JSON string to geometry
       await prisma.$executeRaw`
         INSERT INTO territories (

@@ -13,8 +13,13 @@ import { toast } from "sonner"
 import { useSearchParams, useRouter } from 'next/navigation'
 import { AchievementPopup } from "../achievement-popup"
 import { RunningHUD } from "@/components/running/RunningHUD"
-import { RunningMap } from "./RunningMap"
+import dynamic from "next/dynamic"
 import { RunningMapOverlay } from "./RunningMapOverlay"
+
+const RunningMap = dynamic(() => import("./RunningMap").then(mod => mod.RunningMap), {
+  ssr: false,
+  loading: () => <div className="w-full h-full bg-slate-900 border border-white/5 flex items-center justify-center text-white/50 font-medium">正在加载地图...</div>
+})
 import { GhostJoystick } from "./GhostJoystick"
 import { RunSummaryView } from "@/components/running/RunSummaryView"
 import {
@@ -387,18 +392,47 @@ export function ImmersiveRunningMode({
     // 3. Background save (fire-and-forget, never blocks navigation)
     if (saveRun) {
       saveRun(true).catch(() => {
-        // Fallback: cache run data for retry on next app start
+        // Fallback: cache run data for retry on next app start or background sync
         try {
-          localStorage.setItem('PENDING_RUN_UPLOAD', JSON.stringify({
-            distanceMeters,
-            durationSeconds,
-            steps,
-            area,
-            calories,
+          const pending = JSON.parse(localStorage.getItem('PENDING_RUN_UPLOAD') || '[]');
+
+          const record = {
+            idempotencyKey: crypto.randomUUID(), // Standard UUID for server-side deduplication
+            distance: distanceMeters,
+            duration: durationSeconds,
+            path: path,
+            polygons: closedPolygons,
             timestamp: Date.now(),
-          }));
-        } catch {
-          // localStorage full or unavailable — silently ignore
+            calories: calories,
+            steps: steps
+          };
+
+          pending.push(record);
+          localStorage.setItem('PENDING_RUN_UPLOAD', JSON.stringify(pending));
+          toast.success("已存至本地，网络恢复后上传", { duration: 3000 });
+        } catch (e: any) {
+          if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
+            console.warn("Storage full during offline save. Evicting old items.");
+            try {
+              // Simple eviction
+              const oldPending = JSON.parse(localStorage.getItem('PENDING_RUN_UPLOAD') || '[]');
+              if (oldPending.length > 0) {
+                oldPending.shift(); // remove oldest
+                oldPending.push({
+                  idempotencyKey: crypto.randomUUID(),
+                  distance: distanceMeters,
+                  duration: durationSeconds,
+                  path: path,
+                  polygons: closedPolygons,
+                  timestamp: Date.now(),
+                  calories: calories,
+                  steps: steps
+                });
+                localStorage.setItem('PENDING_RUN_UPLOAD', JSON.stringify(oldPending));
+                toast.success("已存至本地，网络恢复后上传", { duration: 3000 });
+              }
+            } catch (err) { }
+          }
         }
       });
     }
