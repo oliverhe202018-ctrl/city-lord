@@ -35,7 +35,7 @@ export function CreateBadgeButton() {
     setLoading(true)
 
     try {
-      const res = await fetch('/api/admin/badges/create', {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_SERVER || ''}/api/admin/badges/create`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

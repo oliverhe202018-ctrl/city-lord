@@ -100,7 +100,7 @@ export function AchievementUnlockModal({
           })
 
           // Reward user for sharing
-          fetch('/api/social/share-reward', {
+          fetch(`${process.env.NEXT_PUBLIC_API_SERVER || ''}/api/social/share-reward`, {
             method: 'POST',
             body: JSON.stringify({ type: 'achievement', targetId: achievement.id }),
             headers: { 'Content-Type': 'application/json' }

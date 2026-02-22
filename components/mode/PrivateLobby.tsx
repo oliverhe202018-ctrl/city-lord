@@ -73,7 +73,7 @@ export const PrivateLobby = memo(function PrivateLobby() {
     }, false);
 
     try {
-        const res = await fetch('/api/room/create-room', {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_SERVER || ''}/api/room/create-room`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name: roomName, max_participants: maxMembers })
@@ -98,7 +98,7 @@ export const PrivateLobby = memo(function PrivateLobby() {
 
     // API Call
     try {
-        const res = await fetch('/api/room/join-room', {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_SERVER || ''}/api/room/join-room`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ roomId })
@@ -133,7 +133,7 @@ export const PrivateLobby = memo(function PrivateLobby() {
     } else {
       // Public room join
       try {
-          const res = await fetch('/api/room/join-room', {
+          const res = await fetch(`${process.env.NEXT_PUBLIC_API_SERVER || ''}/api/room/join-room`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ roomId: room.id })

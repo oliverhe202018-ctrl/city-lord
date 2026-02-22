@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { getAvailableProvinces } from '@/app/actions/club'
+import { fetchUserAchievements } from '@/app/actions/achievement'
+
+export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request) {
   try {
@@ -11,10 +13,10 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     }
 
-    const provinces = await getAvailableProvinces()
-    return NextResponse.json(provinces || [])
+    const data = await fetchUserAchievements()
+    return NextResponse.json(data || [])
   } catch (error: any) {
-    console.error('getAvailableProvinces error:', error)
+    console.error('fetchUserAchievements error:', error)
     return NextResponse.json([], { status: 200 })
   }
 }

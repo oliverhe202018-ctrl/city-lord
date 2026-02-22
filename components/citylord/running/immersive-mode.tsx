@@ -205,7 +205,7 @@ export function ImmersiveRunningMode({
         isClaimingRef.current = true
 
         // Call API route
-        const res = await fetch('/api/territory/claim', {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_SERVER || ''}/api/territory/claim`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ cityId: currentCity.id, h3Index }),

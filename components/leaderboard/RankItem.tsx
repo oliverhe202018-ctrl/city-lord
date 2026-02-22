@@ -41,7 +41,7 @@ export function RankItem({ data }: RankItemProps) {
 
   const handleClick = () => {
     if (data.id) {
-      router.push(`/profile/${data.id}`);
+      router.push(`/profile/user?userId=${data.id}`);
     }
   };
 

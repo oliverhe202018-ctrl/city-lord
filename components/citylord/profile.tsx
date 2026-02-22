@@ -72,7 +72,7 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['userProfileStats', userId],
     queryFn: async () => {
-      const res = await fetch('/api/user/stats', { credentials: 'include' })
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_SERVER || ''}/api/user/stats`, { credentials: 'include' })
       if (!res.ok) throw new Error('Failed to fetch stats')
       return res.json()
     },
@@ -118,7 +118,7 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
   const [dailyStat, setDailyStat] = React.useState<any>(null);
 
   React.useEffect(() => {
-    fetch('/api/faction/daily-stats', { credentials: 'include' })
+    fetch(`${process.env.NEXT_PUBLIC_API_SERVER || ''}/api/faction/daily-stats`, { credentials: 'include' })
       .then(res => res.ok ? res.json() : null)
       .then(setDailyStat)
       .catch(err => console.error('Failed to fetch daily stats:', err))
@@ -128,7 +128,7 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
   React.useEffect(() => {
     const fetchStats = async () => {
       try {
-        const res = await fetch('/api/faction/stats', { credentials: 'include' })
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_SERVER || ''}/api/faction/stats`, { credentials: 'include' })
         if (!res.ok) {
           throw new Error(`Failed to fetch: ${res.status}`)
         }
@@ -541,7 +541,7 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
               </div>
             ) : recentRuns.length > 0 ? (
               recentRuns.map((run) => (
-                <Link href={`/run/${run.id}`} key={run.id} className="block rounded-2xl border border-border bg-card/50 p-3 transition-all hover:bg-card/80 active:scale-[0.99]">
+                <Link href={`/run/detail?id=${run.id}`} key={run.id} className="block rounded-2xl border border-border bg-card/50 p-3 transition-all hover:bg-card/80 active:scale-[0.99]">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       {/* Map Thumbnail Placeholder or Icon */}
