@@ -7,6 +7,7 @@ import MapManager from "@/lib/mapManager"
 import { Location } from "@/hooks/useRunningTracker"
 import { useTheme } from "next-themes"
 import { useSmoothMapCamera } from "@/hooks/useSmoothMapCamera"
+import { useFastLocation } from "@/hooks/useFastLocation"
 
 // Security Config
 const AMAP_KEY = process.env.NEXT_PUBLIC_AMAP_KEY || "2f65c697074e0d4c8270195561578e06"
@@ -42,6 +43,7 @@ export function RunningMap({
   const locationCircleRef = useRef<AMap.Circle | null>(null) // Accuracy circle
 
   const { smoothPanTo } = useSmoothMapCamera(mapInstanceRef.current)
+  const { location: fastLoc } = useFastLocation()
 
   // User Color Preferences (Hardcoded for now to match Smart Planner/Dark Theme)
   const pathColor = '#3B82F6' // Blue 500
@@ -72,48 +74,12 @@ export function RunningMap({
 
         const map = new AMap.Map(mapContainerRef.current, {
           zoom: 17,
-          center: userLocation || startLocation || [116.397, 39.909],
+          center: userLocation || startLocation || (fastLoc ? [fastLoc.lng, fastLoc.lat] : [116.397, 39.909]),
           mapStyle: MAP_STYLE,
           skyColor: "#1f2029",
           viewMode: "2D", // 2D mode for performance and cleaner look
           showLabel: false, // Hide labels for cleaner runner view
         });
-
-        // Add AMap.Geolocation plugin as active fallback
-        // Plugin is already loaded via safeLoadAMap plugins
-        const geolocation = new AMap.Geolocation({
-          enableHighAccuracy: true,
-          timeout: 15000, // Match AMapView config
-          maximumAge: 0,
-          convert: true,
-          showButton: false, // Hide button, we auto-locate
-          showMarker: false, // We use custom marker
-          showCircle: false, // We use custom circle
-          panToLocation: false, // We handle panning
-          zoomToAccuracy: false,
-          noGeoLocation: 0, // Force browser location (fix for Android WebView)
-        });
-
-        map.addControl(geolocation);
-
-        // If no userLocation provided initially, try to self-locate
-        if (!userLocation) {
-          console.log("[RunningMap] No initial location, attempting self-locate...");
-          geolocation.getCurrentPosition(function (status: string, result: any) {
-            if (status === 'complete' && result.position) {
-              console.log("[RunningMap] Self-locate success:", result.position);
-              const { lat, lng } = result.position;
-              // Center map
-              map.setCenter([lng, lat]);
-              // Notify parent to sync
-              if (onLocationUpdate) {
-                onLocationUpdate(lat, lng);
-              }
-            } else {
-              console.warn("[RunningMap] Self-locate failed:", result);
-            }
-          });
-        }
 
         // Ensure map is actually created
         if (!map) {
@@ -138,14 +104,14 @@ export function RunningMap({
              `;
 
           // If userLocation is provided, use it. Otherwise, hide marker initially.
-          const initialPos = userLocation || startLocation || [116.397, 39.909];
+          const initialPos = userLocation || startLocation || (fastLoc ? [fastLoc.lng, fastLoc.lat] : [116.397, 39.909]);
 
           userMarkerRef.current = new AMap.Marker({
             position: initialPos,
             content: markerContent,
             offset: new AMap.Pixel(-12, -12),
             zIndex: 100,
-            visible: !!userLocation // Only visible if we have a real user location
+            visible: !!(userLocation || fastLoc) // Only visible if we have a real user location
           })
 
           // Check if map.add exists before calling
@@ -175,7 +141,20 @@ export function RunningMap({
       safeDestroyMap(mapInstanceRef.current);
       mapInstanceRef.current = null;
     }
-  }, []) // Init once
+  }, [fastLoc, startLocation, userLocation, onLocationUpdate]) // Init once or when initial fast location arrives
+
+  // 1.5 Handle fastLoc updates if userLocation is missing
+  useEffect(() => {
+    if (!userLocation && fastLoc && mapInstanceRef.current && userMarkerRef.current) {
+      const pos = [fastLoc.lng, fastLoc.lat] as [number, number];
+      mapInstanceRef.current.setCenter(pos);
+      userMarkerRef.current.setPosition(pos);
+      userMarkerRef.current.show();
+      if (onLocationUpdate) {
+        onLocationUpdate(fastLoc.lat, fastLoc.lng);
+      }
+    }
+  }, [fastLoc, userLocation, onLocationUpdate]);
 
   // 2. Update User Location & Center
   useEffect(() => {
@@ -192,7 +171,7 @@ export function RunningMap({
     // Accuracy Circle
     // Assuming 50m default if accuracy not passed, or we should pass accuracy from parent
     // For now, draw a small circle to indicate "range"
-    if (!locationCircleRef.current) {
+    if (!locationCircleRef.current && AMap) {
       locationCircleRef.current = new AMap.Circle({
         center: userLocation,
         radius: 30, // Default 30m range? Or use real accuracy if passed
@@ -208,7 +187,7 @@ export function RunningMap({
       if (mapInstanceRef.current && typeof mapInstanceRef.current.add === 'function') {
         mapInstanceRef.current.add(locationCircleRef.current);
       }
-    } else {
+    } else if (locationCircleRef.current) {
       locationCircleRef.current.setCenter(userLocation)
       // 如果之前没有添加到地图（比如初始化时失败），这里再试一次
       if (!locationCircleRef.current.getMap() && mapInstanceRef.current) {
@@ -237,10 +216,10 @@ export function RunningMap({
       polygonRefs.current = [];
     }
 
-    if (closedPolygons && closedPolygons.length > 0) {
+    if (closedPolygons && closedPolygons.length > 0 && AMap) {
       closedPolygons.forEach(polyPath => {
         const pathCoords = polyPath.map(p => [p.lng, p.lat] as [number, number]);
-        const polygon = new AMap.Polygon({
+        const polygon = new (AMap as any).Polygon({
           path: pathCoords,
           fillColor: '#10B981', // Emerald
           fillOpacity: 0.3,

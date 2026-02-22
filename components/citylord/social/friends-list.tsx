@@ -3,12 +3,12 @@
 import { useState, useEffect } from "react"
 import useSWR from 'swr'
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { 
-  Search, 
-  UserPlus, 
-  MoreHorizontal, 
-  MapPin, 
-  Trophy, 
+import {
+  Search,
+  UserPlus,
+  MoreHorizontal,
+  MapPin,
+  Trophy,
   Zap,
   MessageCircle,
   Swords,
@@ -63,9 +63,9 @@ interface FriendsListProps {
   initialRequests?: FriendRequest[]
 }
 
-export function FriendsList({ 
-  onSelectFriend, 
-  onChallenge, 
+export function FriendsList({
+  onSelectFriend,
+  onChallenge,
   onMessage,
   initialFriends = [],
   initialRequests = []
@@ -94,7 +94,7 @@ export function FriendsList({
   )
 
   const respondMutation = useMutation({
-    mutationFn: ({ userId, action }: { userId: string, action: 'accept' | 'reject' }) => 
+    mutationFn: ({ userId, action }: { userId: string, action: 'accept' | 'reject' }) =>
       respondToFriendRequest(userId, action),
     onSuccess: (result, { action }) => {
       if (result.success) {
@@ -115,6 +115,22 @@ export function FriendsList({
     respondMutation.mutate({ userId, action })
   }
 
+  const handleAssist = async (friendId: string) => {
+    try {
+      const res = await fetch("/api/social/assist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ friendId }),
+      })
+      if (!res.ok) throw new Error("Failed to assist")
+      toast.success("助力成功，已赠送体力！", {
+        icon: "⚡"
+      })
+    } catch {
+      toast.error("助力失败，请重试")
+    }
+  }
+
   const [now, setNow] = useState(Date.now())
 
   // Update 'now' every minute to refresh relative time and online status
@@ -125,7 +141,7 @@ export function FriendsList({
 
   const filteredFriends = friends.filter(friend => {
     const matchesSearch = friend.name.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesFilter = 
+    const matchesFilter =
       filter === "all" ||
       (filter === "online" && (friend.status === "online" || friend.status === "running")) ||
       (filter === "nearby" && friend.nearbyDistance !== undefined)
@@ -142,7 +158,7 @@ export function FriendsList({
   const getFriendStatus = (friend: Friend) => {
     if (friend.status === 'running') return 'running'
     if (!friend.lastActiveAt) return friend.status // Fallback to server status
-    
+
     const diffMinutes = (now - new Date(friend.lastActiveAt).getTime()) / (1000 * 60)
     return diffMinutes < 5 ? 'online' : 'offline'
   }
@@ -185,11 +201,10 @@ export function FriendsList({
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
-                  filter === f
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
+                className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-all ${filter === f
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+                  }`}
               >
                 {labels[f]} ({counts[f]})
               </button>
@@ -250,11 +265,10 @@ export function FriendsList({
           return (
             <div
               key={friend.id}
-              className={`overflow-hidden rounded-2xl border transition-all duration-300 ${
-                isSelected 
-                  ? "border-primary/50 bg-primary/10" 
-                  : "border-border bg-card/50 hover:bg-muted/50"
-              }`}
+              className={`overflow-hidden rounded-2xl border transition-all duration-300 ${isSelected
+                ? "border-primary/50 bg-primary/10"
+                : "border-border bg-card/50 hover:bg-muted/50"
+                }`}
             >
               {/* Main Row */}
               <button
@@ -270,7 +284,7 @@ export function FriendsList({
                     {friend.avatar || friend.name[0]}
                   </div>
                   {/* Status Dot */}
-                  <div 
+                  <div
                     className={`absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-background ${status.color} ${status.animate ? "animate-pulse" : ""}`}
                   />
                 </div>
@@ -283,11 +297,11 @@ export function FriendsList({
                       Lv.{friend.level}
                     </span>
                     {friend.clan && (
-                      <span 
+                      <span
                         className="rounded px-1.5 py-0.5 text-[10px] font-medium"
-                        style={{ 
+                        style={{
                           backgroundColor: `${friend.clanColor}20`,
-                          color: friend.clanColor 
+                          color: friend.clanColor
                         }}
                       >
                         {friend.clan}
@@ -352,8 +366,12 @@ export function FriendsList({
                     <MessageCircle className="h-4 w-4" />
                     发消息
                   </button>
-                  <button className="flex items-center justify-center rounded-xl bg-muted px-3 py-2.5 text-muted-foreground transition-all hover:bg-muted/80">
-                    <Trophy className="h-4 w-4" />
+                  <button
+                    onClick={() => handleAssist(friend.id)}
+                    className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-green-500/20 py-2.5 text-sm font-medium text-green-500 transition-all hover:bg-green-500/30"
+                  >
+                    <Zap className="h-4 w-4" />
+                    助力
                   </button>
                 </div>
               )}
@@ -364,14 +382,26 @@ export function FriendsList({
 
       {/* Empty State */}
       {filteredFriends.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <div className="mb-3 rounded-full bg-muted/50 p-4">
-            <UserPlus className="h-8 w-8 text-muted-foreground" />
+        <div className="flex flex-col items-center justify-center py-16 text-center bg-card/30 rounded-2xl border border-dashed border-border mt-4">
+          <div className="mb-4 rounded-full bg-primary/10 p-5">
+            <UserPlus className="h-10 w-10 text-primary" />
           </div>
-          <p className="text-muted-foreground">没有找到好友</p>
-          <p className="mt-1 text-sm text-muted-foreground/60">
-            {filter === "nearby" ? "附近暂无好友在跑步" : "尝试调整搜索条件"}
+          <h3 className="text-lg font-bold text-foreground mb-2">
+            {filter === "nearby" ? "附近暂无好友在跑步" : "还没有添加好友"}
+          </h3>
+          <p className="text-sm text-muted-foreground mb-6 max-w-[240px]">
+            {filter === "nearby"
+              ? "稍后再来看看，或者去发现新的跑友吧！"
+              : "添加好友，一起探索城市领地，比拼运动排行！"}
           </p>
+          <div className="flex gap-3">
+            <button
+              onClick={() => document.querySelector<HTMLButtonElement>('.bg-cyan-500\\/20')?.click() /* A bit hacky but triggers the discover tab from parent */}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-2 rounded-xl font-bold transition-all active:scale-95 shadow-sm"
+            >
+              发现跑友
+            </button>
+          </div>
         </div>
       )}
     </div>

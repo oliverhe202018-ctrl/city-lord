@@ -425,7 +425,7 @@ export function MapHeader({
         <div className="absolute right-4 top-[calc(env(safe-area-inset-top)+6rem)] flex flex-col gap-3 pointer-events-auto">
           <button
             onClick={() => onViewModeChange(viewMode === 'user' ? 'club' : 'user')}
-            className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white shadow-lg active:scale-95 transition-all"
+            className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white shadow-lg transition-all active:scale-90 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-black"
           >
             {viewMode === 'user' ? (
               <User className="w-5 h-5" />

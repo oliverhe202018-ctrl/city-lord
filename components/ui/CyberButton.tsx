@@ -19,7 +19,7 @@ export function CyberButton({
   ...props
 }: CyberButtonProps) {
   const baseStyles =
-    "relative inline-flex items-center justify-center font-bold uppercase tracking-wider transition-all duration-200 disabled:opacity-50 disabled:pointer-events-none active:scale-95 focus:outline-none";
+    "relative inline-flex items-center justify-center font-bold uppercase tracking-wider transition-all duration-200 disabled:opacity-50 disabled:pointer-events-none disabled:active:scale-100 active:scale-95 outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2";
 
   const variants = {
     primary:
@@ -43,11 +43,11 @@ export function CyberButton({
   // Special handling for rounded corners vs clip-path
   const roundedStyles = (variant === "primary" || variant === "hexagon") ? "" : sizes[size];
   const primarySizeStyles = (variant === "primary" || variant === "hexagon") ? sizes[size].replace("rounded-", "") : ""; // Remove rounded for clipped buttons if we were to implement clip-path fully, but for now let's stick to rounded for simplicity unless it's a specific style. 
-  
+
   // Actually, for "design system", let's keep it consistent. 
   // If the user wants "Cyberpunk", sharp edges or slight rounding is good.
   // Let's stick to standard rounded corners for consistency unless specified.
-  
+
   return (
     <button
       className={cn(baseStyles, variants[variant], sizes[size], className)}
@@ -56,7 +56,7 @@ export function CyberButton({
     >
       {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
       {children}
-      
+
       {/* Glitch effect overlay for primary buttons could go here */}
     </button>
   );

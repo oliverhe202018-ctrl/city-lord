@@ -205,8 +205,9 @@ export async function fetchFriendActivities(): Promise<FriendActivity[]> {
     return {
       id: `capture-${t.id}`,
       user: {
+        id: t.owner_id,
         name: profile?.nickname || 'Unknown',
-        avatar: profile?.avatar_url,
+        avatar: profile?.avatar_url || undefined,
         level: profile?.level || 1,
       },
       type: "capture",
@@ -244,8 +245,9 @@ export async function fetchFriendActivities(): Promise<FriendActivity[]> {
     return {
       id: `ach-${a.achievement_id}-${a.user_id}`,
       user: {
+        id: a.user_id,
         name: profile?.nickname || 'Unknown',
-        avatar: profile?.avatar_url,
+        avatar: profile?.avatar_url || undefined,
         level: profile?.level || 1,
       },
       type: "achievement",
@@ -307,7 +309,7 @@ export async function fetchFriendActivities(): Promise<FriendActivity[]> {
       user: {
         id: m.user_id,
         name: profile?.nickname || 'Unknown',
-        avatar: profile?.avatar_url,
+        avatar: profile?.avatar_url || undefined,
         level: profile?.level || 1,
       },
       type: "challenge", // Reusing challenge type for mission completion
@@ -328,6 +330,42 @@ export async function fetchFriendActivities(): Promise<FriendActivity[]> {
   const allActivities = [...captureActivities, ...achievementActivities, ...missionActivities]
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
     .slice(0, 20)
+
+  // Hydrate likes and comments
+  try {
+    const targetIds = allActivities.map(a => a.id)
+    if (targetIds.length > 0) {
+      const { prisma } = await import('@/lib/prisma')
+      const [likesCount, commentsCount, userLikes] = await Promise.all([
+        prisma.activity_likes.groupBy({
+          by: ['target_id'],
+          where: { target_id: { in: targetIds } },
+          _count: true
+        }).catch(() => []),
+        prisma.activity_comments.groupBy({
+          by: ['target_id'],
+          where: { target_id: { in: targetIds } },
+          _count: true
+        }).catch(() => []),
+        prisma.activity_likes.findMany({
+          where: { target_id: { in: targetIds }, user_id: user.id },
+          select: { target_id: true }
+        }).catch(() => [])
+      ])
+
+      const likesMap = Object.fromEntries(likesCount.map((l: any) => [l.target_id, l._count]))
+      const commentsMap = Object.fromEntries(commentsCount.map((c: any) => [c.target_id, c._count]))
+      const userLikesSet = new Set(userLikes.map((l: any) => l.target_id))
+
+      allActivities.forEach(a => {
+        a.likes = (likesMap[a.id] as number) || 0
+        a.comments = (commentsMap[a.id] as number) || 0
+        a.isLiked = userLikesSet.has(a.id)
+      })
+    }
+  } catch (e) {
+    console.error('Failed to fetch social stats:', e)
+  }
 
   return allActivities
 }
@@ -406,7 +444,7 @@ export async function getRecommendedUsers(): Promise<RecommendedUser[]> {
     return {
       id: p.id,
       name: p.nickname || 'Unknown Runner',
-      avatar: p.avatar_url,
+      avatar: p.avatar_url || undefined,
       level: p.level || 1,
       reason: randomReason,
       reasonDetail: reasonDetail,
@@ -494,7 +532,7 @@ export async function getFriendRequests() {
     id: r.id, // friendship record id (if it exists) or use user_id
     userId: r.user_id,
     name: r.profile?.nickname || 'Unknown',
-    avatar: r.profile?.avatar_url,
+    avatar: r.profile?.avatar_url || undefined,
     level: r.profile?.level || 1,
     timestamp: r.created_at
   }))
@@ -619,7 +657,7 @@ export async function getPendingChallenges() {
       from: {
         name: sender?.nickname || 'Unknown',
         level: sender?.level || 1,
-        avatar: sender?.avatar_url
+        avatar: sender?.avatar_url || undefined
       },
       ...details,
       expiresIn

@@ -44,6 +44,7 @@ import { CountdownOverlay } from "@/components/running/CountdownOverlay"
 import { initOneSignal, setExternalUserId } from "@/lib/onesignal/init"
 import { isNativePlatform, safeRequestGeolocationPermission, safeRequestLocalNotificationPermission, safeScheduleLocalNotification } from "@/lib/capacitor/safe-plugins"
 import { safeLoadAMap } from '@/lib/map/safe-amap';
+import { ImmersiveSkeleton } from "@/components/citylord/running/ImmersiveSkeleton";
 
 // --- Step 1: Memoize Heavy Components ---
 
@@ -248,7 +249,12 @@ export function GamePageContent({
   } = useRunningTracker(isRunning, user?.id)
 
   // Crash Recovery Check
+  const [hasCheckedRecovery, setHasCheckedRecovery] = useState(false);
+
   useEffect(() => {
+    if (hasCheckedRecovery) return;
+    setHasCheckedRecovery(true);
+
     const RECOVERY_KEY = 'CURRENT_RUN_RECOVERY';
     const recoveryJson = localStorage.getItem(RECOVERY_KEY);
     if (recoveryJson) {
@@ -263,10 +269,11 @@ export function GamePageContent({
           localStorage.removeItem(RECOVERY_KEY);
         }
       } catch (e) {
+        console.warn("Invalid crash recovery data, cleaning up...", e);
         localStorage.removeItem(RECOVERY_KEY);
       }
     }
-  }, []);
+  }, [hasCheckedRecovery]);
 
   const [sessionHexes, setSessionHexes] = useState(0)
 
@@ -702,35 +709,45 @@ export function GamePageContent({
 
                 {!shouldHideButtons && (
                   <div className="pointer-events-auto absolute top-[130px] left-4 z-20 flex flex-col gap-4">
-                    {/* Theme Switcher — moved here from MapHeader right panel */}
-                    <button
-                      onClick={handleOpenThemeSettings}
-                      className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg text-white active:scale-95 transition-all hover:bg-primary/20 hover:border-primary/50 hover:text-primary-foreground"
-                      title="切换主题"
-                    >
-                      <Palette className="h-5 w-5" />
-                    </button>
+                    <div className="group relative flex items-center">
+                      <button
+                        onClick={handleOpenThemeSettings}
+                        className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg text-white active:scale-90 active:bg-white/20 transition-all hover:bg-primary/20 hover:border-primary/50 hover:text-primary-foreground"
+                      >
+                        <Palette className="h-5 w-5" />
+                      </button>
+                      <span className="absolute left-12 pointer-events-none opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity whitespace-nowrap bg-black/80 text-white text-[10px] sm:text-xs px-2 py-1 rounded border border-white/10">切换主题</span>
+                    </div>
 
-                    <button
-                      onClick={handlePlannerOpen}
-                      className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg text-white active:scale-95 transition-all hover:bg-primary/20 hover:border-primary/50 hover:text-primary-foreground"
-                    >
-                      <Route className="h-5 w-5" />
-                    </button>
+                    <div className="group relative flex items-center">
+                      <button
+                        onClick={handlePlannerOpen}
+                        className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg text-white active:scale-90 active:bg-white/20 transition-all hover:bg-primary/20 hover:border-primary/50 hover:text-primary-foreground"
+                      >
+                        <Route className="h-5 w-5" />
+                      </button>
+                      <span className="absolute left-12 pointer-events-none opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity whitespace-nowrap bg-black/80 text-white text-[10px] sm:text-xs px-2 py-1 rounded border border-white/10">路线规划</span>
+                    </div>
 
-                    <button
-                      onClick={handleRunHistoryOpen}
-                      className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg text-white active:scale-95 transition-all hover:bg-primary/20 hover:border-primary/50 hover:text-primary-foreground"
-                    >
-                      <History className="h-5 w-5" />
-                    </button>
+                    <div className="group relative flex items-center">
+                      <button
+                        onClick={handleRunHistoryOpen}
+                        className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg text-white active:scale-90 active:bg-white/20 transition-all hover:bg-primary/20 hover:border-primary/50 hover:text-primary-foreground"
+                      >
+                        <History className="h-5 w-5" />
+                      </button>
+                      <span className="absolute left-12 pointer-events-none opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity whitespace-nowrap bg-black/80 text-white text-[10px] sm:text-xs px-2 py-1 rounded border border-white/10">跑步历史</span>
+                    </div>
 
-                    <button
-                      onClick={handleLeaderboardOpen}
-                      className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg text-white active:scale-95 transition-all hover:bg-primary/20 hover:border-primary/50 hover:text-primary-foreground"
-                    >
-                      <Trophy className="h-5 w-5" />
-                    </button>
+                    <div className="group relative flex items-center">
+                      <button
+                        onClick={handleLeaderboardOpen}
+                        className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg text-white active:scale-90 active:bg-white/20 transition-all hover:bg-primary/20 hover:border-primary/50 hover:text-primary-foreground"
+                      >
+                        <Trophy className="h-5 w-5" />
+                      </button>
+                      <span className="absolute left-12 pointer-events-none opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity whitespace-nowrap bg-black/80 text-white text-[10px] sm:text-xs px-2 py-1 rounded border border-white/10">查看排行榜</span>
+                    </div>
                   </div>
                 )}
 
@@ -805,31 +822,35 @@ export function GamePageContent({
         </main>
       )}
 
-      <MemoizedImmersiveRunningMode
-        isActive={showImmersiveMode}
-        userId={user?.id}
-        distance={distance}
-        distanceMeters={distanceMeters}
-        durationSeconds={durationSeconds}
-        steps={steps}
-        area={area}
-        pace={pace}
-        time={duration}
-        calories={calories}
-        heartRate={0}
-        hexesCaptured={sessionHexes}
-        currentHexProgress={0}
-        onPause={toggleTrackerPause}
-        onResume={toggleTrackerPause}
-        onStop={handleStopRun}
-        onManualLocation={addManualLocation}
-        onExpand={handleExpand}
-        currentLocation={currentLocation || (userLat && userLng ? { lat: userLat, lng: userLng } : undefined)}
-        path={path}
-        closedPolygons={closedPolygons}
-        onHexClaimed={handleHexClaimed}
-        saveRun={saveRun}
-      />
+      {!hydrated ? (
+        <ImmersiveSkeleton />
+      ) : (
+        <MemoizedImmersiveRunningMode
+          isActive={showImmersiveMode}
+          userId={user?.id}
+          distance={distance}
+          distanceMeters={distanceMeters}
+          durationSeconds={durationSeconds}
+          steps={steps}
+          area={area}
+          pace={pace}
+          time={duration}
+          calories={calories}
+          heartRate={0}
+          hexesCaptured={sessionHexes}
+          currentHexProgress={0}
+          onPause={toggleTrackerPause}
+          onResume={toggleTrackerPause}
+          onStop={handleStopRun}
+          onManualLocation={addManualLocation}
+          onExpand={handleExpand}
+          currentLocation={currentLocation || (userLat && userLng ? { lat: userLat, lng: userLng } : undefined)}
+          path={path}
+          closedPolygons={closedPolygons}
+          onHexClaimed={handleHexClaimed}
+          saveRun={saveRun}
+        />
+      )}
 
       {hydrated && currentCity && <MemoizedBottomNav activeTab={activeTab} onTabChange={setActiveTab} />}
 

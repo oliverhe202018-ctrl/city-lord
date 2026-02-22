@@ -10,6 +10,7 @@ export interface GeoPoint {
   speed?: number | null;
   timestamp?: number;
   source?: 'cache' | 'network-coarse' | 'gps-precise';
+  coordSystem?: string;
 }
 
 // State machine for location status

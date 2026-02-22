@@ -106,16 +106,16 @@ type TopClub = {
   totalArea: number
 }
 
-export function ClubDetailView({ 
-  clubId, 
-  onChange, 
+export function ClubDetailView({
+  clubId,
+  onChange,
   isJoined = false,
   onJoin,
   isJoining = false,
   onBack,
   topClubs = []
-}: { 
-  clubId: string; 
+}: {
+  clubId: string;
   onChange?: () => void;
   isJoined?: boolean;
   onJoin?: () => Promise<boolean> | void;
@@ -125,7 +125,7 @@ export function ClubDetailView({
 }) {
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
-  
+
   // Local state to override Props for immediate UI transition
   const [hasJoined, setHasJoined] = useState(false);
   const effectiveIsMember = isJoined || hasJoined;
@@ -142,13 +142,13 @@ export function ClubDetailView({
     let hideListenerHandle: any;
 
     const setupListeners = async () => {
-        if (!(await isNativePlatform())) return
-        showListenerHandle = await safeKeyboardAddListener('keyboardWillShow', (info) => {
-            setKeyboardHeight(info.keyboardHeight)
-        })
-        hideListenerHandle = await safeKeyboardAddListener('keyboardWillHide', () => {
-            setKeyboardHeight(0)
-        })
+      if (!(await isNativePlatform())) return
+      showListenerHandle = await safeKeyboardAddListener('keyboardWillShow', (info) => {
+        setKeyboardHeight(info.keyboardHeight)
+      })
+      hideListenerHandle = await safeKeyboardAddListener('keyboardWillHide', () => {
+        setKeyboardHeight(0)
+      })
     }
 
     setupListeners();
@@ -202,36 +202,36 @@ export function ClubDetailView({
         setHasJoined(true);
       }
     } else {
-        // API route call
-        try {
-            const result = await joinClub(clubId)
-            
-            if (result.success) {
-                setHasJoined(true);
-                
-                // ✅ 同步更新 Zustand
-                if (result.clubId) {
-                    useGameStore.getState().updateClubId(result.clubId)
-                }
+      // API route call
+      try {
+        const result = await joinClub(clubId)
 
-                const message = result.status === 'active' 
-                ? '加入成功！' 
-                : '申请已提交，等待审核'
-                
-                toast.success(message)
+        if (result.success) {
+          setHasJoined(true);
 
-                // ✅ 关键：延迟 500ms 后跳转到 /club 页面
-                setTimeout(() => {
-                    router.push('/club')
-                    router.refresh() // 强制刷新数据
-                }, 500)
-            } else {
-                toast.error(result.error || '加入失败')
-            }
-        } catch (e) {
-            console.error('Join club error:', e)
-            toast.error('网络请求失败')
+          // ✅ 同步更新 Zustand
+          if (result.clubId) {
+            useGameStore.getState().updateClubId(result.clubId)
+          }
+
+          const message = result.status === 'active'
+            ? '加入成功！'
+            : '申请已提交，等待审核'
+
+          toast.success(message)
+
+          // ✅ 关键：延迟 500ms 后跳转到 /club 页面
+          setTimeout(() => {
+            router.push('/club')
+            router.refresh() // 强制刷新数据
+          }, 500)
+        } else {
+          toast.error(result.error || '加入失败')
         }
+      } catch (e) {
+        console.error('Join club error:', e)
+        toast.error('网络请求失败')
+      }
     }
   };
 
@@ -250,11 +250,11 @@ export function ClubDetailView({
         }
 
         setClub({
-          id: cachedClub.club_id,
+          id: cachedClub.id || cachedClub.club_id,
           name: cachedClub.name,
           description: cachedClub.description,
           avatarUrl: toPublicUrl(cachedClub.avatar_url, 'clubs'),
-          memberCount: cachedClub.member_count || 0,
+          memberCount: cachedClub.total_member_count || cachedClub.member_count || 0,
           province: cachedClub.province,
           totalArea: Number(cachedClub.total_area) || 0
         })
@@ -293,8 +293,8 @@ export function ClubDetailView({
       // Fetch local top clubs if province is available
       const currentProvince = cachedClub?.province || club?.province;
       if (currentProvince) {
-          const localData = await fetchTopClubsByArea(5, currentProvince)
-          setTopClubsLocal(localData)
+        const localData = await fetchTopClubsByArea(5, currentProvince)
+        setTopClubsLocal(localData)
       }
 
 
@@ -348,13 +348,13 @@ export function ClubDetailView({
   }
 
   const formatArea = (area: number | undefined) => {
-      if (!area) return '0 ㎡';
-      if (area < 10000) return `${Math.round(area)} ㎡`;
-      return `${(area / 1000000).toFixed(1)} k㎡`;
+    if (!area) return '0 ㎡';
+    if (area < 10000) return `${Math.round(area)} ㎡`;
+    return `${(area / 1000000).toFixed(1)} k㎡`;
   };
 
   return (
-    <div 
+    <div
       className="relative w-full h-full flex flex-col bg-background text-foreground"
       style={{
         // ✅ 键盘弹出时向上移动，而不是改变高度
@@ -381,7 +381,7 @@ export function ClubDetailView({
               <div className="flex items-center gap-2">
                 {onBack && !effectiveIsMember && (
                   <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full bg-background/40 text-foreground hover:bg-background/60" onClick={onBack}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
                   </Button>
                 )}
               </div>
@@ -404,7 +404,7 @@ export function ClubDetailView({
             </div>
             <div className="pb-2">
               <div className="text-lg font-semibold text-foreground">{club.name}</div>
-              
+
               {/* Inline Stats Row */}
               <div className="flex items-center gap-3 text-base font-medium text-muted-foreground mt-1">
                 <div className="flex items-center gap-1">
@@ -427,9 +427,9 @@ export function ClubDetailView({
 
         <div className="px-6 mt-6">
           <div className="grid grid-cols-2 gap-3 rounded-2xl border border-border bg-muted/30 p-4">
-            <div 
-                className={`text-center border-r border-border flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors ${rankType === 'global' ? 'bg-background rounded-lg -my-2 py-2 shadow-sm' : 'hover:bg-background/50 rounded-lg -my-2 py-2'}`}
-                onClick={() => setRankType('global')}
+            <div
+              className={`text-center border-r border-border flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors ${rankType === 'global' ? 'bg-background rounded-lg -my-2 py-2 shadow-sm' : 'hover:bg-background/50 rounded-lg -my-2 py-2'}`}
+              onClick={() => setRankType('global')}
             >
               <div className={`flex items-center gap-1.5 ${rankType === 'global' ? 'text-primary' : 'text-muted-foreground'} mb-1`}>
                 <Trophy className="w-4 h-4" />
@@ -437,9 +437,9 @@ export function ClubDetailView({
               </div>
               <div className={`text-xl font-black italic ${rankType === 'global' ? 'text-foreground' : 'text-muted-foreground'}`}>#{rankings.global || '-'}</div>
             </div>
-            <div 
-                className={`text-center flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors ${rankType === 'local' ? 'bg-background rounded-lg -my-2 py-2 shadow-sm' : 'hover:bg-background/50 rounded-lg -my-2 py-2'}`}
-                onClick={() => setRankType('local')}
+            <div
+              className={`text-center flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors ${rankType === 'local' ? 'bg-background rounded-lg -my-2 py-2 shadow-sm' : 'hover:bg-background/50 rounded-lg -my-2 py-2'}`}
+              onClick={() => setRankType('local')}
             >
               <div className={`flex items-center gap-1.5 ${rankType === 'local' ? 'text-blue-500' : 'text-muted-foreground'} mb-1`}>
                 <Map className="w-4 h-4" />
@@ -459,7 +459,7 @@ export function ClubDetailView({
                 <TabsTrigger value="members" className="flex-1 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">成员</TabsTrigger>
                 <TabsTrigger value="data" className="flex-1 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">数据</TabsTrigger>
               </TabsList>
-              
+
               <TabsContent value="activity" className="mt-4">
                 <div className="rounded-2xl border border-border bg-muted/30 p-6 text-center text-muted-foreground">
                   暂无俱乐部动态
@@ -498,21 +498,21 @@ export function ClubDetailView({
 
                     {/* ✅ 分页控件 */}
                     <div className="flex items-center justify-center pt-4 pb-2 text-sm text-muted-foreground gap-4">
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
-                        disabled={currentPage === 1} 
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
                         className="h-8 w-8 p-0 rounded-full hover:bg-muted"
                       >
                         ←
                       </Button>
                       <span className="font-medium text-foreground">{currentPage} / {totalPages}</span>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
-                        disabled={currentPage === totalPages} 
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
                         className="h-8 w-8 p-0 rounded-full hover:bg-muted"
                       >
                         →
@@ -521,7 +521,7 @@ export function ClubDetailView({
                   </div>
                 )}
               </TabsContent>
-              
+
               <TabsContent value="data" className="mt-4">
                 {/* ... 原有数据内容 ... */}
                 <div className="grid grid-cols-2 gap-3">
@@ -555,16 +555,15 @@ export function ClubDetailView({
               ) : (
                 displayTopClubs.map((club, index) => (
                   <div key={club.id} className="flex items-center gap-4 p-3 rounded-2xl bg-muted/30 border border-border">
-                    <div className={`w-8 h-8 flex items-center justify-center rounded-full font-bold text-sm ${
-                      index === 0 ? 'bg-yellow-500 text-white' : 
-                      index === 1 ? 'bg-gray-400 text-white' : 
-                      index === 2 ? 'bg-orange-600 text-white' : 
-                      'bg-muted text-muted-foreground'
-                    }`}>
+                    <div className={`w-8 h-8 flex items-center justify-center rounded-full font-bold text-sm ${index === 0 ? 'bg-yellow-500 text-white' :
+                        index === 1 ? 'bg-gray-400 text-white' :
+                          index === 2 ? 'bg-orange-600 text-white' :
+                            'bg-muted text-muted-foreground'
+                      }`}>
                       {index + 1}
                     </div>
                     <div className="w-10 h-10 rounded-full overflow-hidden bg-muted flex-shrink-0">
-                       <img src={club.avatar} alt={club.name} className="w-full h-full object-cover" />
+                      <img src={club.avatar} alt={club.name} className="w-full h-full object-cover" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-bold text-foreground truncate">{club.name}</div>
@@ -588,14 +587,14 @@ export function ClubDetailView({
             paddingBottom: `calc(1rem + env(safe-area-inset-bottom))`
           }}
         >
-           <Button 
-            size="lg" 
+          <Button
+            size="lg"
             className="w-full py-6 text-lg font-bold bg-primary text-primary-foreground hover:bg-primary/90 shadow-xl rounded-xl"
             onClick={handleJoinClick}
             disabled={isJoining}
-           >
+          >
             {isJoining ? "申请中..." : "申请加入"}
-           </Button>
+          </Button>
         </div>
       )}
     </div>

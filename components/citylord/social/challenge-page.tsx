@@ -3,12 +3,12 @@
 import React from "react"
 
 import { useState, useEffect } from "react"
-import { 
-  Swords, 
-  Timer, 
-  MapPin, 
-  Trophy, 
-  Zap, 
+import {
+  Swords,
+  Timer,
+  MapPin,
+  Trophy,
+  Zap,
   ArrowRight,
   Check,
   X,
@@ -119,23 +119,52 @@ interface ChallengePageProps {
     id?: string
     name: string
     level: number
-    avatar?: string
+    avatar?: string | null
   }
   onSendChallenge?: (type: ChallengeType, options: unknown) => void
   onAccept?: (challengeId: string) => void
   onDecline?: (challengeId: string) => void
 }
 
-export function ChallengePage({ 
-  selectedFriend, 
+export function ChallengePage({
+  selectedFriend,
   onSendChallenge,
   onAccept,
-  onDecline 
+  onDecline
 }: ChallengePageProps) {
   const [selectedType, setSelectedType] = useState<ChallengeType | null>(null)
   const [distance, setDistance] = useState(3)
   const [showConfirm, setShowConfirm] = useState(false)
   const [pendingChallenges, setPendingChallenges] = useState<PendingChallenge[]>([])
+
+  // Mock data for active challenges with progress visualization
+  const [activeChallenges] = useState([
+    {
+      id: "ac1",
+      opponent: { name: "跑神阿甘", avatar: "🏃", level: 42 },
+      type: "distance",
+      title: "里程比拼",
+      target: 10,
+      current: 7.5,
+      opponentCurrent: 8.2,
+      expiresIn: "12:45:00",
+      color: "#8b5cf6",
+      icon: Target
+    },
+    {
+      id: "ac2",
+      opponent: { name: "夜跑狂魔", avatar: "🦇", level: 38 },
+      type: "race",
+      title: "竞速挑战 (5公里)",
+      target: 5,
+      current: 5,
+      opponentCurrent: 4.1,
+      expiresIn: "完成！",
+      color: "#22c55e",
+      icon: Zap
+    }
+  ])
+
   const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
@@ -155,7 +184,7 @@ export function ChallengePage({
           distance: c.distance,
           duration: c.duration || '24h',
           reward: c.rewardXp || 100,
-          expiresIn: c.expiresIn, 
+          expiresIn: c.expiresIn,
           location: 'City'
         }))
         setPendingChallenges(mapped)
@@ -172,7 +201,7 @@ export function ChallengePage({
       try {
         // Calculate reward based on options
         const option = challengeOptions.find(o => o.type === selectedType)
-        
+
         await createChallenge({
           type: selectedType,
           targetId: selectedFriend.id,
@@ -180,7 +209,7 @@ export function ChallengePage({
           duration: option?.duration,
           rewardXp: option?.reward || 100
         })
-        
+
         onSendChallenge?.(selectedType, { distance })
         setShowConfirm(true)
         setTimeout(() => setShowConfirm(false), 2000)
@@ -208,6 +237,86 @@ export function ChallengePage({
 
   return (
     <div className="space-y-6">
+      {/* Active Challenges Section */}
+      {activeChallenges.length > 0 && (
+        <div className="mb-6">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            <Timer className="h-4 w-4" />
+            进行中的挑战
+          </h2>
+          <div className="space-y-4">
+            {activeChallenges.map(ac => {
+              const Icon = ac.icon
+              const myProgress = Math.min((ac.current / ac.target) * 100, 100)
+              const oppProgress = Math.min((ac.opponentCurrent / ac.target) * 100, 100)
+              const isWinner = ac.current >= ac.target && ac.current > ac.opponentCurrent
+
+              return (
+                <div key={ac.id} className="relative overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-sm">
+                  <div className={`absolute top-0 left-0 w-1 h-full`} style={{ backgroundColor: ac.color }} />
+
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-lg" style={{ backgroundColor: `${ac.color}20`, color: ac.color }}>
+                        <Icon className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold">{ac.title}</div>
+                        <div className="text-xs text-muted-foreground">vs {ac.opponent.name}</div>
+                      </div>
+                    </div>
+                    <div className="text-xs font-mono bg-muted px-2 py-1 rounded-md">
+                      {ac.expiresIn}
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    {/* My Progress */}
+                    <div>
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="font-bold">我</span>
+                        <span className="text-muted-foreground">{ac.current} / {ac.target}</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-muted overflow-hidden relative">
+                        <div
+                          className="absolute top-0 left-0 h-full rounded-full transition-all duration-1000 bg-primary"
+                          style={{ width: `${myProgress}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Opponent Progress */}
+                    <div>
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="font-bold">{ac.opponent.name}</span>
+                        <span className="text-muted-foreground">{ac.opponentCurrent} / {ac.target}</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-muted overflow-hidden relative">
+                        <div
+                          className="absolute top-0 left-0 h-full rounded-full transition-all duration-1000 bg-destructive/60"
+                          style={{ width: `${oppProgress}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {myProgress >= 100 && (
+                    <div className="mt-4 pt-3 border-t border-border flex items-center justify-between">
+                      <span className="text-sm font-bold text-green-500 flex items-center gap-1">
+                        <Trophy className="w-4 h-4" /> 恭喜，你赢得了挑战！
+                      </span>
+                      <button className="text-xs bg-green-500 text-white px-3 py-1.5 rounded-lg active:scale-95">
+                        领奖
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Pending Challenges Section */}
       {pendingChallenges.length > 0 && (
         <div>
@@ -228,7 +337,7 @@ export function ChallengePage({
                   <div className="p-4">
                     <div className="mb-3 flex items-start justify-between">
                       <div className="flex items-center gap-3">
-                        <div 
+                        <div
                           className="flex h-10 w-10 items-center justify-center rounded-full"
                           style={{ backgroundColor: `${option.color}20` }}
                         >
@@ -326,17 +435,15 @@ export function ChallengePage({
                 key={option.type}
                 onClick={() => setSelectedType(option.type)}
                 disabled={!selectedFriend}
-                className={`w-full rounded-2xl border p-4 text-left transition-all ${
-                  isSelected
-                    ? "border-green-500 bg-green-500/10"
-                    : "border-border bg-card hover:bg-muted/50"
-                } ${!selectedFriend ? "opacity-50 cursor-not-allowed" : ""}`}
+                className={`w-full rounded-2xl border p-4 text-left transition-all ${isSelected
+                  ? "border-green-500 bg-green-500/10"
+                  : "border-border bg-card hover:bg-muted/50"
+                  } ${!selectedFriend ? "opacity-50 cursor-not-allowed" : ""}`}
               >
                 <div className="flex items-center gap-3">
-                  <div 
-                    className={`flex h-12 w-12 items-center justify-center rounded-xl transition-colors ${
-                      isSelected ? "bg-green-500/20" : "bg-muted"
-                    }`}
+                  <div
+                    className={`flex h-12 w-12 items-center justify-center rounded-xl transition-colors ${isSelected ? "bg-green-500/20" : "bg-muted"
+                      }`}
                   >
                     <Icon className="h-6 w-6" style={{ color: isSelected ? "#22c55e" : option.color }} />
                   </div>
@@ -359,11 +466,10 @@ export function ChallengePage({
                         <button
                           key={d}
                           onClick={() => setDistance(d)}
-                          className={`flex-1 rounded-lg py-2 text-sm font-medium transition-all ${
-                            distance === d
-                              ? "bg-green-500 text-white"
-                              : "bg-muted text-foreground hover:bg-muted/80"
-                          }`}
+                          className={`flex-1 rounded-lg py-2 text-sm font-medium transition-all ${distance === d
+                            ? "bg-green-500 text-white"
+                            : "bg-muted text-foreground hover:bg-muted/80"
+                            }`}
                         >
                           {d}公里
                         </button>
@@ -380,11 +486,10 @@ export function ChallengePage({
         <button
           onClick={handleSendChallenge}
           disabled={!selectedFriend || !selectedType}
-          className={`mt-4 flex w-full items-center justify-center gap-2 rounded-xl py-3.5 font-semibold transition-all ${
-            selectedFriend && selectedType
-              ? "bg-green-500 text-white hover:bg-green-600 active:scale-[0.98]"
-              : "bg-muted text-muted-foreground cursor-not-allowed"
-          }`}
+          className={`mt-4 flex w-full items-center justify-center gap-2 rounded-xl py-3.5 font-semibold transition-all ${selectedFriend && selectedType
+            ? "bg-green-500 text-white hover:bg-green-600 active:scale-[0.98]"
+            : "bg-muted text-muted-foreground cursor-not-allowed"
+            }`}
         >
           {showConfirm ? (
             <>

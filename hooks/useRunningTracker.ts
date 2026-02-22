@@ -562,7 +562,10 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
   // Core save function
   const saveRun = useCallback(async (isFinal: boolean = false) => {
-    if (!userId) return; // Cannot save without user
+    if (!userId) {
+      if (isFinal) throw new Error("未登录或获取不到用户ID");
+      return;
+    }
 
     try {
       setIsSaving(true);
@@ -593,11 +596,14 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       } else {
         console.error("Save failed:", result.error);
         if (isFinal) {
-          toast.error("保存失败，数据已暂存本地");
+          throw new Error(result.error || "Save failed");
         }
       }
     } catch (err) {
       console.error("Save error:", err);
+      if (isFinal) {
+        throw err; // Re-throw to immersive-mode so it can intercept it!
+      }
     } finally {
       setIsSaving(false);
     }

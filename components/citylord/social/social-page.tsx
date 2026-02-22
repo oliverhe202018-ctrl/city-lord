@@ -20,13 +20,19 @@ import { ChallengePage } from "./challenge-page"
 import { FriendActivityFeed } from "../friend-activity-feed"
 import { RecommendedFriends } from "./recommended-friends"
 import { InviteFriends } from "./invite-friends"
+import { Leaderboard } from "./leaderboard"
+import { EventsPage } from "./events-page"
+import { StorePage } from "./store-page"
 import { GlassCard } from "@/components/ui/GlassCard"
 import { CyberButton } from "@/components/ui/CyberButton"
+import { CreatePostForm } from "./create-post-form"
+import { markSocialAsRead } from "@/app/actions/social-hub"
+import { useGameStore } from "@/store/useGameStore"
 
 import { MessageList } from "./message-list"
 
 type SocialTab = "friends" | "activity" | "messages"
-type SubView = "none" | "invite" | "discover" | "challenge"
+type SubView = "none" | "invite" | "discover" | "challenge" | "leaderboard" | "events" | "store"
 
 interface SocialPageProps {
   onShowDemo?: (type: "territory" | "challenge" | "achievement") => void
@@ -46,7 +52,9 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
   } | undefined>()
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [newLocalPost, setNewLocalPost] = useState<any>(null)
   const hydrated = useHydration()
+  const setUnreadSocialCount = useGameStore(state => state.setUnreadSocialCount)
 
   React.useEffect(() => {
     async function checkAuth() {
@@ -64,13 +72,13 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
         } else {
           // Retry logic
           setTimeout(async () => {
-             const { data: { session: retrySession } } = await supabase.auth.getSession()
-             if (retrySession?.user) {
-                setIsLoggedIn(true)
-             } else {
-                setIsLoggedIn(false)
-             }
-             setLoading(false)
+            const { data: { session: retrySession } } = await supabase.auth.getSession()
+            if (retrySession?.user) {
+              setIsLoggedIn(true)
+            } else {
+              setIsLoggedIn(false)
+            }
+            setLoading(false)
           }, 1000)
         }
       } catch (err) {
@@ -84,6 +92,15 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
       checkAuth()
     }
   }, [hydrated])
+
+  React.useEffect(() => {
+    if (hydrated && isLoggedIn) {
+      // Clear social red dot on entering social page
+      markSocialAsRead().then(res => {
+        if (res.success) setUnreadSocialCount(0)
+      }).catch(console.error)
+    }
+  }, [hydrated, isLoggedIn, setUnreadSocialCount])
 
   const handleBack = () => {
     setSubView("none")
@@ -186,6 +203,54 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
     )
   }
 
+  if (subView === "leaderboard") {
+    return (
+      <div className="flex h-full flex-col bg-background">
+        <div className="p-4 border-b border-border flex items-center gap-2 shrink-0">
+          <CyberButton variant="ghost" size="sm" onClick={handleBack} className="rotate-180">
+            <ChevronRight />
+          </CyberButton>
+          <h2 className="text-lg font-bold text-foreground">排行榜</h2>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4 pb-24">
+          <Leaderboard />
+        </div>
+      </div>
+    )
+  }
+
+  if (subView === "events") {
+    return (
+      <div className="flex h-full flex-col bg-background">
+        <div className="p-4 border-b border-border flex items-center gap-2 shrink-0">
+          <CyberButton variant="ghost" size="sm" onClick={handleBack} className="rotate-180">
+            <ChevronRight />
+          </CyberButton>
+          <h2 className="text-lg font-bold text-foreground">赛事与活动</h2>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4 pb-24">
+          <EventsPage />
+        </div>
+      </div>
+    )
+  }
+
+  if (subView === "store") {
+    return (
+      <div className="flex h-full flex-col bg-background">
+        <div className="p-4 border-b border-border flex items-center gap-2 shrink-0">
+          <CyberButton variant="ghost" size="sm" onClick={handleBack} className="rotate-180">
+            <ChevronRight />
+          </CyberButton>
+          <h2 className="text-lg font-bold text-foreground">积分商城</h2>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4 pb-24">
+          <StorePage />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex h-full flex-col bg-background">
       {/* Header */}
@@ -202,8 +267,8 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
           <button
             onClick={() => setActiveTab("friends")}
             className={`flex flex-col items-center justify-center pb-2 text-sm font-medium transition-all ${activeTab === "friends"
-                ? "border-b-2 border-primary text-primary"
-                : "text-muted-foreground hover:text-foreground"
+              ? "border-b-2 border-primary text-primary"
+              : "text-muted-foreground hover:text-foreground"
               }`}
           >
             好友列表
@@ -211,8 +276,8 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
           <button
             onClick={() => setActiveTab("activity")}
             className={`flex flex-col items-center justify-center pb-2 text-sm font-medium transition-all ${activeTab === "activity"
-                ? "border-b-2 border-primary text-primary"
-                : "text-muted-foreground hover:text-foreground"
+              ? "border-b-2 border-primary text-primary"
+              : "text-muted-foreground hover:text-foreground"
               }`}
           >
             动态圈
@@ -220,8 +285,8 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
           <button
             onClick={() => setActiveTab("messages")}
             className={`flex flex-col items-center justify-center pb-2 text-sm font-medium transition-all ${activeTab === "messages"
-                ? "border-b-2 border-primary text-primary"
-                : "text-muted-foreground hover:text-foreground"
+              ? "border-b-2 border-primary text-primary"
+              : "text-muted-foreground hover:text-foreground"
               }`}
           >
             消息
@@ -232,86 +297,105 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
       {/* Content */}
       <div className="flex-1 overflow-y-auto px-4 pb-24 pt-4">
 
-        {activeTab === "friends" && (
-          <div className="space-y-4">
-            {/* Quick Actions Grid */}
-            <div className="grid grid-cols-2 gap-3">
-              <GlassCard
-                className="p-3 flex items-center gap-3 cursor-pointer hover:bg-muted/50 active:scale-95 transition-all"
-                onClick={() => setSubView("invite")}
-              >
-                <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary">
-                  <UserPlus size={20} />
-                </div>
-                <div>
-                  <div className="text-sm font-bold text-foreground">邀请好友</div>
-                  <div className="text-[10px] text-muted-foreground">获得奖励</div>
-                </div>
-              </GlassCard>
-              <GlassCard
-                className="p-3 flex items-center gap-3 cursor-pointer hover:bg-muted/50 active:scale-95 transition-all"
-                onClick={() => setSubView("discover")}
-              >
-                <div className="h-10 w-10 rounded-full bg-cyan-500/20 flex items-center justify-center text-cyan-500">
-                  <Search size={20} />
-                </div>
-                <div>
-                  <div className="text-sm font-bold text-foreground">发现跑友</div>
-                  <div className="text-[10px] text-muted-foreground">附近的人</div>
-                </div>
-              </GlassCard>
-            </div>
-
-            {/* Friends List */}
-            <FriendsList
-              initialFriends={initialFriends}
-              initialRequests={initialRequests}
-              onSelectFriend={(friend) => setSelectedFriend(friend)}
-              onChallenge={(friend) => {
-                setSelectedFriend(friend)
-                setSubView("challenge")
-              }}
-              onMessage={(friend) => {
-                setSelectedFriend(friend)
-                setActiveTab("messages")
-              }}
-            />
+        <div className={activeTab === "friends" ? "block space-y-4" : "hidden space-y-4"}>
+          {/* Quick Actions Grid */}
+          <div className="grid grid-cols-2 gap-3 mb-2">
+            <GlassCard
+              className="p-3 flex items-center gap-3 cursor-pointer hover:bg-muted/50 active:scale-95 transition-all"
+              onClick={() => setSubView("store")}
+            >
+              <div className="h-10 w-10 shrink-0 rounded-full bg-primary/20 flex items-center justify-center text-primary">
+                <UserPlus size={20} />
+              </div>
+              <div>
+                <div className="text-sm font-bold text-foreground">积分商城</div>
+                <div className="text-[10px] text-muted-foreground whitespace-nowrap">商品兑换</div>
+              </div>
+            </GlassCard>
+            <GlassCard
+              className="p-3 flex items-center gap-3 cursor-pointer hover:bg-muted/50 active:scale-95 transition-all"
+              onClick={() => setSubView("discover")}
+            >
+              <div className="h-10 w-10 shrink-0 rounded-full bg-cyan-500/20 flex items-center justify-center text-cyan-500">
+                <Search size={20} />
+              </div>
+              <div>
+                <div className="text-sm font-bold text-foreground">发现跑友</div>
+                <div className="text-[10px] text-muted-foreground whitespace-nowrap">附近的人</div>
+              </div>
+            </GlassCard>
+            <GlassCard
+              className="p-3 flex items-center gap-3 cursor-pointer hover:bg-muted/50 active:scale-95 transition-all"
+              onClick={() => setSubView("leaderboard")}
+            >
+              <div className="h-10 w-10 shrink-0 rounded-full bg-yellow-500/20 flex items-center justify-center text-yellow-500">
+                <Trophy size={20} />
+              </div>
+              <div>
+                <div className="text-sm font-bold text-foreground">排行榜</div>
+                <div className="text-[10px] text-muted-foreground whitespace-nowrap">全球排名</div>
+              </div>
+            </GlassCard>
+            <GlassCard
+              className="p-3 flex items-center gap-3 cursor-pointer hover:bg-muted/50 active:scale-95 transition-all"
+              onClick={() => setSubView("events")}
+            >
+              <div className="h-10 w-10 shrink-0 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-500">
+                <Activity size={20} />
+              </div>
+              <div>
+                <div className="text-sm font-bold text-foreground">赛事活动</div>
+                <div className="text-[10px] text-muted-foreground whitespace-nowrap">社区奖励</div>
+              </div>
+            </GlassCard>
           </div>
-        )}
 
-        {activeTab === "activity" && (
-          <div className="space-y-4">
-            {/* Activity Sub-tabs */}
-            <div className="grid w-full grid-cols-2 rounded-lg bg-muted p-1">
-              <button
-                onClick={() => setActivityFilter("friends")}
-                className={`rounded-md py-1.5 text-xs font-medium transition-all ${activityFilter === "friends"
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                  }`}
-              >
-                好友动态
-              </button>
-              <button
-                onClick={() => setActivityFilter("all")}
-                className={`rounded-md py-1.5 text-xs font-medium transition-all ${activityFilter === "all"
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                  }`}
-              >
-                所有动态
-              </button>
-            </div>
+          {/* Friends List */}
+          <FriendsList
+            initialFriends={initialFriends}
+            initialRequests={initialRequests}
+            onSelectFriend={(friend) => setSelectedFriend(friend)}
+            onChallenge={(friend) => {
+              setSelectedFriend(friend)
+              setSubView("challenge")
+            }}
+            onMessage={(friend) => {
+              setSelectedFriend(friend)
+              setActiveTab("messages")
+            }}
+          />
+        </div>
 
-            <FriendActivityFeed />
+        <div className={activeTab === "activity" ? "block space-y-4" : "hidden space-y-4"}>
+          <CreatePostForm onSuccess={(post) => setNewLocalPost(post)} />
+          {/* Activity Sub-tabs */}
+          <div className="grid w-full grid-cols-2 rounded-lg bg-muted p-1">
+            <button
+              onClick={() => setActivityFilter("friends")}
+              className={`rounded-md py-1.5 text-xs font-medium transition-all ${activityFilter === "friends"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+                }`}
+            >
+              好友动态
+            </button>
+            <button
+              onClick={() => setActivityFilter("all")}
+              className={`rounded-md py-1.5 text-xs font-medium transition-all ${activityFilter === "all"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+                }`}
+            >
+              所有动态
+            </button>
           </div>
-        )}
 
-        {activeTab === "messages" && (
-          <div className="space-y-4">
-            <MessageList initialFriendId={selectedFriend?.id} />
-          </div>
-        )}
+          <FriendActivityFeed newPost={newLocalPost} filterType={activityFilter === "all" ? "GLOBAL" : "FRIENDS"} />
+        </div>
+
+        <div className={activeTab === "messages" ? "block space-y-4" : "hidden space-y-4"}>
+          <MessageList initialFriendId={selectedFriend?.id} />
+        </div>
       </div>
     </div>
   )

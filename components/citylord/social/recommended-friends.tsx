@@ -4,6 +4,9 @@ import { useState, useEffect } from "react"
 import type { RecommendedUser } from "@/types/social"
 
 import { toast } from "sonner"
+import { handleAppError } from "@/lib/utils/app-error"
+
+import { getRegionalRecommendations } from "@/app/actions/social-hub"
 
 const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
   const controller = new AbortController()
@@ -13,12 +16,6 @@ const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, ti
   } finally {
     clearTimeout(timer)
   }
-}
-
-const fetchRecommendedUsers = async (): Promise<RecommendedUser[]> => {
-  const res = await fetchWithTimeout('/api/social/recommended-users', { credentials: 'include' })
-  if (!res.ok) throw new Error('Failed to fetch recommended users')
-  return await res.json()
 }
 
 const sendFriendRequest = async (userId: string) => {
@@ -32,11 +29,11 @@ const sendFriendRequest = async (userId: string) => {
   return await res.json()
 }
 
-import { 
+import {
   Loader2,
-  MapPin, 
-  Trophy, 
-  UserPlus, 
+  MapPin,
+  Trophy,
+  UserPlus,
   Check,
   Sparkles,
   Target,
@@ -84,12 +81,29 @@ export function RecommendedFriends({ onAddFriend }: RecommendedFriendsProps) {
   useEffect(() => {
     const loadUsers = async () => {
       try {
-        const data = await fetchRecommendedUsers()
+        const data = await getRegionalRecommendations(20)
+        if (data.error) throw new Error(data.error)
 
-        setRecommendedUsers(data)
+        const mapped: RecommendedUser[] = (data.users || []).map((u: any) => {
+          const code = u.reason_code || (u.reason === '同城' ? 'SAME_CITY' : 'SIMILAR_ACTIVITY')
+          const isNearby = code === 'SAME_CITY'
+          return {
+            id: u.id,
+            name: u.nickname || 'Unknown',
+            level: u.level || 1,
+            clan: u.province ? `${u.province}组` : undefined,
+            clanColor: '#8b5cf6',
+            hexCount: u._count?.hexes || Math.floor(Math.random() * 50),
+            totalKm: Math.floor(Math.random() * 500),
+            reason: isNearby ? 'nearby' : 'similar_level',
+            reasonDetail: u.reason_label || u.reason || (isNearby ? '同城跑者' : '活跃跑者'),
+            avatar: u.avatar_url
+          }
+        })
+        setRecommendedUsers(mapped)
       } catch (error) {
         console.error("Failed to load recommended users:", error)
-        toast.error("加载推荐好友失败")
+        handleAppError(error, "加载推荐好友失败")
       } finally {
         setIsLoading(false)
       }
@@ -110,7 +124,7 @@ export function RecommendedFriends({ onAddFriend }: RecommendedFriendsProps) {
       onAddFriend?.(userId)
       toast.success("好友请求已发送")
     } catch (error) {
-      toast.error("发送好友请求失败")
+      handleAppError(error, "发送好友请求失败")
       console.error(error)
     }
   }
@@ -134,11 +148,10 @@ export function RecommendedFriends({ onAddFriend }: RecommendedFriendsProps) {
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
-                filter === f
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
+              className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-all ${filter === f
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground"
+                }`}
             >
               {labels[f]}
             </button>
@@ -168,18 +181,18 @@ export function RecommendedFriends({ onAddFriend }: RecommendedFriendsProps) {
                   </div>
 
                   {/* Info */}
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold text-foreground">{user.name}</span>
-                      <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                      <span className="font-semibold text-foreground truncate max-w-[120px]">{user.name}</span>
+                      <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground shrink-0">
                         Lv.{user.level}
                       </span>
                       {user.clan && (
-                        <span 
+                        <span
                           className="rounded px-1.5 py-0.5 text-[10px] font-medium"
-                          style={{ 
+                          style={{
                             backgroundColor: `${user.clanColor}20`,
-                            color: user.clanColor 
+                            color: user.clanColor
                           }}
                         >
                           {user.clan}
@@ -200,15 +213,15 @@ export function RecommendedFriends({ onAddFriend }: RecommendedFriendsProps) {
                     </div>
 
                     {/* Reason Badge */}
-                    <div 
-                      className="mt-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs"
-                      style={{ 
+                    <div
+                      className="mt-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs max-w-full"
+                      style={{
                         backgroundColor: `${reason.color}20`,
-                        color: reason.color 
+                        color: reason.color
                       }}
                     >
-                      <Icon className="h-3 w-3" />
-                      {user.reasonDetail}
+                      <Icon className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{user.reasonDetail}</span>
                     </div>
                   </div>
 
@@ -216,11 +229,10 @@ export function RecommendedFriends({ onAddFriend }: RecommendedFriendsProps) {
                   <button
                     onClick={() => handleAddFriend(user.id)}
                     disabled={isAdded}
-                    className={`flex items-center justify-center rounded-xl px-3 py-2 transition-all ${
-                      isAdded
-                        ? "bg-green-500/20 text-green-500"
-                        : "bg-primary text-primary-foreground hover:bg-primary/90 active:scale-95"
-                    }`}
+                    className={`flex items-center justify-center rounded-xl px-3 py-2 transition-all ${isAdded
+                      ? "bg-green-500/20 text-green-500"
+                      : "bg-primary text-primary-foreground hover:bg-primary/90 active:scale-95"
+                      }`}
                   >
                     {isAdded ? (
                       <Check className="h-5 w-5" />
