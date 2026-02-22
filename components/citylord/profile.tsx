@@ -2,8 +2,9 @@
 
 import React from "react"
 import { AvatarUploader } from "@/components/ui/AvatarUploader"
+import Image from "next/image"
 
-import { MapPin, Swords, Footprints, Eye, Settings, ChevronRight, Hexagon, Zap, Target, LogIn, LogOut, Edit2, Gift, MessageSquareWarning } from "lucide-react"
+import { MapPin, Swords, Footprints, Eye, Settings, ChevronRight, Hexagon, Zap, Target, LogIn, LogOut, Edit2, Gift, MessageSquareWarning, Sparkles } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useGameStore } from "@/store/useGameStore"
@@ -51,6 +52,7 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
     maxStamina,
     totalArea,
     avatar,
+    backgroundUrl,
     setNickname,
     setAvatar,
     resetUser,
@@ -316,15 +318,28 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
     <div className="flex h-full flex-col bg-background">
       {/* Header with Avatar */}
       <div className="relative border-b border-border bg-card/40 px-4 pb-6 pt-6 backdrop-blur-xl shrink-0">
-        {/* Dynamic Faction Background */}
+        {/* Dynamic Faction Background or Custom Profile Background */}
         <div className="absolute inset-0 overflow-hidden rounded-b-3xl z-0">
-          <FactionBattleBackground
-            userFaction={userStats.faction?.toLowerCase() === 'red' ? 'red' : 'blue'}
-            red_area={factionStats?.red_area ?? factionStats?.redArea ?? 0}
-            blue_area={factionStats?.blue_area ?? factionStats?.blueArea ?? 0}
-            isLoading={!factionStats}
-            className="opacity-50 pointer-events-none"
-          />
+          {backgroundUrl ? (
+            <>
+              <Image
+                src={backgroundUrl}
+                alt="Profile Background"
+                fill
+                className="object-cover opacity-80"
+                priority
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-background/20 to-transparent" />
+            </>
+          ) : (
+            <FactionBattleBackground
+              userFaction={userStats.faction?.toLowerCase() === 'red' ? 'red' : 'blue'}
+              red_area={factionStats?.red_area ?? factionStats?.redArea ?? 0}
+              blue_area={factionStats?.blue_area ?? factionStats?.blueArea ?? 0}
+              isLoading={!factionStats}
+              className="opacity-50 pointer-events-none"
+            />
+          )}
         </div>
 
         {/* Settings Button - Moved to bottom right to avoid conflict with top faction labels */}
@@ -631,6 +646,20 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
 
         {/* Quick Actions */}
         <div className="mt-auto border-t border-border p-4">
+          {/* Background Settings */}
+          <Link href="/profile/backgrounds" className="mb-3 flex w-full items-center justify-between rounded-2xl border border-border bg-gradient-to-r from-purple-500/10 to-indigo-500/10 p-4 transition-all active:bg-muted/10 hover:bg-card/80">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-indigo-500 shadow-lg shadow-purple-500/20">
+                <Sparkles className="h-5 w-5 text-white" />
+              </div>
+              <div className="text-left">
+                <p className="font-semibold text-foreground">个性化主页</p>
+                <p className="text-sm text-muted-foreground">挑选动态封面，装扮个人资料</p>
+              </div>
+            </div>
+            <ChevronRight className="h-5 w-5 text-muted-foreground/50" />
+          </Link>
+
           {/* Invite Friends Entry */}
           <Link href="/referral" className="mb-3 flex w-full items-center justify-between rounded-2xl border border-border bg-gradient-to-r from-orange-500/10 to-rose-500/10 p-4 transition-all active:bg-muted/10 hover:bg-card/80">
             <div className="flex items-center gap-3">

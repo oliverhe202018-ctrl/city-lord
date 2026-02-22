@@ -131,9 +131,12 @@ export function RunningMapOverlay({
         {/* Action Button */}
         <div className="w-full">
           {isPaused ? (
-            <div className="flex gap-3 h-14">
+            <div className="flex gap-2 h-14">
               <button
-                onClick={() => {
+                disabled={!!confirmStop}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
                   if (confirmStop) {
                     if (onStop) onStop();
                   } else {
@@ -142,21 +145,22 @@ export function RunningMapOverlay({
                     setTimeout(() => setConfirmStop(false), 3000);
                   }
                 }}
-                className={`flex-1 rounded-xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all ${confirmStop
+                className={`flex-1 rounded-xl flex items-center justify-center gap-1 active:scale-[0.98] transition-all ${confirmStop
                   ? 'bg-red-600 hover:bg-red-700 animate-pulse'
                   : 'bg-red-500/20 border border-red-500/50 hover:bg-red-500/30'
                   }`}
               >
-                <span className={`${confirmStop ? 'text-white' : 'text-red-400'} font-bold`}>
+                <span className={`${confirmStop ? 'text-white' : 'text-red-400'} font-bold text-sm whitespace-nowrap`}>
                   {confirmStop ? "确认结束?" : "结束"}
                 </span>
               </button>
               <button
+                disabled={!!confirmStop}
                 onClick={onPauseToggle}
-                className="flex-[2] bg-[#22c55e] rounded-xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all hover:bg-[#16a34a] shadow-lg shadow-[#22c55e]/20"
+                className="flex-[2] bg-[#22c55e] rounded-xl flex items-center justify-center gap-1 active:scale-[0.98] transition-all hover:bg-[#16a34a] shadow-lg shadow-[#22c55e]/20 disabled:opacity-50"
               >
-                <Play className="h-5 w-5 text-white fill-current" />
-                <span className="text-white font-bold">继续跑步</span>
+                <Play className="h-4 w-4 text-white fill-current" />
+                <span className="text-white font-bold text-sm whitespace-nowrap">继续跑步</span>
               </button>
             </div>
           ) : (

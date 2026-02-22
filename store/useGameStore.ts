@@ -29,7 +29,9 @@ export interface UserState {
   avatar: string;
   achievements: Record<string, boolean>; // id -> claimed
   unreadMessageCount: number;
+  unreadSocialCount: number;
   clubId: string | null; // 新增：当前俱乐部ID
+  backgroundUrl?: string | null;
 }
 
 export interface LocationState {
@@ -113,7 +115,7 @@ export interface ModeActions {
   // UI Actions
   openDrawer: (drawer: DrawerType) => void;
   closeDrawer: () => void;
-  
+
   setMyClub: (club: MyClub | null) => void;
   updateMyClubInfo: (info: Partial<MyClub>) => void;
   updateAppSettings: (settings: Partial<AppSettings>) => void;
@@ -123,7 +125,7 @@ export interface ModeActions {
   setHapticEnabled: (enabled: boolean) => void;
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
   setGpsCorrectionEnabled: (enabled: boolean) => void;
-  
+
   // Room Actions
   setCurrentRoom: (room: Room | null) => void;
   setJoinedRooms: (rooms: Room[]) => void;
@@ -136,6 +138,7 @@ export interface UserActions {
   setNickname: (nickname: string) => void;
   updateClubId: (clubId: string | null) => void;
   setUnreadMessageCount: (count: number) => void;
+  setUnreadSocialCount: (count: number) => void;
   addExperience: (amount: number) => void;
   addCoins: (amount: number) => void;
   levelUp: () => void;
@@ -191,7 +194,7 @@ export interface GameState extends UserState, LocationState, InventoryState, Wor
   appSettings: AppSettings;
 }
 
-export interface GameActions extends ModeActions, UserActions, LocationActions, InventoryActions, WorldActions {}
+export interface GameActions extends ModeActions, UserActions, LocationActions, InventoryActions, WorldActions { }
 
 export type GameStore = GameState & GameActions;
 
@@ -221,7 +224,9 @@ const initialUserState: UserState = {
   avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=default',
   achievements: {},
   unreadMessageCount: 0,
+  unreadSocialCount: 0,
   clubId: null,
+  backgroundUrl: null,
 };
 
 const initialLocationState: LocationState = {
@@ -272,7 +277,7 @@ const createModeSlice: StateCreator<GameStore, [], [], ModeActions> = (set, get)
   setHapticEnabled: (enabled) => set((state) => ({ appSettings: { ...state.appSettings, hapticEnabled: enabled } })),
   setTheme: (theme) => set((state) => ({ appSettings: { ...state.appSettings, theme } })),
   setGpsCorrectionEnabled: (enabled) => set((state) => ({ appSettings: { ...state.appSettings, gpsCorrectionEnabled: enabled } })),
-  
+
   // Room Actions Implementation
   setCurrentRoom: (room) => set({ currentRoom: room }),
   setJoinedRooms: (rooms) => set({ joinedRooms: rooms }),
@@ -281,7 +286,7 @@ const createModeSlice: StateCreator<GameStore, [], [], ModeActions> = (set, get)
     if (state.joinedRooms.some(r => r.id === room.id)) return state;
     return { joinedRooms: [...state.joinedRooms, room] };
   }),
-  removeJoinedRoom: (roomId) => set((state) => ({ 
+  removeJoinedRoom: (roomId) => set((state) => ({
     joinedRooms: state.joinedRooms.filter(r => r.id !== roomId),
     // If we are currently in the room being removed, leave it
     currentRoom: state.currentRoom?.id === roomId ? null : state.currentRoom
@@ -293,7 +298,7 @@ const createModeSlice: StateCreator<GameStore, [], [], ModeActions> = (set, get)
 
     try {
       const supabase = createClient();
-      
+
       // 2. Query Room Details
       const { data: room, error } = await supabase
         .from('rooms')
@@ -321,13 +326,13 @@ const createModeSlice: StateCreator<GameStore, [], [], ModeActions> = (set, get)
       if (error || !room) {
         // Safe check for error code using optional chaining
         if (!room || (error as any)?.code === 'PGRST116') {
-           // Room not found (PGRST116 is JSON/Single row error, often means 0 rows)
-           console.warn('Sync Room: Room not found, clearing state');
-           set({ currentRoom: null });
-           toast.error('房间已解散');
+          // Room not found (PGRST116 is JSON/Single row error, often means 0 rows)
+          console.warn('Sync Room: Room not found, clearing state');
+          set({ currentRoom: null });
+          toast.error('房间已解散');
         } else {
-           console.error('Sync Room Error:', error);
-           // Do not clear state on network error
+          console.error('Sync Room Error:', error);
+          // Do not clear state on network error
         }
         return;
       }
@@ -335,19 +340,19 @@ const createModeSlice: StateCreator<GameStore, [], [], ModeActions> = (set, get)
       // Transform participants
       const roomData = room as any;
       const participants = roomData.participants.map((p: any) => ({
-           id: p.user_id,
-           nickname: p.profile?.nickname || 'Unknown',
-           avatar_url: p.profile?.avatar_url,
-           level: p.profile?.level || 1,
-           joined_at: p.joined_at,
-           total_score: p.total_score || 0,
-           territory_area: p.territory_area || 0,
-           territory_ratio: p.territory_ratio || 0,
-           stolen_lands: p.stolen_lands || 0,
-           lost_lands: p.lost_lands || 0,
-           rivals_defeated: p.rivals_defeated || 0,
-           growth_rate: p.growth_rate || 0,
-           status: p.status || 'active'
+        id: p.user_id,
+        nickname: p.profile?.nickname || 'Unknown',
+        avatar_url: p.profile?.avatar_url,
+        level: p.profile?.level || 1,
+        joined_at: p.joined_at,
+        total_score: p.total_score || 0,
+        territory_area: p.territory_area || 0,
+        territory_ratio: p.territory_ratio || 0,
+        stolen_lands: p.stolen_lands || 0,
+        lost_lands: p.lost_lands || 0,
+        rivals_defeated: p.rivals_defeated || 0,
+        growth_rate: p.growth_rate || 0,
+        status: p.status || 'active'
       }));
 
       // Update State
@@ -384,27 +389,28 @@ const createUserSlice: StateCreator<GameStore, [], [], UserActions> = (set, get)
   setNickname: (nickname) => set({ nickname }),
   updateClubId: (clubId) => set({ clubId }),
   setUnreadMessageCount: (count) => set({ unreadMessageCount: count }),
+  setUnreadSocialCount: (count) => set({ unreadSocialCount: count }),
   addExperience: (amount) => set((state) => {
     const newExp = state.currentExp + amount;
     const newLevel = Math.floor(newExp / 1000) + 1; // Simplified leveling
-    
+
     if (newLevel > state.level) {
       get().levelUp();
     }
-    
+
     return { currentExp: newExp, level: newLevel };
   }),
   addCoins: (amount) => set((state) => ({ coins: (state.coins || 0) + amount })),
   levelUp: () => {
     const state = get();
     const newLevel = state.level + 1;
-    
+
     toast.success(`升级啦！达到等级 ${newLevel}`, {
       description: "获得体力上限 +10",
       icon: "🎉"
     });
-    
-    set({ 
+
+    set({
       level: newLevel,
       maxStamina: 100 + (newLevel * 10),
       stamina: state.stamina + 20 // Bonus stamina on level up
@@ -421,11 +427,11 @@ const createUserSlice: StateCreator<GameStore, [], [], UserActions> = (set, get)
     const now = Date.now();
     const timeDiff = now - state.lastStaminaUpdate;
     const recoveryInterval = 5 * 60 * 1000; // 5 minutes
-    
+
     if (timeDiff >= recoveryInterval && state.stamina < state.maxStamina) {
       const recoveredAmount = Math.floor(timeDiff / recoveryInterval);
       const newStamina = Math.min(state.stamina + recoveredAmount, state.maxStamina);
-      
+
       return {
         stamina: newStamina,
         lastStaminaUpdate: now - (timeDiff % recoveryInterval)
@@ -473,6 +479,7 @@ const createUserSlice: StateCreator<GameStore, [], [], UserActions> = (set, get)
           totalDistance: (profileData.total_distance_km * 1000) || state.totalDistance,
           faction: profileData.faction ?? state.faction ?? null,
           role: adminData?.role ?? null,
+          backgroundUrl: profileData.background_url ?? state.backgroundUrl ?? null,
         }));
       }
     } catch (error) {
@@ -495,13 +502,13 @@ const createLocationSlice: StateCreator<GameStore, [], [], LocationActions> = (s
     const newPath = state.isRunning ? [...state.currentRunPath, [lat, lng] as [number, number]] : state.currentRunPath;
     // Limit to 1000 points to prevent storage issues
     if (newPath.length > 1000) {
-        newPath.splice(0, newPath.length - 1000);
+      newPath.splice(0, newPath.length - 1000);
     }
     return {
-        latitude: lat,
-        longitude: lng,
-        lastUpdate: Date.now(),
-        currentRunPath: newPath
+      latitude: lat,
+      longitude: lng,
+      lastUpdate: Date.now(),
+      currentRunPath: newPath
     };
   }),
   setRegion: (adcode, cityName, countyName) => set({ adcode, cityName, countyName }),
@@ -699,6 +706,7 @@ export const useGameStore = create<GameStore>()(
         avatar: state.avatar,
         achievements: state.achievements,
         unreadMessageCount: state.unreadMessageCount,
+        unreadSocialCount: state.unreadSocialCount,
         // My Club
         myClub: state.myClub,
         // Current Room
@@ -735,11 +743,12 @@ export const useGameActions = () => {
       addJoinedRoom: state.addJoinedRoom,
       removeJoinedRoom: state.removeJoinedRoom,
       syncCurrentRoom: state.syncCurrentRoom,
-      
+
       // User Actions
       setNickname: state.setNickname,
       updateClubId: state.updateClubId,
       setUnreadMessageCount: state.setUnreadMessageCount,
+      setUnreadSocialCount: state.setUnreadSocialCount,
       addExperience: state.addExperience,
       addCoins: state.addCoins,
       levelUp: state.levelUp,
@@ -801,6 +810,7 @@ export const useGameUser = () =>
       avatar: state.avatar,
       achievements: state.achievements,
       unreadMessageCount: state.unreadMessageCount,
+      backgroundUrl: state.backgroundUrl,
     })),
   );
 export const useGameLocation = () =>

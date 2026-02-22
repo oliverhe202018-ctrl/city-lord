@@ -113,6 +113,7 @@ export function ImmersiveRunningMode({
   const [areaFlash, setAreaFlash] = useState(false)
   const [showLoopWarning, setShowLoopWarning] = useState(false)
   const [effectiveHexes, setEffectiveHexes] = useState(0)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   // Local kingdom toggle — independent of MapRoot context (avoids useMap crash)
   const [showKingdom, setShowKingdom] = useState(false)
 
@@ -370,11 +371,47 @@ export function ImmersiveRunningMode({
     }
   }, [showStopConfirm])
 
-  const handleStop = (e?: React.MouseEvent) => {
+  const [showRetryDialog, setShowRetryDialog] = useState(false);
+
+  const handleRetrySave = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    if (saveRun) {
+      try {
+        await saveRun(true);
+        localStorage.removeItem('CURRENT_RUN_RECOVERY');
+        const { useGameStore } = await import('@/store/useGameStore');
+        useGameStore.getState().resetRunState();
+        setShowRetryDialog(false);
+        onStop();
+        setShowSummary(false);
+        router.replace('/');
+      } catch (saveError) {
+        toast.error("当前网络不可用，跑步记录已安全保存在本地，请稍后在首页恢复", { duration: 5000 });
+      } finally {
+        setIsSubmitting(false);
+      }
+    }
+  };
+
+  const handleSafeExit = async () => {
+    setShowRetryDialog(false);
+    // Explicitly retain localStorage 'CURRENT_RUN_RECOVERY'
+    const { useGameStore } = await import('@/store/useGameStore');
+    useGameStore.getState().resetRunState(); // Reset memory state only
+    onStop();
+    setShowSummary(false);
+    router.replace('/');
+  };
+
+  const handleStop = async (e?: React.MouseEvent) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
     }
+
+    if (isSubmitting) return;
+    setIsSubmitting(true);
 
     // 1. Play audio (non-blocking, never delays navigation)
     try {
@@ -383,58 +420,33 @@ export function ImmersiveRunningMode({
       audio.play().catch(() => { });
     } catch { }
 
-    // 2. IMMEDIATE navigation (Optimistic UI — 0 delay)
-    onStop();
-    setShowSummary(false);
-    localStorage.removeItem('CURRENT_RUN_RECOVERY');
-    router.replace('/');
-
-    // 3. Background save (fire-and-forget, never blocks navigation)
     if (saveRun) {
-      saveRun(true).catch(() => {
-        // Fallback: cache run data for retry on next app start or background sync
-        try {
-          const pending = JSON.parse(localStorage.getItem('PENDING_RUN_UPLOAD') || '[]');
+      try {
+        await saveRun(true);
+        // Step 3a: Success - Clean up recovery key
+        localStorage.removeItem('CURRENT_RUN_RECOVERY');
+        const { useGameStore } = await import('@/store/useGameStore');
+        useGameStore.getState().resetRunState();
 
-          const record = {
-            idempotencyKey: crypto.randomUUID(), // Standard UUID for server-side deduplication
-            distance: distanceMeters,
-            duration: durationSeconds,
-            path: path,
-            polygons: closedPolygons,
-            timestamp: Date.now(),
-            calories: calories,
-            steps: steps
-          };
+        onStop();
+        setShowSummary(false);
+        router.replace('/');
+      } catch (saveError) {
+        // Step 3b: Failure - Alert user and explicitly retain recovery state
+        setShowRetryDialog(true);
+      } finally {
+        setIsSubmitting(false);
+      }
+    } else {
+      // No saveRun, force clear (e.g., debug mode)
+      localStorage.removeItem('CURRENT_RUN_RECOVERY');
+      const { useGameStore } = await import('@/store/useGameStore');
+      useGameStore.getState().resetRunState();
 
-          pending.push(record);
-          localStorage.setItem('PENDING_RUN_UPLOAD', JSON.stringify(pending));
-          toast.success("已存至本地，网络恢复后上传", { duration: 3000 });
-        } catch (e: any) {
-          if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
-            console.warn("Storage full during offline save. Evicting old items.");
-            try {
-              // Simple eviction
-              const oldPending = JSON.parse(localStorage.getItem('PENDING_RUN_UPLOAD') || '[]');
-              if (oldPending.length > 0) {
-                oldPending.shift(); // remove oldest
-                oldPending.push({
-                  idempotencyKey: crypto.randomUUID(),
-                  distance: distanceMeters,
-                  duration: durationSeconds,
-                  path: path,
-                  polygons: closedPolygons,
-                  timestamp: Date.now(),
-                  calories: calories,
-                  steps: steps
-                });
-                localStorage.setItem('PENDING_RUN_UPLOAD', JSON.stringify(oldPending));
-                toast.success("已存至本地，网络恢复后上传", { duration: 3000 });
-              }
-            } catch (err) { }
-          }
-        }
-      });
+      onStop();
+      setShowSummary(false);
+      router.replace('/');
+      setIsSubmitting(false);
     }
   };
 
@@ -497,6 +509,41 @@ export function ImmersiveRunningMode({
             >
               确认结束
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Save Retry Dialog */}
+      <AlertDialog open={showRetryDialog} onOpenChange={setShowRetryDialog}>
+        <AlertDialogContent className="w-[90%] rounded-xl bg-[#1a1a1a] text-white border-white/10 z-[10000]">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-bold text-center text-red-400">网络异常，上传失败</AlertDialogTitle>
+            <AlertDialogDescription className="text-white/60 text-center text-base">
+              当前网络不可用，跑步记录已安全保存在本地。您可以重试保存，或退回首页稍后恢复。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col gap-3 mt-4 sm:flex-col">
+            <button
+              onClick={handleRetrySave}
+              disabled={isSubmitting}
+              className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#22c55e] px-4 py-3.5 font-bold text-white shadow-lg active:scale-95 disabled:opacity-50"
+            >
+              {isSubmitting ? (
+                <>
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-transparent" />
+                  <span>正在重试...</span>
+                </>
+              ) : (
+                <span>重试保存</span>
+              )}
+            </button>
+            <button
+              onClick={handleSafeExit}
+              disabled={isSubmitting}
+              className="w-full rounded-xl bg-white/10 px-4 py-3.5 font-bold text-white shadow-sm hover:bg-white/20 active:scale-95 disabled:opacity-50"
+            >
+              稍后处理并退出
+            </button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

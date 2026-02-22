@@ -15,6 +15,7 @@ import Script from 'next/script'
 import { Providers } from '@/components/Providers'
 import { PendingRunUploadRetry } from '@/components/running/PendingRunUploadRetry'
 import './globals.css'
+import { SpeedInsights } from 'speedinsights'; // 根据实际的路径来调整
 
 const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });

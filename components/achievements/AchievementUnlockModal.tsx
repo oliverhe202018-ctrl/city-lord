@@ -1,9 +1,10 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useState, useRef } from "react"
 import type { Achievement } from "@/types/city"
 import { useCity } from "@/contexts/CityContext"
-import { Trophy, Star, Crown, Medal, Award, Diamond, X } from "lucide-react"
+import { Trophy, Star, Crown, Medal, Award, Diamond, X, Download, Loader2 } from "lucide-react"
+import { toast } from "sonner"
 
 /**
  * 成就解锁弹窗组件
@@ -23,6 +24,9 @@ export function AchievementUnlockModal({
   const { currentCity } = useCity()
   const [phase, setPhase] = useState<"enter" | "celebrate" | "exit">("enter")
   const [particles, setParticles] = useState<Array<{ id: number; x: number; y: number; vx: number; vy: number; color: string; size: number }>>([])
+
+  const posterRef = useRef<HTMLDivElement>(null)
+  const [isGenerating, setIsGenerating] = useState(false)
 
   useEffect(() => {
     if (!isOpen) {
@@ -68,6 +72,58 @@ export function AchievementUnlockModal({
   const handleClaim = () => {
     onClaim()
     handleClose()
+  }
+
+  const handleGeneratePoster = async () => {
+    if (!posterRef.current) return
+    setIsGenerating(true)
+    try {
+      const { toPng } = await import("html-to-image")
+      const dataUrl = await toPng(posterRef.current, {
+        cacheBust: true,
+        style: { transform: "scale(1)", margin: "0" }
+      })
+
+      const link = document.createElement("a")
+      link.download = `achievement-${achievement.id}.png`
+      link.href = dataUrl
+      link.click()
+
+      if (navigator.share) {
+        try {
+          const blob = await (await fetch(dataUrl)).blob()
+          const file = new File([blob], `achievement-${achievement.id}.png`, { type: "image/png" })
+          await navigator.share({
+            title: "城市领主 - 成就解锁",
+            text: `我刚刚在《城市领主》解锁了【${achievement.name}】成就！`,
+            files: [file]
+          })
+
+          // Reward user for sharing
+          fetch('/api/social/share-reward', {
+            method: 'POST',
+            body: JSON.stringify({ type: 'achievement', targetId: achievement.id }),
+            headers: { 'Content-Type': 'application/json' }
+          }).then(res => res.json()).then(data => {
+            if (data.success) {
+              toast.success(`分享成功！获得 ${data.rewards.coins} 金币，${data.rewards.exp} 经验！`, { icon: "🎉" })
+            }
+          }).catch(console.error)
+
+        } catch (shareErr: any) {
+          if (shareErr.name === 'AbortError') {
+            console.log("Native share cancelled by user")
+          } else {
+            console.error("Native share failed:", shareErr)
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Failed to generate poster", err)
+      toast.error("海报生成失败")
+    } finally {
+      setIsGenerating(false)
+    }
   }
 
   function getRandomColor() {
@@ -120,9 +176,8 @@ export function AchievementUnlockModal({
       {/* 弹窗内容 */}
       <div className="fixed inset-0 z-[401] flex items-center justify-center p-4 pointer-events-none">
         <div
-          className={`relative w-full max-w-md pointer-events-auto transform transition-all duration-500 ${
-            phase === "enter" ? "scale-0 opacity-0" : phase === "celebrate" ? "scale-100 opacity-100" : "scale-110 opacity-0"
-          }`}
+          className={`relative w-full max-w-md pointer-events-auto transform transition-all duration-500 ${phase === "enter" ? "scale-0 opacity-0" : phase === "celebrate" ? "scale-100 opacity-100" : "scale-110 opacity-0"
+            }`}
         >
           {/* 粒子容器 */}
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -138,6 +193,7 @@ export function AchievementUnlockModal({
 
           {/* 主弹窗 */}
           <div
+            ref={posterRef}
             className="relative p-8 rounded-3xl border backdrop-blur-xl overflow-hidden"
             style={{
               background: `linear-gradient(135deg, ${currentCity.theme.primary}30 0%, ${currentCity.theme.secondary}20 100%)`,
@@ -167,9 +223,8 @@ export function AchievementUnlockModal({
 
               {/* 成就图标 */}
               <div
-                className={`relative w-32 h-32 mx-auto mb-6 rounded-3xl flex items-center justify-center transition-all duration-500 ${
-                  phase === "celebrate" ? "animate-bounce" : ""
-                }`}
+                className={`relative w-32 h-32 mx-auto mb-6 rounded-3xl flex items-center justify-center transition-all duration-500 ${phase === "celebrate" ? "animate-bounce" : ""
+                  }`}
                 style={{
                   background: `linear-gradient(135deg, ${currentCity.theme.primary}50, ${currentCity.theme.secondary}30)`,
                   boxShadow: `0 0 60px ${currentCity.theme.primary}60`,
@@ -181,9 +236,8 @@ export function AchievementUnlockModal({
 
               {/* 解锁标题 */}
               <h1
-                className={`text-4xl font-black mb-2 bg-clip-text text-transparent bg-gradient-to-r transition-all duration-500 ${
-                  phase === "enter" ? "scale-0 opacity-0" : "scale-100 opacity-100"
-                }`}
+                className={`text-4xl font-black mb-2 bg-clip-text text-transparent bg-gradient-to-r transition-all duration-500 ${phase === "enter" ? "scale-0 opacity-0" : "scale-100 opacity-100"
+                  }`}
                 style={{
                   backgroundImage: `linear-gradient(90deg, ${currentCity.theme.primary}, ${currentCity.theme.secondary}, ${currentCity.theme.primary})`,
                   backgroundSize: "200% auto",
@@ -209,18 +263,16 @@ export function AchievementUnlockModal({
 
               {/* 成就名称 */}
               <p
-                className={`text-2xl font-bold text-white mb-2 transition-all duration-500 ${
-                  phase === "enter" ? "translate-y-4 opacity-0" : "translate-y-0 opacity-100"
-                }`}
+                className={`text-2xl font-bold text-white mb-2 transition-all duration-500 ${phase === "enter" ? "translate-y-4 opacity-0" : "translate-y-0 opacity-100"
+                  }`}
               >
                 {achievement.name}
               </p>
 
               {/* 成就描述 */}
               <p
-                className={`text-sm text-white/80 mb-6 transition-all duration-500 delay-100 ${
-                  phase === "enter" ? "translate-y-4 opacity-0" : "translate-y-0 opacity-100"
-                }`}
+                className={`text-sm text-white/80 mb-6 transition-all duration-500 delay-100 ${phase === "enter" ? "translate-y-4 opacity-0" : "translate-y-0 opacity-100"
+                  }`}
               >
                 {achievement.description}
               </p>
@@ -247,18 +299,28 @@ export function AchievementUnlockModal({
                 </div>
               )}
 
-              {/* 领取按钮 */}
+              {/* 领取按钮 & 分享海报 */}
               {phase === "celebrate" && (
-                <button
-                  onClick={handleClaim}
-                  className="w-full py-4 rounded-2xl font-black text-white text-lg transition-all duration-200 hover:scale-105 active:scale-95 animate-pulse"
-                  style={{
-                    background: `linear-gradient(90deg, ${currentCity.theme.primary}, ${currentCity.theme.secondary})`,
-                    boxShadow: `0 10px 40px ${currentCity.theme.primary}40`,
-                  }}
-                >
-                  领取奖励
-                </button>
+                <div className="flex gap-4">
+                  <button
+                    onClick={handleGeneratePoster}
+                    disabled={isGenerating}
+                    className="flex-1 py-4 rounded-2xl font-bold text-white text-base md:text-lg border border-white/20 hover:bg-white/10 transition-all flex items-center justify-center gap-2"
+                  >
+                    {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+                    保存海报
+                  </button>
+                  <button
+                    onClick={handleClaim}
+                    className="flex-1 py-4 rounded-2xl font-black text-white text-base md:text-lg transition-all duration-200 hover:scale-105 active:scale-95 animate-pulse"
+                    style={{
+                      background: `linear-gradient(90deg, ${currentCity.theme.primary}, ${currentCity.theme.secondary})`,
+                      boxShadow: `0 10px 40px ${currentCity.theme.primary}40`,
+                    }}
+                  >
+                    前往领取
+                  </button>
+                </div>
               )}
             </div>
 
@@ -359,9 +421,8 @@ export function AchievementUnlockBanner({
 
   return (
     <div
-      className={`fixed top-20 left-4 right-4 z-[350] p-4 rounded-2xl border backdrop-blur-xl transform transition-all duration-500 ${
-        isOpen ? "translate-y-0 opacity-100" : "-translate-y-full opacity-0"
-      }`}
+      className={`fixed top-20 left-4 right-4 z-[350] p-4 rounded-2xl border backdrop-blur-xl transform transition-all duration-500 ${isOpen ? "translate-y-0 opacity-100" : "-translate-y-full opacity-0"
+        }`}
       style={{
         background: `linear-gradient(135deg, ${currentCity.theme.primary}30 0%, ${currentCity.theme.secondary}20 100%)`,
         borderColor: `${currentCity.theme.primary}50`,

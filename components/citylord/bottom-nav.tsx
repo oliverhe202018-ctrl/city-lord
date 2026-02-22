@@ -3,6 +3,8 @@
 import { Map, Trophy, User, Target, Users, Gamepad2 } from "lucide-react"
 import { useGameStore } from "@/store/useGameStore"
 import { useEffect } from "react"
+import { motion } from "framer-motion"
+import { getUnreadSocialCount } from "@/app/actions/social-hub"
 
 const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
   const controller = new AbortController()
@@ -32,23 +34,39 @@ interface BottomNavProps {
 export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
   const unreadMessageCount = useGameStore((state) => state.unreadMessageCount)
   const setUnreadMessageCount = useGameStore((state) => state.setUnreadMessageCount)
+  const unreadSocialCount = useGameStore((state) => state.unreadSocialCount)
+  const setUnreadSocialCount = useGameStore((state) => state.setUnreadSocialCount)
 
   useEffect(() => {
+    const fetchCounts = async () => {
+      try {
+        const msgRes = await getUnreadMessageCount()
+        setUnreadMessageCount(msgRes)
+
+        const socialRes = await getUnreadSocialCount()
+        if (socialRes.success) setUnreadSocialCount(socialRes.count || 0)
+      } catch (e) {
+        console.error("Polling error:", e)
+      }
+    }
+
     // Initial fetch
-    getUnreadMessageCount().then(setUnreadMessageCount)
-    
-    // Optional: Poll every 30 seconds
+    fetchCounts()
+
+    // Poll every 45 seconds if page is visible
     const interval = setInterval(() => {
-      getUnreadMessageCount().then(setUnreadMessageCount)
-    }, 30000)
-    
+      if (document.visibilityState === 'visible') {
+        fetchCounts()
+      }
+    }, 45000)
+
     return () => clearInterval(interval)
-  }, [setUnreadMessageCount])
+  }, [setUnreadMessageCount, setUnreadSocialCount])
 
   const tabs = [
     { id: "play" as const, icon: Map, label: "地图" },
     { id: "missions" as const, icon: Target, label: "任务" },
-    { id: "social" as const, icon: Users, label: "好友", badge: unreadMessageCount },
+    { id: "social" as const, icon: Users, label: "社交", badge: unreadMessageCount + unreadSocialCount },
     { id: "profile" as const, icon: User, label: "个人" },
   ]
 
@@ -63,17 +81,15 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
             <button
               key={tab.id}
               onClick={() => onTabChange(tab.id)}
-              className="relative flex flex-col items-center gap-0.5 px-3 py-1 transition-all"
+              className="group relative flex flex-col items-center gap-0.5 px-3 py-1 transition-all outline-none rounded-xl focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 active:scale-95"
             >
               <div
-                className={`relative flex h-10 w-10 items-center justify-center rounded-2xl transition-all ${
-                  isActive ? "bg-primary/20" : "bg-transparent"
-                }`}
+                className={`relative flex h-11 w-11 items-center justify-center rounded-2xl transition-all duration-300 ${isActive ? "bg-primary/10 scale-110" : "bg-transparent hover:bg-white/5"
+                  }`}
               >
                 <Icon
-                  className={`h-5 w-5 transition-colors ${
-                    isActive ? "text-primary" : "text-muted-foreground"
-                  }`}
+                  className={`h-5 w-5 transition-colors duration-300 ${isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground/80"
+                    }`}
                 />
 
                 {/* Badge */}
@@ -85,16 +101,18 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
               </div>
 
               <span
-                className={`text-[10px] font-semibold transition-colors ${
-                  isActive ? "text-primary" : "text-muted-foreground"
-                }`}
+                className={`text-[10px] font-semibold transition-colors duration-300 ${isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground/80"
+                  }`}
               >
                 {tab.label}
               </span>
 
-              {/* Active indicator dot */}
+              {/* Active indicator dot using framer-motion layoutId for smooth sliding */}
               {isActive && (
-                <span className="absolute -bottom-0.5 h-1 w-1 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.8)]" />
+                <motion.span
+                  layoutId="bottomNavActiveDot"
+                  className="absolute -bottom-1 h-1 w-1 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.8)]"
+                />
               )}
             </button>
           )

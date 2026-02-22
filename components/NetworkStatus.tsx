@@ -1,11 +1,15 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { WifiOff } from 'lucide-react'
+import { WifiOff, Wifi } from 'lucide-react'
+import { toast } from 'sonner'
 
 export function NetworkStatus() {
   const [isOnline, setIsOnline] = useState(true)
+  const [hasMounted, setHasMounted] = useState(false)
 
   useEffect(() => {
+    setHasMounted(true)
+
     // Initial check with delay to prevent false positives on load
     const timer = setTimeout(() => {
       if (typeof navigator !== 'undefined') {
@@ -13,8 +17,21 @@ export function NetworkStatus() {
       }
     }, 2000)
 
-    const handleOnline = () => setIsOnline(true)
-    const handleOffline = () => setIsOnline(false)
+    const handleOnline = () => {
+      setIsOnline(true)
+      toast.success("网络已恢复", {
+        icon: <Wifi className="w-4 h-4" />,
+        duration: 3000,
+      })
+    }
+
+    const handleOffline = () => {
+      setIsOnline(false)
+      toast.error("网络连接断开", {
+        icon: <WifiOff className="w-4 h-4" />,
+        duration: 3000,
+      })
+    }
 
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
@@ -26,12 +43,12 @@ export function NetworkStatus() {
     }
   }, [])
 
-  if (isOnline) return null
+  if (!hasMounted || isOnline) return null
 
   return (
-    <div className="fixed top-0 left-0 w-full bg-red-500/90 backdrop-blur-sm text-white text-center text-xs font-medium py-1.5 z-[100] animate-in slide-in-from-top flex items-center justify-center gap-2 shadow-lg">
+    <div className="fixed top-0 left-0 w-full bg-destructive/90 backdrop-blur-md text-destructive-foreground text-center text-[10px] sm:text-xs font-semibold py-1 z-[9999] animate-in slide-in-from-top flex items-center justify-center gap-2 shadow-lg pt-[env(safe-area-inset-top)] border-b border-white/10">
       <WifiOff className="w-3 h-3" />
-      <span>网络已断开，正在使用离线模式探索</span>
+      <span>当前网络不稳定，部分功能可能无法使用</span>
     </div>
   )
 }

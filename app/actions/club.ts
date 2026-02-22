@@ -896,17 +896,54 @@ export const getClubDetailsCached = unstable_cache(
     const { data, error } = await supabase
       .from('v_clubs_summary')
       .select('*')
-      .eq('club_id', clubId)
+      .eq('id', clubId)
       .single()
 
     if (error) {
+      if (error.code === 'PGRST205' || error.message?.includes('schema cache')) {
+        console.warn('View v_clubs_summary not found, falling back to direct table queries')
+
+        const { data: clubData, error: clubError } = await supabase
+          .from('clubs')
+          .select('*')
+          .eq('id', clubId)
+          .single()
+
+        if (clubError || !clubData) return null
+
+        let ownerProfile = null
+        if (clubData.owner_id) {
+          const { data: pData } = await supabase
+            .from('profiles')
+            .select('nickname, avatar_url')
+            .eq('id', clubData.owner_id)
+            .single()
+          ownerProfile = pData
+        }
+
+        const { count: activeMemberCount } = await supabase
+          .from('club_members')
+          .select('*', { count: 'exact', head: true })
+          .eq('club_id', clubId)
+          .eq('status', 'active')
+
+        // Return the structure expected by v_clubs_summary shape
+        return {
+          ...clubData,
+          active_member_count: activeMemberCount || 0,
+          total_member_count: clubData.member_count || activeMemberCount || 0,
+          owner_name: ownerProfile?.nickname || null,
+          owner_avatar: ownerProfile?.avatar_url || null
+        }
+      }
+
       console.error('Fetch Cached Club Details Error:', error)
       return null
     }
     return data
   },
-  ['club-details'],
-  { revalidate: 3600, tags: ['club-details'] }
+  ['club-details-v3'],
+  { revalidate: 3600, tags: ['club-details-v3'] }
 )
 
 // ==================== Data Fetching for View (Refactored) ====================
