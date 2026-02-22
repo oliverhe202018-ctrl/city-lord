@@ -1,12 +1,14 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
+import { KeyboardResize, KeyboardStyle } from '@capacitor/keyboard';
+
 const config: CapacitorConfig = {
   appId: 'com.citylord.game.pro',
   appName: 'City Lord',
   webDir: 'out',
   server: {
     url: 'https://cl.4567666.xyz',
-    cleartext: true,
+    cleartext: false,
     androidScheme: 'https',
     allowNavigation: [
       'cl.4567666.xyz',
@@ -18,9 +20,9 @@ const config: CapacitorConfig = {
   },
   plugins: {
     Keyboard: {
-      resize: "native",
+      resize: KeyboardResize.Native,
       resizeOnFullScreen: false,
-      style: "dark"
+      style: KeyboardStyle.Dark
     }
   }
 };

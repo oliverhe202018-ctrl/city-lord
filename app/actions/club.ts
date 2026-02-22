@@ -1304,3 +1304,44 @@ export async function getAvailableProvinces() {
 
   return provinces
 }
+
+export async function getClubDetailsById(id: string) {
+  const club = await prisma.clubs.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      avatar_url: true,
+      total_area: true
+    }
+  })
+
+  if (!club) return null
+
+  const [members, distanceAgg, memberCount] = await Promise.all([
+    prisma.club_members.findMany({
+      where: { club_id: id, status: 'active' },
+      include: {
+        profiles: {
+          select: {
+            id: true,
+            nickname: true,
+            avatar_url: true,
+            level: true
+          }
+        }
+      },
+      orderBy: { joined_at: 'asc' }
+    }),
+    prisma.runs.aggregate({
+      where: { club_id: id },
+      _sum: { distance: true }
+    }),
+    prisma.club_members.count({
+      where: { club_id: id, status: 'active' }
+    })
+  ])
+
+  return { club, members, distanceAgg, memberCount }
+}

@@ -1388,7 +1388,7 @@ export default function PlannerClientView() {
           };
 
           const method = isEditing ? 'PUT' : 'POST';
-          const res = await fetch('/api/routes', {
+          const res = await fetch(`${process.env.NEXT_PUBLIC_API_SERVER || ''}/api/routes`, {
               method,
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(payload)

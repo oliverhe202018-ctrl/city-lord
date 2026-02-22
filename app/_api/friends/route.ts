@@ -11,7 +11,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     }
     
-    const res = await fetch('/api/social/friends', { credentials: 'include' })
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_SERVER || ''}/api/social/friends`, { credentials: 'include' })
 const friends = await res.json()
 
     return NextResponse.json(friends)

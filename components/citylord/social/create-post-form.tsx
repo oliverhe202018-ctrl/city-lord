@@ -25,6 +25,7 @@ export function CreatePostForm({ onSuccess }: { onSuccess?: (post: any) => void 
     const [isPending, startTransition] = useTransition()
     const fileInputRef = React.useRef<HTMLInputElement>(null)
     const supabase = createClient()
+    const isUploading = images.some(img => img.status === 'compressing' || img.status === 'uploading')
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = Array.from(e.target.files || [])

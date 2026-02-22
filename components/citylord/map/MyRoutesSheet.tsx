@@ -46,7 +46,7 @@ export function MyRoutesSheet({
   const fetchRoutes = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/routes');
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_SERVER || ''}/api/routes`);
       if (!res.ok) throw new Error('加载路线失败');
       const data = await res.json();
       setRoutes(data);

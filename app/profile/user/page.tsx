@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useEffect, useState, useCallback, useTransition } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import React, { useEffect, useState, useCallback, useTransition, Suspense } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { ProfileHeader } from '@/components/profile/ProfileHeader'
 import { StatsGrid } from '@/components/profile/StatsGrid'
 import { RunHistoryList } from '@/components/profile/RunHistoryList'
@@ -22,10 +22,10 @@ import { sendFriendRequest } from '@/app/actions/social'
 import { toast } from 'sonner'
 import { ArrowLeft, MoreHorizontal, ShieldBan, UserPlus, Lock } from 'lucide-react'
 
-export default function UserProfilePage() {
-    const params = useParams()
+function UserProfileContent() {
+    const searchParams = useSearchParams()
     const router = useRouter()
-    const userId = params.userId as string
+    const userId = searchParams.get('userId') as string
     const [profileData, setProfileData] = useState<ProfileDataResult | null>(null)
     const [loading, setLoading] = useState(true)
     const [likeCount, setLikeCount] = useState(0)
@@ -231,5 +231,26 @@ export default function UserProfilePage() {
 
             <RunHistoryList userId={userId} />
         </div>
+    )
+}
+
+export default function UserProfilePage() {
+    return (
+        <Suspense fallback={
+            <div className="flex flex-col h-full bg-background">
+                <Skeleton className="h-48 w-full" />
+                <div className="p-4 space-y-4">
+                    <Skeleton className="h-20 w-20 rounded-full" />
+                    <Skeleton className="h-6 w-40" />
+                    <div className="grid grid-cols-2 gap-3">
+                        {Array.from({ length: 4 }).map((_, i) => (
+                            <Skeleton key={i} className="h-20 rounded-2xl" />
+                        ))}
+                    </div>
+                </div>
+            </div>
+        }>
+            <UserProfileContent />
+        </Suspense>
     )
 }

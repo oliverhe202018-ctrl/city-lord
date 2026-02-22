@@ -1,7 +1,7 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
-import { useRouter, useParams } from "next/navigation"
+import React, { useEffect, useState, Suspense } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import useEmblaCarousel from 'embla-carousel-react'
 import { StaticTrajectoryMap } from "@/components/running/StaticTrajectoryMap"
 import { getRunDetail } from "@/app/actions/activities"
@@ -16,9 +16,10 @@ function safeNum(val: any, decimals = 2, fallback = '--'): string {
    return n.toFixed(decimals)
 }
 
-export default function RunDetailPage() {
-   const params = useParams()
+function RunDetailContent() {
+   const searchParams = useSearchParams()
    const router = useRouter()
+   const id = searchParams.get('id') as string
    const [run, setRun] = useState<any>(null)
    const [loading, setLoading] = useState(true)
    const [emblaRef, emblaApi] = useEmblaCarousel()
@@ -34,14 +35,14 @@ export default function RunDetailPage() {
 
    useEffect(() => {
       const fetchRun = async () => {
-         if (params.id) {
-            const data = await getRunDetail(params.id as string)
+         if (id) {
+            const data = await getRunDetail(id)
             setRun(data)
             setLoading(false)
          }
       }
       fetchRun()
-   }, [params.id])
+   }, [id])
 
    if (loading) return <div className="h-screen bg-black flex items-center justify-center text-white"><Loader2 className="animate-spin" /></div>
    if (!run) return <div className="h-screen bg-black flex items-center justify-center text-white">未找到跑步记录</div>
@@ -159,5 +160,13 @@ export default function RunDetailPage() {
             </div>
          </div>
       </div>
+   )
+}
+
+export default function RunDetailPage() {
+   return (
+      <Suspense fallback={<div className="h-screen bg-black flex items-center justify-center text-white"><Loader2 className="animate-spin" /></div>}>
+         <RunDetailContent />
+      </Suspense>
    )
 }

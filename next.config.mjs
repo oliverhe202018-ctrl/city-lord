@@ -79,8 +79,7 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
 
-  // 2. 启用 Standalone 模式
-  output: 'standalone',
+  // 2. 移除 Static Export 模式，避免与 Server Actions 冲突
 
   // 3. 图片域名配置
   images: {

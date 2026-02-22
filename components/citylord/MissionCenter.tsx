@@ -17,7 +17,11 @@ const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, ti
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    return await fetch(input, { ...init, signal: controller.signal })
+    let url = input
+    if (typeof url === 'string' && url.startsWith('/api')) {
+      url = `${process.env.NEXT_PUBLIC_API_SERVER || ''}${url}`
+    }
+    return await fetch(url, { ...init, signal: controller.signal })
   } finally {
     clearTimeout(timer)
   }

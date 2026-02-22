@@ -445,7 +445,7 @@ export function GamePageContent({
   }, [checkStaminaRecovery])
 
   const { data: friends } = useSWR('friends', async () => {
-    const res = await fetch('/api/social/friends', { credentials: 'include' })
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_SERVER || ''}/api/social/friends`, { credentials: 'include' })
     if (!res.ok) throw new Error('Failed to fetch friends')
     return res.json()
   })

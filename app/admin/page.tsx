@@ -23,11 +23,11 @@ export default function AdminDashboardPage() {
       setLoading(true)
       try {
         // 1. Get Summary (Custom API)
-        const res = await fetch('/api/admin/dashboard-summary')
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_SERVER || ''}/api/admin/dashboard-summary`)
         const summaryData = await res.json()
         if (summaryData && !summaryData.error) setSummary(summaryData)
 
-        const factionRes = await fetch('/api/faction/stats')
+        const factionRes = await fetch(`${process.env.NEXT_PUBLIC_API_SERVER || ''}/api/faction/stats`)
         if (factionRes.ok) {
           const factionData = await factionRes.json()
           setFactionStats(factionData)

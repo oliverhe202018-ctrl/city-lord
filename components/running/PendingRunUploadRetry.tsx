@@ -36,7 +36,7 @@ export function PendingRunUploadRetry() {
                     }
 
                     try {
-                        const res = await fetch("/api/run/save-pending", {
+                        const res = await fetch(`${process.env.NEXT_PUBLIC_API_SERVER || ''}/api/run/save-pending`, {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             credentials: "include",
