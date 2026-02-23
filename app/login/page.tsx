@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowLeft, Mail, Loader2, Lock, KeyRound } from "lucide-react"
+import { ArrowLeft, Mail, Loader2, Lock, KeyRound, Phone } from "lucide-react"
 import Link from "next/link"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
+  const [phone, setPhone] = useState("")
   const [password, setPassword] = useState("")
   const [verificationCode, setVerificationCode] = useState("")
   // verificationToken is no longer needed with Supabase SDK
@@ -20,7 +21,7 @@ export default function LoginPage() {
   const [countdown, setCountdown] = useState(0)
   const [loading, setLoading] = useState(false)
   const [submitted, setSubmitted] = useState(false)
-  const [loginMethod, setLoginMethod] = useState<"password" | "code">("password")
+  const [loginMethod, setLoginMethod] = useState<"password" | "code" | "sms">("password")
   const router = useRouter()
   const supabase = createClient()
 
@@ -204,6 +205,114 @@ export default function LoginPage() {
     }
   }
 
+  // ==========================================
+  // 核心逻辑: 发送短信验证码
+  // ==========================================
+  const handleSendSmsCode = async (type: 'register' | 'login') => {
+    if (!phone) {
+      toast.error("请输入手机号")
+      return
+    }
+    if (countdown > 0) return
+
+    setLoading(true)
+    try {
+      const { sendSmsCode } = await import('@/app/actions/sms-auth')
+      const res = await sendSmsCode(phone, type, type === 'register' ? password : undefined)
+
+      if (!res.success) {
+        toast.error(res.message, { description: res.error })
+        return
+      }
+
+      setCodeSent(true)
+      setCountdown(60)
+      toast.success("验证码已发送", { description: "请查看您的手机短信" })
+    } catch (error: any) {
+      console.error('Send SMS code error:', error)
+      toast.error("发送异常", { description: "服务连接失败，请检查网络" })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // ==========================================
+  // 核心逻辑: 验证短信验证码 (Login)
+  // ==========================================
+  const handleSmsLoginVerify = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!phone || !verificationCode) return
+
+    setLoading(true)
+    try {
+      const { verifySmsCode } = await import('@/app/actions/sms-auth')
+      const res = await verifySmsCode(phone, verificationCode, 'login')
+
+      if (!res.success) {
+        toast.error(res.message, { description: res.error })
+        return
+      }
+
+      // Sign in with the virtual email and trigger session
+      const virtualEmail = `${phone.replace(/\s+/g, '')}@sms.citylord.local`
+      const { error } = await supabase.auth.signInWithOtp({ email: virtualEmail })
+      if (error) {
+        // Fallback: try signing in with the magiclink type
+        const verifyRes = await supabase.auth.verifyOtp({
+          email: virtualEmail,
+          token: verificationCode,
+          type: 'magiclink',
+        })
+        if (verifyRes.error) {
+          toast.error("登录失败", { description: "请检查验证码是否正确" })
+          return
+        }
+      }
+
+      toast.success("登录成功")
+    } catch (error: any) {
+      console.error('SMS login verify error:', error)
+      toast.error("验证失败", { description: error.message || "请稍后再试" })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // ==========================================
+  // 核心逻辑: 验证短信验证码 (Register)
+  // ==========================================
+  const handleSmsRegisterVerify = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!phone || !verificationCode || !password) return
+
+    setLoading(true)
+    try {
+      const { verifySmsCode } = await import('@/app/actions/sms-auth')
+      const res = await verifySmsCode(phone, verificationCode, 'register')
+
+      if (!res.success) {
+        toast.error(res.message, { description: res.error })
+        return
+      }
+
+      // Sign in with the virtual email and password
+      const virtualEmail = `${phone.replace(/\s+/g, '')}@sms.citylord.local`
+      const { error } = await supabase.auth.signInWithPassword({
+        email: virtualEmail,
+        password,
+      })
+
+      if (error) throw error
+
+      toast.success("注册成功", { description: "欢迎加入城市领主" })
+    } catch (error: any) {
+      console.error('SMS register verify error:', error)
+      toast.error("注册验证失败", { description: error.message || "验证码错误或已失效" })
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#0a0f1a] p-4 relative overflow-hidden">
       {/* Background Effects */}
@@ -221,9 +330,10 @@ export default function LoginPage() {
         </div>
 
         <Tabs defaultValue="login" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-4 bg-black/40 border border-white/10">
+          <TabsList className="grid w-full grid-cols-3 mb-4 bg-black/40 border border-white/10">
             <TabsTrigger value="login">登录</TabsTrigger>
-            <TabsTrigger value="register">注册</TabsTrigger>
+            <TabsTrigger value="register">邮箱注册</TabsTrigger>
+            <TabsTrigger value="sms-register">手机注册</TabsTrigger>
           </TabsList>
 
           <TabsContent value="login">
@@ -241,8 +351,8 @@ export default function LoginPage() {
                     type="button"
                     onClick={() => setLoginMethod("password")}
                     className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${loginMethod === "password"
-                        ? "bg-green-600 text-white shadow-lg"
-                        : "text-white/60 hover:text-white hover:bg-white/5"
+                      ? "bg-green-600 text-white shadow-lg"
+                      : "text-white/60 hover:text-white hover:bg-white/5"
                       }`}
                   >
                     密码登录
@@ -251,11 +361,21 @@ export default function LoginPage() {
                     type="button"
                     onClick={() => setLoginMethod("code")}
                     className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${loginMethod === "code"
-                        ? "bg-green-600 text-white shadow-lg"
-                        : "text-white/60 hover:text-white hover:bg-white/5"
+                      ? "bg-green-600 text-white shadow-lg"
+                      : "text-white/60 hover:text-white hover:bg-white/5"
                       }`}
                   >
-                    验证码登录
+                    邮箱验证码
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLoginMethod("sms")}
+                    className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${loginMethod === "sms"
+                      ? "bg-green-600 text-white shadow-lg"
+                      : "text-white/60 hover:text-white hover:bg-white/5"
+                      }`}
+                  >
+                    短信登录
                   </button>
                 </div>
 
@@ -347,6 +467,58 @@ export default function LoginPage() {
                     </Button>
                   </form>
                 )}
+
+                {/* 短信验证码登录表单 */}
+                {loginMethod === "sms" && (
+                  <form onSubmit={handleSmsLoginVerify} className="space-y-4">
+                    <div className="space-y-2">
+                      <div className="relative">
+                        <Phone className="absolute left-3 top-3 h-4 w-4 text-white/40" />
+                        <Input
+                          type="tel"
+                          placeholder="手机号码"
+                          value={phone}
+                          onChange={(e) => setPhone(e.target.value)}
+                          className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-green-500/50"
+                          required
+                          maxLength={11}
+                        />
+                      </div>
+
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <KeyRound className="absolute left-3 top-3 h-4 w-4 text-white/40" />
+                          <Input
+                            type="text"
+                            placeholder="验证码"
+                            value={verificationCode}
+                            onChange={(e) => setVerificationCode(e.target.value)}
+                            className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-green-500/50"
+                            required
+                            maxLength={6}
+                          />
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-[120px] bg-white/5 border-white/10 text-white hover:bg-white/10 hover:text-white"
+                          disabled={loading || countdown > 0}
+                          onClick={() => handleSendSmsCode('login')}
+                        >
+                          {countdown > 0 ? `${countdown}s` : "获取验证码"}
+                        </Button>
+                      </div>
+                    </div>
+                    <Button
+                      type="submit"
+                      className="w-full bg-green-600 hover:bg-green-700 text-white"
+                      disabled={loading}
+                    >
+                      {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      登录
+                    </Button>
+                  </form>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -392,6 +564,80 @@ export default function LoginPage() {
                         variant="outline"
                         onClick={() => handleSendCode('register')}
                         disabled={loading || countdown > 0 || !email}
+                        className="w-24 border-white/10 bg-white/5 text-white hover:bg-white/20 hover:text-white disabled:opacity-50"
+                      >
+                        {countdown > 0 ? `${countdown}s` : (loading && !codeSent ? <Loader2 className="h-4 w-4 animate-spin" /> : "获取")}
+                      </Button>
+                    </div>
+
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-3 h-4 w-4 text-white/40" />
+                      <Input
+                        type="password"
+                        placeholder="设置密码"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-green-500/50"
+                        required
+                        minLength={6}
+                      />
+                    </div>
+                  </div>
+                  <Button
+                    type="submit"
+                    className="w-full bg-green-600 hover:bg-green-700 text-white"
+                    disabled={loading}
+                  >
+                    {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    注册并登录
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="sms-register">
+            <Card className="border-white/10 bg-black/40 backdrop-blur-xl shadow-2xl">
+              <CardHeader>
+                <CardTitle className="text-xl text-white">手机号注册</CardTitle>
+                <CardDescription className="text-white/40">
+                  使用手机短信验证码注册
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleSmsRegisterVerify} className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <Phone className="absolute left-3 top-3 h-4 w-4 text-white/40" />
+                      <Input
+                        type="tel"
+                        placeholder="手机号码"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-green-500/50"
+                        required
+                        maxLength={11}
+                      />
+                    </div>
+
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <KeyRound className="absolute left-3 top-3 h-4 w-4 text-white/40" />
+                        <Input
+                          type="text"
+                          placeholder="验证码"
+                          value={verificationCode}
+                          onChange={(e) => setVerificationCode(e.target.value)}
+                          className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-green-500/50"
+                          required
+                          maxLength={6}
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => handleSendSmsCode('register')}
+                        disabled={loading || countdown > 0 || !phone}
                         className="w-24 border-white/10 bg-white/5 text-white hover:bg-white/20 hover:text-white disabled:opacity-50"
                       >
                         {countdown > 0 ? `${countdown}s` : (loading && !codeSent ? <Loader2 className="h-4 w-4 animate-spin" /> : "获取")}
