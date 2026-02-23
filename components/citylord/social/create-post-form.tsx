@@ -87,12 +87,12 @@ export function CreatePostForm({ onSuccess }: { onSuccess?: (post: any) => void 
             const filePath = `social/${fileName}`
 
             const { error: uploadError } = await supabase.storage
-                .from('post-media')
+                .from('avatars')
                 .upload(filePath, fileToUpload, { cacheControl: '3600', upsert: false })
 
             if (uploadError) throw uploadError
 
-            const { data: { publicUrl } } = supabase.storage.from('post-media').getPublicUrl(filePath)
+            const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(filePath)
 
             setImages(prev => prev.map(img => img.id === imgState.id ? { ...img, status: 'uploaded', url: publicUrl } : img))
         } catch (error: any) {
@@ -204,7 +204,7 @@ export function CreatePostForm({ onSuccess }: { onSuccess?: (post: any) => void 
                                 type="button"
                                 onClick={() => removeImage(img.id)}
                                 disabled={img.status === 'compressing' || img.status === 'uploading'}
-                                className="absolute top-1 right-1 bg-black/60 rounded-full p-0.5 pointer-events-auto hover:bg-black/80 disabled:opacity-0 disabled:pointer-events-none transition-opacity opacity-0 group-hover:opacity-100"
+                                className="absolute top-1 right-1 bg-black/60 rounded-full p-0.5 pointer-events-auto hover:bg-black/80 disabled:opacity-0 disabled:pointer-events-none transition-opacity"
                             >
                                 <X className="w-3 h-3 text-white" />
                             </button>
@@ -230,6 +230,7 @@ export function CreatePostForm({ onSuccess }: { onSuccess?: (post: any) => void 
                     <button type="button" className="rounded-full p-2 hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50">
                         <Smile className="h-4 w-4" />
                     </button>
+                    <span className="text-[10px] text-muted-foreground/80 hidden sm:inline-block">支持JPG/PNG/WEBP，自动压缩</span>
                 </div>
 
                 <div className="flex items-center gap-3">

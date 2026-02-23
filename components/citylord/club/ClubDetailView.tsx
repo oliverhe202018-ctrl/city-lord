@@ -171,7 +171,7 @@ export function ClubDetailView({
 
 
   // Optimized Data Fetching with SWR & Server Action Cache
-  const { data: cachedClub, isLoading: isClubLoading } = useSWR(
+  const { data: cachedClub, isLoading: isClubLoading, error: clubError } = useSWR(
     clubId ? ['club-details', clubId] : null,
     ([_, id]) => fetchClubDetailsCached(id),
 
@@ -345,6 +345,16 @@ export function ClubDetailView({
         <div className="text-sm text-muted-foreground">正在加载俱乐部详情...</div>
       </div>
     );
+  }
+
+  if (clubError && !club) {
+    return (
+      <div className="w-full h-[300px] flex flex-col items-center justify-center gap-4">
+        <div className="text-destructive font-semibold">网络异常，无法加载俱乐部信息</div>
+        <div className="text-sm text-muted-foreground">{clubError.message || '请检查网络连接或稍后重试'}</div>
+        <Button variant="outline" size="sm" onClick={() => window.location.reload()}>重试</Button>
+      </div>
+    )
   }
 
   if (!club) {
@@ -560,9 +570,9 @@ export function ClubDetailView({
                 displayTopClubs.map((club, index) => (
                   <div key={club.id} className="flex items-center gap-4 p-3 rounded-2xl bg-muted/30 border border-border">
                     <div className={`w-8 h-8 flex items-center justify-center rounded-full font-bold text-sm ${index === 0 ? 'bg-yellow-500 text-white' :
-                        index === 1 ? 'bg-gray-400 text-white' :
-                          index === 2 ? 'bg-orange-600 text-white' :
-                            'bg-muted text-muted-foreground'
+                      index === 1 ? 'bg-gray-400 text-white' :
+                        index === 2 ? 'bg-orange-600 text-white' :
+                          'bg-muted text-muted-foreground'
                       }`}>
                       {index + 1}
                     </div>

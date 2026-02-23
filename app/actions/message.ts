@@ -27,7 +27,7 @@ export async function createSystemMessage(receiverId: string, content: string) {
   const { error } = await (supabase
     .from('messages' as any) as any)
     .insert({
-      receiver_id: receiverId,
+      user_id: receiverId,
       sender_id: null,
       type: 'system',
       content,
@@ -51,7 +51,7 @@ export async function sendMessage(receiverId: string, content: string, type: 'te
     .from('messages' as any) as any)
     .insert({
       sender_id: user.id,
-      receiver_id: receiverId,
+      user_id: receiverId,
       content,
       type
     })
@@ -74,7 +74,7 @@ export async function getMessages() {
       *,
       sender:profiles!sender_id(nickname, avatar_url)
     `)
-    .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
+    .or(`sender_id.eq.${user.id},user_id.eq.${user.id}`)
     .order('created_at', { ascending: false })
 
   if (error) {
@@ -106,7 +106,7 @@ export async function getUnreadMessageCount() {
   const { count, error } = await supabase
     .from('messages')
     .select('*', { count: 'exact', head: true })
-    .eq('receiver_id', user.id)
+    .eq('user_id', user.id)
     .eq('is_read', false)
 
   if (error) {

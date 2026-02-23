@@ -5,11 +5,7 @@ import { getClubRankStats } from '@/app/actions/club'
 export async function GET(request: Request) {
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
-    }
+    // Auth check removed because club rankings are public data.
 
     const { searchParams } = new URL(request.url)
     const clubId = searchParams.get('clubId')

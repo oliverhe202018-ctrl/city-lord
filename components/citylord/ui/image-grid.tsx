@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react"
-import { X, ZoomIn } from "lucide-react"
+import { useState, useEffect, useCallback } from "react"
+import { X, ZoomIn, ChevronLeft, ChevronRight } from "lucide-react"
 
 interface ImageGridProps {
     urls?: string[]
@@ -64,35 +64,99 @@ export function ImageGrid({ urls }: ImageGridProps) {
 
             {/* Lightbox */}
             {selectedIndex !== null && (
-                <div
-                    className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-md"
-                    onClick={(e) => { e.stopPropagation(); setSelectedIndex(null); }}
-                >
-                    <button
-                        className="absolute top-6 right-6 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 active:scale-95 transition-all"
-                        onClick={(e) => { e.stopPropagation(); setSelectedIndex(null); }}
-                    >
-                        <X className="w-6 h-6" />
-                    </button>
-
-                    <div className="relative w-full max-w-5xl max-h-screen p-4 flex items-center justify-center" onClick={e => e.stopPropagation()}>
-                        {/* If we wanted swipe, we'd add touch handlers here. For now, basic clicks on the image to go next */}
-                        <img
-                            src={validUrls[selectedIndex]}
-                            className="max-w-full max-h-[85vh] object-contain rounded-md shadow-2xl"
-                            alt="Enlarged"
-                            onClick={() => {
-                                setSelectedIndex((selectedIndex + 1) % validUrls.length)
-                            }}
-                        />
-                        {validUrls.length > 1 && (
-                            <div className="absolute bottom-10 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full bg-black/60 text-white text-sm tracking-widest pointer-events-none">
-                                {selectedIndex + 1} / {validUrls.length}
-                            </div>
-                        )}
-                    </div>
-                </div>
+                <ImageLightbox
+                    urls={validUrls}
+                    initialIndex={selectedIndex}
+                    onClose={() => setSelectedIndex(null)}
+                />
             )}
         </>
+    )
+}
+
+interface ImageLightboxProps {
+    urls: string[]
+    initialIndex: number
+    onClose: () => void
+}
+
+function ImageLightbox({ urls, initialIndex, onClose }: ImageLightboxProps) {
+    const [currentIndex, setCurrentIndex] = useState(initialIndex)
+
+    const handlePrevious = useCallback((e?: React.MouseEvent) => {
+        e?.stopPropagation()
+        setCurrentIndex((prev) => (prev - 1 + urls.length) % urls.length)
+    }, [urls.length])
+
+    const handleNext = useCallback((e?: React.MouseEvent) => {
+        e?.stopPropagation()
+        setCurrentIndex((prev) => (prev + 1) % urls.length)
+    }, [urls.length])
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "Escape") onClose()
+            if (e.key === "ArrowLeft") handlePrevious()
+            if (e.key === "ArrowRight") handleNext()
+        }
+
+        window.addEventListener("keydown", handleKeyDown)
+        // Prevent background scrolling
+        document.body.style.overflow = "hidden"
+
+        return () => {
+            window.removeEventListener("keydown", handleKeyDown)
+            document.body.style.overflow = ""
+        }
+    }, [onClose, handlePrevious, handleNext])
+
+    return (
+        <div
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-md animate-in fade-in duration-200"
+            onClick={onClose}
+        >
+            <button
+                className="absolute top-6 right-6 z-[110] p-2 rounded-full bg-black/50 text-white hover:bg-black/70 hover:scale-110 active:scale-95 transition-all shadow-lg border border-white/10"
+                onClick={(e) => { e.stopPropagation(); onClose(); }}
+            >
+                <X className="w-6 h-6" />
+            </button>
+
+            {urls.length > 1 && (
+                <>
+                    <button
+                        className="absolute left-4 z-[110] p-3 rounded-full bg-black/40 text-white hover:bg-black/60 hover:scale-110 active:scale-95 transition-all shadow-xl group border border-white/5"
+                        onClick={handlePrevious}
+                        aria-label="Previous image"
+                    >
+                        <ChevronLeft className="w-8 h-8 group-hover:-translate-x-0.5 transition-transform" />
+                    </button>
+
+                    <button
+                        className="absolute right-4 z-[110] p-3 rounded-full bg-black/40 text-white hover:bg-black/60 hover:scale-110 active:scale-95 transition-all shadow-xl group border border-white/5"
+                        onClick={handleNext}
+                        aria-label="Next image"
+                    >
+                        <ChevronRight className="w-8 h-8 group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+                </>
+            )}
+
+            <div className="relative w-full h-full p-4 flex items-center justify-center select-none" onClick={onClose}>
+                <img
+                    key={currentIndex}
+                    src={urls[currentIndex]}
+                    className="max-w-full max-h-[90vh] object-contain rounded-md shadow-2xl animate-in zoom-in-95 duration-300"
+                    alt={`Enlarged dynamic post ${currentIndex + 1}`}
+                    onClick={(e) => { e.stopPropagation(); onClose(); }}
+                />
+            </div>
+
+            {urls.length > 1 && (
+                <div className="absolute bottom-10 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full bg-black/60 backdrop-blur-sm text-white text-xs font-medium tracking-tight border border-white/10 pointer-events-none">
+                    {currentIndex + 1} / {urls.length}
+                </div>
+            )}
+        </div>
     )
 }
