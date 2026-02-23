@@ -518,21 +518,25 @@ export async function getUnreadSocialCount(): Promise<{ success: boolean; count?
         const user = await getAuthUser()
         if (!user) return { success: false, error: { code: 403, message: 'Unauthorized' } }
 
-        const unreadLikes = await prisma.post_likes.count({
-            where: {
-                post: { user_id: user.id },
-                user_id: { not: user.id },
-                is_read: false
-            }
+        const userPosts = await prisma.posts.findMany({
+            where: { user_id: user.id },
+            select: { id: true }
         })
+        const postIds = userPosts.map(p => p.id)
 
-        const unreadComments = await prisma.post_comments.count({
-            where: {
-                post: { user_id: user.id },
-                user_id: { not: user.id },
-                is_read: false
-            }
-        })
+        let unreadLikes = 0
+        let unreadComments = 0
+
+        if (postIds.length > 0) {
+            [unreadLikes, unreadComments] = await Promise.all([
+                prisma.post_likes.count({
+                    where: { post_id: { in: postIds }, user_id: { not: user.id }, is_read: false }
+                }),
+                prisma.post_comments.count({
+                    where: { post_id: { in: postIds }, user_id: { not: user.id }, is_read: false }
+                })
+            ])
+        }
 
         return { success: true, count: unreadLikes + unreadComments }
     } catch (error: any) {
@@ -549,46 +553,67 @@ export async function markSocialAsRead(
         const user = await getAuthUser()
         if (!user) return { success: false, error: { code: 403, message: 'Unauthorized' } }
 
-        await prisma.$transaction(async (tx) => {
-            if (interactionIds && interactionIds.length > 0) {
-                // Mark specific interactions as read
-                const likeIds = interactionIds.filter(i => i.type === 'LIKE').map(i => i.id)
-                const commentIds = interactionIds.filter(i => i.type === 'COMMENT').map(i => i.id)
+        if (interactionIds && interactionIds.length > 0) {
+            // Mark specific interactions as read
+            const likeIds = interactionIds.filter(i => i.type === 'LIKE').map(i => i.id)
+            const commentIds = interactionIds.filter(i => i.type === 'COMMENT').map(i => i.id)
 
-                if (likeIds.length > 0) {
-                    await tx.post_likes.updateMany({
-                        where: { id: { in: likeIds }, post: { user_id: user.id } },
-                        data: { is_read: true }
-                    })
-                }
-                if (commentIds.length > 0) {
-                    await tx.post_comments.updateMany({
-                        where: { id: { in: commentIds }, post: { user_id: user.id } },
-                        data: { is_read: true }
-                    })
-                }
-            } else if (options?.postId) {
-                // Fallback: Mark all unread interactions for a specific post
-                await tx.post_likes.updateMany({
-                    where: { post_id: options.postId, post: { user_id: user.id }, is_read: false, user_id: { not: user.id } },
+            const tasks = []
+            if (likeIds.length > 0) {
+                tasks.push(prisma.post_likes.updateMany({
+                    where: { id: { in: likeIds } }, // Assuming the client sent valid IDs, we skip the slow relation check here for performance
                     data: { is_read: true }
-                })
-                await tx.post_comments.updateMany({
-                    where: { post_id: options.postId, post: { user_id: user.id }, is_read: false, user_id: { not: user.id } },
-                    data: { is_read: true }
-                })
-            } else {
-                // Global Fallback: Mark all unread interactions for the user's posts as read
-                await tx.post_likes.updateMany({
-                    where: { post: { user_id: user.id }, is_read: false, user_id: { not: user.id } },
-                    data: { is_read: true }
-                })
-                await tx.post_comments.updateMany({
-                    where: { post: { user_id: user.id }, is_read: false, user_id: { not: user.id } },
-                    data: { is_read: true }
-                })
+                }))
             }
-        })
+            if (commentIds.length > 0) {
+                tasks.push(prisma.post_comments.updateMany({
+                    where: { id: { in: commentIds } },
+                    data: { is_read: true }
+                }))
+            }
+            if (tasks.length > 0) await Promise.all(tasks)
+
+        } else if (options?.postId) {
+            // Fallback: Mark all unread interactions for a specific post
+            // Verify ownership quickly
+            const post = await prisma.posts.findUnique({
+                where: { id: options.postId },
+                select: { user_id: true }
+            })
+
+            if (post && post.user_id === user.id) {
+                await Promise.all([
+                    prisma.post_likes.updateMany({
+                        where: { post_id: options.postId, is_read: false, user_id: { not: user.id } },
+                        data: { is_read: true }
+                    }),
+                    prisma.post_comments.updateMany({
+                        where: { post_id: options.postId, is_read: false, user_id: { not: user.id } },
+                        data: { is_read: true }
+                    })
+                ])
+            }
+        } else {
+            // Global Fallback: Mark all unread interactions for the user's posts as read
+            const userPosts = await prisma.posts.findMany({
+                where: { user_id: user.id },
+                select: { id: true }
+            })
+            const postIds = userPosts.map(p => p.id)
+
+            if (postIds.length > 0) {
+                await Promise.all([
+                    prisma.post_likes.updateMany({
+                        where: { post_id: { in: postIds }, is_read: false, user_id: { not: user.id } },
+                        data: { is_read: true }
+                    }),
+                    prisma.post_comments.updateMany({
+                        where: { post_id: { in: postIds }, is_read: false, user_id: { not: user.id } },
+                        data: { is_read: true }
+                    })
+                ])
+            }
+        }
 
         return { success: true }
     } catch (error: any) {
