@@ -5,11 +5,8 @@ import { getClubDetailsCached } from '@/app/actions/club'
 export async function GET(request: Request) {
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
-    }
+    // Auth check removed because club details are public data.
+    // This fixes "俱乐部信息不存在" errors in Capacitor apps where auth cookies might be missing.
 
     const { searchParams } = new URL(request.url)
     const clubId = searchParams.get('clubId')

@@ -3,6 +3,7 @@ import { toast } from "sonner"
 import { handleAppError } from "@/lib/utils/app-error"
 import { getFeedTimeline, togglePostLike, createPostComment, deletePostComment, reportPost, getPostComments, markSocialAsRead, FeedTimelineResponse } from "@/app/actions/social-hub"
 import { useGameStore } from "@/store/useGameStore"
+import useSWRInfinite from 'swr/infinite'
 
 import {
   Loader2,
@@ -67,11 +68,10 @@ interface ActivityCardProps {
 }
 
 function ActivityCard({ post, onLike, onComment, isNew }: ActivityCardProps) {
-  const currentUser = useGameStore(state => ({
-    id: state.userId,
-    nickname: state.nickname,
-    avatar: state.avatar,
-  }))
+  const currentUserId = useGameStore(state => state.userId)
+  const currentUserNickname = useGameStore(state => state.nickname)
+  const currentUserAvatar = useGameStore(state => state.avatar)
+  const currentUser = { id: currentUserId, nickname: currentUserNickname, avatar: currentUserAvatar }
   // Optimistic UI state
   const [isLiked, setIsLiked] = useState<boolean>(false) // MVP assumes false initially or supplied by backend if resolved 
   const [likes, setLikes] = useState(post._count?.likes || 0)
@@ -184,7 +184,7 @@ function ActivityCard({ post, onLike, onComment, isNew }: ActivityCardProps) {
       try {
         const res = await togglePostLike(post.id)
         if (res.error) {
-          throw new Error(res.error)
+          throw new Error(res.error.message || "点赞失败")
         }
         setIsLiked(res.liked)
         setLikes(res.totalLikes)
@@ -369,7 +369,7 @@ function ActivityCard({ post, onLike, onComment, isNew }: ActivityCardProps) {
                 value={commentText}
                 onChange={e => setCommentText(e.target.value)}
                 placeholder="在此输入评论..."
-                className="flex-1 bg-muted/50 border border-border rounded-full px-4 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                className="flex-1 bg-muted/50 border border-border rounded-full px-4 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                 disabled={isSubmittingComment}
                 maxLength={200}
               />
@@ -494,72 +494,50 @@ interface FriendActivityFeedProps {
 }
 
 export function FriendActivityFeed({ filterType = "FRIENDS", newPost }: FriendActivityFeedProps) {
-  const [posts, setPosts] = useState<any[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [cursor, setCursor] = useState<string | undefined>(undefined)
-  const [hasMore, setHasMore] = useState(false)
-  const [isFetchingMore, setIsFetchingMore] = useState(false)
+  // useSWRInfinite logic
+  const fetcher = (url: string) => fetch(url).then(res => res.json())
 
-  const loadFeed = async (reset = false) => {
-    try {
-      if (reset) setIsLoading(true)
-      else setIsFetchingMore(true)
+  const getKey = (pageIndex: number, previousPageData: any) => {
+    // Reached the end
+    if (previousPageData && !previousPageData.items?.length) return null
 
-      const res = await getFeedTimeline({
-        filter: filterType,
-        limit: 10,
-        cursor: reset ? undefined : cursor
-      })
+    const baseUrl = '/api/social/feed'
+    const params = new URLSearchParams({
+      filter: filterType,
+      limit: '10'
+    })
 
-      if (res.error) throw new Error(res.error.message)
-
-      if (reset) {
-        setPosts(res.items || [])
-      } else {
-        setPosts((prev: any[]) => {
-          const existingIds = new Set(prev.map(p => p.id))
-          const newItems = (res.items || []).filter((p: any) => !existingIds.has(p.id))
-          return [...prev, ...newItems]
-        })
-      }
-      setCursor(res.nextCursor)
-      setHasMore(!!res.nextCursor)
-    } catch (error) {
-      console.error("Failed to load feed:", error)
-      handleAppError(error, "加载动态失败")
-    } finally {
-      setIsLoading(false)
-      setIsFetchingMore(false)
+    if (pageIndex > 0 && previousPageData?.nextCursor) {
+      params.append('cursor', previousPageData.nextCursor)
     }
+
+    return `${baseUrl}?${params.toString()}`
   }
 
-  useEffect(() => {
-    // Visibility change handling for pausing/resuming polling or feed refresh
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        // Tab became visible, potentially refresh or catch up
-        // loadFeed(true) // Optional: aggressive refresh
-      }
-    }
-    document.addEventListener("visibilitychange", handleVisibilityChange)
+  const { data, size, setSize, isValidating, error, mutate } = useSWRInfinite(getKey, fetcher, {
+    revalidateFirstPage: false,
+    persistSize: true
+  })
 
-    loadFeed(true)
-
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange)
-    }
-  }, [filterType])
+  const posts = data ? data.map(page => page.items).flat().filter(Boolean) : []
+  const isLoadingInitialData = !data && !error
+  const isLoadingMore = isLoadingInitialData || (size > 0 && data && typeof data[size - 1] === 'undefined')
+  const isFetchingMore = isValidating && posts.length > 0
+  const hasMore = data ? !!data[data.length - 1]?.nextCursor : true
 
   useEffect(() => {
     if (newPost) {
-      setPosts(prev => {
-        if (prev.some(p => p.id === newPost.id)) return prev;
-        return [newPost, ...prev];
-      })
+      mutate((prev: any[] | undefined) => {
+        if (!prev) return prev
+        const firstPage = prev[0]
+        if (firstPage.items.some((p: any) => p.id === newPost.id)) return prev
+        const newFirstPage = { ...firstPage, items: [newPost, ...firstPage.items] }
+        return [newFirstPage, ...prev.slice(1)]
+      }, false)
     }
-  }, [newPost])
+  }, [newPost, mutate])
 
-  if (isLoading) {
+  if (isLoadingInitialData) {
     return (
       <div className="flex h-32 items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -587,11 +565,11 @@ export function FriendActivityFeed({ filterType = "FRIENDS", newPost }: FriendAc
       {hasMore && (
         <div className="pt-4 pb-12 text-center">
           <button
-            onClick={() => loadFeed(false)}
-            disabled={isFetchingMore}
+            onClick={() => setSize(size + 1)}
+            disabled={isLoadingMore || isFetchingMore}
             className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
           >
-            {isFetchingMore ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "加载更多"}
+            {isLoadingMore || isFetchingMore ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "加载更多"}
           </button>
         </div>
       )}

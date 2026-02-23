@@ -5,27 +5,9 @@ import { useGameStore } from "@/store/useGameStore"
 import { useEffect } from "react"
 import { motion } from "framer-motion"
 import { getUnreadSocialCount } from "@/app/actions/social-hub"
+import { getUnreadMessageCount } from "@/app/actions/message"
 
-const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
-  try {
-    let url = input
-    if (typeof url === 'string' && url.startsWith('/api')) {
-      url = `${process.env.NEXT_PUBLIC_API_SERVER || ''}${url}`
-    }
-    return await fetch(url, { ...init, signal: controller.signal })
-  } finally {
-    clearTimeout(timer)
-  }
-}
 
-const getUnreadMessageCount = async () => {
-  const res = await fetchWithTimeout('/api/message/get-unread-message-count', { credentials: 'include' })
-  if (!res.ok) throw new Error('Failed to fetch unread message count')
-  const data = await res.json()
-  return data?.count || 0
-}
 
 
 export type TabType = "play" | "missions" | "social" | "profile" | "leaderboard" | "mode"

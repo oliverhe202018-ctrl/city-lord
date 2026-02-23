@@ -755,7 +755,7 @@ export async function processJoinRequest(clubId: string, requestId: string, acti
       // Send notification (optional)
       await supabase.from('messages').insert({
         sender_id: user.id,
-        receiver_id: applicantId,
+        user_id: applicantId,
         type: 'system',
         content: `恭喜！您加入俱乐部的申请已通过。`,
         is_read: false

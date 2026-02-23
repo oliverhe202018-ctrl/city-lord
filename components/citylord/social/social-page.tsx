@@ -394,7 +394,7 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
         </div>
 
         <div className={activeTab === "messages" ? "block space-y-4" : "hidden space-y-4"}>
-          <MessageList initialFriendId={selectedFriend?.id} />
+          {activeTab === "messages" && <MessageList initialFriendId={selectedFriend?.id} />}
         </div>
       </div>
     </div>

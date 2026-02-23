@@ -95,6 +95,10 @@ export async function createPost(input: CreatePostInput): Promise<PostResponse> 
                 media_urls: finalMediaUrls,
                 visibility,
                 status: 'ACTIVE'
+            },
+            include: {
+                user: { select: { id: true, nickname: true, avatar_url: true, level: true } },
+                _count: { select: { likes: true, comments: true } }
             }
         })
 
@@ -170,7 +174,8 @@ export async function getFeedTimeline(input: FeedQueryInput): Promise<FeedTimeli
                 where: { OR: [{ user_id: user.id }, { friend_id: user.id }], status: 'accepted' }
             })
             const friendIds = friendships.map(f => f.user_id === user.id ? f.friend_id : f.user_id)
-            whereClause.user_id = { in: friendIds.length > 0 ? friendIds : ['00000000-0000-0000-0000-000000000000'] }
+            friendIds.push(user.id) // Always include own posts in friends feed
+            whereClause.user_id = { in: friendIds.length > 0 ? friendIds : [user.id] }
             whereClause.visibility = { in: ['PUBLIC', 'FRIENDS_ONLY'] }
         }
 

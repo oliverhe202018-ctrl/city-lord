@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { Send, User, Bell, AlertCircle, Check, X, Swords, Clock, MapPin } from "lucide-react"
 import { toast } from "sonner"
+import useSWR from 'swr'
 
 const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
   const controller = new AbortController()
@@ -18,12 +19,7 @@ const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, ti
   }
 }
 
-const fetchMessages = async (): Promise<Message[]> => {
-  const res = await fetchWithTimeout('/api/message/get-messages', { credentials: 'include' })
-  if (!res.ok) throw new Error('Failed to fetch messages')
-  return await res.json()
-}
-
+// sendMessage is used in the component
 const sendMessage = async (receiverId: string, content: string) => {
   const res = await fetchWithTimeout('/api/message/send-message', {
     method: 'POST',
@@ -44,7 +40,7 @@ interface Message {
   content: string
   type: 'text' | 'system' | 'challenge'
   sender_id: string | null
-  receiver_id: string
+  user_id: string
   created_at: string
   is_read: boolean
   sender?: {
@@ -57,29 +53,20 @@ interface MessageListProps {
   initialFriendId?: string
 }
 
+// 定义 fetcher
+const fetcher = (url: string) => fetch(url).then(res => {
+  if (!res.ok) throw new Error('Failed to fetch messages')
+  return res.json()
+})
+
 export function MessageList({ initialFriendId }: MessageListProps) {
-  const [messages, setMessages] = useState<Message[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data: messages = [], mutate, isLoading } = useSWR<Message[]>('/api/message/get-messages', fetcher, {
+    revalidateOnFocus: true,
+    refreshInterval: 10000,
+  })
+
   const [input, setInput] = useState("")
   const [activeChat, setActiveChat] = useState<string | null>(initialFriendId || null)
-
-  useEffect(() => {
-    loadMessages()
-  }, [])
-
-  const loadMessages = async () => {
-    try {
-      const data = await fetchMessages()
-
-      // @ts-ignore
-      setMessages(data)
-    } catch (error) {
-      console.error(error)
-      toast.error("加载消息失败")
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const handleSend = async () => {
     if (!input.trim() || !activeChat) return
@@ -87,22 +74,22 @@ export function MessageList({ initialFriendId }: MessageListProps) {
     try {
       await sendMessage(activeChat, input)
       setInput("")
-      loadMessages() // Refresh messages
+      mutate() // Refresh messages via SWR
       toast.success("消息已发送")
     } catch (error) {
       toast.error("发送失败")
     }
   }
-  
+
   const renderMessageContent = (msg: Message) => {
     if (msg.type === 'challenge') {
       try {
         const challengeData = JSON.parse(msg.content)
         // challengeData: { type: 'distance' | 'time', target: number, duration?: number }
-        
+
         const isDistance = challengeData.type === 'distance'
         const value = isDistance ? `${challengeData.target}km` : `${challengeData.duration}分钟`
-        
+
         return (
           <div className="mt-1 rounded-lg bg-muted/50 p-3 border border-border">
             <div className="flex items-center gap-2 mb-2">
@@ -111,25 +98,25 @@ export function MessageList({ initialFriendId }: MessageListProps) {
             </div>
             <div className="text-sm text-foreground/90">
               {isDistance ? (
-                 <div className="flex items-center gap-2">
-                    <MapPin className="h-3 w-3 text-muted-foreground" />
-                    目标距离: <span className="font-mono font-bold text-foreground">{value}</span>
-                 </div>
+                <div className="flex items-center gap-2">
+                  <MapPin className="h-3 w-3 text-muted-foreground" />
+                  目标距离: <span className="font-mono font-bold text-foreground">{value}</span>
+                </div>
               ) : (
-                 <div className="flex items-center gap-2">
-                    <Clock className="h-3 w-3 text-muted-foreground" />
-                    目标时长: <span className="font-mono font-bold text-foreground">{value}</span>
-                 </div>
+                <div className="flex items-center gap-2">
+                  <Clock className="h-3 w-3 text-muted-foreground" />
+                  目标时长: <span className="font-mono font-bold text-foreground">{value}</span>
+                </div>
               )}
             </div>
             {/* Action Buttons (Demo only for now) */}
             <div className="mt-3 flex gap-2">
-               <button className="flex-1 bg-green-500 text-white text-xs font-bold py-1.5 rounded-lg hover:bg-green-600 transition-colors">
-                 接受
-               </button>
-               <button className="flex-1 bg-muted text-muted-foreground text-xs font-bold py-1.5 rounded-lg hover:bg-muted/80 transition-colors">
-                 拒绝
-               </button>
+              <button className="flex-1 bg-green-500 text-white text-xs font-bold py-1.5 rounded-lg hover:bg-green-600 transition-colors">
+                接受
+              </button>
+              <button className="flex-1 bg-muted text-muted-foreground text-xs font-bold py-1.5 rounded-lg hover:bg-muted/80 transition-colors">
+                拒绝
+              </button>
             </div>
           </div>
         )
@@ -137,11 +124,11 @@ export function MessageList({ initialFriendId }: MessageListProps) {
         return <p className="text-sm text-muted-foreground pl-7">收到一个挑战 (解析错误)</p>
       }
     }
-    
+
     return <p className="text-sm text-muted-foreground pl-7">{msg.content}</p>
   }
 
-  if (loading) return <div className="text-center text-muted-foreground py-10">加载消息中...</div>
+  if (isLoading && (!messages || messages.length === 0)) return <div className="text-center text-muted-foreground py-10">加载消息中...</div>
 
   return (
     <div className="flex flex-col h-[600px] gap-4">
@@ -151,22 +138,21 @@ export function MessageList({ initialFriendId }: MessageListProps) {
           <div className="text-center text-muted-foreground py-10">暂无消息</div>
         ) : (
           messages.map((msg) => (
-            <GlassCard key={msg.id} className={`p-3 border-l-4 ${
-              msg.type === 'system' ? 'border-l-blue-500' : 
+            <GlassCard key={msg.id} className={`p-3 border-l-4 ${msg.type === 'system' ? 'border-l-blue-500' :
               msg.type === 'challenge' ? 'border-l-orange-500' :
-              'border-l-green-500'
-            }`}>
+                'border-l-green-500'
+              }`}>
               <div className="flex justify-between items-start mb-1">
                 <div className="flex items-center gap-2">
                   {msg.type === 'system' ? (
                     <Bell className="w-4 h-4 text-blue-500" />
                   ) : (
                     <div className="w-5 h-5 rounded-full bg-muted flex items-center justify-center overflow-hidden">
-                       {msg.sender?.avatar_url ? (
-                         <img src={msg.sender.avatar_url} className="w-full h-full object-cover" />
-                       ) : (
-                         <User className="w-3 h-3 text-muted-foreground" />
-                       )}
+                      {msg.sender?.avatar_url ? (
+                        <img src={msg.sender.avatar_url} className="w-full h-full object-cover" />
+                      ) : (
+                        <User className="w-3 h-3 text-muted-foreground" />
+                      )}
                     </div>
                   )}
                   <span className="font-bold text-sm text-foreground">
@@ -193,7 +179,7 @@ export function MessageList({ initialFriendId }: MessageListProps) {
             className="flex-1 bg-muted/50 border border-border rounded-xl px-4 py-2 text-foreground focus:outline-none focus:border-green-500/50"
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
           />
-          <button 
+          <button
             onClick={handleSend}
             disabled={!input.trim()}
             className="p-2 bg-green-500 rounded-xl text-white disabled:opacity-50 disabled:cursor-not-allowed"

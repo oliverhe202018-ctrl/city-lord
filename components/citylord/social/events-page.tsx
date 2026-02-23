@@ -50,8 +50,8 @@ export function EventsPage() {
                         <div className="p-4 relative">
                             <div className="flex justify-between items-start mb-3">
                                 <span className={`text-[10px] font-bold px-2 py-1 rounded-sm uppercase tracking-wider ${ev.status === "进行中" ? "bg-green-500/20 text-green-500" :
-                                        ev.status === "即将开始" ? "bg-amber-500/20 text-amber-500" :
-                                            "bg-blue-500/20 text-blue-500"
+                                    ev.status === "即将开始" ? "bg-amber-500/20 text-amber-500" :
+                                        "bg-blue-500/20 text-blue-500"
                                     }`}>
                                     {ev.status}
                                 </span>
@@ -60,7 +60,7 @@ export function EventsPage() {
                                 </span>
                             </div>
 
-                            <h3 className="text-xl font-bold mb-1">{ev.title}</h3>
+                            <h3 className="text-xl font-bold mb-1 text-foreground">{ev.title}</h3>
                             <p className="text-sm text-muted-foreground flex items-center gap-1 mb-4">
                                 <Calendar className="w-3 h-3" /> {ev.endTime}
                             </p>
