@@ -380,7 +380,7 @@ export function ClubDetailView({
       <div
         ref={scrollContainerRef}
         className={`flex-1 w-full min-h-0 overflow-y-auto overscroll-contain`}
-        style={{ paddingBottom: joinButtonHeight ? `${joinButtonHeight}px` : '0px' }}
+        style={{ paddingBottom: (!effectiveIsMember && onJoin) ? '100px' : '0px' }}
       >
         <div className="px-6 pt-6">
           <div className="relative h-44 overflow-hidden rounded-2xl border border-border">
@@ -591,13 +591,12 @@ export function ClubDetailView({
         )}
       </div>
 
-      {/* ✅ 固定底部按钮（未加入时） */}
+      {/* ✅ 固定底部按钮（未加入时）- 使用 sticky 定位避免被底部导航栏遮挡 */}
       {!effectiveIsMember && onJoin && (
         <div
           ref={joinButtonContainerRef}
-          className="flex-shrink-0 p-4 bg-background/95 backdrop-blur border-t border-border z-50"
+          className="sticky bottom-0 left-0 right-0 p-4 bg-background/95 backdrop-blur-md border-t border-border z-[100]"
           style={{
-            // ✅ 安全区域适配
             paddingBottom: `calc(1rem + env(safe-area-inset-bottom))`
           }}
         >

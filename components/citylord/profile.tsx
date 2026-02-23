@@ -32,6 +32,7 @@ import { Loader2, TrendingUp } from "lucide-react"
 import { ThemeSwitcher } from "@/components/citylord/theme/ThemeSwitcher"
 
 import { ReportButton } from '@/components/report/ReportButton'
+import { AccountManager } from '@/components/citylord/profile/AccountManager'
 
 interface ProfileProps {
   onOpenSettings: () => void
@@ -642,6 +643,12 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
           <div className="rounded-2xl border border-border bg-card/50 p-4">
             <BadgeGrid />
           </div>
+        </div>
+
+        {/* Account Management */}
+        <div className="px-4 pb-4">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">账号管理</h2>
+          <AccountManager userId={userId} />
         </div>
 
         {/* Quick Actions */}
