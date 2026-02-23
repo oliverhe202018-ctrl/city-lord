@@ -25,7 +25,7 @@ export function SaveSuccessDialog({
 }: SaveSuccessDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-black/90 border border-white/10 text-white sm:max-w-md z-[200]">
+      <DialogContent className="bg-black/90 border border-white/10 text-white sm:max-w-md z-[1200]">
         <div className="flex flex-col items-center text-center space-y-4 py-4">
           <div className="h-16 w-16 rounded-full bg-green-500/20 flex items-center justify-center">
             <CheckCircle2 className="h-10 w-10 text-green-500" />
@@ -38,7 +38,7 @@ export function SaveSuccessDialog({
           </DialogHeader>
         </div>
         <DialogFooter className="flex-col sm:justify-center gap-2 mt-4">
-           <Button
+          <Button
             onClick={onViewList}
             className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold h-11"
           >
