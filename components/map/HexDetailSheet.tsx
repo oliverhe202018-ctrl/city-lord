@@ -47,11 +47,11 @@ export function HexDetailSheet({ isOpen, onClose, cell, onNavigate, onAction }: 
   return (
     <Drawer.Root open={isOpen} onOpenChange={(open) => !open && onClose()} snapPoints={[0.4, 0.8]}>
       <Drawer.Portal>
-        <Drawer.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[200]" />
-        <Drawer.Content className="bg-slate-900 border-t border-white/10 flex flex-col rounded-t-[20px] fixed bottom-0 left-0 right-0 z-[201] outline-none h-full max-h-[80vh]">
+        <Drawer.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[1050]" />
+        <Drawer.Content className="bg-slate-900 border-t border-white/10 flex flex-col rounded-t-[20px] fixed bottom-0 left-0 right-0 z-[1100] outline-none h-full max-h-[80vh]">
           {/* Handle */}
           <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-white/20 mt-4" />
-          
+
           <div className="p-4 flex-1 flex flex-col">
             <div className="flex items-start justify-between mb-6">
               <div>
@@ -94,8 +94,8 @@ export function HexDetailSheet({ isOpen, onClose, cell, onNavigate, onAction }: 
               <button
                 onClick={() => onAction(cell)}
                 className={`flex-1 py-3 rounded-xl font-medium flex items-center justify-center gap-2 active:scale-95 transition-transform
-                  ${cell.status === 'owned' 
-                    ? 'bg-green-500/20 border border-green-500/50 text-green-400' 
+                  ${cell.status === 'owned'
+                    ? 'bg-green-500/20 border border-green-500/50 text-green-400'
                     : 'bg-red-500/20 border border-red-500/50 text-red-400'
                   }`}
               >
