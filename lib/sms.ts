@@ -37,15 +37,17 @@ export async function sendSmsVerificationCode(
     const normalizedPhone = phone.replace(/\s+/g, '')
 
     try {
-        // We use JSON payload so Spug can map ${code} in the message template
-        // Spug uses 'targets' to determine where to send the message
+        // According to user's Spug SMS template:
+        // url: https://push.spug.cc/sms/{TOKEN}
+        // payload: to, name, code, number
         const payload = {
-            name: '城主大人', // 对应模板中的 ${name}
-            targets: normalizedPhone, // 这是 Spug 指定发送目标手机号的关键字段
-            code: code,
+            to: normalizedPhone,
+            name: '城主大人', // 称呼
+            code: code, // 验证码
+            number: '5', // 几分钟内有效
         }
 
-        const res = await fetch(`https://push.spug.cc/send/${pushToken}`, {
+        const res = await fetch(`https://push.spug.cc/sms/${pushToken}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
