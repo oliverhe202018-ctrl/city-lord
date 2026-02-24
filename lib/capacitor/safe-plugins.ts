@@ -18,7 +18,7 @@ export async function safeHapticVibrate(duration?: number) {
   try {
     const { Haptics } = await import('@capacitor/haptics')
     await Haptics.vibrate(duration ? { duration } : undefined)
-  } catch {}
+  } catch { }
 }
 
 export async function safeHapticNotification(type: 'success' | 'warning' | 'error' = 'success') {
@@ -26,7 +26,7 @@ export async function safeHapticNotification(type: 'success' | 'warning' | 'erro
     const { Haptics, NotificationType } = await import('@capacitor/haptics')
     const map = { success: NotificationType.Success, warning: NotificationType.Warning, error: NotificationType.Error }
     await Haptics.notification({ type: map[type] })
-  } catch {}
+  } catch { }
 }
 
 // ============== Geolocation ==============
@@ -45,12 +45,16 @@ export async function safeGetCurrentPosition(options?: {
   timeout?: number
   maximumAge?: number
 }): Promise<SafePosition | null> {
+  const effectiveEnableHighAccuracy = options?.enableHighAccuracy ?? false;
+  const effectiveTimeout = options?.timeout ?? 5000;
+  const effectiveMaximumAge = options?.maximumAge ?? 15000;
+
   try {
     const { Geolocation } = await import('@capacitor/geolocation')
     const pos = await Geolocation.getCurrentPosition({
-      enableHighAccuracy: options?.enableHighAccuracy ?? true,
-      timeout: options?.timeout ?? 10000,
-      maximumAge: options?.maximumAge ?? 0,
+      enableHighAccuracy: effectiveEnableHighAccuracy,
+      timeout: effectiveTimeout,
+      maximumAge: effectiveMaximumAge,
     })
     return {
       lat: pos.coords.latitude,
@@ -76,7 +80,7 @@ export async function safeGetCurrentPosition(options?: {
             timestamp: pos.timestamp,
           }),
           () => resolve(null),
-          { enableHighAccuracy: options?.enableHighAccuracy ?? true, timeout: options?.timeout ?? 10000 }
+          { enableHighAccuracy: effectiveEnableHighAccuracy, timeout: effectiveTimeout, maximumAge: effectiveMaximumAge }
         )
       } else {
         resolve(null)
@@ -89,13 +93,17 @@ export async function safeWatchPosition(
   callback: (position: SafePosition | null, error?: any) => void,
   options?: { enableHighAccuracy?: boolean; timeout?: number; maximumAge?: number }
 ): Promise<string | null> {
+  const effectiveEnableHighAccuracy = options?.enableHighAccuracy ?? false;
+  const effectiveTimeout = options?.timeout ?? 5000;
+  const effectiveMaximumAge = options?.maximumAge ?? 15000;
+
   try {
     const { Geolocation } = await import('@capacitor/geolocation')
     const watchId = await Geolocation.watchPosition(
       {
-        enableHighAccuracy: options?.enableHighAccuracy ?? true,
-        timeout: options?.timeout ?? 10000,
-        maximumAge: options?.maximumAge ?? 0,
+        enableHighAccuracy: effectiveEnableHighAccuracy,
+        timeout: effectiveTimeout,
+        maximumAge: effectiveMaximumAge,
       },
       (pos, err) => {
         if (err) {
@@ -130,7 +138,7 @@ export async function safeWatchPosition(
           timestamp: pos.timestamp,
         }),
         (err) => callback(null, err),
-        { enableHighAccuracy: options?.enableHighAccuracy ?? true, timeout: options?.timeout ?? 10000 }
+        { enableHighAccuracy: effectiveEnableHighAccuracy, timeout: effectiveTimeout, maximumAge: effectiveMaximumAge }
       )
       return `browser-${id}`
     }
@@ -147,7 +155,7 @@ export async function safeClearWatch(watchId: string | null) {
       const { Geolocation } = await import('@capacitor/geolocation')
       await Geolocation.clearWatch({ id: watchId })
     }
-  } catch {}
+  } catch { }
 }
 
 export async function safeRequestGeolocationPermission(): Promise<'granted' | 'denied' | 'prompt'> {
@@ -162,7 +170,7 @@ export async function safeRequestGeolocationPermission(): Promise<'granted' | 'd
         const result = await navigator.permissions.query({ name: 'geolocation' })
         return result.state as 'granted' | 'denied' | 'prompt'
       }
-    } catch {}
+    } catch { }
     return 'prompt'
   }
 }
@@ -178,7 +186,7 @@ export async function safeCheckGeolocationPermission(): Promise<'granted' | 'den
         const result = await navigator.permissions.query({ name: 'geolocation' })
         return result.state as 'granted' | 'denied' | 'prompt'
       }
-    } catch {}
+    } catch { }
     return 'prompt'
   }
 }
@@ -245,7 +253,7 @@ export async function safeStartAccelerometer(
       const handle = await (mod as any).Sensors.addListener('accelerometer', callback)
       return () => handle.remove()
     }
-  } catch {}
+  } catch { }
 
   // Fallback: Web DeviceMotion API
   if (typeof window !== 'undefined' && 'DeviceMotionEvent' in window) {
@@ -268,7 +276,7 @@ export async function safePlaySound(path: string) {
       await (mod as any).Sound.play({ id: path })
       return
     }
-  } catch {}
+  } catch { }
 
   // Fallback: HTML5 Audio
   try {
@@ -276,7 +284,7 @@ export async function safePlaySound(path: string) {
       const audio = new Audio(path)
       await audio.play()
     }
-  } catch {}
+  } catch { }
 }
 
 // ============== Platform Detection Helper ==============
@@ -307,21 +315,21 @@ export async function safeStatusBarSetStyle(style: 'dark' | 'light') {
   try {
     const { StatusBar, Style } = await import('@capacitor/status-bar')
     await StatusBar.setStyle({ style: style === 'dark' ? Style.Dark : Style.Light })
-  } catch {}
+  } catch { }
 }
 
 export async function safeStatusBarSetBackgroundColor(color: string) {
   try {
     const { StatusBar } = await import('@capacitor/status-bar')
     await StatusBar.setBackgroundColor({ color })
-  } catch {}
+  } catch { }
 }
 
 export async function safeStatusBarSetOverlaysWebView(overlay: boolean) {
   try {
     const { StatusBar } = await import('@capacitor/status-bar')
     await StatusBar.setOverlaysWebView({ overlay })
-  } catch {}
+  } catch { }
 }
 
 // ============== Local Notifications ==============
@@ -338,7 +346,7 @@ export async function safeScheduleLocalNotification(options: any) {
   try {
     const { LocalNotifications } = await import('@capacitor/local-notifications')
     await LocalNotifications.schedule(options)
-  } catch {}
+  } catch { }
 }
 
 // ============== App ==============
@@ -366,7 +374,7 @@ export async function safeKeepAwake() {
   try {
     const { KeepAwake } = await import('@capacitor-community/keep-awake')
     await KeepAwake.keepAwake()
-  } catch {}
+  } catch { }
 }
 
 // ============== Background Task ==============
@@ -383,7 +391,7 @@ export async function safeBackgroundTaskFinish(taskId: string) {
   try {
     const { BackgroundTask } = await import('@capawesome/capacitor-background-task')
     await BackgroundTask.finish({ taskId })
-  } catch {}
+  } catch { }
 }
 
 // ============== Background Geolocation ==============
@@ -406,5 +414,5 @@ export async function safeBackgroundGeolocationRemoveWatcher(id: string) {
     const { registerPlugin } = await import('@capacitor/core')
     const BackgroundGeolocation = registerPlugin<any>('BackgroundGeolocation')
     await BackgroundGeolocation.removeWatcher({ id })
-  } catch {}
+  } catch { }
 }
