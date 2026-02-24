@@ -19,6 +19,9 @@ const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, ti
       url = `${process.env.NEXT_PUBLIC_API_SERVER || ''}${url}`
     }
     return await fetch(url, { ...init, signal: controller.signal })
+  } catch (error) {
+    console.debug('[fetchWithTimeout] Network warning:', error);
+    return new Response(JSON.stringify({ error: 'Network error or CORS issue' }), { status: 502, statusText: 'Bad Gateway' })
   } finally {
     clearTimeout(timer)
   }
@@ -114,10 +117,10 @@ export function FactionSelector({ initialUser }: FactionSelectorProps) {
       if (result.success) {
         // 1. 立即关闭弹窗 (Optimistic UI)
         setIsOpen(false)
-        
+
         // 2. 显示成功提示
         toast.success(`欢迎加入 ${faction === 'RED' ? '赤红先锋' : '蔚蓝联盟'} 阵营！`)
-        
+
         // 3. 刷新路由以更新服务端数据 (如个人资料卡片中的阵营图标)
         router.refresh()
       } else {
@@ -136,7 +139,7 @@ export function FactionSelector({ initialUser }: FactionSelectorProps) {
     <Dialog open={isOpen} onOpenChange={() => { /* Prevent closing */ }}>
       <DialogContent className="max-w-[360px] w-[85%] rounded-3xl bg-slate-950 border-slate-800 text-white p-0 overflow-hidden max-h-[85vh] flex flex-col shadow-2xl">
         <div className="absolute inset-0 bg-gradient-to-br from-purple-900/20 to-slate-950 pointer-events-none" />
-        
+
         <div className="p-5 relative z-10 overflow-y-auto custom-scrollbar">
           <DialogHeader className="mb-4">
             <DialogTitle className="text-2xl font-bold text-center bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-purple-400">
@@ -149,7 +152,7 @@ export function FactionSelector({ initialUser }: FactionSelectorProps) {
 
           <div className="grid grid-cols-1 gap-4">
             {/* Red Faction */}
-            <Card 
+            <Card
               className={cn(
                 "group relative border-2 bg-slate-900/50 transition-all duration-300 hover:scale-[1.02] cursor-pointer overflow-hidden",
                 selectedFaction === 'RED' ? "border-red-500 shadow-[0_0_30px_rgba(239,68,68,0.3)]" : "border-red-900/30 hover:border-red-500/50"
@@ -163,14 +166,14 @@ export function FactionSelector({ initialUser }: FactionSelectorProps) {
                 </div>
                 <div className="flex-1">
                   <div className="flex justify-between items-start">
-                     <div>
-                        <h3 className="text-xl font-bold text-red-500 mb-0.5">赤红先锋</h3>
-                        <p className="text-red-300/60 text-xs font-mono">力量与荣耀</p>
-                     </div>
-                     <div className="flex items-center gap-1 text-[10px] font-mono text-slate-500 bg-slate-800/50 px-2 py-1 rounded-full">
-                        <Users className="w-3 h-3" />
-                        <span>{stats.RED.toLocaleString()}</span>
-                     </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-red-500 mb-0.5">赤红先锋</h3>
+                      <p className="text-red-300/60 text-xs font-mono">力量与荣耀</p>
+                    </div>
+                    <div className="flex items-center gap-1 text-[10px] font-mono text-slate-500 bg-slate-800/50 px-2 py-1 rounded-full">
+                      <Users className="w-3 h-3" />
+                      <span>{stats.RED.toLocaleString()}</span>
+                    </div>
                   </div>
                   <p className="text-slate-400 text-xs mt-2 line-clamp-2">
                     以力量与团结统御一切。我们用不屈的意志征服领地。
@@ -186,7 +189,7 @@ export function FactionSelector({ initialUser }: FactionSelectorProps) {
             </Card>
 
             {/* Blue Faction */}
-            <Card 
+            <Card
               className={cn(
                 "group relative border-2 bg-slate-900/50 transition-all duration-300 hover:scale-[1.02] cursor-pointer overflow-hidden",
                 selectedFaction === 'BLUE' ? "border-blue-500 shadow-[0_0_30px_rgba(59,130,246,0.3)]" : "border-blue-900/30 hover:border-blue-500/50"
@@ -199,15 +202,15 @@ export function FactionSelector({ initialUser }: FactionSelectorProps) {
                   <Zap className="w-8 h-8 text-blue-500" />
                 </div>
                 <div className="flex-1">
-                   <div className="flex justify-between items-start">
-                     <div>
-                        <h3 className="text-xl font-bold text-blue-500 mb-0.5">蔚蓝联盟</h3>
-                        <p className="text-blue-300/60 text-xs font-mono">科技与速度</p>
-                     </div>
-                     <div className="flex items-center gap-1 text-[10px] font-mono text-slate-500 bg-slate-800/50 px-2 py-1 rounded-full">
-                        <Users className="w-3 h-3" />
-                        <span>{stats.BLUE.toLocaleString()}</span>
-                     </div>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="text-xl font-bold text-blue-500 mb-0.5">蔚蓝联盟</h3>
+                      <p className="text-blue-300/60 text-xs font-mono">科技与速度</p>
+                    </div>
+                    <div className="flex items-center gap-1 text-[10px] font-mono text-slate-500 bg-slate-800/50 px-2 py-1 rounded-full">
+                      <Users className="w-3 h-3" />
+                      <span>{stats.BLUE.toLocaleString()}</span>
+                    </div>
                   </div>
                   <p className="text-slate-400 text-xs mt-2 line-clamp-2">
                     以敏捷与尖端科技智取对手。速度是我们的武器。
@@ -224,13 +227,13 @@ export function FactionSelector({ initialUser }: FactionSelectorProps) {
           </div>
 
           <div className="mt-6 flex justify-center sticky bottom-0 pt-4 bg-gradient-to-t from-slate-950 to-transparent">
-            <Button 
+            <Button
               size="lg"
               className={cn(
                 "w-full max-w-sm font-bold text-lg transition-all",
                 selectedFaction === 'RED' ? "bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-900/20" :
-                selectedFaction === 'BLUE' ? "bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-900/20" :
-                "bg-slate-800 text-slate-500 cursor-not-allowed"
+                  selectedFaction === 'BLUE' ? "bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-900/20" :
+                    "bg-slate-800 text-slate-500 cursor-not-allowed"
               )}
               disabled={!selectedFaction || loading}
               onClick={() => selectedFaction && handleJoin(selectedFaction)}
