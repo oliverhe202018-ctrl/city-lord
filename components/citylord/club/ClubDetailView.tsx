@@ -591,11 +591,11 @@ export function ClubDetailView({
         )}
       </div>
 
-      {/* ✅ 固定底部按钮（未加入时）- 使用 sticky 定位避免被底部导航栏遮挡 */}
+      {/* ✅ 固定底部按钮（未加入时）- 使用 flex shrink-0 确保始终可见 */}
       {!effectiveIsMember && onJoin && (
         <div
           ref={joinButtonContainerRef}
-          className="sticky bottom-0 left-0 right-0 p-4 bg-background/95 backdrop-blur-md border-t border-border z-[100]"
+          className="shrink-0 p-4 bg-background/95 backdrop-blur-md border-t border-border z-[100]"
           style={{
             paddingBottom: `calc(1rem + env(safe-area-inset-bottom))`
           }}

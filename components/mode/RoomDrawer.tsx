@@ -439,7 +439,7 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
                   </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto px-6 py-6 custom-scrollbar">
+                <div className="flex-1 overflow-y-auto px-6 py-6 custom-scrollbar" style={{ display: activeTab === 'chat' ? 'none' : undefined }}>
                   {activeTab === 'info' && activeRoom && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                       {/* Invitation Card */}
@@ -589,20 +589,6 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
                     </div>
                   )}
 
-                  {activeTab === 'chat' && (
-                    <div className="h-full flex flex-col animate-in fade-in zoom-in-95 duration-300 overflow-hidden pb-2">
-                      <RoomChat
-                        roomId={activeRoom.id}
-                        participants={participants} // 这一行非常重要，把排行榜的数据传进去用于显示头像
-                        currentUser={{
-                          id: userId!,
-                          nickname: nickname || '我',
-                          avatar: avatar
-                        }}
-                      />
-                    </div>
-                  )}
-
                   {activeTab === 'territory' && (
                     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
                       <div className="flex items-center justify-between mb-2">
@@ -741,6 +727,21 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
                     </div>
                   )}
                 </div>
+
+                {/* Chat tab rendered OUTSIDE scrollable container so input isn't clipped */}
+                {activeTab === 'chat' && (
+                  <div className="flex-1 flex flex-col animate-in fade-in zoom-in-95 duration-300 overflow-hidden px-6 pb-[calc(env(safe-area-inset-bottom)+8px)]">
+                    <RoomChat
+                      roomId={activeRoom.id}
+                      participants={participants}
+                      currentUser={{
+                        id: userId!,
+                        nickname: nickname || '我',
+                        avatar: avatar
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             ) : view === 'create' ? (
               <div className="px-6 pb-32 space-y-6">
