@@ -1,20 +1,12 @@
 'use server'
 
 /**
- * Tencent Cloud SMS Service
- * Uses the official tencentcloud-sdk-nodejs-sms SDK (API 3.0)
+ * Spug Push Service (Replaces Tencent Cloud SMS)
+ * Uses simple HTTP POST to send push notifications (SMS/WeChat/DingTalk/etc)
  * 
  * Required env vars:
- *   TENCENT_SMS_SECRET_ID
- *   TENCENT_SMS_SECRET_KEY
- *   TENCENT_SMS_SDK_APP_ID
- *   TENCENT_SMS_SIGN_NAME
- *   TENCENT_SMS_TEMPLATE_ID
+ *   SPUG_PUSH_TOKEN - Your unique token from push.spug.cc
  */
-
-import * as tencentcloud from 'tencentcloud-sdk-nodejs-sms'
-
-const SmsClient = tencentcloud.sms.v20210111.Client
 
 interface SmsResult {
     success: boolean
@@ -23,84 +15,76 @@ interface SmsResult {
 }
 
 /**
- * Send an SMS verification code via Tencent Cloud SMS
- * @param phone - Chinese phone number (with or without +86 prefix)
+ * Send an SMS verification code via Spug Push Assistant
+ * @param phone - Phone number
  * @param code - The verification code to send
  */
 export async function sendSmsVerificationCode(
     phone: string,
     code: string
 ): Promise<SmsResult> {
-    const secretId = process.env.TENCENT_SMS_SECRET_ID
-    const secretKey = process.env.TENCENT_SMS_SECRET_KEY
-    const sdkAppId = process.env.TENCENT_SMS_SDK_APP_ID
-    const signName = process.env.TENCENT_SMS_SIGN_NAME
-    const templateId = process.env.TENCENT_SMS_TEMPLATE_ID
+    const pushToken = process.env.SPUG_PUSH_TOKEN
 
-    if (!secretId || !secretKey || !sdkAppId || !signName || !templateId) {
-        console.error('[SMS] Missing Tencent Cloud SMS configuration')
+    if (!pushToken) {
+        console.error('[SMS/Push] Missing SPUG_PUSH_TOKEN configuration')
         return {
             success: false,
-            error: '短信服务未配置，请联系管理员'
+            error: '推送服务未配置，请联系管理员'
         }
     }
 
-    // Normalize phone number to +86 format
-    let normalizedPhone = phone.replace(/\s+/g, '')
-    if (!normalizedPhone.startsWith('+86')) {
-        normalizedPhone = `+86${normalizedPhone}`
-    }
+    // Normalize phone number (Spug templates will replace ${phone} and ${code})
+    const normalizedPhone = phone.replace(/\s+/g, '')
 
     try {
-        const client = new SmsClient({
-            credential: {
-                secretId,
-                secretKey,
+        // We use JSON payload so Spug can map ${code} in the message template
+        // Spug uses 'targets' to determine where to send the message
+        const payload = {
+            name: '城主大人', // 对应模板中的 ${name}
+            targets: normalizedPhone, // 这是 Spug 指定发送目标手机号的关键字段
+            code: code,
+        }
+
+        const res = await fetch(`https://push.spug.cc/send/${pushToken}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
             },
-            region: 'ap-guangzhou', // SMS region (ap-guangzhou is recommended)
-            profile: {
-                httpProfile: {
-                    endpoint: 'sms.tencentcloudapi.com',
-                },
-            },
+            body: JSON.stringify(payload),
         })
 
-        const params = {
-            PhoneNumberSet: [normalizedPhone],
-            SmsSdkAppId: sdkAppId,
-            SignName: signName,
-            TemplateId: templateId,
-            TemplateParamSet: [code, '5'], // code + validity minutes
-        }
-
-        const result = await client.SendSms(params)
-
-        // Check result
-        const sendStatus = result.SendStatusSet?.[0]
-        if (!sendStatus) {
-            return { success: false, error: '短信发送结果异常' }
-        }
-
-        if (sendStatus.Code !== 'Ok') {
-            console.error('[SMS] Send failed:', sendStatus.Code, sendStatus.Message)
+        if (!res.ok) {
+            const errText = await res.text()
+            console.error('[SMS/Push] Spug Push failed (HTTP Status):', res.status, errText)
             return {
                 success: false,
-                error: sendStatus.Message || '短信发送失败'
+                error: '消息推送网络请求失败'
             }
         }
 
-        return {
-            success: true,
-            data: {
-                serialNo: sendStatus.SerialNo,
-                phone: sendStatus.PhoneNumber,
+        const resultJson = await res.json()
+
+        // Spug API usually returns a code 200 for success
+        if (resultJson.code === 200) {
+            return {
+                success: true,
+                data: {
+                    serialNo: resultJson.data?.id || 'spug-push',
+                    phone: normalizedPhone,
+                }
+            }
+        } else {
+            console.error('[SMS/Push] Spug Push returned error:', resultJson)
+            return {
+                success: false,
+                error: resultJson.msg || '消息推送平台报错'
             }
         }
     } catch (err: any) {
-        console.error('[SMS] Tencent Cloud SMS error:', err)
+        console.error('[SMS/Push] Spug Push exception:', err)
         return {
             success: false,
-            error: err.message || '短信服务调用异常'
+            error: err.message || '系统服务调用异常'
         }
     }
 }
