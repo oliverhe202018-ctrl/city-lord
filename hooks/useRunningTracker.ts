@@ -497,8 +497,10 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       if (recoveryJson) {
         try {
           const data = JSON.parse(recoveryJson);
-          if (data.startTime && (Date.now() - data.startTime < 24 * 60 * 60 * 1000)) {
-            const safePath = Array.isArray(data.path) ? data.path : [];
+          const safePath = Array.isArray(data.path) ? data.path : [];
+          // Only restore if: within 24h, AND has real run data (path with points AND meaningful distance or duration)
+          const hasRealData = safePath.length > 0 && ((data.distance || 0) > 0 || (data.duration || 0) > 5);
+          if (data.startTime && (Date.now() - data.startTime < 24 * 60 * 60 * 1000) && hasRealData) {
             setPath(safePath);
             setDistance(data.distance || 0);
             setDuration(data.duration || 0);
@@ -512,9 +514,13 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
             }
             recovered = true;
             toast.success('已恢复上次异常退出的跑步记录');
+          } else {
+            // Stale or empty recovery data — clean it up
+            localStorage.removeItem(RECOVERY_KEY);
           }
         } catch (e) {
           console.error("[useRunningTracker] Recovery failed", e);
+          localStorage.removeItem(RECOVERY_KEY);
         }
       }
 

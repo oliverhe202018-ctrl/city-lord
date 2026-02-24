@@ -45,11 +45,18 @@ export function RunningMap({
   const { smoothPanTo } = useSmoothMapCamera(mapInstanceRef.current)
   const { location: fastLoc } = useFastLocation()
 
-  // User Color Preferences (Hardcoded for now to match Smart Planner/Dark Theme)
+  // User Color Preferences
   const pathColor = '#3B82F6' // Blue 500
-  const polygonColor = '#10B981' // Emerald 500 for territory
 
-  // 1. Initialize Map
+  // Refs for initial center (avoid re-init on every location change)
+  const initialCenterRef = useRef(userLocation || startLocation);
+
+  // Update ref when startLocation changes (but don't re-trigger init)
+  useEffect(() => {
+    if (startLocation) initialCenterRef.current = startLocation;
+  }, [startLocation]);
+
+  // 1. Initialize Map (ONCE only — no location dependencies to prevent flickering!)
   useEffect(() => {
     if (!mapContainerRef.current) return
 
@@ -72,9 +79,12 @@ export function RunningMap({
         // Custom Map Style (Cyberpunk/Dark to match main map)
         const MAP_STYLE = "amap://styles/22e069175d1afe32e9542abefde02cb5";
 
+        // Use ref for initial center to avoid dependency on frequently-changing values
+        const center = initialCenterRef.current || [116.397, 39.909];
+
         const map = new AMap.Map(mapContainerRef.current, {
           zoom: 17,
-          center: userLocation || startLocation || (fastLoc ? [fastLoc.lng, fastLoc.lat] : [116.397, 39.909]),
+          center,
           mapStyle: MAP_STYLE,
           skyColor: "#1f2029",
           viewMode: "2D", // 2D mode for performance and cleaner look
@@ -103,11 +113,8 @@ export function RunningMap({
                 </style>
              `;
 
-          // If userLocation is provided, use it. Otherwise, hide marker initially.
-          const initialPos = userLocation || startLocation || (fastLoc ? [fastLoc.lng, fastLoc.lat] : [116.397, 39.909]);
-
           userMarkerRef.current = new AMap.Marker({
-            position: initialPos,
+            position: center,
             content: markerContent,
             offset: new AMap.Pixel(-12, -12),
             zIndex: 100,
@@ -115,13 +122,10 @@ export function RunningMap({
           })
 
           // Check if map.add exists before calling
-          // Note: MapManager might return a proxy or incomplete object if something went wrong
           if (map && typeof map.add === 'function') {
             map.add(userMarkerRef.current)
           } else {
             console.error("Map instance invalid - missing add method", map);
-            // Try to recover from global AMap if possible?
-            // No, just fail gracefully.
           }
         }
 
@@ -141,7 +145,8 @@ export function RunningMap({
       safeDestroyMap(mapInstanceRef.current);
       mapInstanceRef.current = null;
     }
-  }, [fastLoc, startLocation, userLocation, onLocationUpdate]) // Init once or when initial fast location arrives
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Init ONCE only — location updates handled by separate effects
 
   // 1.5 Handle fastLoc updates if userLocation is missing
   useEffect(() => {

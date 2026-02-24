@@ -83,7 +83,7 @@ export function RunningMapOverlay({
       </div>
 
       {/* Bottom Card */}
-      <div className="w-full bg-slate-900/95 backdrop-blur-xl rounded-t-[2rem] p-6 pb-[calc(env(safe-area-inset-bottom)+20px)] shadow-[0_-4px_20px_rgba(0,0,0,0.5)] border-t border-white/10 pointer-events-auto animate-in slide-in-from-bottom-20 duration-300">
+      <div className="w-full bg-slate-900/95 backdrop-blur-xl rounded-t-[2rem] p-6 pb-[calc(env(safe-area-inset-bottom)+32px)] shadow-[0_-4px_20px_rgba(0,0,0,0.5)] border-t border-white/10 pointer-events-auto animate-in slide-in-from-bottom-20 duration-300">
         {/* Drag Handle */}
         <div className="w-10 h-1 bg-white/20 rounded-full mx-auto mb-6" />
 
