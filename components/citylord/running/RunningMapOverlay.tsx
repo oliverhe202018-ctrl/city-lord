@@ -3,7 +3,7 @@
 import { Pause, Play, ChevronLeft, Settings, MapPin, Eye, EyeOff } from "lucide-react"
 import { motion } from "framer-motion"
 import { formatArea } from "@/lib/citylord/area-utils"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 
 // Smart distance formatter: input is in METERS
 function formatDistance(meters: number): { value: string; unit: string } {
@@ -42,12 +42,24 @@ export function RunningMapOverlay({
   onToggleKingdom,
 }: RunningMapOverlayProps) {
   const [confirmStop, setConfirmStop] = useState(false);
+  const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { value: distValue, unit: distUnit } = formatDistance(distanceMeters);
 
-  // Reset confirm state if paused state changes
+  // Reset confirm state if paused state changes, and clear timer
   useEffect(() => {
     setConfirmStop(false);
+    if (confirmTimerRef.current) {
+      clearTimeout(confirmTimerRef.current);
+      confirmTimerRef.current = null;
+    }
   }, [isPaused]);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
+    };
+  }, []);
 
   return (
     <div className="absolute inset-0 z-50 flex flex-col justify-between pointer-events-none">
@@ -83,7 +95,7 @@ export function RunningMapOverlay({
       </div>
 
       {/* Bottom Card */}
-      <div className="w-full bg-slate-900/95 backdrop-blur-xl rounded-t-[2rem] p-6 pb-[calc(env(safe-area-inset-bottom)+32px)] shadow-[0_-4px_20px_rgba(0,0,0,0.5)] border-t border-white/10 pointer-events-auto animate-in slide-in-from-bottom-20 duration-300">
+      <div className="w-full bg-slate-900/95 backdrop-blur-xl rounded-t-[2rem] p-6 pb-8 mb-[env(safe-area-inset-bottom)] shadow-[0_-4px_20px_rgba(0,0,0,0.5)] border-t border-white/10 pointer-events-auto animate-in slide-in-from-bottom-20 duration-300 overflow-visible">
         {/* Drag Handle */}
         <div className="w-10 h-1 bg-white/20 rounded-full mx-auto mb-6" />
 
@@ -132,17 +144,25 @@ export function RunningMapOverlay({
         <div className="w-full">
           {isPaused ? (
             <div className="flex gap-2 h-14">
+              {/* 结束按钮 — 不再 disabled，两次点击都能触发 */}
               <button
-                disabled={!!confirmStop}
                 onClick={(e) => {
                   e.stopPropagation();
                   e.preventDefault();
                   if (confirmStop) {
+                    // 第二次点击：清除计时器后执行结束
+                    if (confirmTimerRef.current) {
+                      clearTimeout(confirmTimerRef.current);
+                      confirmTimerRef.current = null;
+                    }
                     if (onStop) onStop();
                   } else {
+                    // 第一次点击：进入确认状态，启动可取消的计时器
                     setConfirmStop(true);
-                    // Auto-reset after 3 seconds
-                    setTimeout(() => setConfirmStop(false), 3000);
+                    confirmTimerRef.current = setTimeout(() => {
+                      setConfirmStop(false);
+                      confirmTimerRef.current = null;
+                    }, 5000);
                   }
                 }}
                 className={`flex-1 rounded-xl flex items-center justify-center gap-1 active:scale-[0.98] transition-all ${confirmStop
@@ -154,10 +174,20 @@ export function RunningMapOverlay({
                   {confirmStop ? "确认结束?" : "结束"}
                 </span>
               </button>
+              {/* 继续跑步按钮 — 点击时同时取消确认状态 */}
               <button
-                disabled={!!confirmStop}
-                onClick={onPauseToggle}
-                className="flex-[2] bg-[#22c55e] rounded-xl flex items-center justify-center gap-1 active:scale-[0.98] transition-all hover:bg-[#16a34a] shadow-lg shadow-[#22c55e]/20 disabled:opacity-50"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (confirmStop) {
+                    setConfirmStop(false);
+                    if (confirmTimerRef.current) {
+                      clearTimeout(confirmTimerRef.current);
+                      confirmTimerRef.current = null;
+                    }
+                  }
+                  if (onPauseToggle) onPauseToggle();
+                }}
+                className="flex-[2] bg-[#22c55e] rounded-xl flex items-center justify-center gap-1 active:scale-[0.98] transition-all hover:bg-[#16a34a] shadow-lg shadow-[#22c55e]/20"
               >
                 <Play className="h-4 w-4 text-white fill-current" />
                 <span className="text-white font-bold text-sm whitespace-nowrap">继续跑步</span>

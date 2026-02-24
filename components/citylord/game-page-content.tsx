@@ -45,6 +45,7 @@ import { initOneSignal, setExternalUserId } from "@/lib/onesignal/init"
 import { isNativePlatform, safeRequestGeolocationPermission, safeRequestLocalNotificationPermission, safeScheduleLocalNotification } from "@/lib/capacitor/safe-plugins"
 import { safeLoadAMap } from '@/lib/map/safe-amap';
 import { ImmersiveSkeleton } from "@/components/citylord/running/ImmersiveSkeleton";
+import { MapSkeleton } from "@/components/map/MapSkeleton";
 
 // --- Step 1: Memoize Heavy Components ---
 
@@ -52,11 +53,7 @@ const MemoizedImmersiveRunningMode = memo(nextDynamic(() => import("@/components
 
 const MemoizedAMapView = memo(nextDynamic(() => import("@/components/map/AMapViewWithProvider").then(mod => mod.AMapViewWithProvider), {
   ssr: false,
-  loading: () => (
-    <div className="absolute inset-0 flex items-center justify-center bg-zinc-950">
-      <Loader2 className="w-8 h-8 animate-spin text-primary" />
-    </div>
-  )
+  loading: () => <MapSkeleton className="absolute inset-0 w-full h-full" />
 }));
 
 // Wrap standard components
@@ -90,6 +87,8 @@ interface GamePageContentProps {
   initialUser?: any
 }
 
+const VALID_TABS: TabType[] = ['play', 'missions', 'social', 'profile', 'leaderboard', 'mode'];
+
 export function GamePageContent({
   initialMissions = [],
   initialStats,
@@ -110,31 +109,34 @@ export function GamePageContent({
   const [showTerritory, setShowTerritory] = useState(true);
 
   // 全屏加载状态 - 必须在所有 hooks 之后 return
-  const [activeTab, setActiveTab] = useState<TabType>("play")
-
-  // Preload AMap SDK immediately
-  useEffect(() => {
-    safeLoadAMap();
-  }, []);
-
-  // State Persistence for Tabs
-  useEffect(() => {
-    // On mount, check URL param
+  // Feature: 页面缓存 — 优先 URL 参数(深度链接) > localStorage 缓存 > 默认 "play"
+  const [activeTab, setActiveTab] = useState<TabType>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
-      const tab = params.get('tab');
-      if (tab && ['play', 'missions', 'social', 'profile', 'leaderboard', 'mode'].includes(tab)) {
-        setActiveTab(tab as TabType);
+      const urlTab = params.get('tab');
+      if (urlTab && VALID_TABS.includes(urlTab as TabType)) {
+        return urlTab as TabType;
+      }
+      const cached = localStorage.getItem('citylord_last_tab');
+      if (cached && VALID_TABS.includes(cached as TabType)) {
+        return cached as TabType;
       }
     }
+    return 'play';
+  })
+
+  // Preload AMap SDK is removed - map components will load it on mount
+  useEffect(() => {
+    // Eager loading removed to allow route-level code splitting
   }, []);
 
-  // Sync state to URL
+  // Sync activeTab to URL + localStorage on every change
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
       url.searchParams.set('tab', activeTab);
       window.history.replaceState({}, '', url.toString());
+      localStorage.setItem('citylord_last_tab', activeTab);
     }
   }, [activeTab]);
 

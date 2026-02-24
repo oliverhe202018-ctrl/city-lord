@@ -57,22 +57,28 @@ export const MapService = {
   },
 
   /**
-   * Saves a user's location using PostGIS geometry
+   * Saves a user's location by calling the anti-cheat enabled API
    * @param userId The user's ID
    * @param lat Latitude
    * @param lng Longitude
    */
   async saveUserLocation(userId: string, lat: number, lng: number): Promise<void> {
     try {
-      // Use ST_SetSRID and ST_MakePoint to create a geometry point (SRID 4326 for WGS84)
-      await prisma.$executeRaw`
-        INSERT INTO user_locations (user_id, location, updated_at)
-        VALUES (
-          ${userId}::uuid, 
-          ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326), 
-          NOW()
-        )
-      `;
+      const url = typeof window !== 'undefined' ? '/api/user/location' : `${process.env.NEXT_PUBLIC_API_SERVER || ''}/api/user/location`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ latitude: lat, longitude: lng, accuracy: 10, timestamp: Date.now() }) // Sending arbitrary accuracy as mapService didn't historically take it
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        // Silently ignore velocity limit exceptions to not disrupt the user
+        if (err.code === 'LOCATION_VELOCITY_EXCEEDED') {
+          return;
+        }
+        throw new Error(err.message || 'Failed to sync user location');
+      }
     } catch (error) {
       console.error("Error saving user location:", error);
       throw error;

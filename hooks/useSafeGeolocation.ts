@@ -192,8 +192,10 @@ export function useSafeGeolocation(options: UseSafeGeolocationOptions = {}): Use
     resetSignalTimeout();
 
     // Step 6: Save to cache with QuotaExceededError mitigation
+    // useSafeGeolocation is the authoritative source — always write.
+    // Source-level downgrades are already prevented by currentLevelRef.
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newLocation));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...newLocation, fetchedAt: Date.now() }));
     } catch (e: any) {
       if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
         console.warn("[useSafeGeolocation] Quota exceeded. Evicting old cache...");
@@ -212,7 +214,7 @@ export function useSafeGeolocation(options: UseSafeGeolocationOptions = {}): Use
           } else {
             localStorage.clear(); // Last resort
           }
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(newLocation));
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...newLocation, fetchedAt: Date.now() }));
         } catch (err) {
           console.error("[useSafeGeolocation] Cache rewrite failed", err);
         }
@@ -287,7 +289,11 @@ export function useSafeGeolocation(options: UseSafeGeolocationOptions = {}): Use
           if (err) handleError(err);
           else if (position) processPosition(position, 'gps-precise');
         },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        {
+          enableHighAccuracy: options.enableHighAccuracy ?? true,
+          timeout: options.timeout ?? 8000,
+          maximumAge: options.maximumAge ?? 5000
+        }
       );
     } catch (e) {
       handleError(e);

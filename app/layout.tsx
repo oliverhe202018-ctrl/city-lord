@@ -14,6 +14,7 @@ import { NetworkStatus } from "@/components/NetworkStatus"
 import Script from 'next/script'
 import { Providers } from '@/components/Providers'
 import { PendingRunUploadRetry } from '@/components/running/PendingRunUploadRetry'
+import { EarlyGeolocationPreloader } from '@/components/EarlyGeolocationPreloader'
 import './globals.css'
 import { SpeedInsights } from 'speedinsights'; // 根据实际的路径来调整
 
@@ -99,6 +100,7 @@ export default function RootLayout({
     <html lang="zh-CN" suppressHydrationWarning className="h-full">
       <body className={`font-sans antialiased h-full overflow-hidden overflow-x-hidden w-full relative pt-[env(safe-area-inset-top)]`}>
         <StatusBarConfig />
+        <EarlyGeolocationPreloader />
         <Script id="amap-security" strategy="beforeInteractive">
           {`
             window._AMapSecurityConfig = {

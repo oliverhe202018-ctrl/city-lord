@@ -12,16 +12,21 @@ export default function CityLordApp() {
   useEffect(() => {
     const init = async () => {
       try {
+        // 最少展示 2 秒加载屏，让后台定位预取有足够时间
+        const minLoadingDelay = new Promise<void>(resolve => setTimeout(resolve, 2000));
         const supabase = createClient();
         // Add timeout to prevent hanging (5s)
-        const timeoutPromise = new Promise((_, reject) => 
+        const timeoutPromise = new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('Auth check timeout')), 5000)
         );
-        
+
         const authPromise = supabase.auth.getUser();
-        
-        // Race between auth check and timeout
-        const result = await Promise.race([authPromise, timeoutPromise]) as any;
+
+        // 并行: auth 检查 + 2 秒最低延时
+        const [result] = await Promise.all([
+          Promise.race([authPromise, timeoutPromise]),
+          minLoadingDelay
+        ]);
         const { data: { user }, error } = result;
 
         if (error) {
@@ -43,7 +48,7 @@ export default function CityLordApp() {
 
   return (
     <Suspense fallback={<LoadingScreen />}>
-      <GamePageContent 
+      <GamePageContent
         initialUser={user}
       />
     </Suspense>

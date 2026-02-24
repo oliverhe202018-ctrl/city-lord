@@ -42,6 +42,7 @@ import { ClubDiscoveryView } from '@/components/citylord/club/ClubDiscoveryView'
 import { useClubData } from '@/hooks/useGameData';
 import { LeaveClubModal } from '@/components/citylord/club/LeaveClubModal';
 import { Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface ClubDrawerProps {
   isOpen: boolean;
@@ -347,9 +348,26 @@ export function ClubDrawer({ isOpen, onClose, onOpenCreate }: ClubDrawerProps) {
           </div>
 
           {/* Scrollable Content */}
-          <div className="flex-1 overflow-y-auto overflow-x-hidden pb-safe">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden">
             {renderContent()}
           </div>
+
+          {/* ✅ 加入按钮 - 作为 flex column 子项自然贴底，不用 fixed */}
+          {viewingClubId && !(joinedClub && joinedClub.status === 'active') && (
+            <div
+              className="shrink-0 p-4 bg-background/95 backdrop-blur-md border-t border-border"
+              style={{ paddingBottom: `calc(1rem + env(safe-area-inset-bottom))` }}
+            >
+              <Button
+                size="lg"
+                className="w-full py-6 text-lg font-bold bg-primary text-primary-foreground hover:bg-primary/90 shadow-xl rounded-xl"
+                onClick={() => handleJoinClub(viewingClubId)}
+                disabled={isJoining}
+              >
+                {isJoining ? "申请中..." : "申请加入"}
+              </Button>
+            </div>
+          )}
 
           <ClubManageDrawer
             isOpen={isManageOpen}

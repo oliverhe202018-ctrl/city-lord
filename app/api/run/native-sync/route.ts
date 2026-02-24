@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
     // We need to fetch the LAST point from DB to check speed continuity
     // But since we are batch processing, we check continuity within the batch 
     // AND against the last DB point.
-    
+
     // Get active run
     const activeRun = await prisma.runs.findFirst({
       where: {
@@ -93,6 +93,50 @@ export async function POST(req: NextRequest) {
     // Sort incoming locations by time
     locations.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
 
+    // Anti-Cheat: Cross-segment speed check against last known map location
+    if (locations.length > 0) {
+      try {
+        const firstPoint = locations[0];
+        const supabaseAdmin = (await import("@supabase/supabase-js")).createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!,
+          { auth: { autoRefreshToken: false, persistSession: false } }
+        );
+
+        const { data: lastLocation } = await supabaseAdmin
+          .from("user_locations")
+          .select("updated_at, location")
+          .eq("user_id", user.id)
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .single();
+
+        if (lastLocation && lastLocation.location && lastLocation.location.coordinates) {
+          const lastLng = lastLocation.location.coordinates[0];
+          const lastLat = lastLocation.location.coordinates[1];
+          const lastTime = new Date(lastLocation.updated_at).getTime();
+          const timeDiffHours = (Date.now() - lastTime) / (1000 * 60 * 60);
+
+          if (timeDiffHours > 0) {
+            const { haversineDistanceKm } = await import("@/lib/geometry-utils");
+            const speed = haversineDistanceKm(lastLat, lastLng, firstPoint.latitude, firstPoint.longitude) / timeDiffHours;
+
+            if (speed > 300) {
+              await supabaseAdmin.from("suspicious_location_report").insert({
+                user_id: user.id,
+                type: "run_session_teleport",
+                location: { lat: firstPoint.latitude, lng: firstPoint.longitude },
+                reported_speed: speed
+              });
+            }
+          }
+        }
+      } catch (e) {
+        console.error("[AntiCheat] Failed to write suspicious report:", e);
+        // Do not rethrow, do not block run progression
+      }
+    }
+
     for (const loc of locations) {
       // 3.1 Accuracy Check
       if (loc.accuracy > MAX_ACCURACY) continue;
@@ -119,9 +163,9 @@ export async function POST(req: NextRequest) {
           // Drift check (< 0.5 km/h) - maybe just don't add distance but keep point?
           // For native sync, we want to be strict.
           // Let's accept it if it's reasonable.
-          
+
           if (dist > 0) {
-             currentDistance += (dist / 1000); // km
+            currentDistance += (dist / 1000); // km
           }
         }
       }
@@ -180,10 +224,10 @@ function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
   const Δφ = (lat2 - lat1) * Math.PI / 180;
   const Δλ = (lon2 - lon1) * Math.PI / 180;
 
-  const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-            Math.cos(φ1) * Math.cos(φ2) *
-            Math.sin(Δλ/2) * Math.sin(Δλ/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+    Math.cos(φ1) * Math.cos(φ2) *
+    Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
   return R * c;
 }

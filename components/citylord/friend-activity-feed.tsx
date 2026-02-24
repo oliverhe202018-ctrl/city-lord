@@ -112,12 +112,12 @@ function ActivityCard({ post, onLike, onComment, isNew }: ActivityCardProps) {
     const unread: { type: 'LIKE' | 'COMMENT', id: string, ref: any }[] = []
     if (post.likes && Array.isArray(post.likes)) {
       post.likes.forEach((l: any) => {
-        if (!l.is_read && l.user_id !== currentUser?.id) unreadInteractions.push({ type: 'LIKE', id: l.id, ref: l })
+        if (!l.is_read && l.user_id !== currentUser?.id) unread.push({ type: 'LIKE', id: l.id, ref: l })
       })
     }
     if (post.comments && Array.isArray(post.comments)) {
       post.comments.forEach((c: any) => {
-        if (!c.is_read && c.user_id !== currentUser?.id) unreadInteractions.push({ type: 'COMMENT', id: c.id, ref: c })
+        if (!c.is_read && c.user_id !== currentUser?.id) unread.push({ type: 'COMMENT', id: c.id, ref: c })
       })
     }
     return unread

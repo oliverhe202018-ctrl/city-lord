@@ -3,7 +3,13 @@
 import React, { useEffect, useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import useEmblaCarousel from 'embla-carousel-react'
-import { StaticTrajectoryMap } from "@/components/running/StaticTrajectoryMap"
+import dynamic from "next/dynamic"
+import { MapSkeleton } from "@/components/map/MapSkeleton"
+
+const StaticTrajectoryMap = dynamic(
+   () => import("@/components/running/StaticTrajectoryMap").then(mod => mod.StaticTrajectoryMap),
+   { ssr: false, loading: () => <MapSkeleton className="w-full h-full bg-slate-900 rounded-2xl" /> }
+)
 import { getRunDetail } from "@/app/actions/activities"
 import { Loader2, ChevronLeft, Zap, TrendingUp } from "lucide-react"
 import { format } from "date-fns"
