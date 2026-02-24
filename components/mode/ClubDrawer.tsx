@@ -15,6 +15,9 @@ const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, ti
       url = `${process.env.NEXT_PUBLIC_API_SERVER || ''}${url}`
     }
     return await fetch(url, { ...init, signal: controller.signal })
+  } catch (error) {
+    console.debug('[fetchWithTimeout] Network warning:', error);
+    return new Response(JSON.stringify({ error: 'Network error or CORS issue' }), { status: 502, statusText: 'Bad Gateway' })
   } finally {
     clearTimeout(timer)
   }

@@ -42,7 +42,7 @@ const ensureUserProfile = async (userId: string) => {
     body: JSON.stringify({ userId }),
     credentials: 'include'
   })
-  if (!res.ok) throw new Error('Failed to ensure user profile')
+  if (!res.ok) return { success: false, error: 'Failed to ensure user profile' }
   return await res.json()
 }
 
