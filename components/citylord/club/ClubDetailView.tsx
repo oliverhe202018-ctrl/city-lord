@@ -380,7 +380,6 @@ export function ClubDetailView({
       <div
         ref={scrollContainerRef}
         className={`flex-1 w-full min-h-0 overflow-y-auto overscroll-contain`}
-        style={{ paddingBottom: (!effectiveIsMember && onJoin) ? '100px' : '0px' }}
       >
         <div className="px-6 pt-6">
           <div className="relative h-44 overflow-hidden rounded-2xl border border-border">
@@ -590,26 +589,6 @@ export function ClubDetailView({
           </div>
         )}
       </div>
-
-      {/* ✅ 固定底部按钮（未加入时）- 使用 flex shrink-0 确保始终可见 */}
-      {!effectiveIsMember && onJoin && (
-        <div
-          ref={joinButtonContainerRef}
-          className="shrink-0 p-4 bg-background/95 backdrop-blur-md border-t border-border z-[100]"
-          style={{
-            paddingBottom: `calc(1rem + env(safe-area-inset-bottom))`
-          }}
-        >
-          <Button
-            size="lg"
-            className="w-full py-6 text-lg font-bold bg-primary text-primary-foreground hover:bg-primary/90 shadow-xl rounded-xl"
-            onClick={handleJoinClick}
-            disabled={isJoining}
-          >
-            {isJoining ? "申请中..." : "申请加入"}
-          </Button>
-        </div>
-      )}
     </div>
   )
 }

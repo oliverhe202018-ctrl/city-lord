@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { createClient } from "@/lib/supabase/client"
 import { Send, User, Bell, AlertCircle, Check, X, Swords, Clock, MapPin } from "lucide-react"
 import { toast } from "sonner"
 import useSWR from 'swr'
@@ -62,8 +63,47 @@ const fetcher = (url: string) => fetch(url).then(res => {
 export function MessageList({ initialFriendId }: MessageListProps) {
   const { data: messages = [], mutate, isLoading } = useSWR<Message[]>('/api/message/get-messages', fetcher, {
     revalidateOnFocus: true,
-    refreshInterval: 10000,
   })
+
+  useEffect(() => {
+    let isMounted = true;
+    let receivedChannel: any = null;
+    let sentChannel: any = null;
+    const supabase = createClient();
+
+    const setup = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!isMounted || !session?.user?.id) return;
+
+      const userId = session.user.id;
+
+      receivedChannel = supabase.channel('messages-received')
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `user_id=eq.${userId}`
+        }, () => mutate())
+        .subscribe();
+
+      sentChannel = supabase.channel('messages-sent')
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `sender_id=eq.${userId}`
+        }, () => mutate())
+        .subscribe();
+    };
+
+    setup();
+
+    return () => {
+      isMounted = false;
+      if (receivedChannel) supabase.removeChannel(receivedChannel);
+      if (sentChannel) supabase.removeChannel(sentChannel);
+    };
+  }, [mutate]);
 
   const [input, setInput] = useState("")
   const [activeChat, setActiveChat] = useState<string | null>(initialFriendId || null)

@@ -3,7 +3,13 @@
 import { Share2, X, Activity, Flame, Zap, MapPin, Footprints, Timer, Trophy, Share, MessageCircle, MoreHorizontal, Camera } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { HEX_AREA_SQ_METERS } from "@/lib/citylord/area-utils"
-import { StaticTrajectoryMap } from "./StaticTrajectoryMap"
+import dynamic from "next/dynamic"
+import { MapSkeleton } from "@/components/map/MapSkeleton"
+
+const StaticTrajectoryMap = dynamic(
+  () => import("./StaticTrajectoryMap").then(mod => mod.StaticTrajectoryMap),
+  { ssr: false, loading: () => <MapSkeleton className="w-full h-full bg-slate-900 rounded-2xl" /> }
+)
 import { useState } from "react"
 import { GlassCard } from "../ui/GlassCard"
 import { toast } from "sonner"
