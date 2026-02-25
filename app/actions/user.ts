@@ -55,7 +55,7 @@ export async function stopRunningAction(context: RunContext) {
       })
 
       const completedMissionIds: string[] = []
-      
+
       // Calculate derived stats
       const durationMinutes = (context.endTime.getTime() - context.startTime.getTime()) / 1000 / 60
       const pace = context.distance > 0 ? durationMinutes / context.distance : 999
@@ -79,10 +79,10 @@ export async function stopRunningAction(context: RunContext) {
         } else if (mission.type === 'ACTIVE_DAYS') {
           const lastUpdate = um.updated_at ? new Date(um.updated_at) : new Date(0)
           const now = new Date()
-          const isSameDay = lastUpdate.getDate() === now.getDate() && 
-                            lastUpdate.getMonth() === now.getMonth() && 
-                            lastUpdate.getFullYear() === now.getFullYear()
-          
+          const isSameDay = lastUpdate.getDate() === now.getDate() &&
+            lastUpdate.getMonth() === now.getMonth() &&
+            lastUpdate.getFullYear() === now.getFullYear()
+
           if (newProgress === 0 || !isSameDay) {
             newProgress += 1
           }
@@ -92,7 +92,7 @@ export async function stopRunningAction(context: RunContext) {
           newProgress += (context.newHexCount || 0)
         } else if (mission.type === 'HEX_TOTAL') {
           if (totalHexCount === -1) {
-             totalHexCount = await tx.territories.count({ where: { owner_id: user.id } })
+            totalHexCount = await tx.territories.count({ where: { owner_id: user.id } })
           }
           newProgress = totalHexCount
         } else if (mission.type === 'SPEED_BURST') {
@@ -103,7 +103,7 @@ export async function stopRunningAction(context: RunContext) {
         } else if (mission.type === 'NIGHT_RUN') {
           const hour = context.endTime.getHours()
           if (hour >= 22 || hour < 4) {
-             newProgress += 1
+            newProgress += 1
           }
         }
 
@@ -114,15 +114,15 @@ export async function stopRunningAction(context: RunContext) {
         }
 
         if (newProgress !== um.progress || isCompleted) {
-           await tx.user_missions.update({
-             where: { id: um.id },
-             data: {
-               progress: newProgress,
-               status: isCompleted ? 'completed' : um.status,
-               updated_at: new Date()
-             }
-           })
-           if (isCompleted) completedMissionIds.push(mission.id)
+          await tx.user_missions.update({
+            where: { id: um.id },
+            data: {
+              progress: newProgress,
+              status: isCompleted ? 'completed' : um.status,
+              updated_at: new Date()
+            }
+          })
+          if (isCompleted) completedMissionIds.push(mission.id)
         }
       }
 
@@ -146,30 +146,30 @@ export async function stopRunningAction(context: RunContext) {
 
         // 3. Create Run Record
         if (userProfile.club_id) {
-           // Update Club Area
-           const club = await tx.clubs.findUnique({ where: { id: userProfile.club_id } })
-           if (club) {
-             const newTotal = Number(club.total_area || 0) + capturedArea
-             await tx.clubs.update({
-               where: { id: userProfile.club_id },
-               data: { total_area: newTotal }
-             })
-           }
+          // Update Club Area
+          const club = await tx.clubs.findUnique({ where: { id: userProfile.club_id } })
+          if (club) {
+            const newTotal = Number(club.total_area || 0) + capturedArea
+            await tx.clubs.update({
+              where: { id: userProfile.club_id },
+              data: { total_area: newTotal }
+            })
+          }
 
-           // Insert Run
-           await tx.runs.create({
-             data: {
-               user_id: user.id,
-               club_id: userProfile.club_id,
-               area: Number(capturedArea.toFixed(4)),
+          // Insert Run
+          await tx.runs.create({
+            data: {
+              user_id: user.id,
+              club_id: userProfile.club_id,
+              area: Number(capturedArea.toFixed(4)),
               duration: Math.floor(durationMinutes * 60),
               province: userProvince || context.regionId,
-               created_at: new Date()
-             }
-           })
+              created_at: new Date()
+            }
+          })
         } else {
-           // Insert Run (No Club)
-           await tx.runs.create({
+          // Insert Run (No Club)
+          await tx.runs.create({
             data: {
               user_id: user.id,
               area: Number(((context.newHexCount || 0) * 0.00065).toFixed(4)),
@@ -183,16 +183,16 @@ export async function stopRunningAction(context: RunContext) {
 
       return { completedMissionIds }
     })
-    
+
     // Check Badges after transaction
     const newBadges = await checkAndAwardBadges(user.id, 'RUN_FINISHED', {
-        distance: context.distance * 1000,
-        endTime: context.endTime,
-        pace: context.distance > 0 ? ((context.endTime.getTime() - context.startTime.getTime()) / 1000 / 60) / context.distance : 0 // min/km
+      distance: context.distance * 1000,
+      endTime: context.endTime,
+      pace: context.distance > 0 ? ((context.endTime.getTime() - context.startTime.getTime()) / 1000 / 60) / context.distance : 0 // min/km
     })
 
-    return { 
-      success: true, 
+    return {
+      success: true,
       completedMissionIds: result.completedMissionIds,
       newBadges: newBadges
     }
@@ -227,13 +227,17 @@ export async function getUserProfileStats() {
 export async function touchUserActivity() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  
+
   if (!user) return
 
-  await (supabase
-    .from('profiles') as any)
-    .update({ updated_at: new Date().toISOString() })
-    .eq('id', user.id)
+  // ADR: 此处使用 Prisma 直连绕过了 Supabase RLS 策略。
+  // 安全性由两点保障：1. 上方的 getUser() 确保了直接通过 Server Action 调用的安全性；
+  // 2. where: { id: user.id } 防护了越权修改。
+  // 此设计替代了 Supabase REST API，进一步提升了性能。
+  await prisma.profiles.update({
+    where: { id: user.id },
+    data: { updated_at: new Date() },
+  })
 }
 
 // Internal cached function
@@ -254,12 +258,12 @@ const _ensureUserProfile = cache(async (userId: string) => {
 
   // 🐢 Slow Path: Create new profile (Only for new users)
   console.log('[UserProfile] Creating new profile for:', userId)
-  
+
   // We assume the user is authenticated in auth.users
   const { data: { user } } = await supabase.auth.getUser()
-  
+
   if (!user || user.id !== userId) {
-      return { success: false, error: 'Unauthorized or ID mismatch' }
+    return { success: false, error: 'Unauthorized or ID mismatch' }
   }
 
   // Insert default profile
@@ -307,7 +311,7 @@ export async function addExperience(amount: number) {
 
   const newExp = ((profile as any).current_exp || 0) + amount
   const newLevel = calculateLevel(newExp)
-  
+
   const updates: { current_exp: number; updated_at: string; level?: number } = {
     current_exp: newExp,
     updated_at: new Date().toISOString()
@@ -325,11 +329,11 @@ export async function addExperience(amount: number) {
 
   if (error) return { success: false, error: error.message }
 
-  return { 
-    success: true, 
-    newLevel, 
+  return {
+    success: true,
+    newLevel,
     levelUp: newLevel > ((profile as any).level || 1),
-    newExp 
+    newExp
   }
 }
 
