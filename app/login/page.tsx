@@ -246,30 +246,18 @@ export default function LoginPage() {
     setLoading(true)
     try {
       const { verifySmsCode } = await import('@/app/actions/sms-auth')
-      const res = await verifySmsCode(phone, verificationCode, 'login')
+      // Pass the current URL for redirect_to
+      const res = await verifySmsCode(phone, verificationCode, 'login', window.location.origin)
 
       if (!res.success) {
         toast.error(res.message, { description: res.error })
         return
       }
 
-      // Sign in with the virtual email and trigger session
-      const virtualEmail = `${phone.replace(/\s+/g, '')}@sms.citylord.local`
-      const { error } = await supabase.auth.signInWithOtp({ email: virtualEmail })
-      if (error) {
-        // Fallback: try signing in with the magiclink type
-        const verifyRes = await supabase.auth.verifyOtp({
-          email: virtualEmail,
-          token: verificationCode,
-          type: 'magiclink',
-        })
-        if (verifyRes.error) {
-          toast.error("登录失败", { description: "请检查验证码是否正确" })
-          return
-        }
+      // Navigate to the actionLink to establish the session via Supabase implicitly
+      if (res.actionLink) {
+        window.location.href = res.actionLink
       }
-
-      toast.success("登录成功")
     } catch (error: any) {
       console.error('SMS login verify error:', error)
       toast.error("验证失败", { description: error.message || "请稍后再试" })

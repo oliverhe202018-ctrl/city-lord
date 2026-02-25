@@ -166,8 +166,9 @@ export async function sendSmsCode(
 export async function verifySmsCode(
     phone: string,
     code: string,
-    type: 'login' | 'register'
-): Promise<SmsAuthResponse & { session?: any }> {
+    type: 'login' | 'register',
+    origin?: string
+): Promise<SmsAuthResponse & { session?: any, actionLink?: string }> {
     try {
         const cleaned = phone.replace(/\s+/g, '')
         const phoneResult = PhoneSchema.safeParse(cleaned)
@@ -231,9 +232,25 @@ export async function verifySmsCode(
             })
         }
 
+        let actionLink = undefined;
+        if (type === 'login') {
+            const linkRes = await supabaseAdmin.auth.admin.generateLink({
+                type: 'magiclink',
+                email: virtualEmail,
+                options: {
+                    redirectTo: origin ? `${origin}/auth/callback` : undefined
+                }
+            })
+            if (linkRes.error || !linkRes.data?.properties?.action_link) {
+                return { success: false, message: '登录凭证生成失败，请稍后再试', error: linkRes.error?.message }
+            }
+            actionLink = linkRes.data.properties.action_link
+        }
+
         return {
             success: true,
             message: type === 'register' ? '注册成功' : '验证成功',
+            actionLink
         }
     } catch (err: any) {
         console.error('[SmsAuth] Verify Error:', err)
