@@ -32,15 +32,25 @@ export async function getAccountInfo() {
         return { success: false, error: '未登录' }
     }
 
+    const isVirtualEmail = user.email?.endsWith('@sms.citylord.local') || false
+    let extractedPhone = user.phone || user.app_metadata?.phone || null
+    let isPhoneVerified = !!user.phone_confirmed_at
+
+    // Auto-infer phone from virtual email for SMS-login users
+    if (isVirtualEmail && user.email) {
+        const phoneFromEmail = user.email.replace('@sms.citylord.local', '')
+        if (!extractedPhone) extractedPhone = phoneFromEmail
+        isPhoneVerified = true // Implicitly verified via SMS login
+    }
+
     return {
         success: true,
         data: {
             email: user.email || null,
-            phone: user.phone || user.user_metadata?.phone || null,
+            phone: extractedPhone,
             emailVerified: !!user.email_confirmed_at,
-            phoneVerified: !!user.phone_confirmed_at,
-            // Check if this is a virtual (phone-based) email
-            isVirtualEmail: user.email?.endsWith('@sms.citylord.local') || false,
+            phoneVerified: isPhoneVerified,
+            isVirtualEmail,
         }
     }
 }
@@ -71,7 +81,11 @@ export async function sendPhoneBindCode(phone: string) {
     // Check if phone already bound to another user
     const { data: users } = await supabaseAdmin.auth.admin.listUsers()
     const phoneUsed = users?.users?.some(
-        u => u.id !== user.id && (u.phone === cleaned || u.user_metadata?.phone === cleaned)
+        u => u.id !== user.id && (
+            u.phone === cleaned
+            || u.app_metadata?.phone === cleaned
+            || u.email === `${cleaned}@sms.citylord.local`
+        )
     )
     if (phoneUsed) {
         return { success: false, message: '该手机号已被其他账号绑定' }
