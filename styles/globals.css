@@ -123,3 +123,14 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Breathing scale animation for pause-screen confirm button */
+@keyframes breathing {
+  0%, 100% { transform: scale(0.95); }
+  50% { transform: scale(1.05); }
+}
+
+@utility animate-breathing {
+  animation: breathing 1.5s ease-in-out infinite;
+  will-change: transform;
+}

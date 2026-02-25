@@ -1,3 +1,4 @@
+// tsconfig.json
 {
   "compilerOptions": {
     "lib": [
@@ -17,6 +18,8 @@
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
     "plugins": [
       {
         "name": "next"

@@ -7,7 +7,7 @@ import MapManager from "@/lib/mapManager"
 import { Location } from "@/hooks/useRunningTracker"
 import { useTheme } from "next-themes"
 import { useSmoothMapCamera } from "@/hooks/useSmoothMapCamera"
-import { useFastLocation } from "@/hooks/useFastLocation"
+import { useLocationStore } from "@/store/useLocationStore"
 
 // Security Config
 const AMAP_KEY = process.env.NEXT_PUBLIC_AMAP_KEY || "2f65c697074e0d4c8270195561578e06"
@@ -43,7 +43,8 @@ export function RunningMap({
   const locationCircleRef = useRef<AMap.Circle | null>(null) // Accuracy circle
 
   const { smoothPanTo } = useSmoothMapCamera(mapInstanceRef.current)
-  const { location: fastLoc } = useFastLocation()
+  const globalLocation = useLocationStore(s => s.location);
+  const locationSource = useLocationStore(s => s.locationSource);
 
   // User Color Preferences
   const pathColor = '#3B82F6' // Blue 500
@@ -118,7 +119,7 @@ export function RunningMap({
             content: markerContent,
             offset: new AMap.Pixel(-12, -12),
             zIndex: 100,
-            visible: !!(userLocation || fastLoc) // Only visible if we have a real user location
+            visible: !!(userLocation || globalLocation) // Only visible if we have a real user location
           })
 
           // Check if map.add exists before calling
@@ -148,18 +149,18 @@ export function RunningMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // Init ONCE only — location updates handled by separate effects
 
-  // 1.5 Handle fastLoc updates if userLocation is missing
+  // 1.5 Handle global store location updates if userLocation prop is missing
   useEffect(() => {
-    if (!userLocation && fastLoc && mapInstanceRef.current && userMarkerRef.current) {
-      const pos = [fastLoc.lng, fastLoc.lat] as [number, number];
+    if (!userLocation && globalLocation && mapInstanceRef.current && userMarkerRef.current) {
+      const pos = [globalLocation.lng, globalLocation.lat] as [number, number];
       mapInstanceRef.current.setCenter(pos);
       userMarkerRef.current.setPosition(pos);
       userMarkerRef.current.show();
       if (onLocationUpdate) {
-        onLocationUpdate(fastLoc.lat, fastLoc.lng);
+        onLocationUpdate(globalLocation.lat, globalLocation.lng);
       }
     }
-  }, [fastLoc, userLocation, onLocationUpdate]);
+  }, [globalLocation, userLocation, onLocationUpdate]);
 
   // 2. Update User Location & Center
   useEffect(() => {
@@ -255,6 +256,8 @@ export function RunningMap({
   // 4. Render Path & KM Markers
   useEffect(() => {
     if (!path || path.length === 0) return;
+    // Guard: Only draw polyline from real GPS points, not cache
+    if (locationSource !== 'gps') return;
     if (!mapInstanceRef.current || !amapRef.current || path.length < 2) return
     const map = mapInstanceRef.current
     const AMap = amapRef.current

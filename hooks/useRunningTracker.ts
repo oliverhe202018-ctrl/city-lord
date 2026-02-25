@@ -7,7 +7,8 @@ import { uploadTrajectoryBatch } from '@/app/actions/sync';
 import { saveRunActivity } from '@/app/actions/run-service';
 import { v4 as uuidv4 } from 'uuid';
 import { isNativePlatform, safeGetBatteryInfo } from "@/lib/capacitor/safe-plugins";
-import { useSafeGeolocation, GeoPoint } from '@/hooks/useSafeGeolocation';
+import type { GeoPoint } from '@/hooks/useSafeGeolocation';
+import { useLocationStore } from '@/store/useLocationStore';
 import { getDistanceFromLatLonInMeters } from '@/lib/geometry-utils';
 
 const RECOVERY_KEY = 'CURRENT_RUN_RECOVERY';
@@ -122,20 +123,15 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   useEffect(() => { pathRef.current = path; }, [path]);
   useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
 
-  // ======== CRITICAL: Use centralized useSafeGeolocation ========
-  // REMOVED: LocationService, watcherIdRef, startLocationService, stopLocationService (Re-added for Background Notification)
-  // NOW: Consume GPS directly from useSafeGeolocation hook (SAME SOURCE as TrajectoryLayer)
+  // ======== CRITICAL: Use centralized global location store ========
+  // REMOVED: Direct useSafeGeolocation call — now consumed from useLocationStore
+  // which is written to by the GlobalLocationProvider singleton.
   // BUT: We start LocationService purely for the Foreground Service Notification (Keep-Alive)
   const watcherIdRef = useRef<string | null>(null);
 
-  // Import LocationService dynamically or directly
-  // We use the one from utils/locationService which uses safe-plugins
-  // const { LocationService } = require('@/utils/locationService'); // Using import at top instead
-  const { location: gpsLocation } = useSafeGeolocation({
-    enableHighAccuracy: true,
-    timeout: 30000,
-    maximumAge: 0
-  });
+  // Read GPS location from global singleton store
+  const gpsLocation = useLocationStore(s => s.location);
+  const locationSource = useLocationStore(s => s.locationSource);
 
   // Network Listener
   useEffect(() => {
@@ -408,10 +404,12 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
   }, []);
 
-  // ======== CRITICAL: React to GPS location from useSafeGeolocation ========
+  // ======== CRITICAL: React to GPS location from global store ========
   // This is the SAME data source as TrajectoryLayer (via MapRoot.userPath)
   useEffect(() => {
     if (!isRunning || !gpsLocation || isStoppingRef.current) return;
+    // Only process actual GPS fixes for path tracking, not cache
+    if (locationSource !== 'gps') return;
 
     // GPS location already filtered by useSafeGeolocation:
     // - 50m accuracy threshold
@@ -426,7 +424,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       gpsLocation.accuracy,
       gpsLocation.timestamp
     );
-  }, [gpsLocation, isRunning, handleLocationUpdate]);
+  }, [gpsLocation, isRunning, locationSource, handleLocationUpdate]);
 
   const addManualLocation = useCallback((lat: number, lng: number) => {
     handleLocationUpdate(lat, lng, 0, Date.now());

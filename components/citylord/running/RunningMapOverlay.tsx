@@ -143,7 +143,7 @@ export function RunningMapOverlay({
         {/* Action Button */}
         <div className="w-full">
           {isPaused ? (
-            <div className="flex gap-2 h-14">
+            <div className="flex flex-row items-stretch gap-3 h-14">
               {/* 结束按钮 — 不再 disabled，两次点击都能触发 */}
               <button
                 onClick={(e) => {
@@ -165,9 +165,9 @@ export function RunningMapOverlay({
                     }, 5000);
                   }
                 }}
-                className={`flex-1 rounded-xl flex items-center justify-center gap-1 active:scale-[0.98] transition-all ${confirmStop
-                  ? 'bg-red-600 hover:bg-red-700 animate-pulse'
-                  : 'bg-red-500/20 border border-red-500/50 hover:bg-red-500/30'
+                className={`flex-1 h-full rounded-xl flex items-center justify-center gap-1 transition-colors ${confirmStop
+                  ? 'bg-red-600 hover:bg-red-700 animate-breathing'
+                  : 'bg-red-500/20 border border-red-500/50 hover:bg-red-500/30 active:scale-[0.98]'
                   }`}
               >
                 <span className={`${confirmStop ? 'text-white' : 'text-red-400'} font-bold text-sm whitespace-nowrap`}>
@@ -187,7 +187,7 @@ export function RunningMapOverlay({
                   }
                   if (onPauseToggle) onPauseToggle();
                 }}
-                className="flex-[2] bg-[#22c55e] rounded-xl flex items-center justify-center gap-1 active:scale-[0.98] transition-all hover:bg-[#16a34a] shadow-lg shadow-[#22c55e]/20"
+                className="flex-1 h-full bg-[#22c55e] rounded-xl flex items-center justify-center gap-1 active:scale-[0.98] transition-all hover:bg-[#16a34a] shadow-lg shadow-[#22c55e]/20"
               >
                 <Play className="h-4 w-4 text-white fill-current" />
                 <span className="text-white font-bold text-sm whitespace-nowrap">继续跑步</span>
