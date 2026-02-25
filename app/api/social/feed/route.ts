@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import * as Sentry from '@sentry/nextjs'
 import { createClient } from '@/lib/supabase/server'
 import { getFeedTimeline } from '@/app/actions/social-hub'
 
@@ -17,12 +18,15 @@ export async function GET(request: Request) {
         const cursor = searchParams.get('cursor') || undefined
         const targetUserId = searchParams.get('targetUserId') || undefined
 
-        const res = await getFeedTimeline({
-            filter,
-            limit,
-            cursor,
-            targetUserId
-        })
+        const res = await Sentry.startSpan(
+            { op: 'function', name: 'getFeedTimeline' },
+            () => getFeedTimeline({
+                filter,
+                limit,
+                cursor,
+                targetUserId
+            })
+        )
 
         return NextResponse.json(res)
     } catch (error: any) {

@@ -58,10 +58,15 @@ City Lord 是一款结合真实地理位置（LBS）的跑步领地争夺游戏�
     NEXT_PUBLIC_AMAP_KEY=YOUR_AMAP_KEY
     ```
 
-4.  **生成 Prisma Client**
-    *   每次修改 `prisma/schema.prisma` 后都需要执行此命令。
+4.  **生成 Prisma Client 及 数据库初始化**
+    *   每次修改 `prisma/schema.prisma` 后都需要执行 client 生成命令：
     ```bash
     npx prisma generate
+    ```
+    *   **重要**：本项目包含 Prisma 无法自动维护的**偏函数索引（Partial Indexes）**。在新环境搭建或数据库重建后，必须**手动执行**以下 DDL 脚本以保证性能：
+    ```bash
+    # 建立社交流相关的偏函数索引
+    npx prisma db execute --file prisma/migrations/add_posts_friends_feed_index.sql --url <YOUR_DIRECT_URL>
     ```
 
 5.  **启动开发服务器**
