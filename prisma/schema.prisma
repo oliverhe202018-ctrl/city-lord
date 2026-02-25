@@ -768,6 +768,7 @@ model posts {
 
   @@index([user_id, created_at(sort: Desc)])
   @@index([visibility, status, created_at(sort: Desc)])
+  // 偏函数索引 idx_posts_friends_feed 通过 raw SQL 维护，见 prisma/migrations/add_posts_friends_feed_index.sql
   @@schema("public")
 }
 
@@ -798,7 +799,7 @@ model post_comments {
   post posts    @relation(fields: [post_id], references: [id], onDelete: Cascade)
   user profiles @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
-  @@index([post_id, created_at(sort: Asc)])
+  @@index([post_id, status, created_at(sort: Asc)])
   @@schema("public")
 }
 

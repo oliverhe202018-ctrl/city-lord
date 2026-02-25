@@ -1,5 +1,6 @@
 'use server'
 
+import * as Sentry from '@sentry/nextjs'
 import { prisma } from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
 import { cookies } from 'next/headers'
@@ -27,7 +28,10 @@ export interface PostResponse {
 async function getAuthUser() {
     const cookieStore = await cookies()
     const supabase = await createClient(cookieStore)
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { user } } = await Sentry.startSpan(
+        { op: 'http.client', name: 'auth.getUser' },
+        () => supabase.auth.getUser()
+    )
     return user
 }
 
@@ -117,6 +121,7 @@ export interface FeedQueryInput {
 }
 
 export interface FeedTimelineResponse {
+    // TODO(Track Issue): Refactor `items: any[]` to explicit types
     items: any[]
     nextCursor?: string
     error?: { code: number; message: string }
@@ -149,10 +154,25 @@ export async function getFeedTimeline(input: FeedQueryInput): Promise<FeedTimeli
         // Determine query conditions based on filter
         let whereClause: any = { status: 'ACTIVE' }
 
+        // Start independent queries in parallel
+        const [blockedRecords, friendships] = await Promise.all([
+            Sentry.startSpan(
+                { op: 'db.query', name: 'db.blocked_users' },
+                () => prisma.blocked_users.findMany({
+                    where: { OR: [{ blockerId: user.id }, { blockedId: user.id }] }
+                })
+            ),
+            filter === 'FRIENDS'
+                ? Sentry.startSpan(
+                    { op: 'db.query', name: 'db.friendships' },
+                    () => prisma.friendships.findMany({
+                        where: { OR: [{ user_id: user.id }, { friend_id: user.id }], status: 'accepted' }
+                    })
+                )
+                : Promise.resolve([])
+        ])
+
         // Always exclude blocked users' posts globally
-        const blockedRecords = await prisma.blocked_users.findMany({
-            where: { OR: [{ blockerId: user.id }, { blockedId: user.id }] }
-        })
         const blockedUserIds = blockedRecords.map(b => b.blockerId === user.id ? b.blockedId : b.blockerId)
 
         if (blockedUserIds.length > 0) {
@@ -170,41 +190,85 @@ export async function getFeedTimeline(input: FeedQueryInput): Promise<FeedTimeli
         } else if (filter === 'GLOBAL') {
             whereClause.visibility = 'PUBLIC'
         } else if (filter === 'FRIENDS') {
-            const friendships = await prisma.friendships.findMany({
-                where: { OR: [{ user_id: user.id }, { friend_id: user.id }], status: 'accepted' }
-            })
             const friendIds = friendships.map(f => f.user_id === user.id ? f.friend_id : f.user_id)
             friendIds.push(user.id) // Always include own posts in friends feed
             whereClause.user_id = { in: friendIds.length > 0 ? friendIds : [user.id] }
             whereClause.visibility = { in: ['PUBLIC', 'FRIENDS_ONLY'] }
         }
 
-        const posts = await prisma.posts.findMany({
-            where: whereClause,
-            take: limit + 1,
-            cursor: input.cursor ? { id: input.cursor } : undefined,
-            // 排序稳定性优先：在相同精确到毫秒的时间戳下，使用 id: 'desc' 作为兜底，保证游标稳定
-            // 避免在默认 Feed 场景引入 likes/comments 这类动态 _count 排序导致 cursor 乱序甚至漏数据
-            orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
-            include: {
-                user: { select: { id: true, nickname: true, avatar_url: true, level: true } },
-                _count: { select: { likes: true, comments: true } },
-                comments: {
-                    where: { status: 'ACTIVE' },
-                    take: 3,
-                    orderBy: { created_at: 'asc' }, // Show oldest 3 first for context, or newest if preferred. We'll stick to 'asc' to show first few if it's preview.
-                    include: { user: { select: { id: true, nickname: true, avatar_url: true } } }
+        const posts = await Sentry.startSpan(
+            { op: 'db.query', name: 'db.posts.feed' },
+            () => prisma.posts.findMany({
+                where: whereClause,
+                take: limit + 1,
+                cursor: input.cursor ? { id: input.cursor } : undefined,
+                // 排序稳定性优先：在相同精确到毫秒的时间戳下，使用 id: 'desc' 作为兜底，保证游标稳定
+                // 避免在默认 Feed 场景引入 likes/comments 这类动态 _count 排序导致 cursor 乱序甚至漏数据
+                orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+                // @ts-expect-error — Prisma known bug: cursor pagination with
+                // relationLoadStrategy:'join' incorrectly infers type as 'never'.
+                // Runtime behavior is correct. Track: github.com/prisma/prisma/issues/22049
+                relationLoadStrategy: 'join',
+                include: {
+                    user: { select: { id: true, nickname: true, avatar_url: true, level: true } },
+                    comments: {
+                        where: { status: 'ACTIVE' },
+                        take: 3,
+                        orderBy: { created_at: 'asc' },
+                        include: { user: { select: { id: true, nickname: true, avatar_url: true } } }
+                    }
                 }
+            })
+        )
+
+        // 批量 COUNT 替代 _count correlated subquery（10 条 post = 原先 20 次子查询 → 现在 1 次）
+        // 使用子查询各自聚合后 JOIN，避免笛卡尔积 + COUNT(DISTINCT) 的开销
+        const postIds = posts.map(p => p.id)
+        const counts = postIds.length > 0
+            ? await Sentry.startSpan(
+                { op: 'db.query', name: 'db.posts.counts' },
+                () => prisma.$queryRaw<
+                    Array<{ post_id: string; likes_count: bigint; comments_count: bigint }>
+                >`
+                    SELECT
+                        p.id AS post_id,
+                        COALESCE(pl.likes_count, 0)    AS likes_count,
+                        COALESCE(pc.comments_count, 0) AS comments_count
+                    FROM posts p
+                    LEFT JOIN (
+                        SELECT post_id, COUNT(*) AS likes_count
+                        FROM post_likes
+                        WHERE post_id = ANY(${postIds}::uuid[])
+                        GROUP BY post_id
+                    ) pl ON pl.post_id = p.id
+                    LEFT JOIN (
+                        SELECT post_id, COUNT(*) AS comments_count
+                        FROM post_comments
+                        WHERE post_id = ANY(${postIds}::uuid[]) AND status = 'ACTIVE'
+                        GROUP BY post_id
+                    ) pc ON pc.post_id = p.id
+                    WHERE p.id = ANY(${postIds}::uuid[])
+                `
+            )
+            : []
+
+        // 合并 counts 回 _count 形状，保持前端 post._count?.likes / post._count?.comments 兼容
+        const countsMap = new Map(counts.map(c => [c.post_id, c]))
+        const postsWithCounts = posts.map(p => ({
+            ...p,
+            _count: {
+                likes: Number(countsMap.get(p.id)?.likes_count ?? 0),
+                comments: Number(countsMap.get(p.id)?.comments_count ?? 0),
             }
-        })
+        }))
 
         let nextCursor: string | undefined = undefined
-        if (posts.length > limit) {
-            const nextItem = posts.pop()
+        if (postsWithCounts.length > limit) {
+            const nextItem = postsWithCounts.pop()
             nextCursor = nextItem?.id
         }
 
-        return { items: posts, nextCursor }
+        return { items: postsWithCounts, nextCursor }
     } catch (error: any) {
         console.error(JSON.stringify({ action: 'getFeedTimeline', error: error.message || error }))
         return { items: [], error: { code: 500, message: 'Internal server error' } }

@@ -4,5 +4,8 @@
       "path": "/api/cron/update-province",
       "schedule": "0 15 * * *"
     }
+  ],
+  "regions": [
+    "pdx1"
   ]
 }
