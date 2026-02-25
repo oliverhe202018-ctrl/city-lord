@@ -23,8 +23,9 @@ export async function GET(request: Request) {
             })
         )
 
-        if (res.error && res.error.code === 403) {
-            return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+        if (res.error) {
+            const status = typeof res.error.code === 'number' ? res.error.code : 500;
+            return NextResponse.json({ error: res.error.message || 'Internal error' }, { status: status === 403 ? 401 : status })
         }
 
         return NextResponse.json(res)
