@@ -4,7 +4,9 @@ import React, { useState, useEffect, ReactNode, useCallback, useRef } from 'reac
 import { toast } from 'sonner';
 import { MapProvider, LocationState, AMapInstance } from './AMapContext';
 import { useTheme } from '@/components/citylord/theme/theme-provider';
-import { useSafeGeolocation, GeoPoint } from '@/hooks/useSafeGeolocation';
+import type { GeoPoint } from '@/hooks/useSafeGeolocation';
+import { useLocationStore } from '@/store/useLocationStore';
+import { useLocationContext } from '@/components/GlobalLocationProvider';
 import { useGameStore } from '@/store/useGameStore';
 
 const MAP_STYLES: Record<string, string> = {
@@ -105,12 +107,15 @@ export function MapRoot({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Safe geolocation with 50m accuracy filtering
-  const { location, loading, error, gpsSignalStrength, status, retry, getDebugData } = useSafeGeolocation({
-    enableHighAccuracy: true,
-    timeout: 30000,
-    maximumAge: 0
-  });
+  // Read GPS state from global singleton store (written by GlobalLocationProvider)
+  const location = useLocationStore(s => s.location);
+  const loading = useLocationStore(s => s.loading);
+  const error = useLocationStore(s => s.error);
+  const gpsSignalStrength = useLocationStore(s => s.gpsSignalStrength);
+  const status = useLocationStore(s => s.status);
+
+  // Non-serializable callbacks from Context
+  const { retry, getDebugData } = useLocationContext();
 
   // Debug states (C.7)
   const userPositionRef = useRef<GeoPoint | null>(null);

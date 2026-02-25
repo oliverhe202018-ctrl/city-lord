@@ -1,0 +1,36 @@
+// .eslintrc.cjs
+module.exports = {
+  root: true,
+  extends: [
+    'next/core-web-vitals', // 已包含 @typescript-eslint 全套规则
+    'next/typescript', // Next.js 15+ 专门加的 TS 严格规则
+    ],
+  rules: {
+        // 写 any 时 VS Code 提醒你（黄线），但不报红不阻断构建
+    '@typescript-eslint/no-explicit-any': 'warn',
+        // @ts-ignore 必须带原因注释，防止以后自己看不懂
+    '@typescript-eslint/ban-ts-comment': [
+      'warn',
+            {
+        'ts-ignore': 'allow-with-description',
+        'ts-expect-error': 'allow-with-description',
+        minimumDescriptionLength: 5,
+            },
+        ],
+        // 未使用变量警告，但 _ 开头的参数允许忽略
+    '@typescript-eslint/no-unused-vars': [
+      'warn',
+            { argsIgnorePattern: '^_', varsIgnorePattern: '^_'
+            },
+        ],
+        // Next.js 项目里这条规则经常误报，先关掉
+    '@next/next/no-html-link-for-pages': 'off',
+    },
+  ignorePatterns: [
+    'node_modules/',
+    '.next/',
+    'supabase/functions/',
+    '*.config.js',
+    '*.config.ts',
+    ],
+};

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { haversineDistanceKm } from "@/lib/geometry-utils";
+import * as Sentry from "@sentry/nextjs";
 
 // Initialize a service_role client to bypass RLS when writing/reading secure tables
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -108,6 +109,7 @@ export async function POST(req: NextRequest) {
 
         if (insertErr) {
             console.error("[api/user/location] Failed to insert location via RPC:", insertErr);
+            Sentry.captureException(insertErr, { tags: { feature: 'location', action: 'rpc_write' } });
             return NextResponse.json({ error: "Failed to save location" }, { status: 500 });
         }
 
@@ -115,6 +117,7 @@ export async function POST(req: NextRequest) {
 
     } catch (error: any) {
         console.error("[api/user/location] Error:", error.message);
+        Sentry.captureException(error);
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 }

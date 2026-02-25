@@ -1,5 +1,6 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { withSentryConfig } from '@sentry/nextjs';
 import withPWAInit from "@ducanh2912/next-pwa";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -118,4 +119,24 @@ const nextConfig = {
   turbopack: {},
 };
 
-export default withPWA(nextConfig);
+export default withSentryConfig(withPWA(nextConfig), {
+  // Sentry 配置
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+
+  // 在错误日志里记录 React 组件名
+  reactComponentAnnotation: { enabled: true },
+
+  // 避免广告拦截器屏蔽 Sentry 请求
+  tunnelRoute: "/monitoring",
+
+  // 生产环境不暴露源码
+  hideSourceMaps: true,
+
+  // 构建时不输出 Sentry 日志
+  silent: true,
+
+  // 禁用自动上传 source maps（需先配置 Sentry auth token）
+  disableServerWebpackPlugin: !process.env.SENTRY_AUTH_TOKEN,
+  disableClientWebpackPlugin: !process.env.SENTRY_AUTH_TOKEN,
+});
