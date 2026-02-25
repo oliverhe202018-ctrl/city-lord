@@ -6,11 +6,6 @@ import { getFeedTimeline } from '@/app/actions/social-hub'
 export async function GET(request: Request) {
     try {
         const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-
-        if (!user) {
-            return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
-        }
 
         const { searchParams } = new URL(request.url)
         const filter = (searchParams.get('filter') as 'GLOBAL' | 'FRIENDS' | 'USER') || 'FRIENDS'
@@ -27,6 +22,10 @@ export async function GET(request: Request) {
                 targetUserId
             })
         )
+
+        if (res.error && res.error.code === 403) {
+            return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+        }
 
         return NextResponse.json(res)
     } catch (error: any) {
