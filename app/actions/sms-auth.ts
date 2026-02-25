@@ -98,7 +98,7 @@ export async function sendSmsCode(
             // Check if user exists
             const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers()
             const userExists = existingUsers?.users?.some(
-                u => u.phone === cleaned || u.email === virtualEmail
+                u => u.phone === cleaned || u.email === virtualEmail || u.app_metadata?.phone === cleaned
             )
 
             if (!userExists) {
@@ -138,7 +138,7 @@ export async function sendSmsCode(
         // We use admin to update user app_metadata with the OTP code + expiry
         const { data: users } = await supabaseAdmin.auth.admin.listUsers()
         const targetUser = users?.users?.find(
-            u => u.phone === cleaned || u.email === virtualEmail
+            u => u.phone === cleaned || u.email === virtualEmail || u.app_metadata?.phone === cleaned
         )
 
         if (targetUser) {
@@ -185,7 +185,7 @@ export async function verifySmsCode(
         // Find user
         const { data: users } = await supabaseAdmin.auth.admin.listUsers()
         const targetUser = users?.users?.find(
-            u => u.phone === cleaned || u.email === virtualEmail
+            u => u.phone === cleaned || u.email === virtualEmail || u.app_metadata?.phone === cleaned
         )
 
         if (!targetUser) {
@@ -213,15 +213,15 @@ export async function verifySmsCode(
             return { success: false, message: '验证码错误' }
         }
 
-        // Clear OTP from metadata
+        // Clear OTP from metadata and store phone in app_metadata (service_role only)
         await supabaseAdmin.auth.admin.updateUserById(targetUser.id, {
-            phone: cleaned,
             phone_confirm: true,
             app_metadata: {
                 ...targetUser.app_metadata,
                 sms_otp: null,
                 sms_otp_expires: null,
                 sms_otp_phone: null,
+                phone: cleaned,          // Authoritative phone storage, only service_role can write
             }
         })
 
