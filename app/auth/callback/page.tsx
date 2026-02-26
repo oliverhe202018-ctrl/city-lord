@@ -5,8 +5,6 @@ import { createClient } from "@/lib/supabase/client"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
-import { Capacitor } from '@capacitor/core'
-import { Browser } from '@capacitor/browser'
 
 function AuthCallbackContent() {
   const router = useRouter()
@@ -19,14 +17,10 @@ function AuthCallbackContent() {
 
     let mounted = true
 
-    const finishLogin = async () => {
+    const finishLogin = () => {
       if (!mounted) return
       setStatus("登录成功，正在跳转...")
       toast.success("登录成功")
-      // Close Capacitor in-app browser if running on native platform
-      if (Capacitor.isNativePlatform()) {
-        try { await Browser.close() } catch (_) { }
-      }
       // Force reload to ensure all server components update
       window.location.href = "/"
     }

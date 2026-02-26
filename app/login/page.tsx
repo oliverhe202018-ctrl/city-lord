@@ -10,16 +10,6 @@ import Link from "next/link"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Capacitor } from '@capacitor/core'
-import { Browser } from '@capacitor/browser'
-
-const openAuthUrl = async (url: string) => {
-  if (Capacitor.isNativePlatform()) {
-    await Browser.open({ url, presentationStyle: 'popover' })
-  } else {
-    window.location.href = url
-  }
-}
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -264,9 +254,22 @@ export default function LoginPage() {
         return
       }
 
-      // Navigate to the actionLink to establish the session via Supabase implicitly
-      if (res.actionLink) {
-        await openAuthUrl(res.actionLink)
+      // Use token_hash to establish session directly (no browser redirect)
+      if (res.tokenHash) {
+        const { error } = await supabase.auth.verifyOtp({
+          token_hash: res.tokenHash,
+          type: 'magiclink',
+        })
+        if (error) {
+          console.error('verifyOtp error:', error)
+          toast.error("登录失败", { description: error.message })
+          return
+        }
+        toast.success("登录成功")
+        // Session established — onAuthStateChange will redirect to /
+      } else if (res.actionLink) {
+        // Fallback: navigate to actionLink (web only)
+        window.location.href = res.actionLink
       }
     } catch (error: any) {
       console.error('SMS login verify error:', error)
