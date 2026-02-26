@@ -469,64 +469,164 @@ export async function getRegionalRecommendations(limit: number = 10): Promise<{ 
         const user = await getAuthUser()
         if (!user) return { users: [], error: { code: 403, message: 'Unauthorized' } }
 
-        const currentUser = await prisma.profiles.findUnique({ where: { id: user.id } })
-        const userProvince = currentUser?.province || ''
-
-        // Global base filtering logic for discoverable active users
-        const where: any = {
-            id: { not: user.id },
-            allow_recommendations: true,
-            nickname: { not: null }
-        }
-
-        // Exclude existing friends
-        const friendships = await prisma.friendships.findMany({
-            where: { OR: [{ user_id: user.id }, { friend_id: user.id }] }
+        const currentUser = await prisma.profiles.findUnique({
+            where: { id: user.id },
+            select: { id: true, province: true, level: true, total_distance_km: true }
         })
-        const friendIds = friendships.map(f => f.user_id === user.id ? f.friend_id : f.user_id)
+        if (!currentUser) return { users: [], error: { code: 404, message: 'Profile not found' } }
 
-        const blocked = await prisma.blocked_users.findMany({
-            where: { OR: [{ blockerId: user.id }, { blockedId: user.id }] }
-        })
-        const blockedIds = blocked.map(b => b.blockerId === user.id ? b.blockedId : b.blockerId)
+        const userProvince = currentUser.province || ''
+        const userLevel = currentUser.level || 1
+        const userDistKm = currentUser.total_distance_km || 0
 
-        const excludeIds = [...friendIds, ...blockedIds]
-        if (excludeIds.length > 0) {
-            where.id = { notIn: excludeIds }
-        }
-
-        // Attempt to match by province first
-        const recommended = await prisma.profiles.findMany({
-            where: { ...where, province: userProvince || undefined },
-            take: limit,
-            orderBy: { updated_at: 'desc' },
-            select: { id: true, nickname: true, avatar_url: true, level: true, province: true }
-        })
-
-        let finalUsers = recommended.map(u => ({
-            ...u,
-            reason_code: userProvince ? 'SAME_CITY' : 'SIMILAR_ACTIVITY',
-            reason_label: userProvince ? '同城' : '活跃度接近'
-        }))
-
-        // If not enough, fallback to globally active
-        if (finalUsers.length < limit) {
-            const excludeIdsExt = [...excludeIds, ...finalUsers.map(u => u.id)]
-            // Clean the notIn clause
-            if (where.id?.notIn) delete where.id.notIn
-            if (excludeIdsExt.length > 0) where.id = { notIn: excludeIdsExt }
-
-            const globallyActive = await prisma.profiles.findMany({
-                where: { ...where },
-                take: limit - finalUsers.length,
-                orderBy: { updated_at: 'desc' },
-                select: { id: true, nickname: true, avatar_url: true, level: true, province: true }
+        // Exclude existing friends and blocked users
+        const [friendships, blocked] = await Promise.all([
+            prisma.friendships.findMany({
+                where: { OR: [{ user_id: user.id }, { friend_id: user.id }] }
+            }),
+            prisma.blocked_users.findMany({
+                where: { OR: [{ blockerId: user.id }, { blockedId: user.id }] }
             })
-            finalUsers = [...finalUsers, ...globallyActive.map(u => ({
-                ...u,
-                reason_code: 'SIMILAR_ACTIVITY',
-                reason_label: '活跃度接近'
-            }))]
+        ])
+        const friendIds = friendships.map(f => f.user_id === user.id ? f.friend_id : f.user_id)
+        const blockedIds = blocked.map(b => b.blockerId === user.id ? b.blockedId : b.blockerId)
+        const excludeIds = [user.id, ...friendIds, ...blockedIds]
+
+        let finalUsers: any[] = []
+        const collectedIds = new Set<string>()
+
+        // ── Tier 1: Nearby users within 5km (PostGIS) ──
+        try {
+            const nearbyRows = await prisma.$queryRaw<
+                Array<{ user_id: string; dist_m: number }>
+            >`
+                SELECT ul2.user_id, 
+                       ST_Distance(ul1.location::geography, ul2.location::geography) AS dist_m
+                FROM user_locations ul1
+                JOIN user_locations ul2 ON ul2.user_id != ul1.user_id
+                WHERE ul1.user_id = ${user.id}::uuid
+                  AND ul1.location IS NOT NULL
+                  AND ul2.location IS NOT NULL
+                  AND ST_DWithin(ul1.location::geography, ul2.location::geography, 5000)
+                  AND ul2.user_id != ALL(${excludeIds}::uuid[])
+                ORDER BY dist_m ASC
+                LIMIT ${limit}
+            `
+
+            if (nearbyRows.length > 0) {
+                const nearbyUserIds = nearbyRows.map(r => r.user_id)
+                const nearbyDistMap = new Map(nearbyRows.map(r => [r.user_id, Number(r.dist_m)]))
+
+                const nearbyProfiles = await prisma.profiles.findMany({
+                    where: {
+                        id: { in: nearbyUserIds },
+                        allow_recommendations: true,
+                        nickname: { not: null }
+                    },
+                    select: { id: true, nickname: true, avatar_url: true, level: true, province: true, total_distance_km: true }
+                })
+
+                for (const p of nearbyProfiles) {
+                    const distM = nearbyDistMap.get(p.id) || 0
+                    const distLabel = distM < 1000
+                        ? `${Math.round(distM)}m内`
+                        : `${(distM / 1000).toFixed(1)}km内`
+                    finalUsers.push({
+                        ...p,
+                        reason_code: 'NEARBY',
+                        reason_label: distLabel
+                    })
+                    collectedIds.add(p.id)
+                }
+            }
+        } catch (geoError) {
+            // PostGIS may not have data for this user yet, silently fall through
+            console.warn('[getRegionalRecommendations] PostGIS nearby query failed:', geoError)
+        }
+
+        // ── Tier 2: Similar runners (level ±3, distance ±30%) ──
+        if (finalUsers.length < limit) {
+            const remaining = limit - finalUsers.length
+            const allExcluded = [...excludeIds, ...Array.from(collectedIds)]
+
+            const distLow = userDistKm * 0.7
+            const distHigh = userDistKm > 0 ? userDistKm * 1.3 : 100 // If user has 0km, match beginners up to 100km
+
+            const similarWhere: any = {
+                id: { notIn: allExcluded },
+                allow_recommendations: true,
+                nickname: { not: null },
+                level: { gte: Math.max(1, userLevel - 3), lte: userLevel + 3 },
+                total_distance_km: { gte: distLow, lte: distHigh }
+            }
+
+            const similarUsers = await prisma.profiles.findMany({
+                where: similarWhere,
+                take: remaining,
+                orderBy: { updated_at: 'desc' },
+                select: { id: true, nickname: true, avatar_url: true, level: true, province: true, total_distance_km: true }
+            })
+
+            for (const u of similarUsers) {
+                finalUsers.push({
+                    ...u,
+                    reason_code: 'SIMILAR_RUNNER',
+                    reason_label: '相似跑者'
+                })
+                collectedIds.add(u.id)
+            }
+        }
+
+        // ── Tier 3: Province fallback ──
+        if (finalUsers.length < limit && userProvince) {
+            const remaining = limit - finalUsers.length
+            const allExcluded = [...excludeIds, ...Array.from(collectedIds)]
+
+            const provinceUsers = await prisma.profiles.findMany({
+                where: {
+                    id: { notIn: allExcluded },
+                    allow_recommendations: true,
+                    nickname: { not: null },
+                    province: userProvince
+                },
+                take: remaining,
+                orderBy: { updated_at: 'desc' },
+                select: { id: true, nickname: true, avatar_url: true, level: true, province: true, total_distance_km: true }
+            })
+
+            for (const u of provinceUsers) {
+                finalUsers.push({
+                    ...u,
+                    reason_code: 'SAME_CITY',
+                    reason_label: '同城'
+                })
+                collectedIds.add(u.id)
+            }
+        }
+
+        // ── Tier 4: Global active fallback ──
+        if (finalUsers.length < limit) {
+            const remaining = limit - finalUsers.length
+            const allExcluded = [...excludeIds, ...Array.from(collectedIds)]
+
+            const globalUsers = await prisma.profiles.findMany({
+                where: {
+                    id: { notIn: allExcluded },
+                    allow_recommendations: true,
+                    nickname: { not: null }
+                },
+                take: remaining,
+                orderBy: { updated_at: 'desc' },
+                select: { id: true, nickname: true, avatar_url: true, level: true, province: true, total_distance_km: true }
+            })
+
+            for (const u of globalUsers) {
+                finalUsers.push({
+                    ...u,
+                    reason_code: 'SIMILAR_ACTIVITY',
+                    reason_label: '活跃度接近'
+                })
+            }
         }
 
         return { users: finalUsers }

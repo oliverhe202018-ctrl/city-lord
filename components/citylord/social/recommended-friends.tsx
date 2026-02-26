@@ -60,6 +60,11 @@ const reasonConfig: Record<string, {
     label: "等级相近",
     color: "#06b6d4",
   },
+  similar_runner: {
+    icon: Zap,
+    label: "相似跑者",
+    color: "#f59e0b",
+  },
   similar_achievement: {
     icon: Trophy,
     label: "成就相似",
@@ -68,6 +73,16 @@ const reasonConfig: Record<string, {
   mutual_friends: {
     icon: Sparkles,
     label: "共同好友",
+    color: "#8b5cf6",
+  },
+  same_city: {
+    icon: MapPin,
+    label: "同城",
+    color: "#3b82f6",
+  },
+  similar_activity: {
+    icon: Zap,
+    label: "活跃度接近",
     color: "#8b5cf6",
   },
 }
@@ -86,11 +101,19 @@ export function RecommendedFriends({ onAddFriend }: RecommendedFriendsProps) {
     const loadUsers = async () => {
       try {
         const data = await getRegionalRecommendations(20)
-        if (data.error) throw new Error(data.error)
+        if (data.error) throw new Error(data.error.message || '加载失败')
+
+        // Map reason_code to local reason key
+        const codeToReason: Record<string, string> = {
+          'NEARBY': 'nearby',
+          'SIMILAR_RUNNER': 'similar_runner',
+          'SAME_CITY': 'same_city',
+          'SIMILAR_ACTIVITY': 'similar_activity',
+        }
 
         const mapped: RecommendedUser[] = (data.users || []).map((u: any) => {
-          const code = u.reason_code || (u.reason === '同城' ? 'SAME_CITY' : 'SIMILAR_ACTIVITY')
-          const isNearby = code === 'SAME_CITY'
+          const code = u.reason_code || 'SIMILAR_ACTIVITY'
+          const reason = (codeToReason[code] || 'similar_activity') as RecommendedUser['reason']
           return {
             id: u.id,
             name: u.nickname || 'Unknown',
@@ -98,9 +121,9 @@ export function RecommendedFriends({ onAddFriend }: RecommendedFriendsProps) {
             clan: u.province ? `${u.province}组` : undefined,
             clanColor: '#8b5cf6',
             hexCount: u._count?.hexes || Math.floor(Math.random() * 50),
-            totalKm: Math.floor(Math.random() * 500),
-            reason: isNearby ? 'nearby' : 'similar_level',
-            reasonDetail: u.reason_label || u.reason || (isNearby ? '同城跑者' : '活跃跑者'),
+            totalKm: u.total_distance_km != null ? Math.round(u.total_distance_km) : 0,
+            reason,
+            reasonDetail: u.reason_label || '活跃跑者',
             avatar: u.avatar_url
           }
         })
@@ -117,8 +140,8 @@ export function RecommendedFriends({ onAddFriend }: RecommendedFriendsProps) {
 
   const filteredUsers = recommendedUsers.filter(user => {
     if (filter === "all") return true
-    if (filter === "nearby") return user.reason === "nearby"
-    return user.reason === "similar_level" || user.reason === "similar_achievement"
+    if (filter === "nearby") return user.reason === "nearby" || user.reason === "same_city"
+    return user.reason === "similar_runner" || user.reason === "similar_level" || user.reason === "similar_achievement" || user.reason === "similar_activity"
   })
 
   const handleAddFriend = async (userId: string) => {
@@ -166,7 +189,7 @@ export function RecommendedFriends({ onAddFriend }: RecommendedFriendsProps) {
       {/* Recommended Users List */}
       <div className="space-y-3">
         {filteredUsers.map((user) => {
-          const reason = reasonConfig[user.reason]
+          const reason = reasonConfig[user.reason] || { icon: Zap, label: "推荐", color: "#8b5cf6" }
           const Icon = reason.icon
           const isAdded = addedUsers.has(user.id)
 
@@ -179,8 +202,12 @@ export function RecommendedFriends({ onAddFriend }: RecommendedFriendsProps) {
                 <div className="flex items-start gap-3">
                   {/* Avatar */}
                   <div className="relative">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-green-500/30 to-cyan-500/30 text-lg font-bold text-foreground">
-                      {user.avatar || user.name[0]}
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-green-500/30 to-cyan-500/30 text-lg font-bold text-foreground overflow-hidden">
+                      {user.avatar ? (
+                        <img src={user.avatar} alt={user.name} className="h-12 w-12 rounded-full object-cover" />
+                      ) : (
+                        user.name[0]
+                      )}
                     </div>
                   </div>
 
