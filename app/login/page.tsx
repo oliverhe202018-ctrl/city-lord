@@ -10,6 +10,16 @@ import Link from "next/link"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Capacitor } from '@capacitor/core'
+import { Browser } from '@capacitor/browser'
+
+const openAuthUrl = async (url: string) => {
+  if (Capacitor.isNativePlatform()) {
+    await Browser.open({ url, presentationStyle: 'popover' })
+  } else {
+    window.location.href = url
+  }
+}
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -256,7 +266,7 @@ export default function LoginPage() {
 
       // Navigate to the actionLink to establish the session via Supabase implicitly
       if (res.actionLink) {
-        window.location.href = res.actionLink
+        await openAuthUrl(res.actionLink)
       }
     } catch (error: any) {
       console.error('SMS login verify error:', error)

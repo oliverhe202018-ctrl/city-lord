@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/client"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
+import { Capacitor } from '@capacitor/core'
+import { Browser } from '@capacitor/browser'
 
 function AuthCallbackContent() {
   const router = useRouter()
@@ -14,15 +16,19 @@ function AuthCallbackContent() {
   useEffect(() => {
     // Create client inside effect to avoid dependency issues, or use useMemo
     const supabase = createClient()
-    
+
     let mounted = true
-    
-    const finishLogin = () => {
-        if (!mounted) return
-        setStatus("登录成功，正在跳转...")
-        toast.success("登录成功")
-        // Force reload to ensure all server components update
-        window.location.href = "/"
+
+    const finishLogin = async () => {
+      if (!mounted) return
+      setStatus("登录成功，正在跳转...")
+      toast.success("登录成功")
+      // Close Capacitor in-app browser if running on native platform
+      if (Capacitor.isNativePlatform()) {
+        try { await Browser.close() } catch (_) { }
+      }
+      // Force reload to ensure all server components update
+      window.location.href = "/"
     }
 
     const handleCallback = async () => {
@@ -66,9 +72,9 @@ function AuthCallbackContent() {
           })
 
           if (setSessionError) {
-             console.error("[Auth Callback] Set session error:", setSessionError)
-             if (mounted) router.push(`/auth/auth-code-error?message=${encodeURIComponent(setSessionError.message)}`)
-             return
+            console.error("[Auth Callback] Set session error:", setSessionError)
+            if (mounted) router.push(`/auth/auth-code-error?message=${encodeURIComponent(setSessionError.message)}`)
+            return
           }
           finishLogin()
           return
@@ -81,27 +87,27 @@ function AuthCallbackContent() {
         finishLogin()
         return
       }
-      
+
       // 5. Setup Listener for late arrivals (e.g. cookie being set by other process)
       const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_IN' || session) {
-            finishLogin()
+          finishLogin()
         }
       })
 
       // 6. Timeout fallback
       setTimeout(() => {
-         if (mounted) {
-             // Re-check session one last time
-             supabase.auth.getSession().then(({ data }) => {
-                 if (!data.session) {
-                     console.warn("[Auth Callback] Timeout waiting for session")
-                     router.push("/auth/auth-code-error?message=登录超时，未找到凭证")
-                 } else {
-                     finishLogin()
-                 }
-             })
-         }
+        if (mounted) {
+          // Re-check session one last time
+          supabase.auth.getSession().then(({ data }) => {
+            if (!data.session) {
+              console.warn("[Auth Callback] Timeout waiting for session")
+              router.push("/auth/auth-code-error?message=登录超时，未找到凭证")
+            } else {
+              finishLogin()
+            }
+          })
+        }
       }, 3000) // Wait 3s
 
       return () => {
@@ -112,7 +118,7 @@ function AuthCallbackContent() {
     handleCallback()
 
     return () => {
-        mounted = false
+      mounted = false
     }
   }, [router, searchParams])
 
