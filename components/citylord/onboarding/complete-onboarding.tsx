@@ -1,13 +1,13 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { 
-  X, 
-  ChevronRight, 
+import {
+  X,
+  ChevronRight,
   ChevronLeft,
-  MapPin, 
-  Target, 
-  Trophy, 
+  MapPin,
+  Target,
+  Trophy,
   Users,
   Hexagon,
   Zap,
@@ -50,7 +50,7 @@ export function WelcomeScreen({ isOpen, onComplete, userName = "跑者" }: Welco
     {
       title: "跑步占领领地",
       subtitle: "你的脚步就是你的武器",
-      description: "当你跑过一个区域时，该区域的六边形领地就会被你占领。跑得越多，领地越大！",
+      description: "当你的跑步路径包围一个区域时，该区域的领地就会被你占领。跑得越多，领地越大！",
       icon: "🗺️",
       color: "#06b6d4",
     },
@@ -76,7 +76,7 @@ export function WelcomeScreen({ isOpen, onComplete, userName = "跑者" }: Welco
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm">
       {/* Animated background */}
       <div className="absolute inset-0 overflow-hidden">
-        <div 
+        <div
           className="absolute left-1/2 top-1/2 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-30"
           style={{
             background: `radial-gradient(circle, ${currentStep.color}40 0%, transparent 70%)`,
@@ -96,13 +96,12 @@ export function WelcomeScreen({ isOpen, onComplete, userName = "跑者" }: Welco
         </button>
 
         {/* Content Card */}
-        <div 
-          className={`rounded-3xl border border-white/10 bg-[#0f172a]/95 p-8 backdrop-blur-xl transition-all duration-500 ${
-            isAnimating ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
-          }`}
+        <div
+          className={`rounded-3xl border border-white/10 bg-[#0f172a]/95 p-8 backdrop-blur-xl transition-all duration-500 ${isAnimating ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+            }`}
         >
           {/* Icon */}
-          <div 
+          <div
             className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-full text-5xl"
             style={{ backgroundColor: `${currentStep.color}20` }}
           >
@@ -121,11 +120,10 @@ export function WelcomeScreen({ isOpen, onComplete, userName = "跑者" }: Welco
             {welcomeSteps.map((_, i) => (
               <div
                 key={i}
-                className={`h-2 rounded-full transition-all duration-300 ${
-                  i === step ? "w-6" : "w-2"
-                }`}
-                style={{ 
-                  backgroundColor: i === step ? currentStep.color : "rgba(255,255,255,0.2)" 
+                className={`h-2 rounded-full transition-all duration-300 ${i === step ? "w-6" : "w-2"
+                  }`}
+                style={{
+                  backgroundColor: i === step ? currentStep.color : "rgba(255,255,255,0.2)"
                 }}
               />
             ))}
@@ -354,7 +352,7 @@ export function InteractiveTutorial({
       >
         {/* Progress bar */}
         <div className="mb-3 h-1 rounded-full bg-white/10">
-          <div 
+          <div
             className="h-full rounded-full bg-[#22c55e] transition-all duration-300"
             style={{ width: `${progress}%` }}
           />
@@ -457,11 +455,11 @@ export function QuickNavPopup({ isOpen, onClose, onNavigate, missionCount }: Qui
   ]
 
   return (
-    <div 
+    <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm"
       onClick={onClose}
     >
-      <div 
+      <div
         className="w-full max-w-md animate-slide-up rounded-t-3xl border-t border-white/10 bg-[#0f172a] p-6"
         onClick={(e) => e.stopPropagation()}
         style={{
@@ -485,7 +483,7 @@ export function QuickNavPopup({ isOpen, onClose, onNavigate, missionCount }: Qui
                 }}
                 className="flex w-full items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-4 transition-all hover:bg-white/10 active:scale-[0.98]"
               >
-                <div 
+                <div
                   className="flex h-12 w-12 items-center justify-center rounded-xl"
                   style={{ backgroundColor: `${option.color}20` }}
                 >
@@ -496,11 +494,11 @@ export function QuickNavPopup({ isOpen, onClose, onNavigate, missionCount }: Qui
                   <p className="text-xs text-white/50">{option.description}</p>
                 </div>
                 {option.badge && (
-                  <span 
+                  <span
                     className="rounded-full px-2 py-1 text-xs font-medium"
-                    style={{ 
+                    style={{
                       backgroundColor: `${option.color}20`,
-                      color: option.color 
+                      color: option.color
                     }}
                   >
                     {option.badge}
@@ -569,11 +567,11 @@ export function MapInteractionGuide({ isOpen, onClose }: MapInteractionGuideProp
   ]
 
   return (
-    <div 
+    <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
       onClick={onClose}
     >
-      <div 
+      <div
         className="mx-4 w-full max-w-md rounded-3xl border border-white/10 bg-[#0f172a] p-6"
         onClick={(e) => e.stopPropagation()}
       >
@@ -590,8 +588,8 @@ export function MapInteractionGuide({ isOpen, onClose }: MapInteractionGuideProp
           <div className="relative mx-auto h-32 w-32">
             {/* Hex grid demo */}
             <svg viewBox="0 0 100 100" className="h-full w-full">
-              <polygon 
-                points="50,5 90,27.5 90,72.5 50,95 10,72.5 10,27.5" 
+              <polygon
+                points="50,5 90,27.5 90,72.5 50,95 10,72.5 10,27.5"
                 fill={activeDemo ? "rgba(34,197,94,0.3)" : "rgba(255,255,255,0.1)"}
                 stroke={activeDemo ? "#22c55e" : "rgba(255,255,255,0.3)"}
                 strokeWidth="2"
@@ -607,8 +605,8 @@ export function MapInteractionGuide({ isOpen, onClose }: MapInteractionGuideProp
             )}
           </div>
           <p className="mt-4 text-center text-sm text-white/50">
-            {activeDemo 
-              ? interactions.find(i => i.id === activeDemo)?.demo 
+            {activeDemo
+              ? interactions.find(i => i.id === activeDemo)?.demo
               : "选择下方操作查看演示"
             }
           </p>
@@ -620,11 +618,10 @@ export function MapInteractionGuide({ isOpen, onClose }: MapInteractionGuideProp
             <button
               key={item.id}
               onClick={() => setActiveDemo(activeDemo === item.id ? null : item.id)}
-              className={`flex w-full items-center gap-3 rounded-xl p-3 transition-all ${
-                activeDemo === item.id
+              className={`flex w-full items-center gap-3 rounded-xl p-3 transition-all ${activeDemo === item.id
                   ? "bg-[#22c55e]/20 border border-[#22c55e]/50"
                   : "bg-white/5 border border-transparent hover:bg-white/10"
-              }`}
+                }`}
             >
               <span className="text-2xl">{item.icon}</span>
               <div className="flex-1 text-left">
