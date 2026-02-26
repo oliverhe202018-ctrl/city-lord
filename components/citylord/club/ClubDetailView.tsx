@@ -589,6 +589,26 @@ export function ClubDetailView({
           </div>
         )}
       </div>
+
+      {/* ✅ 固定底部加入按钮 (非成员时显示) */}
+      {!effectiveIsMember && (
+        <div
+          ref={joinButtonContainerRef}
+          className="shrink-0 w-full border-t border-border bg-background px-6 py-4 safe-area-bottom"
+        >
+          <Button
+            className="w-full h-12 rounded-full bg-primary text-primary-foreground font-bold text-base shadow-lg hover:bg-primary/90 active:scale-95 transition-all"
+            onClick={handleJoinClick}
+            disabled={isJoining}
+          >
+            {isJoining ? (
+              <><Loader2 className="h-5 w-5 animate-spin mr-2" />申请中...</>
+            ) : (
+              '加入俱乐部'
+            )}
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
