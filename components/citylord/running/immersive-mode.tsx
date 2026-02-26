@@ -452,19 +452,56 @@ export function ImmersiveRunningMode({
 
   if (showSummary) {
     return (
-      <RunSummaryView
-        distanceMeters={distanceMeters}
-        durationSeconds={durationSeconds}
-        duration={time}
-        pace={pace !== undefined ? String(pace) : '00:00'}
-        calories={calories}
-        hexesCaptured={effectiveHexes}
-        steps={steps}
-        onClose={handleStop}
-        onShare={() => {
-          toast.success("分享图片已生成 (模拟)")
-        }}
-      />
+      <>
+        <RunSummaryView
+          distanceMeters={distanceMeters}
+          durationSeconds={durationSeconds}
+          duration={time}
+          pace={pace !== undefined ? String(pace) : '00:00'}
+          calories={calories}
+          hexesCaptured={effectiveHexes}
+          steps={steps}
+          onClose={handleStop}
+          onShare={() => {
+            toast.success("分享图片已生成 (模拟)")
+          }}
+        />
+
+        {/* Save Retry Dialog — must render alongside summary so user sees it on save failure */}
+        <AlertDialog open={showRetryDialog} onOpenChange={setShowRetryDialog}>
+          <AlertDialogContent className="w-[90%] rounded-xl bg-[#1a1a1a] text-white border-white/10 z-[10000]">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-xl font-bold text-center text-red-400">网络异常，上传失败</AlertDialogTitle>
+              <AlertDialogDescription className="text-white/60 text-center text-base">
+                当前网络不可用，跑步记录已安全保存在本地。您可以重试保存，或退回首页稍后恢复。
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="flex-col gap-3 mt-4 sm:flex-col">
+              <button
+                onClick={handleRetrySave}
+                disabled={isSubmitting}
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#22c55e] px-4 py-3.5 font-bold text-white shadow-lg active:scale-95 disabled:opacity-50"
+              >
+                {isSubmitting ? (
+                  <>
+                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-transparent" />
+                    <span>正在重试...</span>
+                  </>
+                ) : (
+                  <span>重试保存</span>
+                )}
+              </button>
+              <button
+                onClick={handleSafeExit}
+                disabled={isSubmitting}
+                className="w-full rounded-xl bg-white/10 px-4 py-3.5 font-bold text-white shadow-sm hover:bg-white/20 active:scale-95 disabled:opacity-50"
+              >
+                稍后处理并退出
+              </button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </>
     )
   }
 
@@ -549,7 +586,7 @@ export function ImmersiveRunningMode({
       </AlertDialog>
 
       {/* Map Background Layer */}
-      <div className="absolute inset-0 z-0 pointer-events-auto">
+      <div className={`absolute inset-0 z-0 ${isPaused && !isMapMode ? 'pointer-events-none' : 'pointer-events-auto'}`}>
         <RunningMap
           userLocation={currentLocation ? [currentLocation.lng, currentLocation.lat] : undefined}
           path={path}
@@ -567,7 +604,7 @@ export function ImmersiveRunningMode({
       {!isMapMode && <div className="relative z-10 h-[env(safe-area-inset-top)] bg-transparent" />}
 
       {/* New HUD Implementation */}
-      <div className={isMapMode ? "opacity-0 pointer-events-none transition-opacity duration-300" : "opacity-100 transition-opacity duration-300"}>
+      <div className={isMapMode ? "opacity-0 pointer-events-none transition-opacity duration-300" : "relative z-20 opacity-100 transition-opacity duration-300"}>
         <RunningHUD
           distance={distance ?? 0}
           pace={typeof pace === 'number' ? String(pace) : (pace ?? '00:00')}
