@@ -49,7 +49,7 @@ export interface RecommendedUser {
   name: string
   avatar?: string
   level: number
-  reason: "nearby" | "similar_level" | "similar_achievement" | "mutual_friends"
+  reason: "nearby" | "similar_level" | "similar_achievement" | "mutual_friends" | "similar_runner" | "same_city" | "similar_activity"
   reasonDetail: string
   hexCount: number
   totalKm: number

@@ -495,7 +495,14 @@ interface FriendActivityFeedProps {
 
 export function FriendActivityFeed({ filterType = "FRIENDS", newPost }: FriendActivityFeedProps) {
   // useSWRInfinite logic
-  const fetcher = (url: string) => fetch(url).then(res => res.json())
+  const fetcher = async (url: string) => {
+    const res = await fetch(url)
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      throw new Error(body.error || `HTTP ${res.status}`)
+    }
+    return res.json()
+  }
 
   const getKey = (pageIndex: number, previousPageData: any) => {
     // Reached the end
@@ -541,6 +548,20 @@ export function FriendActivityFeed({ filterType = "FRIENDS", newPost }: FriendAc
     return (
       <div className="flex h-32 items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex h-32 flex-col items-center justify-center text-muted-foreground gap-2">
+        <p className="text-sm">加载动态失败</p>
+        <button
+          onClick={() => mutate()}
+          className="text-xs text-primary hover:underline"
+        >
+          点击重试
+        </button>
       </div>
     )
   }
