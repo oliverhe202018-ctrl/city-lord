@@ -44,6 +44,8 @@ const RECOVERY_ACCURACY_THRESHOLD = 100;
 const RECOVERY_RETRY_INTERVAL_MS = 2000;
 /** stopWatch 超时（ms）— 超过此时间未确认 stop 则 forceDestroy */
 const STOP_TIMEOUT_MS = 2000;
+/** Mode Switch 冷却时间（ms）— 防止频繁切换导致崩溃 */
+const SWITCH_MIN_COOLDOWN_MS = 300;
 
 // ---- 首次缓存判定（Cold-start initial cache acceptance）----
 /** SDK 缓存首次接受最大年龄（ms），默认 60s — 便于后续远程配置 */
@@ -85,6 +87,7 @@ interface StructuredLog {
     source?: LocationSource;
     locationType?: number;
     timestamp?: number;
+    requestedAt?: number;
     accuracy?: number;
     reason?: string;
     lat?: number;
@@ -142,6 +145,8 @@ export class AMapLocationBridge {
     private fastFixInFlight = false;
     /** switchWatchMode 原子性 requestId */
     private switchRequestId: string | null = null;
+    /** 上一次 watch 模式切换完成时间戳 */
+    private lastSwitchCompletedAt = 0;
 
     // Watch 状态
     private isWatching = false;
@@ -557,24 +562,57 @@ export class AMapLocationBridge {
                 if (!stopped) {
                     logWarn({ requestId, phase: 'stop_timeout', reason: `stopWatch not confirmed in ${STOP_TIMEOUT_MS}ms, forcing destroy` });
 
-                    // 强制销毁
-                    try {
-                        await this._AMapLocation.forceDestroy();
-                        // 最终清理：移除所有 native listener，防止 stale 回调
-                        try {
-                            await this._AMapLocation.removeAllListeners();
-                        } catch {
-                            // removeAllListeners 失败不阻断流程
-                        }
-                        logInfo({
-                            requestId,
-                            phase: 'force_destroy',
-                            reason: 'forceDestroy + removeAllListeners cleanup completed',
-                            timestamp: Date.now(),
+                    // 1. 设置 forceDestroy 确认事件一次性监听
+                    let confirmationReceived = false;
+                    let confirmHandler: any = null;
+
+                    const confirmPromise = new Promise<void>(async (resolve) => {
+                        confirmHandler = await this._AMapLocation!.addListener('locationError', (err) => {
+                            if (String(err.code) === 'FORCE_DESTROY_CONFIRMED') {
+                                confirmationReceived = true;
+                                logInfo({ requestId, phase: 'force_destroy_confirmed', timestamp: Date.now() });
+                                resolve();
+                            }
                         });
-                    } catch (e) {
+                    });
+
+                    logInfo({ requestId, phase: 'force_destroy_requested', timestamp: Date.now() });
+                    // 2. 触发强制销毁
+                    this._AMapLocation.forceDestroy().catch(e => {
                         logError({ requestId, phase: 'force_destroy_failed', reason: String(e) });
+                    });
+
+                    // 3. 等待确认或附加超时保护（3秒）
+                    const confirmTimer = new Promise<void>((resolve) => setTimeout(resolve, 3000));
+                    await Promise.race([confirmPromise, confirmTimer]);
+
+                    // 清理临时监听器
+                    if (confirmHandler && confirmHandler.remove) {
+                        confirmHandler.remove().catch(() => { });
                     }
+
+                    if (!confirmationReceived) {
+                        logWarn({ requestId, phase: 'force_destroy_retry', reason: 'Confirmation not received in 3s, retrying forceDestroy' });
+                        try {
+                            await this._AMapLocation.forceDestroy();
+                        } catch (e) {
+                            logError({ requestId, phase: 'force_destroy_retry_failed', reason: String(e) });
+                        }
+                    }
+
+                    // 4. 最终清理：移除所有 native listener
+                    try {
+                        await this._AMapLocation.removeAllListeners();
+                    } catch {
+                        // removeAllListeners 失败不阻断流程
+                    }
+
+                    logInfo({
+                        requestId,
+                        phase: 'cleanup_done',
+                        reason: 'removeAllListeners cleanup completed',
+                        timestamp: Date.now(),
+                    });
                 }
             } else {
                 this.stopWebWatch();
@@ -648,6 +686,11 @@ export class AMapLocationBridge {
     private handleNativeError(err: AMapLocationError) {
         if (this.destroyed) return;
 
+        // 过滤掉内部用的 forceDestroy 确认消息，不向上抛出
+        if (String(err.code) === 'FORCE_DESTROY_CONFIRMED' || String(err.code) === 'FORCE_DESTROY') {
+            return;
+        }
+
         logError({
             phase: 'native-location-error',
             reason: `code=${err.code} message=${err.message}`,
@@ -676,7 +719,50 @@ export class AMapLocationBridge {
                 locationType,
                 reason: `Exceeds threshold ${accuracyThreshold}m`,
             });
+
+            // --- 首次缓存后续校验（watch 级） ---
+            if (this.initialCacheAccepted && !this.hasFreshFix) {
+                this.postInitialCacheFailCount++;
+                const reqId = this.currentRequestId ?? makeRequestId();
+
+                logWarn({
+                    requestId: reqId,
+                    phase: 'initial_post_fail',
+                    accuracy: point.accuracy,
+                    retries: this.postInitialCacheFailCount,
+                    reason: `Consecutive precision fail ${this.postInitialCacheFailCount}/${INITIAL_CACHE_CONSECUTIVE_FAIL_LIMIT} after initial cache`,
+                });
+
+                if (this.postInitialCacheFailCount >= INITIAL_CACHE_CONSECUTIVE_FAIL_LIMIT) {
+                    logWarn({
+                        requestId: reqId,
+                        phase: 'initial_accept_revoked',
+                        reason: `${INITIAL_CACHE_CONSECUTIVE_FAIL_LIMIT} consecutive poor points after initial cache`,
+                    });
+
+                    // 撤销初始缓存接受
+                    this.initialCacheAccepted = false;
+                    this.postInitialCacheFailCount = 0;
+
+                    // 更新 store.locationMeta
+                    this.callbacks.onLocationUpdate(point, {
+                        acceptedAsInitial: false,
+                        reason: 'initial_accept_revoked',
+                    });
+
+                    // 异步触发 fastFix 获取真实 GPS 位置
+                    this.getCurrentPosition({ mode: 'fast', timeout: 6000, cacheMaxAge: 0 }).catch((e) => {
+                        logError({ requestId: reqId, phase: 'initial_revoke_fastfix_error', reason: String(e) });
+                    });
+                }
+            }
+
             return;
+        }
+
+        // 精度达标：重置连续失败计数
+        if (this.initialCacheAccepted && this.postInitialCacheFailCount > 0) {
+            this.postInitialCacheFailCount = 0;
         }
 
         // 去重：lat/lng/timestamp
@@ -1117,19 +1203,21 @@ export class AMapLocationBridge {
      *  - 使用 switchRequestId 确保只有最新请求的回调有效
      *  - 先 stopWatch 再 startWatch，避免旧回调覆盖新数据
      *  - 全程结构化日志（旧模式、新模式、requestId、时间戳）
+     *  - 包含 SWITCH_MIN_COOLDOWN_MS 冷却保护
      */
     async switchWatchMode(
-        mode: 'browse' | 'running',
+        mode: 'browse' | 'running' | 'Hight_Accuracy',
         options?: { interval?: number; distanceFilter?: number },
+        requestId?: string,
     ): Promise<void> {
         if (this.destroyed) return;
 
-        const requestId = makeRequestId();
+        const reqId = requestId ?? makeRequestId();
         const oldMode = this.watchMode;
 
         if (oldMode === mode) {
             logInfo({
-                requestId,
+                requestId: reqId,
                 phase: 'switchWatchMode-skip',
                 reason: `Already in ${mode} mode`,
                 timestamp: Date.now(),
@@ -1138,41 +1226,70 @@ export class AMapLocationBridge {
         }
 
         // 标记本次切换为最新
-        this.switchRequestId = requestId;
+        this.switchRequestId = reqId;
+        const requestedAt = Date.now();
+
+        // 冷却检查
+        const timeSinceLastSwitch = requestedAt - this.lastSwitchCompletedAt;
+        if (timeSinceLastSwitch < SWITCH_MIN_COOLDOWN_MS) {
+            const delay = SWITCH_MIN_COOLDOWN_MS - timeSinceLastSwitch;
+            logInfo({
+                requestId: reqId,
+                phase: 'switch_cooldown_applied',
+                reason: `Cooling down for ${delay}ms`,
+                requestedAt,
+                timestamp: Date.now(),
+            });
+            await new Promise(resolve => setTimeout(resolve, delay));
+
+            // 延迟后再次检查是否被更新的请求取代
+            if (this.switchRequestId !== reqId) {
+                logWarn({
+                    requestId: reqId,
+                    phase: 'switch_superseded',
+                    reason: 'cooldown',
+                    timestamp: Date.now(),
+                });
+                return;
+            }
+        }
 
         logInfo({
-            requestId,
+            requestId: reqId,
             phase: 'switchWatchMode-begin',
             reason: `${oldMode ?? 'none'} → ${mode}`,
             timestamp: Date.now(),
         });
 
         // Step 1: stop 旧 watch (with timeout protection)
-        await this.safeStopWatch(requestId);
+        await this.safeStopWatch(reqId);
 
-        // Step 2: 验证本次切换仍为最新（防止并发切换覆盖）
-        if (this.switchRequestId !== requestId) {
+        // Step 2: 验证本次切换仍为最新（防止并发切换覆盖/stop_timeout期间产生新请求）
+        if (this.switchRequestId !== reqId) {
             logWarn({
-                requestId,
-                phase: 'switchWatchMode-superseded',
-                reason: `Newer switch ${this.switchRequestId} superseded this request`,
+                requestId: reqId,
+                phase: 'switch_superseded',
+                reason: 'new mode requested during safeStopWatch',
                 timestamp: Date.now(),
             });
             return;
         }
 
-        // Step 3: start 新 watch
+        // Step 3: start 新 watch (Hight_Accuracy mapped locally if needed, but definitions only defines browse/running for startWatch)
+        // Adjust typing payload to match what native expects if Hight_Accuracy is used.
+        const targetMode = mode === 'Hight_Accuracy' ? 'running' : mode;
         await this.startWatch({
-            mode,
-            interval: options?.interval ?? (mode === 'running' ? 1000 : 5000),
-            distanceFilter: options?.distanceFilter ?? (mode === 'running' ? 3 : 10),
+            mode: targetMode,
+            interval: options?.interval ?? (targetMode === 'running' ? 1000 : 5000),
+            distanceFilter: options?.distanceFilter ?? (targetMode === 'running' ? 3 : 10),
         });
 
+        this.lastSwitchCompletedAt = Date.now();
         logInfo({
-            requestId,
+            requestId: reqId,
             phase: 'switchWatchMode-complete',
             reason: `${oldMode ?? 'none'} → ${mode} done`,
-            timestamp: Date.now(),
+            timestamp: this.lastSwitchCompletedAt,
         });
     }
 

@@ -124,7 +124,11 @@ export function useRunningLocation(options: UseRunningLocationOptions) {
 
     // --- 设置远程日志上报器 ---
     useEffect(() => {
-        setFilterRemoteReporter(remoteReporter ?? null);
+        setFilterRemoteReporter(remoteReporter ?? null, {
+            sampleRate: 0.01,
+            batchSize: 20,
+            fuzzPrecision: 3,
+        });
         _hookRemoteReporter = remoteReporter ?? null;
         return () => {
             setFilterRemoteReporter(null);

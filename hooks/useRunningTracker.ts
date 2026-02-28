@@ -408,8 +408,8 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   // This is the SAME data source as TrajectoryLayer (via MapRoot.userPath)
   useEffect(() => {
     if (!isRunning || !gpsLocation || isStoppingRef.current) return;
-    // Only process actual GPS fixes for path tracking, not cache
-    if (locationSource !== 'gps') return;
+    // Only process actual fixes for path tracking, not cache
+    if (locationSource === 'cache') return;
 
     // GPS location already filtered by useSafeGeolocation:
     // - 50m accuracy threshold

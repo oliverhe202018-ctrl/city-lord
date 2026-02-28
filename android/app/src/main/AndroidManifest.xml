@@ -27,6 +27,14 @@
             android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- 高德定位 SDK Service -->
+        <service android:name="com.amap.api.location.APSService" />
+
+        <!-- 高德 Android 原生 API Key -->
+        <meta-data
+            android:name="com.amap.api.v2.apikey"
+            android:value="a931423fc2ddf0b6581507ca77836962" />
     </application>
 
     <!-- Permissions -->
