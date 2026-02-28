@@ -17,6 +17,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import type { Room } from '@/app/actions/room';
 import { toast } from 'sonner';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 
 const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
   const controller = new AbortController()
@@ -109,6 +110,7 @@ interface RoomDrawerProps {
 }
 
 export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
+  const router = useRouter();
   // 1. 状态定义
   const [view, setView] = React.useState<'list' | 'create' | 'my_room' | 'invite'>('list');
   const [rooms, setRooms] = React.useState<Room[]>([]);
@@ -528,8 +530,10 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
                           <button
                             key={p.id}
                             onClick={() => {
-                              setSelectedPlayer(p);
-                              setIsStatsOpen(true);
+                              if (p?.id) {
+                                router.push(`/profile/user/${p.id}`);
+                                onClose();
+                              }
                             }}
                             className="w-full flex items-center justify-between p-3 rounded-xl bg-muted/50 hover:bg-muted transition-all border border-transparent hover:border-border text-left group"
                           >

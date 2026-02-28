@@ -57,6 +57,16 @@ export function RunningMap({
     if (startLocation) initialCenterRef.current = startLocation;
   }, [startLocation]);
 
+  // Map Interaction State
+  const isFollowingUserRef = useRef(true);
+  const interactionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const latestUserLocationRef = useRef(userLocation);
+
+  // Keep track of latest user location for the timeout callback
+  useEffect(() => {
+    latestUserLocationRef.current = userLocation;
+  }, [userLocation]);
+
   // 1. Initialize Map (ONCE only — no location dependencies to prevent flickering!)
   useEffect(() => {
     if (!mapContainerRef.current) return
@@ -130,6 +140,35 @@ export function RunningMap({
           }
         }
 
+        // Map Interaction Listeners for Auto-Center Recovery
+        const handleInteractionStart = () => {
+          isFollowingUserRef.current = false;
+          if (interactionTimeoutRef.current) {
+            clearTimeout(interactionTimeoutRef.current);
+          }
+        };
+
+        const handleInteractionEnd = () => {
+          if (interactionTimeoutRef.current) {
+            clearTimeout(interactionTimeoutRef.current);
+          }
+          interactionTimeoutRef.current = setTimeout(() => {
+            isFollowingUserRef.current = true;
+            // Smoothly pan back to user immediately after timeout
+            if (latestUserLocationRef.current && mapInstanceRef.current) {
+              mapInstanceRef.current.panTo(latestUserLocationRef.current);
+            }
+          }, 3000);
+        };
+
+        map.on('dragstart', handleInteractionStart);
+        map.on('zoomstart', handleInteractionStart);
+        map.on('touchstart', handleInteractionStart);
+
+        map.on('dragend', handleInteractionEnd);
+        map.on('zoomend', handleInteractionEnd);
+        map.on('touchend', handleInteractionEnd);
+
       } catch (e) {
         console.error("Failed to init RunningMap", e)
       }
@@ -153,9 +192,13 @@ export function RunningMap({
   useEffect(() => {
     if (!userLocation && globalLocation && mapInstanceRef.current && userMarkerRef.current) {
       const pos = [globalLocation.lng, globalLocation.lat] as [number, number];
-      mapInstanceRef.current.setCenter(pos);
       userMarkerRef.current.setPosition(pos);
       userMarkerRef.current.show();
+
+      if (isFollowingUserRef.current) {
+        mapInstanceRef.current.setCenter(pos);
+      }
+
       if (onLocationUpdate) {
         onLocationUpdate(globalLocation.lat, globalLocation.lng);
       }
@@ -171,8 +214,10 @@ export function RunningMap({
     userMarkerRef.current.setPosition(userLocation)
     userMarkerRef.current.show()
 
-    // Smooth Pan to user using the new hook
-    smoothPanTo(userLocation)
+    // Smooth Pan to user using the new hook (only if not interacting)
+    if (isFollowingUserRef.current) {
+      smoothPanTo(userLocation)
+    }
 
     // Accuracy Circle
     // Assuming 50m default if accuracy not passed, or we should pass accuracy from parent
@@ -206,8 +251,10 @@ export function RunningMap({
   // Recenter Trigger Effect
   useEffect(() => {
     if (!mapInstanceRef.current || !userLocation) return
-    mapInstanceRef.current.panTo(userLocation)
-    mapInstanceRef.current.setZoom(17) // Reset zoom too
+    isFollowingUserRef.current = true;
+    if (interactionTimeoutRef.current) clearTimeout(interactionTimeoutRef.current);
+    mapInstanceRef.current.panTo(userLocation);
+    mapInstanceRef.current.setZoom(17); // Reset zoom too
   }, [recenterTrigger])
 
   // 3. Render Polygons (Territories)

@@ -1,7 +1,7 @@
 "use client"
 
 import { Map, Trophy, User, Target, Users, Gamepad2 } from "lucide-react"
-import { useGameStore } from "@/store/useGameStore"
+import { useGameStore, useGameActions } from "@/store/useGameStore"
 import { useEffect } from "react"
 import { motion } from "framer-motion"
 import { getUnreadSocialCount } from "@/app/actions/social-hub"
@@ -22,6 +22,7 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
   const setUnreadMessageCount = useGameStore((state) => state.setUnreadMessageCount)
   const unreadSocialCount = useGameStore((state) => state.unreadSocialCount)
   const setUnreadSocialCount = useGameStore((state) => state.setUnreadSocialCount)
+  const { closeDrawer } = useGameActions()
 
   useEffect(() => {
     const fetchCounts = async () => {
@@ -66,7 +67,10 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
           return (
             <button
               key={tab.id}
-              onClick={() => onTabChange(tab.id)}
+              onClick={() => {
+                closeDrawer()
+                onTabChange(tab.id)
+              }}
               className="group relative flex flex-col items-center gap-0.5 px-3 py-1 transition-all outline-none rounded-xl focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 active:scale-95"
             >
               <div

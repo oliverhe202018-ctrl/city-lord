@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react"
 import Image from "next/image"
+import { useRouter } from "next/navigation"
 import { MapPin, Trophy, Zap, Award, X, Minus } from "lucide-react"
 import { useCity } from "@/contexts/CityContext"
 import { useShallow } from "zustand/react/shallow"
@@ -64,6 +65,7 @@ export function SocialFeed({
 }: SocialFeedProps) {
   const [visible, setVisible] = useState(true)
   const [collapsed, setCollapsed] = useState(false)
+  const router = useRouter()
   const [currentItemIndex, setCurrentItemIndex] = useState(0)
   const [feedItems, setFeedItems] = useState<SocialFeedItem[]>([])
   const [avatarSrc, setAvatarSrc] = useState<string>("")
@@ -74,10 +76,10 @@ export function SocialFeed({
   useEffect(() => {
     // Heartbeat: update activity status
     touchActivity().catch((e) => {
-        // Ignore abort errors during navigation/unmount
-        if (e?.name !== 'AbortError' && e?.digest !== 'NEXT_REDIRECT') {
-          console.error(e)
-        }
+      // Ignore abort errors during navigation/unmount
+      if (e?.name !== 'AbortError' && e?.digest !== 'NEXT_REDIRECT') {
+        console.error(e)
+      }
     })
   }, [touchActivity])
 
@@ -85,23 +87,23 @@ export function SocialFeed({
     const loadActivities = async () => {
       try {
         const activities = await fetchFriendActivities()
-        
+
         // Transform FriendActivity to SocialFeedItem
         const items: SocialFeedItem[] = activities.map(act => {
-            return {
-                id: act.id,
-                userId: act.user.id, 
-                userName: act.user.name,
-                userAvatar: act.user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${act.user.name}`,
-                userLevel: act.user.level,
-                action: act.type as SocialFeedItem['action'],
-                actionText: act.content.title,
-                description: act.content.description,
-                stats: act.content.stats,
-                location: act.content.location,
-                timestamp: new Date(act.timestamp),
-                cityName: currentCity?.name
-            }
+          return {
+            id: act.id,
+            userId: act.user.id,
+            userName: act.user.name,
+            userAvatar: act.user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${act.user.name}`,
+            userLevel: act.user.level,
+            action: act.type as SocialFeedItem['action'],
+            actionText: act.content.title,
+            description: act.content.description,
+            stats: act.content.stats,
+            location: act.content.location,
+            timestamp: new Date(act.timestamp),
+            cityName: currentCity?.name
+          }
         })
 
         setFeedItems(items)
@@ -238,7 +240,10 @@ export function SocialFeed({
               />
 
               {/* 用户信息 */}
-              <div className="relative flex items-start gap-3">
+              <div
+                className="relative flex items-start gap-3 cursor-pointer"
+                onClick={() => { if (currentItem?.userId) router.push(`/profile/user/${currentItem.userId}`) }}
+              >
                 {/* 头像 */}
                 <div className="relative flex-shrink-0">
                   <Image
@@ -266,18 +271,18 @@ export function SocialFeed({
                     <span className="font-semibold text-white">{currentItem.userName}</span>
                     <span className="mx-1">{currentItem.actionText}</span>
                   </p>
-                  
+
                   {currentItem.description && (
-                      <p className="text-[10px] text-white/60 truncate">{currentItem.description}</p>
+                    <p className="text-[10px] text-white/60 truncate">{currentItem.description}</p>
                   )}
                   {currentItem.stats && currentItem.stats.length > 0 && (
-                      <div className="flex gap-2 mt-0.5">
-                          {currentItem.stats.map((s, i) => (
-                              <span key={i} className="text-[10px] bg-white/10 px-1 rounded text-white/80">
-                                  {s.label}: {s.value}
-                              </span>
-                          ))}
-                      </div>
+                    <div className="flex gap-2 mt-0.5">
+                      {currentItem.stats.map((s, i) => (
+                        <span key={i} className="text-[10px] bg-white/10 px-1 rounded text-white/80">
+                          {s.label}: {s.value}
+                        </span>
+                      ))}
+                    </div>
                   )}
 
                   {/* 时间和位置 */}
@@ -311,11 +316,10 @@ export function SocialFeed({
                 {items.map((_, index) => (
                   <div
                     key={index}
-                    className={`h-1 rounded-full transition-all duration-300 ${
-                      index === currentItemIndex
-                        ? "w-4 bg-white"
-                        : "w-1 bg-white/30"
-                    }`}
+                    className={`h-1 rounded-full transition-all duration-300 ${index === currentItemIndex
+                      ? "w-4 bg-white"
+                      : "w-1 bg-white/30"
+                      }`}
                   />
                 ))}
               </div>
