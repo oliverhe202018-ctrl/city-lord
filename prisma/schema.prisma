@@ -279,6 +279,17 @@ model ProvinceStat {
   @@schema("public")
 }
 
+model CityStat {
+  id                 Int      @id @default(autoincrement())
+  provinceName       String
+  cityName           String
+  totalTerritoryArea Float
+  updatedAt          DateTime @updatedAt
+
+  @@unique([provinceName, cityName])
+  @@schema("public")
+}
+
 model faction_balance_configs {
   id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   updated_at           DateTime? @default(now()) @db.Timestamptz(6)

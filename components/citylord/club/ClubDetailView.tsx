@@ -487,7 +487,11 @@ export function ClubDetailView({
                     {/* ✅ 成员列表：固定项高度 */}
                     <div className="space-y-3">
                       {displayMembers.map((member) => (
-                        <div key={member.id} className="flex items-center justify-between rounded-2xl border border-border bg-muted/30 px-4 py-3 min-h-[72px]">
+                        <div
+                          key={member.id}
+                          onClick={() => router.push(`/profile/user/${member.id}`)}
+                          className="flex items-center justify-between rounded-2xl border border-border bg-muted/30 px-4 py-3 min-h-[72px] cursor-pointer hover:bg-muted/50 transition-colors"
+                        >
                           {/* ... 原有成员卡片内容 ... */}
                           <div className="flex items-center gap-3">
                             <div className="h-12 w-12 overflow-hidden rounded-full bg-muted">

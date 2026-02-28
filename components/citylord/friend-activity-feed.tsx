@@ -4,6 +4,7 @@ import { handleAppError } from "@/lib/utils/app-error"
 import { getFeedTimeline, togglePostLike, createPostComment, deletePostComment, reportPost, getPostComments, markSocialAsRead, FeedTimelineResponse } from "@/app/actions/social-hub"
 import { useGameStore } from "@/store/useGameStore"
 import useSWRInfinite from 'swr/infinite'
+import { useRouter } from 'next/navigation'
 
 import {
   Loader2,
@@ -68,6 +69,7 @@ interface ActivityCardProps {
 }
 
 function ActivityCard({ post, onLike, onComment, isNew }: ActivityCardProps) {
+  const router = useRouter()
   const currentUserId = useGameStore(state => state.userId)
   const currentUserNickname = useGameStore(state => state.nickname)
   const currentUserAvatar = useGameStore(state => state.avatar)
@@ -284,7 +286,10 @@ function ActivityCard({ post, onLike, onComment, isNew }: ActivityCardProps) {
 
       <div className="p-4">
         <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
+          <div
+            className="flex items-center gap-3 cursor-pointer group"
+            onClick={() => { if (post.user?.id) router.push(`/profile/user/${post.user?.id}`) }}
+          >
             <div className="relative">
               <img src={displayAvatar} alt={displayName} className="h-11 w-11 rounded-full object-cover border-2 border-border" />
               <div className={`absolute -bottom-1 -right-1 rounded-full ${config.bg} p-1`}>

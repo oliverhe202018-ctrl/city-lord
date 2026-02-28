@@ -105,6 +105,12 @@ export function BackgroundDialog({
         const file = e.target.files?.[0]
         if (!file) return
 
+        if (file.size > 5 * 1024 * 1024) {
+            toast.error('文件大小不能超过5MB')
+            e.target.value = ''
+            return
+        }
+
         // Preview
         const reader = new FileReader()
         reader.onloadend = () => {

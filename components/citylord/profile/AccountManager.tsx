@@ -235,7 +235,7 @@ export function AccountManager({ userId }: AccountManagerProps) {
                                 placeholder="输入新邮箱地址"
                                 value={emailInput}
                                 onChange={(e) => setEmailInput(e.target.value)}
-                                className="pl-10 h-9 text-sm bg-muted/20 border-border"
+                                className="pl-10 h-9 text-sm text-foreground dark:text-white bg-muted/20 border-border"
                             />
                         </div>
                         <div className="flex gap-2">
@@ -246,7 +246,7 @@ export function AccountManager({ userId }: AccountManagerProps) {
                                     placeholder="验证码"
                                     value={emailCode}
                                     onChange={(e) => setEmailCode(e.target.value)}
-                                    className="pl-10 h-9 text-sm bg-muted/20 border-border"
+                                    className="pl-10 h-9 text-sm text-foreground dark:text-white bg-muted/20 border-border"
                                     maxLength={6}
                                 />
                             </div>
@@ -254,7 +254,7 @@ export function AccountManager({ userId }: AccountManagerProps) {
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                className="w-20 text-xs"
+                                className="w-20 text-xs text-foreground dark:text-white"
                                 disabled={emailSending || emailCountdown > 0 || !emailInput}
                                 onClick={handleSendEmailCode}
                             >
@@ -321,7 +321,7 @@ export function AccountManager({ userId }: AccountManagerProps) {
                                 placeholder="输入手机号码"
                                 value={phoneInput}
                                 onChange={(e) => setPhoneInput(e.target.value)}
-                                className="pl-10 h-9 text-sm bg-muted/20 border-border"
+                                className="pl-10 h-9 text-sm text-foreground dark:text-white bg-muted/20 border-border"
                                 maxLength={11}
                             />
                         </div>
@@ -333,7 +333,7 @@ export function AccountManager({ userId }: AccountManagerProps) {
                                     placeholder="验证码"
                                     value={phoneCode}
                                     onChange={(e) => setPhoneCode(e.target.value)}
-                                    className="pl-10 h-9 text-sm bg-muted/20 border-border"
+                                    className="pl-10 h-9 text-sm text-foreground dark:text-white bg-muted/20 border-border"
                                     maxLength={6}
                                 />
                             </div>
@@ -341,7 +341,7 @@ export function AccountManager({ userId }: AccountManagerProps) {
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                className="w-20 text-xs"
+                                className="w-20 text-xs text-foreground dark:text-white"
                                 disabled={phoneSending || phoneCountdown > 0 || !phoneInput}
                                 onClick={handleSendPhoneCode}
                             >

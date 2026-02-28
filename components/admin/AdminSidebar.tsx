@@ -3,16 +3,17 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { 
-  LayoutDashboard, 
-  Users, 
-  ShieldAlert, 
-  FileText, 
+import {
+  LayoutDashboard,
+  Users,
+  ShieldAlert,
+  FileText,
   LogOut,
   Settings,
   Flag,
   Award,
-  MessageSquareWarning
+  MessageSquareWarning,
+  Image as ImageIcon
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
@@ -64,6 +65,11 @@ const sidebarItems = [
     title: '系统日志',
     href: '/admin/logs',
     icon: FileText
+  },
+  {
+    title: '背景管理',
+    href: '/admin/backgrounds',
+    icon: ImageIcon
   }
 ]
 
@@ -87,13 +93,13 @@ export function AdminSidebar() {
       <div className="flex h-16 items-center border-b px-6">
         <h1 className="text-xl font-bold tracking-tight text-primary">CityLord Admin</h1>
       </div>
-      
+
       <div className="flex-1 overflow-y-auto py-4">
         <nav className="space-y-1 px-2">
           {sidebarItems.map((item) => {
             const Icon = item.icon
             const isActive = pathname === item.href || (item.href !== '/admin' && pathname.startsWith(item.href))
-            
+
             return (
               <Link
                 key={item.href}
@@ -113,8 +119,8 @@ export function AdminSidebar() {
 
       <div className="border-t p-4">
         <div className="space-y-1">
-          <Button 
-            variant="ghost" 
+          <Button
+            variant="ghost"
             className="w-full justify-start text-muted-foreground hover:text-destructive"
             onClick={handleLogout}
           >
