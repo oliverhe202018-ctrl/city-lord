@@ -9,7 +9,7 @@ export interface GeoPoint {
   heading?: number | null;
   speed?: number | null;
   timestamp?: number;
-  source?: 'cache' | 'network-coarse' | 'gps-precise';
+  source?: 'cache' | 'network-coarse' | 'gps-precise' | 'amap-native' | 'amap-native-cache' | 'web-fallback';
   coordSystem?: string;
 }
 

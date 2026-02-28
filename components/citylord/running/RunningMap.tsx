@@ -256,8 +256,8 @@ export function RunningMap({
   // 4. Render Path & KM Markers
   useEffect(() => {
     if (!path || path.length === 0) return;
-    // Guard: Only draw polyline from real GPS points, not cache
-    if (locationSource !== 'gps') return;
+    // Guard: Only draw polyline from real GPS/native points, not cache
+    if (locationSource === 'cache') return;
     if (!mapInstanceRef.current || !amapRef.current || path.length < 2) return
     const map = mapInstanceRef.current
     const AMap = amapRef.current
