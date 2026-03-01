@@ -36,15 +36,27 @@ export async function fetchTerritories(cityId: string): Promise<Territory[]> {
       return []
     }
 
-    return data.map((t: any) => ({
-      id: t.id,
-      cityId: t.city_id,
-      ownerId: t.owner_id,
-      ownerType: currentUserId ? (t.owner_id === currentUserId ? 'me' : 'enemy') : 'neutral',
-      capturedAt: t.captured_at,
-      health: t.health,
-      lastMaintainedAt: t.last_maintained_at
-    }))
+    const windowStart = new Date()
+    windowStart.setDate(windowStart.getDate() - 7)
+
+    return data.map((t: any) => {
+      const changeCount = t.owner_change_count ?? 0
+      const lastChange = t.last_owner_change_at ? new Date(t.last_owner_change_at) : null
+      const isHotZone = changeCount >= 2 && lastChange != null && lastChange >= windowStart
+
+      return {
+        id: t.id,
+        cityId: t.city_id,
+        ownerId: t.owner_id,
+        ownerType: currentUserId ? (t.owner_id === currentUserId ? 'me' : 'enemy') : 'neutral',
+        capturedAt: t.captured_at,
+        health: t.health,
+        maxHealth: 1000,
+        lastMaintainedAt: t.last_maintained_at,
+        isHotZone,
+        ownerChangeCount: changeCount,
+      }
+    })
   } catch (err) {
     console.error('Territory fetch failed:', err)
     return []
@@ -55,14 +67,31 @@ import { checkHiddenBadges } from './badge'
 import { prisma } from '@/lib/prisma'
 import { calculateFactionBalance } from '@/utils/faction-balance'
 import { checkAndAwardBadges } from '@/app/actions/check-achievements'
+import {
+  H3_TILE_AREA_KM2,
+  BASE_SCORE_PER_KM2,
+  HOT_ZONE_CAPTURE_MULTIPLIER,
+  NORMAL_CAPTURE_MULTIPLIER,
+  LOSS_PENALTY_RATIO,
+  HOT_ZONE_THRESHOLD,
+  HOT_ZONE_WINDOW_DAYS,
+} from '@/lib/constants/territory'
+import { HotZoneCacheService } from '@/lib/services/hotzone-cache-service'
+import { redis } from '@/lib/redis'
 
-export async function claimTerritory(cityId: string, cellId: string): Promise<{ success: boolean; error?: string; grantedBadges?: string[] }> {
+export async function claimTerritory(cityId: string, cellId: string): Promise<{ success: boolean; error?: string; grantedBadges?: string[]; scoreChange?: number; isHotZone?: boolean }> {
   const cookieStore = await cookies()
   const supabase = createClient(cookieStore)
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
     return { success: false, error: 'Unauthorized' }
+  }
+
+  const lockKey = `territory_claim_lock:${cellId}`
+  const redisLock = await redis.set(lockKey, user.id, "EX", 10, "NX")
+  if (!redisLock) {
+    return { success: false, error: '该领地正在结算中，请稍后再试' }
   }
 
   try {
@@ -78,7 +107,6 @@ export async function claimTerritory(cityId: string, cellId: string): Promise<{ 
       // 2. Faction Buff Logic (Underdog Bonus)
       let multiplier = 1.0
       if (profile.faction) {
-        // Fetch snapshot for balance check
         const snapshot = await tx.faction_stats_snapshot.findFirst({
           orderBy: { updated_at: 'desc' }
         })
@@ -90,77 +118,124 @@ export async function claimTerritory(cityId: string, cellId: string): Promise<{ 
             redScore,
             blueScore
           )
-          console.log('Faction bonus debug:', {
-            redScore,
-            blueScore,
-            scoreDiffRatio: diffRatio,
-            bonusMultiplier: bonus
-          })
           if (underdog && underdog.toUpperCase() === profile.faction.toUpperCase()) {
             multiplier = bonus
           }
         }
       }
 
-      // 3. Concurrency Control & Claim Logic
-      // "Optimistic Locking": Update only if owner is null or health <= 0
-      const updateResult = await tx.territories.updateMany({
-        where: {
-          id: cellId,
-          OR: [
-            // { owner_id: null }, // Removed because owner_id is required in schema
-            { health: { lte: 0 } }
-          ]
-        },
-        data: {
-          owner_id: user.id,
-          city_id: cityId,
-          captured_at: new Date(),
-          health: 100 * multiplier, // Apply Buff to Health
-          level: 1, // Reset level on capture
-          last_maintained_at: new Date()
+      // 3. Check territory state — cooldown, existing owner, etc.
+      const existing = await tx.territories.findUnique({
+        where: { id: cellId },
+        select: {
+          owner_id: true,
+          health: true,
+          neutral_until: true,
+          owner_change_count: true,
         }
       })
 
-      // If updateMany returns count 0, check if we need to INSERT (if it doesn't exist)
-      if (updateResult.count === 0) {
-        // Check if it exists
-        const exists = await tx.territories.findUnique({ where: { id: cellId } })
-
-        if (!exists) {
-          // Create new
-          await tx.territories.create({
-            data: {
-              id: cellId,
-              city_id: cityId,
-              owner_id: user.id,
-              captured_at: new Date(),
-              health: 100 * multiplier,
-              level: 1
-            }
-          })
-        } else {
-          // It exists and didn't match criteria (owned by someone else and healthy)
-          // If I already own it, maybe just heal it?
-          if (exists.owner_id === user.id) {
-            await tx.territories.update({
-              where: { id: cellId },
-              data: {
-                health: Math.min(100, (exists.health || 0) + 10), // Heal
-                last_maintained_at: new Date()
-              }
-            })
-            return { action: 'healed' }
-          }
-
-          // Owned by enemy and healthy -> Attack logic (reduce health) could go here
-          // But for now, we assume failure to capture
-          throw new Error('Territory is protected')
-        }
+      // If territory exists, check cooldown
+      if (existing?.neutral_until && existing.neutral_until > new Date()) {
+        throw new Error('该领地处于冷却期中，请稍后再试')
       }
 
-      // 4. Update User Progress (Tiles Captured)
-      // We upsert user_city_progress
+      // Track previous owner for score deduction and owner_change_log
+      const previousOwnerId = existing?.owner_id ?? null
+
+      // 4. Claim Logic (HP 1000 scale)
+      if (!existing) {
+        // Create new territory — no previous owner
+        await tx.territories.create({
+          data: {
+            id: cellId,
+            city_id: cityId,
+            owner_id: user.id,
+            captured_at: new Date(),
+            health: Math.round(1000 * multiplier),
+            level: 1,
+            owner_change_count: 0,
+            last_owner_change_at: new Date(),
+            neutral_until: null,
+          }
+        })
+      } else if (existing.owner_id === user.id) {
+        // Heal own territory
+        await tx.territories.update({
+          where: { id: cellId },
+          data: {
+            health: Math.min(1000, (existing.health || 0) + 100),
+            last_maintained_at: new Date(),
+          }
+        })
+        return { action: 'healed', scoreChange: 0, isHotZone: false }
+      } else if ((existing.health ?? 0) <= 0) {
+        // Enemy territory with 0 HP — capture it
+        await tx.territories.update({
+          where: { id: cellId },
+          data: {
+            owner_id: user.id,
+            city_id: cityId,
+            captured_at: new Date(),
+            health: Math.round(1000 * multiplier),
+            level: 1,
+            last_maintained_at: new Date(),
+            owner_change_count: { increment: 1 },
+            last_owner_change_at: new Date(),
+            neutral_until: null,
+          }
+        })
+      } else {
+        // Enemy territory with HP > 0 — cannot capture directly
+        throw new Error('Territory is protected')
+      }
+
+      // 5. Write owner_change_log (only for REAL transfers: A→B)
+      // A→neutral is NOT logged here — handled by attack neutralization
+      if (previousOwnerId && previousOwnerId !== user.id) {
+        await tx.territory_owner_change_logs.create({
+          data: {
+            territory_id: cellId,
+            previous_owner: previousOwnerId,
+            new_owner: user.id,
+          }
+        })
+        // Invalidate hot zone cache for this territory
+        await HotZoneCacheService.invalidate(cellId)
+      }
+
+      // 6. Hot Zone Score Calculation using owner_change_logs
+      const windowStart = new Date()
+      windowStart.setDate(windowStart.getDate() - 7)
+
+      const recentChanges = await tx.territory_owner_change_logs.count({
+        where: {
+          territory_id: cellId,
+          changed_at: { gte: windowStart },
+        }
+      })
+
+      const isHotZone = recentChanges >= HOT_ZONE_THRESHOLD
+
+      // Score: base per km² * hot zone multiplier
+      // Hot zone: 0.5x (reduced reward for contested territory)
+      // Normal:   1.0x
+      const hotZoneMultiplier = isHotZone ? HOT_ZONE_CAPTURE_MULTIPLIER : NORMAL_CAPTURE_MULTIPLIER
+      const baseScore = Math.round(H3_TILE_AREA_KM2 * BASE_SCORE_PER_KM2)
+      const earnedScore = Math.round(baseScore * hotZoneMultiplier)
+
+      // 7. Deduct score from previous owner (50% of their original score)
+      if (previousOwnerId && previousOwnerId !== user.id) {
+        const lossPenalty = Math.round(baseScore * LOSS_PENALTY_RATIO)
+        await tx.user_city_progress.updateMany({
+          where: { user_id: previousOwnerId, city_id: cityId },
+          data: {
+            score: { decrement: lossPenalty },
+          }
+        })
+      }
+
+      // 8. Update User Progress (Tiles + Area + Score)
       const progress = await tx.user_city_progress.findUnique({
         where: { user_id_city_id: { user_id: user.id, city_id: cityId } }
       })
@@ -170,8 +245,9 @@ export async function claimTerritory(cityId: string, cellId: string): Promise<{ 
           where: { user_id_city_id: { user_id: user.id, city_id: cityId } },
           data: {
             tiles_captured: (progress.tiles_captured || 0) + 1,
-            area_controlled: Number(progress.area_controlled || 0) + 0.01 * multiplier, // Apply buff to area too? User said "capture_score"
-            last_active_at: new Date()
+            area_controlled: Number(progress.area_controlled || 0) + H3_TILE_AREA_KM2 * multiplier,
+            score: (progress.score || 0) + earnedScore,
+            last_active_at: new Date(),
           }
         })
       } else {
@@ -180,47 +256,49 @@ export async function claimTerritory(cityId: string, cellId: string): Promise<{ 
             user_id: user.id,
             city_id: cityId,
             tiles_captured: 1,
-            area_controlled: 0.01 * multiplier,
+            area_controlled: H3_TILE_AREA_KM2 * multiplier,
+            score: earnedScore,
             last_active_at: new Date(),
-            joined_at: new Date()
+            joined_at: new Date(),
           }
         })
       }
 
-      return { action: 'captured' }
+      return { action: 'captured', scoreChange: earnedScore, isHotZone }
     })
 
-    // 5. Check Hidden Badges (Outside Transaction for speed/simplicity or keep inside if critical)
+    // 9. Check Hidden Badges (Outside Transaction)
     const newBadges = await checkAndAwardBadges(user.id, 'TERRITORY_CAPTURE')
     const grantedBadges = newBadges.map(b => b.code)
 
-    // [NEW] Trigger Task Center Event
+    // Trigger Task Center Event
     try {
       const { TaskService } = await import('@/lib/services/task')
       await TaskService.processEvent(user.id, {
         type: 'GRID_CAPTURED',
         userId: user.id,
         timestamp: new Date(),
-        data: {
-          gridId: cellId,
-          isNew: true, // Optimistic: we don't track isNew perfectly here without history check, but claimTerritory usually implies capture.
-          // Requirement says "解锁或占领一个新的网格". 
-          // If we captured it, it's new ownership. Even if we owned it before?
-          // "New" usually means "I didn't own it just before".
-          // Since we updated owner_id to me, and previous owner might have been null or enemy.
-          // Yes, it is a capture.
-          isSelf: true
-        }
+        data: { gridId: cellId, isNew: true, isSelf: true }
       })
     } catch (e) {
       console.error('Task event failed:', e)
     }
 
-    return { success: true, grantedBadges }
+    return {
+      success: true,
+      grantedBadges,
+      scoreChange: result.scoreChange,
+      isHotZone: result.isHotZone
+    }
 
   } catch (err: any) {
     console.error('Error claiming territory:', err)
     return { success: false, error: err.message || 'Claim failed' }
+  } finally {
+    const currentLockVal = await redis.get(lockKey)
+    if (currentLockVal === user.id) {
+      await redis.del(lockKey)
+    }
   }
 }
 

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { X, Swords, MapPin, Clock, Zap, Shield, ChevronRight } from "lucide-react"
+import { X, Swords, MapPin, Clock, Zap, Shield, ChevronRight, Heart, Flame } from "lucide-react"
 
 interface TerritoryAlertProps {
   isOpen: boolean
@@ -16,8 +16,18 @@ interface TerritoryAlertProps {
     id: string
     name: string
     coordinates: string
+    /** HP damage dealt in this attack */
+    damage?: number
+    /** Remaining HP after attack */
+    remainingHp?: number
+    /** Max HP */
+    maxHp?: number
+    /** Whether this is a hot zone */
+    isHotZone?: boolean
   }
   timeAgo: string
+  /** Score change from this attack (negative when territory lost) */
+  scoreChange?: number
   onCounterAttack?: () => void
   onViewMap?: () => void
 }
@@ -28,6 +38,7 @@ export function TerritoryAlert({
   attacker,
   territory,
   timeAgo,
+  scoreChange,
   onCounterAttack,
   onViewMap,
 }: TerritoryAlertProps) {
@@ -55,23 +66,21 @@ export function TerritoryAlert({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
-        className={`absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity duration-300 ${
-          isExiting ? "opacity-0" : "opacity-100"
-        }`}
+        className={`absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity duration-300 ${isExiting ? "opacity-0" : "opacity-100"
+          }`}
         onClick={handleClose}
       />
 
       {/* Alert Card */}
       <div
-        className={`relative w-full max-w-sm transform overflow-hidden rounded-3xl border border-red-500/30 bg-gradient-to-b from-red-950/90 to-black/95 shadow-2xl shadow-red-500/20 backdrop-blur-xl transition-all duration-300 ${
-          isExiting
+        className={`relative w-full max-w-sm transform overflow-hidden rounded-3xl border border-red-500/30 bg-gradient-to-b from-red-950/90 to-black/95 shadow-2xl shadow-red-500/20 backdrop-blur-xl transition-all duration-300 ${isExiting
             ? "scale-95 opacity-0 translate-y-4"
             : "scale-100 opacity-100 translate-y-0"
-        }`}
+          }`}
       >
         {/* Animated border glow */}
         <div className="absolute inset-0 animate-pulse rounded-3xl bg-gradient-to-r from-red-500/20 via-transparent to-red-500/20" />
-        
+
         {/* Close button */}
         <button
           onClick={handleClose}
@@ -106,7 +115,50 @@ export function TerritoryAlert({
               <span>{territory.name}</span>
               <span className="text-white/30">|</span>
               <span className="font-mono text-xs">{territory.coordinates}</span>
+              {territory.isHotZone && (
+                <span className="ml-auto inline-flex items-center gap-0.5 rounded-full bg-orange-500/20 px-1.5 py-0.5">
+                  <Flame className="h-3 w-3 text-orange-400" />
+                  <span className="text-[10px] font-medium text-orange-300">热门</span>
+                </span>
+              )}
             </div>
+
+            {/* HP Bar */}
+            {territory.remainingHp != null && territory.maxHp != null && (
+              <div className="mt-3">
+                <div className="mb-1 flex items-center justify-between text-[10px] text-white/40">
+                  <span className="flex items-center gap-1">
+                    <Heart className="h-3 w-3" />
+                    生命值
+                  </span>
+                  <span>
+                    {territory.damage != null && (
+                      <span className="mr-1 text-red-400">-{territory.damage}</span>
+                    )}
+                    {territory.remainingHp}/{territory.maxHp}
+                  </span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 bg-gradient-to-r ${territory.remainingHp / territory.maxHp > 0.6
+                        ? "from-emerald-400 to-green-500"
+                        : territory.remainingHp / territory.maxHp > 0.3
+                          ? "from-yellow-400 to-amber-500"
+                          : "from-red-400 to-rose-600"
+                      }`}
+                    style={{ width: `${(territory.remainingHp / territory.maxHp) * 100}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Score change */}
+            {scoreChange != null && scoreChange !== 0 && (
+              <div className={`mt-2 text-xs font-medium ${scoreChange > 0 ? "text-emerald-400" : "text-red-400"
+                }`}>
+                {scoreChange > 0 ? "+" : ""}{scoreChange} 积分
+              </div>
+            )}
           </div>
 
           {/* Attacker info */}
@@ -149,7 +201,7 @@ export function TerritoryAlert({
               立即反击
               <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
             </button>
-            
+
             <button
               onClick={() => {
                 onViewMap?.()

@@ -533,17 +533,22 @@ model user_task_logs {
 }
 
 model territories {
-  id                 String                   @id
-  city_id            String
-  owner_id           String                   @db.Uuid
-  captured_at        DateTime?                @default(now()) @db.Timestamptz(6)
-  last_maintained_at DateTime?                @default(now()) @db.Timestamptz(6)
-  health             Int?                     @default(100)
-  level              Int?                     @default(1)
-  geojson            Unsupported("geometry")?
-  h3_index           String?
-  status             String?                  @default("active")
-  profiles           profiles                 @relation(fields: [owner_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  id                   String                   @id
+  city_id              String
+  owner_id             String                   @db.Uuid
+  captured_at          DateTime?                @default(now()) @db.Timestamptz(6)
+  last_maintained_at   DateTime?                @default(now()) @db.Timestamptz(6)
+  health               Int?                     @default(1000)
+  level                Int?                     @default(1)
+  geojson              Unsupported("geometry")?
+  h3_index             String?
+  status               String?                  @default("active")
+  owner_change_count   Int?                     @default(0)
+  last_owner_change_at DateTime?                @db.Timestamptz(6)
+  neutral_until        DateTime?                @db.Timestamptz(6)
+  profiles             profiles                 @relation(fields: [owner_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  hp_logs              territory_hp_logs[]
+  owner_change_logs    territory_owner_change_logs[]
 
   @@index([city_id], map: "idx_territories_city_id")
   @@index([owner_id], map: "idx_territories_owner_id")
@@ -582,11 +587,39 @@ model user_city_progress {
   tiles_captured  Int?      @default(0)
   area_controlled Decimal?  @default(0) @db.Decimal
   reputation      Int?      @default(0)
+  score           Int?      @default(0)
   last_active_at  DateTime? @default(now()) @db.Timestamptz(6)
   joined_at       DateTime? @default(now()) @db.Timestamptz(6)
   profiles        profiles  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@id([user_id, city_id])
+  @@index([city_id, score(sort: Desc)], map: "idx_ucp_score")
+  @@schema("public")
+}
+
+model territory_hp_logs {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  territory_id String
+  attacker_id  String    @db.Uuid
+  damage       Int
+  attacked_at  DateTime? @default(now()) @db.Timestamptz(6)
+  attack_date  DateTime  @default(dbgenerated("CURRENT_DATE")) @db.Date
+  territories  territories @relation(fields: [territory_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([territory_id, attacker_id, attack_date])
+  @@index([territory_id], map: "idx_hp_logs_territory")
+  @@schema("public")
+}
+
+model territory_owner_change_logs {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  territory_id   String
+  previous_owner String?   @db.Uuid
+  new_owner      String    @db.Uuid
+  changed_at     DateTime? @default(now()) @db.Timestamptz(6)
+  territories    territories @relation(fields: [territory_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([territory_id, changed_at(sort: Desc)], map: "idx_ocl_territory_time")
   @@schema("public")
 }
 

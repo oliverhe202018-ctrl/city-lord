@@ -3,13 +3,13 @@
 import React from "react"
 
 import { useState, useEffect } from "react"
-import { X, ChevronRight, Footprints, Target, Trophy, Sparkles, MapPin, Layers } from "lucide-react"
+import { X, ChevronRight, Footprints, Target, Trophy, Sparkles, MapPin, Layers, Shield } from "lucide-react"
 
 interface OnboardingStep {
   id: number
   title: string
   description: string
-  targetArea: "start-button" | "daily-goal" | "missions" | "leaderboard"
+  targetArea: "start-button" | "daily-goal" | "missions" | "leaderboard" | "territory-hp"
   icon: React.ElementType
   position: "center" | "top" | "bottom"
 }
@@ -45,6 +45,14 @@ const steps: OnboardingStep[] = [
     description: "点击排行榜查看其他跑者，点击头像可访问TA的主页！",
     targetArea: "leaderboard",
     icon: Trophy,
+    position: "center",
+  },
+  {
+    id: 5,
+    title: "领地攻防",
+    description: "经过他人领地时会扣除其生命值！当 HP 归零后可以占领。频繁易主的区域会成为🔥热门区域，积分翻倍！",
+    targetArea: "territory-hp",
+    icon: Shield,
     position: "center",
   },
 ]
