@@ -140,8 +140,11 @@ export interface Territory {
   ownerId: string
   ownerType: 'me' | 'enemy' | 'neutral' // Computed on client or returned by API
   capturedAt: string
-  health?: number // 0-100
+  health?: number // 0-1000
+  maxHealth?: number // 1000
   lastMaintainedAt?: string
+  isHotZone?: boolean // 7天内 owner_change_count >= 2
+  ownerChangeCount?: number
   // Optional display properties
   path?: [number, number][] // Polygon coordinates for map rendering
   color?: string
