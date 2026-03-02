@@ -333,33 +333,39 @@ export function ImmersiveRunningMode({
   // }, [])
 
   const handleAttemptStop = () => {
-    // If no path data or very short path, just proceed
-    const safePath = path || [];
-    if (safePath.length < 2) {
+    try {
+      // If no path data or very short path, just proceed
+      const safePath = path || [];
+      if (safePath.length < 2) {
+        setEffectiveHexes(hexesCaptured)
+        setShowSummary(true)
+        return
+      }
+
+      const startPoint = safePath[0]
+      const endPoint = safePath[safePath.length - 1]
+
+      // Calculate gap between start and end
+      const gap = getDistanceFromLatLonInMeters(
+        startPoint.lat, startPoint.lng,
+        endPoint.lat, endPoint.lng
+      )
+
+      const LOOP_THRESHOLD = 50 // meters
+
+      if (gap <= LOOP_THRESHOLD) {
+        // Closed loop
+        setEffectiveHexes(hexesCaptured)
+        setShowSummary(true)
+      } else {
+        // Open loop - Warn user
+        setShowLoopWarning(true)
+      }
+    } catch (err) {
+      // Fallback: always allow user to end run even if path analysis fails
+      console.error("handleAttemptStop error, falling back to summary:", err)
       setEffectiveHexes(hexesCaptured)
       setShowSummary(true)
-      return
-    }
-
-    const startPoint = safePath[0]
-    const endPoint = safePath[safePath.length - 1]
-
-    // Calculate gap between start and end
-    const gap = getDistanceFromLatLonInMeters(
-      startPoint.lat, startPoint.lng,
-      endPoint.lat, endPoint.lng
-    )
-
-    const LOOP_THRESHOLD = 50 // meters
-
-    if (gap <= LOOP_THRESHOLD) {
-      // Closed loop
-      setEffectiveHexes(hexesCaptured)
-      // 1. Audio logic moved to handleStop (final confirm)
-      setShowSummary(true)
-    } else {
-      // Open loop - Warn user
-      setShowLoopWarning(true)
     }
   }
 

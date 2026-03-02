@@ -155,7 +155,12 @@ export function RunningMapOverlay({
                       clearTimeout(confirmTimerRef.current);
                       confirmTimerRef.current = null;
                     }
-                    if (onStop) onStop();
+                    setConfirmStop(false);
+                    try {
+                      onStop?.();
+                    } catch (err) {
+                      console.error("onStop failed in MapOverlay:", err);
+                    }
                   } else {
                     // 第一次点击：进入确认状态，启动可取消的计时器
                     setConfirmStop(true);
