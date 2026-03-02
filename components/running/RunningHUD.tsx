@@ -265,7 +265,7 @@ export function RunningHUD({
       <AnimatePresence>
         {!isMapExpanded && (
           <motion.div
-            className="absolute inset-0 pointer-events-none flex flex-col justify-between z-40 pb-[calc(env(safe-area-inset-bottom)+48px)] pt-[calc(env(safe-area-inset-top)+60px)]"
+            className="absolute inset-0 pointer-events-none flex flex-col justify-between z-40 pb-[calc(env(safe-area-inset-bottom)+16px)] pt-[calc(env(safe-area-inset-top)+60px)]"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -319,7 +319,7 @@ export function RunningHUD({
             </div>
 
             {/* Main Stats Display (Center) */}
-            <div className="pointer-events-auto px-6 flex flex-col items-center justify-center flex-1 gap-12">
+            <div className="pointer-events-auto px-6 flex flex-col items-center justify-evenly flex-1 py-8">
               {/* Distance (Main) */}
               <div className="flex flex-col items-center">
                 <AnimatedCounter value={distance} className="text-[6rem] font-black text-white leading-none drop-shadow-2xl italic" decimals={2} />
@@ -362,7 +362,7 @@ export function RunningHUD({
             </div>
 
             {/* Controls Bottom */}
-            <div className="pointer-events-auto px-8 w-full flex flex-col items-center gap-6 mb-4">
+            <div className="pointer-events-auto px-8 w-full flex flex-col items-center gap-6 mt-auto">
 
               {/* Action Buttons: Lock, Map, Settings */}
               <div className="flex items-center gap-6 mb-2">
