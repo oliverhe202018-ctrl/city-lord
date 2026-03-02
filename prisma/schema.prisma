@@ -43,19 +43,19 @@ model profiles {
   api_key                String?   @unique // For external API access (iOS Shortcuts, Zapier, etc.)
   last_social_read_at    DateTime? @default(now()) @db.Timestamptz(6)
 
-  challenges_challenges_creator_idToprofiles    challenges[]         @relation("challenges_creator_idToprofiles")
-  challenges_challenges_target_idToprofiles     challenges[]         @relation("challenges_target_idToprofiles")
+  challenges_challenges_creator_idToprofiles    challenges[]                  @relation("challenges_creator_idToprofiles")
+  challenges_challenges_target_idToprofiles     challenges[]                  @relation("challenges_target_idToprofiles")
   club_members                                  club_members[]
-  clubs_clubs_owner_idToprofiles                clubs[]              @relation("clubs_owner_idToprofiles")
-  friendships_friendships_friend_idToprofiles   friendships[]        @relation("friendships_friend_idToprofiles")
-  friendships_friendships_user_idToprofiles     friendships[]        @relation("friendships_user_idToprofiles")
+  clubs_clubs_owner_idToprofiles                clubs[]                       @relation("clubs_owner_idToprofiles")
+  friendships_friendships_friend_idToprofiles   friendships[]                 @relation("friendships_friend_idToprofiles")
+  friendships_friendships_user_idToprofiles     friendships[]                 @relation("friendships_user_idToprofiles")
   messages                                      messages[]
   notifications                                 notifications[]
-  clubs_profiles_club_idToclubs                 clubs?               @relation("profiles_club_idToclubs", fields: [club_id], references: [id], onUpdate: NoAction)
-  profiles_profiles_invited_byToprofiles        profiles?            @relation("profiles_invited_byToprofiles", fields: [invited_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  other_profiles_profiles_invited_byToprofiles  profiles[]           @relation("profiles_invited_byToprofiles")
-  profiles_profiles_referrer_idToprofiles       profiles?            @relation("profiles_referrer_idToprofiles", fields: [referrer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  other_profiles_profiles_referrer_idToprofiles profiles[]           @relation("profiles_referrer_idToprofiles")
+  clubs_profiles_club_idToclubs                 clubs?                        @relation("profiles_club_idToclubs", fields: [club_id], references: [id], onUpdate: NoAction)
+  profiles_profiles_invited_byToprofiles        profiles?                     @relation("profiles_invited_byToprofiles", fields: [invited_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  other_profiles_profiles_invited_byToprofiles  profiles[]                    @relation("profiles_invited_byToprofiles")
+  profiles_profiles_referrer_idToprofiles       profiles?                     @relation("profiles_referrer_idToprofiles", fields: [referrer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  other_profiles_profiles_referrer_idToprofiles profiles[]                    @relation("profiles_referrer_idToprofiles")
   room_participants                             room_participants[]
   rooms                                         rooms[]
   route_plans                                   route_plans[]
@@ -68,10 +68,10 @@ model profiles {
   user_badges                                   user_badges[]
   user_missions                                 user_missions[]
   user_task_logs                                user_task_logs[]
-  profileLikesReceived                          profile_likes[]      @relation("profile_likes_user")
-  profileLikesGiven                             profile_likes[]      @relation("profile_likes_liker")
-  blockedByMe                                   blocked_users[]      @relation("blocked_users_blocker")
-  blockedMe                                     blocked_users[]      @relation("blocked_users_blocked")
+  profileLikesReceived                          profile_likes[]               @relation("profile_likes_user")
+  profileLikesGiven                             profile_likes[]               @relation("profile_likes_liker")
+  blockedByMe                                   blocked_users[]               @relation("blocked_users_blocker")
+  blockedMe                                     blocked_users[]               @relation("blocked_users_blocked")
   userBackgrounds                               user_backgrounds[]
   userTaskProgress                              UserTaskProgress[]
   watchActivities                               watch_activities[]
@@ -82,6 +82,12 @@ model profiles {
   post_comments                                 post_comments[]
   post_reports                                  post_reports[]
   user_purchases                                user_purchases[]
+  club_messages_sent                            club_messages[]               @relation("club_messages_sender")
+  club_activities_created                       club_activities[]             @relation("club_activities_creator")
+  club_activity_registrations                   club_activity_registrations[]
+  push_subscriptions                            push_subscriptions[]
+  sent_invitations                              friend_invitations[]          @relation("inviter_invitations")
+  received_invitations                          friend_invitations[]          @relation("invitee_invitations")
 
   @@index([club_id], map: "idx_profiles_club_id")
   @@index([faction], map: "idx_profiles_faction")
@@ -245,25 +251,29 @@ model club_members {
 }
 
 model clubs {
-  id                                String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  name                              String         @unique
+  id                                String                        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name                              String                        @unique
   description                       String?
-  owner_id                          String?        @db.Uuid
-  created_at                        DateTime       @default(dbgenerated("timezone('utc'::text, now())")) @db.Timestamptz(6)
-  status                            club_status?   @default(pending)
+  owner_id                          String?                       @db.Uuid
+  created_at                        DateTime                      @default(dbgenerated("timezone('utc'::text, now())")) @db.Timestamptz(6)
+  status                            club_status?                  @default(pending)
   audit_reason                      String?
   province                          String?
-  total_area                        Decimal?       @default(0) @db.Decimal
+  total_area                        Decimal?                      @default(0) @db.Decimal
   avatar_url                        String?
-  is_public                         Boolean?       @default(true)
-  level                             String?        @default("1")
-  rating                            Decimal?       @default(0) @db.Decimal
-  member_count                      Int?           @default(1)
-  territory                         String?        @default("0")
+  is_public                         Boolean?                      @default(true)
+  level                             String?                       @default("1")
+  rating                            Decimal?                      @default(0) @db.Decimal
+  member_count                      Int?                          @default(1)
+  territory                         String?                       @default("0")
   club_members                      club_members[]
-  profiles_clubs_owner_idToprofiles profiles?      @relation("clubs_owner_idToprofiles", fields: [owner_id], references: [id], onUpdate: NoAction)
-  profiles_profiles_club_idToclubs  profiles[]     @relation("profiles_club_idToclubs")
+  profiles_clubs_owner_idToprofiles profiles?                     @relation("clubs_owner_idToprofiles", fields: [owner_id], references: [id], onUpdate: NoAction)
+  profiles_profiles_club_idToclubs  profiles[]                    @relation("profiles_club_idToclubs")
   runs                              runs[]
+  club_channels                     club_channels[]
+  club_messages                     club_messages[]
+  club_activities                   club_activities[]
+  club_activity_registrations       club_activity_registrations[]
 
   @@index([owner_id], map: "idx_clubs_owner_id")
   @@index([province])
@@ -381,17 +391,19 @@ model missions {
 }
 
 model notifications {
-  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id    String    @db.Uuid
-  title      String
-  body       String?
-  type       String?
-  data       Json?
-  is_read    Boolean?  @default(false)
-  created_at DateTime? @default(now()) @db.Timestamptz(6)
-  profiles   profiles  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id     String    @db.Uuid
+  title       String
+  body        String?
+  type        String?
+  data        Json?
+  is_read     Boolean?  @default(false)
+  push_status String?   @default("pending") // "pending", "sent", "failed"
+  created_at  DateTime? @default(now()) @db.Timestamptz(6)
+  profiles    profiles  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([user_id])
+  @@index([push_status])
   @@schema("public")
 }
 
@@ -533,20 +545,20 @@ model user_task_logs {
 }
 
 model territories {
-  id                   String                   @id
+  id                   String                        @id
   city_id              String
-  owner_id             String                   @db.Uuid
-  captured_at          DateTime?                @default(now()) @db.Timestamptz(6)
-  last_maintained_at   DateTime?                @default(now()) @db.Timestamptz(6)
-  health               Int?                     @default(1000)
-  level                Int?                     @default(1)
+  owner_id             String                        @db.Uuid
+  captured_at          DateTime?                     @default(now()) @db.Timestamptz(6)
+  last_maintained_at   DateTime?                     @default(now()) @db.Timestamptz(6)
+  health               Int?                          @default(1000)
+  level                Int?                          @default(1)
   geojson              Unsupported("geometry")?
   h3_index             String?
-  status               String?                  @default("active")
-  owner_change_count   Int?                     @default(0)
-  last_owner_change_at DateTime?                @db.Timestamptz(6)
-  neutral_until        DateTime?                @db.Timestamptz(6)
-  profiles             profiles                 @relation(fields: [owner_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  status               String?                       @default("active")
+  owner_change_count   Int?                          @default(0)
+  last_owner_change_at DateTime?                     @db.Timestamptz(6)
+  neutral_until        DateTime?                     @db.Timestamptz(6)
+  profiles             profiles                      @relation(fields: [owner_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   hp_logs              territory_hp_logs[]
   owner_change_logs    territory_owner_change_logs[]
 
@@ -598,12 +610,12 @@ model user_city_progress {
 }
 
 model territory_hp_logs {
-  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   territory_id String
-  attacker_id  String    @db.Uuid
+  attacker_id  String      @db.Uuid
   damage       Int
-  attacked_at  DateTime? @default(now()) @db.Timestamptz(6)
-  attack_date  DateTime  @default(dbgenerated("CURRENT_DATE")) @db.Date
+  attacked_at  DateTime?   @default(now()) @db.Timestamptz(6)
+  attack_date  DateTime    @default(dbgenerated("CURRENT_DATE")) @db.Date
   territories  territories @relation(fields: [territory_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([territory_id, attacker_id, attack_date])
@@ -612,11 +624,11 @@ model territory_hp_logs {
 }
 
 model territory_owner_change_logs {
-  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   territory_id   String
-  previous_owner String?   @db.Uuid
-  new_owner      String    @db.Uuid
-  changed_at     DateTime? @default(now()) @db.Timestamptz(6)
+  previous_owner String?     @db.Uuid
+  new_owner      String      @db.Uuid
+  changed_at     DateTime?   @default(now()) @db.Timestamptz(6)
   territories    territories @relation(fields: [territory_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([territory_id, changed_at(sort: Desc)], map: "idx_ocl_territory_time")
@@ -905,5 +917,120 @@ model leaderboard_snapshots {
   generated_at DateTime @default(now()) @db.Timestamptz(6)
 
   @@unique([season_id, dimension])
+  @@schema("public")
+}
+
+model club_channels {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  club_id    String   @db.Uuid
+  key        String // announcement, checkin, events, tactics, chat
+  name       String
+  sort_order Int      @default(0)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  clubs         clubs           @relation(fields: [club_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  club_messages club_messages[]
+
+  @@unique([club_id, key])
+  @@index([club_id])
+  @@schema("public")
+}
+
+model club_messages {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  club_id    String    @db.Uuid
+  channel_id String    @db.Uuid
+  sender_id  String    @db.Uuid
+  content    String    @db.Text
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at DateTime? @db.Timestamptz(6)
+
+  clubs         clubs         @relation(fields: [club_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  club_channels club_channels @relation(fields: [channel_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  sender        profiles      @relation("club_messages_sender", fields: [sender_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([channel_id, created_at(sort: Desc)])
+  @@index([club_id, created_at(sort: Desc)])
+  @@index([sender_id])
+  @@index([channel_id, deleted_at, created_at(sort: Desc)], map: "idx_club_messages_channel_active")
+  @@schema("public")
+}
+
+model club_activities {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  club_id          String   @db.Uuid
+  title            String
+  description      String   @default("")
+  location         String?
+  max_participants Int?
+  start_time       DateTime @db.Timestamptz(6)
+  end_time         DateTime @db.Timestamptz(6)
+  created_by       String   @db.Uuid
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  clubs         clubs                         @relation(fields: [club_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  creator       profiles                      @relation("club_activities_creator", fields: [created_by], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  registrations club_activity_registrations[]
+
+  @@index([club_id, start_time(sort: Asc)], map: "idx_club_activities_club_time")
+  @@schema("public")
+}
+
+model club_activity_registrations {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  activity_id   String   @db.Uuid
+  user_id       String   @db.Uuid
+  club_id       String   @db.Uuid
+  score         Int      @default(0) // Activity score for ranking
+  status        String   @default("registered") // "registered" | "canceled" | "completed"
+  registered_at DateTime @default(now()) @db.Timestamptz(6)
+
+  club_activities club_activities @relation(fields: [activity_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  profiles        profiles        @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  clubs           clubs           @relation(fields: [club_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, activity_id])
+  @@index([club_id, activity_id])
+  @@index([user_id, activity_id])
+  @@index([activity_id, score(sort: Desc)], map: "idx_car_activity_score")
+  @@schema("public")
+}
+
+model push_subscriptions {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String    @db.Uuid
+  endpoint   String    @unique
+  p256dh     String
+  auth       String
+  created_at DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at DateTime? @default(now()) @db.Timestamptz(6)
+  revoked_at DateTime? @db.Timestamptz(6)
+
+  profiles profiles @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id])
+  @@schema("public")
+}
+
+model friend_invitations {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  inviter_user_id String    @db.Uuid
+  invitee_user_id String?   @db.Uuid
+  invite_link     String    @unique
+  status          String    @default("pending") // pending, accepted, rejected, revoked
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  accepted_at     DateTime? @db.Timestamptz(6)
+  expired_at      DateTime? @default(dbgenerated("NOW() + INTERVAL '7 days'")) @db.Timestamptz(6)
+
+  expired_cleaned_at DateTime? @db.Timestamptz(6)
+
+  inviter profiles  @relation("inviter_invitations", fields: [inviter_user_id], references: [id], onDelete: Cascade)
+  invitee profiles? @relation("invitee_invitations", fields: [invitee_user_id], references: [id], onDelete: Cascade)
+
+  @@unique([invite_link, invitee_user_id], name: "uq_friend_invitations_invitee_link")
+  @@index([inviter_user_id])
+  @@index([invite_link])
+  @@index([status, expired_at])
   @@schema("public")
 }

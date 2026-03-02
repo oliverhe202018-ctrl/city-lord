@@ -1,28 +1,65 @@
 "use client"
 
-import React, { useState } from "react"
-import { Trophy, Medal, Star, Shield, ArrowUp, ArrowDown, MapPin, Zap } from "lucide-react"
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
+import { Trophy, Medal, Star, Shield, ArrowUp, ArrowDown, MapPin, Zap, Loader2, ChevronDown, User } from "lucide-react"
+import { useVirtualizer } from "@tanstack/react-virtual"
+import { getSocialLeaderboard, type LeaderboardEntry } from "@/app/actions/leaderboard"
+import { useAuth } from "@/hooks/useAuth"
+
+const ITEM_HEIGHT = 76
+const PAGE_SIZE = 50
 
 export function Leaderboard() {
     const [activeTab, setActiveTab] = useState<"distance" | "territory">("distance")
     const [isLoading, setIsLoading] = useState(true)
+    const [entries, setEntries] = useState<LeaderboardEntry[]>([])
+    const [page, setPage] = useState(1)
+    const [hasMore, setHasMore] = useState(true)
+    const parentRef = useRef<HTMLDivElement>(null)
+    const { user } = useAuth()
 
-    React.useEffect(() => {
+    // Memoize items for virtual scroll performance
+    const items = useMemo(() => entries, [entries])
+
+    const virtualizer = useVirtualizer({
+        count: items.length,
+        getScrollElement: () => parentRef.current,
+        estimateSize: () => ITEM_HEIGHT,
+        overscan: 5,
+    })
+
+    const loadData = useCallback(async (pageNum: number) => {
         setIsLoading(true)
-        const t = setTimeout(() => setIsLoading(false), 600)
-        return () => clearTimeout(t)
-    }, [activeTab])
+        try {
+            const data = await getSocialLeaderboard(user?.id, pageNum, PAGE_SIZE)
+            if (pageNum === 1) {
+                setEntries(data)
+            } else {
+                setEntries(prev => [...prev, ...data])
+            }
+            setHasMore(data.length === PAGE_SIZE)
+        } catch (error) {
+            console.error("Failed to load social leaderboard:", error)
+        } finally {
+            setIsLoading(false)
+        }
+    }, [user?.id])
 
-    // Mock data for globals
-    const mockRankings = [
-        { id: "1", name: "跑神阿甘", level: 42, score: 1042.5, trend: "up", avatar: "🏃", faction: "blue", isSelf: false },
-        { id: "2", name: "夜跑狂魔", level: 38, score: 985.2, trend: "same", avatar: "🦇", faction: "red", isSelf: false },
-        { id: "3", name: "CityLord", level: 35, score: 876.0, trend: "up", avatar: "👑", faction: "blue", isSelf: false },
-        { id: "me", name: "我", level: 12, score: 125.4, trend: "up", avatar: "😎", faction: "red", isSelf: true }, // Added self for testing in-row highlight
-        { id: "5", name: "风无痕", level: 30, score: 102.8, trend: "up", avatar: "🦅", faction: "blue", isSelf: false },
-    ]
+    useEffect(() => {
+        setPage(1)
+        setEntries([])
+        loadData(1)
+    }, [activeTab, loadData])
 
-    const currentUserRank = { rank: 124, name: "我", score: 125.4, level: 12 }
+    const handleLoadMore = useCallback(() => {
+        if (!isLoading && hasMore) {
+            const nextPage = page + 1
+            setPage(nextPage)
+            loadData(nextPage)
+        }
+    }, [isLoading, hasMore, page, loadData])
+
+    const myRank = useMemo(() => items.find(e => e.is_me), [items])
 
     return (
         <div className="flex flex-col space-y-4">
@@ -39,17 +76,17 @@ export function Leaderboard() {
                     className={`flex-1 py-1.5 px-3 rounded-lg text-sm font-bold transition-all ${activeTab === "territory" ? "bg-cyan-500 text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
                         }`}
                 >
-                    领地榜
+                    社交榜
                 </button>
             </div>
 
             <div className="space-y-3 min-h-[300px]">
-                {isLoading ? (
+                {isLoading && items.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-10">
                         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
                         <p className="mt-4 text-sm text-muted-foreground animate-pulse">加载榜单中...</p>
                     </div>
-                ) : mockRankings.length === 0 ? (
+                ) : items.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-12 text-center">
                         <div className="mb-4 rounded-full bg-muted/50 p-4 border border-border">
                             <Trophy className="h-10 w-10 text-muted-foreground/60" />
@@ -61,51 +98,102 @@ export function Leaderboard() {
                         </button>
                     </div>
                 ) : (
-                    mockRankings.map((user, idx) => (
-                        <div key={user.id} className={`flex items-center gap-3 p-3 rounded-2xl border shadow-sm transition-all hover:shadow-md ${user.isSelf ? 'bg-primary/5 border-primary/50' : 'bg-card border-border hover:border-primary/30'}`}>
-                            <div className="w-8 text-center font-black italic text-lg opacity-80">
-                                {idx === 0 ? <Medal className="w-6 h-6 text-yellow-500 mx-auto drop-shadow-sm" /> :
-                                    idx === 1 ? <Medal className="w-6 h-6 text-gray-400 mx-auto drop-shadow-sm" /> :
-                                        idx === 2 ? <Medal className="w-6 h-6 text-amber-600 mx-auto drop-shadow-sm" /> :
-                                            <span className="text-muted-foreground">{idx + 1}</span>}
-                            </div>
+                    <div
+                        ref={parentRef}
+                        className="max-h-[400px] overflow-y-auto rounded-xl"
+                    >
+                        <div
+                            style={{
+                                height: `${virtualizer.getTotalSize()}px`,
+                                width: "100%",
+                                position: "relative",
+                            }}
+                        >
+                            {virtualizer.getVirtualItems().map((virtualRow) => {
+                                const entry = items[virtualRow.index]
+                                if (!entry) return null
+                                const idx = virtualRow.index
+                                return (
+                                    <div
+                                        key={virtualRow.key}
+                                        style={{
+                                            position: "absolute",
+                                            top: 0,
+                                            left: 0,
+                                            width: "100%",
+                                            height: `${virtualRow.size}px`,
+                                            transform: `translateY(${virtualRow.start}px)`,
+                                        }}
+                                    >
+                                        <div className={`flex items-center gap-3 p-3 rounded-2xl border shadow-sm transition-all hover:shadow-md mb-2 ${entry.is_me ? 'bg-primary/5 border-primary/50' : 'bg-card border-border hover:border-primary/30'}`}>
+                                            <div className="w-8 text-center font-black italic text-lg opacity-80">
+                                                {idx === 0 ? <Medal className="w-6 h-6 text-yellow-500 mx-auto drop-shadow-sm" /> :
+                                                    idx === 1 ? <Medal className="w-6 h-6 text-gray-400 mx-auto drop-shadow-sm" /> :
+                                                        idx === 2 ? <Medal className="w-6 h-6 text-amber-600 mx-auto drop-shadow-sm" /> :
+                                                            <span className="text-muted-foreground">{idx + 1}</span>}
+                                            </div>
 
-                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-muted border-2 border-background shadow-inner text-2xl">
-                                {user.avatar}
-                            </div>
+                                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-muted border-2 border-background shadow-inner overflow-hidden">
+                                                {entry.avatar_url ? (
+                                                    <img src={entry.avatar_url} alt="" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <User className="w-6 h-6 text-muted-foreground" />
+                                                )}
+                                            </div>
 
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                    <span className={`font-bold truncate max-w-[150px] sm:max-w-[200px] ${user.isSelf ? 'text-primary' : ''}`}>{user.name}</span>
-                                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-muted/80 shrink-0">Lv.{user.level}</span>
-                                    {user.faction === 'red' && <div className="w-2 h-2 rounded-full bg-red-500 shrink-0 shadow-[0_0_4px_rgba(239,68,68,0.5)]" />}
-                                    {user.faction === 'blue' && <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0 shadow-[0_0_4px_rgba(59,130,246,0.5)]" />}
-                                </div>
-                                <div className="text-xs font-semibold text-muted-foreground flex items-center gap-1 mt-1">
-                                    {activeTab === "distance" ? <Zap className="w-3.5 h-3.5 text-yellow-500" /> : <MapPin className="w-3.5 h-3.5 text-cyan-500" />}
-                                    <span className={activeTab === "distance" ? "text-yellow-600 dark:text-yellow-400/80" : "text-cyan-600 dark:text-cyan-400/80"}>
-                                        {user.score.toFixed(1)} {activeTab === "distance" ? "km" : "格"}
-                                    </span>
-                                </div>
-                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`font-bold truncate max-w-[150px] sm:max-w-[200px] ${entry.is_me ? 'text-primary' : ''}`}>{entry.name}</span>
+                                                    {entry.is_me && <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-primary/20 text-primary shrink-0">我</span>}
+                                                </div>
+                                                <div className="text-xs font-semibold text-muted-foreground flex items-center gap-1 mt-1">
+                                                    {activeTab === "distance" ? <Zap className="w-3.5 h-3.5 text-yellow-500" /> : <Star className="w-3.5 h-3.5 text-cyan-500" />}
+                                                    <span className={activeTab === "distance" ? "text-yellow-600 dark:text-yellow-400/80" : "text-cyan-600 dark:text-cyan-400/80"}>
+                                                        {entry.score} 分
+                                                    </span>
+                                                    {entry.secondary_info && (
+                                                        <span className="text-muted-foreground/60 ml-1 text-[10px]">
+                                                            ({entry.secondary_info})
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
 
-                            <div className="text-right shrink-0">
-                                {user.trend === "up" && <div className="bg-green-500/10 p-1 rounded-full"><ArrowUp className="w-4 h-4 text-green-500" /></div>}
-                                {user.trend === "down" && <div className="bg-red-500/10 p-1 rounded-full"><ArrowDown className="w-4 h-4 text-red-500" /></div>}
-                                {user.trend === "same" && <div className="w-5 h-1.5 bg-muted rounded-full mx-auto" />}
-                            </div>
+                                            <div className="text-right shrink-0">
+                                                {entry.change === "up" && <div className="bg-green-500/10 p-1 rounded-full"><ArrowUp className="w-4 h-4 text-green-500" /></div>}
+                                                {entry.change === "down" && <div className="bg-red-500/10 p-1 rounded-full"><ArrowDown className="w-4 h-4 text-red-500" /></div>}
+                                                {entry.change === "same" && <div className="w-5 h-1.5 bg-muted rounded-full mx-auto" />}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )
+                            })}
                         </div>
-                    ))
+                    </div>
                 )}
             </div>
+
+            {/* Load More */}
+            {hasMore && items.length > 0 && (
+                <button
+                    onClick={handleLoadMore}
+                    disabled={isLoading}
+                    className="flex items-center justify-center gap-2 py-2 text-sm font-medium text-primary hover:text-primary/80 transition-colors disabled:opacity-50"
+                >
+                    {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronDown className="w-4 h-4" />}
+                    {isLoading ? "加载中..." : "加载更多"}
+                </button>
+            )}
 
             {/* Current User Sticky Bar */}
             <div className="sticky bottom-0 mt-4 p-4 rounded-t-2xl bg-gradient-to-r from-primary/20 to-cyan-500/20 backdrop-blur-md border-t border-white/10 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                    <div className="w-8 text-center font-black italic">{currentUserRank.rank}</div>
-                    <div className="font-bold">{currentUserRank.name}</div>
+                    <div className="w-8 text-center font-black italic">{myRank?.rank || '-'}</div>
+                    <div className="font-bold">{myRank?.name || '我'}</div>
                 </div>
-                <div className="font-black text-primary text-xl">{currentUserRank.score} <span className="text-sm font-normal">{activeTab === "distance" ? "km" : "格"}</span></div>
+                <div className="font-black text-primary text-xl">
+                    {myRank?.score || 0} <span className="text-sm font-normal">分</span>
+                </div>
             </div>
         </div>
     )

@@ -32,7 +32,7 @@ export default function ChallengesPage() {
   const [showChallengeStart, setShowChallengeStart] = useState(false)
   const [showChallengeComplete, setShowChallengeComplete] = useState(false)
   const [unlockedAchievement, setUnlockedAchievement] = useState<Achievement | null>(null)
-  
+
   const [challenges, setChallenges] = useState<Challenge[]>([])
   const [achievements, setAchievements] = useState<Achievement[]>([])
 
@@ -41,16 +41,16 @@ export default function ChallengesPage() {
       // Check cache first
       const cachedChallenges = localStorage.getItem('cached_challenges')
       const cachedAchievements = localStorage.getItem('cached_achievements')
-      
+
       if (cachedChallenges) {
         try {
-            setChallenges(JSON.parse(cachedChallenges))
+          setChallenges(JSON.parse(cachedChallenges))
         } catch (e) { console.error('Cache parse error', e) }
       }
-      
+
       if (cachedAchievements) {
         try {
-            setAchievements(JSON.parse(cachedAchievements))
+          setAchievements(JSON.parse(cachedAchievements))
         } catch (e) { console.error('Cache parse error', e) }
       }
 
@@ -60,21 +60,21 @@ export default function ChallengesPage() {
         // Load Missions
         const missionsData = await fetchUserMissions()
         const mappedChallenges: Challenge[] = missionsData.map((m) => ({
-          id: m.id,
+          id: m.mission_id || m.missions.id,
           cityId: currentCity.id,
-          name: m.title,
-          description: m.description,
-          type: (['conquest', 'defense', 'exploration', 'social', 'daily'].includes(m.type) ? m.type : 'conquest') as any,
-          objective: { type: 'tiles', target: m.target, current: m.current }, // Default to 'tiles' if unknown
+          name: m.missions.title,
+          description: m.missions.description,
+          type: (['conquest', 'defense', 'exploration', 'social', 'daily'].includes(m.missions.type) ? m.missions.type : 'conquest') as any,
+          objective: { type: 'tiles', target: m.missions.target, current: m.progress },
           rewards: {
-            experience: m.reward.reward_experience || 0,
-            points: m.reward.reward_coins || 0
+            experience: m.missions.reward_experience || 0,
+            points: m.missions.reward_coins || 0
           },
           status: (m.status === 'completed' || m.status === 'claimed') ? 'completed' : 'available',
           startDate: new Date().toISOString(), // Default to now
           endDate: new Date(Date.now() + 86400000 * 7).toISOString(), // Default to 7 days later
-          progress: { current: m.current || 0, max: m.target || 100 },
-          isMainQuest: m.type === 'main',
+          progress: { current: m.progress || 0, max: m.missions.target || 100 },
+          isMainQuest: m.missions.type === 'main',
           isTimeLimited: false,
           priority: 1
         }))
@@ -158,22 +158,20 @@ export default function ChallengesPage() {
           <div className="flex gap-2 p-1 rounded-xl bg-white/5 border border-white/10">
             <button
               onClick={() => setActiveTab("challenges")}
-              className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${
-                activeTab === "challenges"
-                  ? "text-white bg-gradient-to-r from-white/10 to-white/5"
-                  : "text-white/60 hover:text-white/80 hover:bg-white/5"
-              }`}
+              className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${activeTab === "challenges"
+                ? "text-white bg-gradient-to-r from-white/10 to-white/5"
+                : "text-white/60 hover:text-white/80 hover:bg-white/5"
+                }`}
             >
               <Swords className="w-4 h-4" />
               挑战任务
             </button>
             <button
               onClick={() => setActiveTab("achievements")}
-              className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${
-                activeTab === "achievements"
-                  ? "text-white bg-gradient-to-r from-white/10 to-white/5"
-                  : "text-white/60 hover:text-white/80 hover:bg-white/5"
-              }`}
+              className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${activeTab === "achievements"
+                ? "text-white bg-gradient-to-r from-white/10 to-white/5"
+                : "text-white/60 hover:text-white/80 hover:bg-white/5"
+                }`}
             >
               <Trophy className="w-4 h-4" />
               成就系统

@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useGameStore, useGameActions } from "@/store/useGameStore";
@@ -12,6 +12,7 @@ import { Trophy, AlertCircle, Map, Globe, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getLeaderboardData, LeaderboardEntry } from "@/app/actions/leaderboard";
 import { useAuth } from "@/hooks/useAuth";
+import { useVirtualizer } from "@tanstack/react-virtual";
 
 export function LeaderboardDrawer() {
   const activeDrawer = useGameStore((state) => state.activeDrawer);
@@ -34,6 +35,10 @@ export function LeaderboardDrawer() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const ITEMS_PER_PAGE = 20;
+  const listParentRef = useRef<HTMLDivElement>(null);
+
+  // Memoize items for virtual scroll performance
+  const items = useMemo(() => leaderboardData, [leaderboardData]);
 
   const isOpen = activeDrawer === "leaderboard";
 
@@ -100,6 +105,13 @@ export function LeaderboardDrawer() {
     return leaderboardData.find(item => item.is_me);
   };
 
+  const virtualizer = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => listParentRef.current,
+    estimateSize: () => 64,
+    overscan: 5,
+  });
+
   const renderList = () => {
     if (loading) {
       return (
@@ -109,7 +121,7 @@ export function LeaderboardDrawer() {
       );
     }
 
-    if (leaderboardData.length === 0) {
+    if (items.length === 0) {
       return (
         <div className="flex flex-col items-center justify-center h-40 text-muted-foreground text-sm gap-2">
           <AlertCircle className="w-8 h-8 opacity-50" />
@@ -119,21 +131,47 @@ export function LeaderboardDrawer() {
     }
 
     return (
-      <div className="space-y-2 p-1">
-        {leaderboardData.map((item) => (
-          <RankItem
-            key={item.id}
-            data={{
-              rank: item.rank,
-              name: item.name,
-              avatar: item.avatar_url,
-              score: item.score,
-              change: item.change || 'same',
-              aux: item.secondary_info,
-              isMe: item.is_me
-            }}
-          />
-        ))}
+      <div
+        ref={listParentRef}
+        className="max-h-[60vh] overflow-y-auto"
+      >
+        <div
+          style={{
+            height: `${virtualizer.getTotalSize()}px`,
+            width: '100%',
+            position: 'relative',
+          }}
+        >
+          {virtualizer.getVirtualItems().map((virtualRow) => {
+            const item = items[virtualRow.index]
+            if (!item) return null
+            return (
+              <div
+                key={virtualRow.key}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: `${virtualRow.size}px`,
+                  transform: `translateY(${virtualRow.start}px)`,
+                }}
+              >
+                <RankItem
+                  data={{
+                    rank: item.rank,
+                    name: item.name,
+                    avatar: item.avatar_url,
+                    score: item.score,
+                    change: item.change || 'same',
+                    aux: item.secondary_info,
+                    isMe: item.is_me
+                  }}
+                />
+              </div>
+            )
+          })}
+        </div>
       </div>
     );
   };

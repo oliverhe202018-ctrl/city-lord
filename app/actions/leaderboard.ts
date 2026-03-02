@@ -252,3 +252,117 @@ export async function updateProvinceStats() {
     return { success: false, error };
   }
 }
+
+// ──────────────────────────────────────────────
+// Activity Leaderboard — by score within a specific club activity
+// ──────────────────────────────────────────────
+export async function getActivityLeaderboard(
+  activityId: string,
+  page: number = 1,
+  limit: number = 50
+): Promise<LeaderboardEntry[]> {
+  try {
+    const skip = (page - 1) * limit;
+
+    const registrations = await prisma.club_activity_registrations.findMany({
+      where: {
+        activity_id: activityId,
+        status: { in: ['registered', 'completed'] },
+      },
+      orderBy: { score: 'desc' },
+      skip,
+      take: limit,
+      include: {
+        profiles: {
+          select: {
+            id: true,
+            nickname: true,
+            avatar_url: true,
+          },
+        },
+      },
+    });
+
+    return registrations.map((reg, index) => ({
+      rank: skip + index + 1,
+      id: reg.user_id,
+      name: reg.profiles?.nickname || 'Unknown',
+      avatar_url: reg.profiles?.avatar_url || undefined,
+      score: reg.score,
+      secondary_info: reg.status === 'completed' ? '已完成' : '已报名',
+      change: 'same' as const,
+    }));
+  } catch (error) {
+    console.error('Failed to fetch activity leaderboard:', error);
+    return [];
+  }
+}
+
+// ──────────────────────────────────────────────
+// Social Leaderboard — contribution-weighted ranking
+// Weight: activity_created×3 + social_interactions×1 + achievements×2
+// ──────────────────────────────────────────────
+export async function getSocialLeaderboard(
+  currentUserId?: string,
+  page: number = 1,
+  limit: number = 50
+): Promise<LeaderboardEntry[]> {
+  try {
+    const skip = (page - 1) * limit;
+
+    // Raw query for contribution-weighted social ranking
+    const results = await prisma.$queryRaw<
+      {
+        id: string;
+        nickname: string | null;
+        avatar_url: string | null;
+        activity_score: bigint;
+        social_score: bigint;
+        achievement_score: bigint;
+        total_score: bigint;
+      }[]
+    >`
+      SELECT
+        p.id,
+        p.nickname,
+        p.avatar_url,
+        COALESCE(act.cnt, 0) * 3 AS activity_score,
+        COALESCE(social.cnt, 0) * 1 AS social_score,
+        COALESCE(ach.cnt, 0) * 2 AS achievement_score,
+        (COALESCE(act.cnt, 0) * 3 + COALESCE(social.cnt, 0) * 1 + COALESCE(ach.cnt, 0) * 2) AS total_score
+      FROM profiles p
+      LEFT JOIN (
+        SELECT created_by AS user_id, COUNT(*)::int AS cnt
+        FROM club_activities
+        GROUP BY created_by
+      ) act ON act.user_id = p.id
+      LEFT JOIN (
+        SELECT user_id, COUNT(*)::int AS cnt
+        FROM activity_likes
+        GROUP BY user_id
+      ) social ON social.user_id = p.id
+      LEFT JOIN (
+        SELECT user_id, COUNT(*)::int AS cnt
+        FROM user_badges
+        GROUP BY user_id
+      ) ach ON ach.user_id = p.id
+      ORDER BY total_score DESC
+      LIMIT ${limit}
+      OFFSET ${skip}
+    `;
+
+    return results.map((row, index) => ({
+      rank: skip + index + 1,
+      id: row.id,
+      name: row.nickname || 'Unknown',
+      avatar_url: row.avatar_url || undefined,
+      score: Number(row.total_score),
+      secondary_info: `活动:${Number(row.activity_score)} 社交:${Number(row.social_score)} 成就:${Number(row.achievement_score)}`,
+      is_me: currentUserId === row.id,
+      change: 'same' as const,
+    }));
+  } catch (error) {
+    console.error('Failed to fetch social leaderboard:', error);
+    return [];
+  }
+}
