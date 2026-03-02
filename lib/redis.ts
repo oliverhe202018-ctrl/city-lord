@@ -10,6 +10,7 @@ export const redis =
     globalForRedis.redis ||
     new Redis(redisUrl, {
         maxRetriesPerRequest: 3,
+        lazyConnect: true,
     })
 
 if (process.env.NODE_ENV !== 'production') globalForRedis.redis = redis

@@ -19,9 +19,10 @@ import {
   AlertTriangle,
   Gift,
   ChevronRight,
+  Calendar,
 } from "lucide-react"
 
-type NotificationType = "achievement" | "battle" | "challenge" | "friend" | "reward" | "system"
+type NotificationType = "achievement" | "battle" | "challenge" | "friend" | "reward" | "system" | "activity"
 
 interface Notification {
   id: string
@@ -47,6 +48,7 @@ const notificationConfig: Record<NotificationType, {
   friend: { icon: Users, color: "text-purple-400", bg: "bg-purple-400/20" },
   reward: { icon: Gift, color: "text-[#22c55e]", bg: "bg-[#22c55e]/20" },
   system: { icon: Bell, color: "text-white/60", bg: "bg-white/10" },
+  activity: { icon: Calendar, color: "text-orange-400", bg: "bg-orange-400/20" },
 }
 
 // Toast Notification
@@ -80,9 +82,8 @@ export function ToastNotification({
 
   return (
     <div
-      className={`pointer-events-auto w-full max-w-sm overflow-hidden rounded-2xl border border-white/10 bg-black/90 shadow-2xl backdrop-blur-xl transition-all duration-300 ${
-        isExiting ? "translate-x-full opacity-0" : "translate-x-0 opacity-100"
-      }`}
+      className={`pointer-events-auto w-full max-w-sm overflow-hidden rounded-2xl border border-white/10 bg-black/90 shadow-2xl backdrop-blur-xl transition-all duration-300 ${isExiting ? "translate-x-full opacity-0" : "translate-x-0 opacity-100"
+        }`}
     >
       <div className="p-4">
         <div className="flex items-start gap-3">
@@ -135,6 +136,62 @@ export function NotificationPanel({
   onClearAll,
 }: NotificationPanelProps) {
   const unreadCount = notifications.filter((n) => !n.read).length
+  const [isPushEnabled, setIsPushEnabled] = useState(false)
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window) {
+      navigator.serviceWorker.ready.then(reg => {
+        reg.pushManager.getSubscription().then(sub => {
+          setIsPushEnabled(!!sub)
+        }).catch(console.error)
+      }).catch(console.error)
+    }
+  }, [])
+
+  const subscribeToPush = async () => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      alert('当前浏览器不支持推送通知')
+      return
+    }
+    try {
+      const permission = await Notification.requestPermission()
+      if (permission !== 'granted') {
+        alert('推送权限被拒绝')
+        return
+      }
+      const reg = await navigator.serviceWorker.ready
+      const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+      if (!vapidKey) {
+        console.error('Missing VAPID public key')
+        return
+      }
+      // base64 to Uint8Array conversion for VAPID key
+      const padding = '='.repeat((4 - vapidKey.length % 4) % 4)
+      const base64 = (vapidKey + padding).replace(/\-/g, '+').replace(/_/g, '/')
+      const rawData = window.atob(base64)
+      const outputArray = new Uint8Array(rawData.length)
+      for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i)
+      }
+
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: outputArray
+      })
+
+      const res = await fetch('/api/notifications/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sub)
+      })
+
+      if (res.ok) {
+        setIsPushEnabled(true)
+      }
+    } catch (error) {
+      console.error('Failed to subscribe:', error)
+    }
+  }
 
   return (
     <div className="flex max-h-[70vh] flex-col overflow-hidden rounded-2xl border border-white/10 bg-black/95 backdrop-blur-xl">
@@ -149,7 +206,15 @@ export function NotificationPanel({
             </span>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          {!isPushEnabled && (
+            <button
+              onClick={subscribeToPush}
+              className="text-xs text-orange-400 hover:text-orange-300 hover:underline mr-2 flex items-center gap-1"
+            >
+              <Zap className="h-3 w-3" /> 开启活动提醒
+            </button>
+          )}
           {unreadCount > 0 && (
             <button
               onClick={onMarkAllRead}
@@ -185,9 +250,8 @@ export function NotificationPanel({
                 <div
                   key={notification.id}
                   onClick={() => onMarkRead?.(notification.id)}
-                  className={`flex w-full items-start gap-3 p-4 text-left transition-colors hover:bg-white/5 cursor-pointer ${
-                    !notification.read ? "bg-white/[0.02]" : ""
-                  }`}
+                  className={`flex w-full items-start gap-3 p-4 text-left transition-colors hover:bg-white/5 cursor-pointer ${!notification.read ? "bg-white/[0.02]" : ""
+                    }`}
                 >
                   <div className={`shrink-0 rounded-xl ${config.bg} p-2`}>
                     <Icon className={`h-4 w-4 ${config.color}`} />
@@ -195,9 +259,8 @@ export function NotificationPanel({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <h4
-                        className={`font-medium ${
-                          notification.read ? "text-white/70" : "text-white"
-                        }`}
+                        className={`font-medium ${notification.read ? "text-white/70" : "text-white"
+                          }`}
                       >
                         {notification.title}
                       </h4>
@@ -254,9 +317,8 @@ export function FriendOnlinePopup({
 
   return (
     <div
-      className={`pointer-events-auto flex items-center gap-3 rounded-2xl border border-[#22c55e]/30 bg-black/90 p-3 pr-4 shadow-xl backdrop-blur-xl transition-all duration-300 ${
-        isExiting ? "-translate-y-full opacity-0" : "translate-y-0 opacity-100"
-      }`}
+      className={`pointer-events-auto flex items-center gap-3 rounded-2xl border border-[#22c55e]/30 bg-black/90 p-3 pr-4 shadow-xl backdrop-blur-xl transition-all duration-300 ${isExiting ? "-translate-y-full opacity-0" : "translate-y-0 opacity-100"
+        }`}
     >
       <div className="relative">
         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#22c55e]/20 text-lg font-bold text-[#22c55e]">
@@ -304,57 +366,57 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     if (!user?.id) return
 
     const fetchNotifications = async () => {
-        const { data, error } = await supabase
-            .from('notifications')
-            .select('*')
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: false })
-            .limit(20)
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(20)
 
-        if (data && !error) {
-            setNotifications(data.map(n => ({
-                id: n.id,
-                type: (n.type as NotificationType) || 'system',
-                title: n.title,
-                message: n.body,
-                timestamp: n.created_at ? formatDistanceToNow(new Date(n.created_at), { addSuffix: true, locale: zhCN }) : '刚刚',
-                read: n.is_read || false,
-                action: n.data?.territoryId ? {
-                    label: "查看",
-                    handler: () => {} // Logic to navigate
-                } : undefined
-            })))
-        }
+      if (data && !error) {
+        setNotifications(data.map(n => ({
+          id: n.id,
+          type: (n.type as NotificationType) || 'system',
+          title: n.title,
+          message: n.body || '',
+          timestamp: n.created_at ? formatDistanceToNow(new Date(n.created_at), { addSuffix: true, locale: zhCN }) : '刚刚',
+          read: n.is_read || false,
+          action: (n.data as any)?.territoryId ? {
+            label: "查看",
+            handler: () => { } // Logic to navigate
+          } : undefined
+        })))
+      }
     }
 
     fetchNotifications()
 
     // Realtime Subscription
     const channel = supabase.channel('notification-provider')
-        .on('postgres_changes', { 
-            event: 'INSERT', 
-            schema: 'public', 
-            table: 'notifications',
-            filter: `user_id=eq.${user.id}` 
-        }, (payload: any) => {
-            const n = payload.new
-            const newNotif: Notification = {
-                id: n.id,
-                type: (n.type as NotificationType) || 'system',
-                title: n.title,
-                message: n.body,
-                timestamp: '刚刚',
-                read: false,
-                action: n.data?.territoryId ? {
-                    label: "查看",
-                    handler: () => {}
-                } : undefined
-            }
-            
-            setNotifications(prev => [newNotif, ...prev])
-            setToasts(prev => [...prev, newNotif])
-        })
-        .subscribe()
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'notifications',
+        filter: `user_id=eq.${user.id}`
+      }, (payload: any) => {
+        const n = payload.new
+        const newNotif: Notification = {
+          id: n.id,
+          type: (n.type as NotificationType) || 'system',
+          title: n.title,
+          message: n.body || '',
+          timestamp: '刚刚',
+          read: false,
+          action: (n.data as any)?.territoryId ? {
+            label: "查看",
+            handler: () => { }
+          } : undefined
+        }
+
+        setNotifications(prev => [newNotif, ...prev])
+        setToasts(prev => [...prev, newNotif])
+      })
+      .subscribe()
 
     return () => { supabase.removeChannel(channel) }
   }, [user?.id])
@@ -385,23 +447,23 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       prev.map((n) => (n.id === id ? { ...n, read: true } : n))
     )
     if (user?.id) {
-        await supabase.from('notifications').update({ is_read: true }).eq('id', id)
+      await supabase.from('notifications').update({ is_read: true }).eq('id', id)
     }
   }
 
   const markAllAsRead = async () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
     if (user?.id) {
-        await supabase.from('notifications').update({ is_read: true }).eq('user_id', user.id)
+      await supabase.from('notifications').update({ is_read: true }).eq('user_id', user.id)
     }
   }
 
   const clearAll = async () => {
     setNotifications([])
     if (user?.id) {
-        // Soft delete or just clear local? Let's just clear local for UI
-        // Or actually delete from DB?
-        await supabase.from('notifications').delete().eq('user_id', user.id)
+      // Soft delete or just clear local? Let's just clear local for UI
+      // Or actually delete from DB?
+      await supabase.from('notifications').delete().eq('user_id', user.id)
     }
   }
 
@@ -442,26 +504,28 @@ export function useNotifications() {
 
 // Sample notifications for demo
 export const sampleNotifications: Notification[] = Array.from({ length: 5 }, (_, i) => {
-  const types: NotificationType[] = ["battle", "achievement", "challenge", "friend", "reward", "system"]
+  const types: NotificationType[] = ["battle", "achievement", "challenge", "friend", "reward", "system", "activity"]
   const type = types[i % types.length]
   const timeAgo = i === 0 ? "刚刚" : `${i * 5 + Math.floor(Math.random() * 5)}分钟前`
-  
-  const titles = {
+
+  const titles: Record<NotificationType, string> = {
     battle: "领地争夺战报",
     achievement: "解锁新成就",
     challenge: "收到挑战邀请",
     friend: "好友动态",
     reward: "系统奖励",
-    system: "系统公告"
+    system: "系统公告",
+    activity: "活动提醒",
   }
 
-  const messages = {
+  const messages: Record<NotificationType, string> = {
     battle: `你在 ${["中央广场", "科技园", "滨海公园", "体育中心"][i % 4]} 的领地遭遇攻击`,
     achievement: `恭喜达成里程碑：累计跑步 ${10 + i * 5} 公里`,
     challenge: `跑者 Player_${1000 + i} 向你发起了竞速挑战`,
     friend: `你的好友 Runner_${200 + i} 刚刚完成了一次 5km 跑`,
     reward: `完成每日任务，获得 ${50 + i * 10} 金币`,
-    system: "服务器将于今晚进行例行维护"
+    system: "服务器将于今晚进行例行维护",
+    activity: "你报名的活动即将开始，请做好准备！",
   }
 
   return {
@@ -471,9 +535,9 @@ export const sampleNotifications: Notification[] = Array.from({ length: 5 }, (_,
     message: messages[type],
     timestamp: timeAgo,
     read: i > 4, // 前5条未读
-    action: type === "challenge" || type === "battle" ? { 
-      label: type === "challenge" ? "查看" : "反击", 
-      handler: () => {} 
+    action: type === "challenge" || type === "battle" ? {
+      label: type === "challenge" ? "查看" : "反击",
+      handler: () => { }
     } : undefined,
   }
 })

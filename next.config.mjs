@@ -75,6 +75,9 @@ const withPWA = withPWAInit({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // 0. 服务端专用包，不参与 Webpack 客户端打包
+  serverExternalPackages: ['ioredis'],
+
   // 1. 忽略 TypeScript 类型错误
   typescript: {
     ignoreBuildErrors: true,
@@ -117,6 +120,24 @@ const nextConfig = {
 
   // 4. Turbopack 配置
   turbopack: {},
+
+  // 5. Webpack: ioredis 为纯服务端依赖，排除客户端打包
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        net: false,
+        tls: false,
+        dns: false,
+      }
+      // Only externalize ioredis on client — server uses serverExternalPackages
+      config.externals = [
+        ...(Array.isArray(config.externals) ? config.externals : config.externals ? [config.externals] : []),
+        'ioredis',
+      ]
+    }
+    return config
+  },
 };
 
 export default withSentryConfig(withPWA(nextConfig), {

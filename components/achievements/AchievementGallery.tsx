@@ -4,6 +4,7 @@ import React, { useState } from "react"
 import type { Achievement } from "@/types/city"
 import { useCity } from "@/contexts/CityContext"
 import { Lock, Check, Star, Trophy, Medal, Award, Crown, Diamond, Zap, Swords, MapPin, Footprints } from "lucide-react"
+import { AchievementShareButton } from "./AchievementShareButton"
 
 /**
  * 成就画廊组件
@@ -29,37 +30,37 @@ export function AchievementGallery({ achievements, onUnlock }: { achievements: A
   const filteredAchievements = achievements.filter((ach) => {
     // Category Filter
     if (activeCategory !== "all" && ach.type !== activeCategory) {
-       // Note: Achievement type from props might be 'milestone', 'collection' etc.
-       // We need to map them or ensure data consistency.
-       // Based on app/challenges/page.tsx:
-       // type: (['milestone', 'collection', 'dominance', 'social', 'special'].includes(a.type) ? a.type : 'special')
-       // This mapping seems inconsistent with categories: speed, conquest, exploration, endurance.
-       // Let's assume the 'type' field in Achievement interface matches these new categories OR we need to map them.
-       // If the backend data uses 'speed', 'conquest' etc., then we are good.
-       // But app/challenges/page.tsx maps them to milestone/collection...
-       // Wait, let's check the mapping in app/challenges/page.tsx again.
-       // It maps backend types to: milestone, collection, dominance, social, special.
-       // But BadgeGrid.tsx used: speed, conquest, exploration, endurance.
-       // If the user wants THESE categories, we should probably try to map them or use what's available.
-       // However, checking app/actions/badge.ts, the backend DB uses: speed, special, conquest, exploration, endurance.
-       // The `fetchUserAchievements` returns `type`.
-       // In `app/challenges/page.tsx`:
-       // type: (['milestone', 'collection', 'dominance', 'social', 'special'].includes(a.type) ? a.type : 'special')
-       // This forces types into the OLD categories! This is the problem.
-       // The page.tsx logic is overriding the actual types.
-       // But I cannot easily change page.tsx mapping without potentially breaking other things if they rely on it.
-       // However, if I want "Speed" tab to work, the achievement.type must be "speed".
-       // If page.tsx converts "speed" to "special" (fallback), then filtering by "speed" will return nothing.
-       
-       // Strategy: Relax the mapping in filteredAchievements or just check strict equality if I trust the data.
-       // Since I can't change the passed props easily here (they come from page.tsx), I should probably check if I can modify page.tsx mapping.
-       // But wait, I am editing AchievementGallery.tsx.
-       // If I can't change the input data, I can't filter correctly.
-       // Let's look at `app/challenges/page.tsx` again.
-       // It explicitly maps types. 
-       // If I want to fix this, I should update `app/challenges/page.tsx` to pass the correct types.
-       // But for now, let's just implement the filter and assume I'll fix the mapping in page.tsx too.
-       return ach.type === activeCategory
+      // Note: Achievement type from props might be 'milestone', 'collection' etc.
+      // We need to map them or ensure data consistency.
+      // Based on app/challenges/page.tsx:
+      // type: (['milestone', 'collection', 'dominance', 'social', 'special'].includes(a.type) ? a.type : 'special')
+      // This mapping seems inconsistent with categories: speed, conquest, exploration, endurance.
+      // Let's assume the 'type' field in Achievement interface matches these new categories OR we need to map them.
+      // If the backend data uses 'speed', 'conquest' etc., then we are good.
+      // But app/challenges/page.tsx maps them to milestone/collection...
+      // Wait, let's check the mapping in app/challenges/page.tsx again.
+      // It maps backend types to: milestone, collection, dominance, social, special.
+      // But BadgeGrid.tsx used: speed, conquest, exploration, endurance.
+      // If the user wants THESE categories, we should probably try to map them or use what's available.
+      // However, checking app/actions/badge.ts, the backend DB uses: speed, special, conquest, exploration, endurance.
+      // The `fetchUserAchievements` returns `type`.
+      // In `app/challenges/page.tsx`:
+      // type: (['milestone', 'collection', 'dominance', 'social', 'special'].includes(a.type) ? a.type : 'special')
+      // This forces types into the OLD categories! This is the problem.
+      // The page.tsx logic is overriding the actual types.
+      // But I cannot easily change page.tsx mapping without potentially breaking other things if they rely on it.
+      // However, if I want "Speed" tab to work, the achievement.type must be "speed".
+      // If page.tsx converts "speed" to "special" (fallback), then filtering by "speed" will return nothing.
+
+      // Strategy: Relax the mapping in filteredAchievements or just check strict equality if I trust the data.
+      // Since I can't change the passed props easily here (they come from page.tsx), I should probably check if I can modify page.tsx mapping.
+      // But wait, I am editing AchievementGallery.tsx.
+      // If I can't change the input data, I can't filter correctly.
+      // Let's look at `app/challenges/page.tsx` again.
+      // It explicitly maps types. 
+      // If I want to fix this, I should update `app/challenges/page.tsx` to pass the correct types.
+      // But for now, let's just implement the filter and assume I'll fix the mapping in page.tsx too.
+      return ach.type === activeCategory
     }
 
     if (filter === "locked") return !ach.isCompleted
@@ -200,15 +201,14 @@ export function AchievementGallery({ achievements, onUnlock }: { achievements: A
                 key={cat.id}
                 onClick={() => setActiveCategory(cat.id)}
                 style={isActive ? {
-                    backgroundColor: `${currentCity.theme.primary}15`,
-                    color: currentCity.theme.primary,
-                    borderColor: `${currentCity.theme.primary}30`
+                  backgroundColor: `${currentCity.theme.primary}15`,
+                  color: currentCity.theme.primary,
+                  borderColor: `${currentCity.theme.primary}30`
                 } : undefined}
-                className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all whitespace-nowrap border border-transparent ${
-                  isActive
+                className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all whitespace-nowrap border border-transparent ${isActive
                     ? "shadow-sm"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/20"
-                }`}
+                  }`}
               >
                 <Icon className="h-3.5 w-3.5" />
                 {cat.label}
@@ -228,14 +228,13 @@ export function AchievementGallery({ achievements, onUnlock }: { achievements: A
               key={filterOption.value}
               onClick={() => setFilter(filterOption.value)}
               style={filter === filterOption.value ? {
-                  backgroundColor: `${currentCity.theme.primary}15`,
-                  color: currentCity.theme.primary,
+                backgroundColor: `${currentCity.theme.primary}15`,
+                color: currentCity.theme.primary,
               } : undefined}
-              className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
-                filter === filterOption.value
+              className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all ${filter === filterOption.value
                   ? "font-bold"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted/20"
-              }`}
+                }`}
             >
               {filterOption.label}
             </button>
@@ -255,9 +254,8 @@ export function AchievementGallery({ achievements, onUnlock }: { achievements: A
             <button
               key={achievement.id}
               onClick={() => setSelectedAchievement(achievement)}
-              className={`relative p-4 rounded-xl border transition-all duration-300 ${
-                statusStyle.isGlowing ? "animate-pulse hover:scale-105" : "hover:scale-105 hover:border-white/30"
-              }`}
+              className={`relative p-4 rounded-xl border transition-all duration-300 ${statusStyle.isGlowing ? "animate-pulse hover:scale-105" : "hover:scale-105 hover:border-white/30"
+                }`}
               style={{
                 background: statusStyle.bg,
                 borderColor: statusStyle.border,
@@ -411,9 +409,8 @@ function AchievementDetailModal({ achievement, onClose }: { achievement: Achieve
             {/* 等级和图标 */}
             <div className="flex items-center justify-center mb-4">
               <div
-                className={`w-24 h-24 rounded-2xl flex flex-col items-center justify-center border-2 ${
-                  achievement.isCompleted ? "animate-pulse" : ""
-                }`}
+                className={`w-24 h-24 rounded-2xl flex flex-col items-center justify-center border-2 ${achievement.isCompleted ? "animate-pulse" : ""
+                  }`}
                 style={{
                   background: `linear-gradient(135deg, ${tierStyle.bg})`,
                   borderColor: achievement.isCompleted ? currentCity.theme.primary : tierStyle.border,
@@ -494,10 +491,13 @@ function AchievementDetailModal({ achievement, onClose }: { achievement: Achieve
               </div>
             )}
 
-            {/* 完成时间 */}
-            {achievement.isCompleted && achievement.completedAt && (
-              <div className="text-center">
-                <p className="text-xs text-white/50">解锁于 {achievement.completedAt}</p>
+            {/* 完成时间 + 分享 */}
+            {achievement.isCompleted && (
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-white/50">
+                  {achievement.completedAt ? `解锁于 ${achievement.completedAt}` : '已解锁'}
+                </p>
+                <AchievementShareButton achievement={achievement} />
               </div>
             )}
           </div>
