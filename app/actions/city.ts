@@ -1,4 +1,4 @@
-// 'use server'
+'use server'
 
 import { createClient } from '@/mock-supabase'
 import { cookies } from '@/mock-headers'
