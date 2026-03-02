@@ -265,7 +265,7 @@ export function RunningHUD({
       <AnimatePresence>
         {!isMapExpanded && (
           <motion.div
-            className="absolute inset-0 pointer-events-none flex flex-col justify-between z-40 pb-[calc(env(safe-area-inset-bottom)+20px)] pt-[calc(env(safe-area-inset-top)+60px)]"
+            className="absolute inset-0 pointer-events-none flex flex-col justify-between z-40 pb-[calc(env(safe-area-inset-bottom)+48px)] pt-[calc(env(safe-area-inset-top)+60px)]"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -319,7 +319,7 @@ export function RunningHUD({
             </div>
 
             {/* Main Stats Display (Center) */}
-            <div className="pointer-events-auto px-6 flex flex-col items-center justify-center flex-1 gap-8">
+            <div className="pointer-events-auto px-6 flex flex-col items-center justify-center flex-1 gap-12">
               {/* Distance (Main) */}
               <div className="flex flex-col items-center">
                 <AnimatedCounter value={distance} className="text-[6rem] font-black text-white leading-none drop-shadow-2xl italic" decimals={2} />
@@ -362,7 +362,7 @@ export function RunningHUD({
             </div>
 
             {/* Controls Bottom */}
-            <div className="pointer-events-auto px-8 w-full flex flex-col items-center gap-6 mb-8">
+            <div className="pointer-events-auto px-8 w-full flex flex-col items-center gap-6 mb-4">
 
               {/* Action Buttons: Lock, Map, Settings */}
               <div className="flex items-center gap-6 mb-2">
@@ -409,11 +409,19 @@ export function RunningHUD({
                         <Play className="w-8 h-8 fill-current ml-1" />
                       </motion.button>
 
-                      {/* Stop Button (Long Press handled in parent?) or simple click */}
+                      {/* Stop Button */}
                       <motion.button
                         whileTap={{ scale: 0.9 }}
-                        onClick={onStop}
-                        className="h-20 w-20 rounded-full bg-[#ef4444] flex items-center justify-center shadow-[0_0_30px_rgba(239,68,68,0.4)] border-4 border-[#b91c1c] text-white z-20"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          try {
+                            onStop();
+                          } catch (err) {
+                            console.error("onStop failed in HUD:", err);
+                          }
+                        }}
+                        className="h-20 w-20 rounded-full bg-[#ef4444] flex items-center justify-center shadow-[0_0_30px_rgba(239,68,68,0.4)] border-4 border-[#b91c1c] text-white z-20 pointer-events-auto"
                       >
                         <Square className="w-8 h-8 fill-current" />
                       </motion.button>
