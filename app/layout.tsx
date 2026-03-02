@@ -17,7 +17,7 @@ import { PendingRunUploadRetry } from '@/components/running/PendingRunUploadRetr
 import { GlobalLocationProvider } from '@/components/GlobalLocationProvider'
 import { PushNotificationBootstrapper } from '@/components/PushNotificationBootstrapper'
 import './globals.css'
-import { SpeedInsights } from 'speedinsights'; // 根据实际的路径来调整
+import { SpeedInsights } from '@vercel/speed-insights/next'
 
 const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
@@ -127,6 +127,7 @@ export default function RootLayout({
           </ErrorBoundary>
         </GlobalLocationProvider>
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   )
