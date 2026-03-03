@@ -1,6 +1,6 @@
 "use client"
 
-import { Map, Trophy, User, Target, Users, Gamepad2 } from "lucide-react"
+import { Map, Trophy, User, Target, Users, Gamepad2, Home } from "lucide-react"
 import { useGameStore, useGameActions } from "@/store/useGameStore"
 import { useEffect } from "react"
 import { motion } from "framer-motion"
@@ -10,7 +10,7 @@ import { getUnreadMessageCount } from "@/app/actions/message"
 
 
 
-export type TabType = "play" | "missions" | "social" | "profile" | "leaderboard" | "mode"
+export type TabType = "home" | "play" | "missions" | "social" | "profile" | "leaderboard" | "mode"
 
 interface BottomNavProps {
   activeTab: TabType
@@ -51,6 +51,7 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
   }, [setUnreadMessageCount, setUnreadSocialCount])
 
   const tabs = [
+    { id: "home" as const, icon: Home, label: "首页" },
     { id: "play" as const, icon: Map, label: "地图" },
     { id: "missions" as const, icon: Target, label: "任务" },
     { id: "social" as const, icon: Users, label: "社交", badge: unreadMessageCount + unreadSocialCount },

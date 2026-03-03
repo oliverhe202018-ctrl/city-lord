@@ -46,6 +46,8 @@ import { isNativePlatform, safeRequestGeolocationPermission, safeRequestLocalNot
 import { safeLoadAMap } from '@/lib/map/safe-amap';
 import { ImmersiveSkeleton } from "@/components/citylord/running/ImmersiveSkeleton";
 import { MapSkeleton } from "@/components/map/MapSkeleton";
+import { GameHomePage } from "@/components/citylord/home/GameHomePage";
+import type { RunMode } from "@/types/home";
 
 // --- Step 1: Memoize Heavy Components ---
 
@@ -87,7 +89,7 @@ interface GamePageContentProps {
   initialUser?: any
 }
 
-const VALID_TABS: TabType[] = ['play', 'missions', 'social', 'profile', 'leaderboard', 'mode'];
+const VALID_TABS: TabType[] = ['home', 'play', 'missions', 'social', 'profile', 'leaderboard', 'mode'];
 
 export function GamePageContent({
   initialMissions = [],
@@ -122,7 +124,7 @@ export function GamePageContent({
         return cached as TabType;
       }
     }
-    return 'play';
+    return 'home';
   })
 
   // Preload AMap SDK is removed - map components will load it on mount
@@ -683,6 +685,19 @@ export function GamePageContent({
 
       {hydrated && currentCity && (
         <main className="relative flex-1 overflow-hidden">
+          {activeTab === "home" && (
+            <div className="flex-1 w-full h-full bg-[#0f172a] z-40 relative">
+              <GameHomePage
+                onStartRun={(_mode: RunMode) => handleQuickNavigate('running')}
+                onNavigateToMap={(targetId) => {
+                  setActiveTab('play');
+                  // Future: highlight target on map by targetId
+                }}
+                onNavigateToTab={(tab) => setActiveTab(tab as TabType)}
+              />
+            </div>
+          )}
+
           {activeTab === "play" && (
             <div className="relative h-dvh w-full overflow-hidden">
               {/* Optimize: Hide main map when in immersive mode to prevent duplicate markers and save resources */}
