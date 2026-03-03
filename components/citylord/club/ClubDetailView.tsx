@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, useRef } from 'react'
+import { useEffect, useMemo, useState, useRef, lazy, Suspense } from 'react'
 import useSWR from 'swr'
 import { createClient } from '@/lib/supabase/client'
 
@@ -53,11 +53,15 @@ const fetchTopClubsByArea = async (limit?: number, province?: string) => {
 
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Trophy, Map, Users, Footprints, Loader2 } from 'lucide-react'
+import { Trophy, Map, Users, Footprints, Loader2, MessageCircle, UserPlus, Award, BarChart3 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useGameStore } from '@/store/useGameStore'
 import { toast } from 'sonner'
 import { isNativePlatform, safeKeyboardAddListener } from "@/lib/capacitor/safe-plugins"
+
+// Lazy-load heavy sub-views
+const ClubChatView = lazy(() => import('./chat/ClubChatView').then(m => ({ default: m.ClubChatView })))
+
 
 
 type ClubDetailInfo = {
@@ -129,6 +133,7 @@ export function ClubDetailView({
 }) {
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
+  const currentUserId = useGameStore((s) => s.userId)
 
   // Local state to override Props for immediate UI transition
   const [hasJoined, setHasJoined] = useState(false);
@@ -466,12 +471,72 @@ export function ClubDetailView({
         {/* ✅ 关键修改：已加入时的 Tabs 内容区域 */}
         {effectiveIsMember ? (
           <div className="px-6 mt-6 pb-4">
-            <Tabs defaultValue="members" className="w-full">
+            {/* ── Quick-action row: social feature entries ── */}
+            <div className="grid grid-cols-4 gap-2 mb-5">
+              <button
+                onClick={() => router.push('/social?tab=friends')}
+                className="flex flex-col items-center gap-1.5 rounded-xl border border-border bg-muted/30 py-3 transition-all hover:bg-muted/50 active:scale-95"
+              >
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-500/15">
+                  <UserPlus className="h-4 w-4 text-blue-400" />
+                </div>
+                <span className="text-[10px] font-medium text-muted-foreground">邀请好友</span>
+              </button>
+              <button
+                onClick={() => router.push('/social?tab=achievements')}
+                className="flex flex-col items-center gap-1.5 rounded-xl border border-border bg-muted/30 py-3 transition-all hover:bg-muted/50 active:scale-95"
+              >
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-500/15">
+                  <Award className="h-4 w-4 text-amber-400" />
+                </div>
+                <span className="text-[10px] font-medium text-muted-foreground">成就墙</span>
+              </button>
+              <button
+                onClick={() => router.push('/social?tab=leaderboard')}
+                className="flex flex-col items-center gap-1.5 rounded-xl border border-border bg-muted/30 py-3 transition-all hover:bg-muted/50 active:scale-95"
+              >
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-500/15">
+                  <BarChart3 className="h-4 w-4 text-emerald-400" />
+                </div>
+                <span className="text-[10px] font-medium text-muted-foreground">排行榜</span>
+              </button>
+              <button
+                onClick={() => router.push('/social?tab=territory')}
+                className="flex flex-col items-center gap-1.5 rounded-xl border border-border bg-muted/30 py-3 transition-all hover:bg-muted/50 active:scale-95"
+              >
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-purple-500/15">
+                  <Map className="h-4 w-4 text-purple-400" />
+                </div>
+                <span className="text-[10px] font-medium text-muted-foreground">领地争夺</span>
+              </button>
+            </div>
+
+            <Tabs defaultValue="chat" className="w-full">
               <TabsList className="w-full bg-muted border border-border">
+                <TabsTrigger value="chat" className="flex-1 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">
+                  <MessageCircle className="h-3 w-3 mr-1" />聊天
+                </TabsTrigger>
                 <TabsTrigger value="activity" className="flex-1 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">动态</TabsTrigger>
                 <TabsTrigger value="members" className="flex-1 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">成员</TabsTrigger>
                 <TabsTrigger value="data" className="flex-1 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">数据</TabsTrigger>
               </TabsList>
+
+              {/* Club Chat — lazy loaded */}
+              <TabsContent value="chat" className="mt-4">
+                <div className="rounded-2xl border border-border bg-muted/30 overflow-hidden" style={{ minHeight: '300px' }}>
+                  <Suspense fallback={
+                    <div className="flex items-center justify-center py-16">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                  }>
+                    {currentUserId ? (
+                      <ClubChatView clubId={clubId} currentUserId={currentUserId} />
+                    ) : (
+                      <div className="py-8 text-center text-muted-foreground text-sm">请先登录以使用聊天功能</div>
+                    )}
+                  </Suspense>
+                </div>
+              </TabsContent>
 
               <TabsContent value="activity" className="mt-4">
                 <div className="rounded-2xl border border-border bg-muted/30 p-6 text-center text-muted-foreground">
@@ -492,7 +557,6 @@ export function ClubDetailView({
                           onClick={() => router.push(`/profile/user/${member.id}`)}
                           className="flex items-center justify-between rounded-2xl border border-border bg-muted/30 px-4 py-3 min-h-[72px] cursor-pointer hover:bg-muted/50 transition-colors"
                         >
-                          {/* ... 原有成员卡片内容 ... */}
                           <div className="flex items-center gap-3">
                             <div className="h-12 w-12 overflow-hidden rounded-full bg-muted">
                               {member.avatarUrl ? (
@@ -540,7 +604,6 @@ export function ClubDetailView({
               </TabsContent>
 
               <TabsContent value="data" className="mt-4">
-                {/* ... 原有数据内容 ... */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-2xl border border-border bg-muted/30 p-4">
                     <div className="text-xs text-muted-foreground">总里程</div>
