@@ -1,12 +1,9 @@
 import { NextResponse } from 'next/server'
 import * as Sentry from '@sentry/nextjs'
-import { createClient } from '@/lib/supabase/server'
 import { getFeedTimeline } from '@/app/actions/social-hub'
 
 export async function GET(request: Request) {
     try {
-        const supabase = await createClient()
-
         const { searchParams } = new URL(request.url)
         const filter = (searchParams.get('filter') as 'GLOBAL' | 'FRIENDS' | 'USER') || 'FRIENDS'
         const limit = parseInt(searchParams.get('limit') || '10')

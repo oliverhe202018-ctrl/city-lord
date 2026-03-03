@@ -205,10 +205,6 @@ export async function getFeedTimeline(input: FeedQueryInput): Promise<FeedTimeli
                 // 排序稳定性优先：在相同精确到毫秒的时间戳下，使用 id: 'desc' 作为兜底，保证游标稳定
                 // 避免在默认 Feed 场景引入 likes/comments 这类动态 _count 排序导致 cursor 乱序甚至漏数据
                 orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
-                // @ts-expect-error — Prisma known bug: cursor pagination with
-                // relationLoadStrategy:'join' incorrectly infers type as 'never'.
-                // Runtime behavior is correct. Track: github.com/prisma/prisma/issues/22049
-                relationLoadStrategy: 'join',
                 include: {
                     user: { select: { id: true, nickname: true, avatar_url: true, level: true } },
                     comments: {
