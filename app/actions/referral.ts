@@ -1,7 +1,8 @@
-// 'use server'
+'use server'
 
-import { createClient } from '@/mock-supabase'
-import { cookies } from '@/mock-headers'
+import { createClient } from '@/lib/supabase/server'
+import { cookies } from 'next/headers'
+import { prisma } from '@/lib/prisma'
 
 export type InvitedUser = {
   id: string
@@ -10,64 +11,87 @@ export type InvitedUser = {
   joined_at: string
 }
 
+export type RoomInfo = {
+  id: string
+  name: string
+}
+
 export type ReferralData = {
   referralCode: string
   invitedCount: number
   invitedUsers: InvitedUser[]
   milestoneProgress: number
   milestoneTarget: number
+  milestoneRewardLabel: string
+  rooms: RoomInfo[]
 }
 
 export async function getReferralData(): Promise<{ success: boolean; data?: ReferralData; error?: string }> {
   try {
-    const supabase = await createClient()
-    
+    const cookieStore = await cookies()
+    const supabase = await createClient(cookieStore)
+
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { success: false, error: '未登录' }
 
-    // 1. Get current user's referral code
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('referral_code')
-      .eq('id', user.id)
-      .single()
+    // 1. Get current user's profile and referral code
+    const profile = await prisma.profiles.findUnique({
+      where: { id: user.id },
+      select: { referral_code: true }
+    })
 
-    if (profileError || !profile) {
-      return { success: false, error: '无法获取推广码' }
+    if (!profile) {
+      return { success: false, error: '无法获取用户主页数据' }
+    }
+
+    let referralCode = profile.referral_code
+    if (!referralCode) {
+      // Auto generate a robust code locally and update profile if missing
+      referralCode = user.id.slice(0, 8).toUpperCase()
+      await prisma.profiles.update({
+        where: { id: user.id },
+        data: { referral_code: referralCode }
+      })
     }
 
     // 2. Get invited users
-    const { data: invitees, error: inviteesError } = await supabase
-      .from('profiles')
-      .select('id, nickname, avatar_url, created_at')
-      .eq('referrer_id', user.id)
-      .order('created_at', { ascending: false })
+    const invitees = await prisma.profiles.findMany({
+      where: { referrer_id: user.id },
+      orderBy: { created_at: 'desc' },
+      select: { id: true, nickname: true, avatar_url: true, created_at: true }
+    })
 
-    if (inviteesError) {
-      console.error('Error fetching invitees:', inviteesError)
-      return { success: false, error: '获取邀请列表失败' }
-    }
-
-    const invitedUsers: InvitedUser[] = invitees.map((p: any) => ({
+    const invitedUsers: InvitedUser[] = invitees.map(p => ({
       id: p.id,
       nickname: p.nickname || 'Unknown',
       avatar_url: p.avatar_url,
-      joined_at: p.created_at
+      joined_at: p.created_at.toISOString()
     }))
 
     const invitedCount = invitedUsers.length
-    
-    // Simple logic for milestone: Next target is next multiple of 3
+
+    // 3. Get user's hosted rooms
+    const hostedRooms = await prisma.rooms.findMany({
+      where: { host_id: user.id, status: { not: 'closed' } },
+      select: { id: true, name: true }
+    })
+
+    const rooms: RoomInfo[] = hostedRooms.map(r => ({ id: r.id, name: r.name }))
+
+    // Simple logic for milestone
     const milestoneTarget = Math.ceil((invitedCount + 1) / 3) * 3
+    const milestoneRewardLabel = `获得 ${milestoneTarget * 100} 绿宝石`
 
     return {
       success: true,
       data: {
-        referralCode: profile.referral_code,
+        referralCode,
         invitedCount,
         invitedUsers,
         milestoneProgress: invitedCount,
-        milestoneTarget
+        milestoneTarget,
+        milestoneRewardLabel,
+        rooms
       }
     }
 
@@ -78,18 +102,16 @@ export async function getReferralData(): Promise<{ success: boolean; data?: Refe
 }
 
 export async function getReferrerProfile(referralCode: string) {
-  // Fetch referrer profile by code
   try {
     const cookieStore = await cookies()
-    const supabase = createClient(cookieStore)
+    const supabase = await createClient(cookieStore)
 
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .select('nickname, avatar_url')
-      .eq('referral_code', referralCode)
-      .single()
+    const profile = await prisma.profiles.findUnique({
+      where: { referral_code: referralCode },
+      select: { nickname: true, avatar_url: true }
+    })
 
-    if (error || !profile) return null
+    if (!profile) return null
 
     return {
       nickname: profile.nickname,

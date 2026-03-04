@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo, useCallback, memo, lazy, Suspense } from 'react';
+import Link from 'next/link';
 import { MessageSquarePlus } from 'lucide-react';
 import { useHomeData } from '@/hooks/useHomeData';
 import { HomeTopBar } from './HomeTopBar';
@@ -9,7 +10,6 @@ import { HomeSkeleton } from './HomeSkeleton';
 import { NearbyTargetsCarousel } from './NearbyTargetsCarousel';
 import { BattleFeedMini } from './BattleFeedMini';
 import { DailyProgressBars } from './DailyProgressBars';
-import { FeedbackDialog } from './FeedbackDialog';
 import type { RunMode, Target, BattleEvent } from '@/types/home';
 
 // Only lazy-load heavy below-fold component (~14KB)
@@ -38,7 +38,6 @@ interface GameHomePageProps {
 
 function GameHomePageInner({ onStartRun, onNavigateToMap, onNavigateToTab }: GameHomePageProps) {
     const { data, isLoading } = useHomeData();
-    const [feedbackOpen, setFeedbackOpen] = useState(false);
 
     // Check if there are warning events — affects section ordering
     const hasWarningEvents = useMemo(
@@ -175,21 +174,18 @@ function GameHomePageInner({ onStartRun, onNavigateToMap, onNavigateToTab }: Gam
 
                 {/* 6) Feedback button */}
                 <div className="mt-8 mb-4 flex justify-center px-4">
-                    <button
-                        onClick={() => setFeedbackOpen(true)}
+                    <Link
+                        href="/feedback"
                         className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-foreground/40 transition-all hover:border-primary/30 hover:bg-primary/5 hover:text-foreground/60 active:scale-95"
                     >
                         <MessageSquarePlus className="h-3.5 w-3.5" />
                         问题反馈 · 体验建议
-                    </button>
+                    </Link>
                 </div>
                 <p className="text-center text-[10px] text-foreground/20 pb-4">
                     您的建议帮助我们改进游戏体验！
                 </p>
             </div>
-
-            {/* Feedback Dialog */}
-            <FeedbackDialog open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
         </div>
     );
 }

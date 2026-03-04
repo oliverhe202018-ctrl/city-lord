@@ -2,13 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  ChevronLeft, 
-  Copy, 
-  Share2, 
-  Users, 
-  ChevronRight, 
-  Gift, 
+import {
+  ChevronLeft,
+  Copy,
+  Share2,
+  Users,
+  ChevronRight,
+  Gift,
   Link as LinkIcon,
   Shield,
   Loader2
@@ -20,18 +20,26 @@ import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useGameStore } from '@/store/useGameStore';
-import { getReferralData, ReferralData } from '@/app/actions/referral';
+import { getReferralData, ReferralData, RoomInfo } from '@/app/actions/referral';
 import { cn } from '@/lib/utils';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 export default function ReferralPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<ReferralData | null>(null);
-  
+
   // Toggles
   const [linkLobby, setLinkLobby] = useState(false);
   const [linkClub, setLinkClub] = useState(false);
-  
+  const [selectedRoomId, setSelectedRoomId] = useState<string>('');
+
   const { currentRoom, myClub } = useGameStore();
 
   useEffect(() => {
@@ -40,6 +48,18 @@ export default function ReferralPage() {
         const result = await getReferralData();
         if (result.success && result.data) {
           setData(result.data);
+
+          // Set default selected room if user has rooms
+          if (result.data.rooms && result.data.rooms.length > 0) {
+            setSelectedRoomId(result.data.rooms[0].id);
+          } else if (currentRoom?.id) {
+            // Fallback to active room if no hosted rooms but has an active one
+            setData(prev => prev ? {
+              ...prev,
+              rooms: [{ id: currentRoom.id, name: currentRoom.name }]
+            } : null);
+            setSelectedRoomId(currentRoom.id);
+          }
         } else {
           toast.error(result.error || '加载失败');
         }
@@ -50,25 +70,23 @@ export default function ReferralPage() {
       }
     }
     loadData();
-  }, []);
+  }, [currentRoom]);
 
   // Generate Link
   const getInviteLink = () => {
     if (!data?.referralCode) return '';
-    
-    // In a real app, use window.location.origin
-    // For now, assuming current domain or a hardcoded one
+
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     let link = `${origin}/login?r=${data.referralCode}`;
-    
-    if (linkLobby && currentRoom?.id) {
-      link += `&lobby=${currentRoom.id}`;
+
+    if (linkLobby && selectedRoomId) {
+      link += `&lobby=${selectedRoomId}`;
     }
-    
+
     if (linkClub && myClub?.id) {
       link += `&club=${myClub.id}`;
     }
-    
+
     return link;
   };
 
@@ -104,6 +122,15 @@ export default function ReferralPage() {
     }
   };
 
+  const handleBack = () => {
+    // Avoid full reload when returning to profile
+    if (window.history.length > 2) {
+      router.back();
+    } else {
+      router.push('/profile');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center text-white">
@@ -116,10 +143,10 @@ export default function ReferralPage() {
     <div className="min-h-screen bg-black text-white pb-20">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-md p-4 flex items-center gap-4 border-b border-white/10">
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          onClick={() => router.back()}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleBack}
           className="hover:bg-white/10"
         >
           <ChevronLeft className="w-6 h-6" />
@@ -133,24 +160,24 @@ export default function ReferralPage() {
           {/* Decorative circles */}
           <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10 blur-2xl" />
           <div className="absolute bottom-0 left-0 w-24 h-24 bg-black/5 rounded-full -ml-5 -mb-5 blur-xl" />
-          
+
           <div className="relative z-10">
             <h2 className="text-white/90 text-sm font-medium mb-1">您的专属推广码</h2>
             <div className="flex items-center justify-between gap-4">
               <span className="text-4xl font-bold tracking-wider font-mono text-white">
                 {data?.referralCode || '------'}
               </span>
-              <Button 
-                size="icon" 
-                variant="ghost" 
+              <Button
+                size="icon"
+                variant="ghost"
                 className="hover:bg-white/20 text-white rounded-full"
                 onClick={handleCopyCode}
               >
                 <Copy className="w-5 h-5" />
               </Button>
             </div>
-            
-            <div 
+
+            <div
               className="mt-6 flex items-center gap-2 text-xs text-white/80 cursor-pointer hover:text-white transition-colors"
               onClick={() => toast.info('功能暂未开放')}
             >
@@ -163,30 +190,50 @@ export default function ReferralPage() {
         {/* Toggles */}
         <div className="space-y-4">
           <h3 className="text-sm font-medium text-muted-foreground ml-1">自定义邀请</h3>
-          
-          <div className="bg-zinc-900/50 border border-white/5 rounded-xl overflow-hidden">
-            <div className="p-4 flex items-center justify-between border-b border-white/5">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-500/10 rounded-lg text-blue-400">
-                  <LinkIcon className="w-4 h-4" />
-                </div>
-                <div>
-                  <div className="text-sm font-medium">关联私人房间</div>
-                  <div className="text-xs text-muted-foreground">
-                    {currentRoom ? `当前: ${currentRoom.name}` : '未加入房间'}
+
+          <div className="bg-zinc-900/50 border border-white/5 rounded-xl overflow-hidden flex flex-col">
+            <div className="p-4 flex flex-col gap-3 border-b border-white/5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-500/10 rounded-lg text-blue-400">
+                    <LinkIcon className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium">关联私人房间</div>
+                    <div className="text-xs text-muted-foreground">
+                      {data?.rooms && data.rooms.length > 0 ? `已拥有 ${data.rooms.length} 个房间` : '暂无可用房间'}
+                    </div>
                   </div>
                 </div>
+                <Switch
+                  checked={linkLobby}
+                  onCheckedChange={(v) => {
+                    if (v && (!data?.rooms || data.rooms.length === 0)) {
+                      toast.error('您目前没有可关联的房间');
+                      return;
+                    }
+                    setLinkLobby(v);
+                  }}
+                />
               </div>
-              <Switch 
-                checked={linkLobby} 
-                onCheckedChange={(v) => {
-                  if (v && !currentRoom) {
-                    toast.error('请先加入一个房间');
-                    return;
-                  }
-                  setLinkLobby(v);
-                }}
-              />
+
+              {/* Room Selection Dropdown */}
+              {linkLobby && data?.rooms && data.rooms.length > 0 && (
+                <div className="ml-11 mt-1">
+                  <Select value={selectedRoomId} onValueChange={setSelectedRoomId}>
+                    <SelectTrigger className="w-full bg-black/50 border-white/10 h-8 text-xs">
+                      <SelectValue placeholder="选择关联的房间" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-zinc-900 border-white/10 text-white">
+                      {data.rooms.map((room) => (
+                        <SelectItem key={room.id} value={room.id} className="text-xs focus:bg-white/10">
+                          {room.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
 
             <div className="p-4 flex items-center justify-between">
@@ -201,8 +248,8 @@ export default function ReferralPage() {
                   </div>
                 </div>
               </div>
-              <Switch 
-                checked={linkClub} 
+              <Switch
+                checked={linkClub}
                 onCheckedChange={(v) => {
                   if (v && !myClub) {
                     toast.error('请先加入一个俱乐部');
@@ -220,24 +267,24 @@ export default function ReferralPage() {
           <div className="space-y-2">
             <label className="text-xs text-muted-foreground">邀请链接</label>
             <div className="relative">
-              <Input 
-                readOnly 
-                value={inviteLink} 
+              <Input
+                readOnly
+                value={inviteLink}
                 className="bg-black/50 border-white/10 pr-10 font-mono text-xs text-muted-foreground"
               />
             </div>
           </div>
-          
+
           <div className="grid grid-cols-2 gap-3">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               className="border-white/10 hover:bg-white/5"
               onClick={handleCopyLink}
             >
               <Copy className="w-4 h-4 mr-2" />
               复制链接
             </Button>
-            <Button 
+            <Button
               className="bg-white text-black hover:bg-white/90"
               onClick={handleShare}
             >
@@ -248,35 +295,35 @@ export default function ReferralPage() {
         </div>
 
         {/* Milestone */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium flex items-center gap-2">
-              <Gift className="w-4 h-4 text-orange-500" />
-              里程碑奖励
-            </h3>
-            <span className="text-xs text-muted-foreground">
-              已邀请 {data?.invitedCount || 0} 人
-            </span>
-          </div>
-          
-          <div className="bg-zinc-900/50 border border-white/5 rounded-xl p-4 space-y-3">
-            <div className="flex justify-between text-xs mb-1">
-              <span className="text-muted-foreground">再邀请 {Math.max(0, (data?.milestoneTarget || 3) - (data?.invitedCount || 0))} 位好友即可解锁...</span>
-              <span className="text-white font-medium">{data?.invitedCount}/{data?.milestoneTarget}</span>
+        {data && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium flex items-center gap-2">
+                <Gift className="w-4 h-4 text-orange-500" />
+                里程碑奖励
+              </h3>
+              <span className="text-xs text-muted-foreground">
+                已邀请 {data.invitedCount || 0} 人
+              </span>
             </div>
-            <Progress 
-              value={Math.min(100, ((data?.invitedCount || 0) / (data?.milestoneTarget || 1)) * 100)} 
-              className="h-2 bg-white/10" 
-              // Custom indicator color would be done via class or inline style if component supports it,
-              // assuming default shadcn progress uses primary color.
-            />
+
+            <div className="bg-zinc-900/50 border border-white/5 rounded-xl p-4 space-y-3">
+              <div className="flex justify-between text-xs mb-1">
+                <span className="text-muted-foreground">再邀请 {Math.max(0, data.milestoneTarget - data.invitedCount)} 位好友即可 {data.milestoneRewardLabel}</span>
+                <span className="text-white font-medium">{data.invitedCount}/{data.milestoneTarget}</span>
+              </div>
+              <Progress
+                value={Math.min(100, (data.invitedCount / data.milestoneTarget) * 100)}
+                className="h-2 bg-white/10"
+              />
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Invite List */}
         <div className="space-y-4">
           <h3 className="text-sm font-medium text-muted-foreground ml-1">已邀请好友</h3>
-          
+
           <div className="bg-zinc-900/30 rounded-xl border border-white/5 divide-y divide-white/5">
             {data?.invitedUsers && data.invitedUsers.length > 0 ? (
               data.invitedUsers.map((user) => (

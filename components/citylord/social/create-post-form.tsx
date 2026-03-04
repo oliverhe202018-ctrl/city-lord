@@ -144,6 +144,10 @@ export function CreatePostForm({ onSuccess }: { onSuccess?: (post: any) => void 
                 })
 
                 if (res.error) {
+                    if (res.error.code === 429) {
+                        toast.info(res.error.message)
+                        return
+                    }
                     throw new Error(res.error.message)
                 }
 
