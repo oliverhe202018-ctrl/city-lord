@@ -1,6 +1,15 @@
 package com.xiangfei.citylord;
 
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.os.Build;
 import android.util.Log;
+
+import androidx.core.content.ContextCompat;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+
 import com.amap.api.location.AMapLocation;
 import com.amap.api.location.AMapLocationClient;
 import com.amap.api.location.AMapLocationClientOption;
@@ -27,6 +36,11 @@ public class AMapLocationPlugin extends Plugin {
     private AMapLocationClient watchClient = null;
     private boolean privacyShown = false;
     private boolean privacyAgreed = false;
+
+    // Foreground service tracking state
+    private boolean isTracking = false;
+    private BroadcastReceiver trackingLocationReceiver = null;
+    private BroadcastReceiver trackingErrorReceiver = null;
 
     // -----------------------------------------------------------------------
     // Plugin lifecycle
@@ -272,6 +286,7 @@ public class AMapLocationPlugin extends Plugin {
     protected void handleOnDestroy() {
         Log.i(TAG, "handleOnDestroy — cleaning up all clients");
         stopWatchInternal();
+        stopTrackingInternal();
         if (onceClient != null) {
             try {
                 onceClient.stopLocation();
@@ -333,6 +348,156 @@ public class AMapLocationPlugin extends Plugin {
 
         Log.i(TAG, "forceDestroy complete — all clients destroyed, TS notified with FORCE_DESTROY + FORCE_DESTROY_CONFIRMED");
         call.resolve();
+    }
+
+    // -----------------------------------------------------------------------
+    // startTracking / stopTracking — Foreground Service 定位
+    // -----------------------------------------------------------------------
+
+    /**
+     * 启动前台定位 Service + 注册 BroadcastReceiver 接收定位更新。
+     * 定位在 Service 内运行，锁屏/后台/黑屏均可持续。
+     *
+     * Options:
+     *  - notificationTitle: 通知标题（默认 "City Lord"）
+     *  - notificationBody:  通知内容（默认 "正在追踪您的位置…"）
+     */
+    @PluginMethod()
+    public void startTracking(PluginCall call) {
+        if (isTracking) {
+            Log.w(TAG, "startTracking: already tracking, ignoring");
+            call.resolve();
+            return;
+        }
+
+        Log.i(TAG, "startTracking — launching foreground service");
+
+        // 1. Register BroadcastReceivers to relay Service → JS
+        registerTrackingReceivers();
+
+        // 2. Start foreground service
+        Intent serviceIntent = new Intent(getContext(), LocationForegroundService.class);
+
+        String title = call.getString("notificationTitle", "City Lord");
+        String body = call.getString("notificationBody", "正在追踪您的位置…");
+        serviceIntent.putExtra(LocationForegroundService.EXTRA_NOTIFICATION_TITLE, title);
+        serviceIntent.putExtra(LocationForegroundService.EXTRA_NOTIFICATION_BODY, body);
+
+        // Android O+ requires startForegroundService
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            getContext().startForegroundService(serviceIntent);
+        } else {
+            getContext().startService(serviceIntent);
+        }
+
+        isTracking = true;
+        Log.i(TAG, "startTracking — foreground service started, receivers registered");
+        call.resolve();
+    }
+
+    /**
+     * 停止前台定位 Service + 注销 BroadcastReceivers。
+     * 完整清理所有资源，通知栏常驻通知自动移除。
+     */
+    @PluginMethod()
+    public void stopTracking(PluginCall call) {
+        Log.i(TAG, "stopTracking called");
+        stopTrackingInternal();
+        call.resolve();
+    }
+
+    private void stopTrackingInternal() {
+        if (!isTracking) {
+            Log.d(TAG, "stopTrackingInternal: not tracking, skipping");
+            return;
+        }
+
+        // 1. Stop foreground service
+        try {
+            Intent serviceIntent = new Intent(getContext(), LocationForegroundService.class);
+            getContext().stopService(serviceIntent);
+            Log.i(TAG, "Foreground service stopped");
+        } catch (Exception e) {
+            Log.e(TAG, "Error stopping foreground service: " + e.getMessage(), e);
+        }
+
+        // 2. Unregister receivers
+        unregisterTrackingReceivers();
+
+        isTracking = false;
+        Log.i(TAG, "stopTrackingInternal complete — service stopped, receivers unregistered");
+    }
+
+    private void registerTrackingReceivers() {
+        LocalBroadcastManager lbm = LocalBroadcastManager.getInstance(getContext());
+
+        // Location update receiver
+        trackingLocationReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                JSObject result = new JSObject();
+                result.put("lat", intent.getDoubleExtra(LocationForegroundService.EXTRA_LAT, 0));
+                result.put("lng", intent.getDoubleExtra(LocationForegroundService.EXTRA_LNG, 0));
+                result.put("accuracy", intent.getFloatExtra(LocationForegroundService.EXTRA_ACCURACY, 0));
+                result.put("bearing", intent.getFloatExtra(LocationForegroundService.EXTRA_BEARING, 0));
+                result.put("speed", intent.getFloatExtra(LocationForegroundService.EXTRA_SPEED, 0));
+                result.put("timestamp", intent.getLongExtra(LocationForegroundService.EXTRA_TIMESTAMP, 0));
+                result.put("coordSystem", "gcj02");
+                result.put("locationType", intent.getIntExtra(LocationForegroundService.EXTRA_LOCATION_TYPE, 0));
+
+                String provider = intent.getStringExtra(LocationForegroundService.EXTRA_PROVIDER);
+                if (provider != null && !provider.isEmpty()) {
+                    result.put("provider", provider);
+                }
+                String address = intent.getStringExtra(LocationForegroundService.EXTRA_ADDRESS);
+                if (address != null && !address.isEmpty()) {
+                    result.put("address", address);
+                }
+
+                notifyListeners("locationUpdate", result);
+            }
+        };
+        lbm.registerReceiver(trackingLocationReceiver,
+                new IntentFilter(LocationForegroundService.ACTION_LOCATION_UPDATE));
+
+        // Error receiver
+        trackingErrorReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                JSObject error = new JSObject();
+                error.put("code", intent.getIntExtra(LocationForegroundService.EXTRA_ERROR_CODE, -1));
+                error.put("message", intent.getStringExtra(LocationForegroundService.EXTRA_ERROR_MSG));
+                notifyListeners("locationError", error);
+            }
+        };
+        lbm.registerReceiver(trackingErrorReceiver,
+                new IntentFilter(LocationForegroundService.ACTION_LOCATION_ERROR));
+
+        Log.i(TAG, "Tracking BroadcastReceivers registered");
+    }
+
+    private void unregisterTrackingReceivers() {
+        LocalBroadcastManager lbm = LocalBroadcastManager.getInstance(getContext());
+
+        if (trackingLocationReceiver != null) {
+            try {
+                lbm.unregisterReceiver(trackingLocationReceiver);
+            } catch (Exception e) {
+                Log.w(TAG, "Unregister location receiver error: " + e.getMessage());
+            }
+            trackingLocationReceiver = null;
+        }
+
+        if (trackingErrorReceiver != null) {
+            try {
+                lbm.unregisterReceiver(trackingErrorReceiver);
+            } catch (Exception e) {
+                Log.w(TAG, "Unregister error receiver error: " + e.getMessage());
+            }
+            trackingErrorReceiver = null;
+        }
+
+        Log.i(TAG, "Tracking BroadcastReceivers unregistered");
     }
 
     // -----------------------------------------------------------------------

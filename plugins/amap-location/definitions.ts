@@ -129,29 +129,23 @@ export interface AMapLocationPlugin {
      */
     forceDestroy(): Promise<void>;
 
-    // ---- 后台定位 (TODO: 待 Foreground Service 实现) ----
+    // ---- 前台 Service 后台定位 ----
     /**
-     * TODO: 启动后台定位（需要 Foreground Service 通知）
-     * 实现计划：
-     *  - 使用 @capacitor-community/foreground-service 插件
-     *  - 启动前台通知，保持 GPS 活跃
-     *  - 跑步页面进入后台时自动调用
-     *  - 返回前台时自动切换回常规模式
+     * 启动前台定位 Service，确保锁屏/切后台/黑屏后持续获取高精度定位。
+     * 会在通知栏显示常驻通知。
      *
-     * @param options.title 通知标题
-     * @param options.body  通知内容
-     * @param options.icon  通知图标资源名
+     * @param options.notificationTitle 通知标题（默认 "City Lord"）
+     * @param options.notificationBody  通知内容（默认 "正在追踪您的位置…"）
      */
-    // enableBackgroundLocation?(options: {
-    //     title: string;
-    //     body: string;
-    //     icon?: string;
-    // }): Promise<void>;
+    startTracking(options?: {
+        notificationTitle?: string;
+        notificationBody?: string;
+    }): Promise<void>;
 
     /**
-     * TODO: 停止后台定位，移除前台通知
+     * 停止前台定位 Service，移除常驻通知，释放所有定位资源。
      */
-    // disableBackgroundLocation?(): Promise<void>;
+    stopTracking(): Promise<void>;
 }
 
 // ---------------------------------------------------------------------------

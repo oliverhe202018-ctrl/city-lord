@@ -31,6 +31,12 @@
         <!-- 高德定位 SDK Service -->
         <service android:name="com.amap.api.location.APSService" />
 
+        <!-- 前台定位 Service（跑步后台持续定位） -->
+        <service
+            android:name=".LocationForegroundService"
+            android:foregroundServiceType="location"
+            android:exported="false" />
+
         <!-- 高德 Android 原生 API Key -->
         <meta-data
             android:name="com.amap.api.v2.apikey"

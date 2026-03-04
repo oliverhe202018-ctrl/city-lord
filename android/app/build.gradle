@@ -72,6 +72,8 @@ dependencies {
     implementation project(':capacitor-cordova-android-plugins')
     // 高德定位 SDK (GCJ-02 native)
     implementation 'com.amap.api:location:6.4.9'
+    // LocalBroadcastManager — Service ↔ Plugin 通信
+    implementation 'androidx.localbroadcastmanager:localbroadcastmanager:1.1.0'
 }
 
 configurations.all {
