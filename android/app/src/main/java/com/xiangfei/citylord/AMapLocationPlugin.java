@@ -156,7 +156,7 @@ public class AMapLocationPlugin extends Plugin {
                         error.put("code", location.getErrorCode());
                         error.put("message", location.getErrorInfo());
                         call.reject("Location error: " + location.getErrorInfo(),
-                                String.valueOf(location.getErrorCode()), null);
+                                String.valueOf(location.getErrorCode()), (Exception) null);
                         return;
                     }
 
