@@ -82,12 +82,12 @@ export async function createPost(input: CreatePostInput): Promise<PostResponse> 
             }
         }
 
-        // Rate Limiting (30s)
+        // Rate Limiting (3s)
         const recentPost = await prisma.posts.findFirst({
-            where: { user_id: user.id, created_at: { gte: new Date(Date.now() - 30000) } }
+            where: { user_id: user.id, created_at: { gte: new Date(Date.now() - 3000) } }
         })
         if (recentPost) {
-            return { success: false, error: { code: 429, message: '操作过于频繁，请稍后再试' } }
+            return { success: false, error: { code: 429, message: '操作过于频繁，请等待3秒后再试' } }
         }
 
         const post = await prisma.posts.create({

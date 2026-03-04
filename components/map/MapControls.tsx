@@ -13,6 +13,7 @@ export const MapControls = () => {
         map,
         centerMap,
         locationStatus,
+        currentLocation,
         isTracking,
         showKingdom,
         toggleKingdom,
@@ -22,7 +23,7 @@ export const MapControls = () => {
         setKingdomMode,
     } = useMap();
 
-    const isLocating = locationStatus === 'locating' || locationStatus === 'initializing';
+    const isLocating = (locationStatus === 'locating' || locationStatus === 'initializing') && !currentLocation;
 
     const handleLocate = () => {
         centerMap();
@@ -56,8 +57,8 @@ export const MapControls = () => {
                 size="icon"
                 onClick={toggleFog}
                 className={`h-12 w-12 rounded-full shadow-lg transition-all border ${showFog
-                        ? 'bg-slate-700/80 text-white hover:bg-slate-600 border-white/20'
-                        : 'bg-white/90 text-zinc-500 hover:bg-white border-zinc-200/60 dark:bg-zinc-800/90 dark:text-white/50 dark:border-white/10 dark:hover:bg-zinc-700'
+                    ? 'bg-slate-700/80 text-white hover:bg-slate-600 border-white/20'
+                    : 'bg-white/90 text-zinc-500 hover:bg-white border-zinc-200/60 dark:bg-zinc-800/90 dark:text-white/50 dark:border-white/10 dark:hover:bg-zinc-700'
                     }`}
                 title={showFog ? "关闭迷雾" : "开启迷雾"}
             >
@@ -72,8 +73,8 @@ export const MapControls = () => {
                     size="icon"
                     onClick={handleToggleMode}
                     className={`h-12 w-12 rounded-full shadow-lg transition-all border ${isPersonal
-                            ? 'bg-amber-500/60 text-white hover:bg-amber-500/80 border-amber-400/30'
-                            : 'bg-purple-500/60 text-white hover:bg-purple-500/80 border-purple-400/30'
+                        ? 'bg-amber-500/60 text-white hover:bg-amber-500/80 border-amber-400/30'
+                        : 'bg-purple-500/60 text-white hover:bg-purple-500/80 border-purple-400/30'
                         }`}
                     title={isPersonal ? "切换到俱乐部领地" : "切换到个人领地"}
                 >
@@ -88,8 +89,8 @@ export const MapControls = () => {
                 size="icon"
                 onClick={toggleKingdom}
                 className={`h-12 w-12 rounded-full shadow-lg transition-all border ${showKingdom
-                        ? 'bg-amber-500/50 text-white hover:bg-amber-500/70 border-white/20'
-                        : 'bg-white/90 text-zinc-500 hover:bg-white border-zinc-200/60 dark:bg-zinc-800/90 dark:text-white/50 dark:border-white/10 dark:hover:bg-zinc-700'
+                    ? 'bg-amber-500/50 text-white hover:bg-amber-500/70 border-white/20'
+                    : 'bg-white/90 text-zinc-500 hover:bg-white border-zinc-200/60 dark:bg-zinc-800/90 dark:text-white/50 dark:border-white/10 dark:hover:bg-zinc-700'
                     }`}
                 title={showKingdom ? "隐藏领地" : "显示领地"}
             >
