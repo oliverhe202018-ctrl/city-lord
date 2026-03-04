@@ -53,7 +53,7 @@ const fetchTopClubsByArea = async (limit?: number, province?: string) => {
 
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Trophy, Map, Users, Footprints, Loader2, MessageCircle, UserPlus, Award, BarChart3 } from 'lucide-react'
+import { Trophy, Map, Users, Footprints, Loader2, MessageCircle, UserPlus, Award, BarChart3, ArrowLeft } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useGameStore } from '@/store/useGameStore'
 import { toast } from 'sonner'
@@ -61,6 +61,12 @@ import { isNativePlatform, safeKeyboardAddListener } from "@/lib/capacitor/safe-
 
 // Lazy-load heavy sub-views
 const ClubChatView = lazy(() => import('./chat/ClubChatView').then(m => ({ default: m.ClubChatView })))
+const InviteFriends = lazy(() => import('@/components/citylord/social/invite-friends').then(m => ({ default: m.InviteFriends })))
+const AchievementWall = lazy(() => import('@/components/citylord/achievements/achievement-wall').then(m => ({ default: m.AchievementWall })))
+const LeaderboardView = lazy(() => import('@/components/citylord/social/leaderboard').then(m => ({ default: m.Leaderboard })))
+const TerritoryBattlePage = lazy(() => import('./TerritoryBattlePage').then(m => ({ default: m.TerritoryBattlePage })))
+
+type ClubSubView = 'none' | 'invite' | 'achievements' | 'leaderboard' | 'territory'
 
 
 
@@ -138,6 +144,9 @@ export function ClubDetailView({
   // Local state to override Props for immediate UI transition
   const [hasJoined, setHasJoined] = useState(false);
   const effectiveIsMember = isJoined || hasJoined;
+
+  // Sub-view navigation state
+  const [subView, setSubView] = useState<ClubSubView>('none');
 
   // ✅ 新增：键盘高度管理
   const [keyboardHeight, setKeyboardHeight] = useState(0)
@@ -372,6 +381,62 @@ export function ClubDetailView({
     return `${(area / 1000000).toFixed(1)} k㎡`;
   };
 
+  // ── Sub-view rendering ─────────────────────────────────────────
+  const subViewTitles: Record<ClubSubView, string> = {
+    none: '',
+    invite: '邀请好友',
+    achievements: '成就墙',
+    leaderboard: '排行榜',
+    territory: '领地争夺',
+  }
+
+  if (subView !== 'none') {
+    return (
+      <div className="relative w-full h-full flex flex-col bg-background text-foreground">
+        {/* Sub-view header */}
+        <div className="shrink-0 flex items-center gap-2 border-b border-border px-4 py-3">
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={() => setSubView('none')}
+            className="h-8 w-8 rounded-full text-foreground hover:bg-muted"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <h2 className="text-base font-semibold text-foreground">
+            {subViewTitles[subView]}
+          </h2>
+        </div>
+
+        {/* Sub-view content */}
+        <div className="flex-1 overflow-y-auto p-4 pb-24">
+          <Suspense fallback={
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          }>
+            {subView === 'invite' && (
+              <InviteFriends
+                inviteCode="CLUB2025"
+                inviteLink={`https://citylord.app/invite/CLUB2025`}
+                invitedCount={0}
+              />
+            )}
+            {subView === 'achievements' && (
+              <AchievementWall />
+            )}
+            {subView === 'leaderboard' && (
+              <LeaderboardView />
+            )}
+            {subView === 'territory' && (
+              <TerritoryBattlePage clubId={clubId} />
+            )}
+          </Suspense>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div
       className="relative w-full h-full flex flex-col bg-background text-foreground"
@@ -467,7 +532,7 @@ export function ClubDetailView({
             {/* ── Quick-action row: social feature entries ── */}
             <div className="grid grid-cols-4 gap-2 mb-5">
               <button
-                onClick={() => router.push('/social?tab=friends')}
+                onClick={() => setSubView('invite')}
                 className="flex flex-col items-center gap-1.5 rounded-xl border border-border bg-muted/30 py-3 transition-all hover:bg-muted/50 active:scale-95"
               >
                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-500/15">
@@ -476,7 +541,7 @@ export function ClubDetailView({
                 <span className="text-[10px] font-medium text-muted-foreground">邀请好友</span>
               </button>
               <button
-                onClick={() => router.push('/social?tab=achievements')}
+                onClick={() => setSubView('achievements')}
                 className="flex flex-col items-center gap-1.5 rounded-xl border border-border bg-muted/30 py-3 transition-all hover:bg-muted/50 active:scale-95"
               >
                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-500/15">
@@ -485,7 +550,7 @@ export function ClubDetailView({
                 <span className="text-[10px] font-medium text-muted-foreground">成就墙</span>
               </button>
               <button
-                onClick={() => router.push('/social?tab=leaderboard')}
+                onClick={() => setSubView('leaderboard')}
                 className="flex flex-col items-center gap-1.5 rounded-xl border border-border bg-muted/30 py-3 transition-all hover:bg-muted/50 active:scale-95"
               >
                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-500/15">
@@ -494,7 +559,7 @@ export function ClubDetailView({
                 <span className="text-[10px] font-medium text-muted-foreground">排行榜</span>
               </button>
               <button
-                onClick={() => router.push('/social?tab=territory')}
+                onClick={() => setSubView('territory')}
                 className="flex flex-col items-center gap-1.5 rounded-xl border border-border bg-muted/30 py-3 transition-all hover:bg-muted/50 active:scale-95"
               >
                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-purple-500/15">
@@ -516,7 +581,7 @@ export function ClubDetailView({
 
               {/* Club Chat — lazy loaded */}
               <TabsContent value="chat" className="mt-4">
-                <div className="rounded-2xl border border-border bg-muted/30 overflow-hidden" style={{ minHeight: '300px' }}>
+                <div className="rounded-2xl border border-border bg-muted/30 overflow-hidden" style={{ height: '450px' }}>
                   <Suspense fallback={
                     <div className="flex items-center justify-center py-16">
                       <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />

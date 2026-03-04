@@ -7,8 +7,8 @@ import { MessageList, type DisplayMessage } from './MessageList'
 import { MessageInput } from './MessageInput'
 import { getClubChannels, getClubMessages, sendClubMessage, getMyClubMembership } from '@/app/actions/club-chat.actions'
 import type { ClubChannel, ClubMessageWithSender, MembershipInfo } from '@/lib/types/club-chat.types'
-import { ClubChatError, ChannelKey } from '@/lib/types/club-chat.types'
-import { Shield, ArrowLeft } from 'lucide-react'
+import { ClubChatError, ChannelKey, DEFAULT_CHANNELS } from '@/lib/types/club-chat.types'
+import { Shield, ArrowLeft, AlertTriangle } from 'lucide-react'
 import { ActivityList } from './ActivityList'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -33,6 +33,7 @@ export function ClubChatView({ clubId, currentUserId }: ClubChatViewProps) {
     const [activeChannel, setActiveChannel] = useState<ClubChannel | null>(null)
     const [membership, setMembership] = useState<MembershipInfo | null>(null)
     const [accessDenied, setAccessDenied] = useState(false)
+    const [channelError, setChannelError] = useState(false)
 
     // Messages state
     const [confirmedMessages, setConfirmedMessages] = useState<ClubMessageWithSender[]>([])
@@ -77,7 +78,20 @@ export function ClubChatView({ clubId, currentUserId }: ClubChatViewProps) {
                     setActiveChannel(chResult.data[0])
                 }
             } else {
-                toast.error(chResult.message)
+                // Fallback: use DEFAULT_CHANNELS as virtual channels so UI still renders
+                console.warn('[ClubChatView] Channel fetch failed, using fallback channels:', chResult.message)
+                setChannelError(true)
+                const fallbackChannels: ClubChannel[] = DEFAULT_CHANNELS.map((ch, i) => ({
+                    id: `fallback-${ch.key}`,
+                    clubId,
+                    key: ch.key,
+                    name: ch.name,
+                    sortOrder: ch.sort_order,
+                }))
+                setChannels(fallbackChannels)
+                if (fallbackChannels.length > 0) {
+                    setActiveChannel(fallbackChannels[0])
+                }
             }
         }
 
@@ -267,6 +281,14 @@ export function ClubChatView({ clubId, currentUserId }: ClubChatViewProps) {
     // ── Mobile: channel tabs at top; Desktop: sidebar ────────────
     return (
         <div className="flex h-full flex-col bg-black">
+            {/* Warning banner for channel errors */}
+            {channelError && (
+                <div className="flex items-center gap-2 bg-yellow-500/10 border-b border-yellow-500/20 px-4 py-2 text-xs text-yellow-400">
+                    <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+                    <span>频道数据加载失败，显示本地频道（消息功能暂不可用）</span>
+                </div>
+            )}
+
             {/* Header */}
             <div className="flex items-center gap-2 border-b border-white/5 bg-zinc-950 px-4 py-3">
                 <Button
