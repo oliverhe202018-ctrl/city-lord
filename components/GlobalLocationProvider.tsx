@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useRef, type ReactNode } f
 import { useLocationStore, saveLocationToCache } from '@/store/useLocationStore';
 import { AMapLocationBridge, type LocationMeta } from '@/lib/amap-location-bridge';
 import { safeRequestGeolocationPermission } from '@/lib/capacitor/safe-plugins';
+import { useGameStore } from '@/store/useGameStore';
 import type { GeoPoint } from '@/hooks/useSafeGeolocation';
 
 // ---------------------------------------------------------------------------
@@ -95,6 +96,10 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
 
                 // Persist to localStorage for next cold start
                 saveLocationToCache(point);
+
+                // Sync to useGameStore so MapHeader/HomeTopBar can read lat/lng/gpsStatus
+                useGameStore.getState().updateLocation(point.lat, point.lng);
+                useGameStore.getState().setGpsStatus('success');
             },
             onError: (err) => {
                 if (!mountedRef.current) return;
@@ -110,6 +115,9 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
                     loading: false,
                     gpsSignalStrength: 'none',
                 });
+
+                // Sync error to useGameStore
+                useGameStore.getState().setGpsStatus('error', errorType);
             },
             onStatusChange: (status) => {
                 if (!mountedRef.current) return;

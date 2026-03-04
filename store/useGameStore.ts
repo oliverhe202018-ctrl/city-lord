@@ -40,6 +40,7 @@ export interface LocationState {
   adcode: string | null;
   countyName: string | null;
   cityName: string | null;
+  streetName: string | null;
   isRunning: boolean;
   lastUpdate: number | null;
   speed: number;
@@ -157,6 +158,7 @@ export interface UserActions {
 export interface LocationActions {
   updateLocation: (lat: number, lng: number) => void;
   setRegion: (adcode: string, cityName: string, countyName: string) => void;
+  setStreetName: (streetName: string | null) => void;
   startRunning: () => void;
   stopRunning: () => void;
   updateSpeed: (speed: number) => void;
@@ -235,6 +237,7 @@ const initialLocationState: LocationState = {
   adcode: null,
   cityName: null,
   countyName: null,
+  streetName: null,
   isRunning: false,
   lastUpdate: null,
   speed: 0,
@@ -512,6 +515,7 @@ const createLocationSlice: StateCreator<GameStore, [], [], LocationActions> = (s
     };
   }),
   setRegion: (adcode, cityName, countyName) => set({ adcode, cityName, countyName }),
+  setStreetName: (streetName: string | null) => set({ streetName }),
   startRunning: () => set({ isRunning: true, lastUpdate: Date.now(), runStartTime: Date.now(), currentRunPath: [] }),
   stopRunning: () => set({ isRunning: false, speed: 0 }),
   updateSpeed: (speed) => set({ speed }),
@@ -777,6 +781,7 @@ export const useGameActions = () => {
       resetRunState: state.resetRunState,
       setGhostPath: state.setGhostPath,
       setSmartRunStarting: state.setSmartRunStarting,
+      setStreetName: state.setStreetName,
 
       // Inventory Actions
       addItem: state.addItem,
@@ -821,6 +826,7 @@ export const useGameLocation = () =>
       adcode: state.adcode,
       countyName: state.countyName,
       cityName: state.cityName,
+      streetName: state.streetName,
       isRunning: state.isRunning,
       lastUpdate: state.lastUpdate,
       speed: state.speed,

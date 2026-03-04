@@ -22,6 +22,7 @@ export function useLocationStatus(): LocationStatusResult {
     const gpsError = useGameStore((s) => s.gpsError);
     const cityName = useGameStore((s) => s.cityName);
     const countyName = useGameStore((s) => s.countyName);
+    const streetName = useGameStore((s) => s.streetName);
     const lastUpdate = useGameStore((s) => s.lastUpdate);
 
     // Determine status
@@ -34,10 +35,23 @@ export function useLocationStatus(): LocationStatusResult {
         status = 'stale'; // >5 min since last update
     }
 
-    // Build city label
-    const cityLabel = countyName && cityName
-        ? `${cityName} · ${countyName}`
-        : cityName || '定位中…';
+    // Build city label: countyName + streetName for specificity
+    let cityLabel = '定位中…';
+    if (countyName && streetName) {
+        cityLabel = `${countyName} · ${streetName}`;
+    } else if (countyName) {
+        cityLabel = countyName;
+    } else if (cityName) {
+        cityLabel = cityName;
+    } else {
+        // Fallback: try localStorage cached district from MapHeader
+        if (typeof window !== 'undefined') {
+            try {
+                const cached = localStorage.getItem('last_known_district');
+                if (cached) cityLabel = cached;
+            } catch { /* ignore */ }
+        }
+    }
 
     return {
         status,

@@ -4,7 +4,7 @@ import React from "react"
 import { AvatarUploader } from "@/components/ui/AvatarUploader"
 import Image from "next/image"
 
-import { MapPin, Swords, Footprints, Eye, Settings, ChevronRight, Hexagon, Zap, Target, LogIn, LogOut, Edit2, Gift, MessageSquareWarning, Sparkles } from "lucide-react"
+import { MapPin, Swords, Footprints, Eye, Settings, ChevronRight, Hexagon, Zap, Target, LogIn, LogOut, Edit2, Gift, MessageSquareWarning, Sparkles, Shuffle } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useGameStore } from "@/store/useGameStore"
@@ -639,6 +639,21 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
             dailyStat={dailyStat}
           />
 
+          {/* Faction Change Button */}
+          {userStats.faction && (
+            <FactionChangeButton
+              currentFaction={userStats.faction.toLowerCase() === 'red' ? 'RED' : 'BLUE'}
+              onChanged={() => {
+                syncUserProfile();
+                // Refetch faction stats
+                fetch(`${process.env.NEXT_PUBLIC_API_SERVER || ''}/api/faction/stats`, { credentials: 'include' })
+                  .then(res => res.ok ? res.json() : null)
+                  .then(data => { if (data) setFactionStats(data); })
+                  .catch(() => { });
+              }}
+            />
+          )}
+
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">勋章墙</h2>
           <div className="rounded-2xl border border-border bg-card/50 p-4">
             <BadgeGrid />
@@ -789,4 +804,93 @@ function AchievementRow({
       {progress === 100 && <span className="text-lg">✅</span>}
     </div>
   )
+}
+
+// ==================== Faction Change Button ====================
+
+function FactionChangeButton({ currentFaction, onChanged }: { currentFaction: 'RED' | 'BLUE'; onChanged: () => void }) {
+  const [open, setOpen] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
+  const [cooldownMsg, setCooldownMsg] = React.useState<string | null>(null);
+
+  const targetFaction = currentFaction === 'RED' ? 'BLUE' : 'RED';
+  const targetName = targetFaction === 'RED' ? '赤红先锋' : '蔚蓝联盟';
+  const currentName = currentFaction === 'RED' ? '赤红先锋' : '蔚蓝联盟';
+  const targetColor = targetFaction === 'RED' ? 'from-red-500 to-orange-500' : 'from-blue-500 to-cyan-500';
+  const targetTextColor = targetFaction === 'RED' ? 'text-red-400' : 'text-blue-400';
+
+  const handleChangeFaction = async () => {
+    setLoading(true);
+    setCooldownMsg(null);
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_SERVER || ''}/api/faction/change-faction`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ faction: targetFaction })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(data.message || `已加入${targetName}`);
+        setOpen(false);
+        onChanged();
+      } else if (res.status === 429) {
+        setCooldownMsg(`冷却中：还需 ${data.remainingHours || '?'} 小时`);
+      } else {
+        toast.error(data.error || '变更失败');
+      }
+    } catch (e) {
+      console.error('Faction change error:', e);
+      toast.error('网络错误，请稍后再试');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="mb-4">
+      <Dialog open={open} onOpenChange={(val) => { setOpen(val); setCooldownMsg(null); }}>
+        <DialogTrigger asChild>
+          <button className="w-full flex items-center justify-between rounded-2xl border border-border bg-card/50 p-4 transition-all active:bg-muted/10 hover:bg-card/80">
+            <div className="flex items-center gap-3">
+              <div className={`flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br ${targetColor} shadow-lg`}>
+                <Shuffle className="h-5 w-5 text-white" />
+              </div>
+              <div className="text-left">
+                <p className="font-semibold text-foreground">变更阵营</p>
+                <p className="text-sm text-muted-foreground">当前：{currentName}（每周限1次）</p>
+              </div>
+            </div>
+            <ChevronRight className="h-5 w-5 text-muted-foreground/50" />
+          </button>
+        </DialogTrigger>
+        <DialogContent className="bg-card border-border text-foreground sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>确认变更阵营</DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              您即将从 <span className={currentFaction === 'RED' ? 'text-red-400 font-bold' : 'text-blue-400 font-bold'}>{currentName}</span> 转入{' '}
+              <span className={`${targetTextColor} font-bold`}>{targetName}</span>。
+              每周仅可变更一次。
+            </DialogDescription>
+          </DialogHeader>
+          {cooldownMsg && (
+            <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 p-3 text-sm text-amber-400 text-center">
+              ⏳ {cooldownMsg}
+            </div>
+          )}
+          <div className="flex justify-end gap-3 mt-2">
+            <Button variant="ghost" onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground">取消</Button>
+            <Button
+              onClick={handleChangeFaction}
+              disabled={loading}
+              className={`bg-gradient-to-r ${targetColor} text-white hover:opacity-90`}
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              确认加入{targetName}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
 }
