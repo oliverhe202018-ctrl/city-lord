@@ -169,6 +169,8 @@ export function MapHeader({
   }, [])
 
   // Reverse Geocoding: Convert lat/lng to district name, with localStorage caching
+  // Also sync to Zustand store so HomeTopBar can display location
+  const { setRegion: setStoreRegion } = useGameActions();
   useEffect(() => {
     // Only run if we have valid coordinates and AMap is loaded
     if (!latitude || !longitude || latitude === 0 || longitude === 0) return;
@@ -184,6 +186,8 @@ export function MapHeader({
           if (addressComponent) {
             // Priority: District (区/县) > City > Province
             const districtName = addressComponent.district || addressComponent.city || addressComponent.province || '未知区域';
+            // More specific: township / street / neighborhood
+            const streetOrTownship = addressComponent.township || addressComponent.street || addressComponent.neighborhood || '';
 
             // Only update UI + cache if value actually changed (prevents flicker)
             setCurrentDistrict(prev => {
@@ -195,6 +199,16 @@ export function MapHeader({
               }
               return prev; // Same value — silent, no re-render
             });
+
+            // Sync to Zustand store so HomeTopBar/useLocationStatus can display it
+            const adcode = addressComponent.adcode || '';
+            const city = addressComponent.city || addressComponent.province || '';
+            setStoreRegion(adcode, city, districtName);
+
+            // Also set street-level name for more specific display
+            if (streetOrTownship) {
+              useGameStore.getState().setStreetName(streetOrTownship);
+            }
           } else {
             setCurrentDistrict(prev => prev ?? '未知位置');
           }
@@ -204,7 +218,7 @@ export function MapHeader({
         }
       });
     });
-  }, [latitude, longitude]);
+  }, [latitude, longitude, setStoreRegion]);
 
   const [requestingLocation, setRequestingLocation] = useState(false);
 

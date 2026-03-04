@@ -16,7 +16,7 @@ export function HomeTopBar({ notificationCount = 0, onNotificationClick }: HomeT
             {/* Left: City/Area */}
             <div className="flex items-center gap-1.5 min-w-0">
                 <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-primary" />
-                <span className="text-xs font-medium text-foreground/80 truncate max-w-[120px]">
+                <span className="text-xs font-medium text-foreground/80 truncate max-w-[180px]">
                     {cityLabel}
                 </span>
             </div>
@@ -29,10 +29,10 @@ export function HomeTopBar({ notificationCount = 0, onNotificationClick }: HomeT
                     <WifiOff className="h-3 w-3 text-amber-400" />
                 )}
                 <span className={`text-[10px] font-medium ${status === 'ready'
-                        ? 'text-emerald-400'
-                        : status === 'stale'
-                            ? 'text-amber-400'
-                            : 'text-red-400'
+                    ? 'text-emerald-400'
+                    : status === 'stale'
+                        ? 'text-amber-400'
+                        : 'text-red-400'
                     }`}>
                     {status === 'ready' ? '在线' : status === 'stale' ? '信号弱' : '定位失败'}
                 </span>
