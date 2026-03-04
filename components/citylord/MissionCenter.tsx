@@ -143,27 +143,27 @@ export function MissionCard({
         }`}
       onClick={() => onClick?.(id)}
     >
-      <div className="flex items-start gap-4">
+      <div className="flex items-start gap-3">
         {/* Icon */}
-        <div className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl ${isCompleted ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+        <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg ${isCompleted ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
           }`}>
-          <Icon className="h-6 w-6" />
+          <Icon className="h-5 w-5" />
         </div>
 
         <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between mb-1">
-            <h3 className={`font-bold truncate ${isCompleted ? "text-primary" : "text-foreground"}`}>
+          <div className="flex items-center justify-between mb-0.5">
+            <h3 className={`text-sm font-bold truncate ${isCompleted ? "text-primary" : "text-foreground"}`}>
               {title}
             </h3>
             {timeRemaining && !isCompleted && (
-              <span className="flex items-center gap-1 text-[10px] text-orange-400 bg-orange-400/10 px-2 py-0.5 rounded-full">
-                <Clock className="h-3 w-3" />
+              <span className="flex items-center gap-1 text-[9px] text-orange-400 bg-orange-400/10 px-1.5 py-0.5 rounded-full">
+                <Clock className="h-2.5 w-2.5" />
                 {timeRemaining}
               </span>
             )}
           </div>
 
-          <p className="text-xs text-muted-foreground line-clamp-2 mb-3">
+          <p className="text-xs text-muted-foreground line-clamp-2 mb-2">
             {description}
           </p>
 
@@ -175,7 +175,7 @@ export function MissionCard({
               style={{ width: `${progressPercent}%` }}
             />
           </div>
-          <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
+          <div className="mt-1 flex justify-between text-[9px] text-muted-foreground">
             <span>{progress} / {maxProgress}</span>
             <span>{Math.round(progressPercent)}%</span>
           </div>
@@ -183,13 +183,13 @@ export function MissionCard({
       </div>
 
       {/* Bottom Action / Reward */}
-      <div className="mt-4 flex items-center justify-between border-t border-border pt-3">
-        <div className="flex items-center gap-2">
-          <span className={`text-xs px-2 py-0.5 rounded-md ${difficultyConfig[difficulty].bg} ${difficultyConfig[difficulty].color}`}>
+      <div className="mt-3 flex items-center justify-between border-t border-border pt-2.5">
+        <div className="flex items-center gap-1.5">
+          <span className={`text-[10px] px-1.5 py-0.5 rounded-md ${difficultyConfig[difficulty].bg} ${difficultyConfig[difficulty].color}`}>
             {difficultyConfig[difficulty].label}
           </span>
-          <span className="flex items-center gap-1 text-xs font-medium text-yellow-500">
-            <Zap className="h-3 w-3" />
+          <span className="flex items-center gap-1 text-[10px] font-medium text-yellow-500">
+            <Zap className="h-2.5 w-2.5" />
             {reward.label}
           </span>
         </div>
@@ -198,7 +198,7 @@ export function MissionCard({
           <button
             onClick={handleClaim}
             disabled={isClaiming}
-            className="flex items-center gap-1 rounded-full bg-primary px-4 py-1.5 text-xs font-bold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
+            className="rounded-lg bg-primary/90 px-3 py-1 text-xs font-bold text-primary-foreground hover:bg-primary active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
           >
             {isClaiming ? "领取中..." : "领取奖励"}
           </button>
@@ -400,10 +400,10 @@ export function MissionCenter({ initialData }: { initialData?: any[] }) {
   return (
     <div className="h-full overflow-y-auto bg-background px-4 pb-24 pt-6">
       {/* Header */}
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-foreground">任务中心</h1>
+            <h1 className="text-xl font-bold text-foreground">任务中心</h1>
             {isFetching && (
               <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20 animate-in fade-in duration-300">
                 <div className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -411,7 +411,7 @@ export function MissionCenter({ initialData }: { initialData?: any[] }) {
               </div>
             )}
           </div>
-          <p className="text-sm text-muted-foreground">完成挑战获取奖励</p>
+          <p className="text-xs text-muted-foreground">完成挑战获取奖励</p>
         </div>
 
         {/* Quick Actions */}
@@ -431,12 +431,12 @@ export function MissionCenter({ initialData }: { initialData?: any[] }) {
       </div>
 
       {/* Filters */}
-      <div className="mb-6 flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+      <div className="mb-4 flex gap-1.5 overflow-x-auto pb-2 scrollbar-hide">
         {(["all", "daily", "weekly"] as const).map((filter) => (
           <button
             key={filter}
             onClick={() => setActiveFilter(filter)}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all whitespace-nowrap ${activeFilter === filter
+            className={`rounded-full px-3 py-1 text-xs font-medium transition-all whitespace-nowrap ${activeFilter === filter
               ? "bg-primary text-primary-foreground shadow-sm"
               : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}

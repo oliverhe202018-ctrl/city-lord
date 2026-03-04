@@ -148,13 +148,13 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
   if (subView === "invite") {
     return (
       <div className="flex h-full flex-col bg-background">
-        <div className="p-4 border-b border-border flex items-center gap-2 shrink-0">
+        <div className="p-3 border-b border-border flex items-center gap-2 shrink-0">
           <CyberButton variant="ghost" size="sm" onClick={handleBack} className="rotate-180">
             <ChevronRight />
           </CyberButton>
-          <h2 className="text-lg font-bold text-foreground">邀请好友</h2>
+          <h2 className="text-base font-bold text-foreground">邀请好友</h2>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 pb-24">
+        <div className="flex-1 overflow-y-auto p-4 pb-20">
           <InviteFriends
             inviteCode="CITY2025"
             inviteLink="https://citylord.app/invite/CITY2025"
@@ -168,13 +168,13 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
   if (subView === "discover") {
     return (
       <div className="flex h-full flex-col bg-background">
-        <div className="p-4 border-b border-border flex items-center gap-2 shrink-0">
+        <div className="p-3 border-b border-border flex items-center gap-2 shrink-0">
           <CyberButton variant="ghost" size="sm" onClick={handleBack} className="rotate-180">
             <ChevronRight />
           </CyberButton>
-          <h2 className="text-lg font-bold text-foreground">发现跑友</h2>
+          <h2 className="text-base font-bold text-foreground">发现跑友</h2>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 pb-24">
+        <div className="flex-1 overflow-y-auto p-4 pb-20">
           <RecommendedFriends />
         </div>
       </div>
@@ -184,13 +184,13 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
   if (subView === "challenge") {
     return (
       <div className="flex h-full flex-col bg-background">
-        <div className="p-4 border-b border-border flex items-center gap-2 shrink-0">
+        <div className="p-3 border-b border-border flex items-center gap-2 shrink-0">
           <CyberButton variant="ghost" size="sm" onClick={handleBack} className="rotate-180">
             <ChevronRight />
           </CyberButton>
-          <h2 className="text-lg font-bold text-foreground">发起挑战</h2>
+          <h2 className="text-base font-bold text-foreground">发起挑战</h2>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 pb-24">
+        <div className="flex-1 overflow-y-auto p-4 pb-20">
           <ChallengePage
             selectedFriend={selectedFriend}
             onSendChallenge={(type, options) => {
@@ -206,13 +206,13 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
   if (subView === "leaderboard") {
     return (
       <div className="flex h-full flex-col bg-background">
-        <div className="p-4 border-b border-border flex items-center gap-2 shrink-0">
+        <div className="p-3 border-b border-border flex items-center gap-2 shrink-0">
           <CyberButton variant="ghost" size="sm" onClick={handleBack} className="rotate-180">
             <ChevronRight />
           </CyberButton>
-          <h2 className="text-lg font-bold text-foreground">排行榜</h2>
+          <h2 className="text-base font-bold text-foreground">排行榜</h2>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 pb-24">
+        <div className="flex-1 overflow-y-auto p-4 pb-20">
           <Leaderboard />
         </div>
       </div>
@@ -222,13 +222,13 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
   if (subView === "events") {
     return (
       <div className="flex h-full flex-col bg-background">
-        <div className="p-4 border-b border-border flex items-center gap-2 shrink-0">
+        <div className="p-3 border-b border-border flex items-center gap-2 shrink-0">
           <CyberButton variant="ghost" size="sm" onClick={handleBack} className="rotate-180">
             <ChevronRight />
           </CyberButton>
-          <h2 className="text-lg font-bold text-foreground">赛事与活动</h2>
+          <h2 className="text-base font-bold text-foreground">赛事与活动</h2>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 pb-24">
+        <div className="flex-1 overflow-y-auto p-4 pb-20">
           <EventsPage />
         </div>
       </div>
@@ -238,13 +238,13 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
   if (subView === "store") {
     return (
       <div className="flex h-full flex-col bg-background">
-        <div className="p-4 border-b border-border flex items-center gap-2 shrink-0">
+        <div className="p-3 border-b border-border flex items-center gap-2 shrink-0">
           <CyberButton variant="ghost" size="sm" onClick={handleBack} className="rotate-180">
             <ChevronRight />
           </CyberButton>
-          <h2 className="text-lg font-bold text-foreground">积分商城</h2>
+          <h2 className="text-base font-bold text-foreground">积分商城</h2>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 pb-24">
+        <div className="flex-1 overflow-y-auto p-4 pb-20">
           <StorePage />
         </div>
       </div>
@@ -254,11 +254,10 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
   return (
     <div className="flex h-full flex-col bg-background">
       {/* Header */}
-      <div className="border-b border-border px-4 pb-2 pt-6 shrink-0">
-        <div className="mb-4 flex items-center justify-between">
+      <div className="border-b border-border px-3 pb-1 pt-3 shrink-0">
+        <div className="mb-2 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">社交中心</h1>
-            <p className="text-sm text-muted-foreground">City Lord Social</p>
+            <h1 className="text-base font-bold text-foreground">社交中心</h1>
           </div>
         </div>
 
@@ -266,7 +265,7 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
         <div className="grid w-full grid-cols-3 border-b border-border">
           <button
             onClick={() => setActiveTab("friends")}
-            className={`flex flex-col items-center justify-center pb-2 text-sm font-medium transition-all ${activeTab === "friends"
+            className={`flex flex-col items-center justify-center pb-1 text-xs font-medium transition-all ${activeTab === "friends"
               ? "border-b-2 border-primary text-primary"
               : "text-muted-foreground hover:text-foreground"
               }`}
@@ -275,7 +274,7 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
           </button>
           <button
             onClick={() => setActiveTab("activity")}
-            className={`flex flex-col items-center justify-center pb-2 text-sm font-medium transition-all ${activeTab === "activity"
+            className={`flex flex-col items-center justify-center pb-1 text-xs font-medium transition-all ${activeTab === "activity"
               ? "border-b-2 border-primary text-primary"
               : "text-muted-foreground hover:text-foreground"
               }`}
@@ -284,7 +283,7 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
           </button>
           <button
             onClick={() => setActiveTab("messages")}
-            className={`flex flex-col items-center justify-center pb-2 text-sm font-medium transition-all ${activeTab === "messages"
+            className={`flex flex-col items-center justify-center pb-1 text-xs font-medium transition-all ${activeTab === "messages"
               ? "border-b-2 border-primary text-primary"
               : "text-muted-foreground hover:text-foreground"
               }`}
@@ -295,56 +294,56 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto px-4 pb-24 pt-4">
+      <div className="flex-1 overflow-y-auto px-4 pb-20 pt-3">
 
         <div className={activeTab === "friends" ? "block space-y-4" : "hidden space-y-4"}>
           {/* Quick Actions Grid */}
-          <div className="grid grid-cols-2 gap-3 mb-2">
+          <div className="grid grid-cols-2 gap-2 mb-2">
             <GlassCard
-              className="p-3 flex items-center gap-3 cursor-pointer hover:bg-muted/50 active:scale-95 transition-all"
+              className="p-2 flex items-center gap-2 cursor-pointer hover:bg-muted/50 active:scale-95 transition-all"
               onClick={() => setSubView("store")}
             >
-              <div className="h-10 w-10 shrink-0 rounded-full bg-primary/20 flex items-center justify-center text-primary">
-                <UserPlus size={20} />
+              <div className="h-7 w-7 shrink-0 rounded-full bg-primary/20 flex items-center justify-center text-primary">
+                <UserPlus size={14} />
               </div>
               <div>
-                <div className="text-sm font-bold text-foreground">积分商城</div>
+                <div className="text-xs font-bold text-foreground">积分商城</div>
                 <div className="text-[10px] text-muted-foreground whitespace-nowrap">商品兑换</div>
               </div>
             </GlassCard>
             <GlassCard
-              className="p-3 flex items-center gap-3 cursor-pointer hover:bg-muted/50 active:scale-95 transition-all"
+              className="p-2 flex items-center gap-2 cursor-pointer hover:bg-muted/50 active:scale-95 transition-all"
               onClick={() => setSubView("discover")}
             >
-              <div className="h-10 w-10 shrink-0 rounded-full bg-cyan-500/20 flex items-center justify-center text-cyan-500">
-                <Search size={20} />
+              <div className="h-7 w-7 shrink-0 rounded-full bg-cyan-500/20 flex items-center justify-center text-cyan-500">
+                <Search size={14} />
               </div>
               <div>
-                <div className="text-sm font-bold text-foreground">发现跑友</div>
+                <div className="text-xs font-bold text-foreground">发现跑友</div>
                 <div className="text-[10px] text-muted-foreground whitespace-nowrap">附近的人</div>
               </div>
             </GlassCard>
             <GlassCard
-              className="p-3 flex items-center gap-3 cursor-pointer hover:bg-muted/50 active:scale-95 transition-all"
+              className="p-2 flex items-center gap-2 cursor-pointer hover:bg-muted/50 active:scale-95 transition-all"
               onClick={() => setSubView("leaderboard")}
             >
-              <div className="h-10 w-10 shrink-0 rounded-full bg-yellow-500/20 flex items-center justify-center text-yellow-500">
-                <Trophy size={20} />
+              <div className="h-7 w-7 shrink-0 rounded-full bg-yellow-500/20 flex items-center justify-center text-yellow-500">
+                <Trophy size={14} />
               </div>
               <div>
-                <div className="text-sm font-bold text-foreground">排行榜</div>
+                <div className="text-xs font-bold text-foreground">排行榜</div>
                 <div className="text-[10px] text-muted-foreground whitespace-nowrap">全球排名</div>
               </div>
             </GlassCard>
             <GlassCard
-              className="p-3 flex items-center gap-3 cursor-pointer hover:bg-muted/50 active:scale-95 transition-all"
+              className="p-2 flex items-center gap-2 cursor-pointer hover:bg-muted/50 active:scale-95 transition-all"
               onClick={() => setSubView("events")}
             >
-              <div className="h-10 w-10 shrink-0 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-500">
-                <Activity size={20} />
+              <div className="h-7 w-7 shrink-0 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-500">
+                <Activity size={14} />
               </div>
               <div>
-                <div className="text-sm font-bold text-foreground">赛事活动</div>
+                <div className="text-xs font-bold text-foreground">赛事活动</div>
                 <div className="text-[10px] text-muted-foreground whitespace-nowrap">社区奖励</div>
               </div>
             </GlassCard>
@@ -372,7 +371,7 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
           <div className="grid w-full grid-cols-2 rounded-lg bg-muted p-1">
             <button
               onClick={() => setActivityFilter("friends")}
-              className={`rounded-md py-1.5 text-xs font-medium transition-all ${activityFilter === "friends"
+              className={`rounded-md py-1 text-xs font-medium transition-all ${activityFilter === "friends"
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
                 }`}
@@ -381,7 +380,7 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
             </button>
             <button
               onClick={() => setActivityFilter("all")}
-              className={`rounded-md py-1.5 text-xs font-medium transition-all ${activityFilter === "all"
+              className={`rounded-md py-1 text-xs font-medium transition-all ${activityFilter === "all"
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
                 }`}

@@ -451,9 +451,9 @@ export function ClubDetailView({
         ref={scrollContainerRef}
         className={`flex-1 w-full min-h-0 overflow-y-auto overscroll-contain`}
       >
-        <div className="px-6 pt-4">
+        <div className="px-4 pt-3">
           {/* Top action bar */}
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               {onBack && !effectiveIsMember && (
                 <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full bg-muted text-foreground hover:bg-muted/80" onClick={onBack}>
@@ -468,28 +468,28 @@ export function ClubDetailView({
             )}
           </div>
           {/* Club avatar + info */}
-          <div className="flex items-center gap-4">
-            <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-full border-2 border-border bg-muted">
+          <div className="flex items-center gap-3">
+            <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-full border-2 border-border bg-muted">
               {club.avatarUrl ? (
                 <img src={club.avatarUrl} alt={club.name} className="h-full w-full object-cover" />
               ) : (
-                <div className="flex h-full w-full items-center justify-center text-3xl font-bold text-muted-foreground">
+                <div className="flex h-full w-full items-center justify-center text-xl font-bold text-muted-foreground">
                   {club.name.slice(0, 1)}
                 </div>
               )}
             </div>
             <div>
-              <div className="text-lg font-semibold text-foreground">{club.name}</div>
+              <div className="text-base font-semibold text-foreground">{club.name}</div>
 
               {/* Inline Stats Row */}
-              <div className="flex items-center gap-3 text-base font-medium text-muted-foreground mt-1">
+              <div className="flex items-center gap-2.5 text-sm font-medium text-muted-foreground mt-0.5">
                 <div className="flex items-center gap-1">
-                  <Footprints className="w-4 h-4 text-muted-foreground" />
+                  <Footprints className="w-3.5 h-3.5 text-muted-foreground" />
                   <span>{formatArea(club.totalArea)}</span>
                 </div>
                 <div className="w-[1px] h-4 bg-border" />
                 <div className="flex items-center gap-1">
-                  <Users className="w-4 h-4 text-muted-foreground" />
+                  <Users className="w-3.5 h-3.5 text-muted-foreground" />
                   <span>{stats.memberCount}人</span>
                 </div>
               </div>
@@ -501,8 +501,8 @@ export function ClubDetailView({
           </div>
         </div>
 
-        <div className="px-6 mt-6">
-          <div className="grid grid-cols-2 gap-3 rounded-2xl border border-border bg-muted/30 p-4">
+        <div className="px-4 mt-4">
+          <div className="grid grid-cols-2 gap-2 rounded-xl border border-border bg-muted/30 p-3">
             <div
               className={`text-center border-r border-border flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors ${rankType === 'global' ? 'bg-background rounded-lg -my-2 py-2 shadow-sm' : 'hover:bg-background/50 rounded-lg -my-2 py-2'}`}
               onClick={() => setRankType('global')}
@@ -511,7 +511,7 @@ export function ClubDetailView({
                 <Trophy className="w-4 h-4" />
                 <span className="text-xs font-bold">全国排名</span>
               </div>
-              <div className={`text-xl font-black italic ${rankType === 'global' ? 'text-foreground' : 'text-muted-foreground'}`}>#{rankings.global || '-'}</div>
+              <div className={`text-lg font-black italic ${rankType === 'global' ? 'text-foreground' : 'text-muted-foreground'}`}>#{rankings.global || '-'}</div>
             </div>
             <div
               className={`text-center flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors ${rankType === 'local' ? 'bg-background rounded-lg -my-2 py-2 shadow-sm' : 'hover:bg-background/50 rounded-lg -my-2 py-2'}`}
@@ -521,51 +521,51 @@ export function ClubDetailView({
                 <Map className="w-4 h-4" />
                 <span className="text-xs font-bold">省内排名</span>
               </div>
-              <div className={`text-xl font-black italic ${rankType === 'local' ? 'text-foreground' : 'text-muted-foreground'}`}>#{rankings.provincial || '-'}</div>
+              <div className={`text-lg font-black italic ${rankType === 'local' ? 'text-foreground' : 'text-muted-foreground'}`}>#{rankings.provincial || '-'}</div>
             </div>
           </div>
         </div>
 
         {/* ✅ 关键修改：已加入时的 Tabs 内容区域 */}
         {effectiveIsMember ? (
-          <div className="px-6 mt-6 pb-4">
+          <div className="px-4 mt-4 pb-4">
             {/* ── Quick-action row: social feature entries ── */}
-            <div className="grid grid-cols-4 gap-2 mb-5">
+            <div className="grid grid-cols-4 gap-1.5 mb-4">
               <button
                 onClick={() => setSubView('invite')}
-                className="flex flex-col items-center gap-1.5 rounded-xl border border-border bg-muted/30 py-3 transition-all hover:bg-muted/50 active:scale-95"
+                className="flex flex-col items-center gap-1 rounded-lg border border-border bg-muted/30 py-2 transition-all hover:bg-muted/50 active:scale-95"
               >
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-500/15">
-                  <UserPlus className="h-4 w-4 text-blue-400" />
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-500/15">
+                  <UserPlus className="h-3.5 w-3.5 text-blue-400" />
                 </div>
-                <span className="text-[10px] font-medium text-muted-foreground">邀请好友</span>
+                <span className="text-[9px] font-medium text-muted-foreground">邀请好友</span>
               </button>
               <button
                 onClick={() => setSubView('achievements')}
-                className="flex flex-col items-center gap-1.5 rounded-xl border border-border bg-muted/30 py-3 transition-all hover:bg-muted/50 active:scale-95"
+                className="flex flex-col items-center gap-1 rounded-lg border border-border bg-muted/30 py-2 transition-all hover:bg-muted/50 active:scale-95"
               >
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-500/15">
-                  <Award className="h-4 w-4 text-amber-400" />
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-500/15">
+                  <Award className="h-3.5 w-3.5 text-amber-400" />
                 </div>
-                <span className="text-[10px] font-medium text-muted-foreground">成就墙</span>
+                <span className="text-[9px] font-medium text-muted-foreground">成就墙</span>
               </button>
               <button
                 onClick={() => setSubView('leaderboard')}
-                className="flex flex-col items-center gap-1.5 rounded-xl border border-border bg-muted/30 py-3 transition-all hover:bg-muted/50 active:scale-95"
+                className="flex flex-col items-center gap-1 rounded-lg border border-border bg-muted/30 py-2 transition-all hover:bg-muted/50 active:scale-95"
               >
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-500/15">
-                  <BarChart3 className="h-4 w-4 text-emerald-400" />
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/15">
+                  <BarChart3 className="h-3.5 w-3.5 text-emerald-400" />
                 </div>
-                <span className="text-[10px] font-medium text-muted-foreground">排行榜</span>
+                <span className="text-[9px] font-medium text-muted-foreground">排行榜</span>
               </button>
               <button
                 onClick={() => setSubView('territory')}
-                className="flex flex-col items-center gap-1.5 rounded-xl border border-border bg-muted/30 py-3 transition-all hover:bg-muted/50 active:scale-95"
+                className="flex flex-col items-center gap-1 rounded-lg border border-border bg-muted/30 py-2 transition-all hover:bg-muted/50 active:scale-95"
               >
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-purple-500/15">
-                  <Map className="h-4 w-4 text-purple-400" />
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-purple-500/15">
+                  <Map className="h-3.5 w-3.5 text-purple-400" />
                 </div>
-                <span className="text-[10px] font-medium text-muted-foreground">领地争夺</span>
+                <span className="text-[9px] font-medium text-muted-foreground">领地争夺</span>
               </button>
             </div>
 
@@ -580,8 +580,8 @@ export function ClubDetailView({
               </TabsList>
 
               {/* Club Chat — lazy loaded */}
-              <TabsContent value="chat" className="mt-4">
-                <div className="rounded-2xl border border-border bg-muted/30 overflow-hidden" style={{ height: '450px' }}>
+              <TabsContent value="chat" className="mt-3">
+                <div className="rounded-xl border border-border bg-muted/30 overflow-hidden" style={{ height: '400px' }}>
                   <Suspense fallback={
                     <div className="flex items-center justify-center py-16">
                       <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -596,31 +596,31 @@ export function ClubDetailView({
                 </div>
               </TabsContent>
 
-              <TabsContent value="activity" className="mt-4">
-                <div className="rounded-2xl border border-border bg-muted/30 p-6 text-center text-muted-foreground">
+              <TabsContent value="activity" className="mt-3">
+                <div className="rounded-xl border border-border bg-muted/30 p-4 text-center text-muted-foreground text-sm">
                   暂无俱乐部动态
                 </div>
               </TabsContent>
 
-              <TabsContent value="members" className="mt-4">
+              <TabsContent value="members" className="mt-3">
                 {members.length === 0 ? (
                   <div className="py-8 text-center text-muted-foreground">暂无成员</div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     {/* ✅ 成员列表：固定项高度 */}
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       {displayMembers.map((member) => (
                         <div
                           key={member.id}
                           onClick={() => router.push(`/profile/user/${member.id}`)}
-                          className="flex items-center justify-between rounded-2xl border border-border bg-muted/30 px-4 py-3 min-h-[72px] cursor-pointer hover:bg-muted/50 transition-colors"
+                          className="flex items-center justify-between rounded-xl border border-border bg-muted/30 px-3 py-2 min-h-[52px] cursor-pointer hover:bg-muted/50 transition-colors"
                         >
-                          <div className="flex items-center gap-3">
-                            <div className="h-12 w-12 overflow-hidden rounded-full bg-muted">
+                          <div className="flex items-center gap-2.5">
+                            <div className="h-8 w-8 overflow-hidden rounded-full bg-muted">
                               {member.avatarUrl ? (
                                 <img src={member.avatarUrl} alt={member.name} className="h-full w-full object-cover" />
                               ) : (
-                                <div className="flex h-full w-full items-center justify-center text-sm font-semibold text-muted-foreground">
+                                <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-muted-foreground">
                                   {member.name.slice(0, 1)}
                                 </div>
                               )}
@@ -636,13 +636,13 @@ export function ClubDetailView({
                     </div>
 
                     {/* ✅ 分页控件 */}
-                    <div className="flex items-center justify-center pt-4 pb-2 text-sm text-muted-foreground gap-4">
+                    <div className="flex items-center justify-center pt-3 pb-1 text-sm text-muted-foreground gap-4">
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                         disabled={currentPage === 1}
-                        className="h-8 w-8 p-0 rounded-full hover:bg-muted"
+                        className="h-7 w-7 p-0 rounded-full hover:bg-muted"
                       >
                         ←
                       </Button>
@@ -652,7 +652,7 @@ export function ClubDetailView({
                         size="sm"
                         onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                         disabled={currentPage === totalPages}
-                        className="h-8 w-8 p-0 rounded-full hover:bg-muted"
+                        className="h-7 w-7 p-0 rounded-full hover:bg-muted"
                       >
                         →
                       </Button>
@@ -661,46 +661,46 @@ export function ClubDetailView({
                 )}
               </TabsContent>
 
-              <TabsContent value="data" className="mt-4 pb-20">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-2xl border border-border bg-muted/30 p-4">
+              <TabsContent value="data" className="mt-3 pb-20">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-xl border border-border bg-muted/30 p-2.5">
                     <div className="text-xs text-muted-foreground">总里程</div>
-                    <div className="text-lg font-semibold text-foreground">{formatDistance(stats.totalDistanceKm)}</div>
+                    <div className="text-base font-semibold text-foreground">{formatDistance(stats.totalDistanceKm)}</div>
                   </div>
-                  <div className="rounded-2xl border border-border bg-muted/30 p-4">
+                  <div className="rounded-xl border border-border bg-muted/30 p-2.5">
                     <div className="text-xs text-muted-foreground">总消耗</div>
-                    <div className="text-lg font-semibold text-foreground">{formatCalories(stats.totalCalories)}</div>
+                    <div className="text-base font-semibold text-foreground">{formatCalories(stats.totalCalories)}</div>
                   </div>
-                  <div className="rounded-2xl border border-border bg-muted/30 p-4">
+                  <div className="rounded-xl border border-border bg-muted/30 p-2.5">
                     <div className="text-xs text-muted-foreground">总人数</div>
-                    <div className="text-lg font-semibold text-foreground">{stats.memberCount.toLocaleString()}</div>
+                    <div className="text-base font-semibold text-foreground">{stats.memberCount.toLocaleString()}</div>
                   </div>
                 </div>
               </TabsContent>
             </Tabs>
           </div>
         ) : (
-          <div className="px-6 mt-6 pb-4">
-            {/* ... 原有的排行榜内容 completely unchanged ... */}
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-foreground">{rankType === 'global' ? '全国' : '省内'}前5名排行榜</h3>
+          <div className="px-4 mt-4 pb-4">
+            {/* ... 原有的排行榜内容 completely          <div className="px-4 mt-4 pb-4"> */}
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-base font-bold text-foreground">{rankType === 'global' ? '全国' : '省内'}前5名排行榜</h3>
             </div>
             <div className="space-y-3">
               {displayTopClubs.length === 0 ? (
-                <div className="py-8 text-center text-muted-foreground bg-muted/30 rounded-2xl border border-border">
+                <div className="py-6 text-center text-muted-foreground text-sm bg-muted/30 rounded-xl border border-border">
                   暂无排行数据
                 </div>
               ) : (
                 displayTopClubs.map((club, index) => (
-                  <div key={club.id} className="flex items-center gap-4 p-3 rounded-2xl bg-muted/30 border border-border">
-                    <div className={`w-8 h-8 flex items-center justify-center rounded-full font-bold text-sm ${index === 0 ? 'bg-yellow-500 text-white' :
+                  <div key={club.id} className="flex items-center gap-3 p-2.5 rounded-xl bg-muted/30 border border-border">
+                    <div className={`w-6 h-6 flex items-center justify-center rounded-full font-bold text-xs ${index === 0 ? 'bg-yellow-500 text-white' :
                       index === 1 ? 'bg-gray-400 text-white' :
                         index === 2 ? 'bg-orange-600 text-white' :
                           'bg-muted text-muted-foreground'
                       }`}>
                       {index + 1}
                     </div>
-                    <div className="w-10 h-10 rounded-full overflow-hidden bg-muted flex-shrink-0">
+                    <div className="w-8 h-8 rounded-full overflow-hidden bg-muted flex-shrink-0">
                       <img src={club.avatar} alt={club.name} className="w-full h-full object-cover" />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -722,7 +722,7 @@ export function ClubDetailView({
           className="shrink-0 w-full border-t border-border bg-background px-6 py-4 safe-area-bottom"
         >
           <Button
-            className="w-full h-12 rounded-full bg-primary text-primary-foreground font-bold text-base shadow-lg hover:bg-primary/90 active:scale-95 transition-all"
+            className="w-full h-10 rounded-full bg-primary text-primary-foreground font-bold text-sm shadow-lg hover:bg-primary/90 active:scale-95 transition-all"
             onClick={handleJoinClick}
             disabled={isJoining}
           >

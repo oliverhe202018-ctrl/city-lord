@@ -206,14 +206,14 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
     // Show skeleton or simple loading
     return (
       <div className="flex h-full flex-col bg-background animate-pulse">
-        <div className="border-b border-border bg-card/40 px-4 pb-6 pt-6 shrink-0 h-[280px]">
-          <div className="w-32 h-32 rounded-full bg-muted mx-auto mt-4" />
-          <div className="w-32 h-8 rounded bg-muted mx-auto mt-4" />
+        <div className="border-b border-border bg-card/40 px-4 pb-4 pt-4 shrink-0 h-[220px]">
+          <div className="w-24 h-24 rounded-full bg-muted mx-auto mt-3" />
+          <div className="w-28 h-6 rounded bg-muted mx-auto mt-3" />
         </div>
-        <div className="p-4 space-y-4">
-          <div className="h-20 bg-muted/50 rounded-xl" />
-          <div className="h-20 bg-muted/50 rounded-xl" />
-          <div className="h-20 bg-muted/50 rounded-xl" />
+        <div className="p-4 space-y-3">
+          <div className="h-16 bg-muted/50 rounded-xl" />
+          <div className="h-16 bg-muted/50 rounded-xl" />
+          <div className="h-16 bg-muted/50 rounded-xl" />
         </div>
       </div>
     )
@@ -318,7 +318,7 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
   return (
     <div className="flex h-full flex-col bg-background">
       {/* Header with Avatar */}
-      <div className="relative border-b border-border bg-card/40 px-4 pb-6 pt-6 backdrop-blur-xl shrink-0">
+      <div className="relative border-b border-border bg-card/40 px-4 pb-4 pt-4 backdrop-blur-xl shrink-0">
         {/* Dynamic Faction Background or Custom Profile Background */}
         <div className="absolute inset-0 overflow-hidden rounded-b-3xl z-0">
           {backgroundUrl ? (
@@ -349,29 +349,29 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
         </button>
 
         {/* Avatar with XP Ring */}
-        <div className="flex flex-col items-center relative z-10 pt-8">
+        <div className="flex flex-col items-center relative z-10 pt-4">
           <div className="relative">
             {/* XP Progress Ring */}
-            <svg className="h-32 w-32 -rotate-90">
+            <svg className="h-24 w-24 -rotate-90">
               <circle
-                cx="64"
-                cy="64"
-                r="58"
+                cx="48"
+                cy="48"
+                r="42"
                 stroke="currentColor"
-                strokeWidth="8"
+                strokeWidth="6"
                 fill="none"
                 className="text-muted/20"
               />
               <circle
-                cx="64"
-                cy="64"
-                r="58"
+                cx="48"
+                cy="48"
+                r="42"
                 stroke="url(#gradient)"
-                strokeWidth="8"
+                strokeWidth="6"
                 fill="none"
                 strokeLinecap="round"
-                strokeDasharray={`${2 * Math.PI * 58}`}
-                strokeDashoffset={`${2 * Math.PI * 58 * (1 - xpProgress / 100)}`}
+                strokeDasharray={`${2 * Math.PI * 42}`}
+                strokeDashoffset={`${2 * Math.PI * 42 * (1 - xpProgress / 100)}`}
                 className="transition-all duration-1000"
               />
               <defs>
@@ -383,7 +383,7 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
             </svg>
             {/* Avatar */}
             <button
-              className="absolute inset-4 flex items-center justify-center rounded-full bg-gradient-to-br from-[#39ff14] to-[#39ff14]/50 overflow-hidden group cursor-pointer transition-transform active:scale-95 z-10"
+              className="absolute inset-3 flex items-center justify-center rounded-full bg-gradient-to-br from-[#39ff14] to-[#39ff14]/50 overflow-hidden group cursor-pointer transition-transform active:scale-95 z-10"
               onClick={() => {
                 setEditName(nickname)
                 setEditAvatar(avatar)
@@ -393,20 +393,20 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
               {avatar ? (
                 <img src={avatar} alt="Avatar" className="w-full h-full object-cover" />
               ) : (
-                <span className="text-5xl">🎯</span>
+                <span className="text-3xl">🎯</span>
               )}
               {/* Edit Overlay */}
               <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                <Edit2 className="w-8 h-8 text-white drop-shadow-md" />
+                <Edit2 className="w-6 h-6 text-white drop-shadow-md" />
               </div>
             </button>
             {/* Level Badge */}
-            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 rounded-full border border-[#39ff14]/50 bg-background px-3 py-1 z-20">
-              <span className="text-sm font-bold text-[#39ff14]">LVL {level}</span>
+            <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 rounded-full border border-[#39ff14]/50 bg-background px-2 py-0.5 z-20">
+              <span className="text-xs font-bold text-[#39ff14]">LVL {level}</span>
             </div>
           </div>
 
-          <h1 className="mt-4 text-2xl font-bold text-foreground flex items-center gap-2">
+          <h1 className="mt-3 text-xl font-bold text-foreground flex items-center gap-2">
             {nickname}
             <Dialog open={isEditing} onOpenChange={setIsEditing}>
               <DialogTrigger asChild>
@@ -491,7 +491,7 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
           <p className="text-sm text-muted-foreground">ID: {userId.slice(-8)}</p>
 
           {/* XP Bar */}
-          <div className="mt-4 w-full max-w-xs">
+          <div className="mt-2.5 w-full max-w-xs">
             <div className="mb-1 flex justify-between text-xs">
               <span className="text-muted-foreground">经验进度</span>
               <span className="text-[#39ff14]">{currentExp.toLocaleString()} / {maxExp.toLocaleString()}</span>
@@ -505,7 +505,7 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
           </div>
 
           {/* Stamina Bar */}
-          <div className="mt-3 w-full max-w-xs">
+          <div className="mt-2 w-full max-w-xs">
             <div className="mb-1 flex justify-between text-xs">
               <span className="text-muted-foreground">体力值</span>
               <span className="text-cyan-400">{stamina} / {maxStamina}</span>
@@ -525,7 +525,7 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
 
         {/* Task 3: My Run Records */}
         <div className="p-4 pb-0">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-2">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">我的跑步记录</h2>
             <div className="flex items-center gap-2">
               <ReportButton userId={userId} period="daily" variant="ghost" className="h-6 px-2 text-xs" />
@@ -535,19 +535,19 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
             </div>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-2">
             {loadingRuns ? (
               <div className="flex justify-center py-4">
                 <Loader2 className="w-6 h-6 text-muted-foreground animate-spin" />
               </div>
             ) : recentRuns.length > 0 ? (
               recentRuns.map((run) => (
-                <Link href={`/run/detail?id=${run.id}`} key={run.id} className="block rounded-2xl border border-border bg-card/50 p-3 transition-all hover:bg-card/80 active:scale-[0.99]">
+                <Link href={`/run/detail?id=${run.id}`} key={run.id} className="block rounded-xl border border-border bg-card/50 p-2.5 transition-all hover:bg-card/80 active:scale-[0.99]">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2.5">
                       {/* Map Thumbnail Placeholder or Icon */}
-                      <div className="w-12 h-12 rounded-xl bg-muted/30 flex items-center justify-center border border-white/5">
-                        <Footprints className="w-6 h-6 text-muted-foreground/50" />
+                      <div className="w-10 h-10 rounded-lg bg-muted/30 flex items-center justify-center border border-white/5">
+                        <Footprints className="w-5 h-5 text-muted-foreground/50" />
                       </div>
 
                       <div>
@@ -574,7 +574,7 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
                 </Link>
               ))
             ) : (
-              <div className="text-center py-8 text-muted-foreground text-sm bg-card/30 rounded-2xl border border-border/50 border-dashed">
+              <div className="text-center py-6 text-muted-foreground text-sm bg-card/30 rounded-xl border border-border/50 border-dashed">
                 暂无跑步记录，快去跑一场吧！
               </div>
             )}
@@ -583,17 +583,17 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
 
         {/* Stats Grid */}
         <div className="p-4">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">你的数据</h2>
-          <div className="grid grid-cols-3 gap-3">
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">你的数据</h2>
+          <div className="grid grid-cols-3 gap-2">
             <StatCard
-              icon={<Footprints className="h-5 w-5" />}
+              icon={<Footprints className="h-4 w-4" />}
               label="总里程"
               value={Number(userStats.totalDistance || 0).toFixed(2)}
               unit="公里"
               color="text-[#39ff14]"
             />
             <StatCard
-              icon={<Hexagon className="h-5 w-5" />}
+              icon={<Hexagon className="h-4 w-4" />}
               label="占领面积"
               value={territoryArea.value}
               unit={territoryArea.unit}
@@ -601,28 +601,28 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
               subtitle={areaEquivalent || undefined}
             />
             <StatCard
-              icon={<Swords className="h-5 w-5" />}
+              icon={<Swords className="h-4 w-4" />}
               label="战斗胜利"
               value={Number(userStats.battlesWon || 0).toString()}
               unit="胜"
               color="text-purple-400"
             />
             <StatCard
-              icon={<Eye className="h-5 w-5" />}
+              icon={<Eye className="h-4 w-4" />}
               label="迷雾探索"
               value="0"
               unit="%"
               color="text-yellow-400"
             />
             <StatCard
-              icon={<Zap className="h-5 w-5" />}
+              icon={<Zap className="h-4 w-4" />}
               label="当前等级"
               value={level.toString()}
               unit="级"
               color="text-orange-400"
             />
             <StatCard
-              icon={<Target className="h-5 w-5" />}
+              icon={<Target className="h-4 w-4" />}
               label="总占领地块"
               value={Number(userStats.totalTiles || 0).toLocaleString()}
               unit="块"
@@ -654,89 +654,89 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
             />
           )}
 
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">勋章墙</h2>
-          <div className="rounded-2xl border border-border bg-card/50 p-4">
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">勋章墙</h2>
+          <div className="rounded-xl border border-border bg-card/50 p-3">
             <BadgeGrid />
           </div>
         </div>
 
         {/* Account Management */}
         <div className="px-4 pb-4">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">账号管理</h2>
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">账号管理</h2>
           <AccountManager userId={userId} />
         </div>
 
         {/* Quick Actions */}
         <div className="mt-auto border-t border-border p-4">
           {/* Background Settings */}
-          <Link href="/profile/backgrounds" className="mb-3 flex w-full items-center justify-between rounded-2xl border border-border bg-gradient-to-r from-purple-500/10 to-indigo-500/10 p-4 transition-all active:bg-muted/10 hover:bg-card/80">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-indigo-500 shadow-lg shadow-purple-500/20">
-                <Sparkles className="h-5 w-5 text-white" />
+          <Link href="/profile/backgrounds" className="mb-2 flex w-full items-center justify-between rounded-xl border border-border bg-gradient-to-r from-purple-500/10 to-indigo-500/10 p-3 transition-all active:bg-muted/10 hover:bg-card/80">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-indigo-500 shadow-lg shadow-purple-500/20">
+                <Sparkles className="h-4 w-4 text-white" />
               </div>
               <div className="text-left">
-                <p className="font-semibold text-foreground">个性化主页</p>
-                <p className="text-sm text-muted-foreground">挑选动态封面，装扮个人资料</p>
+                <p className="text-sm font-semibold text-foreground">个性化主页</p>
+                <p className="text-xs text-muted-foreground">挑选动态封面，装扮个人资料</p>
               </div>
             </div>
-            <ChevronRight className="h-5 w-5 text-muted-foreground/50" />
+            <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
           </Link>
 
           {/* Invite Friends Entry */}
-          <Link href="/referral" className="mb-3 flex w-full items-center justify-between rounded-2xl border border-border bg-gradient-to-r from-orange-500/10 to-rose-500/10 p-4 transition-all active:bg-muted/10 hover:bg-card/80">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-rose-500 shadow-lg shadow-orange-500/20">
-                <Gift className="h-5 w-5 text-white" />
+          <Link href="/referral" className="mb-2 flex w-full items-center justify-between rounded-xl border border-border bg-gradient-to-r from-orange-500/10 to-rose-500/10 p-3 transition-all active:bg-muted/10 hover:bg-card/80">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-rose-500 shadow-lg shadow-orange-500/20">
+                <Gift className="h-4 w-4 text-white" />
               </div>
               <div className="text-left">
-                <p className="font-semibold text-foreground">邀请好友</p>
-                <p className="text-sm text-muted-foreground">邀请好友加入，解锁专属奖励</p>
+                <p className="text-sm font-semibold text-foreground">邀请好友</p>
+                <p className="text-xs text-muted-foreground">邀请好友加入，解锁专属奖励</p>
               </div>
             </div>
-            <ChevronRight className="h-5 w-5 text-muted-foreground/50" />
+            <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
           </Link>
 
-          <Link href="/feedback" className="flex w-full items-center justify-between rounded-2xl border border-border bg-card/50 p-4 transition-all active:bg-muted/10 hover:bg-card/80">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-yellow-500/20">
-                <MessageSquareWarning className="h-5 w-5 text-yellow-500" />
+          <Link href="/feedback" className="flex w-full items-center justify-between rounded-xl border border-border bg-card/50 p-3 transition-all active:bg-muted/10 hover:bg-card/80">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-yellow-500/20">
+                <MessageSquareWarning className="h-4 w-4 text-yellow-500" />
               </div>
               <div className="text-left">
-                <p className="font-semibold text-foreground">问题反馈</p>
-                <p className="text-sm text-muted-foreground">提交Bug或改进建议</p>
+                <p className="text-sm font-semibold text-foreground">问题反馈</p>
+                <p className="text-xs text-muted-foreground">提交Bug或改进建议</p>
               </div>
             </div>
-            <ChevronRight className="h-5 w-5 text-muted-foreground/50" />
+            <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
           </Link>
 
           {userEmail ? (
             <button
               onClick={handleLogout}
-              className="mt-3 flex w-full items-center justify-between rounded-2xl border border-border bg-card/50 p-4 transition-all active:bg-muted/10 hover:bg-card/80"
+              className="mt-2 flex w-full items-center justify-between rounded-xl border border-border bg-card/50 p-3 transition-all active:bg-muted/10 hover:bg-card/80"
             >
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-500/20">
-                  <LogOut className="h-5 w-5 text-red-500" />
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-500/20">
+                  <LogOut className="h-4 w-4 text-red-500" />
                 </div>
                 <div className="text-left">
-                  <p className="font-semibold text-foreground">退出登录</p>
-                  <p className="text-sm text-muted-foreground">当前账号: {userEmail}</p>
+                  <p className="text-sm font-semibold text-foreground">退出登录</p>
+                  <p className="text-xs text-muted-foreground">当前账号: {userEmail}</p>
                 </div>
               </div>
-              <ChevronRight className="h-5 w-5 text-muted-foreground/50" />
+              <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
             </button>
           ) : (
-            <Link href="/login" className="mt-3 flex w-full items-center justify-between rounded-2xl border border-border bg-card/50 p-4 transition-all active:bg-muted/10 hover:bg-card/80">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-cyan-400/20">
-                  <LogIn className="h-5 w-5 text-cyan-400" />
+            <Link href="/login" className="mt-2 flex w-full items-center justify-between rounded-xl border border-border bg-card/50 p-3 transition-all active:bg-muted/10 hover:bg-card/80">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-cyan-400/20">
+                  <LogIn className="h-4 w-4 text-cyan-400" />
                 </div>
                 <div className="text-left">
-                  <p className="font-semibold text-foreground">登录账号</p>
-                  <p className="text-sm text-muted-foreground">同步数据并保护进度</p>
+                  <p className="text-sm font-semibold text-foreground">登录账号</p>
+                  <p className="text-xs text-muted-foreground">同步数据并保护进度</p>
                 </div>
               </div>
-              <ChevronRight className="h-5 w-5 text-muted-foreground/50" />
+              <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
             </Link>
           )}
         </div>
@@ -761,10 +761,10 @@ function StatCard({
   subtitle?: string
 }) {
   return (
-    <div className="rounded-2xl border border-border bg-card/50 p-2.5">
-      <div className={`mb-1 ${color}`}>{icon}</div>
+    <div className="rounded-xl border border-border bg-card/50 p-2">
+      <div className={`mb-0.5 ${color}`}>{icon}</div>
       <p className="text-[10px] text-muted-foreground">{label}</p>
-      <p className="text-lg font-bold text-foreground leading-tight">
+      <p className="text-base font-bold text-foreground leading-tight">
         {value}
         <span className="ml-0.5 text-[10px] font-normal text-muted-foreground/60">{unit}</span>
       </p>
@@ -787,13 +787,13 @@ function AchievementRow({
   progress: number
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-border bg-card/50 p-3">
-      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted/20 text-xl">
+    <div className="flex items-center gap-2.5 rounded-xl border border-border bg-card/50 p-2.5">
+      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted/20 text-base">
         {icon}
       </div>
       <div className="flex-1">
-        <p className="font-semibold text-foreground">{title}</p>
-        <p className="text-xs text-muted-foreground">{description}</p>
+        <p className="text-sm font-semibold text-foreground">{title}</p>
+        <p className="text-[11px] text-muted-foreground">{description}</p>
         <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted/20">
           <div
             className={`h-full rounded-full ${progress === 100 ? "bg-[#39ff14]" : "bg-muted/60"}`}
@@ -851,17 +851,17 @@ function FactionChangeButton({ currentFaction, onChanged }: { currentFaction: 'R
     <div className="mb-4">
       <Dialog open={open} onOpenChange={(val) => { setOpen(val); setCooldownMsg(null); }}>
         <DialogTrigger asChild>
-          <button className="w-full flex items-center justify-between rounded-2xl border border-border bg-card/50 p-4 transition-all active:bg-muted/10 hover:bg-card/80">
-            <div className="flex items-center gap-3">
-              <div className={`flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br ${targetColor} shadow-lg`}>
-                <Shuffle className="h-5 w-5 text-white" />
+          <button className="w-full flex items-center justify-between rounded-xl border border-border bg-card/50 p-3 transition-all active:bg-muted/10 hover:bg-card/80">
+            <div className="flex items-center gap-2.5">
+              <div className={`flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br ${targetColor} shadow-lg`}>
+                <Shuffle className="h-4 w-4 text-white" />
               </div>
               <div className="text-left">
-                <p className="font-semibold text-foreground">变更阵营</p>
-                <p className="text-sm text-muted-foreground">当前：{currentName}（每周限1次）</p>
+                <p className="text-sm font-semibold text-foreground">变更阵营</p>
+                <p className="text-xs text-muted-foreground">当前：{currentName}（每周限1次）</p>
               </div>
             </div>
-            <ChevronRight className="h-5 w-5 text-muted-foreground/50" />
+            <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
           </button>
         </DialogTrigger>
         <DialogContent className="bg-card border-border text-foreground sm:max-w-[400px]">
