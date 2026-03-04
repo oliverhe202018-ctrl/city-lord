@@ -386,32 +386,25 @@ export function ClubDetailView({
         ref={scrollContainerRef}
         className={`flex-1 w-full min-h-0 overflow-y-auto overscroll-contain`}
       >
-        <div className="px-6 pt-6">
-          <div className="relative h-44 overflow-hidden rounded-2xl border border-border">
-            <div className="absolute inset-0 bg-gradient-to-br from-muted via-muted/80 to-background" />
-            <div className="absolute inset-0 opacity-50">
-              {club.avatarUrl ? (
-                <img src={club.avatarUrl} alt={club.name} className="h-full w-full object-cover" />
-              ) : null}
-            </div>
-            <div className="absolute inset-0 bg-background/40" />
-            <div className="absolute left-6 top-4 flex items-center justify-between w-[calc(100%-3rem)] z-10">
-              <div className="flex items-center gap-2">
-                {onBack && !effectiveIsMember && (
-                  <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full bg-background/40 text-foreground hover:bg-background/60" onClick={onBack}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
-                  </Button>
-                )}
-              </div>
-              {effectiveIsMember && (
-                <Button size="sm" className="rounded-full bg-primary text-primary-foreground hover:bg-primary/90 font-bold shadow-lg" onClick={() => onChange?.()}>
-                  更换
+        <div className="px-6 pt-4">
+          {/* Top action bar */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              {onBack && !effectiveIsMember && (
+                <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full bg-muted text-foreground hover:bg-muted/80" onClick={onBack}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
                 </Button>
               )}
             </div>
+            {effectiveIsMember && (
+              <Button size="sm" className="rounded-full bg-primary text-primary-foreground hover:bg-primary/90 font-bold shadow-lg" onClick={() => onChange?.()}>
+                更换
+              </Button>
+            )}
           </div>
-          <div className="relative -mt-10 flex items-end gap-4">
-            <div className="h-24 w-24 overflow-hidden rounded-full border-2 border-background bg-muted">
+          {/* Club avatar + info */}
+          <div className="flex items-center gap-4">
+            <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-full border-2 border-border bg-muted">
               {club.avatarUrl ? (
                 <img src={club.avatarUrl} alt={club.name} className="h-full w-full object-cover" />
               ) : (
@@ -420,7 +413,7 @@ export function ClubDetailView({
                 </div>
               )}
             </div>
-            <div className="pb-2">
+            <div>
               <div className="text-lg font-semibold text-foreground">{club.name}</div>
 
               {/* Inline Stats Row */}
