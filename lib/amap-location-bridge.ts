@@ -481,6 +481,9 @@ export class AMapLocationBridge {
     // startWatch / stopWatch
     // =========================================================================
 
+    /** Whether foreground service tracking is active (running mode) */
+    private isUsingForegroundService = false;
+
     async startWatch(options: {
         mode: 'browse' | 'running';
         interval?: number;
@@ -509,13 +512,26 @@ export class AMapLocationBridge {
 
         try {
             if (this.isNative && this._AMapLocation) {
-                await this._AMapLocation.startWatch({
-                    mode: options.mode,
-                    interval,
-                    distanceFilter,
-                });
+                if (options.mode === 'running') {
+                    // 跑步模式：使用前台 Service 定位（锁屏/后台/黑屏持续）
+                    logInfo({ phase: 'startWatch-foreground-service', reason: 'Using foreground service for running mode' });
+                    await this._AMapLocation.startTracking({
+                        notificationTitle: 'City Lord',
+                        notificationBody: '跑步定位中…',
+                    });
+                    this.isUsingForegroundService = true;
+                } else {
+                    // 浏览模式：使用常规 Plugin watch（低功耗）
+                    await this._AMapLocation.startWatch({
+                        mode: options.mode,
+                        interval,
+                        distanceFilter,
+                    });
+                    this.isUsingForegroundService = false;
+                }
             } else {
                 this.startWebWatch(interval);
+                this.isUsingForegroundService = false;
             }
 
             this.isWatching = true;
@@ -530,13 +546,24 @@ export class AMapLocationBridge {
     }
 
     async stopWatch(): Promise<void> {
-        logInfo({ phase: 'stopWatch', reason: 'Stopping watch and clearing watchdog' });
+        logInfo({ phase: 'stopWatch', reason: `Stopping watch (foregroundService=${this.isUsingForegroundService})` });
 
         this.stopStaleWatchdog();
         this.isWatching = false;
         this.watchMode = null;
 
-        await this.safeStopWatch(makeRequestId());
+        if (this.isUsingForegroundService && this.isNative && this._AMapLocation) {
+            // 停止前台 Service
+            try {
+                await this._AMapLocation.stopTracking();
+                logInfo({ phase: 'stopWatch-foreground-service-stopped', reason: 'Foreground service stopped' });
+            } catch (e) {
+                logError({ phase: 'stopWatch-foreground-service-error', reason: String(e) });
+            }
+            this.isUsingForegroundService = false;
+        } else {
+            await this.safeStopWatch(makeRequestId());
+        }
     }
 
     // =========================================================================
