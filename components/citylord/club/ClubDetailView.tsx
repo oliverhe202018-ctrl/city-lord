@@ -661,7 +661,7 @@ export function ClubDetailView({
                 )}
               </TabsContent>
 
-              <TabsContent value="data" className="mt-4">
+              <TabsContent value="data" className="mt-4 pb-20">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-2xl border border-border bg-muted/30 p-4">
                     <div className="text-xs text-muted-foreground">总里程</div>

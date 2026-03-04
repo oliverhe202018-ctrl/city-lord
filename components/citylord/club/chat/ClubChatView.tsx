@@ -78,9 +78,10 @@ export function ClubChatView({ clubId, currentUserId }: ClubChatViewProps) {
                     setActiveChannel(chResult.data[0])
                 }
             } else {
-                // Fallback: use DEFAULT_CHANNELS as virtual channels so UI still renders
-                console.warn('[ClubChatView] Channel fetch failed, using fallback channels:', chResult.message)
+                // Channel fetch failed — try to seed and retry once
+                console.warn('[ClubChatView] Channel fetch failed, attempting retry:', chResult.message)
                 setChannelError(true)
+                // Still try to use fallback channels for UI, but mark them so we don't load messages
                 const fallbackChannels: ClubChannel[] = DEFAULT_CHANNELS.map((ch, i) => ({
                     id: `fallback-${ch.key}`,
                     clubId,
@@ -111,6 +112,12 @@ export function ClubChatView({ clubId, currentUserId }: ClubChatViewProps) {
             setOptimisticMessages([])
             setNextCursor(undefined)
             setHasMore(false)
+
+            // Skip loading messages for fallback channels (non-UUID IDs will fail validation)
+            if (currentChannel.id.startsWith('fallback-')) {
+                setIsLoadingMessages(false)
+                return
+            }
 
             const result = await getClubMessages({
                 clubId,

@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
 import { useLocationStore, saveLocationToCache } from '@/store/useLocationStore';
 import { AMapLocationBridge, type LocationMeta } from '@/lib/amap-location-bridge';
+import { safeRequestGeolocationPermission } from '@/lib/capacitor/safe-plugins';
 import type { GeoPoint } from '@/hooks/useSafeGeolocation';
 
 // ---------------------------------------------------------------------------
@@ -127,6 +128,12 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
 
             // Step 1: Init bridge (privacy compliance for native)
             await bridge.init();
+
+            if (!mountedRef.current) return;
+
+            // Step 1.5: Request location permission (triggers native dialog on first launch)
+            const permStatus = await safeRequestGeolocationPermission();
+            console.log(`${TAG} Location permission status: ${permStatus}`);
 
             if (!mountedRef.current) return;
 
