@@ -3,6 +3,7 @@
 import { z } from 'zod'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { sendVerificationCode } from '@/lib/email'
+import type { EmailType } from '@/lib/email'
 
 // Response interface for client consistency
 export interface ActionResponse {
@@ -104,12 +105,13 @@ export async function sendAuthCode(
             return { success: false, message: "验证码获取异常" }
         }
 
-        // 6. Send Email via Resend
+        // 6. Send Email via ZeptoMail
         // This allows us to use our custom email template and provider independently of Supabase's internal mailer
-        const sendRes = await sendVerificationCode(email, codeToSend, type)
+        const emailType: EmailType = type === 'register' ? 'register' : 'login'
+        const sendRes = await sendVerificationCode(email, codeToSend, emailType)
 
         if (!sendRes.success) {
-            console.error('[AuthAction] Resend Error:', sendRes.error)
+            console.error('[AuthAction] ZeptoMail Error:', sendRes.error)
             return { success: false, message: "邮件发送失败，请检查邮箱是否正确或稍后再试", error: String(sendRes.error) }
         }
 
@@ -120,3 +122,62 @@ export async function sendAuthCode(
         return { success: false, message: "服务暂时不可用，请稍后再试", error: err.message }
     }
 }
+
+/**
+ * Send a password reset verification code.
+ * Uses Supabase Admin generateLink(type:'recovery') to get an OTP,
+ * then sends it via ZeptoMail with the 'reset' template.
+ */
+export async function sendResetPasswordCode(email: string): Promise<ActionResponse> {
+    try {
+        const emailResult = EmailSchema.safeParse(email)
+        if (!emailResult.success) {
+            return { success: false, message: "邮箱格式错误", error: emailResult.error.errors[0].message }
+        }
+
+        // Rate limiting
+        const key = `reset:${email}`
+        const lastRequest = RATE_LIMIT_MAP.get(key)
+        const now = Date.now()
+        if (lastRequest && (now - lastRequest) < 60000) {
+            return { success: false, message: "发送过于频繁，请稍后再试" }
+        }
+        RATE_LIMIT_MAP.set(key, now)
+
+        // Generate recovery link (returns OTP)
+        const { data, error } = await supabaseAdmin.auth.admin.generateLink({
+            type: 'recovery',
+            email,
+        })
+
+        if (error) {
+            console.error('[AuthAction] Recovery GenerateLink Error:', error)
+            let msg = "验证码生成失败"
+            if (error.message?.includes("not found") || error.message?.includes("User not found")) {
+                msg = "该邮箱未注册"
+            } else if (error.status === 429) {
+                msg = "请求过多，请稍后再试"
+            }
+            return { success: false, message: msg, error: error.message }
+        }
+
+        const otp = data?.properties?.email_otp
+        if (!otp) {
+            console.error('[AuthAction] No reset OTP returned:', data)
+            return { success: false, message: "系统错误：未获取到验证码" }
+        }
+
+        // Send reset email
+        const sendRes = await sendVerificationCode(email, otp, 'reset')
+        if (!sendRes.success) {
+            console.error('[AuthAction] ZeptoMail Reset Error:', sendRes.error)
+            return { success: false, message: "邮件发送失败，请检查邮箱是否正确或稍后再试", error: String(sendRes.error) }
+        }
+
+        return { success: true, message: "重置验证码已发送" }
+    } catch (err: any) {
+        console.error('[AuthAction] Reset Unexpected Error:', err)
+        return { success: false, message: "服务暂时不可用，请稍后再试", error: err.message }
+    }
+}
+
