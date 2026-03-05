@@ -1,6 +1,17 @@
-import { Resend } from 'resend';
+/**
+ * Email sending via Zoho ZeptoMail transactional email API.
+ * Supports: register, login, reset password verification codes.
+ * @see https://www.zoho.com/zeptomail/help/api/email-sending.html
+ */
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const ZEPTOMAIL_API_URL = 'https://api.zeptomail.com/v1.1/email/template';
+const ZEPTOMAIL_TOKEN = process.env.ZEPTOMAIL_API_KEY || '';
+
+// From address — must be a verified sender domain in your ZeptoMail Agent
+const FROM_ADDRESS = process.env.ZEPTOMAIL_FROM_ADDRESS || 'noreply@citytour.games';
+const FROM_NAME = process.env.ZEPTOMAIL_FROM_NAME || '城市领主安全中心';
+
+export type EmailType = 'register' | 'login' | 'reset';
 
 interface SendResult {
   success: boolean;
@@ -8,43 +19,65 @@ interface SendResult {
   error?: any;
 }
 
+// ─── Template Keys ────────────────────────────────────────────────────────────
+
+const TEMPLATE_KEYS: Record<EmailType, string> = {
+  reset: '2d6f.5219295b459e8d2e.k1.93c56220-189b-11f1-b6bb-525400d4bb1c.19cbe4c3142',
+  register: '2d6f.5219295b459e8d2e.k1.8b4d1c01-189b-11f1-b6bb-525400d4bb1c.19cbe4bf9c0',
+  login: '2d6f.5219295b459e8d2e.k1.7e02b461-189b-11f1-b6bb-525400d4bb1c.19cbe4ba2a1',
+};
+
+// ─── Send Function ────────────────────────────────────────────────────────────
+
 export async function sendVerificationCode(
-  to: string, 
-  code: string, 
-  type: 'register' | 'login' = 'register'
+  to: string,
+  code: string,
+  type: EmailType = 'register'
 ): Promise<SendResult> {
-  const subject = type === 'login' ? '【City Lord】登录验证码' : '【City Lord】注册验证码';
-  const title = type === 'login' ? 'City Lord 登录验证' : 'City Lord 注册验证';
+  const templateKey = TEMPLATE_KEYS[type];
 
   try {
-    const { data, error } = await resend.emails.send({
-      from: '安全中心 <system@mail.city-tour.dev>',
-      to: [to],
-      subject: subject,
-      html: `
-        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
-          <h2 style="color: #22c55e;">${title}</h2>
-          <p>您好！</p>
-          <p>您的验证码是：</p>
-          <div style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #0f172a; margin: 20px 0;">
-            ${code}
-          </div>
-          <p>有效期5分钟，请勿泄露给他人。</p>
-          <p style="font-size: 12px; color: #666; margin-top: 30px;">
-            如果这不是您的操作，请忽略此邮件。
-          </p>
-        </div>
-      `,
+    const response = await fetch(ZEPTOMAIL_API_URL, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'Authorization': ZEPTOMAIL_TOKEN,
+      },
+      body: JSON.stringify({
+        template_key: templateKey,
+        from: {
+          address: FROM_ADDRESS,
+          name: FROM_NAME,
+        },
+        to: [
+          {
+            email_address: {
+              address: to,
+              name: to.split('@')[0],
+            },
+          },
+        ],
+        merge_info: {
+          OTP: code,
+        },
+      }),
     });
 
-    if (error) {
-      console.error('Resend API Error:', error);
-      return { success: false, error };
+    const result = await response.json();
+
+    if (!response.ok) {
+      console.error('[ZeptoMail] API Error:', response.status, result);
+      return {
+        success: false,
+        error: result?.message || result?.error || `HTTP ${response.status}`,
+      };
     }
 
-    return { success: true, data };
+    console.log('[ZeptoMail] Template email sent successfully:', type, to);
+    return { success: true, data: result };
   } catch (err: any) {
-    console.error('Email sending exception:', err);
+    console.error('[ZeptoMail] Exception:', err);
     return { success: false, error: err.message || err };
   }
 }

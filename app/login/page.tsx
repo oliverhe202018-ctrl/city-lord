@@ -415,6 +415,15 @@ export default function LoginPage() {
                       {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                       登录
                     </Button>
+
+                    <div className="text-center mt-2">
+                      <Link
+                        href="/reset-password"
+                        className="text-sm text-green-400 hover:text-green-300 underline-offset-4 hover:underline transition-colors"
+                      >
+                        忘记密码？
+                      </Link>
+                    </div>
                   </form>
                 )}
 
