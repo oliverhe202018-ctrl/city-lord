@@ -42,6 +42,7 @@ interface RunningStats {
   distanceMeters: number; // meters — use this for display/calculations
   durationSeconds: number; // seconds — use this for speed/pace calculations
   steps: number; // estimated steps (Math.floor(distanceMeters * 1.3))
+  savedRunId: string | null; // Run ID for photo upload and sharing
 }
 
 // Haversine formula — now imported from @/lib/geometry-utils
@@ -563,6 +564,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   // --- Persistence & Auto-Save ---
   const [isSaving, setIsSaving] = useState(false);
   const [lastSavedClaimsCount, setLastSavedClaimsCount] = useState(0);
+  const [savedRunId, setSavedRunId] = useState<string | null>(null);
 
   // Core save function
   const saveRun = useCallback(async (isFinal: boolean = false) => {
@@ -584,8 +586,10 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       });
 
       if (result.success) {
+        if (result.data?.runId) {
+          setSavedRunId(result.data.runId);
+        }
         if (isFinal) {
-          // Note: result.data.runId is the new structure
           console.log("Run saved successfully:", result.data?.runId);
         }
 
@@ -646,5 +650,6 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     distanceMeters: distance, // raw meters
     durationSeconds: duration, // raw seconds
     steps: estimatedSteps,
+    savedRunId, // Expose the run ID for photo upload and sharing
   };
 }

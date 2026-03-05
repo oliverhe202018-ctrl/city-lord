@@ -1,6 +1,6 @@
 "use client"
 
-import { Share2, X, Activity, Flame, Zap, MapPin, Footprints, Timer, Trophy, Share, MessageCircle, MoreHorizontal, Camera } from "lucide-react"
+import { Share2, X, Activity, Flame, Zap, MapPin, Footprints, Timer, Trophy, Share, MessageCircle, MoreHorizontal, Camera, Loader2, CheckCircle2, Image as ImageIcon } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { HEX_AREA_SQ_METERS } from "@/lib/citylord/area-utils"
 import dynamic from "next/dynamic"
@@ -10,9 +10,12 @@ const StaticTrajectoryMap = dynamic(
   () => import("./StaticTrajectoryMap").then(mod => mod.StaticTrajectoryMap),
   { ssr: false, loading: () => <MapSkeleton className="w-full h-full bg-slate-900 rounded-2xl" /> }
 )
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { GlassCard } from "../ui/GlassCard"
 import { toast } from "sonner"
+import { createClient } from "@/lib/supabase/client"
+import { createPost } from "@/app/actions/social-hub"
+import { useGameStore } from "@/store/useGameStore"
 
 interface RunSummaryViewProps {
   distanceMeters: number // meters (raw)
@@ -29,6 +32,7 @@ interface RunSummaryViewProps {
     isCaptured: boolean
     previousOwner?: string
   }
+  runId?: string // Run ID for photo upload and sharing
 }
 
 export function RunSummaryView({
@@ -42,9 +46,16 @@ export function RunSummaryView({
   onClose,
   onShare,
   runTrajectory = [],
-  territoryInfo = { isCaptured: false }
+  territoryInfo = { isCaptured: false },
+  runId
 }: RunSummaryViewProps) {
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
+  const [hasShared, setHasShared] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const userId = useGameStore(state => state.userId);
 
   // Compute average speed from raw values (no string parsing)
   const avgSpeed = durationSeconds > 0
@@ -69,8 +80,105 @@ export function RunSummaryView({
     }
   };
 
+  // Photo upload handler
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !userId) return;
+
+    setIsUploading(true);
+    try {
+      const supabase = createClient();
+      const fileExt = file.name.split('.').pop();
+      const filePath = `run-photos/${userId}/${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      const publicUrl = urlData.publicUrl;
+      setPhotoUrl(publicUrl);
+
+      // Save photo_url to the run record if we have a runId
+      if (runId) {
+        // Use untyped update since photo_url may not be in Prisma types yet
+        await (supabase
+          .from('runs') as any)
+          .update({ photo_url: publicUrl })
+          .eq('id', runId);
+      }
+
+      toast.success('照片添加成功！');
+    } catch (err) {
+      console.error('Photo upload failed:', err);
+      toast.error('照片上传失败，请重试');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // Share to feed handler
+  const handleShareToFeed = async () => {
+    if (isSharing || hasShared) return;
+    setIsSharing(true);
+    try {
+      const content = [
+        `🏃 完成一次跑步！`,
+        `📏 距离: ${distanceKm} km`,
+        `⏱️ 用时: ${duration}`,
+        `🎯 配速: ${pace}`,
+        `🔥 消耗: ${calories} Kcal`,
+        `👟 步数: ${steps}`,
+        hexesCaptured > 0 ? `🏰 占领领地: ${hexesCaptured * 650}㎡` : null,
+        avgSpeed !== '--' ? `💨 平均速度: ${avgSpeed} km/h` : null,
+      ].filter(Boolean).join('\n');
+
+      const mediaUrls = photoUrl ? [photoUrl] : [];
+
+      const result = await createPost({
+        content,
+        source_type: 'RUN',
+        source_id: runId || undefined,
+        mediaUrls,
+        visibility: 'PUBLIC'
+      });
+
+      if (result.success) {
+        toast.success('已分享到动态！');
+        setHasShared(true);
+        setIsShareModalOpen(false);
+      } else {
+        throw new Error(result.error?.message || '分享失败');
+      }
+    } catch (err: any) {
+      console.error('Share to feed failed:', err);
+      if (err?.message?.includes('429') || err?.message?.includes('频繁')) {
+        toast.error('操作过于频繁，请稍后再试');
+      } else {
+        toast.error('分享失败，请重试');
+      }
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[10000] flex flex-col bg-white text-black animate-in slide-in-from-bottom duration-300">
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={handlePhotoUpload}
+      />
+
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
         <div className="flex items-center gap-2">
@@ -160,20 +268,45 @@ export function RunSummaryView({
           </div>
         </div>
 
-        {/* Task 2: Add Photo Button */}
+        {/* Photo Upload Section */}
         <div className="mx-4 mb-4">
-          <button
-            className="w-full bg-white rounded-xl p-4 shadow-sm flex flex-col items-center justify-center gap-2 border border-dashed border-gray-300 hover:bg-gray-50 transition-colors"
-            onClick={() => toast.info('添加照片功能开发中')}
-          >
-            <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
-              <Camera className="w-5 h-5 text-gray-500" />
+          {photoUrl ? (
+            <div className="relative w-full bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100">
+              <img src={photoUrl} alt="跑步照片" className="w-full h-48 object-cover" />
+              <div className="absolute top-2 right-2">
+                <CheckCircle2 className="w-6 h-6 text-green-500 bg-white rounded-full" />
+              </div>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full py-2 text-xs text-gray-500 hover:bg-gray-50 transition-colors border-t border-gray-100"
+              >
+                更换照片
+              </button>
             </div>
-            <span className="text-sm font-medium text-gray-600">添加照片</span>
-          </button>
+          ) : (
+            <button
+              className="w-full bg-white rounded-xl p-4 shadow-sm flex flex-col items-center justify-center gap-2 border border-dashed border-gray-300 hover:bg-gray-50 transition-colors disabled:opacity-50"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+            >
+              {isUploading ? (
+                <>
+                  <Loader2 className="w-5 h-5 text-gray-500 animate-spin" />
+                  <span className="text-sm font-medium text-gray-600">上传中...</span>
+                </>
+              ) : (
+                <>
+                  <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
+                    <Camera className="w-5 h-5 text-gray-500" />
+                  </div>
+                  <span className="text-sm font-medium text-gray-600">添加照片</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
 
-        {/* Task 2: Static Trajectory Map */}
+        {/* Static Trajectory Map */}
         <div className="mx-4 mb-4 rounded-xl overflow-hidden shadow-sm border border-gray-100 relative bg-gray-100 h-72">
           {runTrajectory && runTrajectory.length > 0 ? (
             <StaticTrajectoryMap path={runTrajectory} className="w-full h-full" />
@@ -184,7 +317,7 @@ export function RunSummaryView({
           )}
         </div>
 
-        {/* Task 3: Territory Capture Feedback */}
+        {/* Territory Capture Feedback */}
         {territoryInfo.isCaptured && (
           <div className="mx-4 mb-8 text-center animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300">
             <div className="inline-block px-4 py-2 rounded-lg bg-[#22c55e]/10 border border-[#22c55e]/20">
@@ -217,7 +350,7 @@ export function RunSummaryView({
         </div>
       </div>
 
-      {/* Task 4: Share Modal */}
+      {/* Share Modal */}
       <AnimatePresence>
         {isShareModalOpen && (
           <>
@@ -247,16 +380,22 @@ export function RunSummaryView({
 
               <div className="grid grid-cols-2 gap-4">
                 <button
-                  onClick={() => {
-                    toast.success("分享成功");
-                    setIsShareModalOpen(false);
-                  }}
-                  className="flex flex-col items-center gap-3 p-4 rounded-xl bg-gray-50 active:bg-gray-100 transition-colors"
+                  onClick={handleShareToFeed}
+                  disabled={isSharing || hasShared}
+                  className="flex flex-col items-center gap-3 p-4 rounded-xl bg-gray-50 active:bg-gray-100 transition-colors disabled:opacity-50"
                 >
-                  <div className="h-12 w-12 rounded-full bg-[#07c160] flex items-center justify-center text-white">
-                    <MessageCircle size={24} fill="currentColor" />
+                  <div className={`h-12 w-12 rounded-full flex items-center justify-center text-white ${hasShared ? 'bg-gray-400' : 'bg-[#22c55e]'}`}>
+                    {isSharing ? (
+                      <Loader2 size={24} className="animate-spin" />
+                    ) : hasShared ? (
+                      <CheckCircle2 size={24} />
+                    ) : (
+                      <MessageCircle size={24} fill="currentColor" />
+                    )}
                   </div>
-                  <span className="text-sm font-medium text-gray-900">分享到朋友圈</span>
+                  <span className="text-sm font-medium text-gray-900">
+                    {hasShared ? '已分享' : '分享到动态'}
+                  </span>
                 </button>
 
                 <button

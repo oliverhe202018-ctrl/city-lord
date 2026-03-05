@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useEffect, useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Loader2, RefreshCw, Trash2, ChevronUp, MessageSquare } from 'lucide-react'
@@ -103,11 +104,16 @@ function MessageBubble({
     onRetry?: (clientTempId: string) => void
     onDelete?: (clientTempId: string) => void
 }) {
+    const router = useRouter()
     const [isRetrying, setIsRetrying] = useState(false)
     const isPending = msg.type === 'optimistic' && msg.status === 'pending'
     const isFailed = msg.type === 'optimistic' && msg.status === 'failed'
     const senderName = msg.sender.nickname || '匿名用户'
     const avatarUrl = msg.sender.avatarUrl
+
+    const handleAvatarClick = () => {
+        if (!isOwn) router.push(`/profile/user?userId=${msg.sender.id}`)
+    }
 
     // Debounced retry — prevent duplicate clicks
     const handleRetry = useCallback(() => {
@@ -121,7 +127,10 @@ function MessageBubble({
     return (
         <div className={`flex items-start gap-2.5 ${isOwn ? 'flex-row-reverse' : ''}`}>
             {/* Avatar */}
-            <div className="h-8 w-8 flex-shrink-0 rounded-full overflow-hidden bg-zinc-800">
+            <div
+                className={`h-8 w-8 flex-shrink-0 rounded-full overflow-hidden bg-zinc-800 ${!isOwn ? 'cursor-pointer hover:ring-2 ring-primary/50 transition-all' : ''}`}
+                onClick={handleAvatarClick}
+            >
                 {avatarUrl ? (
                     <img src={avatarUrl} alt={senderName} className="h-full w-full object-cover" />
                 ) : (
@@ -134,7 +143,12 @@ function MessageBubble({
             {/* Content */}
             <div className={`max-w-[70%] ${isOwn ? 'items-end' : 'items-start'} flex flex-col`}>
                 <div className={`flex items-center gap-1.5 mb-0.5 ${isOwn ? 'flex-row-reverse' : ''}`}>
-                    <span className="text-xs font-medium text-white/50">{senderName}</span>
+                    <span
+                        className={`text-xs font-medium text-white/50 ${!isOwn ? 'cursor-pointer hover:text-white/80 transition-colors' : ''}`}
+                        onClick={handleAvatarClick}
+                    >
+                        {senderName}
+                    </span>
                     <span className="text-[10px] text-white/25">
                         <ClientTime iso={msg.createdAt} />
                     </span>

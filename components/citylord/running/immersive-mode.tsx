@@ -60,6 +60,7 @@ interface ImmersiveModeProps {
   onHexClaimed?: () => void
   onManualLocation?: (lat: number, lng: number) => void
   saveRun?: (isFinal?: boolean) => Promise<void>
+  savedRunId?: string | null
 }
 
 // Helper: Calculate distance between two points in meters
@@ -101,7 +102,8 @@ export function ImmersiveRunningMode({
   closedPolygons = [],
   onHexClaimed,
   onManualLocation,
-  saveRun
+  saveRun,
+  savedRunId
 }: ImmersiveModeProps) {
   const [isPaused, setIsPaused] = useState(false)
   const [isGhostMode, setIsGhostMode] = useState(false)
@@ -468,6 +470,7 @@ export function ImmersiveRunningMode({
           hexesCaptured={effectiveHexes}
           steps={steps}
           onClose={handleStop}
+          runId={savedRunId || undefined}
           onShare={() => {
             toast.success("分享图片已生成 (模拟)")
           }}

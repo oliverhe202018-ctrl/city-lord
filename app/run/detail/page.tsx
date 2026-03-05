@@ -8,7 +8,7 @@ import { MapSkeleton } from "@/components/map/MapSkeleton"
 
 const StaticTrajectoryMap = dynamic(
    () => import("@/components/running/StaticTrajectoryMap").then(mod => mod.StaticTrajectoryMap),
-   { ssr: false, loading: () => <MapSkeleton className="w-full h-full bg-slate-900 rounded-2xl" /> }
+   { ssr: false, loading: () => <MapSkeleton className="w-full h-full bg-slate-900 rounded-xl" /> }
 )
 import { getRunDetail } from "@/app/actions/activities"
 import { Loader2, ChevronLeft, Zap, TrendingUp } from "lucide-react"
@@ -65,19 +65,27 @@ function RunDetailContent() {
    return (
       <div className="h-screen bg-black text-white overflow-y-auto">
          {/* Header */}
-         <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between p-4 bg-transparent pointer-events-none">
-            <button onClick={() => router.back()} className="pointer-events-auto p-2 rounded-full bg-black/40 backdrop-blur-md">
-               <ChevronLeft className="w-6 h-6 text-white" />
+         <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-3 py-2 bg-transparent pointer-events-none">
+            <button onClick={() => router.back()} className="pointer-events-auto p-1.5 rounded-full bg-black/40 backdrop-blur-md">
+               <ChevronLeft className="w-5 h-5 text-white" />
             </button>
-            <div className="text-sm font-bold uppercase tracking-wider bg-black/40 px-3 py-1 rounded-full backdrop-blur-md">
+            <div className="text-xs font-bold uppercase tracking-wider bg-black/40 px-2.5 py-1 rounded-full backdrop-blur-md">
                {shortDate}
             </div>
-            <div className="w-10" />
+            <div className="w-8" />
          </div>
 
          {/* Slider */}
          <div className="overflow-hidden bg-zinc-900" ref={emblaRef}>
             <div className="flex">
+               {/* Slide 0: Photo */}
+               <div className="flex-[0_0_100%] min-w-0 relative h-[60vh] bg-zinc-900 flex items-center justify-center">
+                  {run.photo_url ? (
+                     <img src={run.photo_url} alt="跑步照片" className="w-full h-full object-cover" />
+                  ) : (
+                     <div className="text-white/30 text-lg font-medium">无照片</div>
+                  )}
+               </div>
                {/* Slide 1: Map */}
                <div className="flex-[0_0_100%] min-w-0 relative h-[60vh]">
                   {run.path ? (
@@ -87,8 +95,8 @@ function RunDetailContent() {
                   )}
                </div>
                {/* Slide 2: Splits */}
-               <div className="flex-[0_0_100%] min-w-0 relative h-[60vh] bg-zinc-900 p-6 flex flex-col justify-center">
-                  <h3 className="text-center mb-6 font-bold text-lg">配速分段</h3>
+               <div className="flex-[0_0_100%] min-w-0 relative h-[60vh] bg-zinc-900 p-4 flex flex-col justify-center">
+                  <h3 className="text-center mb-4 font-bold text-base">配速分段</h3>
                   {run.splits && run.splits.length > 0 ? (
                      <div className="w-full h-64">
                         <ResponsiveContainer width="100%" height="100%">
@@ -114,54 +122,54 @@ function RunDetailContent() {
 
          {/* Pagination Dots */}
          <div className="flex justify-center gap-2 mt-4">
-            {[0, 1].map(i => (
+            {[0, 1, 2].map(i => (
                <div key={i} className={`w-2 h-2 rounded-full transition-colors ${i === slideIndex ? 'bg-white' : 'bg-white/20'}`} />
             ))}
          </div>
 
          {/* Info Card — Flexbox column layout to prevent overlap */}
-         <div className="px-4 mt-6 pb-10">
-            <div className="text-xl font-bold mb-1">{dateStr}</div>
-            <div className="text-sm text-white/50 mb-6">自由跑</div>
+         <div className="px-3 mt-4 pb-8">
+            <div className="text-base font-bold mb-0.5">{dateStr}</div>
+            <div className="text-xs text-white/50 mb-3">自由跑</div>
 
             {/* Primary Stats — flex column on small screens, each stat stacks naturally */}
-            <div className="bg-zinc-900 rounded-2xl p-6 border border-white/10">
-               <div className="flex flex-col items-center gap-y-4">
+            <div className="bg-zinc-900 rounded-xl p-4 border border-white/10">
+               <div className="flex flex-col items-center gap-y-3">
                   {/* Distance */}
                   <div className="text-center w-full">
-                     <div className="text-3xl font-bold font-mono">{safeNum(run.distance_km, 2)}<span className="text-base font-normal text-white/40 ml-1">KM</span></div>
-                     <div className="text-xs text-white/40 tracking-wider mt-1">距离</div>
+                     <div className="text-2xl font-bold font-mono">{safeNum(run.distance_km, 2)}<span className="text-sm font-normal text-white/40 ml-1">KM</span></div>
+                     <div className="text-[10px] text-white/40 tracking-wider mt-0.5">距离</div>
                   </div>
                   <div className="w-full h-px bg-white/10" />
                   {/* Duration */}
                   <div className="text-center w-full">
-                     <div className="text-3xl font-bold font-mono">{run.duration_str || '--'}</div>
-                     <div className="text-xs text-white/40 tracking-wider mt-1">时长</div>
+                     <div className="text-2xl font-bold font-mono">{run.duration_str || '--'}</div>
+                     <div className="text-[10px] text-white/40 tracking-wider mt-0.5">时长</div>
                   </div>
                   <div className="w-full h-px bg-white/10" />
                   {/* Avg Pace */}
                   <div className="text-center w-full">
-                     <div className="text-3xl font-bold font-mono">{run.pace_min_per_km || '--'}</div>
-                     <div className="text-xs text-white/40 tracking-wider mt-1">平均配速</div>
+                     <div className="text-2xl font-bold font-mono">{run.pace_min_per_km || '--'}</div>
+                     <div className="text-[10px] text-white/40 tracking-wider mt-0.5">平均配速</div>
                   </div>
                </div>
             </div>
 
             {/* Secondary Stats */}
-            <div className="grid grid-cols-2 gap-4 mt-4">
-               <div className="bg-zinc-900 rounded-2xl p-4 border border-white/10 flex items-center justify-between">
+            <div className="grid grid-cols-2 gap-3 mt-3">
+               <div className="bg-zinc-900 rounded-xl p-3 border border-white/10 flex items-center justify-between">
                   <div>
-                     <div className="text-xs text-white/40 tracking-wider mb-1">平均速度</div>
-                     <div className="text-xl font-bold font-mono">{avgSpeed} <span className="text-xs font-normal text-white/40">km/h</span></div>
+                     <div className="text-[10px] text-white/40 tracking-wider mb-0.5">平均速度</div>
+                     <div className="text-lg font-bold font-mono">{avgSpeed} <span className="text-[10px] font-normal text-white/40">km/h</span></div>
                   </div>
-                  <Zap className="w-5 h-5 text-yellow-500 flex-shrink-0" />
+                  <Zap className="w-4 h-4 text-yellow-500 flex-shrink-0" />
                </div>
-               <div className="bg-zinc-900 rounded-2xl p-4 border border-white/10 flex items-center justify-between">
+               <div className="bg-zinc-900 rounded-xl p-3 border border-white/10 flex items-center justify-between">
                   <div>
-                     <div className="text-xs text-white/40 tracking-wider mb-1">最大速度</div>
-                     <div className="text-xl font-bold font-mono">{maxSpeed} <span className="text-xs font-normal text-white/40">km/h</span></div>
+                     <div className="text-[10px] text-white/40 tracking-wider mb-0.5">最大速度</div>
+                     <div className="text-lg font-bold font-mono">{maxSpeed} <span className="text-[10px] font-normal text-white/40">km/h</span></div>
                   </div>
-                  <TrendingUp className="w-5 h-5 text-red-500 flex-shrink-0" />
+                  <TrendingUp className="w-4 h-4 text-red-500 flex-shrink-0" />
                </div>
             </div>
          </div>

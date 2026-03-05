@@ -308,7 +308,7 @@ function ActivityCard({ post, onLike, onComment, isNew }: ActivityCardProps) {
                 <span className={`${config.color}`}>{config.label}</span>
                 <span>|</span>
                 <Clock className="h-3 w-3" />
-                <span>{new Date(post.created_at).toLocaleDateString()}</span>
+                <span>{new Date(post.created_at).toLocaleDateString()} {new Date(post.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
               </div>
             </div>
           </div>
@@ -396,10 +396,23 @@ function ActivityCard({ post, onLike, onComment, isNew }: ActivityCardProps) {
                   const cAvatar = comment.user?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.user?.nickname || 'U'}`
                   return (
                     <div key={comment.id} className="flex gap-2.5">
-                      <img src={cAvatar} alt="avt" className="w-6 h-6 rounded-full object-cover shrink-0 border border-border" />
+                      <img
+                        src={cAvatar}
+                        alt="avt"
+                        className="w-6 h-6 rounded-full object-cover shrink-0 border border-border cursor-pointer hover:ring-2 ring-primary/50 transition-all"
+                        onClick={() => { if (comment.user_id || comment.user?.id) router.push(`/profile/user?userId=${comment.user_id || comment.user?.id}`) }}
+                      />
                       <div className="flex-1 min-w-0 bg-muted/30 p-2.5 rounded-2xl rounded-tl-none">
                         <div className="flex justify-between items-start gap-2">
-                          <span className="text-xs font-semibold text-foreground/80">{comment.user?.nickname || '用户'}</span>
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className="text-xs font-semibold text-foreground/80 cursor-pointer hover:text-foreground transition-colors"
+                              onClick={() => { if (comment.user_id || comment.user?.id) router.push(`/profile/user?userId=${comment.user_id || comment.user?.id}`) }}
+                            >
+                              {comment.user?.nickname || '用户'}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground/60">{comment.created_at ? `${new Date(comment.created_at).toLocaleDateString()} ${new Date(comment.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}` : ''}</span>
+                          </div>
                           {isMine && (
                             <button onClick={() => handleDeleteComment(comment.id)} className="text-[10px] text-red-400 hover:text-red-500 transition-colors shrink-0">删除</button>
                           )}

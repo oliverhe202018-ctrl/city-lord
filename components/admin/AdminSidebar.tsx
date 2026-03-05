@@ -13,7 +13,8 @@ import {
   Flag,
   Award,
   MessageSquareWarning,
-  Image as ImageIcon
+  Image as ImageIcon,
+  ShoppingBag
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
@@ -70,6 +71,11 @@ const sidebarItems = [
     title: '背景管理',
     href: '/admin/backgrounds',
     icon: ImageIcon
+  },
+  {
+    title: '积分商城',
+    href: '/admin/store',
+    icon: ShoppingBag
   }
 ]
 

@@ -250,6 +250,7 @@ export function GamePageContent({
     durationSeconds,
     steps,
     area,
+    savedRunId,
   } = useRunningTracker(isRunning, user?.id)
 
   // Crash Recovery Check
@@ -866,6 +867,7 @@ export function GamePageContent({
           closedPolygons={closedPolygons}
           onHexClaimed={handleHexClaimed}
           saveRun={saveRun}
+          savedRunId={savedRunId}
         />
       )}
 

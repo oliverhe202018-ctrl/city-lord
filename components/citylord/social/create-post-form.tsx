@@ -39,6 +39,7 @@ export function CreatePostForm({ onSuccess }: { onSuccess?: (post: any) => void 
 
         if (images.length + validFiles.length > 9) {
             toast.error("最多只能上传9张图片")
+            if (fileInputRef.current) fileInputRef.current.value = ''
             return
         }
 

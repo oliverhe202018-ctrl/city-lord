@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import {
@@ -78,6 +79,7 @@ export function FriendsList({
   const [filter, setFilter] = useState<"all" | "online" | "nearby">("all")
   const [selectedFriend, setSelectedFriend] = useState<string | null>(null)
   const queryClient = useQueryClient()
+  const router = useRouter()
 
   const { data: friends = [], isLoading: isFriendsLoading, mutate: mutateFriends } = useSWR(
     'friends',
@@ -283,8 +285,11 @@ export function FriendsList({
                 className="flex w-full items-center gap-3 p-3"
               >
                 {/* Avatar */}
-                <div className="relative">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-primary/30 to-cyan-500/30 text-lg font-bold text-foreground">
+                <div
+                  className="relative cursor-pointer"
+                  onClick={(e) => { e.stopPropagation(); router.push(`/profile/user?userId=${friend.id}`) }}
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-primary/30 to-cyan-500/30 text-lg font-bold text-foreground hover:ring-2 ring-primary/50 transition-all">
                     {friend.avatar || friend.name[0]}
                   </div>
                   {/* Status Dot */}
@@ -296,7 +301,12 @@ export function FriendsList({
                 {/* Info */}
                 <div className="flex-1 text-left">
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold text-foreground">{friend.name}</span>
+                    <span
+                      className="font-semibold text-foreground cursor-pointer hover:text-primary transition-colors"
+                      onClick={(e) => { e.stopPropagation(); router.push(`/profile/user?userId=${friend.id}`) }}
+                    >
+                      {friend.name}
+                    </span>
                     <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
                       Lv.{friend.level}
                     </span>
