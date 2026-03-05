@@ -486,6 +486,7 @@ model runs {
   polygons        Json?             @default("[]") @db.Json
   source          String?           @default("phone") // "phone", "watch", "gpx", "manual"
   idempotency_key String?           @unique
+  photo_url       String?
   user_task_logs  user_task_logs[]
   watch_activity  watch_activities?
   clubs           clubs?            @relation(fields: [club_id], references: [id], onUpdate: NoAction)
@@ -863,6 +864,7 @@ model store_items {
   id                      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name                    String
   description             String?
+  image_url               String?
   price                   Int
   inventory_count         Int      @default(-1)
   purchase_limit_per_user Int      @default(1)

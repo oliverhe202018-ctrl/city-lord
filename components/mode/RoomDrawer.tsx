@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 
 import { motion, AnimatePresence } from 'framer-motion';
+import { createClient } from '@/lib/supabase/client';
 import type { Room } from '@/app/actions/room';
 import { toast } from 'sonner';
 import Image from 'next/image';
@@ -124,6 +125,10 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
   const [selectedPlayer, setSelectedPlayer] = React.useState<ExtendedParticipant | null>(null);
   const [isStatsOpen, setIsStatsOpen] = React.useState(false);
 
+  // Territory Events State
+  const [territoryEvents, setTerritoryEvents] = React.useState<any[]>([]);
+  const [isLoadingEvents, setIsLoadingEvents] = React.useState(false);
+
   // Create Form State
   const [formData, setFormData] = React.useState({
     name: '',
@@ -133,6 +138,7 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
   });
 
   const [isCopied, setIsCopied] = React.useState(false);
+  const [isAvatarExpanded, setIsAvatarExpanded] = React.useState(false);
 
   const { userId, nickname, avatar, currentRoom: selectedRoom } = useGameStore(state => state);
   const { setCurrentRoom, removeJoinedRoom, addJoinedRoom } = useGameActions();
@@ -252,6 +258,44 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
       return () => clearTimeout(timer);
     }
   }, [isOpen, refreshRoom, loadRooms]);
+
+  // Fetch Territory Events
+  React.useEffect(() => {
+    if (activeTab === 'territory' && participants.length > 0) {
+      setIsLoadingEvents(true);
+      const fetchEvents = async () => {
+        try {
+          const supabase = createClient();
+          const participantIds = participants.map(p => p.id);
+          const { data, error } = await supabase
+            .from('run_records')
+            .select(`
+              id,
+              user_id,
+              start_time,
+              end_time,
+              distance,
+              area,
+              region,
+              points
+            `)
+            .in('user_id', participantIds)
+            .eq('is_valid', true)
+            .order('end_time', { ascending: false })
+            .limit(20);
+
+          if (!error && data) {
+            setTerritoryEvents(data);
+          }
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setIsLoadingEvents(false);
+        }
+      };
+      fetchEvents();
+    }
+  }, [activeTab, participants]);
 
   // Early return MUST be after all hooks
   if (!userId) return null;
@@ -385,7 +429,41 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
           transition={{ type: "spring", damping: 25, stiffness: 200 }}
           className="fixed inset-0 z-[1200] bg-background flex flex-col overflow-hidden"
         >
+          <AnimatePresence>
+            {isAvatarExpanded && view === 'my_room' && activeRoom && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[1300] bg-black/90 flex items-center justify-center p-8 backdrop-blur-sm"
+                onClick={() => setIsAvatarExpanded(false)}
+              >
+                <motion.div
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.9, opacity: 0 }}
+                  className="relative w-full max-w-sm aspect-square rounded-2xl overflow-hidden bg-muted shadow-2xl"
+                >
+                  {activeRoom.avatar_url ? (
+                    <Image
+                      src={activeRoom.avatar_url}
+                      alt={activeRoom.name || ''}
+                      fill
+                      className="object-cover"
+                      unoptimized={activeRoom.avatar_url.startsWith('blob:')}
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-[120px] font-bold text-muted-foreground bg-gradient-to-br from-muted to-muted/80">
+                      {activeRoom.name?.[0]}
+                    </div>
+                  )}
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Header */}
+
           <div className="flex items-center px-4 py-3 border-b border-border pt-[calc(env(safe-area-inset-top)+12px)] bg-background/80 backdrop-blur-md z-10 shrink-0">
             <button
               onClick={onClose}
@@ -409,8 +487,28 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
                 {view === 'create' ? '设置房间参数' : view === 'my_room' ? `房主: ${activeRoom?.host_name || 'Unknown'}` : view === 'invite' ? '分享房间码' : '加入好友创建的私人房间'}
               </p>
             </div>
+            {view === 'my_room' && activeRoom && (
+              <button
+                onClick={() => setIsAvatarExpanded(true)}
+                className="ml-2 w-10 h-10 rounded-full bg-muted border border-border overflow-hidden flex-shrink-0 relative focus:outline-none"
+              >
+                {activeRoom.avatar_url ? (
+                  <Image
+                    src={activeRoom.avatar_url}
+                    alt={activeRoom.name || ''}
+                    fill
+                    className="object-cover"
+                    unoptimized={activeRoom.avatar_url.startsWith('blob:')}
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-lg font-bold text-muted-foreground bg-gradient-to-br from-muted to-muted/80">
+                    {activeRoom.name?.[0]}
+                  </div>
+                )}
+              </button>
+            )}
           </div>
-          <div className="flex-1 overflow-y-auto overflow-x-hidden relative">
+          <div className={`flex-1 overflow-x-hidden relative ${view === 'my_room' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
 
             {view === 'invite' && activeRoom ? (
               <InviteRoomView room={activeRoom} onBack={() => setView('my_room')} />
@@ -603,45 +701,44 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
                       {/* Territory Events Timeline */}
                       <div className="space-y-6 relative pl-4 border-l border-border ml-2 pb-2">
                         {(() => {
-                          // Mock Data with Dates - In production, this should come from API and be sorted
-                          const events = [
-                            {
-                              id: '1',
-                              user: participants[0] || { nickname: 'SpeedRunner', avatar: null },
-                              time: '10分钟前',
-                              date: '今天',
-                              distance: 5.2,
-                              location: '朝阳公园·北区',
-                              thumbnail: null
-                            },
-                            {
-                              id: '2',
-                              user: participants[1] || { nickname: 'CityWalker', avatar: null },
-                              time: '32分钟前',
-                              date: '今天',
-                              distance: 3.8,
-                              location: '奥林匹克森林公园',
-                              thumbnail: null
-                            },
-                            {
-                              id: '3',
-                              user: participants[2] || { nickname: 'NightOwl', avatar: null },
-                              time: '14:30',
-                              date: '昨天',
-                              distance: 8.5,
-                              location: '亮马河畔',
-                              thumbnail: null
-                            },
-                            {
-                              id: '4',
-                              user: participants[0] || { nickname: 'SpeedRunner', avatar: null },
-                              time: '09:15',
-                              date: '2023-10-24',
-                              distance: 4.1,
-                              location: '三里屯商圈',
-                              thumbnail: null
+                          if (isLoadingEvents) {
+                            return <div className="text-sm text-muted-foreground text-center py-4">加载中...</div>;
+                          }
+
+                          if (territoryEvents.length === 0) {
+                            return <div className="text-sm text-muted-foreground text-center py-4">暂无领地动态</div>;
+                          }
+
+                          // Data Mapping
+                          const events = territoryEvents.map(record => {
+                            const user = participants.find(p => p.id === record.user_id) || { nickname: 'Unknown', avatar: null };
+                            const dateObj = new Date(record.end_time);
+
+                            // format time as HH:MM
+                            const time = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                            // format date as Today, Yesterday, or YYYY-MM-DD
+                            const today = new Date();
+                            const yesterday = new Date(today);
+                            yesterday.setDate(yesterday.getDate() - 1);
+
+                            let dateStr = dateObj.toLocaleDateString();
+                            if (dateObj.toDateString() === today.toDateString()) {
+                              dateStr = '今天';
+                            } else if (dateObj.toDateString() === yesterday.toDateString()) {
+                              dateStr = '昨天';
                             }
-                          ];
+
+                            return {
+                              id: record.id,
+                              user,
+                              time,
+                              date: dateStr,
+                              distance: record.distance,
+                              location: record.region?.city || record.region?.county || '未知区域',
+                              thumbnail: null
+                            };
+                          });
 
                           // Grouping
                           const groups = events.reduce((acc, event) => {
@@ -662,29 +759,35 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
                                     {/* Small event dot */}
                                     <div className="absolute -left-[19px] top-4 w-1.5 h-1.5 rounded-full bg-border group-hover:bg-primary transition-colors" />
 
-                                    <div className="bg-muted/50 rounded-xl p-3 border border-border hover:bg-muted transition-all cursor-pointer active:scale-95">
+                                    <div
+                                      onClick={() => {
+                                        onClose();
+                                        router.push(`/run/detail?id=${event.id}`);
+                                      }}
+                                      className="bg-muted/50 rounded-xl p-3 border border-border hover:bg-muted transition-all cursor-pointer active:scale-95"
+                                    >
                                       <div className="flex items-start gap-3">
                                         {/* User Avatar */}
                                         <div className="w-8 h-8 rounded-full bg-muted overflow-hidden flex-shrink-0">
                                           {event.user.avatar ? (
                                             <Image
                                               src={event.user.avatar}
-                                              alt={event.user.nickname}
+                                              alt={event.user.nickname as string}
                                               width={32}
                                               height={32}
                                               className="w-full h-full object-cover"
-                                              unoptimized={event.user.avatar.startsWith('blob:')}
+                                              unoptimized={(event.user.avatar as string).startsWith('blob:')}
                                             />
                                           ) : (
                                             <div className="w-full h-full flex items-center justify-center text-xs font-bold text-muted-foreground">
-                                              {event.user.nickname?.[0]}
+                                              {(event.user.nickname as string)?.[0]}
                                             </div>
                                           )}
                                         </div>
 
                                         <div className="flex-1 min-w-0">
                                           <div className="flex justify-between items-start">
-                                            <span className="text-sm font-medium text-foreground truncate">{event.user.nickname}</span>
+                                            <span className="text-sm font-medium text-foreground truncate">{event.user.nickname as string}</span>
                                             <span className="text-xs text-muted-foreground">{event.time}</span>
                                           </div>
 
