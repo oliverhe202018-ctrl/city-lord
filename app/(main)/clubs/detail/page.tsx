@@ -18,7 +18,15 @@ function ClubDetailContent() {
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const supabase = createClient()
+
+  useEffect(() => {
+    // Get current user ID
+    supabase.auth.getUser().then(({ data }) => {
+      setCurrentUserId(data.user?.id || null)
+    })
+  }, [])
 
   useEffect(() => {
     if (!id) {
@@ -65,9 +73,13 @@ function ClubDetailContent() {
     id: member.user_id,
     name: member.profiles?.nickname || 'Unknown',
     avatarUrl: toPublicUrl(member.profiles?.avatar_url, 'avatars'),
-    role: (member.role || 'member') as 'owner' | 'admin' | 'member',
+    role: (member.role || 'member') as 'owner' | 'vice_president' | 'admin' | 'elite' | 'member',
     level: member.profiles?.level || 1
   }))
+
+  // Find current user's role in this club
+  const currentUserMember = currentUserId ? members.find((m: any) => m.user_id === currentUserId) : null
+  const currentUserRole = currentUserMember?.role as 'owner' | 'vice_president' | 'admin' | 'elite' | 'member' | undefined
 
   return (
     <ClubDetailPageClient
@@ -84,6 +96,7 @@ function ClubDetailContent() {
         memberCount
       }}
       members={memberItems}
+      currentUserRole={currentUserRole || null}
     />
   )
 }

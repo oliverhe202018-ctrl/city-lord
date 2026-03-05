@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { revalidatePath, revalidateTag, unstable_cache } from 'next/cache'
+import { cachedFetch, invalidateCache } from '@/lib/cache'
 import { cookies } from 'next/headers'
 import { Database } from '@/types/supabase'
 import { mapDecimalToNumber } from '@/lib/utils'
@@ -377,42 +378,44 @@ export async function getUserClub() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return null
 
-    // Find the first active club membership
-    const membership = await prisma.club_members.findFirst({
-      where: {
-        user_id: user.id,
-        status: 'active'
-      },
-      include: {
-        clubs: true
+    return cachedFetch(`user_club:${user.id}`, 120, async () => {
+      // Find the first active club membership
+      const membership = await prisma.club_members.findFirst({
+        where: {
+          user_id: user.id,
+          status: 'active'
+        },
+        include: {
+          clubs: true
+        }
+      })
+
+      if (!membership || !membership.clubs) return null
+
+      const club = membership.clubs
+
+      // Process Avatar URL
+      const rawAvatar = club.avatar_url
+      let avatarUrl = rawAvatar || `https://api.dicebear.com/7.x/shapes/svg?seed=${club.id}`
+      if (rawAvatar && !/^https?:\/\//i.test(rawAvatar) && !rawAvatar.startsWith('data:')) {
+        const { data } = supabase.storage.from('clubs').getPublicUrl(rawAvatar)
+        avatarUrl = data.publicUrl
       }
-    })
 
-    if (!membership || !membership.clubs) return null
-
-    const club = membership.clubs
-
-    // Process Avatar URL
-    const rawAvatar = club.avatar_url
-    let avatarUrl = rawAvatar || `https://api.dicebear.com/7.x/shapes/svg?seed=${club.id}`
-    if (rawAvatar && !/^https?:\/\//i.test(rawAvatar) && !rawAvatar.startsWith('data:')) {
-      const { data } = supabase.storage.from('clubs').getPublicUrl(rawAvatar)
-      avatarUrl = data.publicUrl
-    }
-
-    return {
-      id: club.id,
-      name: club.name,
-      description: club.description,
-      owner_id: club.owner_id,
-      avatar: avatarUrl,
-      logo_url: avatarUrl,
-      members: club.member_count,
-      territory: club.territory,
-      level: club.level,
-      rating: mapDecimalToNumber(club.rating, 5.0),
-      isJoined: true
-    }
+      return {
+        id: club.id,
+        name: club.name,
+        description: club.description,
+        owner_id: club.owner_id,
+        avatar: avatarUrl,
+        logo_url: avatarUrl,
+        members: club.member_count,
+        territory: club.territory,
+        level: club.level,
+        rating: mapDecimalToNumber(club.rating, 5.0),
+        isJoined: true
+      }
+    }) // end cachedFetch
   } catch (error) {
     console.error('Error fetching user club:', error)
     return null
@@ -484,6 +487,9 @@ export async function joinClub(clubId: string) {
       await supabase.rpc('increment_club_member_count', { row_id: clubId })
     }
 
+    // Invalidate cache
+    await invalidateCache(`user_club:${user.id}`, `club_detail:${clubId}`)
+
     return { success: true, status: initialStatus }
   } catch (err) {
     console.error('Join Club Exception:', err)
@@ -519,6 +525,9 @@ export async function leaveClub(clubId: string) {
 
   // Decrement member count
   await supabase.rpc('decrement_club_member_count', { row_id: clubId })
+
+  // Invalidate cache
+  await invalidateCache(`user_club:${user.id}`, `club_detail:${clubId}`)
 
   return { success: true }
 }
@@ -830,6 +839,9 @@ export async function kickMember(clubId: string, memberId: string) {
       .eq('user_id', memberId)
 
     if (error) throw error
+
+    // Invalidate cache
+    await invalidateCache(`user_club:${memberId}`, `club_detail:${clubId}`)
 
     return { success: true }
   } catch (error: any) {
@@ -1306,42 +1318,146 @@ export async function getAvailableProvinces() {
 }
 
 export async function getClubDetailsById(id: string) {
-  const club = await prisma.clubs.findUnique({
-    where: { id },
-    select: {
-      id: true,
-      name: true,
-      description: true,
-      avatar_url: true,
-      total_area: true
-    }
-  })
-
-  if (!club) return null
-
-  const [members, distanceAgg, memberCount] = await Promise.all([
-    prisma.club_members.findMany({
-      where: { club_id: id, status: 'active' },
-      include: {
-        profiles: {
-          select: {
-            id: true,
-            nickname: true,
-            avatar_url: true,
-            level: true
-          }
-        }
-      },
-      orderBy: { joined_at: 'asc' }
-    }),
-    prisma.runs.aggregate({
-      where: { club_id: id },
-      _sum: { distance: true }
-    }),
-    prisma.club_members.count({
-      where: { club_id: id, status: 'active' }
+  return cachedFetch(`club_detail:${id}`, 120, async () => {
+    const club = await prisma.clubs.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        avatar_url: true,
+        total_area: true
+      }
     })
-  ])
 
-  return { club, members, distanceAgg, memberCount }
+    if (!club) return null
+
+    const [members, distanceAgg, memberCount] = await Promise.all([
+      prisma.club_members.findMany({
+        where: { club_id: id, status: 'active' },
+        include: {
+          profiles: {
+            select: {
+              id: true,
+              nickname: true,
+              avatar_url: true,
+              level: true
+            }
+          }
+        },
+        orderBy: { joined_at: 'asc' }
+      }),
+      prisma.runs.aggregate({
+        where: { club_id: id },
+        _sum: { distance: true }
+      }),
+      prisma.club_members.count({
+        where: { club_id: id, status: 'active' }
+      })
+    ])
+
+    return { club, members, distanceAgg, memberCount }
+  }) // end cachedFetch
+}
+
+// ── Set a member's role (owner/vice_president can manage) ──────
+export async function setMemberRole(
+  clubId: string,
+  targetUserId: string,
+  newRole: 'vice_president' | 'admin' | 'elite' | 'member'
+) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: '未登录' }
+
+  // 1. Get club info
+  const { data: club } = await supabase.from('clubs').select('owner_id').eq('id', clubId).single()
+  if (!club) return { success: false, error: '俱乐部不存在' }
+
+  // 2. Cannot modify your own role
+  if (targetUserId === user.id) return { success: false, error: '不能修改自己的角色' }
+
+  // 3. Cannot modify the owner's role
+  if (targetUserId === club.owner_id) return { success: false, error: '不能修改会长的角色' }
+
+  // 4. Check operator's role
+  const isOwner = club.owner_id === user.id
+  let operatorRole = 'member'
+  if (!isOwner) {
+    const { data: opMember } = await supabase
+      .from('club_members')
+      .select('role')
+      .eq('club_id', clubId)
+      .eq('user_id', user.id)
+      .single()
+    operatorRole = opMember?.role || 'member'
+  } else {
+    operatorRole = 'owner'
+  }
+
+  // 5. Permission checks
+  const ROLE_HIERARCHY: Record<string, number> = {
+    owner: 4,
+    vice_president: 3,
+    admin: 2,
+    elite: 1,
+    member: 0,
+  }
+
+  const opLevel = ROLE_HIERARCHY[operatorRole] ?? 0
+  const newLevel = ROLE_HIERARCHY[newRole] ?? 0
+
+  // Only owner and vice_president can change roles
+  if (opLevel < 3) return { success: false, error: '权限不足' }
+
+  // Cannot assign a role equal to or higher than your own (except owner can do anything)
+  if (operatorRole !== 'owner' && newLevel >= opLevel) {
+    return { success: false, error: '不能设置与自己同级或更高的角色' }
+  }
+
+  // 6. Check target is an active member
+  const { data: targetMember } = await supabase
+    .from('club_members')
+    .select('role, status')
+    .eq('club_id', clubId)
+    .eq('user_id', targetUserId)
+    .single()
+
+  if (!targetMember || targetMember.status !== 'active') {
+    return { success: false, error: '目标用户不是活跃成员' }
+  }
+
+  // Vice president cannot modify someone with an equal or higher role
+  if (operatorRole !== 'owner') {
+    const targetLevel = ROLE_HIERARCHY[targetMember.role] ?? 0
+    if (targetLevel >= opLevel) {
+      return { success: false, error: '权限不足以修改该成员' }
+    }
+  }
+
+  // 7. Execute update
+  try {
+    const { error } = await supabase
+      .from('club_members')
+      .update({ role: newRole })
+      .eq('club_id', clubId)
+      .eq('user_id', targetUserId)
+
+    if (error) throw error
+
+    const roleLabels: Record<string, string> = {
+      vice_president: '副会长',
+      admin: '管理员',
+      elite: '精英',
+      member: '成员',
+    }
+
+    // Invalidate cache
+    await invalidateCache(`user_club:${targetUserId}`, `club_detail:${clubId}`)
+
+    return { success: true, message: `已将角色设为${roleLabels[newRole] || newRole}` }
+  } catch (error: any) {
+    console.error('setMemberRole error:', error)
+    return { success: false, error: error.message || '设置角色失败' }
+  }
 }

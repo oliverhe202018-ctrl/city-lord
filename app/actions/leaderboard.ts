@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/client"
 import { prisma } from "@/lib/prisma"
 import { unstable_cache } from "next/cache"
+import { cachedFetch } from '@/lib/cache'
 
 export type LeaderboardType = 'PERSONAL' | 'PERSONAL_PROVINCE' | 'CLUB_NATIONAL' | 'CLUB_PROVINCE' | 'PROVINCE' | 'PROVINCE_CITY';
 
@@ -18,55 +19,55 @@ export interface LeaderboardEntry {
 }
 
 export async function getLeaderboardData(type: LeaderboardType, userId?: string, page: number = 1, limit: number = 50): Promise<LeaderboardEntry[]> {
-  // Use unstable_cache to cache results for performance (e.g. 1 hour for heavy queries)
-  // For 'PERSONAL' maybe less cache or no cache if we want real-time.
-  // For now, we fetch directly for simplicity, but in production consider caching.
+  const cacheKey = `lb:${type}:${userId || 'anon'}:p${page}:l${limit}`
 
-  try {
-    let data: LeaderboardEntry[] = [];
+  return cachedFetch(cacheKey, 300, async () => {
+    try {
+      let data: LeaderboardEntry[] = [];
 
-    switch (type) {
-      case 'PERSONAL':
-        data = await getPersonalLeaderboard(userId, undefined, page, limit);
-        break;
-      case 'PERSONAL_PROVINCE':
-        if (!userId) return []; // Need user to determine province
-        const userForProvince = await prisma.profiles.findUnique({
-          where: { id: userId },
-          select: { province: true }
-        });
-        if (!userForProvince?.province) return []; // User has no province set
-        data = await getPersonalLeaderboard(userId, userForProvince.province, page, limit);
-        break;
-      case 'CLUB_NATIONAL':
-        data = await getClubLeaderboard(null, userId, null, page, limit);
-        break;
-      case 'CLUB_PROVINCE':
-        if (!userId) return []; // Need user to determine province
-        // First get user's province
-        const user = await prisma.profiles.findUnique({ where: { id: userId }, select: { province: true, club_id: true } });
-        if (!user?.province) return []; // User has no province set
-        data = await getClubLeaderboard(user.province, userId, user.club_id, page, limit);
-        break;
-      case 'PROVINCE':
-        data = await getProvinceLeaderboard(page, limit);
-        break;
-      case 'PROVINCE_CITY':
-        if (!userId) return [];
-        const userForCity = await prisma.profiles.findUnique({
-          where: { id: userId },
-          select: { province: true }
-        });
-        if (!userForCity?.province) return [];
-        data = await getProvinceCityLeaderboard(userForCity.province, page, limit);
-        break;
+      switch (type) {
+        case 'PERSONAL':
+          data = await getPersonalLeaderboard(userId, undefined, page, limit);
+          break;
+        case 'PERSONAL_PROVINCE':
+          if (!userId) return []; // Need user to determine province
+          const userForProvince = await prisma.profiles.findUnique({
+            where: { id: userId },
+            select: { province: true }
+          });
+          if (!userForProvince?.province) return []; // User has no province set
+          data = await getPersonalLeaderboard(userId, userForProvince.province, page, limit);
+          break;
+        case 'CLUB_NATIONAL':
+          data = await getClubLeaderboard(null, userId, null, page, limit);
+          break;
+        case 'CLUB_PROVINCE':
+          if (!userId) return []; // Need user to determine province
+          // First get user's province
+          const user = await prisma.profiles.findUnique({ where: { id: userId }, select: { province: true, club_id: true } });
+          if (!user?.province) return []; // User has no province set
+          data = await getClubLeaderboard(user.province, userId, user.club_id, page, limit);
+          break;
+        case 'PROVINCE':
+          data = await getProvinceLeaderboard(page, limit);
+          break;
+        case 'PROVINCE_CITY':
+          if (!userId) return [];
+          const userForCity = await prisma.profiles.findUnique({
+            where: { id: userId },
+            select: { province: true }
+          });
+          if (!userForCity?.province) return [];
+          data = await getProvinceCityLeaderboard(userForCity.province, page, limit);
+          break;
+      }
+
+      return data;
+    } catch (error) {
+      console.error(`Failed to fetch leaderboard ${type}:`, error);
+      return [];
     }
-
-    return data;
-  } catch (error) {
-    console.error(`Failed to fetch leaderboard ${type}:`, error);
-    return [];
-  }
+  }) // end cachedFetch
 }
 
 async function getPersonalLeaderboard(currentUserId?: string, province?: string, page: number = 1, limit: number = 50): Promise<LeaderboardEntry[]> {

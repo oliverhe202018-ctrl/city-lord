@@ -182,21 +182,6 @@ export function LeaderboardDrawer() {
         side="bottom"
         className="w-full sm:max-w-md p-0 flex flex-col bg-background/95 backdrop-blur-xl border-none h-[100dvh] rounded-none z-[40]" // z-[40] to keep bottom nav (z-50) accessible
       >
-        {/* Coming Soon Overlay */}
-        <div
-          className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gray-900/70 backdrop-blur-sm cursor-pointer"
-          onClick={() => closeDrawer()}
-        >
-          <div className="flex flex-col items-center gap-3 pointer-events-none">
-            <div className="h-16 w-16 rounded-full bg-white/10 flex items-center justify-center">
-              <Trophy className="w-8 h-8 text-amber-400/60" />
-            </div>
-            <h3 className="text-lg font-bold text-white/80">即将开放</h3>
-            <p className="text-sm text-white/40">风云榜正在建设中，敬请期待</p>
-            <p className="text-xs text-white/25 mt-2">点击任意位置关闭</p>
-          </div>
-        </div>
-
         <SheetHeader className="px-6 pt-12 pb-2 shrink-0">
           <SheetTitle className="text-center flex items-center justify-center gap-2 text-xl font-bold bg-gradient-to-r from-yellow-500 to-amber-600 bg-clip-text text-transparent">
             <Trophy className="w-6 h-6 text-amber-500" />
