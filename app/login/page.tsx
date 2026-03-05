@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,10 +8,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ArrowLeft, Mail, Loader2, Lock, KeyRound, Phone } from "lucide-react"
 import Link from "next/link"
 import { toast } from "sonner"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
-export default function LoginPage() {
+function LoginPageContent() {
   const [email, setEmail] = useState("")
   const [phone, setPhone] = useState("")
   const [password, setPassword] = useState("")
@@ -23,7 +23,34 @@ export default function LoginPage() {
   const [submitted, setSubmitted] = useState(false)
   const [loginMethod, setLoginMethod] = useState<"password" | "code" | "sms">("password")
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
+
+  // Read referral params for auto-join
+  const lobbyId = searchParams.get('lobby')
+  const clubId = searchParams.get('club')
+
+  // Process auto-join after successful auth
+  const processAutoJoin = async () => {
+    try {
+      if (clubId) {
+        const { joinClub } = await import('@/app/actions/club')
+        const result = await joinClub(clubId)
+        if (result.success) {
+          toast.success('已自动加入推荐俱乐部')
+        }
+      }
+      if (lobbyId) {
+        const { joinRoom } = await import('@/app/actions/room')
+        const result = await joinRoom(lobbyId)
+        if (result.success) {
+          toast.success('已自动加入推荐房间')
+        }
+      }
+    } catch (e) {
+      console.error('Auto-join error:', e)
+    }
+  }
 
   // 检查登录状态，如果已登录则自动跳转
   useEffect(() => {
@@ -38,10 +65,10 @@ export default function LoginPage() {
     checkSession()
 
     // 监听 Auth 状态变化 (例如 Magic Link 完成后)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "SIGNED_IN" && session) {
         toast.success("登录成功")
-        // 使用 window.location.href 确保完全重载
+        await processAutoJoin()
         window.location.href = "/"
       }
     })
@@ -192,6 +219,9 @@ export default function LoginPage() {
       }
 
       toast.success("登录成功")
+
+      // Process auto-join before redirect
+      await processAutoJoin()
 
       // 强制重定向，确保状态同步
       window.location.href = "/"
@@ -682,5 +712,17 @@ export default function LoginPage() {
         </Tabs>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center bg-[#0a0f1a]">
+        <Loader2 className="w-8 h-8 animate-spin text-green-500" />
+      </div>
+    }>
+      <LoginPageContent />
+    </Suspense>
   )
 }

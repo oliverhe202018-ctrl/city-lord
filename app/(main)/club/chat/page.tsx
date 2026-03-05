@@ -83,7 +83,7 @@ export default function ClubChatPage() {
                 <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => router.back()}
+                    onClick={() => window.history.back()}
                     className="border-white/10 text-white/60"
                 >
                     返回

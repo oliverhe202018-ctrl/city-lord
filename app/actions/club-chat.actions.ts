@@ -106,29 +106,41 @@ export async function getClubChannels(
             return { success: false, error: ClubChatError.CLUB_NOT_MEMBER, message: '你不是该俱乐部成员' }
         }
 
-        // Check if channels exist
-        let channels = await prisma.club_channels.findMany({
-            where: { club_id: clubId },
-            orderBy: { sort_order: 'asc' },
-        })
-
-        // Auto-seed if empty (P0 #1: createMany + skipDuplicates)
-        if (channels.length === 0) {
-            await prisma.club_channels.createMany({
-                data: DEFAULT_CHANNELS.map((ch) => ({
-                    club_id: clubId,
-                    key: ch.key,
-                    name: ch.name,
-                    sort_order: ch.sort_order,
-                })),
-                skipDuplicates: true,
-            })
-
-            // Re-query after seed to ensure consistency
+        // Try to query existing channels
+        let channels: { id: string; club_id: string; key: string; name: string; sort_order: number }[]
+        try {
             channels = await prisma.club_channels.findMany({
                 where: { club_id: clubId },
                 orderBy: { sort_order: 'asc' },
             })
+        } catch (dbError: any) {
+            // Database-level error — table may not exist or have permission issues
+            console.error('[getClubChannels] DB query error for clubId:', clubId, dbError?.message || dbError)
+            return { success: false, error: ClubChatError.INTERNAL_ERROR, message: `数据库查询失败: ${dbError?.message?.slice(0, 100) || '未知数据库错误'}` }
+        }
+
+        // Auto-seed if empty (P0 #1: createMany + skipDuplicates)
+        if (channels.length === 0) {
+            try {
+                await prisma.club_channels.createMany({
+                    data: DEFAULT_CHANNELS.map((ch) => ({
+                        club_id: clubId,
+                        key: ch.key,
+                        name: ch.name,
+                        sort_order: ch.sort_order,
+                    })),
+                    skipDuplicates: true,
+                })
+
+                // Re-query after seed to ensure consistency
+                channels = await prisma.club_channels.findMany({
+                    where: { club_id: clubId },
+                    orderBy: { sort_order: 'asc' },
+                })
+            } catch (seedError: any) {
+                console.error('[getClubChannels] Seed error for clubId:', clubId, seedError?.message || seedError)
+                return { success: false, error: ClubChatError.INTERNAL_ERROR, message: `频道初始化失败: ${seedError?.message?.slice(0, 100) || '未知错误'}` }
+            }
         }
 
         return {
@@ -141,9 +153,9 @@ export async function getClubChannels(
                 sortOrder: ch.sort_order,
             })),
         }
-    } catch (error) {
-        console.error('[getClubChannels] Error:', error)
-        return { success: false, error: ClubChatError.INTERNAL_ERROR, message: '获取频道列表失败' }
+    } catch (error: any) {
+        console.error('[getClubChannels] Unexpected error for clubId:', clubId, error?.message || error)
+        return { success: false, error: ClubChatError.INTERNAL_ERROR, message: `获取频道列表失败: ${error?.message?.slice(0, 100) || '未知错误'}` }
     }
 }
 

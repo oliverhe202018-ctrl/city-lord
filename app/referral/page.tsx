@@ -21,6 +21,7 @@ import { toast } from 'sonner';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useGameStore } from '@/store/useGameStore';
 import { getReferralData, ReferralData, RoomInfo } from '@/app/actions/referral';
+import { getUserClub } from '@/app/actions/club';
 import { cn } from '@/lib/utils';
 import {
   Select,
@@ -29,6 +30,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+
+type UserClubInfo = { id: string; name: string } | null;
 
 export default function ReferralPage() {
   const router = useRouter();
@@ -40,12 +43,19 @@ export default function ReferralPage() {
   const [linkClub, setLinkClub] = useState(false);
   const [selectedRoomId, setSelectedRoomId] = useState<string>('');
 
-  const { currentRoom, myClub } = useGameStore();
+  // Fetch club directly instead of relying on store
+  const [userClub, setUserClub] = useState<UserClubInfo>(null);
+  const { currentRoom } = useGameStore();
 
   useEffect(() => {
     async function loadData() {
       try {
-        const result = await getReferralData();
+        // Fetch referral data and club data in parallel
+        const [result, clubResult] = await Promise.all([
+          getReferralData(),
+          getUserClub(),
+        ]);
+
         if (result.success && result.data) {
           setData(result.data);
 
@@ -62,6 +72,11 @@ export default function ReferralPage() {
           }
         } else {
           toast.error(result.error || '加载失败');
+        }
+
+        // Set club info from server
+        if (clubResult) {
+          setUserClub({ id: clubResult.id, name: clubResult.name });
         }
       } catch (e) {
         console.error(e);
@@ -83,8 +98,8 @@ export default function ReferralPage() {
       link += `&lobby=${selectedRoomId}`;
     }
 
-    if (linkClub && myClub?.id) {
-      link += `&club=${myClub.id}`;
+    if (linkClub && userClub?.id) {
+      link += `&club=${userClub.id}`;
     }
 
     return link;
@@ -123,12 +138,7 @@ export default function ReferralPage() {
   };
 
   const handleBack = () => {
-    // Avoid full reload when returning to profile
-    if (window.history.length > 2) {
-      router.back();
-    } else {
-      router.push('/profile');
-    }
+    window.history.back();
   };
 
   if (loading) {
@@ -244,14 +254,14 @@ export default function ReferralPage() {
                 <div>
                   <div className="text-sm font-medium">关联俱乐部</div>
                   <div className="text-xs text-muted-foreground">
-                    {myClub ? `当前: ${myClub.name}` : '未加入俱乐部'}
+                    {userClub ? `当前: ${userClub.name}` : '未加入俱乐部'}
                   </div>
                 </div>
               </div>
               <Switch
                 checked={linkClub}
                 onCheckedChange={(v) => {
-                  if (v && !myClub) {
+                  if (v && !userClub) {
                     toast.error('请先加入一个俱乐部');
                     return;
                   }

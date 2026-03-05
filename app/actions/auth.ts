@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { sendVerificationCode } from '@/lib/email'
 import type { EmailType } from '@/lib/email'
+import { rateLimit } from '@/lib/cache'
 
 // Response interface for client consistency
 export interface ActionResponse {
@@ -14,9 +15,6 @@ export interface ActionResponse {
 
 // Zod schema for email validation
 const EmailSchema = z.string().email({ message: "无效的邮箱格式" })
-
-// Rate limiting map (simple in-memory for demo, ideal is Redis/KV)
-const RATE_LIMIT_MAP = new Map<string, number>()
 
 export async function sendAuthCode(
     email: string,
@@ -30,13 +28,11 @@ export async function sendAuthCode(
             return { success: false, message: "邮箱格式错误", error: emailResult.error.errors[0].message }
         }
 
-        // 2. Simple Rate Limiting (1 request per 60 seconds per email)
-        const lastRequest = RATE_LIMIT_MAP.get(email)
-        const now = Date.now()
-        if (lastRequest && (now - lastRequest) < 60000) {
-            return { success: false, message: "发送过于频繁，请稍后再试" }
+        // 2. Server-side Rate Limiting via Redis (1 request per 60 seconds per email)
+        const rl = await rateLimit(`rl:auth:${email}`, 60, 1)
+        if (!rl.allowed) {
+            return { success: false, message: `发送过于频繁，请 ${rl.retryAfterSec} 秒后再试` }
         }
-        RATE_LIMIT_MAP.set(email, now)
 
         // 3. Generate OTP via Supabase Admin
         // Using admin client ensures we bypass client-side network issues and have fuller control
@@ -135,14 +131,11 @@ export async function sendResetPasswordCode(email: string): Promise<ActionRespon
             return { success: false, message: "邮箱格式错误", error: emailResult.error.errors[0].message }
         }
 
-        // Rate limiting
-        const key = `reset:${email}`
-        const lastRequest = RATE_LIMIT_MAP.get(key)
-        const now = Date.now()
-        if (lastRequest && (now - lastRequest) < 60000) {
-            return { success: false, message: "发送过于频繁，请稍后再试" }
+        // Rate limiting via Redis
+        const rl = await rateLimit(`rl:reset:${email}`, 60, 1)
+        if (!rl.allowed) {
+            return { success: false, message: `发送过于频繁，请 ${rl.retryAfterSec} 秒后再试` }
         }
-        RATE_LIMIT_MAP.set(key, now)
 
         // Generate recovery link (returns OTP)
         const { data, error } = await supabaseAdmin.auth.admin.generateLink({

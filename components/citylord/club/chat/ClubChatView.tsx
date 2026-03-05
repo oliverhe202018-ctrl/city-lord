@@ -33,7 +33,7 @@ export function ClubChatView({ clubId, currentUserId }: ClubChatViewProps) {
     const [activeChannel, setActiveChannel] = useState<ClubChannel | null>(null)
     const [membership, setMembership] = useState<MembershipInfo | null>(null)
     const [accessDenied, setAccessDenied] = useState(false)
-    const [channelError, setChannelError] = useState(false)
+    const [channelError, setChannelError] = useState<string | null>(null)
 
     // Messages state
     const [confirmedMessages, setConfirmedMessages] = useState<ClubMessageWithSender[]>([])
@@ -73,16 +73,14 @@ export function ClubChatView({ clubId, currentUserId }: ClubChatViewProps) {
 
             if (chResult.success) {
                 setChannels(chResult.data)
-                // Default select first channel
                 if (chResult.data.length > 0) {
                     setActiveChannel(chResult.data[0])
                 }
             } else {
-                // Channel fetch failed — try to seed and retry once
-                console.warn('[ClubChatView] Channel fetch failed, attempting retry:', chResult.message)
-                setChannelError(true)
-                // Still try to use fallback channels for UI, but mark them so we don't load messages
-                const fallbackChannels: ClubChannel[] = DEFAULT_CHANNELS.map((ch, i) => ({
+                // Channel fetch failed — show the actual error and fallback to local channels
+                console.error('[ClubChatView] Channel fetch failed:', chResult.error, chResult.message)
+                setChannelError(chResult.message || '频道加载失败')
+                const fallbackChannels: ClubChannel[] = DEFAULT_CHANNELS.map((ch) => ({
                     id: `fallback-${ch.key}`,
                     clubId,
                     key: ch.key,
@@ -292,7 +290,7 @@ export function ClubChatView({ clubId, currentUserId }: ClubChatViewProps) {
             {channelError && (
                 <div className="flex items-center gap-2 bg-yellow-500/10 border-b border-yellow-500/20 px-4 py-2 text-xs text-yellow-400">
                     <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
-                    <span>频道数据加载失败，显示本地频道（消息功能暂不可用）</span>
+                    <span>{channelError}（消息功能暂不可用）</span>
                 </div>
             )}
 

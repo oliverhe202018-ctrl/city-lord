@@ -45,7 +45,7 @@ export default function FeedbackPage() {
     setIsSubmitting(true);
 
     const formData = new FormData(e.currentTarget);
-    
+
     try {
       const result = await submitFeedback(null, formData);
 
@@ -58,8 +58,8 @@ export default function FeedbackPage() {
       } else {
         toast.error(result?.message || "提交失败");
         if (result?.error) {
-           // Handle specific field errors if needed
-           console.error(result.error);
+          // Handle specific field errors if needed
+          console.error(result.error);
         }
         setIsSubmitting(false);
       }
@@ -73,8 +73,8 @@ export default function FeedbackPage() {
     <div className="flex flex-col h-full min-h-screen bg-background text-foreground">
       {/* Navbar */}
       <div className="flex items-center px-4 py-4 border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-50">
-        <button 
-          onClick={() => router.back()} 
+        <button
+          onClick={() => window.history.back()}
           className="p-2 -ml-2 rounded-full hover:bg-muted/20 transition-colors"
         >
           <ChevronLeft className="w-6 h-6" />
@@ -85,7 +85,7 @@ export default function FeedbackPage() {
       {/* Content */}
       <div className="flex-1 p-6 max-w-md mx-auto w-full">
         <form onSubmit={handleSubmit} className="space-y-6">
-          
+
           {/* Problem Description */}
           <div className="space-y-2">
             <label htmlFor="content" className="text-sm font-medium text-muted-foreground">
@@ -106,9 +106,9 @@ export default function FeedbackPage() {
             <label className="text-sm font-medium text-muted-foreground">
               问题截图 (选填)
             </label>
-            
+
             <div className="grid grid-cols-3 gap-4">
-              <div 
+              <div
                 onClick={() => fileInputRef.current?.click()}
                 className="aspect-square rounded-xl border-2 border-dashed border-border bg-muted/20 hover:bg-muted/30 hover:border-primary/50 transition-all cursor-pointer flex flex-col items-center justify-center gap-2 group"
               >
@@ -132,11 +132,11 @@ export default function FeedbackPage() {
                 </div>
               )}
             </div>
-            
-            <input 
-              type="file" 
+
+            <input
+              type="file"
               ref={fileInputRef}
-              className="hidden" 
+              className="hidden"
               accept="image/*"
               onChange={handleFileChange}
             />
@@ -160,8 +160,8 @@ export default function FeedbackPage() {
 
           {/* Submit Button */}
           <div className="pt-4">
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-lg rounded-xl shadow-lg shadow-primary/20"
               disabled={isSubmitting}
             >
