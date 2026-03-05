@@ -6,6 +6,7 @@ import { Zap } from "lucide-react"
 /**
  * LoadingScreen 组件
  * 全屏加载动画，带有品牌 Logo 的呼吸效果
+ * 使用 CSS 变量适配主题
  */
 
 interface LoadingScreenProps {
@@ -15,7 +16,10 @@ interface LoadingScreenProps {
 
 export function LoadingScreen({ message = "加载中...", progress }: LoadingScreenProps) {
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#0f172a]">
+    <div
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center"
+      style={{ backgroundColor: 'var(--theme-background, #0f172a)' }}
+    >
       {/* Logo 和呼吸动画 */}
       <motion.div
         className="relative mb-8"
@@ -31,7 +35,8 @@ export function LoadingScreen({ message = "加载中...", progress }: LoadingScr
       >
         {/* 光晕效果 */}
         <motion.div
-          className="absolute -inset-4 rounded-full bg-gradient-to-r from-[#22c55e]/20 to-[#3b82f6]/20 blur-xl"
+          className="absolute -inset-4 rounded-full blur-xl"
+          style={{ background: `linear-gradient(to right, ${`var(--theme-primary, #22c55e)`}33, ${`var(--theme-secondary, #3b82f6)`}33)` }}
           animate={{
             scale: [1, 1.2, 1],
             opacity: [0.5, 0.8, 0.5],
@@ -45,14 +50,18 @@ export function LoadingScreen({ message = "加载中...", progress }: LoadingScr
         />
 
         {/* Logo 图标 */}
-        <div className="relative flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-[#22c55e] to-[#3b82f6] shadow-lg">
+        <div
+          className="relative flex h-20 w-20 items-center justify-center rounded-2xl shadow-lg"
+          style={{ background: `linear-gradient(to bottom right, var(--theme-primary, #22c55e), var(--theme-secondary, #3b82f6))` }}
+        >
           <Zap className="h-10 w-10 text-white" />
         </div>
       </motion.div>
 
       {/* 应用名称 */}
       <motion.h1
-        className="mb-4 text-3xl font-bold text-white"
+        className="mb-4 text-3xl font-bold"
+        style={{ color: 'var(--theme-foreground, #ffffff)' }}
         animate={{
           opacity: [0.6, 1, 0.6],
         }}
@@ -68,7 +77,8 @@ export function LoadingScreen({ message = "加载中...", progress }: LoadingScr
 
       {/* 加载消息 */}
       <motion.p
-        className="mb-6 text-sm text-white/60"
+        className="mb-6 text-sm"
+        style={{ color: 'var(--theme-foregroundMuted, rgba(255,255,255,0.6))' }}
         animate={{
           opacity: [0.5, 0.8, 0.5],
         }}
@@ -84,9 +94,13 @@ export function LoadingScreen({ message = "加载中...", progress }: LoadingScr
 
       {/* 进度条（可选） */}
       {progress !== undefined && (
-        <div className="w-64 overflow-hidden rounded-full bg-white/10">
+        <div
+          className="w-64 overflow-hidden rounded-full"
+          style={{ backgroundColor: 'var(--theme-border, rgba(255,255,255,0.1))' }}
+        >
           <motion.div
-            className="h-2 rounded-full bg-gradient-to-r from-[#22c55e] to-[#3b82f6]"
+            className="h-2 rounded-full"
+            style={{ background: `linear-gradient(to right, var(--theme-primary, #22c55e), var(--theme-secondary, #3b82f6))` }}
             initial={{ width: 0 }}
             animate={{ width: `${progress}%` }}
             transition={{ duration: 0.3 }}
@@ -99,7 +113,8 @@ export function LoadingScreen({ message = "加载中...", progress }: LoadingScr
         {[0, 1, 2].map((index) => (
           <motion.div
             key={index}
-            className="h-2 w-2 rounded-full bg-[#22c55e]"
+            className="h-2 w-2 rounded-full"
+            style={{ backgroundColor: 'var(--theme-primary, #22c55e)' }}
             animate={{
               scale: [1, 1.5, 1],
               opacity: [0.4, 1, 0.4],
@@ -134,8 +149,14 @@ export function LoadingSpinner({ size = "md", className = "" }: { size?: "sm" | 
       animate={{ rotate: 360 }}
       transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
     >
-      <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-[#22c55e]" />
-      <div className="absolute inset-1 rounded-full border-2 border-transparent border-t-[#3b82f6]" />
+      <div
+        className="absolute inset-0 rounded-full border-2 border-transparent"
+        style={{ borderTopColor: 'var(--theme-primary, #22c55e)' }}
+      />
+      <div
+        className="absolute inset-1 rounded-full border-2 border-transparent"
+        style={{ borderTopColor: 'var(--theme-secondary, #3b82f6)' }}
+      />
     </motion.div>
   )
 }
@@ -147,14 +168,18 @@ export function LoadingSpinner({ size = "md", className = "" }: { size?: "sm" | 
 export function LoadingOverlay({ message = "加载中...", blur = true }: { message?: string, blur?: boolean }) {
   return (
     <div
-      className={`absolute inset-0 z-50 flex items-center justify-center bg-[#0f172a]/80 ${
-        blur ? "backdrop-blur-sm" : ""
-      }`}
+      className={`absolute inset-0 z-50 flex items-center justify-center ${blur ? "backdrop-blur-sm" : ""
+        }`}
+      style={{ backgroundColor: 'color-mix(in srgb, var(--theme-background, #0f172a) 80%, transparent)' }}
     >
       <div className="flex flex-col items-center gap-4">
         <LoadingSpinner size="lg" />
-        <p className="text-sm text-white/80">{message}</p>
+        <p
+          className="text-sm"
+          style={{ color: 'var(--theme-foregroundMuted, rgba(255,255,255,0.8))' }}
+        >{message}</p>
       </div>
     </div>
   )
 }
+

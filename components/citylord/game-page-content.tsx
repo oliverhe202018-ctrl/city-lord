@@ -679,7 +679,7 @@ export function GamePageContent({
       )}
 
       <LocationPermissionPrompt
-        isOpen={hydrated && !!gpsError && !hasDismissedGeolocationPrompt}
+        isOpen={hydrated && gpsError === 'PERMISSION_DENIED' && !hasDismissedGeolocationPrompt}
         onClose={dismissGeolocationPrompt}
         onOpenSettings={handleOpenSettings}
       />
@@ -695,6 +695,7 @@ export function GamePageContent({
                   // Future: highlight target on map by targetId
                 }}
                 onNavigateToTab={(tab) => setActiveTab(tab as TabType)}
+                onSmartPlan={handlePlannerOpen}
               />
             </div>
           )}
