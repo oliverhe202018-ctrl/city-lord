@@ -288,7 +288,7 @@ function ActivityCard({ post, onLike, onComment, isNew }: ActivityCardProps) {
         <div className="flex items-start justify-between">
           <div
             className="flex items-center gap-3 cursor-pointer group"
-            onClick={() => { if (post.user?.id) router.push(`/profile/user/${post.user?.id}`) }}
+            onClick={() => { if (post.user?.id) router.push(`/profile/user?userId=${post.user?.id}`) }}
           >
             <div className="relative">
               <img src={displayAvatar} alt={displayName} className="h-11 w-11 rounded-full object-cover border-2 border-border" />

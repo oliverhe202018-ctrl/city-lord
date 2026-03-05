@@ -43,7 +43,7 @@ export function HomeSkeleton({ onStartRun }: { onStartRun?: (mode: RunMode) => v
     };
 
     return (
-        <div className="flex-1 overflow-y-auto bg-[#0f172a] relative">
+        <div className="flex-1 overflow-y-auto bg-background relative">
             {/* Toast for early click */}
             {showToast && (
                 <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 rounded-lg bg-primary/90 px-4 py-2 text-xs font-medium text-white shadow-lg backdrop-blur-sm animate-in fade-in slide-in-from-top-2 duration-200">
