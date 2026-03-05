@@ -726,6 +726,7 @@ export const useGameStore = create<GameStore>()(
         currentRunPath: state.currentRunPath,
         latitude: state.latitude,
         longitude: state.longitude,
+        hasDismissedGeolocationPrompt: state.hasDismissedGeolocationPrompt,
       } as unknown as GameStore),
     },
   ),

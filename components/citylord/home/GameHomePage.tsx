@@ -34,9 +34,11 @@ interface GameHomePageProps {
     onNavigateToMap: (targetId?: string) => void;
     /** Navigate to a specific tab (missions, social, etc.) */
     onNavigateToTab: (tab: string) => void;
+    /** Navigate to smart planning page */
+    onSmartPlan?: () => void;
 }
 
-function GameHomePageInner({ onStartRun, onNavigateToMap, onNavigateToTab }: GameHomePageProps) {
+function GameHomePageInner({ onStartRun, onNavigateToMap, onNavigateToTab, onSmartPlan }: GameHomePageProps) {
     const { data, isLoading } = useHomeData();
 
     // Check if there are warning events — affects section ordering
@@ -107,6 +109,7 @@ function GameHomePageInner({ onStartRun, onNavigateToMap, onNavigateToTab }: Gam
                         isLoading={isLoading}
                         onStartRun={onStartRun}
                         nearbyTargetCount={data?.nearbyTargets?.length ?? 0}
+                        onSmartPlan={onSmartPlan}
                     />
                 </div>
 

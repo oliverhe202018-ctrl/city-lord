@@ -139,9 +139,14 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
 
             if (!mountedRef.current) return;
 
-            // Step 1.5: Request location permission (triggers native dialog on first launch)
-            const permStatus = await safeRequestGeolocationPermission();
-            console.log(`${TAG} Location permission status: ${permStatus}`);
+            // Step 1.5: Check permission first, only request if not yet decided
+            const { safeCheckGeolocationPermission } = await import('@/lib/capacitor/safe-plugins');
+            const currentPerm = await safeCheckGeolocationPermission();
+            let permStatus = currentPerm;
+            if (currentPerm === 'prompt') {
+                permStatus = await safeRequestGeolocationPermission();
+            }
+            console.log(`${TAG} Location permission status: ${permStatus} (was: ${currentPerm})`);
 
             if (!mountedRef.current) return;
 

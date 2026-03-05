@@ -13,9 +13,11 @@ interface HeroStartRunCardProps {
     onStartRun: (mode: RunMode) => void;
     /** Number of nearby attackable targets (shown on attack pill) */
     nearbyTargetCount?: number;
+    /** Navigate to smart planning page */
+    onSmartPlan?: () => void;
 }
 
-export function HeroStartRunCard({ hero, isLoading, onStartRun, nearbyTargetCount = 0 }: HeroStartRunCardProps) {
+export function HeroStartRunCard({ hero, isLoading, onStartRun, nearbyTargetCount = 0, onSmartPlan }: HeroStartRunCardProps) {
     // Initialize from localStorage → hero default → 'claim'
     const [activeMode, setActiveMode] = useState<RunMode>(() => {
         const stored = getStoredMode();
@@ -121,7 +123,7 @@ export function HeroStartRunCard({ hero, isLoading, onStartRun, nearbyTargetCoun
 
             {/* Mode toggle pills */}
             <div className="mt-3 flex justify-center">
-                <ModeTogglePills activeMode={activeMode} onModeChange={handleModeChange} attackTargetCount={nearbyTargetCount} />
+                <ModeTogglePills activeMode={activeMode} onModeChange={handleModeChange} attackTargetCount={nearbyTargetCount} onSmartPlan={onSmartPlan} />
             </div>
 
             {/* Mode hint text — consumed from theme config */}
