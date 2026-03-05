@@ -629,7 +629,7 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
                             key={p.id}
                             onClick={() => {
                               if (p?.id) {
-                                router.push(`/profile/user/${p.id}`);
+                                router.push(`/profile/user?userId=${p.id}`);
                                 onClose();
                               }
                             }}

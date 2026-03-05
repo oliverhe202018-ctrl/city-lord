@@ -88,7 +88,7 @@ function GameHomePageInner({ onStartRun, onNavigateToMap, onNavigateToTab }: Gam
     }
 
     return (
-        <div className="flex h-full flex-col bg-[#0f172a]">
+        <div className="flex h-full flex-col bg-background">
             {/* Scrollable content area */}
             <div className="flex-1 overflow-y-auto themed-scrollbar pb-24">
                 {/* 0) Top Bar */}

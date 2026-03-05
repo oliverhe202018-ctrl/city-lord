@@ -75,7 +75,7 @@ export function FeedbackDialog({ open, onClose }: FeedbackDialogProps) {
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 40, scale: 0.95 }}
                         transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                        className="fixed bottom-0 left-0 right-0 z-[101] mx-auto max-w-lg rounded-t-2xl border border-white/10 bg-[#1a2236] p-5 shadow-2xl"
+                        className="fixed bottom-0 left-0 right-0 z-[101] mx-auto max-w-lg rounded-t-2xl border border-white/10 bg-card p-5 shadow-2xl"
                     >
                         {/* Header */}
                         <div className="flex items-center justify-between mb-4">

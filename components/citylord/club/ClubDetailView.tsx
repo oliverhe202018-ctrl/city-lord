@@ -612,7 +612,7 @@ export function ClubDetailView({
                       {displayMembers.map((member) => (
                         <div
                           key={member.id}
-                          onClick={() => router.push(`/profile/user/${member.id}`)}
+                          onClick={() => router.push(`/profile/user?userId=${member.id}`)}
                           className="flex items-center justify-between rounded-xl border border-border bg-muted/30 px-3 py-2 min-h-[52px] cursor-pointer hover:bg-muted/50 transition-colors"
                         >
                           <div className="flex items-center gap-2.5">

@@ -242,7 +242,7 @@ export function SocialFeed({
               {/* 用户信息 */}
               <div
                 className="relative flex items-start gap-3 cursor-pointer"
-                onClick={() => { if (currentItem?.userId) router.push(`/profile/user/${currentItem.userId}`) }}
+                onClick={() => { if (currentItem?.userId) router.push(`/profile/user?userId=${currentItem.userId}`) }}
               >
                 {/* 头像 */}
                 <div className="relative flex-shrink-0">
