@@ -26,7 +26,7 @@ const COLD_START_ACCURACY_THRESHOLD = 1500;
 /** stale watchdog 超时（ms） */
 const STALE_WATCHDOG_TIMEOUT_MS = 15_000;
 /** 去重：两点之间最小时间差（ms） */
-const DEDUP_MIN_TIME_DIFF_MS = 500;
+const DEDUP_MIN_TIME_DIFF_MS = 300;
 /** 去重：两点之间最小距离差（米） */
 const DEDUP_MIN_DISTANCE_M = 1;
 /** 缓存最大年龄（ms），用于 localStorage */
@@ -512,23 +512,16 @@ export class AMapLocationBridge {
 
         try {
             if (this.isNative && this._AMapLocation) {
-                if (options.mode === 'running') {
-                    // 跑步模式：使用前台 Service 定位（锁屏/后台/黑屏持续）
-                    logInfo({ phase: 'startWatch-foreground-service', reason: 'Using foreground service for running mode' });
-                    await this._AMapLocation.startTracking({
-                        notificationTitle: 'City Lord',
-                        notificationBody: '跑步定位中…',
-                    });
-                    this.isUsingForegroundService = true;
-                } else {
-                    // 浏览模式：使用常规 Plugin watch（低功耗）
-                    await this._AMapLocation.startWatch({
-                        mode: options.mode,
-                        interval,
-                        distanceFilter,
-                    });
-                    this.isUsingForegroundService = false;
-                }
+                // ===== BUG FIX: Always use foreground service for ALL modes =====
+                // This ensures the status bar notification persists even when minimized/screen off.
+                // Previously only running mode used the foreground service.
+                const notifBody = options.mode === 'running' ? '跑步定位中…' : '位置追踪中…';
+                logInfo({ phase: 'startWatch-foreground-service', reason: `Using foreground service for ${options.mode} mode` });
+                await this._AMapLocation.startTracking({
+                    notificationTitle: 'City Lord',
+                    notificationBody: notifBody,
+                });
+                this.isUsingForegroundService = true;
             } else {
                 this.startWebWatch(interval);
                 this.isUsingForegroundService = false;
@@ -805,7 +798,7 @@ export class AMapLocationBridge {
                 point.lat,
                 point.lng,
             );
-            const minDist = this.watchMode === 'running' ? 3 : 5;
+            const minDist = this.watchMode === 'running' ? 3 : 2;
             if (dist < minDist) {
                 return; // 距离过近，静默跳过
             }
@@ -1187,6 +1180,24 @@ export class AMapLocationBridge {
     async forceFastFix(): Promise<GeoPoint | null> {
         logInfo({ phase: 'forceFastFix', reason: 'Triggered by app resume or manual retry' });
         return this.getCurrentPosition({ mode: 'fast', timeout: 6000, cacheMaxAge: 3000 });
+    }
+
+    // =========================================================================
+    // Notification Steps (步数通知更新 — 保留供外部调用，硬件计步由 Service 自管理)
+    // =========================================================================
+
+    /**
+     * 手动更新前台通知中的步数。
+     * 注意：硬件计步器已在 LocationForegroundService 中自动管理，
+     * 此方法仅供外部覆盖步数时使用。
+     */
+    async updateNotificationSteps(steps: number): Promise<void> {
+        if (!this.isNative || !this._AMapLocation) return;
+        try {
+            await this._AMapLocation.updateNotificationSteps({ steps });
+        } catch (e) {
+            logWarn({ phase: 'updateNotificationSteps-error', reason: String(e) });
+        }
     }
 
     // =========================================================================

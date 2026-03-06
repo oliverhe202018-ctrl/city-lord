@@ -188,22 +188,25 @@ export function RunningMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // Init ONCE only — location updates handled by separate effects
 
-  // 1.5 Handle global store location updates if userLocation prop is missing
+  // 1.5 Handle global store location updates — ALWAYS sync marker to latest GPS
+  // ===== BUG FIX: Removed `!userLocation` guard =====
+  // Previously this only fired when userLocation prop was missing.
+  // Now it always runs, so the map follows real-time GPS even during running.
   useEffect(() => {
-    if (!userLocation && globalLocation && mapInstanceRef.current && userMarkerRef.current) {
+    if (globalLocation && mapInstanceRef.current && userMarkerRef.current) {
       const pos = [globalLocation.lng, globalLocation.lat] as [number, number];
       userMarkerRef.current.setPosition(pos);
       userMarkerRef.current.show();
 
       if (isFollowingUserRef.current) {
-        mapInstanceRef.current.setCenter(pos);
+        smoothPanTo(pos);
       }
 
       if (onLocationUpdate) {
         onLocationUpdate(globalLocation.lat, globalLocation.lng);
       }
     }
-  }, [globalLocation, userLocation, onLocationUpdate]);
+  }, [globalLocation, onLocationUpdate, smoothPanTo]);
 
   // 2. Update User Location & Center
   useEffect(() => {

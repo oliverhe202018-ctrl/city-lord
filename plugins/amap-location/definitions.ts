@@ -146,6 +146,12 @@ export interface AMapLocationPlugin {
      * 停止前台定位 Service，移除常驻通知，释放所有定位资源。
      */
     stopTracking(): Promise<void>;
+
+    /**
+     * 更新前台通知中显示的步数。
+     * 通知格式："今日 X 步 · 每日跑步语录"
+     */
+    updateNotificationSteps(options: { steps: number }): Promise<void>;
 }
 
 // ---------------------------------------------------------------------------

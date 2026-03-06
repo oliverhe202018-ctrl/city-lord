@@ -210,12 +210,14 @@ public class AMapLocationPlugin extends Plugin {
 
             AMapLocationClientOption option = new AMapLocationClientOption();
 
+            // ===== BUG FIX: Both modes use Hight_Accuracy (GPS+Network hybrid) =====
+            // Previously browse used Battery_Saving (network-only, coarse fixes)
+            // and running used Device_Sensors (GPS-only, fails indoors).
+            // Hight_Accuracy gives the best of both: accurate like GPS, reliable like network.
+            option.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);
             if ("running".equals(mode)) {
-                // 跑步：高频高精度（GPS 传感器优先）
-                option.setLocationMode(AMapLocationClientOption.AMapLocationMode.Device_Sensors);
-            } else {
-                // 浏览：低功耗（网络+GPS 混合，省电）
-                option.setLocationMode(AMapLocationClientOption.AMapLocationMode.Battery_Saving);
+                option.setGpsFirst(true);
+                option.setGpsFirstTimeout(5000);
             }
 
             option.setInterval(interval);
@@ -403,6 +405,28 @@ public class AMapLocationPlugin extends Plugin {
     public void stopTracking(PluginCall call) {
         Log.i(TAG, "stopTracking called");
         stopTrackingInternal();
+        call.resolve();
+    }
+
+    /**
+     * 更新前台通知的步数显示。
+     * 通知格式："今日 X 步 · 每日跑步语录"
+     */
+    @PluginMethod()
+    public void updateNotificationSteps(PluginCall call) {
+        int steps = call.getInt("steps", 0);
+        Log.d(TAG, "updateNotificationSteps: " + steps);
+
+        if (!isTracking) {
+            Log.w(TAG, "updateNotificationSteps: not tracking, ignoring");
+            call.resolve();
+            return;
+        }
+
+        // Cannot directly access the service instance here, so we send a broadcast
+        Intent intent = new Intent("com.xiangfei.citylord.UPDATE_STEPS");
+        intent.putExtra("steps", steps);
+        androidx.localbroadcastmanager.content.LocalBroadcastManager.getInstance(getContext()).sendBroadcast(intent);
         call.resolve();
     }
 
