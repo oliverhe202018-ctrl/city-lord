@@ -488,9 +488,14 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     };
   }, [isRunning, isPaused, userId]);
 
-  // Recovery on start
+  // Recovery on start — CRITICAL: reset isStoppingRef first!
   useEffect(() => {
-    if (isRunning && duration === 0 && distance === 0 && !isStoppingRef.current) {
+    if (isRunning) {
+      // ===== BUG FIX: Always reset isStoppingRef when starting a new run =====
+      // Without this, quick restart after stop keeps isStoppingRef=true,
+      // blocking timer and location updates.
+      isStoppingRef.current = false;
+
       const recoveryJson = localStorage.getItem(RECOVERY_KEY);
       let recovered = false;
       if (recoveryJson) {
@@ -524,9 +529,16 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       }
 
       if (!recovered) {
+        // ===== Force-reset ALL state for a clean start =====
         setPath([]);
+        setDistance(0);
+        setDuration(0);
         setClosedPolygons([]);
+        setSessionClaims([]);
+        setArea(0);
+        setCurrentLocation(null);
         lastLocationRef.current = null;
+        pathRef.current = [];
       }
     }
   }, [isRunning]);

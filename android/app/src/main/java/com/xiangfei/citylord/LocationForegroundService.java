@@ -20,6 +20,13 @@ import com.amap.api.location.AMapLocationClient;
 import com.amap.api.location.AMapLocationClientOption;
 import com.amap.api.location.AMapLocationListener;
 
+import android.content.BroadcastReceiver;
+import android.content.IntentFilter;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
+
 /**
  * LocationForegroundService — Android 前台定位服务
  *
@@ -34,7 +41,7 @@ import com.amap.api.location.AMapLocationListener;
  *  - 动态更新通知内容（支持从 Plugin 端传入 title/body）
  *  - onDestroy 完整资源释放（防止内存泄漏 & 电量浪费）
  */
-public class LocationForegroundService extends Service implements AMapLocationListener {
+public class LocationForegroundService extends Service implements AMapLocationListener, SensorEventListener {
 
     private static final String TAG = "LocationFgSvc";
 
@@ -57,6 +64,7 @@ public class LocationForegroundService extends Service implements AMapLocationLi
     public static final String EXTRA_LOCATION_TYPE = "locationType";
     public static final String EXTRA_PROVIDER = "provider";
     public static final String EXTRA_ADDRESS = "address";
+    public static final String EXTRA_STEPS = "steps";
 
     // Broadcast action — 错误推送
     public static final String ACTION_LOCATION_ERROR = "com.xiangfei.citylord.LOCATION_ERROR";
@@ -69,9 +77,97 @@ public class LocationForegroundService extends Service implements AMapLocationLi
     // WakeLock
     private PowerManager.WakeLock wakeLock = null;
 
+    // Steps broadcast receiver (fallback for external step updates)
+    private BroadcastReceiver stepsReceiver = null;
+
+    // Hardware step counter
+    private SensorManager sensorManager = null;
+    private Sensor stepCounterSensor = null;
+    private boolean hasStepSensor = false;
+
+    // Steps tracking
+    private int currentSteps = 0;
+    /** 开机以来的累计步数基准值（今天第一次读到的值） */
+    private int stepBaseline = -1;
+    /** 今日 0 点的时间戳，用于重置基准 */
+    private long todayMidnight = 0;
+
     // Notification content
     private String notificationTitle = "City Lord";
-    private String notificationBody = "正在追踪您的位置…";
+    private String notificationBody = null; // Will be set to daily quote on start
+
+    // ---- Daily motivational quotes (60 条，每天不重样) ----
+    private static final String[] DAILY_QUOTES = {
+        "今天也是元气满满的一天！",
+        "每一步都算数，坚持就是胜利。",
+        "跑步的人，运气都不会差。",
+        "汗水是脂肪的眼泪。",
+        "你跑过的路，都会成为你的底气。",
+        "不必跑得快，但一定要出发。",
+        "跑步治愈一切不开心。",
+        "自律给我自由。",
+        "跑起来，世界就在脚下。",
+        "没有到不了的终点，只有不愿出发的借口。",
+        "今日份运动已签到～",
+        "坚持跑步，遇见更好的自己。",
+        "每一次呼吸，都是与自然的对话。",
+        "身体和灵魂，总有一个在路上。",
+        "跑步是最省钱的整容方式。",
+        "你比昨天的自己更强了！",
+        "跑步不是为了到达终点，而是享受路上的风景。",
+        "快乐很简单，跑起来就好。",
+        "一个人跑步，全世界为你让路。",
+        "今天不想动？那就走两步也算赢！",
+        "越努力越幸运，越运动越健康。",
+        "别等到明天，从今天开始跑起来。",
+        "跑步让人上瘾，健康让人自信。",
+        "用脚步丈量城市，用汗水书写青春。",
+        "让跑步成为习惯，让习惯改变人生。",
+        "你流的每一滴汗，都是脂肪在哭泣。",
+        "只要迈开腿，就已经赢了大多数人。",
+        "跑步的时候，全世界都是你的。",
+        "今天跑步了吗？给自己一个赞！",
+        "跑步是与内心对话的最佳时刻。",
+        "迈出第一步，就是最大的勇敢。",
+        "坚持的意义，是成为那个不平凡的自己。",
+        "跑步让人清醒，让夜晚安稳。",
+        "不是因为厉害才坚持，而是坚持了才厉害。",
+        "和风一起奔跑吧！",
+        "每一次跑步，都在为未来的自己加分。",
+        "跑步不需要天赋，需要的是热爱和坚持。",
+        "放下手机，去拥抱阳光和风。",
+        "哪怕只是慢跑，也好过原地不动。",
+        "生命不止，运动不息。",
+        "今天的汗水，是明天的勋章。",
+        "奔跑吧，少年！",
+        "没有什么烦恼是一次跑步解决不了的。",
+        "如果一次不行，那就跑两次。",
+        "跑步是给心灵放个假。",
+        "把压力踩在脚下，跑出属于你的节奏。",
+        "跑步的人生，多一份从容和淡定。",
+        "用跑步的方式，认识这座城市。",
+        "你每天跑的路，是通往更好自己的路。",
+        "太阳出来了，跑步的好天气！",
+        "每一公里都值得被记录。",
+        "跑步清空大脑，重新出发。",
+        "不怕慢，就怕站。",
+        "跑步是人生最划算的投资。",
+        "微风正好，快去跑步吧。",
+        "跑步使我快乐，快乐使我跑步。",
+        "越自律，越自由，越运动，越快乐。",
+        "你看，你又坚持了一天！",
+        "跑起来，你就是这条街最靓的仔！",
+        "人生没有白走的路，每一步都算数。",
+    };
+
+    /**
+     * 根据一年中的第几天返回每日一句。
+     * 60 条语录循环，每天不重样（循环周期 ~2 个月）。
+     */
+    private static String getDailyQuote() {
+        int dayOfYear = java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_YEAR);
+        return DAILY_QUOTES[dayOfYear % DAILY_QUOTES.length];
+    }
 
     // -------------------------------------------------------------------
     // Lifecycle
@@ -87,6 +183,15 @@ public class LocationForegroundService extends Service implements AMapLocationLi
 
         // 2. Acquire PARTIAL_WAKE_LOCK — prevent CPU sleep
         acquireWakeLock();
+
+        // 3. Register steps broadcast receiver (fallback)
+        registerStepsReceiver();
+
+        // 4. Register hardware step counter sensor
+        registerStepCounterSensor();
+
+        // 5. Calculate today's midnight timestamp
+        recalcTodayMidnight();
     }
 
     @Override
@@ -99,6 +204,11 @@ public class LocationForegroundService extends Service implements AMapLocationLi
             String body = intent.getStringExtra(EXTRA_NOTIFICATION_BODY);
             if (title != null && !title.isEmpty()) notificationTitle = title;
             if (body != null && !body.isEmpty()) notificationBody = body;
+        }
+
+        // Default body: show daily quote (no step count for now)
+        if (notificationBody == null) {
+            notificationBody = "定位中… · " + getDailyQuote();
         }
 
         // 1. Start foreground IMMEDIATELY (Android 12+ requires this within 5s)
@@ -130,7 +240,13 @@ public class LocationForegroundService extends Service implements AMapLocationLi
         // 2. Release WakeLock
         releaseWakeLock();
 
-        // 3. Stop foreground & remove notification
+        // 3. Unregister steps broadcast receiver
+        unregisterStepsReceiver();
+
+        // 4. Unregister step counter sensor
+        unregisterStepCounterSensor();
+
+        // 5. Stop foreground & remove notification
         stopForeground(true);
 
         super.onDestroy();
@@ -202,6 +318,17 @@ public class LocationForegroundService extends Service implements AMapLocationLi
         if (manager != null) {
             manager.notify(NOTIFICATION_ID, notification);
         }
+    }
+
+    /**
+     * 更新步数并刷新通知内容。
+     * 暂时隐藏步数显示，通知格式："定位中… · 每日跑步语录"
+     */
+    public void updateSteps(int steps) {
+        this.currentSteps = steps;
+        // 步数暂不显示，仅显示“定位中” + 语录
+        // String body = "今日 " + steps + " 步 · " + getDailyQuote();
+        // updateNotification(null, body);
     }
 
     // -------------------------------------------------------------------
@@ -340,5 +467,120 @@ public class LocationForegroundService extends Service implements AMapLocationLi
         intent.putExtra(EXTRA_ERROR_CODE, code);
         intent.putExtra(EXTRA_ERROR_MSG, message != null ? message : "Unknown error");
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
+    }
+
+    // -------------------------------------------------------------------
+    // Steps broadcast receiver
+    // -------------------------------------------------------------------
+
+    private void registerStepsReceiver() {
+        stepsReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(android.content.Context context, Intent intent) {
+                int steps = intent.getIntExtra("steps", 0);
+                Log.d(TAG, "Received steps broadcast: " + steps);
+                updateSteps(steps);
+            }
+        };
+        IntentFilter filter = new IntentFilter("com.xiangfei.citylord.UPDATE_STEPS");
+        LocalBroadcastManager.getInstance(this).registerReceiver(stepsReceiver, filter);
+    }
+
+    private void unregisterStepsReceiver() {
+        if (stepsReceiver != null) {
+            try {
+                LocalBroadcastManager.getInstance(this).unregisterReceiver(stepsReceiver);
+            } catch (Exception e) {
+                Log.w(TAG, "Failed to unregister steps receiver: " + e.getMessage());
+            }
+            stepsReceiver = null;
+        }
+    }
+
+    // -------------------------------------------------------------------
+    // Hardware Step Counter Sensor
+    // -------------------------------------------------------------------
+
+    private void registerStepCounterSensor() {
+        sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
+        if (sensorManager == null) {
+            Log.w(TAG, "SensorManager not available");
+            return;
+        }
+
+        stepCounterSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER);
+        if (stepCounterSensor == null) {
+            Log.w(TAG, "TYPE_STEP_COUNTER sensor not available on this device");
+            hasStepSensor = false;
+            return;
+        }
+
+        hasStepSensor = true;
+        sensorManager.registerListener(this, stepCounterSensor, SensorManager.SENSOR_DELAY_UI);
+        Log.i(TAG, "Hardware step counter sensor registered");
+    }
+
+    private void unregisterStepCounterSensor() {
+        if (sensorManager != null && hasStepSensor) {
+            sensorManager.unregisterListener(this);
+            Log.i(TAG, "Hardware step counter sensor unregistered");
+        }
+        sensorManager = null;
+        stepCounterSensor = null;
+        hasStepSensor = false;
+    }
+
+    /**
+     * TYPE_STEP_COUNTER 回调：返回开机以来的累计步数。
+     * 我们通过保存“今天第一次读到的值”作为基准，差值就是今日步数。
+     * 如果跨天（当前时间 > todayMidnight + 24h），重置基准。
+     */
+    @Override
+    public void onSensorChanged(SensorEvent event) {
+        if (event.sensor.getType() != Sensor.TYPE_STEP_COUNTER) return;
+
+        int totalStepsSinceBoot = (int) event.values[0];
+        long now = System.currentTimeMillis();
+
+        // 跨天重置基准
+        if (now >= todayMidnight + 24 * 60 * 60 * 1000L) {
+            recalcTodayMidnight();
+            stepBaseline = totalStepsSinceBoot;
+            Log.i(TAG, "New day detected, resetting step baseline to " + stepBaseline);
+        }
+
+        // 第一次读取：设置基准
+        if (stepBaseline < 0) {
+            stepBaseline = totalStepsSinceBoot;
+            Log.i(TAG, "Step baseline set to " + stepBaseline);
+        }
+
+        int todaySteps = totalStepsSinceBoot - stepBaseline;
+        if (todaySteps < 0) todaySteps = 0; // 设备重启后基准可能大于当前值
+
+        // 只在步数变化时记录（暂不更新通知）
+        if (todaySteps != currentSteps) {
+            currentSteps = todaySteps;
+            // 步数暂不显示在通知中，后续启用时取消以下注释
+            // String body = "今日 " + currentSteps + " 步 · " + getDailyQuote();
+            // updateNotification(null, body);
+        }
+    }
+
+    @Override
+    public void onAccuracyChanged(Sensor sensor, int accuracy) {
+        // Not needed for step counter
+    }
+
+    /**
+     * 计算今天 0:00:00 的时间戳
+     */
+    private void recalcTodayMidnight() {
+        java.util.Calendar cal = java.util.Calendar.getInstance();
+        cal.set(java.util.Calendar.HOUR_OF_DAY, 0);
+        cal.set(java.util.Calendar.MINUTE, 0);
+        cal.set(java.util.Calendar.SECOND, 0);
+        cal.set(java.util.Calendar.MILLISECOND, 0);
+        todayMidnight = cal.getTimeInMillis();
     }
 }
