@@ -120,9 +120,25 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   const pathRef = useRef<Location[]>([]);
   const isPausedRef = useRef(isPaused);
 
-  // Sync refs
+  // ─── Live-snapshot refs (always current, immune to stale closures) ───
+  const distanceRef = useRef(distance);
+  const durationRef = useRef(duration);
+  const sessionClaimsRef = useRef(sessionClaims);
+  const closedPolygonsRef = useRef(closedPolygons);
+  const areaRef = useRef(area);
+
+  // ─── Timestamp-based timer refs ───
+  const startTimeRef = useRef<number | null>(null);
+  const pausedAccumulatorRef = useRef(0); // Accumulated seconds before latest pause
+
+  // Sync refs — keep refs in lockstep with React state
   useEffect(() => { pathRef.current = path; }, [path]);
   useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
+  useEffect(() => { distanceRef.current = distance; }, [distance]);
+  useEffect(() => { durationRef.current = duration; }, [duration]);
+  useEffect(() => { sessionClaimsRef.current = sessionClaims; }, [sessionClaims]);
+  useEffect(() => { closedPolygonsRef.current = closedPolygons; }, [closedPolygons]);
+  useEffect(() => { areaRef.current = area; }, [area]);
 
   // ======== CRITICAL: Use centralized global location store ========
   // REMOVED: Direct useSafeGeolocation call — now consumed from useLocationStore
@@ -195,16 +211,49 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     };
   }, [isRunning, isSyncing]);
 
-  // Timer effect
+  // Timer effect — timestamp-based (immune to JS thread suspension during sleep)
   useEffect(() => {
-    let interval: NodeJS.Timeout;
     if (isRunning && !isPaused && !isStoppingRef.current) {
-      interval = setInterval(() => {
-        setDuration(prev => prev + 1);
-      }, 1000);
+      // Start (or resume) the clock
+      if (startTimeRef.current === null) {
+        startTimeRef.current = Date.now();
+      }
+      const tick = () => {
+        if (startTimeRef.current === null) return;
+        const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+        setDuration(pausedAccumulatorRef.current + elapsed);
+      };
+      tick(); // Immediate first tick (reconciles after sleep)
+      const interval = setInterval(tick, 1000);
+      return () => clearInterval(interval);
+    } else if (isPaused && startTimeRef.current !== null) {
+      // Freeze: accumulate elapsed time into the accumulator
+      pausedAccumulatorRef.current += Math.floor(
+        (Date.now() - startTimeRef.current) / 1000
+      );
+      startTimeRef.current = null;
     }
-    return () => clearInterval(interval);
+    return undefined;
   }, [isRunning, isPaused]);
+
+  // Capacitor appStateChange — reconcile timer on foreground resume
+  useEffect(() => {
+    let cleanup: (() => void) | undefined;
+    import('@capacitor/app').then(({ App }) => {
+      const listenerHandle = App.addListener('appStateChange', ({ isActive }) => {
+        if (isActive && isRunning && !isPausedRef.current && startTimeRef.current !== null) {
+          // Force re-calculate duration from absolute timestamp
+          const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+          setDuration(pausedAccumulatorRef.current + elapsed);
+          console.log('[useRunningTracker] Foreground resume — timer reconciled');
+        }
+      });
+      cleanup = () => { listenerHandle.then(h => h.remove()); };
+    }).catch(() => {
+      // Not in Capacitor environment — no-op
+    });
+    return () => { cleanup?.(); };
+  }, [isRunning]);
 
   // Periodic Save (Every 5 seconds)
   useEffect(() => {
@@ -507,9 +556,13 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           if (data.startTime && (Date.now() - data.startTime < 24 * 60 * 60 * 1000) && hasRealData) {
             setPath(safePath);
             setDistance(data.distance || 0);
-            setDuration(data.duration || 0);
+            const restoredDuration = data.duration || 0;
+            setDuration(restoredDuration);
             setClosedPolygons(data.closedPolygons || []);
             setArea(data.area || 0);
+            // Restore timestamp-based timer state
+            pausedAccumulatorRef.current = restoredDuration;
+            startTimeRef.current = null; // Will be set when timer effect fires
             if (safePath.length > 0) {
               const lastLoc = safePath[safePath.length - 1];
               lastLocationRef.current = lastLoc;
@@ -539,6 +592,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         setCurrentLocation(null);
         lastLocationRef.current = null;
         pathRef.current = [];
+        // Reset timestamp-based timer
+        pausedAccumulatorRef.current = 0;
+        startTimeRef.current = null;
       }
     }
   }, [isRunning]);
@@ -578,22 +634,51 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   const [lastSavedClaimsCount, setLastSavedClaimsCount] = useState(0);
   const [savedRunId, setSavedRunId] = useState<string | null>(null);
 
-  // Core save function
+  // Core save function — reads from REFS to avoid stale closures after sleep
   const saveRun = useCallback(async (isFinal: boolean = false) => {
     if (!userId) {
       if (isFinal) throw new Error("未登录或获取不到用户ID");
       return;
     }
 
+    // ─── Read LIVE values from refs (immune to stale closures) ───
+    let liveDistance = distanceRef.current;
+    let liveDuration = durationRef.current;
+    let livePath = pathRef.current;
+    let liveClaims = sessionClaimsRef.current;
+
+    // ─── Payload validation: guard against empty/zombie state ───
+    if (livePath.length === 0 && liveDistance <= 0 && liveDuration <= 0) {
+      console.warn('[useRunningTracker] Payload empty — attempting recovery fallback');
+      try {
+        const recoveryJson = localStorage.getItem(RECOVERY_KEY);
+        if (recoveryJson) {
+          const data = JSON.parse(recoveryJson);
+          liveDistance = data.distance || 0;
+          liveDuration = data.duration || 0;
+          livePath = Array.isArray(data.path) ? data.path : [];
+          liveClaims = Array.isArray(data.closedPolygons) ? data.closedPolygons : [];
+          console.log('[useRunningTracker] Recovery fallback payload used');
+        }
+      } catch (recoveryErr) {
+        console.error('[useRunningTracker] Recovery fallback parse failed', recoveryErr);
+      }
+      // If STILL empty after recovery, block final save
+      if (livePath.length === 0 && liveDistance <= 0 && liveDuration <= 0) {
+        if (isFinal) throw new Error('跑步数据异常：无定位记录且无可恢复数据');
+        return;
+      }
+    }
+
     try {
       setIsSaving(true);
       const result = await saveRunActivity(userId, {
-        idempotencyKey: crypto.randomUUID(), // NEW: Prevent duplicate processing
-        distance: distanceKm * 1000, // convert to meters for DB
-        duration: duration,
-        path: path,
-        polygons: sessionClaims,
-        timestamp: Date.now(), // NEW: Required by DTO
+        idempotencyKey: crypto.randomUUID(),
+        distance: liveDistance,         // Already in meters
+        duration: liveDuration,
+        path: livePath,
+        polygons: liveClaims,
+        timestamp: Date.now(),
         manualLocationCount: 0
       });
 
@@ -627,7 +712,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     } finally {
       setIsSaving(false);
     }
-  }, [userId, distanceKm, duration, path, sessionClaims]);
+  }, [userId]); // Only depends on userId — refs handle the rest
 
   // Auto-save when new territory is claimed
   useEffect(() => {

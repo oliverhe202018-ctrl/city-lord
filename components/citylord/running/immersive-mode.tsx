@@ -34,6 +34,18 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Location } from "@/hooks/useRunningTracker"
 
+// ─── Timeout utility for promises that may hang after sleep ───
+const SAVE_TIMEOUT_MS = 15_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('SAVE_TIMEOUT')), ms)
+    ),
+  ]);
+}
+
 interface ImmersiveModeProps {
   isActive: boolean
   userId?: string
@@ -118,6 +130,8 @@ export function ImmersiveRunningMode({
   const [isSubmitting, setIsSubmitting] = useState(false)
   // Local kingdom toggle — independent of MapRoot context (avoids useMap crash)
   const [showKingdom, setShowKingdom] = useState(false)
+  // Debounce ref for stop button
+  const lastStopAttemptRef = useRef(0)
 
   const { currentCity } = useCity()
   const { ghostPath } = useGameLocation()
@@ -386,8 +400,9 @@ export function ImmersiveRunningMode({
     setIsSubmitting(true);
     if (saveRun) {
       try {
-        await saveRun(true);
+        await withTimeout(saveRun(true), SAVE_TIMEOUT_MS);
         localStorage.removeItem('CURRENT_RUN_RECOVERY');
+        localStorage.removeItem('PENDING_RUN_UPLOAD');
         const { useGameStore } = await import('@/store/useGameStore');
         useGameStore.getState().resetRunState();
         setShowRetryDialog(false);
@@ -395,7 +410,8 @@ export function ImmersiveRunningMode({
         setShowSummary(false);
         router.replace('/');
       } catch (saveError) {
-        toast.error("当前网络不可用，跑步记录已安全保存在本地，请稍后在首页恢复", { duration: 5000 });
+        const errorMsg = saveError instanceof Error ? saveError.message : '网络不可用';
+        toast.error(`保存失败：${errorMsg === 'SAVE_TIMEOUT' ? '请求超时' : errorMsg}，跑步记录已安全保存在本地`, { duration: 5000 });
       } finally {
         setIsSubmitting(false);
       }
@@ -418,6 +434,11 @@ export function ImmersiveRunningMode({
       e.stopPropagation();
     }
 
+    // Debounce: reject clicks within 2 seconds of each other
+    const now = Date.now();
+    if (now - lastStopAttemptRef.current < 2000) return;
+    lastStopAttemptRef.current = now;
+
     if (isSubmitting) return;
     setIsSubmitting(true);
 
@@ -430,9 +451,11 @@ export function ImmersiveRunningMode({
 
     if (saveRun) {
       try {
-        await saveRun(true);
-        // Step 3a: Success - Clean up recovery key
+        // Wrap with timeout — prevents infinite hang after long sleep
+        await withTimeout(saveRun(true), SAVE_TIMEOUT_MS);
+        // Success — Clean up recovery key
         localStorage.removeItem('CURRENT_RUN_RECOVERY');
+        localStorage.removeItem('PENDING_RUN_UPLOAD');
         const { useGameStore } = await import('@/store/useGameStore');
         useGameStore.getState().resetRunState();
 
@@ -440,7 +463,26 @@ export function ImmersiveRunningMode({
         setShowSummary(false);
         router.replace('/');
       } catch (saveError) {
-        // Step 3b: Failure - Alert user and explicitly retain recovery state
+        // Persist to localStorage as offline fallback before showing retry dialog
+        try {
+          const fallbackData = {
+            path: path || [],
+            distance: distanceMeters || 0,
+            duration: durationSeconds || 0,
+            area: area || 0,
+            timestamp: Date.now(),
+            userId: userId || '',
+          };
+          localStorage.setItem('PENDING_RUN_UPLOAD', JSON.stringify(fallbackData));
+          console.log('[ImmersiveMode] Offline fallback saved to localStorage');
+        } catch (storageErr) {
+          console.error('[ImmersiveMode] Failed to save offline fallback', storageErr);
+        }
+
+        const errorMsg = saveError instanceof Error ? saveError.message : 'Unknown error';
+        if (errorMsg === 'SAVE_TIMEOUT') {
+          toast.error('保存超时，跑步数据已暂存本地', { duration: 5000 });
+        }
         setShowRetryDialog(true);
       } finally {
         setIsSubmitting(false);
