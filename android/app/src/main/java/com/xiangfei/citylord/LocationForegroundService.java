@@ -3,6 +3,7 @@ package com.xiangfei.citylord;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
@@ -198,12 +199,14 @@ public class LocationForegroundService extends Service implements AMapLocationLi
     public int onStartCommand(Intent intent, int flags, int startId) {
         Log.i(TAG, "onStartCommand — starting foreground service and location tracking");
 
-        // Read notification content from intent
+        // Read notification content from intent (intent may be null on START_STICKY restart)
         if (intent != null) {
             String title = intent.getStringExtra(EXTRA_NOTIFICATION_TITLE);
             String body = intent.getStringExtra(EXTRA_NOTIFICATION_BODY);
             if (title != null && !title.isEmpty()) notificationTitle = title;
             if (body != null && !body.isEmpty()) notificationBody = body;
+        } else {
+            Log.w(TAG, "onStartCommand: intent is null (likely START_STICKY restart)");
         }
 
         // Default body: show daily quote (no step count for now)
@@ -253,6 +256,38 @@ public class LocationForegroundService extends Service implements AMapLocationLi
         Log.i(TAG, "onDestroy — cleanup complete");
     }
 
+    /**
+     * 当用户从最近任务列表中清除 App 时，自动重启前台服务。
+     * 确保跑步任务不会因为用户误操作而丢失。
+     */
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        Log.w(TAG, "onTaskRemoved — user swiped app from recents, scheduling restart");
+
+        // Schedule restart via AlarmManager (1 second delay)
+        Intent restartIntent = new Intent(getApplicationContext(), LocationForegroundService.class);
+        restartIntent.putExtra(EXTRA_NOTIFICATION_TITLE, notificationTitle);
+        restartIntent.putExtra(EXTRA_NOTIFICATION_BODY, notificationBody);
+
+        int pendingFlags = PendingIntent.FLAG_ONE_SHOT;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            pendingFlags |= PendingIntent.FLAG_IMMUTABLE;
+        }
+        PendingIntent restartPendingIntent = PendingIntent.getService(
+                getApplicationContext(), 1, restartIntent, pendingFlags);
+
+        AlarmManager alarmManager = (AlarmManager) getSystemService(ALARM_SERVICE);
+        if (alarmManager != null) {
+            alarmManager.set(
+                    AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                    android.os.SystemClock.elapsedRealtime() + 1000,
+                    restartPendingIntent);
+            Log.i(TAG, "Restart alarm scheduled for 1 second later");
+        }
+
+        super.onTaskRemoved(rootIntent);
+    }
+
     @Nullable
     @Override
     public IBinder onBind(Intent intent) {
@@ -294,7 +329,7 @@ public class LocationForegroundService extends Service implements AMapLocationLi
         }
         PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, launchIntent, pendingFlags);
 
-        return new NotificationCompat.Builder(this, CHANNEL_ID)
+        Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle(title)
                 .setContentText(body)
                 .setSmallIcon(android.R.drawable.ic_menu_mylocation)
@@ -304,6 +339,12 @@ public class LocationForegroundService extends Service implements AMapLocationLi
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .setCategory(NotificationCompat.CATEGORY_SERVICE)
                 .build();
+
+        // 双重保障：显式设置 FLAG_ONGOING_EVENT | FLAG_NO_CLEAR
+        // 部分厂商 ROM（MIUI、华为、OPPO 等）即使 setOngoing(true) 仍可能允许删除
+        notification.flags |= Notification.FLAG_ONGOING_EVENT | Notification.FLAG_NO_CLEAR | Notification.FLAG_FOREGROUND_SERVICE;
+
+        return notification;
     }
 
     /**
@@ -344,9 +385,9 @@ public class LocationForegroundService extends Service implements AMapLocationLi
                     PowerManager.PARTIAL_WAKE_LOCK,
                     "CityLord::LocationWakeLock"
             );
-            // Timeout after 4 hours to prevent infinite hold
-            wakeLock.acquire(4 * 60 * 60 * 1000L);
-            Log.i(TAG, "WakeLock acquired (4h timeout)");
+            // Timeout after 8 hours to cover ultra-marathon scenarios
+            wakeLock.acquire(8 * 60 * 60 * 1000L);
+            Log.i(TAG, "WakeLock acquired (8h timeout)");
         }
     }
 

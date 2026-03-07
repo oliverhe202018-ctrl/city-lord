@@ -60,7 +60,7 @@ export function ChannelList({ channels, activeChannelId, onSelectChannel }: Chan
     }
 
     return (
-        <nav className="space-y-0.5 p-2" role="navigation" aria-label="频道列表">
+        <nav className="flex items-center gap-2 p-2 w-full" role="navigation" aria-label="频道列表">
             {channels.map((channel) => {
                 const isActive = channel.id === activeChannelId
                 return (
@@ -69,17 +69,17 @@ export function ChannelList({ channels, activeChannelId, onSelectChannel }: Chan
                         id={`channel-${channel.id}`}
                         onClick={() => onSelectChannel(channel)}
                         className={cn(
-                            'flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150',
-                            'hover:bg-white/5',
+                            'flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-all duration-150 whitespace-nowrap',
+                            'hover:bg-white/5 flex-shrink-0',
                             isActive
-                                ? 'bg-white/10 text-white shadow-sm'
-                                : 'text-white/60 hover:text-white/80'
+                                ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 shadow-sm'
+                                : 'bg-white/5 text-white/60 hover:text-white/80 border border-transparent'
                         )}
                     >
                         <span className={cn('flex-shrink-0', isActive ? 'text-yellow-400' : 'text-white/40')}>
                             {getChannelIcon(channel.key)}
                         </span>
-                        <span className="truncate">{channel.name}</span>
+                        <span>{channel.name.replace(/^[^\s]+\s*/, '') /* Remove emoji from name */}</span>
                     </button>
                 )
             })}

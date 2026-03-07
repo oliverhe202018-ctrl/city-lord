@@ -414,19 +414,9 @@ export function MapRoot({ children }: { children: ReactNode }) {
     }
   }, [userPosition, map, isTracking, setIsTracking]);
 
-  // GPS Timeout: If no fix within 15s, show friendly notice
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (positionStage.current !== 'gps-precise' && typeof window !== 'undefined') {
-        const cachedDistrict = localStorage.getItem('last_known_district');
-        const cachedLocation = localStorage.getItem('last_known_location');
-        if (cachedDistrict && cachedLocation) {
-          toast.info('GPS信号弱，已为您显示大概位置', { description: cachedDistrict, duration: 3000 });
-        }
-      }
-    }, 15000);
-    return () => clearTimeout(timer);
-  }, []); // Run once on mount
+  // GPS Timeout: silently use cached position if no fix within 15s
+  // Non-critical status messages are suppressed per UX policy.
+  // Only hard permission errors (GPS denied, notification denied, background denied) should show toasts.
 
   // Map move handler (reverse data flow)
   const handleMapMoveEnd = useCallback((center: [number, number]) => {

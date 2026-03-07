@@ -23,9 +23,10 @@ function genTempId() {
 interface ClubChatViewProps {
     clubId: string
     currentUserId: string
+    embedded?: boolean
 }
 
-export function ClubChatView({ clubId, currentUserId }: ClubChatViewProps) {
+export function ClubChatView({ clubId, currentUserId, embedded = false }: ClubChatViewProps) {
     const router = useRouter()
 
     // ── State ────────────────────────────────────────────────────
@@ -294,21 +295,23 @@ export function ClubChatView({ clubId, currentUserId }: ClubChatViewProps) {
                 </div>
             )}
 
-            {/* Header */}
-            <div className="flex items-center gap-2 border-b border-white/5 bg-zinc-950 px-4 py-3">
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => router.back()}
-                    className="h-8 w-8 text-white/50 hover:text-white"
-                    id="chat-back-btn"
-                >
-                    <ArrowLeft className="h-4 w-4" />
-                </Button>
-                <h1 className="text-base font-semibold text-white">
-                    {activeChannel?.name || '俱乐部频道'}
-                </h1>
-            </div>
+            {/* Header - hidden in embedded mode */}
+            {!embedded && (
+                <div className="flex items-center gap-2 border-b border-white/5 bg-zinc-950 px-4 py-3">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => router.back()}
+                        className="h-8 w-8 text-white/50 hover:text-white"
+                        id="chat-back-btn"
+                    >
+                        <ArrowLeft className="h-4 w-4" />
+                    </Button>
+                    <h1 className="text-base font-semibold text-white">
+                        {activeChannel?.name || '俱乐部频道'}
+                    </h1>
+                </div>
+            )}
 
             {/* Channel tabs (mobile-friendly horizontal scroll) */}
             <div className="border-b border-white/5 bg-zinc-950/80 overflow-x-auto scrollbar-hide">

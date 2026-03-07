@@ -61,6 +61,7 @@ import { isNativePlatform, safeKeyboardAddListener } from "@/lib/capacitor/safe-
 
 // Lazy-load heavy sub-views
 const ClubChatView = lazy(() => import('./chat/ClubChatView').then(m => ({ default: m.ClubChatView })))
+const ClubDynamicsView = lazy(() => import('./ClubDynamicsView').then(m => ({ default: m.ClubDynamicsView })))
 const InviteFriends = lazy(() => import('@/components/citylord/social/invite-friends').then(m => ({ default: m.InviteFriends })))
 const AchievementWall = lazy(() => import('@/components/citylord/achievements/achievement-wall').then(m => ({ default: m.AchievementWall })))
 const LeaderboardView = lazy(() => import('@/components/citylord/social/leaderboard').then(m => ({ default: m.Leaderboard })))
@@ -452,21 +453,14 @@ export function ClubDetailView({
         className={`flex-1 w-full min-h-0 overflow-y-auto overscroll-contain`}
       >
         <div className="px-4 pt-3">
-          {/* Top action bar */}
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              {onBack && !effectiveIsMember && (
-                <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full bg-muted text-foreground hover:bg-muted/80" onClick={onBack}>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
-                </Button>
-              )}
-            </div>
-            {effectiveIsMember && (
-              <Button size="sm" className="rounded-full bg-primary text-primary-foreground hover:bg-primary/90 font-bold shadow-lg" onClick={() => onChange?.()}>
-                更换
+          {/* Top action bar - only show back button for non-members */}
+          {onBack && !effectiveIsMember && (
+            <div className="flex items-center gap-2 mb-3">
+              <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full bg-muted text-foreground hover:bg-muted/80" onClick={onBack}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
               </Button>
-            )}
-          </div>
+            </div>
+          )}
           {/* Club avatar + info */}
           <div className="flex items-center gap-3">
             <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-full border-2 border-border bg-muted">
@@ -478,8 +472,19 @@ export function ClubDetailView({
                 </div>
               )}
             </div>
-            <div>
-              <div className="text-base font-semibold text-foreground">{club.name}</div>
+            <div className="flex-1 min-w-0">
+              {/* Club name + change button on same line */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-base font-semibold text-foreground truncate">{club.name}</div>
+                {effectiveIsMember && (
+                  <button
+                    className="shrink-0 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 font-bold shadow-sm text-[10px] px-2 py-0.5 transition-all active:scale-95"
+                    onClick={() => onChange?.()}
+                  >
+                    更换
+                  </button>
+                )}
+              </div>
 
               {/* Inline Stats Row */}
               <div className="flex items-center gap-2.5 text-sm font-medium text-muted-foreground mt-0.5">
@@ -579,16 +584,16 @@ export function ClubDetailView({
                 <TabsTrigger value="data" className="flex-1 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">数据</TabsTrigger>
               </TabsList>
 
-              {/* Club Chat — lazy loaded */}
+              {/* Club Chat — lazy loaded, embedded mode (no separate header) */}
               <TabsContent value="chat" className="mt-3">
-                <div className="rounded-xl border border-border bg-muted/30 overflow-hidden" style={{ height: '400px' }}>
+                <div className="rounded-xl border border-border bg-muted/30 overflow-hidden" style={{ height: '50vh', minHeight: '350px', maxHeight: '500px' }}>
                   <Suspense fallback={
                     <div className="flex items-center justify-center py-16">
                       <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                     </div>
                   }>
                     {currentUserId ? (
-                      <ClubChatView clubId={clubId} currentUserId={currentUserId} />
+                      <ClubChatView clubId={clubId} currentUserId={currentUserId} embedded />
                     ) : (
                       <div className="py-8 text-center text-muted-foreground text-sm">请先登录以使用聊天功能</div>
                     )}
@@ -597,8 +602,14 @@ export function ClubDetailView({
               </TabsContent>
 
               <TabsContent value="activity" className="mt-3">
-                <div className="rounded-xl border border-border bg-muted/30 p-4 text-center text-muted-foreground text-sm">
-                  暂无俱乐部动态
+                <div className="rounded-xl border border-border bg-muted/30 p-3">
+                  <Suspense fallback={
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                    </div>
+                  }>
+                    <ClubDynamicsView clubId={clubId} />
+                  </Suspense>
                 </div>
               </TabsContent>
 

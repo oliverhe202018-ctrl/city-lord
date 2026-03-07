@@ -306,12 +306,79 @@ export async function getActivityLeaderboard(
 export async function getSocialLeaderboard(
   currentUserId?: string,
   page: number = 1,
-  limit: number = 50
+  limit: number = 50,
+  type: 'distance' | 'territory' | 'social' = 'social'
 ): Promise<LeaderboardEntry[]> {
   try {
     const skip = (page - 1) * limit;
 
-    // Raw query for contribution-weighted social ranking
+    // Territory leaderboard: rank users by total_area
+    if (type === 'territory') {
+      const users = await prisma.profiles.findMany({
+        where: { total_area: { gt: 0 } },
+        orderBy: { total_area: 'desc' },
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          nickname: true,
+          avatar_url: true,
+          total_area: true,
+          province: true,
+        }
+      });
+
+      return users.map((user, index) => ({
+        rank: skip + index + 1,
+        id: user.id,
+        name: user.nickname || 'Unknown',
+        avatar_url: user.avatar_url || undefined,
+        score: Math.round(user.total_area || 0),
+        secondary_info: user.province || undefined,
+        is_me: currentUserId === user.id,
+        change: 'same' as const,
+      }));
+    }
+
+    // Distance leaderboard: rank by total run distance (km)
+    if (type === 'distance') {
+      const results = await prisma.$queryRaw<
+        {
+          id: string;
+          nickname: string | null;
+          avatar_url: string | null;
+          total_distance: number;
+          run_count: bigint;
+        }[]
+      >`
+        SELECT
+          p.id,
+          p.nickname,
+          p.avatar_url,
+          COALESCE(SUM(r.distance), 0) AS total_distance,
+          COUNT(r.id) AS run_count
+        FROM profiles p
+        LEFT JOIN runs r ON r.user_id = p.id
+        GROUP BY p.id, p.nickname, p.avatar_url
+        HAVING COALESCE(SUM(r.distance), 0) > 0
+        ORDER BY total_distance DESC
+        LIMIT ${limit}
+        OFFSET ${skip}
+      `;
+
+      return results.map((row, index) => ({
+        rank: skip + index + 1,
+        id: row.id,
+        name: row.nickname || 'Unknown',
+        avatar_url: row.avatar_url || undefined,
+        score: Math.round(Number(row.total_distance) * 10) / 10,
+        secondary_info: `活动:${Number(row.run_count)} 社交:0 成就:0`,
+        is_me: currentUserId === row.id,
+        change: 'same' as const,
+      }));
+    }
+
+    // Social leaderboard (default): contribution-weighted ranking
     const results = await prisma.$queryRaw<
       {
         id: string;
@@ -347,6 +414,7 @@ export async function getSocialLeaderboard(
         FROM user_badges
         GROUP BY user_id
       ) ach ON ach.user_id = p.id
+      WHERE (COALESCE(act.cnt, 0) * 3 + COALESCE(social.cnt, 0) * 1 + COALESCE(ach.cnt, 0) * 2) > 0
       ORDER BY total_score DESC
       LIMIT ${limit}
       OFFSET ${skip}
@@ -367,3 +435,4 @@ export async function getSocialLeaderboard(
     return [];
   }
 }
+
