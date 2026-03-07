@@ -10,7 +10,7 @@ import { useSmoothMapCamera } from "@/hooks/useSmoothMapCamera"
 import { useLocationStore } from "@/store/useLocationStore"
 
 // Security Config
-const AMAP_KEY = process.env.NEXT_PUBLIC_AMAP_KEY || "2f65c697074e0d4c8270195561578e06"
+const AMAP_KEY = process.env.NEXT_PUBLIC_AMAP_KEY || ""
 
 interface RunningMapProps {
   userLocation?: [number, number]

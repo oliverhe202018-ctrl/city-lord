@@ -2,7 +2,8 @@
 
 import React from "react"
 import type { Metadata, Viewport } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
+// import { Geist, Geist_Mono } from 'next/font/google'
+
 import { Analytics } from '@vercel/analytics/next'
 import { ThemeProvider } from '@/components/citylord/theme/theme-provider'
 import { CityProvider } from '@/contexts/CityContext'
@@ -18,9 +19,6 @@ import { GlobalLocationProvider } from '@/components/GlobalLocationProvider'
 import { PushNotificationBootstrapper } from '@/components/PushNotificationBootstrapper'
 import './globals.css'
 import { SpeedInsights } from '@vercel/speed-insights/next'
-
-const _geist = Geist({ subsets: ["latin"] });
-const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 const viewport: Viewport = {
   width: 'device-width',
@@ -105,7 +103,7 @@ export default function RootLayout({
         <Script id="amap-security" strategy="beforeInteractive">
           {`
             window._AMapSecurityConfig = {
-              securityJsCode: 'e827ba611fad4802c48dd900d01eb4bf',
+              securityJsCode: process.env.NEXT_PUBLIC_AMAP_SECURITY_CODE || '',
             }
           `}
         </Script>

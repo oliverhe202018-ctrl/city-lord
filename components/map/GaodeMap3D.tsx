@@ -30,7 +30,7 @@ interface GaodeMap3DProps {
 }
 
 // Security Config
-const AMAP_KEY = process.env.NEXT_PUBLIC_AMAP_KEY || "2f65c697074e0d4c8270195561578e06"
+const AMAP_KEY = process.env.NEXT_PUBLIC_AMAP_KEY || ""
 const AMAP_SECURITY_CODE = process.env.NEXT_PUBLIC_AMAP_SECURITY_CODE || "37887556a31362e92c2810e742886e29"
 
 export function GaodeMap3D({
