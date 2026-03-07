@@ -20,7 +20,7 @@ import useSWR from 'swr'
 import { LeaderboardDrawer } from "@/components/leaderboard/LeaderboardDrawer"
 import { useCity } from "@/contexts/CityContext"
 import {
-  GpsWeakPopup,
+
   NetworkBanner,
   LocationPermissionPrompt,
 } from "@/components/citylord/feedback/error-feedback"
@@ -77,7 +77,7 @@ const MemoizedTerritoryAlert = memo(TerritoryAlert);
 const MemoizedChallengeInvite = memo(ChallengeInvite);
 const MemoizedAchievementPopup = memo(AchievementPopup);
 const MemoizedNetworkBanner = memo(NetworkBanner);
-const MemoizedGpsWeakPopup = memo(GpsWeakPopup);
+// Removed GpsWeakPopup per user request
 
 interface GamePageContentProps {
   initialMissions?: any[]
@@ -310,7 +310,7 @@ export function GamePageContent({
   const [capturePosition, setCapturePosition] = useState({ x: 200, y: 300 })
 
   // Error/feedback states
-  const [showGpsWeakPopup, setShowGpsWeakPopup] = useState(false)
+  // GPS weak popup state removed per user request
   const [showPermissionPrompt, setShowPermissionPrompt] = useState(false)
   const [isOffline, setIsOffline] = useState(false)
   const [gpsStrength, setGpsStrength] = useState(5)
@@ -577,10 +577,7 @@ export function GamePageContent({
     setShowAchievement(false)
   }, [currentUnlockedAchievement, claimAchievement]);
 
-  const handleRetryGps = useCallback(() => {
-    setGpsStrength(5)
-    setShowGpsWeakPopup(false)
-  }, []);
+  // GPS retry handler removed per user request
 
   const handleHexClaimed = useCallback(() => {
     setSessionHexes(prev => prev + 1)
@@ -942,12 +939,7 @@ export function GamePageContent({
         onRetry={() => setIsOffline(false)}
       />
 
-      <MemoizedGpsWeakPopup
-        isOpen={showGpsWeakPopup}
-        onClose={() => setShowGpsWeakPopup(false)}
-        onRetry={handleRetryGps}
-        signalStrength={gpsStrength}
-      />
+      {/* GpsWeakPopup removed per user request */}
 
       <LocationPermissionPrompt
         isOpen={showPermissionPrompt}

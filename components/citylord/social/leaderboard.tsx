@@ -9,8 +9,16 @@ import { useAuth } from "@/hooks/useAuth"
 const ITEM_HEIGHT = 76
 const PAGE_SIZE = 50
 
+type TabKey = "distance" | "territory" | "social"
+
+const TAB_CONFIG: { key: TabKey; label: string; activeClass: string; icon: typeof Zap; scoreLabel: string }[] = [
+    { key: "distance", label: "里程榜", activeClass: "bg-primary text-primary-foreground", icon: Zap, scoreLabel: "分" },
+    { key: "territory", label: "领地榜", activeClass: "bg-emerald-500 text-white", icon: MapPin, scoreLabel: "㎡" },
+    { key: "social", label: "社交榜", activeClass: "bg-cyan-500 text-white", icon: Star, scoreLabel: "分" },
+]
+
 export function Leaderboard() {
-    const [activeTab, setActiveTab] = useState<"distance" | "territory">("distance")
+    const [activeTab, setActiveTab] = useState<TabKey>("distance")
     const [isLoading, setIsLoading] = useState(true)
     const [entries, setEntries] = useState<LeaderboardEntry[]>([])
     const [page, setPage] = useState(1)
@@ -18,8 +26,8 @@ export function Leaderboard() {
     const parentRef = useRef<HTMLDivElement>(null)
     const { user } = useAuth()
 
-    // Memoize items for virtual scroll performance
-    const items = useMemo(() => entries, [entries])
+    // Filter out zero-score entries
+    const items = useMemo(() => entries.filter(e => e.score > 0), [entries])
 
     const virtualizer = useVirtualizer({
         count: items.length,
@@ -31,7 +39,7 @@ export function Leaderboard() {
     const loadData = useCallback(async (pageNum: number) => {
         setIsLoading(true)
         try {
-            const data = await getSocialLeaderboard(user?.id, pageNum, PAGE_SIZE)
+            const data = await getSocialLeaderboard(user?.id, pageNum, PAGE_SIZE, activeTab)
             if (pageNum === 1) {
                 setEntries(data)
             } else {
@@ -39,11 +47,11 @@ export function Leaderboard() {
             }
             setHasMore(data.length === PAGE_SIZE)
         } catch (error) {
-            console.error("Failed to load social leaderboard:", error)
+            console.error("Failed to load leaderboard:", error)
         } finally {
             setIsLoading(false)
         }
-    }, [user?.id])
+    }, [user?.id, activeTab])
 
     useEffect(() => {
         setPage(1)
@@ -60,24 +68,22 @@ export function Leaderboard() {
     }, [isLoading, hasMore, page, loadData])
 
     const myRank = useMemo(() => items.find(e => e.is_me), [items])
+    const activeConfig = TAB_CONFIG.find(t => t.key === activeTab)!
 
     return (
         <div className="flex flex-col space-y-4">
-            <div className="flex gap-2 p-1 rounded-xl bg-muted/20 border border-border/50">
-                <button
-                    onClick={() => setActiveTab("distance")}
-                    className={`flex-1 py-1.5 px-3 rounded-lg text-sm font-bold transition-all ${activeTab === "distance" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-                        }`}
-                >
-                    里程榜
-                </button>
-                <button
-                    onClick={() => setActiveTab("territory")}
-                    className={`flex-1 py-1.5 px-3 rounded-lg text-sm font-bold transition-all ${activeTab === "territory" ? "bg-cyan-500 text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
-                        }`}
-                >
-                    社交榜
-                </button>
+            {/* 3-tab selector */}
+            <div className="flex gap-1.5 p-1 rounded-xl bg-muted/20 border border-border/50">
+                {TAB_CONFIG.map(tab => (
+                    <button
+                        key={tab.key}
+                        onClick={() => setActiveTab(tab.key)}
+                        className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all ${activeTab === tab.key ? `${tab.activeClass} shadow-sm` : "text-muted-foreground hover:text-foreground"
+                            }`}
+                    >
+                        {tab.label}
+                    </button>
+                ))}
             </div>
 
             <div className="space-y-3 min-h-[300px]">
@@ -113,6 +119,7 @@ export function Leaderboard() {
                                 const entry = items[virtualRow.index]
                                 if (!entry) return null
                                 const idx = virtualRow.index
+                                const Icon = activeConfig.icon
                                 return (
                                     <div
                                         key={virtualRow.key}
@@ -147,9 +154,9 @@ export function Leaderboard() {
                                                     {entry.is_me && <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-primary/20 text-primary shrink-0">我</span>}
                                                 </div>
                                                 <div className="text-xs font-semibold text-muted-foreground flex items-center gap-1 mt-1">
-                                                    {activeTab === "distance" ? <Zap className="w-3.5 h-3.5 text-yellow-500" /> : <Star className="w-3.5 h-3.5 text-cyan-500" />}
-                                                    <span className={activeTab === "distance" ? "text-yellow-600 dark:text-yellow-400/80" : "text-cyan-600 dark:text-cyan-400/80"}>
-                                                        {entry.score} 分
+                                                    <Icon className="w-3.5 h-3.5" />
+                                                    <span>
+                                                        {entry.score} {activeConfig.scoreLabel}
                                                     </span>
                                                     {entry.secondary_info && (
                                                         <span className="text-muted-foreground/60 ml-1 text-[10px]">
@@ -192,7 +199,7 @@ export function Leaderboard() {
                     <div className="font-bold">{myRank?.name || '我'}</div>
                 </div>
                 <div className="font-black text-primary text-xl">
-                    {myRank?.score || 0} <span className="text-sm font-normal">分</span>
+                    {myRank?.score || 0} <span className="text-sm font-normal">{activeConfig.scoreLabel}</span>
                 </div>
             </div>
         </div>

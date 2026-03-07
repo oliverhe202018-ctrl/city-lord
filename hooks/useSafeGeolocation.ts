@@ -107,6 +107,7 @@ export function useSafeGeolocation(options: UseSafeGeolocationOptions = {}): Use
       if (isMounted.current) {
         setGpsSignalStrength('weak');
         // Silent — no toast per UX requirement. Background state only.
+        // Per user policy: never show GPS weak signal toasts in foreground.
         console.debug('[useSafeGeolocation] GPS signal weak (30s timeout)');
       }
     }, SIGNAL_TIMEOUT);
@@ -236,15 +237,17 @@ export function useSafeGeolocation(options: UseSafeGeolocationOptions = {}): Use
     const now = Date.now();
 
     // C.5: Helper to throttle toasts (30s cooldown)
+    // Per user policy: Only show toasts for hard permission requirements.
+    // GPS weak signal, timeout, and unavailable should NOT show front-end toasts.
     const showToastThrottled = (type: string, msg: string) => {
+      // Only PERMISSION_DENIED should show toasts to the user
+      if (type !== 'PERMISSION_DENIED') {
+        console.debug(`[useSafeGeolocation] Suppressed toast "${msg}" (non-essential GPS status)`);
+        return;
+      }
       const lastTime = lastToastTimeRef.current[type] || 0;
       if (now - lastTime > 30000 || explicitUserAction) {
         lastToastTimeRef.current[type] = now;
-        // Suppress fallback messages if we have a valid cache (unless user manually retried - assumed if loading was explicitly re-set)
-        if (type !== 'PERMISSION_DENIED' && lastValidLocation.current && !explicitUserAction) {
-          console.debug(`[useSafeGeolocation] Suppressed toast "${msg}" due to existing valid location`);
-          return;
-        }
         import('sonner').then(({ toast }) => toast.error(msg));
       }
     };
@@ -257,12 +260,12 @@ export function useSafeGeolocation(options: UseSafeGeolocationOptions = {}): Use
     } else if (err.code === 3 || message.includes('timeout')) {
       setError('TIMEOUT');
       console.warn('[useSafeGeolocation] Location timeout');
-      showToastThrottled('TIMEOUT', '定位超时，正在降级重试...');
+      // Silent: no toast for timeout (non-essential)
     } else if (err.code === 2 || message.includes('unavailable') || message.includes('not available')) {
       setError('UNAVAILABLE');
       setLocation(null);
       console.warn('[useSafeGeolocation] Location service unavailable');
-      showToastThrottled('UNAVAILABLE', '网络离线或无GPS信号，已降级...');
+      // Silent: no toast for unavailable (non-essential)
     } else {
       setError('UNKNOWN');
       console.warn('[useSafeGeolocation] Unknown location error:', err.message);
