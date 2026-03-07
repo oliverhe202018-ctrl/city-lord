@@ -41,7 +41,7 @@ export async function safeLoadAMap(
     try {
       // 设置安全码（必须在 load 之前）
       (window as any)._AMapSecurityConfig = {
-        securityJsCode: process.env.NEXT_PUBLIC_AMAP_SECURITY_CODE || 'e827ba611fad4802c48dd900d01eb4bf',
+        securityJsCode: process.env.NEXT_PUBLIC_AMAP_SECURITY_CODE || '',
       };
 
       const key = process.env.NEXT_PUBLIC_AMAP_KEY;

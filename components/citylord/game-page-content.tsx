@@ -41,7 +41,7 @@ import { useAuth } from "@/hooks/useAuth"
 import { toast } from "sonner"
 import { RunHistoryDrawer } from "@/components/map/RunHistoryDrawer"
 import { CountdownOverlay } from "@/components/running/CountdownOverlay"
-import { initOneSignal, setExternalUserId } from "@/lib/onesignal/init"
+// OneSignal removed
 import { isNativePlatform, safeRequestGeolocationPermission, safeRequestLocalNotificationPermission, safeScheduleLocalNotification } from "@/lib/capacitor/safe-plugins"
 import { safeLoadAMap } from '@/lib/map/safe-amap';
 import { ImmersiveSkeleton } from "@/components/citylord/running/ImmersiveSkeleton";
@@ -341,14 +341,12 @@ export function GamePageContent({
   useEffect(() => {
     let isMounted = true
 
-    // Initialize OneSignal
-    initOneSignal();
+    // OneSignal removed
 
     async function checkSession() {
       // If we have initialUser from server, we can skip some checks or just verify
       if (initialUser) {
         // Logged in
-        setExternalUserId(initialUser.id);
         return
       }
 
@@ -416,7 +414,6 @@ export function GamePageContent({
 
       if (session) {
         setShowWelcome(false)
-        if (session.user?.id) setExternalUserId(session.user.id);
         return
       }
 

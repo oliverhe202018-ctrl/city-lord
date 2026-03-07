@@ -30,7 +30,7 @@ import { isNativePlatform } from "@/lib/capacitor/safe-plugins";
 
 
 // Security Config
-const AMAP_KEY = process.env.NEXT_PUBLIC_AMAP_KEY || "2f65c697074e0d4c8270195561578e06";
+const AMAP_KEY = process.env.NEXT_PUBLIC_AMAP_KEY || "";
 
 interface RoutePoint {
   lat: number;
@@ -1602,8 +1602,8 @@ export default function PlannerClientView() {
             <button
               onClick={() => handleModeChange('point')}
               className={`px-4 py-2 rounded-lg font-medium transition-all ${drawMode === 'point'
-                  ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/50'
-                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/50'
+                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
                 }`}
             >
               打点
@@ -1612,8 +1612,8 @@ export default function PlannerClientView() {
               id="planner-draw-btn"
               onClick={() => handleModeChange('draw')}
               className={`px-4 py-2 rounded-lg font-medium transition-all ${drawMode === 'draw'
-                  ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/50'
-                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/50'
+                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
                 }`}
             >
               手绘
