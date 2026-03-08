@@ -13,6 +13,7 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "6.2.1"),
         .package(name: "CapacitorCommunityBackgroundGeolocation", path: "..\..\..\node_modules\@capacitor-community\background-geolocation"),
+        .package(name: "CapacitorCommunityKeepAwake", path: "..\..\..\node_modules\@capacitor-community\keep-awake"),
         .package(name: "CapacitorApp", path: "..\..\..\node_modules\@capacitor\app"),
         .package(name: "CapacitorBrowser", path: "..\..\..\node_modules\@capacitor\browser"),
         .package(name: "CapacitorDevice", path: "..\..\..\node_modules\@capacitor\device"),
@@ -21,7 +22,9 @@ let package = Package(
         .package(name: "CapacitorKeyboard", path: "..\..\..\node_modules\@capacitor\keyboard"),
         .package(name: "CapacitorLocalNotifications", path: "..\..\..\node_modules\@capacitor\local-notifications"),
         .package(name: "CapacitorPushNotifications", path: "..\..\..\node_modules\@capacitor\push-notifications"),
-        .package(name: "CapacitorStatusBar", path: "..\..\..\node_modules\@capacitor\status-bar")
+        .package(name: "CapacitorStatusBar", path: "..\..\..\node_modules\@capacitor\status-bar"),
+        .package(name: "CapawesomeCapacitorBackgroundTask", path: "..\..\..\node_modules\@capawesome\capacitor-background-task"),
+        .package(name: "PerfoodCapacitorHealthkit", path: "..\..\..\node_modules\@perfood\capacitor-healthkit")
     ],
     targets: [
         .target(
@@ -30,6 +33,7 @@ let package = Package(
                 .product(name: "Capacitor", package: "capacitor-swift-pm"),
                 .product(name: "Cordova", package: "capacitor-swift-pm"),
                 .product(name: "CapacitorCommunityBackgroundGeolocation", package: "CapacitorCommunityBackgroundGeolocation"),
+                .product(name: "CapacitorCommunityKeepAwake", package: "CapacitorCommunityKeepAwake"),
                 .product(name: "CapacitorApp", package: "CapacitorApp"),
                 .product(name: "CapacitorBrowser", package: "CapacitorBrowser"),
                 .product(name: "CapacitorDevice", package: "CapacitorDevice"),
@@ -38,7 +42,9 @@ let package = Package(
                 .product(name: "CapacitorKeyboard", package: "CapacitorKeyboard"),
                 .product(name: "CapacitorLocalNotifications", package: "CapacitorLocalNotifications"),
                 .product(name: "CapacitorPushNotifications", package: "CapacitorPushNotifications"),
-                .product(name: "CapacitorStatusBar", package: "CapacitorStatusBar")
+                .product(name: "CapacitorStatusBar", package: "CapacitorStatusBar"),
+                .product(name: "CapawesomeCapacitorBackgroundTask", package: "CapawesomeCapacitorBackgroundTask"),
+                .product(name: "PerfoodCapacitorHealthkit", package: "PerfoodCapacitorHealthkit")
             ]
         )
     ]
