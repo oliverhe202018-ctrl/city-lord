@@ -10,6 +10,8 @@ import Link from "next/link"
 import { toast } from "sonner"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
 
 function LoginPageContent() {
   const [email, setEmail] = useState("")
@@ -21,6 +23,7 @@ function LoginPageContent() {
   const [countdown, setCountdown] = useState(0)
   const [loading, setLoading] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [agreed, setAgreed] = useState(false)
   const [loginMethod, setLoginMethod] = useState<"password" | "code" | "sms">("password")
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -93,6 +96,10 @@ function LoginPageContent() {
   // 核心逻辑: 发送验证码 (Register & Login)
   // ==========================================
   const handleSendCode = async (type: 'register' | 'login') => {
+    if (!agreed) {
+      toast.error("请先阅读并同意以勾选《用户协议》与《隐私政策》")
+      return
+    }
     if (!email) {
       toast.error("请输入邮箱")
       return
@@ -139,6 +146,10 @@ function LoginPageContent() {
   // ==========================================
   const handleRegisterVerify = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!agreed) {
+      toast.error("请先阅读并同意以勾选《用户协议》与《隐私政策》")
+      return
+    }
     if (!email || !verificationCode) return
 
     setLoading(true)
@@ -168,6 +179,10 @@ function LoginPageContent() {
   // ==========================================
   const handleLoginVerify = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!agreed) {
+      toast.error("请先阅读并同意以勾选《用户协议》与《隐私政策》")
+      return
+    }
     if (!email || !verificationCode) return
 
     setLoading(true)
@@ -205,6 +220,10 @@ function LoginPageContent() {
 
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!agreed) {
+      toast.error("请先阅读并同意以勾选《用户协议》与《隐私政策》")
+      return
+    }
     setLoading(true)
 
     try {
@@ -239,6 +258,10 @@ function LoginPageContent() {
   // 核心逻辑: 发送短信验证码
   // ==========================================
   const handleSendSmsCode = async (type: 'register' | 'login') => {
+    if (!agreed) {
+      toast.error("请先阅读并同意以勾选《用户协议》与《隐私政策》")
+      return
+    }
     if (!phone) {
       toast.error("请输入手机号")
       return
@@ -271,6 +294,10 @@ function LoginPageContent() {
   // ==========================================
   const handleSmsLoginVerify = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!agreed) {
+      toast.error("请先阅读并同意以勾选《用户协议》与《隐私政策》")
+      return
+    }
     if (!phone || !verificationCode) return
 
     setLoading(true)
@@ -314,6 +341,10 @@ function LoginPageContent() {
   // ==========================================
   const handleSmsRegisterVerify = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!agreed) {
+      toast.error("请先阅读并同意以勾选《用户协议》与《隐私政策》")
+      return
+    }
     if (!phone || !verificationCode || !password) return
 
     setLoading(true)
@@ -358,6 +389,21 @@ function LoginPageContent() {
             城市领主
           </h1>
           <p className="text-white/60 text-sm">用脚步丈量城市，用汗水铸就领地</p>
+        </div>
+
+        <div className="flex items-center justify-center space-x-2 mb-6">
+          <Checkbox
+            id="terms"
+            checked={agreed}
+            onCheckedChange={(checked) => setAgreed(checked as boolean)}
+            className="border-white/40 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600"
+          />
+          <Label htmlFor="terms" className="text-xs text-white/70">
+            我已经阅读并同意
+            <Link href="/terms" className="text-green-400 hover:text-green-300 ml-1">《用户协议》</Link>
+            和
+            <Link href="/privacy" className="text-green-400 hover:text-green-300 mx-1">《隐私政策》</Link>
+          </Label>
         </div>
 
         <Tabs defaultValue="login" className="w-full">
