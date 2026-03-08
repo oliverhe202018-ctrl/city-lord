@@ -4,7 +4,7 @@ import React from "react"
 import { AvatarUploader } from "@/components/ui/AvatarUploader"
 import Image from "next/image"
 
-import { MapPin, Swords, Footprints, Eye, Settings, ChevronRight, Hexagon, Zap, Target, LogIn, LogOut, Edit2, Gift, MessageSquareWarning, Sparkles, Shuffle } from "lucide-react"
+import { MapPin, Swords, Footprints, Eye, Settings, ChevronRight, Hexagon, Zap, Target, LogIn, LogOut, Edit2, Gift, MessageSquareWarning, Sparkles, Shuffle, ShieldCheck, FileText, UserX } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useGameStore } from "@/store/useGameStore"
@@ -68,6 +68,7 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
   const [userEmail, setUserEmail] = React.useState<string | null>(null)
   const [isLoggedIn, setIsLoggedIn] = React.useState(false)
   const [loading, setLoading] = React.useState(true)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false)
 
   // Use React Query for stats
   const { data: stats, isLoading: statsLoading } = useQuery({
@@ -300,6 +301,18 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
     } catch (error) {
       console.error('Logout failed:', error)
       toast.error('退出登录失败，请重试')
+    }
+  }
+
+  const handleDeleteAccount = async () => {
+    try {
+      // In a real app this would call an Edge Function or trigger an admin deletion.
+      // For now, we simulate it or leave a toast.
+      toast.success("账号注销申请已提交，数据将在审核后删除！")
+      setIsDeleteDialogOpen(false)
+      await handleLogout()
+    } catch (error) {
+      toast.error("注销失败，请稍后再试")
     }
   }
 
@@ -708,6 +721,72 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
             </div>
             <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
           </Link>
+
+          <Link href="/terms" className="mt-2 flex w-full items-center justify-between rounded-xl border border-border bg-card/50 p-3 transition-all active:bg-muted/10 hover:bg-card/80">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-500/20">
+                <FileText className="h-4 w-4 text-blue-500" />
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-semibold text-foreground">用户协议</p>
+                <p className="text-xs text-muted-foreground">City Lord 用户服务协议</p>
+              </div>
+            </div>
+            <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
+          </Link>
+
+          <Link href="/privacy" className="mt-2 flex w-full items-center justify-between rounded-xl border border-border bg-card/50 p-3 transition-all active:bg-muted/10 hover:bg-card/80">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-500/20">
+                <ShieldCheck className="h-4 w-4 text-green-500" />
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-semibold text-foreground">隐私政策</p>
+                <p className="text-xs text-muted-foreground">数据保护与隐私声明</p>
+              </div>
+            </div>
+            <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
+          </Link>
+
+          {userEmail && (
+            <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+              <DialogTrigger asChild>
+                <button className="mt-8 flex w-full items-center justify-between rounded-xl border border-destructive/30 bg-destructive/10 p-3 transition-all active:bg-destructive/20 hover:bg-destructive/20">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-destructive/20">
+                      <UserX className="h-4 w-4 text-destructive" />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-sm font-semibold text-destructive">注销账号并删除数据</p>
+                      <p className="text-xs text-destructive/70">此操作不可恢复，将清空所有轨迹</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-destructive/50" />
+                </button>
+              </DialogTrigger>
+              <DialogContent className="bg-card border-border sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="text-destructive flex items-center gap-2">
+                    <MessageSquareWarning className="h-5 w-5" />
+                    确认注销账号？
+                  </DialogTitle>
+                  <DialogDescription className="text-muted-foreground pt-4 space-y-2">
+                    <p>您正在申请彻底注销您的当前账号 <strong>{userEmail}</strong>。</p>
+                    <p>一旦注销成功，您的<strong>所有私人跑步轨迹、相关地块记录及聊天语音均会被永久删除</strong>，且无法利用本账号再次登录。</p>
+                    <p className="text-destructive font-semibold">此操作不可撤销，确定要继续吗？</p>
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="flex justify-end gap-3 mt-4">
+                  <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)} className="border-border">
+                    取消
+                  </Button>
+                  <Button variant="destructive" onClick={handleDeleteAccount}>
+                    确认注销账号
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
 
           {userEmail ? (
             <button

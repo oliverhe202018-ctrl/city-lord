@@ -5,13 +5,15 @@ import { useState, useEffect, useRef, useCallback, memo } from "react"
 import { BottomNav, TabType } from "@/components/citylord/bottom-nav"
 import { MissionCenter } from "@/components/citylord/MissionCenter"
 import { Profile } from "@/components/citylord/profile"
-import { Trophy, Route, History, Loader2, Palette } from "lucide-react";
+import { Trophy, Route, History, Loader2, Palette, MapPin } from "lucide-react";
 import { OnboardingGuide } from "@/components/citylord/onboarding-guide"
 import { QuickEntry } from "@/components/citylord/quick-entry"
 import { TerritoryAlert } from "@/components/citylord/territory-alert"
 import { ChallengeInvite } from "@/components/citylord/challenge-invite"
 import { AchievementPopup } from "@/components/citylord/achievement-popup"
 import { SocialPage } from "@/components/citylord/social/social-page"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
 import { WelcomeScreen, InteractiveTutorial, QuickNavPopup, MapInteractionGuide } from "@/components/citylord/onboarding/complete-onboarding"
 import { MapHeader, MapHeaderProps } from "@/components/map/MapHeader"
 import { LoadingScreen } from "@/components/citylord/loading-screen"
@@ -317,6 +319,7 @@ export function GamePageContent({
   // Error/feedback states
   // GPS weak popup state removed per user request
   const [showPermissionPrompt, setShowPermissionPrompt] = useState(false)
+  const [showBgLocationDisclosure, setShowBgLocationDisclosure] = useState(false)
   const [isOffline, setIsOffline] = useState(false)
   const [gpsStrength, setGpsStrength] = useState(5)
 
@@ -484,6 +487,20 @@ export function GamePageContent({
 
   // --- Step 2: Stable Handlers ---
 
+  const startCountdown = () => {
+    // Force Play Audio immediately on user interaction
+    console.log('Attempting to play: countdown.mp3');
+    try {
+      const audio = new Audio('/sounds/countdown.mp3');
+      audio.volume = 0.8;
+      audio.play().catch(e => console.error("Play failed", e));
+      countdownAudioRef.current = audio;
+    } catch (e) { }
+
+    // Show overlay
+    setIsCountingDown(true)
+  }
+
   const handleQuickNavigate = useCallback((tab: string) => {
     if (tab === "running") {
       if (!isAuthenticated) {
@@ -491,15 +508,13 @@ export function GamePageContent({
         return
       }
 
-      // Force Play Audio immediately on user interaction
-      console.log('Attempting to play: countdown.mp3');
-      const audio = new Audio('/sounds/countdown.mp3');
-      audio.volume = 0.8;
-      audio.play().catch(e => console.error("Play failed", e));
-      countdownAudioRef.current = audio;
-
-      // Show overlay
-      setIsCountingDown(true)
+      // Pre-check for Prominent Disclosure
+      const hasAgreed = localStorage.getItem('bg_location_agreed');
+      if (!hasAgreed) {
+        setShowBgLocationDisclosure(true);
+      } else {
+        startCountdown();
+      }
 
     } else {
       setActiveTab(tab as TabType)
@@ -695,6 +710,36 @@ export function GamePageContent({
         onClose={dismissGeolocationPrompt}
         onOpenSettings={handleOpenSettings}
       />
+
+      <Dialog open={showBgLocationDisclosure} onOpenChange={setShowBgLocationDisclosure}>
+        <DialogContent className="bg-card border-border sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MapPin className="h-5 w-5 text-cyan-400" />
+              后台定位服务说明
+            </DialogTitle>
+            <DialogDescription className="text-foreground/80 pt-4 space-y-3 leading-relaxed text-sm">
+              <p>为了确保在您熄屏、将手机放入口袋进行长距离跑步时，绝不中断地真实记录您的**持续路线与精准配速**，我们需要在接下来的系统提示中申请【始终允许访问位置信息】的权限。</p>
+              <p>您的位置信息仅用于游戏内轨迹记录与领地判定，<strong>我们绝对不会用于任何跨应用广告跟踪</strong>。随时可以在系统设置中关闭此权限。</p>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-3 mt-4">
+            <Button variant="outline" onClick={() => setShowBgLocationDisclosure(false)} className="border-border">
+              取消
+            </Button>
+            <Button
+              className="bg-cyan-600 hover:bg-cyan-700 text-white"
+              onClick={() => {
+                localStorage.setItem('bg_location_agreed', 'true');
+                setShowBgLocationDisclosure(false);
+                startCountdown();
+              }}
+            >
+              同意并继续
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {hydrated && currentCity && (
         <main className="relative flex-1 overflow-hidden">
