@@ -302,95 +302,94 @@ export async function claimTerritory(cityId: string, cellId: string): Promise<{ 
   }
 }
 
+// ⚡️ 核心优化：外置 unstable_cache，分离纯净的聚合查询，杜绝隐式使用 cookies()
+import { unstable_cache } from 'next/cache'
+
+const getCachedCityStats = unstable_cache(
+  async (cityId: string) => {
+    // 1. Count total players in this city
+    const totalPlayers = await prisma.user_city_progress.count({
+      where: { city_id: cityId }
+    })
+
+    // 2. Count active players
+    const lastWeek = new Date()
+    lastWeek.setDate(lastWeek.getDate() - 7)
+    const activePlayers = await prisma.user_city_progress.count({
+      where: {
+        city_id: cityId,
+        last_active_at: { gt: lastWeek }
+      }
+    })
+
+    // 3. Count total tiles captured
+    const totalTiles = await prisma.territories.count({
+      where: { city_id: cityId }
+    })
+
+    const ESTIMATED_AREA_PER_TILE = 0.01
+    const totalArea = totalTiles * ESTIMATED_AREA_PER_TILE
+
+    return {
+      totalPlayers,
+      activePlayers,
+      totalArea: parseFloat(totalArea.toFixed(2)),
+      totalTiles
+    }
+  },
+  ['city-stats-agg'], // 缓存前缀
+  { revalidate: 60, tags: ['city-stats'] }
+)
+
 export async function fetchCityStats(cityId: string) {
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
-
-  // 1. Count total players in this city (entries in user_city_progress)
-  const { count: totalPlayers } = await supabase
-    .from('user_city_progress')
-    .select('*', { count: 'exact', head: true })
-    .eq('city_id', cityId)
-
-  // 2. Count active players (e.g., active in last 7 days)
-  const lastWeek = new Date()
-  lastWeek.setDate(lastWeek.getDate() - 7)
-
-  const { count: activePlayers } = await supabase
-    .from('user_city_progress')
-    .select('*', { count: 'exact', head: true })
-    .eq('city_id', cityId)
-    .gt('last_active_at', lastWeek.toISOString())
-
-  // 3. Count total tiles captured in this city
-  const { count: totalTiles } = await supabase
-    .from('territories')
-    .select('*', { count: 'exact', head: true })
-    .eq('city_id', cityId)
-
-  // Approximate area (e.g. 1 tile = 0.01 km2, just an example constant)
-  // Real calculation depends on H3 resolution.
-  const ESTIMATED_AREA_PER_TILE = 0.01
-  const totalArea = (totalTiles || 0) * ESTIMATED_AREA_PER_TILE
-
-  return {
-    totalPlayers: totalPlayers || 0,
-    activePlayers: activePlayers || 0,
-    totalArea: parseFloat(totalArea.toFixed(2)),
-    totalTiles: totalTiles || 0
+  if (!cityId) {
+    return { totalPlayers: 0, activePlayers: 0, totalArea: 0, totalTiles: 0 }
   }
+  // 隔离：直接传入参数，不再在缓存流中读取 headers/cookies
+  return await getCachedCityStats(cityId)
 }
 
+const getCachedCityLeaderboard = unstable_cache(
+  async (cityId: string, limit: number) => {
+    const data = await prisma.user_city_progress.findMany({
+      where: { city_id: cityId },
+      select: {
+        user_id: true,
+        area_controlled: true,
+        tiles_captured: true,
+        reputation: true,
+        profiles: {
+          select: {
+            nickname: true,
+            avatar_url: true,
+            level: true
+          }
+        }
+      },
+      orderBy: { area_controlled: 'desc' },
+      take: limit
+    })
+
+    return data.map((entry, index) => ({
+      rank: index + 1,
+      userId: entry.user_id,
+      nickname: entry.profiles?.nickname || 'Unknown',
+      level: entry.profiles?.level || 1,
+      avatar: entry.profiles?.avatar_url || '',
+      totalArea: Number(entry.area_controlled || 0),
+      tilesCaptured: entry.tiles_captured || 0,
+      reputation: entry.reputation || 0
+    }))
+  },
+  ['city-leaderboard'],
+  { revalidate: 30, tags: ['city-leaderboard'] } // 榜单时效性高点设为30s
+)
+
 export async function fetchCityLeaderboard(cityId: string, limit = 50): Promise<CityLeaderboardEntry[]> {
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
-
-  const { data, error } = await supabase
-    .from('user_city_progress')
-    .select(`
-      user_id,
-      area_controlled,
-      tiles_captured,
-      reputation,
-      profiles (
-        nickname,
-        avatar_url,
-        level
-      )
-    `)
-    .eq('city_id', cityId)
-    .order('area_controlled', { ascending: false })
-    .limit(limit)
-
-  if (error) {
-    console.error('Error fetching leaderboard:', error)
-    return []
-  }
-
-  interface CityLeaderboardResult {
-    user_id: string
-    area_controlled: number
-    tiles_captured: number
-    reputation: number
-    profiles: {
-      nickname: string
-      avatar_url: string
-      level: number
-    } | null
-  }
-
-  const typedData = data as unknown as CityLeaderboardResult[]
-
-  return (typedData || []).map((entry, index) => ({
-    rank: index + 1,
-    userId: entry.user_id,
-    nickname: entry.profiles?.nickname || 'Unknown',
-    level: entry.profiles?.level || 1,
-    avatar: entry.profiles?.avatar_url || '',
-    totalArea: entry.area_controlled,
-    tilesCaptured: entry.tiles_captured,
-    reputation: entry.reputation
-  }))
+  if (!cityId) return []
+  // 增加边界与攻击防范：限制最大返回 100 条且禁止负值，防止被滥用刷爆 Redis 键名或打垮 DB
+  const safeLimit = Math.min(Math.max(1, limit), 100)
+  return await getCachedCityLeaderboard(cityId, safeLimit)
 }
 
 export async function getUserCityProgress(cityId: string): Promise<UserCityProgress | null> {

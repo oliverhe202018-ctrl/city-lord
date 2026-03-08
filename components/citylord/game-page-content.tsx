@@ -441,9 +441,22 @@ export function GamePageContent({
   useEffect(() => {
     checkStaminaRecovery()
     const interval = setInterval(() => {
-      checkStaminaRecovery()
+      if (document.visibilityState === 'visible') {
+        checkStaminaRecovery()
+      }
     }, 60000)
-    return () => clearInterval(interval)
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkStaminaRecovery()
+      }
+    }
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+    }
   }, [checkStaminaRecovery])
 
   const { data: friends } = useSWR('friends', async () => {

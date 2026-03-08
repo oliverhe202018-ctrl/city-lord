@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { acceptInvite } from '@/app/actions/user-invitations'
 import { createClient } from '@/lib/supabase/client'
 
-export default function InvitePage() {
+function InvitePageContent() {
     const searchParams = useSearchParams()
     const router = useRouter()
     const ref = searchParams.get('ref')
@@ -116,5 +116,17 @@ export default function InvitePage() {
                 )}
             </div>
         </div>
+    )
+}
+
+export default function InvitePage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900">
+                <div className="w-10 h-10 border-4 border-blue-400 border-t-transparent rounded-full animate-spin" />
+            </div>
+        }>
+            <InvitePageContent />
+        </Suspense>
     )
 }

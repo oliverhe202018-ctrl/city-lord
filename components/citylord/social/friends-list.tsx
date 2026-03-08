@@ -141,7 +141,9 @@ export function FriendsList({
 
   // Update 'now' every minute to refresh relative time and online status
   useEffect(() => {
-    const interval = setInterval(() => setNow(Date.now()), 60000)
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') setNow(Date.now())
+    }, 60000)
     return () => clearInterval(interval)
   }, [])
 
