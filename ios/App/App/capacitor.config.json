@@ -1,0 +1,39 @@
+{
+	"appId": "com.citylord.game.pro",
+	"appName": "City Lord",
+	"webDir": "out",
+	"server": {
+		"url": "https://cl.4567666.xyz",
+		"cleartext": false,
+		"androidScheme": "https",
+		"allowNavigation": [
+			"cl.4567666.xyz",
+			"*.cl.4567666.xyz"
+		]
+	},
+	"android": {
+		"allowMixedContent": true
+	},
+	"plugins": {
+		"Keyboard": {
+			"resize": "none",
+			"resizeOnFullScreen": false,
+			"style": "DARK"
+		}
+	},
+	"packageClassList": [
+		"BackgroundGeolocation",
+		"KeepAwakePlugin",
+		"AppPlugin",
+		"CAPBrowserPlugin",
+		"DevicePlugin",
+		"GeolocationPlugin",
+		"HapticsPlugin",
+		"KeyboardPlugin",
+		"LocalNotificationsPlugin",
+		"PushNotificationsPlugin",
+		"StatusBarPlugin",
+		"BackgroundTaskPlugin",
+		"CapacitorHealthkitPlugin"
+	]
+}
