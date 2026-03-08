@@ -25,6 +25,9 @@ jobs:
         run: npm install --legacy-peer-deps
 
       - name: Build Web Assets
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: "https://dummy.supabase.co"
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: "dummy-key"
         run: npm run build
 
       - name: Sync Capacitor iOS Project
