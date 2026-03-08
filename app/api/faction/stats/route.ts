@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server'
 import { getFactionStats } from '@/app/actions/faction'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 60
 
 export async function GET() {
   try {
     const stats = await getFactionStats()
-    
+
     // Map internal stats to API response expected by client
     return NextResponse.json({
       red_faction: stats.RED,

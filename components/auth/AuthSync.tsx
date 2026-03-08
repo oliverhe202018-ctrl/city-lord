@@ -73,11 +73,13 @@ export function AuthSync() {
             }
           })
           heartbeatInterval = setInterval(() => {
-            touchUserActivity().catch((e) => {
-              if (e?.name !== 'AbortError' && e?.digest !== 'NEXT_REDIRECT') {
-                console.error(e)
-              }
-            })
+            if (document.visibilityState === 'visible') {
+              touchUserActivity().catch((e) => {
+                if (e?.name !== 'AbortError' && e?.digest !== 'NEXT_REDIRECT') {
+                  console.error(e)
+                }
+              })
+            }
           }, 2 * 60 * 1000) // 2 minutes
         } else {
           console.log("[AuthSync] No active session found on init")
@@ -109,11 +111,13 @@ export function AuthSync() {
           }
         })
         heartbeatInterval = setInterval(() => {
-          touchUserActivity().catch((e) => {
-            if (e?.name !== 'AbortError' && e?.digest !== 'NEXT_REDIRECT') {
-              console.error(e)
-            }
-          })
+          if (document.visibilityState === 'visible') {
+            touchUserActivity().catch((e) => {
+              if (e?.name !== 'AbortError' && e?.digest !== 'NEXT_REDIRECT') {
+                console.error(e)
+              }
+            })
+          }
         }, 2 * 60 * 1000)
 
       } else if (event === "SIGNED_OUT") {

@@ -239,10 +239,10 @@ export function ClubDetailView({
 
           toast.success(message)
 
-          // ✅ 关键：延迟 500ms 后跳转到 /club 页面
+          // ✅ 关键：延迟 500ms 后跳转到 /club 页面并刷新
           setTimeout(() => {
             router.push('/club')
-            router.refresh() // 强制刷新数据
+            router.refresh() // 必须保留，因为 /club 是 Server Component，否则会命中客户端缓存导致显示假状态
           }, 500)
         } else {
           toast.error(result.error || '加入失败')

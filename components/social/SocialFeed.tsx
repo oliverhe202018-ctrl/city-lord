@@ -127,7 +127,9 @@ export function SocialFeed({
     if (!autoScroll || collapsed || feedItems.length === 0) return
 
     const interval = setInterval(() => {
-      setCurrentItemIndex((prev) => (prev + 1) % feedItems.length)
+      if (document.visibilityState === 'visible') {
+        setCurrentItemIndex((prev) => (prev + 1) % feedItems.length)
+      }
     }, scrollInterval)
 
     return () => clearInterval(interval)

@@ -110,7 +110,7 @@ const nextConfig = {
       {
         source: '/api/:path*',
         headers: [
-          { key: 'Access-Control-Allow-Origin', value: '*' },
+          { key: 'Access-Control-Allow-Origin', value: 'https://cl.4567666.xyz' },
           { key: 'Access-Control-Allow-Methods', value: 'GET,POST,PUT,DELETE,OPTIONS' },
           { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization' },
         ],
@@ -120,6 +120,11 @@ const nextConfig = {
 
   // 4. Turbopack 配置
   turbopack: {},
+
+  // 4.1. 编译器优化：生产环境自动移除 console.log（保留 error/warn）
+  compiler: {
+    removeConsole: process.env.NODE_ENV === "production" ? { exclude: ["error", "warn"] } : false,
+  },
 
   // 5. Webpack: ioredis 为纯服务端依赖，排除客户端打包
   webpack: (config, { isServer }) => {

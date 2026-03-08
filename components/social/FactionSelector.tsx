@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
@@ -9,6 +10,7 @@ import type { Faction } from '@/app/actions/faction'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { useGameStore } from '@/store/useGameStore'
 
 const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
   const controller = new AbortController()
@@ -48,6 +50,7 @@ interface FactionSelectorProps {
 
 export function FactionSelector({ initialUser }: FactionSelectorProps) {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const [isOpen, setIsOpen] = useState(false)
   const [stats, setStats] = useState({ RED: 0, BLUE: 0, bonus: { RED: 0, BLUE: 0 } })
   const [loading, setLoading] = useState(false)
@@ -121,8 +124,9 @@ export function FactionSelector({ initialUser }: FactionSelectorProps) {
         // 2. 显示成功提示
         toast.success(`欢迎加入 ${faction === 'RED' ? '赤红先锋' : '蔚蓝联盟'} 阵营！`)
 
-        // 3. 刷新路由以更新服务端数据 (如个人资料卡片中的阵营图标)
-        router.refresh()
+        // 3. 刷新状态中心以更新数据，避免无谓的 router.refresh() 全局刷新
+        useGameStore.setState({ faction })
+        queryClient.invalidateQueries({ queryKey: ['userProfileStats'] })
       } else {
         toast.error(result.error || '加入阵营失败')
       }
