@@ -234,12 +234,17 @@ export async function getClubMessages(
         return {
             success: true,
             data: {
-                items: items.map((msg) => ({
+                items: items.map((msg: any) => ({
                     id: msg.id,
                     clubId: msg.club_id,
                     channelId: msg.channel_id,
                     content: msg.content,
                     createdAt: msg.created_at.toISOString(),
+                    messageType: msg.message_type,
+                    audioUrl: msg.audio_url,
+                    durationMs: msg.duration_ms,
+                    mimeType: msg.mime_type,
+                    sizeBytes: msg.size_bytes,
                     sender: {
                         id: msg.sender.id,
                         nickname: msg.sender.nickname,
@@ -257,7 +262,7 @@ export async function getClubMessages(
 
 // ─── 3. Send Club Message (P0 #3: announcement guard) ─────────
 export async function sendClubMessage(
-    input: { clubId: string; channelId: string; content: string }
+    input: { clubId: string; channelId: string; content: string; messageType?: string; audioUrl?: string; durationMs?: number; mimeType?: string; sizeBytes?: number }
 ): Promise<ClubChatResult<ClubMessageWithSender>> {
     try {
         // Validate (P0 #4: zod 1-500)
@@ -266,7 +271,7 @@ export async function sendClubMessage(
             const firstErr = parsed.error.issues[0]?.message || '内容无效'
             return { success: false, error: ClubChatError.INVALID_CONTENT, message: firstErr }
         }
-        const { clubId, channelId, content } = parsed.data
+        const { clubId, channelId, content, messageType, audioUrl, durationMs, mimeType, sizeBytes } = parsed.data
 
         // Auth
         const userId = await getAuthUserId()
@@ -302,12 +307,18 @@ export async function sendClubMessage(
         }
 
         // Insert message
-        const message = await prisma.club_messages.create({
+        const message: any = await prisma.club_messages.create({
             data: {
                 club_id: clubId,
                 channel_id: channelId,
                 sender_id: userId,
                 content: content.trim(),
+                // @ts-ignore: TS server may not have picked up generated prisma client yet
+                message_type: messageType,
+                audio_url: audioUrl,
+                duration_ms: durationMs,
+                mime_type: mimeType,
+                size_bytes: sizeBytes,
             },
             include: {
                 sender: {
@@ -328,6 +339,11 @@ export async function sendClubMessage(
                 channelId: message.channel_id,
                 content: message.content,
                 createdAt: message.created_at.toISOString(),
+                messageType: message.message_type,
+                audioUrl: message.audio_url,
+                durationMs: message.duration_ms,
+                mimeType: message.mime_type,
+                sizeBytes: message.size_bytes,
                 sender: {
                     id: message.sender.id,
                     nickname: message.sender.nickname,

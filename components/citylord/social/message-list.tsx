@@ -2,9 +2,12 @@
 
 import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { Send, User, Bell, AlertCircle, Check, X, Swords, Clock, MapPin } from "lucide-react"
+import { Send, User, Bell, AlertCircle, Check, X, Swords, Clock, MapPin, Mic, Keyboard } from "lucide-react"
 import { toast } from "sonner"
 import useSWR from 'swr'
+import { VoiceRecorder } from "@/components/chat/voice/VoiceRecorder"
+import { VoiceBubble } from "@/components/chat/voice/VoiceBubble"
+import type { VoiceRecordResult } from "@/hooks/useAudioRecorder"
 
 const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
   const controller = new AbortController()
@@ -21,11 +24,11 @@ const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, ti
 }
 
 // sendMessage is used in the component
-const sendMessage = async (receiverId: string, content: string) => {
+const sendMessage = async (receiverId: string, content: string, type: 'text' | 'system' | 'challenge' | 'voice' = 'text', audioInfo?: any) => {
   const res = await fetchWithTimeout('/api/message/send-message', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ receiverId, content }),
+    body: JSON.stringify({ receiverId, content, type, audioInfo }),
     credentials: 'include'
   })
   if (!res.ok) throw new Error('Failed to send message')
@@ -39,11 +42,13 @@ import { zhCN } from "date-fns/locale"
 interface Message {
   id: string
   content: string
-  type: 'text' | 'system' | 'challenge'
+  type: 'text' | 'system' | 'challenge' | 'voice'
   sender_id: string | null
   user_id: string
   created_at: string
   is_read: boolean
+  audio_url?: string
+  duration_ms?: number
   sender?: {
     nickname: string
     avatar_url: string
@@ -65,6 +70,8 @@ export function MessageList({ initialFriendId }: MessageListProps) {
     revalidateOnFocus: true,
   })
 
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+
   useEffect(() => {
     let isMounted = true;
     let receivedChannel: any = null;
@@ -76,6 +83,7 @@ export function MessageList({ initialFriendId }: MessageListProps) {
       if (!isMounted || !session?.user?.id) return;
 
       const userId = session.user.id;
+      setCurrentUserId(userId);
 
       receivedChannel = supabase.channel('messages-received')
         .on('postgres_changes', {
@@ -106,22 +114,65 @@ export function MessageList({ initialFriendId }: MessageListProps) {
   }, [mutate]);
 
   const [input, setInput] = useState("")
+  const [isVoiceMode, setIsVoiceMode] = useState(false)
   const [activeChat, setActiveChat] = useState<string | null>(initialFriendId || null)
 
   const handleSend = async () => {
     if (!input.trim() || !activeChat) return
 
     try {
-      await sendMessage(activeChat, input)
+      const result = await sendMessage(activeChat, input)
+      if (result && 'error' in result) {
+        throw new Error(result.error);
+      }
       setInput("")
       mutate() // Refresh messages via SWR
       toast.success("消息已发送")
-    } catch (error) {
-      toast.error("发送失败")
+    } catch (error: any) {
+      toast.error(error.message || "发送失败")
     }
   }
 
-  const renderMessageContent = (msg: Message) => {
+  const handleSendVoice = async (result: VoiceRecordResult) => {
+    if (!activeChat) return
+    try {
+      const resp = await sendMessage(activeChat, '[语音]', 'voice', {
+        audioUrl: result.audioUrl,
+        durationMs: result.durationMs,
+        mimeType: result.mimeType,
+        sizeBytes: result.sizeBytes
+      })
+      if (resp && 'error' in resp) {
+        throw new Error(resp.error);
+      }
+      mutate()
+      toast.success("语音发送成功")
+    } catch (error: any) {
+      toast.error(error.message || "语音发送失败")
+      if (result.audioUrl) {
+        try {
+          const supabase = createClient();
+          await supabase.storage.from('voice-messages').remove([result.audioUrl]);
+          console.log('Orphan voice message cleaned up:', result.audioUrl);
+        } catch (e) {
+          console.error('Failed to clean up orphan voice message:', e);
+        }
+      }
+    }
+  }
+
+  const renderMessageContent = (msg: Message, isMe: boolean) => {
+    if (msg.type === 'voice') {
+      return (
+        <VoiceBubble
+          messageId={msg.id}
+          audioUrl={msg.audio_url || null}
+          durationMs={msg.duration_ms || null}
+          isOwn={isMe}
+        />
+      )
+    }
+
     if (msg.type === 'challenge') {
       try {
         const challengeData = JSON.parse(msg.content)
@@ -203,7 +254,7 @@ export function MessageList({ initialFriendId }: MessageListProps) {
                   {formatDistanceToNow(new Date(msg.created_at), { addSuffix: true, locale: zhCN })}
                 </span>
               </div>
-              {renderMessageContent(msg)}
+              {renderMessageContent(msg, msg.sender_id === currentUserId)}
             </GlassCard>
           ))
         )}
@@ -211,21 +262,35 @@ export function MessageList({ initialFriendId }: MessageListProps) {
 
       {/* Quick Reply (Only if active chat selected) */}
       {activeChat && (
-        <div className="flex gap-2 pt-2 border-t border-border">
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="输入消息..."
-            className="flex-1 bg-muted/50 border border-border rounded-xl px-4 py-2 text-foreground focus:outline-none focus:border-green-500/50"
-            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-          />
+        <div className="flex gap-2 pt-2 border-t border-border items-center">
           <button
-            onClick={handleSend}
-            disabled={!input.trim()}
-            className="p-2 bg-green-500 rounded-xl text-white disabled:opacity-50 disabled:cursor-not-allowed"
+            type="button"
+            onClick={() => setIsVoiceMode(!isVoiceMode)}
+            className="p-2 text-muted-foreground hover:text-foreground transition-colors"
           >
-            <Send className="w-5 h-5" />
+            {isVoiceMode ? <Keyboard className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
           </button>
+
+          {isVoiceMode ? (
+            <VoiceRecorder receiverId={activeChat} onSend={handleSendVoice} />
+          ) : (
+            <>
+              <input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="输入消息..."
+                className="flex-1 bg-muted/50 border border-border rounded-xl px-4 py-2 text-foreground focus:outline-none focus:border-green-500/50"
+                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+              />
+              <button
+                onClick={handleSend}
+                disabled={!input.trim()}
+                className="p-2 bg-green-500 rounded-xl text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Send className="w-5 h-5" />
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>

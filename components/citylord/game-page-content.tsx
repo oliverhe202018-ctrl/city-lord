@@ -143,6 +143,10 @@ export function GamePageContent({
   }, [activeTab]);
 
   // Realtime Battle Alerts
+  // ⚠️ DESIGN NOTE: 这里订阅 notifications 表是有意的双通道设计。
+  // 本处负责：触发本地通知 (Native) / Toast (Web)
+  // notification-center.tsx (NotificationProvider) 负责：更新通知列表 UI
+  // 两者监听同一张表但处理不同的 UI 反馈，请勿合并或删除。
   useEffect(() => {
     if (!user?.id) return;
 
@@ -251,6 +255,7 @@ export function GamePageContent({
     steps,
     area,
     savedRunId,
+    idempotencyKey,
   } = useRunningTracker(isRunning, user?.id)
 
   // Crash Recovery Check
@@ -876,6 +881,7 @@ export function GamePageContent({
           onHexClaimed={handleHexClaimed}
           saveRun={saveRun}
           savedRunId={savedRunId}
+          idempotencyKey={idempotencyKey}
         />
       )}
 

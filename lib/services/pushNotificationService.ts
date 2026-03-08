@@ -14,11 +14,24 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 /**
+ * 模块级初始化标志 —— 防止 React StrictMode 双挂载
+ * 或父组件 re-render 导致重复注册 Capacitor listener。
+ */
+let _initialized = false
+
+/**
  * 初始化推送通知系统。
  * 须在 App 启动时调用一次（由 PushNotificationBootstrapper 组件挂载）。
  * Web 端调用此方法会直接返回，不执行任何操作。
+ * 重复调用会被 _initialized guard 拦截。
  */
 export async function initPushNotifications(): Promise<void> {
+    if (_initialized) {
+        console.debug('[PushNotification] Already initialized, skipping duplicate call')
+        return
+    }
+    _initialized = true
+
     try {
         const isNative = await isNativePlatform()
         if (!isNative) {

@@ -77,6 +77,11 @@ export interface ClubMessageWithSender {
     channelId: string
     content: string
     createdAt: string // ISO string — formatted client-side only
+    messageType?: string | null
+    audioUrl?: string | null
+    durationMs?: number | null
+    mimeType?: string | null
+    sizeBytes?: number | null
     sender: MessageSender
 }
 
@@ -152,6 +157,11 @@ export const sendMessageSchema = z.object({
         .string()
         .min(1, '消息内容不能为空')
         .max(500, '消息内容不能超过500字'),
+    messageType: z.string().optional(),
+    audioUrl: z.string().optional(),
+    durationMs: z.number().int().optional(),
+    mimeType: z.string().optional(),
+    sizeBytes: z.number().int().optional(),
 })
 
 export const getMessagesSchema = z.object({

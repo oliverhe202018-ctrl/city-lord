@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Loader2, RefreshCw, Trash2, ChevronUp, MessageSquare } from 'lucide-react'
 import type { ClubMessageWithSender } from '@/lib/types/club-chat.types'
+import { VoiceBubble } from "@/components/chat/voice/VoiceBubble"
 
 // ─── Optimistic message type (P0 #7) ──────────────────────────
 export interface OptimisticMessage {
@@ -13,6 +14,11 @@ export interface OptimisticMessage {
     content: string
     createdAt: string
     status: 'pending' | 'failed'
+    messageType?: string | null
+    audioUrl?: string | null
+    durationMs?: number | null
+    mimeType?: string | null
+    sizeBytes?: number | null
     sender: {
         id: string
         nickname: string | null
@@ -154,14 +160,26 @@ function MessageBubble({
                     </span>
                 </div>
 
-                <div
-                    className={`rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${isOwn
-                        ? 'bg-yellow-500/90 text-black rounded-tr-sm'
-                        : 'bg-white/8 text-white/90 rounded-tl-sm'
-                        } ${isPending ? 'opacity-60' : ''} ${isFailed ? 'border border-red-500/40 bg-red-950/20' : ''}`}
-                >
-                    {msg.content}
-                </div>
+                {msg.messageType === 'voice' ? (
+                    <div className="mb-0.5 mt-0.5">
+                        <VoiceBubble
+                            messageId={msg.type === 'confirmed' ? msg.id : msg.clientTempId}
+                            audioUrl={msg.audioUrl || null}
+                            durationMs={msg.durationMs || null}
+                            isOwn={isOwn}
+                            isPending={isPending}
+                        />
+                    </div>
+                ) : (
+                    <div
+                        className={`rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${isOwn
+                            ? 'bg-yellow-500/90 text-black rounded-tr-sm'
+                            : 'bg-white/8 text-white/90 rounded-tl-sm'
+                            } ${isPending ? 'opacity-60' : ''} ${isFailed ? 'border border-red-500/40 bg-red-950/20' : ''}`}
+                    >
+                        {msg.content}
+                    </div>
+                )}
 
                 {/* Failed state: clear error text + retry/delete with debounce */}
                 {isFailed && msg.type === 'optimistic' && (

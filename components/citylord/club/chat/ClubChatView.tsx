@@ -39,7 +39,7 @@ export function ClubChatView({ clubId, currentUserId, embedded = false }: ClubCh
     // Messages state
     const [confirmedMessages, setConfirmedMessages] = useState<ClubMessageWithSender[]>([])
     const [optimisticMessages, setOptimisticMessages] = useState<
-        { clientTempId: string; content: string; createdAt: string; status: 'pending' | 'failed'; sender: { id: string; nickname: string | null; avatarUrl: string | null } }[]
+        { clientTempId: string; content: string; createdAt: string; status: 'pending' | 'failed'; messageType?: string | null; audioUrl?: string | null; durationMs?: number | null; mimeType?: string | null; sizeBytes?: number | null; sender: { id: string; nickname: string | null; avatarUrl: string | null } }[]
     >([])
     const [nextCursor, setNextCursor] = useState<string | undefined>(undefined)
     const [isLoadingMessages, setIsLoadingMessages] = useState(false)
@@ -47,7 +47,7 @@ export function ClubChatView({ clubId, currentUserId, embedded = false }: ClubCh
     const [hasMore, setHasMore] = useState(false)
 
     // Retry content map
-    const retryContentRef = useRef<Map<string, string>>(new Map())
+    const retryContentRef = useRef<Map<string, { content: string, audioInfo?: any }>>(new Map())
 
     // ── Load channels + membership ───────────────────────────────
     useEffect(() => {
@@ -171,16 +171,16 @@ export function ClubChatView({ clubId, currentUserId, embedded = false }: ClubCh
     const pendingContentRef = useRef<Set<string>>(new Set())
 
     const handleSend = useCallback(
-        async (content: string) => {
+        async (content: string, audioInfo?: any) => {
             if (!activeChannel) return
 
             // Dedup: prevent duplicate pending sends of identical content
-            const dedupKey = `${activeChannel.id}:${content}`
+            const dedupKey = audioInfo ? `${activeChannel.id}:voice:${Date.now()}` : `${activeChannel.id}:${content}`
             if (pendingContentRef.current.has(dedupKey)) return
             pendingContentRef.current.add(dedupKey)
 
             const tempId = genTempId()
-            retryContentRef.current.set(tempId, content)
+            retryContentRef.current.set(tempId, { content, audioInfo })
 
             // Optimistic insert
             const optMsg = {
@@ -188,6 +188,11 @@ export function ClubChatView({ clubId, currentUserId, embedded = false }: ClubCh
                 content,
                 createdAt: new Date().toISOString(),
                 status: 'pending' as const,
+                messageType: audioInfo ? 'voice' : 'text',
+                audioUrl: audioInfo?.audioUrl,
+                durationMs: audioInfo?.durationMs,
+                mimeType: audioInfo?.mimeType,
+                sizeBytes: audioInfo?.sizeBytes,
                 sender: {
                     id: currentUserId,
                     nickname: null,
@@ -200,6 +205,11 @@ export function ClubChatView({ clubId, currentUserId, embedded = false }: ClubCh
                 clubId,
                 channelId: activeChannel.id,
                 content,
+                messageType: audioInfo ? 'voice' : 'text',
+                audioUrl: audioInfo?.audioUrl,
+                durationMs: audioInfo?.durationMs,
+                mimeType: audioInfo?.mimeType,
+                sizeBytes: audioInfo?.sizeBytes,
             })
 
             // Release dedup lock
@@ -224,15 +234,15 @@ export function ClubChatView({ clubId, currentUserId, embedded = false }: ClubCh
     // ── Retry failed message ─────────────────────────────────────
     const handleRetry = useCallback(
         (clientTempId: string) => {
-            const content = retryContentRef.current.get(clientTempId)
-            if (!content || !activeChannel) return
+            const data = retryContentRef.current.get(clientTempId)
+            if (!data || !activeChannel) return
 
             // Remove old optimistic
             setOptimisticMessages((prev) => prev.filter((m) => m.clientTempId !== clientTempId))
             retryContentRef.current.delete(clientTempId)
 
             // Re-send
-            handleSend(content)
+            handleSend(data.content, data.audioInfo)
         },
         [activeChannel, handleSend]
     )

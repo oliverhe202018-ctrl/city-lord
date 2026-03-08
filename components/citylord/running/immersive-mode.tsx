@@ -22,16 +22,7 @@ const RunningMap = dynamic(() => import("./RunningMap").then(mod => mod.RunningM
 })
 import { GhostJoystick } from "./GhostJoystick"
 import { RunSummaryView } from "@/components/running/RunSummaryView"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog"
 import { Location } from "@/hooks/useRunningTracker"
 
 // ─── Timeout utility for promises that may hang after sleep ───
@@ -73,6 +64,7 @@ interface ImmersiveModeProps {
   onManualLocation?: (lat: number, lng: number) => void
   saveRun?: (isFinal?: boolean) => Promise<void>
   savedRunId?: string | null
+  idempotencyKey?: string
 }
 
 // Helper: Calculate distance between two points in meters
@@ -115,7 +107,8 @@ export function ImmersiveRunningMode({
   onHexClaimed,
   onManualLocation,
   saveRun,
-  savedRunId
+  savedRunId,
+  idempotencyKey
 }: ImmersiveModeProps) {
   const [isPaused, setIsPaused] = useState(false)
   const [isGhostMode, setIsGhostMode] = useState(false)
@@ -453,9 +446,8 @@ export function ImmersiveRunningMode({
       try {
         // Wrap with timeout — prevents infinite hang after long sleep
         await withTimeout(saveRun(true), SAVE_TIMEOUT_MS);
-        // Success — Clean up recovery key
+        // Success — Clean up recovery key. (Do NOT blindly wipe all PENDING_RUN_UPLOADs)
         localStorage.removeItem('CURRENT_RUN_RECOVERY');
-        localStorage.removeItem('PENDING_RUN_UPLOAD');
         const { useGameStore } = await import('@/store/useGameStore');
         useGameStore.getState().resetRunState();
 
@@ -466,6 +458,7 @@ export function ImmersiveRunningMode({
         // Persist to localStorage as offline fallback before showing retry dialog
         try {
           const fallbackData = {
+            idempotencyKey: idempotencyKey || crypto.randomUUID(),
             path: path || [],
             distance: distanceMeters || 0,
             duration: durationSeconds || 0,
@@ -473,16 +466,58 @@ export function ImmersiveRunningMode({
             timestamp: Date.now(),
             userId: userId || '',
           };
-          localStorage.setItem('PENDING_RUN_UPLOAD', JSON.stringify(fallbackData));
-          console.log('[ImmersiveMode] Offline fallback saved to localStorage');
+          let existingPending: any[] = [];
+          try {
+            const existingPendingStr = localStorage.getItem('PENDING_RUN_UPLOAD');
+            if (existingPendingStr) {
+              existingPending = JSON.parse(existingPendingStr);
+            }
+          } catch (e) { /* ignore parse error from corrupt storage */ }
+
+          if (!Array.isArray(existingPending)) {
+            existingPending = [];
+          }
+
+          const existingIndex = existingPending.findIndex(p => p.idempotencyKey === fallbackData.idempotencyKey);
+          if (existingIndex >= 0) {
+            existingPending[existingIndex] = fallbackData;
+            console.log('[ImmersiveMode] Offline fallback updated (upsert) in localStorage');
+          } else {
+            existingPending.push(fallbackData);
+            console.log('[ImmersiveMode] Offline fallback appended to localStorage');
+          }
+
+          // CRITICAL GUARD: Only remove active recovery if pending write SUCCESSFUL
+          try {
+            localStorage.setItem('PENDING_RUN_UPLOAD', JSON.stringify(existingPending));
+
+            // If the setItem above succeeded without QuotaExceededError, we can safely clear the active one
+            localStorage.removeItem('CURRENT_RUN_RECOVERY');
+            console.log('[ImmersiveMode] Pending saved successfully. Active recovery cleared.');
+          } catch (storageErr) {
+            console.error('[ImmersiveMode] Failed to save offline fallback due to storage constraints', storageErr);
+            toast.error("本机存储空间已满，无法保存进度，请清理空间！", { duration: 5000 });
+            // If we fail to save pending, do NOT remove CURRENT_RUN_RECOVERY.
+            // Therefore, the sequence aborts here without removing it, preserving double-loss.
+          }
         } catch (storageErr) {
           console.error('[ImmersiveMode] Failed to save offline fallback', storageErr);
         }
 
         const errorMsg = saveError instanceof Error ? saveError.message : 'Unknown error';
         if (errorMsg === 'SAVE_TIMEOUT') {
-          toast.error('保存超时，跑步数据已暂存本地', { duration: 5000 });
+          toast.error('保存超时，已暂存本地', { duration: 5000 });
         }
+
+        // ==========================================
+        // 上传失败时本地结束 (End Locally on Upload Failure)
+        // ==========================================
+        // Remove recovery key so it doesn't resume on restart is ALREADY handled safely above
+        // reset the tracker state
+        const { useGameStore } = await import('@/store/useGameStore');
+        useGameStore.getState().resetRunState();
+
+        // Show visible retry to user
         setShowRetryDialog(true);
       } finally {
         setIsSubmitting(false);
@@ -519,39 +554,42 @@ export function ImmersiveRunningMode({
         />
 
         {/* Save Retry Dialog — must render alongside summary so user sees it on save failure */}
-        <AlertDialog open={showRetryDialog} onOpenChange={setShowRetryDialog}>
-          <AlertDialogContent className="w-[90%] rounded-xl bg-[#1a1a1a] text-white border-white/10 z-[10000]">
-            <AlertDialogHeader>
-              <AlertDialogTitle className="text-xl font-bold text-center text-red-400">网络异常，上传失败</AlertDialogTitle>
-              <AlertDialogDescription className="text-white/60 text-center text-base">
-                当前网络不可用，跑步记录已安全保存在本地。您可以重试保存，或退回首页稍后恢复。
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter className="flex-col gap-3 mt-4 sm:flex-col">
-              <button
-                onClick={handleRetrySave}
-                disabled={isSubmitting}
-                className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#22c55e] px-4 py-3.5 font-bold text-white shadow-lg active:scale-95 disabled:opacity-50"
-              >
-                {isSubmitting ? (
-                  <>
-                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-transparent" />
-                    <span>正在重试...</span>
-                  </>
-                ) : (
-                  <span>重试保存</span>
-                )}
-              </button>
-              <button
-                onClick={handleSafeExit}
-                disabled={isSubmitting}
-                className="w-full rounded-xl bg-white/10 px-4 py-3.5 font-bold text-white shadow-sm hover:bg-white/20 active:scale-95 disabled:opacity-50"
-              >
-                稍后处理并退出
-              </button>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <AlertDialogPrimitive.Root open={showRetryDialog} onOpenChange={setShowRetryDialog}>
+          <AlertDialogPrimitive.Portal>
+            <AlertDialogPrimitive.Overlay className="fixed inset-0 z-[100000] bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+            <AlertDialogPrimitive.Content className="fixed left-[50%] top-[50%] z-[100001] w-[90%] max-w-[400px] translate-x-[-50%] translate-y-[-50%] rounded-xl bg-[#1a1a1a] p-6 text-white shadow-lg border border-white/10 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95">
+              <div className="flex flex-col gap-2 text-center">
+                <AlertDialogPrimitive.Title className="text-xl font-bold text-center text-red-400">网络异常，上传失败</AlertDialogPrimitive.Title>
+                <AlertDialogPrimitive.Description className="text-white/60 text-center text-base">
+                  当前网络不可用，跑步已本地结束，记录已安全保存在本地。您可以立刻重试保存，或退回首页稍后恢复。
+                </AlertDialogPrimitive.Description>
+              </div>
+              <div className="flex flex-col gap-3 mt-6">
+                <button
+                  onClick={handleRetrySave}
+                  disabled={isSubmitting}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#22c55e] px-4 py-3.5 font-bold text-white shadow-lg active:scale-95 transition-transform disabled:opacity-50"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-transparent" />
+                      <span>正在重试...</span>
+                    </>
+                  ) : (
+                    <span>立刻重试上传</span>
+                  )}
+                </button>
+                <button
+                  onClick={handleSafeExit}
+                  disabled={isSubmitting}
+                  className="w-full rounded-xl bg-white/10 px-4 py-3.5 font-bold text-white shadow-sm hover:bg-white/20 active:scale-95 transition-all disabled:opacity-50"
+                >
+                  稍后后台上传并退出
+                </button>
+              </div>
+            </AlertDialogPrimitive.Content>
+          </AlertDialogPrimitive.Portal>
+        </AlertDialogPrimitive.Root>
       </>
     )
   }
@@ -563,78 +601,77 @@ export function ImmersiveRunningMode({
       className="fixed inset-0 z-[9999] flex h-[100dvh] w-full flex-col bg-slate-900"
     >
       {/* Loop Warning Dialog */}
-      <AlertDialog open={showLoopWarning} onOpenChange={setShowLoopWarning}>
-        <AlertDialogContent className="w-[90%] rounded-xl bg-[#1a1a1a] text-white border-white/10">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-xl font-bold text-center">未形成闭环</AlertDialogTitle>
-            <AlertDialogDescription className="text-white/60 text-center text-base">
-              当前跑步路径未回到起点附近，无法形成有效领地闭环。
-              <br /><br />
-              如果现在结束，<span className="text-red-400 font-bold">将不会计算</span>本次圈地面积。
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="flex-row gap-3 sm:gap-0 mt-4">
-            <AlertDialogCancel
-              className="flex-1 bg-white/10 border-0 text-white hover:bg-white/20 h-12 rounded-full"
-              onClick={() => setShowLoopWarning(false)}
-            >
-              继续跑步
-            </AlertDialogCancel>
-            <AlertDialogAction
-              className="flex-1 bg-red-500 text-white hover:bg-red-600 h-12 rounded-full border-0"
-              onClick={() => {
-                setShowLoopWarning(false)
-                setEffectiveHexes(0)
-                // Audio logic handled in handleStop (via onClose) or explicit here if we call handleStop?
-                // Actually, handleStop is called by RunSummaryView onClose.
-                // But if we skip summary and stop immediately... 
-                // Wait, logic says: setShowSummary(true). So summary opens.
-                // Then user clicks "Finish" in Summary -> handleStop -> Audio + onStop.
-                // So we DON'T need audio here.
-
-                setShowSummary(true)
-              }}
-            >
-              确认结束
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <AlertDialogPrimitive.Root open={showLoopWarning} onOpenChange={setShowLoopWarning}>
+        <AlertDialogPrimitive.Portal>
+          <AlertDialogPrimitive.Overlay className="fixed inset-0 z-[100000] bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+          <AlertDialogPrimitive.Content className="fixed left-[50%] top-[50%] z-[100001] w-[90%] max-w-[400px] translate-x-[-50%] translate-y-[-50%] rounded-xl bg-[#1a1a1a] p-6 text-white shadow-lg border border-white/10 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95">
+            <div className="flex flex-col gap-2 text-center">
+              <AlertDialogPrimitive.Title className="text-xl font-bold text-center">未形成闭环</AlertDialogPrimitive.Title>
+              <AlertDialogPrimitive.Description className="text-white/60 text-center text-base">
+                当前跑步路径未回到起点附近，无法形成有效领地闭环。
+                <br /><br />
+                如果现在结束，<span className="text-red-400 font-bold">将不会计算</span>本次圈地面积。
+              </AlertDialogPrimitive.Description>
+            </div>
+            <div className="flex flex-row gap-3 mt-6">
+              <AlertDialogPrimitive.Cancel
+                className="flex-1 bg-white/10 border-0 text-white hover:bg-white/20 h-12 rounded-full font-medium transition-colors"
+                onClick={() => setShowLoopWarning(false)}
+              >
+                继续跑步
+              </AlertDialogPrimitive.Cancel>
+              <AlertDialogPrimitive.Action
+                className="flex-1 bg-red-500 text-white hover:bg-red-600 h-12 rounded-full border-0 font-medium transition-colors"
+                onClick={() => {
+                  setShowLoopWarning(false)
+                  setEffectiveHexes(0)
+                  setShowSummary(true)
+                }}
+              >
+                确认结束
+              </AlertDialogPrimitive.Action>
+            </div>
+          </AlertDialogPrimitive.Content>
+        </AlertDialogPrimitive.Portal>
+      </AlertDialogPrimitive.Root>
 
       {/* Save Retry Dialog */}
-      <AlertDialog open={showRetryDialog} onOpenChange={setShowRetryDialog}>
-        <AlertDialogContent className="w-[90%] rounded-xl bg-[#1a1a1a] text-white border-white/10 z-[10000]">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-xl font-bold text-center text-red-400">网络异常，上传失败</AlertDialogTitle>
-            <AlertDialogDescription className="text-white/60 text-center text-base">
-              当前网络不可用，跑步记录已安全保存在本地。您可以重试保存，或退回首页稍后恢复。
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="flex-col gap-3 mt-4 sm:flex-col">
-            <button
-              onClick={handleRetrySave}
-              disabled={isSubmitting}
-              className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#22c55e] px-4 py-3.5 font-bold text-white shadow-lg active:scale-95 disabled:opacity-50"
-            >
-              {isSubmitting ? (
-                <>
-                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-transparent" />
-                  <span>正在重试...</span>
-                </>
-              ) : (
-                <span>重试保存</span>
-              )}
-            </button>
-            <button
-              onClick={handleSafeExit}
-              disabled={isSubmitting}
-              className="w-full rounded-xl bg-white/10 px-4 py-3.5 font-bold text-white shadow-sm hover:bg-white/20 active:scale-95 disabled:opacity-50"
-            >
-              稍后处理并退出
-            </button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <AlertDialogPrimitive.Root open={showRetryDialog} onOpenChange={setShowRetryDialog}>
+        <AlertDialogPrimitive.Portal>
+          <AlertDialogPrimitive.Overlay className="fixed inset-0 z-[100000] bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+          <AlertDialogPrimitive.Content className="fixed left-[50%] top-[50%] z-[100001] w-[90%] max-w-[400px] translate-x-[-50%] translate-y-[-50%] rounded-xl bg-[#1a1a1a] p-6 text-white shadow-lg border border-white/10 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95">
+            <div className="flex flex-col gap-2 text-center">
+              <AlertDialogPrimitive.Title className="text-xl font-bold text-center text-red-400">网络异常，上传失败</AlertDialogPrimitive.Title>
+              <AlertDialogPrimitive.Description className="text-white/60 text-center text-base">
+                当前网络不可用，跑步已本地结束，记录已安全保存在本地。您可以重试保存，或退回首页稍后恢复。
+              </AlertDialogPrimitive.Description>
+            </div>
+            <div className="flex flex-col gap-3 mt-6">
+              <button
+                onClick={handleRetrySave}
+                disabled={isSubmitting}
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#22c55e] px-4 py-3.5 font-bold text-white shadow-lg active:scale-95 transition-transform disabled:opacity-50"
+              >
+                {isSubmitting ? (
+                  <>
+                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-transparent" />
+                    <span>正在重试...</span>
+                  </>
+                ) : (
+                  <span>立刻重试上传</span>
+                )}
+              </button>
+              <button
+                onClick={handleSafeExit}
+                disabled={isSubmitting}
+                className="w-full rounded-xl bg-white/10 px-4 py-3.5 font-bold text-white shadow-sm hover:bg-white/20 active:scale-95 transition-all disabled:opacity-50"
+              >
+                稍后后台上传并退出
+              </button>
+            </div>
+          </AlertDialogPrimitive.Content>
+        </AlertDialogPrimitive.Portal>
+      </AlertDialogPrimitive.Root>
 
       {/* Map Background Layer */}
       <div className={`absolute inset-0 z-0 ${isPaused && !isMapMode ? 'pointer-events-none' : 'pointer-events-auto'}`}>
