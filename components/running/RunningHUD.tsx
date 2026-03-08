@@ -168,6 +168,7 @@ export function RunningHUD({
   const ghostTimerRef = useRef<NodeJS.Timeout | null>(null)
   const [showGhost, setShowGhost] = useState(false)
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true)
+  const lastStopClickRef = useRef<number>(0);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true)
@@ -208,7 +209,7 @@ export function RunningHUD({
         const missions = await fetchUserMissions()
         // Filter: Active, Daily, Not Claimed
         // FIX: Ensure missions have frequency property or filter safely
-        const dailyActive = missions.filter(m =>
+        const dailyActive = missions.filter((m: any) =>
           m.missions?.frequency === 'daily' && // Access nested relation if necessary or check type
           m.status !== 'claimed' &&
           m.status !== 'completed'
@@ -415,6 +416,9 @@ export function RunningHUD({
                         onClick={(e) => {
                           e.stopPropagation();
                           e.preventDefault();
+                          const now = Date.now();
+                          if (now - lastStopClickRef.current < 2000) return;
+                          lastStopClickRef.current = now;
                           try {
                             onStop();
                           } catch (err) {

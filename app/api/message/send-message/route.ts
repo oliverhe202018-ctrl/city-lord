@@ -12,13 +12,13 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { receiverId, content, type } = body || {}
+    const { receiverId, content, type, audioInfo } = body || {}
 
     if (!receiverId || !content) {
       return NextResponse.json({ error: 'receiverId and content required' }, { status: 400 })
     }
 
-    const message = await sendMessage(receiverId, content, type)
+    const message = await sendMessage(receiverId, content, type, audioInfo)
     return NextResponse.json(message)
   } catch (error: any) {
     console.error('sendMessage error:', error)

@@ -12,7 +12,7 @@ const THROTTLE_MS = 2000 // P1: 2s send throttle
 interface MessageInputProps {
     channelKey: string
     userRole: 'owner' | 'admin' | 'member' | null
-    onSend: (content: string) => Promise<void>
+    onSend: (content: string, audioInfo?: any) => Promise<void>
     disabled?: boolean
 }
 
@@ -115,7 +115,7 @@ export function MessageInput({ channelKey, userRole, onSend, disabled }: Message
                     disabled={!canSend}
                     size="icon"
                     className={cn(
-                        'h-10 w-10 rounded-xl transition-all duration-150 flex-shrink-0',
+                        'h-10 w-10 rounded-xl transition-all duration-150 flex-shrink-0 mb-1',
                         canSend
                             ? 'bg-yellow-500 hover:bg-yellow-400 text-black'
                             : 'bg-white/5 text-white/20 cursor-not-allowed'

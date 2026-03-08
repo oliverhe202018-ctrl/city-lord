@@ -6,6 +6,7 @@ import { Room } from '@/types/room';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { touchUserActivity } from '@/app/actions/user';
+import { resetGlobalHydration } from '@/hooks/useHydration';
 
 // ==================== Types ====================
 
@@ -452,7 +453,10 @@ const createUserSlice: StateCreator<GameStore, [], [], UserActions> = (set, get)
   claimAchievement: (id) => set((state) => ({
     achievements: { ...state.achievements, [id]: true }
   })),
-  resetUser: () => set(initialUserState),
+  resetUser: () => {
+    set(initialUserState);
+    resetGlobalHydration();
+  },
   syncUserProfile: async () => {
     try {
       const supabase = createClient();
@@ -798,6 +802,20 @@ export const useGameActions = () => {
     }))
   );
 };
+
+// Global helper for hard reset (logout, clear store, dev reset)
+export const clearGameStore = () => {
+  useGameStore.persist.clearStorage();
+  resetGlobalHydration();
+  useGameStore.getState().resetUser();
+  useGameStore.getState().resetLocation();
+  useGameStore.getState().resetInventory();
+};
+
+if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+  (window as any).clearGameStore = clearGameStore;
+}
+
 export const useGameUser = () =>
   useGameStore(
     useShallow((state) => ({

@@ -43,6 +43,7 @@ interface RunningStats {
   durationSeconds: number; // seconds — use this for speed/pace calculations
   steps: number; // estimated steps (Math.floor(distanceMeters * 1.3))
   savedRunId: string | null; // Run ID for photo upload and sharing
+  idempotencyKey: string;
 }
 
 // Haversine formula — now imported from @/lib/geometry-utils
@@ -139,6 +140,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   useEffect(() => { sessionClaimsRef.current = sessionClaims; }, [sessionClaims]);
   useEffect(() => { closedPolygonsRef.current = closedPolygons; }, [closedPolygons]);
   useEffect(() => { areaRef.current = area; }, [area]);
+
+  // Idempotency key for the current run
+  const runIdempotencyKeyRef = useRef<string>(uuidv4());
 
   // ======== CRITICAL: Use centralized global location store ========
   // REMOVED: Direct useSafeGeolocation call — now consumed from useLocationStore
@@ -595,6 +599,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         // Reset timestamp-based timer
         pausedAccumulatorRef.current = 0;
         startTimeRef.current = null;
+        runIdempotencyKeyRef.current = uuidv4();
       }
     }
   }, [isRunning]);
@@ -673,7 +678,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     try {
       setIsSaving(true);
       const result = await saveRunActivity(userId, {
-        idempotencyKey: crypto.randomUUID(),
+        idempotencyKey: runIdempotencyKeyRef.current,
         distance: liveDistance,         // Already in meters
         duration: liveDuration,
         path: livePath,
@@ -748,5 +753,6 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     durationSeconds: duration, // raw seconds
     steps: estimatedSteps,
     savedRunId, // Expose the run ID for photo upload and sharing
+    idempotencyKey: runIdempotencyKeyRef.current,
   };
 }
