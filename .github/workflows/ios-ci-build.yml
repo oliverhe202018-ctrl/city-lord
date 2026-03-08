@@ -39,7 +39,7 @@ jobs:
           cd ios/App
           # Build without code signing
           xcodebuild clean archive \
-            -project App.xcodeproj \
+            -workspace App.xcworkspace \
             -scheme App \
             -configuration Release \
             -archivePath $PWD/build/App.xcarchive \
