@@ -100,7 +100,7 @@ export function VoiceBubble({ messageId, audioUrl, durationMs, isOwn, isPending 
 
             {/* Duration Text Outside */}
             <span className="text-xs text-muted-foreground">
-                {seconds}"
+                {seconds}&quot;
             </span>
         </div>
     );
