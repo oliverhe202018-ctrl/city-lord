@@ -353,6 +353,7 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
           <FriendsList
             initialFriends={initialFriends}
             initialRequests={initialRequests}
+            onDiscoverFriends={() => setSubView("discover")}
             onSelectFriend={(friend) => setSelectedFriend(friend)}
             onChallenge={(friend) => {
               setSelectedFriend(friend)

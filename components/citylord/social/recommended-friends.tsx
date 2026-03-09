@@ -1,6 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from 'next/navigation'
+import { openUserProfile } from '@/lib/utils/nav'
 import type { RecommendedUser } from "@/types/social"
 
 import { toast } from "sonner"
@@ -22,11 +24,11 @@ const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, ti
   }
 }
 
-const sendFriendRequest = async (userId: string) => {
+const sendFriendRequest = async (targetUserId: string) => {
   const res = await fetchWithTimeout('/api/social/send-friend-request', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userId }),
+    body: JSON.stringify({ targetUserId }),
     credentials: 'include'
   })
   if (!res.ok) throw new Error('Failed to send friend request')
@@ -96,6 +98,7 @@ export function RecommendedFriends({ onAddFriend }: RecommendedFriendsProps) {
   const [filter, setFilter] = useState<"all" | "nearby" | "similar">("all")
   const [recommendedUsers, setRecommendedUsers] = useState<RecommendedUser[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const router = useRouter()
 
   useEffect(() => {
     const loadUsers = async () => {
@@ -202,7 +205,10 @@ export function RecommendedFriends({ onAddFriend }: RecommendedFriendsProps) {
                 <div className="flex items-start gap-3">
                   {/* Avatar */}
                   <div className="relative">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-green-500/30 to-cyan-500/30 text-lg font-bold text-foreground overflow-hidden">
+                    <div
+                      className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-green-500/30 to-cyan-500/30 text-lg font-bold text-foreground overflow-hidden cursor-pointer hover:ring-2 ring-primary/50 transition-all"
+                      onClick={() => openUserProfile(router, user.id)}
+                    >
                       {user.avatar ? (
                         <img src={user.avatar} alt={user.name} className="h-12 w-12 rounded-full object-cover" />
                       ) : (
@@ -214,7 +220,12 @@ export function RecommendedFriends({ onAddFriend }: RecommendedFriendsProps) {
                   {/* Info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold text-foreground truncate max-w-[120px]">{user.name}</span>
+                      <span
+                        className="font-semibold text-foreground truncate max-w-[120px] cursor-pointer hover:underline"
+                        onClick={() => openUserProfile(router, user.id)}
+                      >
+                        {user.name}
+                      </span>
                       <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground shrink-0">
                         Lv.{user.level}
                       </span>

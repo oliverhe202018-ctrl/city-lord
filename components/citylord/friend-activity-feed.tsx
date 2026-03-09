@@ -5,6 +5,7 @@ import { getFeedTimeline, togglePostLike, createPostComment, deletePostComment, 
 import { useGameStore } from "@/store/useGameStore"
 import useSWRInfinite from 'swr/infinite'
 import { useRouter } from 'next/navigation'
+import { openUserProfile } from '@/lib/utils/nav'
 
 import {
   Loader2,
@@ -288,7 +289,7 @@ function ActivityCard({ post, onLike, onComment, isNew }: ActivityCardProps) {
         <div className="flex items-start justify-between">
           <div
             className="flex items-center gap-3 cursor-pointer group"
-            onClick={() => { if (post.user?.id) router.push(`/profile/user?userId=${post.user?.id}`) }}
+            onClick={() => { if (post.user?.id) openUserProfile(router, post.user?.id) }}
           >
             <div className="relative">
               <img src={displayAvatar} alt={displayName} className="h-11 w-11 rounded-full object-cover border-2 border-border" />
@@ -400,14 +401,14 @@ function ActivityCard({ post, onLike, onComment, isNew }: ActivityCardProps) {
                         src={cAvatar}
                         alt="avt"
                         className="w-6 h-6 rounded-full object-cover shrink-0 border border-border cursor-pointer hover:ring-2 ring-primary/50 transition-all"
-                        onClick={() => { if (comment.user_id || comment.user?.id) router.push(`/profile/user?userId=${comment.user_id || comment.user?.id}`) }}
+                        onClick={() => { if (comment.user_id || comment.user?.id) openUserProfile(router, comment.user_id || comment.user?.id) }}
                       />
                       <div className="flex-1 min-w-0 bg-muted/30 p-2.5 rounded-2xl rounded-tl-none">
                         <div className="flex justify-between items-start gap-2">
                           <div className="flex items-center gap-1.5">
                             <span
                               className="text-xs font-semibold text-foreground/80 cursor-pointer hover:text-foreground transition-colors"
-                              onClick={() => { if (comment.user_id || comment.user?.id) router.push(`/profile/user?userId=${comment.user_id || comment.user?.id}`) }}
+                              onClick={() => { if (comment.user_id || comment.user?.id) openUserProfile(router, comment.user_id || comment.user?.id) }}
                             >
                               {comment.user?.nickname || '用户'}
                             </span>

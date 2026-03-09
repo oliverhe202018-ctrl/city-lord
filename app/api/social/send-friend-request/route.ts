@@ -12,10 +12,10 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { targetUserId } = body || {}
+    const targetUserId = body?.targetUserId || body?.userId
 
     if (!targetUserId) {
-      return NextResponse.json({ error: 'targetUserId required' }, { status: 400 })
+      return NextResponse.json({ error: 'targetUserId or userId required' }, { status: 400 })
     }
 
     const result = await sendFriendRequest(targetUserId)
