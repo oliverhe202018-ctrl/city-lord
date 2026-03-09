@@ -1,20 +1,13 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
-import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { requireAdminSession } from '@/lib/admin/auth'
 
 // ── Admin Authorization (same pattern as backgrounds.ts) ─────
-const ADMIN_EMAILS = ['xn_fly@qq.com', 'oliverhe202018@gmail.com']
-
 async function requireAdmin() {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user || !ADMIN_EMAILS.includes(user.email ?? '')) {
-        throw new Error('Unauthorized: Admin access required')
-    }
-    return { user, supabase }
+    await requireAdminSession()
+    return { user: null, supabase: null }
 }
 
 function getAdminClient() {
