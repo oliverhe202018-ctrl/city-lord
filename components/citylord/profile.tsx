@@ -352,28 +352,15 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
     <div className="flex h-full flex-col bg-background">
       {/* Header with Avatar */}
       <div className="relative border-b border-border bg-card/40 px-4 pb-4 pt-4 backdrop-blur-xl shrink-0">
-        {/* Dynamic Faction Background or Custom Profile Background */}
+        {/* Dynamic Faction Background */}
         <div className="absolute inset-0 overflow-hidden rounded-b-3xl z-0">
-          {backgroundUrl ? (
-            <>
-              <Image
-                src={backgroundUrl}
-                alt="Profile Background"
-                fill
-                className="object-cover opacity-80"
-                priority
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-background/20 to-transparent" />
-            </>
-          ) : (
-            <FactionBattleBackground
-              userFaction={userStats.faction?.toLowerCase() === 'red' ? 'red' : 'blue'}
-              red_area={factionStats?.red_area ?? factionStats?.redArea ?? 0}
-              blue_area={factionStats?.blue_area ?? factionStats?.blueArea ?? 0}
-              isLoading={!factionStats}
-              className="opacity-50 pointer-events-none"
-            />
-          )}
+          <FactionBattleBackground
+            userFaction={userStats.faction?.toLowerCase() === 'red' ? 'red' : 'blue'}
+            red_area={factionStats?.red_area ?? factionStats?.redArea ?? 0}
+            blue_area={factionStats?.blue_area ?? factionStats?.blueArea ?? 0}
+            isLoading={!factionStats}
+            className="opacity-50 pointer-events-none"
+          />
         </div>
 
         {/* Settings Button - Moved to bottom right to avoid conflict with top faction labels */}

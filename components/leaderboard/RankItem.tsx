@@ -42,7 +42,7 @@ export function RankItem({ data }: RankItemProps) {
 
   const handleClick = () => {
     if (data.id) {
-      openUserProfile(router, data.id);
+      openUserProfile(router, data.id, window.location.pathname + window.location.search);
     }
   };
 

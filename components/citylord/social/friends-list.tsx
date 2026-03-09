@@ -253,7 +253,7 @@ export function FriendsList({
                 <div>
                   <div
                     className="font-semibold text-foreground cursor-pointer hover:underline"
-                    onClick={(e) => { e.stopPropagation(); openUserProfile(router, req.userId) }}
+                    onClick={(e) => { e.stopPropagation(); openUserProfile(router, req.userId, window.location.pathname + window.location.search) }}
                   >
                     {req.name}
                   </div>
@@ -305,7 +305,7 @@ export function FriendsList({
                 {/* Avatar */}
                 <div
                   className="relative cursor-pointer"
-                  onClick={(e) => { e.stopPropagation(); openUserProfile(router, friend.id) }}
+                  onClick={(e) => { e.stopPropagation(); openUserProfile(router, friend.id, window.location.pathname + window.location.search) }}
                 >
                   <Avatar className="h-12 w-12 hover:ring-2 ring-primary/50 transition-all cursor-pointer">
                     <AvatarImage src={friend.avatar?.startsWith('http') ? friend.avatar : ''} alt={friend.name} className="object-cover" />
@@ -324,7 +324,7 @@ export function FriendsList({
                   <div className="flex items-center gap-2">
                     <span
                       className="font-semibold text-foreground cursor-pointer hover:text-primary transition-colors"
-                      onClick={(e) => { e.stopPropagation(); openUserProfile(router, friend.id) }}
+                      onClick={(e) => { e.stopPropagation(); openUserProfile(router, friend.id, window.location.pathname + window.location.search) }}
                     >
                       {friend.name}
                     </span>

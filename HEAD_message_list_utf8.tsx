@@ -1,6 +1,6 @@
-"use client"
+﻿"use client"
 
-import { useState, useEffect, useRef, useMemo } from "react"
+import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Send, User, Bell, AlertCircle, Check, X, Swords, Clock, MapPin, Mic, Keyboard } from "lucide-react"
 import { toast } from "sonner"
@@ -44,9 +44,9 @@ import { zhCN } from "date-fns/locale"
 function formatWeChatTime(dateStr: string) {
   const date = new Date(dateStr)
   if (isToday(date)) return format(date, "HH:mm")
-  if (isYesterday(date)) return "昨天 " + format(date, "HH:mm")
+  if (isYesterday(date)) return "鏄ㄥぉ " + format(date, "HH:mm")
   if (isThisWeek(date)) return format(date, "EEEE HH:mm", { locale: zhCN })
-  return format(date, "yyyy年MM月dd日 HH:mm")
+  return format(date, "yyyy骞碝M鏈坉d鏃?HH:mm")
 }
 
 interface Message {
@@ -70,7 +70,7 @@ interface MessageListProps {
   mode?: 'system' | 'friend'
 }
 
-// 定义 fetcher
+// 瀹氫箟 fetcher
 const fetcher = (url: string) => fetch(url).then(res => {
   if (!res.ok) throw new Error('Failed to fetch messages')
   return res.json()
@@ -140,14 +140,14 @@ export function MessageList({ initialFriendId, mode = 'system' }: MessageListPro
       setInput("")
       mutate() // Refresh messages via SWR
     } catch (error: any) {
-      toast.error(error.message || "发送失败")
+      toast.error(error.message || "鍙戦€佸け璐?)
     }
   }
 
   const handleSendVoice = async (result: VoiceRecordResult) => {
     if (!activeChat) return
     try {
-      const resp = await sendMessage(activeChat, '[语音]', 'voice', {
+      const resp = await sendMessage(activeChat, '[璇煶]', 'voice', {
         audioUrl: result.audioUrl,
         durationMs: result.durationMs,
         mimeType: result.mimeType,
@@ -157,9 +157,9 @@ export function MessageList({ initialFriendId, mode = 'system' }: MessageListPro
         throw new Error(resp.error);
       }
       mutate()
-      toast.success("语音发送成功")
+      toast.success("璇煶鍙戦€佹垚鍔?)
     } catch (error: any) {
-      toast.error(error.message || "语音发送失败")
+      toast.error(error.message || "璇煶鍙戦€佸け璐?)
       if (result.audioUrl) {
         try {
           const supabase = createClient();
@@ -190,128 +190,63 @@ export function MessageList({ initialFriendId, mode = 'system' }: MessageListPro
         // challengeData: { type: 'distance' | 'time', target: number, duration?: number }
 
         const isDistance = challengeData.type === 'distance'
-        const value = isDistance ? `${challengeData.target}km` : `${challengeData.duration}分钟`
+        const value = isDistance ? `${challengeData.target}km` : `${challengeData.duration}鍒嗛挓`
 
         return (
           <div className="mt-1 rounded-lg bg-muted/50 p-3 border border-border">
             <div className="flex items-center gap-2 mb-2">
               <Swords className="h-4 w-4 text-orange-500" />
-              <span className="font-bold text-orange-500">发起挑战</span>
+              <span className="font-bold text-orange-500">鍙戣捣鎸戞垬</span>
             </div>
             <div className="text-sm text-foreground/90">
               {isDistance ? (
                 <div className="flex items-center gap-2">
                   <MapPin className="h-3 w-3 text-muted-foreground" />
-                  目标距离: <span className="font-mono font-bold text-foreground">{value}</span>
+                  鐩爣璺濈: <span className="font-mono font-bold text-foreground">{value}</span>
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
                   <Clock className="h-3 w-3 text-muted-foreground" />
-                  目标时长: <span className="font-mono font-bold text-foreground">{value}</span>
+                  鐩爣鏃堕暱: <span className="font-mono font-bold text-foreground">{value}</span>
                 </div>
               )}
             </div>
             {/* Action Buttons (Demo only for now) */}
             <div className="mt-3 flex gap-2">
               <button className="flex-1 bg-green-500 text-white text-xs font-bold py-1.5 rounded-lg hover:bg-green-600 transition-colors">
-                接受
+                鎺ュ彈
               </button>
               <button className="flex-1 bg-muted text-muted-foreground text-xs font-bold py-1.5 rounded-lg hover:bg-muted/80 transition-colors">
-                拒绝
+                鎷掔粷
               </button>
             </div>
           </div>
         )
       } catch (e) {
-        return <p className="text-sm text-muted-foreground pl-7">收到一个挑战 (解析错误)</p>
+        return <p className="text-sm text-muted-foreground pl-7">鏀跺埌涓€涓寫鎴?(瑙ｆ瀽閿欒)</p>
       }
     }
 
     return <p className="text-sm text-muted-foreground pl-7">{msg.content}</p>
   }
 
-  const filteredMessages = useMemo(() => {
-    return messages.filter((msg) => {
-      if (mode === 'system') {
-        return msg.type === 'system' || msg.type === 'challenge'
-      }
-      return (msg.sender_id === activeChat || msg.user_id === activeChat) && msg.type !== 'system'
-    })
-  }, [messages, mode, activeChat])
-
-  const sortedMessages = useMemo(() => {
-    return [...filteredMessages].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-  }, [filteredMessages])
-
-  const displayMessages = mode === 'friend' ? sortedMessages : filteredMessages
-
-  const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const bottomAnchorRef = useRef<HTMLDivElement>(null)
-  const prevMessagesLengthRef = useRef(0)
-  const prevActiveChatRef = useRef<string | null>(null)
-  const isUserNearBottomRef = useRef(true)
-
-  const handleScroll = () => {
-    const el = scrollContainerRef.current
-    if (!el) return
-    isUserNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100
-  }
-
-  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
-    if (mode === 'friend') {
-      bottomAnchorRef.current?.scrollIntoView({ behavior, block: 'end' })
+  const filteredMessages = messages.filter((msg) => {
+    if (mode === 'system') {
+      return msg.type === 'system' || msg.type === 'challenge'
     }
-  }
+    return (msg.sender_id === activeChat || msg.user_id === activeChat) && msg.type !== 'system'
+  });
 
-  const displayMessagesLength = displayMessages.length
-  const lastMessageId = displayMessagesLength > 0 ? displayMessages[displayMessagesLength - 1].id : null
-  const lastMessageSenderId = displayMessagesLength > 0 ? displayMessages[displayMessagesLength - 1].sender_id : null
-
-  useEffect(() => {
-    if (mode !== 'friend') return
-
-    const isChatChanged = prevActiveChatRef.current !== activeChat
-    if (isChatChanged) {
-      prevMessagesLengthRef.current = 0
-      prevActiveChatRef.current = activeChat
-    }
-
-    if (!isLoading && displayMessagesLength > 0) {
-      const prevLen = prevMessagesLengthRef.current
-      const currentLen = displayMessagesLength
-
-      if (prevLen === 0 || isChatChanged) {
-        scrollToBottom('auto')
-      } else if (currentLen > prevLen) {
-        const wasNearBottom = isUserNearBottomRef.current
-        const isMe = lastMessageSenderId === currentUserId
-
-        if (isMe) {
-          scrollToBottom('smooth')
-        } else if (wasNearBottom) {
-          scrollToBottom('smooth')
-        }
-      }
-      prevMessagesLengthRef.current = currentLen
-    } else if (!isLoading && displayMessagesLength === 0) {
-      prevMessagesLengthRef.current = 0
-    }
-  }, [displayMessagesLength, lastMessageId, lastMessageSenderId, activeChat, mode, currentUserId, isLoading])
-
-  if (isLoading && (!messages || messages.length === 0)) return <div className="text-center text-muted-foreground py-10">加载消息中...</div>
+  if (isLoading && (!messages || messages.length === 0)) return <div className="text-center text-muted-foreground py-10">鍔犺浇娑堟伅涓?..</div>
 
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* Message List */}
-      <div
-        ref={scrollContainerRef}
-        onScroll={handleScroll}
-        className={`flex-1 overflow-y-auto ${mode === 'friend' ? 'px-4 py-2 space-y-0 relative' : 'space-y-3 p-1'}`}
-      >
-        {displayMessages.length === 0 ? (
-          <div className="text-center text-muted-foreground py-10">暂无消息</div>
+      <div className={`flex-1 overflow-y-auto ${mode === 'friend' ? 'px-4 py-2 space-y-0 relative' : 'space-y-3 p-1'}`}>
+        {filteredMessages.length === 0 ? (
+          <div className="text-center text-muted-foreground py-10">鏆傛棤娑堟伅</div>
         ) : (
-          displayMessages.map((msg, index) => {
+          filteredMessages.map((msg, index) => {
             const isMe = msg.sender_id === currentUserId;
 
             if (mode === 'system') {
@@ -327,7 +262,7 @@ export function MessageList({ initialFriendId, mode = 'system' }: MessageListPro
                       ) : (
                         <div
                           className="w-5 h-5 rounded-full bg-muted flex items-center justify-center overflow-hidden cursor-pointer hover:ring-2 ring-primary/50 transition-all"
-                          onClick={() => openUserProfile(router, msg.sender_id, window.location.pathname + window.location.search)}
+                          onClick={() => openUserProfile(router, msg.sender_id)}
                         >
                           {msg.sender?.avatar_url ? (
                             <img src={msg.sender.avatar_url} className="w-full h-full object-cover" />
@@ -338,9 +273,9 @@ export function MessageList({ initialFriendId, mode = 'system' }: MessageListPro
                       )}
                       <span
                         className="font-bold text-sm text-foreground cursor-pointer hover:underline"
-                        onClick={() => openUserProfile(router, msg.sender_id, window.location.pathname + window.location.search)}
+                        onClick={() => openUserProfile(router, msg.sender_id)}
                       >
-                        {msg.sender?.nickname || '系统通知'}
+                        {msg.sender?.nickname || '绯荤粺閫氱煡'}
                       </span>
                     </div>
                     <span className="text-[10px] text-muted-foreground">
@@ -354,8 +289,8 @@ export function MessageList({ initialFriendId, mode = 'system' }: MessageListPro
 
             // Friend mode map
             const currentMsgTime = new Date(msg.created_at).getTime();
-            const prevMsgTime = index > 0 ? new Date(displayMessages[index - 1].created_at).getTime() : 0;
-            const showTimeLabel = index === 0 || (currentMsgTime - prevMsgTime) >= 5 * 60 * 1000;
+            const prevMsgTime = index > 0 ? new Date(filteredMessages[index - 1].created_at).getTime() : 0;
+            const showTimeLabel = index === 0 || (currentMsgTime - prevMsgTime) > 5 * 60 * 1000;
 
             return (
               <div key={msg.id} className="flex flex-col w-full mb-4">
@@ -370,7 +305,7 @@ export function MessageList({ initialFriendId, mode = 'system' }: MessageListPro
                   {/* Avatar */}
                   <div
                     className="w-10 h-10 rounded-full bg-muted flex items-center justify-center overflow-hidden shrink-0 cursor-pointer shadow-sm border border-border/10"
-                    onClick={() => openUserProfile(router, msg.sender_id, window.location.pathname + window.location.search)}
+                    onClick={() => openUserProfile(router, msg.sender_id)}
                   >
                     {msg.sender?.avatar_url ? (
                       <img src={msg.sender.avatar_url} className="w-full h-full object-cover" />
@@ -404,7 +339,6 @@ export function MessageList({ initialFriendId, mode = 'system' }: MessageListPro
             )
           })
         )}
-        {mode === 'friend' && <div ref={bottomAnchorRef} />}
       </div>
 
       {/* Quick Reply (Only if active chat selected and not in system mode) */}
@@ -425,7 +359,7 @@ export function MessageList({ initialFriendId, mode = 'system' }: MessageListPro
               <input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="输入消息..."
+                placeholder="杈撳叆娑堟伅..."
                 className="flex-1 bg-muted/50 border border-border rounded-xl px-4 py-2 text-foreground focus:outline-none focus:border-green-500/50"
                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
               />
