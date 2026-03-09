@@ -315,7 +315,7 @@ export function MapHeader({
       <div className="fixed top-0 left-0 right-0 z-[100] px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
         <GlassCard className="flex items-center justify-center py-3">
           <LoadingSpinner size="sm" />
-          <span className="ml-2 text-sm text-white/80">
+          <span className="ml-2 text-sm text-slate-700 dark:text-white/80">
             {isLoading || !hydrated ? "加载中..." : "请选择城市"}
           </span>
         </GlassCard>
@@ -336,11 +336,11 @@ export function MapHeader({
             >
               <span className="text-xl">{currentCity.icon}</span>
               <div className="flex flex-col items-start">
-                <span className="text-xs font-bold text-white">
+                <span className="text-xs font-bold text-slate-800 dark:text-white">
                   {/* Show cached district immediately; only show "定位中..." if locating AND no cached value */}
                   {(gpsStatus === 'locating' && !currentDistrict) ? '定位中...' : (currentDistrict || '未知位置')}
                 </span>
-                <ChevronDown className="w-3 h-3 text-white/40" />
+                <ChevronDown className="w-3 h-3 text-slate-500 dark:text-white/40" />
               </div>
             </button>
 
@@ -353,10 +353,10 @@ export function MapHeader({
                   {/* Level & EXP */}
                   <div className="flex flex-col gap-0.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-medium text-white/80 flex items-center gap-1">
+                      <span className="text-[10px] font-medium text-slate-700 dark:text-white/80 flex items-center gap-1">
                         <User className="w-3 h-3" /> 等级 {level}
                       </span>
-                      <span className="text-[10px] text-white/40">
+                      <span className="text-[10px] text-slate-500 dark:text-white/40">
                         经验: {currentExp}/{maxExp}
                       </span>
                     </div>
