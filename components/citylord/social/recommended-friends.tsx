@@ -293,7 +293,7 @@ export function RecommendedFriends({ onAddFriend }: RecommendedFriendsProps) {
                   <div className="relative">
                     <div
                       className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-green-500/30 to-cyan-500/30 text-lg font-bold text-foreground overflow-hidden cursor-pointer hover:ring-2 ring-primary/50 transition-all"
-                      onClick={() => openUserProfile(router, user.id)}
+                      onClick={() => openUserProfile(router, user.id, window.location.pathname + window.location.search)}
                     >
                       {user.avatar ? (
                         <img src={user.avatar} alt={user.name} className="h-12 w-12 rounded-full object-cover" />
@@ -308,7 +308,7 @@ export function RecommendedFriends({ onAddFriend }: RecommendedFriendsProps) {
                     <div className="flex items-center gap-2">
                       <span
                         className="font-semibold text-foreground truncate max-w-[120px] cursor-pointer hover:underline"
-                        onClick={() => openUserProfile(router, user.id)}
+                        onClick={() => openUserProfile(router, user.id, window.location.pathname + window.location.search)}
                       >
                         {user.name}
                       </span>

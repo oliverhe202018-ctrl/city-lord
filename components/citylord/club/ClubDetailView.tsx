@@ -624,7 +624,7 @@ export function ClubDetailView({
                       {displayMembers.map((member) => (
                         <div
                           key={member.id}
-                          onClick={() => openUserProfile(router, member.id)}
+                          onClick={() => openUserProfile(router, member.id, window.location.pathname + window.location.search)}
                           className="flex items-center justify-between rounded-xl border border-border bg-muted/30 px-3 py-2 min-h-[52px] cursor-pointer hover:bg-muted/50 transition-colors"
                         >
                           <div className="flex items-center gap-2.5">

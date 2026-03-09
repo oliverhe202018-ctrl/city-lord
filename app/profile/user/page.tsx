@@ -22,6 +22,8 @@ import { sendFriendRequest } from '@/app/actions/social'
 import { toast } from 'sonner'
 import { ArrowLeft, MoreHorizontal, ShieldBan, UserPlus, Lock } from 'lucide-react'
 
+import { usePageBackNavigation } from '@/hooks/usePageBackNavigation'
+
 function UserProfileContent() {
     const searchParams = useSearchParams()
     const router = useRouter()
@@ -32,13 +34,7 @@ function UserProfileContent() {
     const [isLiked, setIsLiked] = useState(false)
     const [isPending, startTransition] = useTransition()
 
-    const handleBack = useCallback(() => {
-        if (typeof window !== 'undefined' && window.history.state?.idx > 0) {
-            router.back()
-        } else {
-            router.push('/social')
-        }
-    }, [router])
+    const { goBack: handleBack } = usePageBackNavigation('/social')
 
     useEffect(() => {
         if (!userId) return

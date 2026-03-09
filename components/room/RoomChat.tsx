@@ -183,7 +183,7 @@ export function RoomChat({ roomId, currentUser }: RoomChatProps) {
               >
                 <Avatar
                   className={`w-8 h-8 border border-border cursor-pointer hover:ring-2 ring-primary/50 transition-all`}
-                  onClick={() => openUserProfile(router, msg.user_id)}
+                  onClick={() => openUserProfile(router, msg.user_id, window.location.pathname + window.location.search)}
                 >
                   <AvatarImage src={senderAvatar || undefined} />
                   <AvatarFallback className="text-[10px] bg-muted text-muted-foreground">
@@ -195,7 +195,7 @@ export function RoomChat({ roomId, currentUser }: RoomChatProps) {
                   {!isMe && (
                     <span
                       className="text-[10px] text-muted-foreground mb-1 ml-1 cursor-pointer hover:text-foreground transition-colors"
-                      onClick={() => openUserProfile(router, msg.user_id)}
+                      onClick={() => openUserProfile(router, msg.user_id, window.location.pathname + window.location.search)}
                     >
                       {senderName}
                     </span>
