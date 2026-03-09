@@ -304,7 +304,7 @@ export function isCapacitorAvailable(): boolean {
 export async function safeGetPlatform(): Promise<'ios' | 'android' | 'web' | 'unknown'> {
   try {
     const { Capacitor } = await import('@capacitor/core')
-    return Capacitor.getPlatform()
+    return Capacitor.getPlatform() as 'ios' | 'android' | 'web' | 'unknown'
   } catch {
     return 'web'
   }
@@ -415,4 +415,26 @@ export async function safeBackgroundGeolocationRemoveWatcher(id: string) {
     const BackgroundGeolocation = registerPlugin<any>('BackgroundGeolocation')
     await BackgroundGeolocation.removeWatcher({ id })
   } catch { }
+}
+
+// ============== App Settings ==============
+export async function safeOpenAppSettings(): Promise<boolean> {
+  try {
+    const { Capacitor } = await import('@capacitor/core')
+    if (Capacitor.isNativePlatform()) {
+      const platform = Capacitor.getPlatform()
+      if (platform === 'ios') {
+        if (typeof window !== 'undefined') {
+          window.location.href = 'app-settings:'
+        }
+        return true
+      }
+      // For Android, without a dedicated plugin (like @capacitor-community/native-settings),
+      // we cannot reliably open the app settings direct via intent without the package name.
+      return false
+    }
+  } catch (e) {
+    console.error('Failed to open app settings', e)
+  }
+  return false
 }

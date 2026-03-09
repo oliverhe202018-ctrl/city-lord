@@ -11,13 +11,20 @@ interface VoiceRecorderProps {
 
 export function VoiceRecorder({ receiverId, onSend, disabled }: VoiceRecorderProps) {
     const { isRecording, isCanceled, setIsCanceled, recordDurationMs, startRecording, stopRecording } = useAudioRecorder();
+    const [showPermissionModal, setShowPermissionModal] = useState(false);
     const startYRef = useRef<number>(0);
     const buttonRef = useRef<HTMLButtonElement>(null);
 
-    const handleStart = (clientY: number) => {
+    const handleStart = async (clientY: number) => {
         if (disabled) return;
         startYRef.current = clientY;
-        startRecording();
+        try {
+            await startRecording();
+        } catch (error: any) {
+            if (error?.message === 'PERMISSION_DENIED') {
+                setShowPermissionModal(true);
+            }
+        }
     };
 
     const handleMove = (clientY: number) => {
@@ -115,6 +122,40 @@ export function VoiceRecorder({ receiverId, onSend, disabled }: VoiceRecorderPro
                                 {Math.floor(recordDurationMs / 1000)}s
                             </span>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* Permission Modal */}
+            {showPermissionModal && (
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200 pointer-events-auto">
+                    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-[280px] overflow-hidden flex flex-col shadow-2xl">
+                        <div className="p-6 pb-5 flex flex-col items-center text-center">
+                            <Mic className="w-10 h-10 text-white/50 mb-3" />
+                            <h3 className="font-bold text-base text-white mb-2">需要麦克风权限</h3>
+                            <p className="text-sm text-white/60 leading-relaxed">您需要开启麦克风权限才能发送语音消息。</p>
+                        </div>
+                        <div className="flex border-t border-zinc-800">
+                            <button
+                                type="button"
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowPermissionModal(false); }}
+                                className="flex-1 py-3 text-sm font-medium text-white/70 hover:bg-white/5 transition-colors border-r border-zinc-800"
+                            >
+                                取消
+                            </button>
+                            <button
+                                type="button"
+                                onClick={async (e) => {
+                                    e.preventDefault(); e.stopPropagation();
+                                    setShowPermissionModal(false);
+                                    const { safeOpenAppSettings } = await import('@/lib/capacitor/safe-plugins');
+                                    await safeOpenAppSettings();
+                                }}
+                                className="flex-1 py-3 text-sm font-bold text-cyan-400 hover:bg-white/5 transition-colors"
+                            >
+                                去设置
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

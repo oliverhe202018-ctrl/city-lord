@@ -36,8 +36,7 @@ export function useAudioRecorder() {
             }
 
             if (permissionState === 'denied') {
-                toast.error('录音权限已被永久拒绝，请在浏览器设置中开启');
-                return;
+                throw new Error('PERMISSION_DENIED');
             }
 
             // 2. Request Permission & Start stream (prompt happens here if needed)
@@ -70,11 +69,7 @@ export function useAudioRecorder() {
             // 3. Handle Permission Denied
             const isDenied = err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError';
             if (isDenied) {
-                if (Capacitor.isNativePlatform()) {
-                    toast.error('录音权限未开启。请前往系统设置允许应用拉取麦克风');
-                } else {
-                    toast.error('录音权限被拒绝，请在浏览器地址栏检查并允许麦克风权限');
-                }
+                throw new Error('PERMISSION_DENIED');
             } else {
                 toast.error('无法访问麦克风，请检查硬件是否正常');
             }

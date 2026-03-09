@@ -1,169 +1,143 @@
-# City Lord - 城市领主
+<div align="center">
+  <h1>🏃‍♂️ City Lord - 城市领主</h1>
+  <p><b>基于 LBS 与真实地理位置的跑步领地争夺与社交网络游戏</b></p>
+</div>
 
-City Lord 是一款结合真实地理位置（LBS）的跑步领地争夺游戏。玩家通过在现实世界中跑步来占领地图上的六边形地块，加入阵营（赤红先锋 vs 蔚蓝联盟），与同城的跑者竞争，扩张领地，赢取荣誉。
+<br/>
 
-## ✨ 功能特性 (Features)
+City Lord 是一款结合真实地理位置（LBS）的跑步领地争夺游戏。玩家通过在现实世界中跑步来占领地图上的六边形地块，加入阵营（赤红先锋 vs 蔚蓝联盟），与同城的跑者竞争，扩张领地，赢取荣誉。平台不仅提供硬核的运动数据记录，更构建了丰富同城运动社交圈层。
 
-*   **实时地理位置追踪**: 使用高德地图与 GPS，精准追踪用户跑步路径。
-*   **领地争夺**: 在地图上绘制闭环路径以占领六边形地块，扩大你的领地。
-*   **阵营对抗**: 加入两大阵营之一，参与城市级别的领地争夺战。
-*   **俱乐部系统**: 创建或加入俱乐部，与伙伴共同战斗，参与俱乐部排名。
-*   **沉浸式跑步模式**: 专为跑步设计的 UI，实时显示速度、距离、卡路里等数据。
-*   **智能路径规划器**: 预先规划跑步路线，支持打点和手绘模式，并能预估占领面积。
-*   **离线优先架构 (PWA)**: 极速加载，支持离线使用，网络恢复后自动同步数据。
-*   **成就与排行榜**: 解锁各种成就，在个人、俱乐部和省级排行榜上争夺荣耀。
+---
+
+## ✨ 核心特性 (Features)
+
+### 🌍 LBS 领地争夺
+*   **实时地理位置追踪**: 基于高德地图与 GPS，精准追踪用户跑步闭环路径。
+*   **领地机制**: 在地图上绘制闭环以占领六边形地块 (基于 H3 算法)，占领城市、扩大势力范围。
+*   **阵营对抗**: 玩家需加入「赤红先锋」或「蔚蓝联盟」，参与城市级别的跨阵营据点实时争夺战。
+
+### 💬 运动社交网络 (Social Hub)
+*   **动态圈 (Feed)**: 分享跑步记录、带图动态，支持点赞、评论与违规举报。
+*   **实时聊天 (Real-time Chat)**: 原生级体验的 1v1 私聊及俱乐部群聊。支持文本、图片、以及**高清语音对讲**，并实现平滑的滚动与安全边界限制。
+*   **俱乐部系统**: 组建本地跑团！创建或加入俱乐部，与伙伴共同开黑，参与俱乐部排行榜结算。
+
+### 🛡️ 硬核跑步系统
+*   **沉浸式运动模式**: 专为高频奔跑设计的 UI 链路；实时展示配速、距离、时间及卡路里消耗。
+*   **反作弊与容灾断线重连**: 严格的后台停跑防误触逻辑，并配置了数据本地暂存重试（Recovery Flow），即使在网络死角也能保障跑者数据不丢失。
+*   **智能路径规划**: 支持预先制图、路线打点和手绘模式，并支持计算闭环预估面积。
+
+### ⚙️ 后台管理 (Admin Panel)
+*   **全栈管理控制台**: 高级后台授权隔离（基于 WebCrypto 强签名 Token），一键管理积分商城物资、全局地图背景。
+*   **双源举报聚合系统**: 将普通建议反馈与动态圈违规举报进行安全聚合，附带证据链追踪，支持运营执行「确认违规」或「驳回误报」等一键状态流转操作。
+
+### 📶 架构与性能
+*   **离线优先 (PWA / Capacitor)**: 极速加载，原生外壳（iOS/Android），支持离线访问与状态管理。
+*   **全系统推送**: 深度集成极光推送 (Aurora Push)，实现离线应用拉起与实时消息触达。
+
+---
 
 ## 💻 技术栈 (Tech Stack)
 
-*   **前端**: Next.js 16 (App Router), React 19, Tailwind CSS v4, TypeScript
-*   **地图**: 高德地图 JS API, Turf.js, H3.js
-*   **原生容器**: Capacitor 6 (iOS & Android)
-*   **后端 & 数据库**: Supabase (PostgreSQL, Auth, Realtime)
-*   **状态管理**: Zustand, TanStack Query (SWR)
-*   **UI 组件**: Shadcn UI
+*   **前端框架**: Next.js (App Router), React 19, Tailwind CSS v4, TypeScript
+*   **地图与算法**: 高德地图 JS API, Turf.js, H3.js (Uber六边形网格索引)
+*   **原生容器层**: Capacitor 6 (构建 iOS & Android 原生 App)
+*   **后端 & 数据库**: Supabase (PostgreSQL, Auth, Storage, Realtime)
+*   **ORM 工具**: Prisma
+*   **状态与数据流**: Zustand, TanStack Query (SWR)
+*   **UI / 特效组件**: Shadcn UI, Framer Motion, Lucide Icons
+
+---
 
 ## 🚀 本地开发 (Getting Started)
 
 **环境要求:**
 *   Node.js >= 20.x
-*   pnpm (推荐)
+*   pnpm (推荐) 或 npm/yarn
 
-**安装与启动:**
+### 1. 安装与启动
+```bash
+git clone <repository-url>
+cd city-lord-game-interface
+npm install
+```
 
-1.  **克隆仓库**
-    ```bash
-    git clone <repository-url>
-    cd city-lord-game-interface
-    ```
+### 2. 环境变量配置
+复制 `.env.example` 文件并重命名为 `.env.local`。填入以下核心密钥：
+```env
+# Supabase
+NEXT_PUBLIC_SUPABASE_URL=YOUR_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
+SUPABASE_SERVICE_ROLE_KEY=YOUR_SUPABASE_SERVICE_ROLE_KEY
 
-2.  **安装依赖**
-    ```bash
-    npm install
-    ```
+# Supabase Auth Secret (用于后台身份签名校验)
+ADMIN_SESSION_SECRET=YOUR_COMPLEX_SECRET_STRING
 
-3.  **配置环境变量**
-    *   复制 `.env.example` 文件为 `.env.local`。
-    *   填入你的 Supabase 项目 URL, anon key, 以及高德地图 API Key。
-    ```env
-    # Supabase
-    NEXT_PUBLIC_SUPABASE_URL=YOUR_SUPABASE_URL
-    NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
-    SUPABASE_SERVICE_ROLE_KEY=YOUR_SUPABASE_SERVICE_ROLE_KEY
+# Database URLs (for Prisma)
+DATABASE_URL="postgresql://..."
+DIRECT_URL="postgresql://..."
 
-    # Database URLs (for Prisma)
-    DATABASE_URL="postgresql://..."
-    DIRECT_URL="postgresql://..."
+# 高德地图 API Key
+NEXT_PUBLIC_AMAP_KEY=YOUR_AMAP_KEY
 
-    # Gaode Maps API Key
-    NEXT_PUBLIC_AMAP_KEY=YOUR_AMAP_KEY
-    ```
+# 极光推送 Aurora / JPush (如需测试推送)
+JPUSH_APP_KEY=YOUR_JPUSH_KEY
+JPUSH_MASTER_SECRET=YOUR_JPUSH_SECRET
+```
 
-4.  **生成 Prisma Client 及 数据库初始化**
-    *   每次修改 `prisma/schema.prisma` 后都需要执行 client 生成命令：
-    ```bash
-    npx prisma generate
-    ```
-    *   **重要**：本项目包含 Prisma 无法自动维护的**偏函数索引（Partial Indexes）**。在新环境搭建或数据库重建后，必须**手动执行**以下 DDL 脚本以保证性能：
-    ```bash
-    # 建立社交流相关的偏函数索引
-    npx prisma db execute --file prisma/migrations/add_posts_friends_feed_index.sql --url <YOUR_DIRECT_URL>
-    ```
+### 3. Prisma 与 数据库初始化
+每次更新 `prisma/schema.prisma` 后需执行：
+```bash
+npx prisma generate
+```
+> **⚠️ 重点注意**: 本项目采用了高性能的偏函数索引 (Partial Indexes) 优化信息流查询。新建环境时必须手动执行补充 SQL：
+> `npx prisma db execute --file prisma/migrations/add_posts_friends_feed_index.sql --url <YOUR_DIRECT_URL>`
 
-5.  **启动开发服务器**
-    ```bash
-    npm run dev
-    ```
-    应用将运行在 `http://localhost:3000`。
+### 4. 运行
+```bash
+npm run dev
+# 服务将运行于 http://localhost:3000
+```
 
-## 部署 (Deployment)
-
-项目已配置为可以部署到 Vercel 或其他支持 Next.js 的平台。
-
-1.  **构建项目**
-    ```bash
-    npm run build
-    ```
-2.  确保所有环境变量都已在部署平台上正确配置。
+---
 
 ## 📂 项目结构 (Project Structure)
 
-```
+```text
 /
-├── app/                # Next.js App Router - 页面和路由
-│   ├── (main)/         # 主应用页面
-│   ├── api/            # API 路由 (Serverless Functions)
-│   └── admin/          # 后台管理页面
-├── components/         # React 组件
-│   ├── ui/             # Shadcn UI 组件
-│   ├── map/            # 地图相关组件
-│   └── citylord/       # 核心游戏逻辑组件
-├── hooks/              # 自定义 React Hooks
-├── lib/                # 库函数和工具函数
-├── prisma/             # Prisma schema 和 migrations
-├── public/             # 静态资源
-├── scripts/            # 辅助脚本
-└── android/            # Capacitor Android 项目
+├── app/                  # Next.js App Router (前后端路由与 Server Actions)
+│   ├── (main)/           # C端：地图、聊天、排行榜、个人中心
+│   ├── admin/            # B端：高权限管理员后台面板
+│   └── api/              # Serverless API 路由
+├── components/           # React 业务与原子组件库
+│   ├── ui/               # Shadcn 基础 UI 库
+│   ├── map/              # 高德地图与地理圈地计算组件
+│   └── chat/             # 实时通讯（语音、输入法约束、消息气泡）组件
+├── lib/                  # 核心工具 (Prisma 实例, Supabase 客户端, Auth 签名算法)
+├── prisma/               # 数据库 Schema 与迁移脚本
+├── public/               # PWA 清单与静态图片/音效资源
+└── scripts/              # 辅助自动化脚本
 ```
 
-## 📜 可用脚本 (Available Scripts)
+---
 
-在 `package.json` 中，你可以找到以下常用脚本：
+## 📅 近期更新日志 (Changelog)
 
-- `npm run dev`: 启动开发服务器。
-- `npm run build`: 构建生产版本。
-- `npm run start`: 启动生产服务器。
-- `npm run typecheck`: 运行 TypeScript 类型检查。
-- `npm run lint`: 使用 ESLint 检查代码。
-- `npm run android`: 为 Android 平台构建 Web 资源。
+### 2026-03-10: 🛡️ Admin 鉴权重构与举报反馈治理
+*   **鉴权升级**: 重写后台 Admin Auth 逻辑，抛弃前端直接读取明文 Cookie 的脆弱模式；接入 Web Crypto JWT 式安全签名 Session，严格防护敏感 Server Action。
+*   **举报中台**: 后台新增“双源汇聚反馈中心”。精准关联 Prisma 外键将普通 Bug 建议反馈及动态圈内的违规图文举报融为一体，赋予管理员「一键查证 / 确认违规 / 驳回」的可视化处理面板，并修补了直接改库的安全漏洞。
 
-## 🤝 贡献指南 (Contributing)
+### 2026-03-09: 💬 社交 UI 层大改版与性能优化
+*   完成了类微信 1v1 私聊的右侧/左侧气泡分离重构。
+*   优化了 iOS Safari 与移动端输入法弹起时的 Safe Area 兼容与 Bottom 视口跳动。
+*   精准修复了朋友圈/动态流中缺失的距离格式化精度。
 
-我们欢迎任何形式的贡献！请遵循以下步骤：
+### 2026-02-23: 🛠️ 稳定性修复与功能补齐
+*   将提醒查询逻辑迁移至 Server Action，免除跨域失败的困扰并优化离线兜底。
+*   修复了 Node 18+ 环境下 Next.js 的内置 dns 模块冲突导致的构建失败。
 
-1.  **Fork** 本仓库。
-2.  创建你的特性分支 (`git checkout -b feature/AmazingFeature`)。
-3.  提交你的更改 (`git commit -m 'Add some AmazingFeature'`)。
-4.  推送到分支 (`git push origin feature/AmazingFeature`)。
-5.  打开一个 **Pull Request**。
-
-请确保你的代码通过了 `lint` 和 `typecheck` 检查。
+### 2026-02-15: 🚀 GPS 性能重构
+*   通过 `React.memo` 与深度 Hook 改造削减了 GPS 坐标高频触发造成的全局不必要渲染，极大节约了移动端功耗。
 
 ---
 
-## 📅 更新日志 (Changelog)
-
-### 2026-02-23: 🛠️ 稳定性修复与社交功能优化
-
-**核心更新:**
-
-1.  **社交中心增强**:
-    *   **未读提醒优化**: 将底栏未读消息计数的获取方式从客户端 `fetch` 升级为 `Server Action`，彻底解决了由远程 API 服务器跨域 (CORS) 或响应异常引起的 "Failed to fetch" 错误弹窗。
-    *   **动态流稳定性**: 修复了好友动态内容在页面切换时偶尔消失的问题，实现了更稳定的数据加载与状态同步逻辑。
-2.  **运行时错误修复**:
-    *   **DNS 模块冲突解决**: 针对 Node 18+ 环境下 Next.js 客户端打包器尝试打包 Node 内置 `dns` 模块导致的 `Module not found` 错误，采用了动态 `eval("require")` 的绕过方案，确保了客户端构建的兼容性。
-3.  **App 架构升级**:
-    *   **移动端 Shell 改版**: 实现了 "远程加载 + 本地兜底" 方案。移除了强制的 `output: 'export'`，使应用能同时支持 Server Actions 和 APK 离线兜底，极大提升了混合开发的灵活性。
-4.  **构建与部署优化**:
-    *   **静态导出兼容性**: 优化了 `/profile/[userId]` 等多处动态路由，增加了 `Suspense` 包裹，确保项目在启用交互式 SSR 功能的同时依然兼容全静态生产构建。
-
----
-
-### 2026-02-15: 🚀 性能重构与部署准备
-
-**核心优化:**
-
-1.  **React 性能优化**:
-    *   对核心组件 `game-page-content.tsx` 进行了全面的性能重构。
-    *   通过 `React.memo` 包裹所有主要子组件，并使用 `useCallback` 稳定事件处理函数，有效阻止了由高频 GPS 更新引起的非必要重渲染，确保 UI 流畅。
-2.  **构建与类型修复**:
-    *   解决了大量 TypeScript 类型错误，包括 `room_messages`、`user_missions` 等模型的类型推断问题。
-    *   通过添加类型声明文件 (`capacitor-modules.d.ts`) 解决了 Capacitor 插件 `@capacitor/sensors` 和 `@capacitor/sound` 缺失模块的报错。
-    *   修复了 `lord-center` 页面的 React Hook 条件渲染错误，确保了组件渲染的稳定性。
-    *   修复了 `RankItem.tsx` 中 `User` 组件未定义的构建错误。
-
-3.  **部署验证**:
-    *   成功执行 `npm run build`，验证项目已具备部署条件。
-    *   清理了 Prisma 缓存并重新生成了 Prisma Client，解决了 `EPERM` 文件权限问题。
-
----
-*之前的更新日志...*
+*City Lord - Run the City, Own the World.*

@@ -237,16 +237,20 @@ export function MessageList({ initialFriendId, mode = 'system' }: MessageListPro
     return (msg.sender_id === activeChat || msg.user_id === activeChat) && msg.type !== 'system'
   });
 
+  const sortedMessages = [...filteredMessages].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
   if (isLoading && (!messages || messages.length === 0)) return <div className="text-center text-muted-foreground py-10">加载消息中...</div>
+
+  const displayMessages = mode === 'friend' ? sortedMessages : filteredMessages;
 
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* Message List */}
       <div className={`flex-1 overflow-y-auto ${mode === 'friend' ? 'px-4 py-2 space-y-0 relative' : 'space-y-3 p-1'}`}>
-        {filteredMessages.length === 0 ? (
+        {displayMessages.length === 0 ? (
           <div className="text-center text-muted-foreground py-10">暂无消息</div>
         ) : (
-          filteredMessages.map((msg, index) => {
+          displayMessages.map((msg, index) => {
             const isMe = msg.sender_id === currentUserId;
 
             if (mode === 'system') {
@@ -289,8 +293,8 @@ export function MessageList({ initialFriendId, mode = 'system' }: MessageListPro
 
             // Friend mode map
             const currentMsgTime = new Date(msg.created_at).getTime();
-            const prevMsgTime = index > 0 ? new Date(filteredMessages[index - 1].created_at).getTime() : 0;
-            const showTimeLabel = index === 0 || (currentMsgTime - prevMsgTime) > 5 * 60 * 1000;
+            const prevMsgTime = index > 0 ? new Date(displayMessages[index - 1].created_at).getTime() : 0;
+            const showTimeLabel = index === 0 || (currentMsgTime - prevMsgTime) >= 5 * 60 * 1000;
 
             return (
               <div key={msg.id} className="flex flex-col w-full mb-4">
