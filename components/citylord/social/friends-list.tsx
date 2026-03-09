@@ -350,7 +350,7 @@ export function FriendsList({
                     </span>
                     <span className="flex items-center gap-1">
                       <Zap className="h-3 w-3" />
-                      {friend.totalKm}km
+                      {Number(friend.totalKm ?? 0).toFixed(2)}km
                     </span>
                     {friend.nearbyDistance !== undefined && (
                       <span className="flex items-center gap-1 text-primary">

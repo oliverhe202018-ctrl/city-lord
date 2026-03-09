@@ -139,7 +139,6 @@ export function MessageList({ initialFriendId, mode = 'system' }: MessageListPro
       }
       setInput("")
       mutate() // Refresh messages via SWR
-      toast.success("消息已发送")
     } catch (error: any) {
       toast.error(error.message || "发送失败")
     }
@@ -328,8 +327,8 @@ export function MessageList({ initialFriendId, mode = 'system' }: MessageListPro
                       renderMessageContent(msg, isMe)
                     ) : (
                       <div className={`px-3 py-2 text-[15px] leading-relaxed whitespace-pre-wrap break-words ${isMe
-                          ? 'bg-green-500 text-white rounded-2xl rounded-tr-sm shadow-sm'
-                          : 'bg-muted/80 text-foreground rounded-2xl rounded-tl-sm border border-border/50 shadow-sm'
+                        ? 'bg-green-500 text-white rounded-2xl rounded-tr-sm shadow-sm'
+                        : 'bg-muted/80 text-foreground rounded-2xl rounded-tl-sm border border-border/50 shadow-sm'
                         }`}>
                         {msg.content}
                       </div>
