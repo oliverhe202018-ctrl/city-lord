@@ -281,7 +281,8 @@ export function MapHeader({
     }
   };
 
-  const expProgress = Math.min(100, Math.max(0, (currentExp / maxExp) * 100))
+  const safeMaxExp = maxExp > 0 ? maxExp : 1;
+  const expProgress = Math.min(100, Math.max(0, (currentExp / safeMaxExp) * 100))
 
   // 计算体力恢复倒计时
   const [timeToNext, setTimeToNext] = useState<string | null>(null)
@@ -360,7 +361,7 @@ export function MapHeader({
                         经验: {currentExp}/{maxExp}
                       </span>
                     </div>
-                    <div className="h-1 rounded-full bg-secondary/30 overflow-hidden">
+                    <div className="h-1 rounded-full bg-slate-200 dark:bg-secondary/30 overflow-hidden">
                       <div
                         className="h-full rounded-full transition-all duration-500 ease-out"
                         style={{
@@ -374,16 +375,16 @@ export function MapHeader({
                   {/* Stamina */}
                   <div className="flex flex-col gap-0.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-medium text-cyan-400 flex items-center gap-1">
+                      <span className="text-[10px] font-medium text-cyan-700 dark:text-cyan-400 flex items-center gap-1">
                         <Zap className="w-3 h-3" /> 体力
                       </span>
-                      <span className="text-[10px] text-cyan-400/60">
+                      <span className="text-[10px] text-cyan-600 dark:text-cyan-400/60">
                         {stamina}/{maxStamina} {timeToNext && <span className="text-[8px] ml-1">({timeToNext})</span>}
                       </span>
                     </div>
-                    <div className="h-1 rounded-full bg-cyan-950/50 overflow-hidden border border-cyan-500/20">
+                    <div className="h-1 rounded-full bg-cyan-100 dark:bg-cyan-950/50 overflow-hidden border border-cyan-200 dark:border-cyan-500/20">
                       <div
-                        className="h-full rounded-full transition-all duration-500 ease-out bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.6)]"
+                        className="h-full rounded-full transition-all duration-500 ease-out bg-cyan-500 dark:bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.6)]"
                         style={{
                           width: `${(stamina / maxStamina) * 100}%`,
                         }}
@@ -395,17 +396,17 @@ export function MapHeader({
                   {currentCityProgress && (
                     <div className="flex flex-col gap-0.5">
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-medium text-amber-400 flex items-center gap-1">
+                        <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400 flex items-center gap-1">
                           <Trophy className="w-3 h-3" />
                           {currentCity.name}排名
                         </span>
-                        <span className="text-[10px] text-amber-400/60">
+                        <span className="text-[10px] text-amber-600 dark:text-amber-400/60">
                           第 {currentCityProgress.ranking} 名
                         </span>
                       </div>
-                      <div className="h-1 rounded-full bg-amber-950/50 overflow-hidden border border-amber-500/20">
+                      <div className="h-1 rounded-full bg-amber-100 dark:bg-amber-950/50 overflow-hidden border border-amber-200 dark:border-amber-500/20">
                         <div
-                          className="h-full rounded-full transition-all duration-500 ease-out bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.6)]"
+                          className="h-full rounded-full transition-all duration-500 ease-out bg-amber-500 dark:bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.6)]"
                           style={{
                             width: `${(1 - currentCityProgress.ranking / totalPlayers) * 100}%`,
                           }}
