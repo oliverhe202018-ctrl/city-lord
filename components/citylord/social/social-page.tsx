@@ -33,7 +33,7 @@ import { useGameStore } from "@/store/useGameStore"
 import { MessageList } from "./message-list"
 
 type SocialTab = "friends" | "activity" | "messages"
-type SubView = "none" | "invite" | "discover" | "challenge" | "leaderboard" | "events" | "store"
+type SubView = "none" | "invite" | "discover" | "challenge" | "leaderboard" | "events" | "store" | "friend-chat"
 
 interface SocialPageProps {
   onShowDemo?: (type: "territory" | "challenge" | "achievement") => void
@@ -258,6 +258,23 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
     )
   }
 
+  if (subView === "friend-chat") {
+    return (
+      <div className="flex h-full flex-col bg-background">
+        <div className="p-3 border-b border-border flex items-center gap-2 shrink-0">
+          <CyberButton variant="ghost" size="sm" onClick={handleBack} className="flex items-center gap-0.5 pr-3 pl-1 group">
+            <ChevronLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
+            <span>返回</span>
+          </CyberButton>
+          <h2 className="text-base font-bold text-foreground">{selectedFriend?.name || "聊天"}</h2>
+        </div>
+        <div className="flex-1 overflow-hidden p-4 pb-20">
+          <MessageList initialFriendId={selectedFriend?.id} mode="friend" />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex h-full flex-col bg-background">
       {/* Header */}
@@ -295,7 +312,7 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
               : "text-muted-foreground hover:text-foreground"
               }`}
           >
-            消息
+            系统通知
           </button>
         </div>
       </div>
@@ -368,7 +385,7 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
             }}
             onMessage={(friend) => {
               setSelectedFriend(friend)
-              setActiveTab("messages")
+              setSubView("friend-chat")
             }}
           />
         </div>
@@ -401,7 +418,7 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
         </div>
 
         <div className={activeTab === "messages" ? "block space-y-4" : "hidden space-y-4"}>
-          {activeTab === "messages" && <MessageList initialFriendId={selectedFriend?.id} />}
+          {activeTab === "messages" && <MessageList mode="system" />}
         </div>
       </div>
     </div>
