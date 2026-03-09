@@ -156,7 +156,7 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
           </CyberButton>
           <h2 className="text-base font-bold text-foreground">邀请好友</h2>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 pb-20">
+        <div className="flex-1 overflow-y-auto p-4 pb-[calc(5rem+env(safe-area-inset-bottom))]">
           <InviteFriends
             inviteCode="CITY2025"
             inviteLink="https://citylord.app/invite/CITY2025"
@@ -177,7 +177,7 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
           </CyberButton>
           <h2 className="text-base font-bold text-foreground">发现跑友</h2>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 pb-20">
+        <div className="flex-1 overflow-y-auto p-4 pb-[calc(5rem+env(safe-area-inset-bottom))]">
           <RecommendedFriends />
         </div>
       </div>
@@ -194,7 +194,7 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
           </CyberButton>
           <h2 className="text-base font-bold text-foreground">发起挑战</h2>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 pb-20">
+        <div className="flex-1 overflow-y-auto p-4 pb-[calc(5rem+env(safe-area-inset-bottom))]">
           <ChallengePage
             selectedFriend={selectedFriend}
             onSendChallenge={(type, options) => {
@@ -217,7 +217,7 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
           </CyberButton>
           <h2 className="text-base font-bold text-foreground">排行榜</h2>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 pb-20">
+        <div className="flex-1 overflow-y-auto p-4 pb-[calc(5rem+env(safe-area-inset-bottom))]">
           <Leaderboard />
         </div>
       </div>
@@ -234,7 +234,7 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
           </CyberButton>
           <h2 className="text-base font-bold text-foreground">赛事与活动</h2>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 pb-20">
+        <div className="flex-1 overflow-y-auto p-4 pb-[calc(5rem+env(safe-area-inset-bottom))]">
           <EventsPage />
         </div>
       </div>
@@ -251,7 +251,7 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
           </CyberButton>
           <h2 className="text-base font-bold text-foreground">积分商城</h2>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 pb-20">
+        <div className="flex-1 overflow-y-auto p-4 pb-[calc(5rem+env(safe-area-inset-bottom))]">
           <StorePage />
         </div>
       </div>
@@ -268,7 +268,7 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
           </CyberButton>
           <h2 className="text-base font-bold text-foreground">{selectedFriend?.name || "聊天"}</h2>
         </div>
-        <div className="flex-1 overflow-hidden p-4 pb-20">
+        <div className="flex-1 overflow-hidden p-4 pb-[calc(5rem+env(safe-area-inset-bottom))]">
           <MessageList initialFriendId={selectedFriend?.id} mode="friend" />
         </div>
       </div>
@@ -318,7 +318,7 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto px-4 pb-20 pt-3">
+      <div className="flex-1 overflow-y-auto px-4 pb-[calc(5rem+env(safe-area-inset-bottom))] pt-3">
 
         <div className={activeTab === "friends" ? "block space-y-4" : "hidden space-y-4"}>
           {/* Quick Actions Grid */}

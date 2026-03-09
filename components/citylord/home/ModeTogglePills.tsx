@@ -33,7 +33,7 @@ export function ModeTogglePills({ activeMode, onModeChange, attackTargetCount, o
                             onClick={() => onModeChange(modeId)}
                             className={`relative flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all duration-200 ${isActive
                                 ? `${cfg.colorClass}`
-                                : 'text-white/40 hover:text-white/65'
+                                : 'text-slate-600 dark:text-white/40 hover:text-slate-900 dark:hover:text-white/65'
                                 }`}
                         >
                             {isActive && (

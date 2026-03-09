@@ -233,7 +233,7 @@ export function MessageList({ initialFriendId, mode = 'system' }: MessageListPro
   if (isLoading && (!messages || messages.length === 0)) return <div className="text-center text-muted-foreground py-10">加载消息中...</div>
 
   return (
-    <div className="flex flex-col h-[600px] gap-4">
+    <div className="flex flex-col h-full min-h-0 gap-4">
       {/* Message List */}
       <div className="flex-1 overflow-y-auto space-y-3 p-1">
         {filteredMessages.length === 0 ? (
@@ -279,7 +279,7 @@ export function MessageList({ initialFriendId, mode = 'system' }: MessageListPro
 
       {/* Quick Reply (Only if active chat selected and not in system mode) */}
       {mode === 'friend' && activeChat && (
-        <div className="flex gap-2 pt-2 border-t border-border items-center">
+        <div className="flex gap-2 pt-2 border-t border-border items-center shrink-0">
           <button
             type="button"
             onClick={() => setIsVoiceMode(!isVoiceMode)}
