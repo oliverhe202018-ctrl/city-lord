@@ -354,10 +354,10 @@ export function MapHeader({
                   <div className="flex flex-col gap-0.5">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-medium text-white/80 flex items-center gap-1">
-                        <User className="w-3 h-3" /> Lv.{level}
+                        <User className="w-3 h-3" /> 等级 {level}
                       </span>
                       <span className="text-[10px] text-white/40">
-                        {currentExp}/{maxExp}
+                        经验: {currentExp}/{maxExp}
                       </span>
                     </div>
                     <div className="h-1 rounded-full bg-secondary/30 overflow-hidden">
