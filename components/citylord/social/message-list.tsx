@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Send, User, Bell, AlertCircle, Check, X, Swords, Clock, MapPin, Mic, Keyboard } from "lucide-react"
 import { toast } from "sonner"
@@ -230,23 +230,84 @@ export function MessageList({ initialFriendId, mode = 'system' }: MessageListPro
     return <p className="text-sm text-muted-foreground pl-7">{msg.content}</p>
   }
 
-  const filteredMessages = messages.filter((msg) => {
-    if (mode === 'system') {
-      return msg.type === 'system' || msg.type === 'challenge'
-    }
-    return (msg.sender_id === activeChat || msg.user_id === activeChat) && msg.type !== 'system'
-  });
+  const filteredMessages = useMemo(() => {
+    return messages.filter((msg) => {
+      if (mode === 'system') {
+        return msg.type === 'system' || msg.type === 'challenge'
+      }
+      return (msg.sender_id === activeChat || msg.user_id === activeChat) && msg.type !== 'system'
+    })
+  }, [messages, mode, activeChat])
 
-  const sortedMessages = [...filteredMessages].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  const sortedMessages = useMemo(() => {
+    return [...filteredMessages].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+  }, [filteredMessages])
+
+  const displayMessages = mode === 'friend' ? sortedMessages : filteredMessages
+
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const bottomAnchorRef = useRef<HTMLDivElement>(null)
+  const prevMessagesLengthRef = useRef(0)
+  const prevActiveChatRef = useRef<string | null>(null)
+  const isUserNearBottomRef = useRef(true)
+
+  const handleScroll = () => {
+    const el = scrollContainerRef.current
+    if (!el) return
+    isUserNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100
+  }
+
+  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+    if (mode === 'friend') {
+      bottomAnchorRef.current?.scrollIntoView({ behavior, block: 'end' })
+    }
+  }
+
+  const displayMessagesLength = displayMessages.length
+  const lastMessageId = displayMessagesLength > 0 ? displayMessages[displayMessagesLength - 1].id : null
+  const lastMessageSenderId = displayMessagesLength > 0 ? displayMessages[displayMessagesLength - 1].sender_id : null
+
+  useEffect(() => {
+    if (mode !== 'friend') return
+
+    const isChatChanged = prevActiveChatRef.current !== activeChat
+    if (isChatChanged) {
+      prevMessagesLengthRef.current = 0
+      prevActiveChatRef.current = activeChat
+    }
+
+    if (!isLoading && displayMessagesLength > 0) {
+      const prevLen = prevMessagesLengthRef.current
+      const currentLen = displayMessagesLength
+
+      if (prevLen === 0 || isChatChanged) {
+        scrollToBottom('auto')
+      } else if (currentLen > prevLen) {
+        const wasNearBottom = isUserNearBottomRef.current
+        const isMe = lastMessageSenderId === currentUserId
+
+        if (isMe) {
+          scrollToBottom('smooth')
+        } else if (wasNearBottom) {
+          scrollToBottom('smooth')
+        }
+      }
+      prevMessagesLengthRef.current = currentLen
+    } else if (!isLoading && displayMessagesLength === 0) {
+      prevMessagesLengthRef.current = 0
+    }
+  }, [displayMessagesLength, lastMessageId, lastMessageSenderId, activeChat, mode, currentUserId, isLoading])
 
   if (isLoading && (!messages || messages.length === 0)) return <div className="text-center text-muted-foreground py-10">加载消息中...</div>
-
-  const displayMessages = mode === 'friend' ? sortedMessages : filteredMessages;
 
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* Message List */}
-      <div className={`flex-1 overflow-y-auto ${mode === 'friend' ? 'px-4 py-2 space-y-0 relative' : 'space-y-3 p-1'}`}>
+      <div
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className={`flex-1 overflow-y-auto ${mode === 'friend' ? 'px-4 py-2 space-y-0 relative' : 'space-y-3 p-1'}`}
+      >
         {displayMessages.length === 0 ? (
           <div className="text-center text-muted-foreground py-10">暂无消息</div>
         ) : (
@@ -343,6 +404,7 @@ export function MessageList({ initialFriendId, mode = 'system' }: MessageListPro
             )
           })
         )}
+        {mode === 'friend' && <div ref={bottomAnchorRef} />}
       </div>
 
       {/* Quick Reply (Only if active chat selected and not in system mode) */}
