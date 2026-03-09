@@ -10,7 +10,8 @@ import { useRouter } from "next/navigation"
 import { useGameStore } from "@/store/useGameStore"
 import { useHydration } from "@/hooks/useHydration";
 import { formatAreaFromHexCount, getAreaEquivalentFromHexCount } from "@/lib/citylord/area-utils"
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { mutate } from 'swr'
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 import { calculateLevel, getNextLevelProgress, getTitle } from "@/lib/game-logic/level-system"
@@ -41,6 +42,7 @@ interface ProfileProps {
 }
 
 export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: ProfileProps) {
+  const queryClient = useQueryClient()
   const hydrated = useHydration();
   const router = useRouter()
   const {
@@ -290,14 +292,32 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
       const { error } = await supabase.auth.signOut()
       if (error) throw error
 
+      // 1. Reset Zustand State
       resetUser()
+
+      // 2. Clear Local Component State
       setUserEmail(null)
+      setIsLoggedIn(false)
+
+      // 3. Clear Zustand Persist Storage
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('city-lord-storage')
+      }
+
+      // 4. Clear React Query Cache
+      queryClient.clear()
+
+      // 5. Clear SWR Cache
+      mutate(
+        () => true,
+        undefined,
+        { revalidate: false }
+      ).catch(() => { })
+
       toast.success("已退出登录")
 
       // Force refresh to update server components (like avatar in header)
       router.refresh()
-      // Replace to prevent back navigation
-      router.replace('/')
     } catch (error) {
       console.error('Logout failed:', error)
       toast.error('退出登录失败，请重试')

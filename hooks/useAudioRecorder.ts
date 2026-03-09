@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { Mic, Trash2 } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
 
 export interface VoiceRecordResult {
     audioUrl: string;
@@ -22,6 +23,24 @@ export function useAudioRecorder() {
 
     const startRecording = useCallback(async () => {
         try {
+            // 1. Check Permissions status (Web vs Capacitor check)
+            let permissionState = 'prompt'; // Default assumption
+
+            if (!Capacitor.isNativePlatform() && navigator.permissions && navigator.permissions.query) {
+                try {
+                    const perm = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+                    permissionState = perm.state;
+                } catch (e) {
+                    console.log('Permission query not supported on this browser', e);
+                }
+            }
+
+            if (permissionState === 'denied') {
+                toast.error('录音权限已被永久拒绝，请在浏览器设置中开启');
+                return;
+            }
+
+            // 2. Request Permission & Start stream (prompt happens here if needed)
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             const mediaRecorder = new MediaRecorder(stream);
 
@@ -44,10 +63,21 @@ export function useAudioRecorder() {
                 setRecordDurationMs(Date.now() - startTimeRef.current);
             }, 100);
 
-        } catch (err) {
+        } catch (err: any) {
             console.error('Error accessing microphone', err);
-            toast.error('无法访问麦克风，请检查权限设置');
             setIsRecording(false);
+
+            // 3. Handle Permission Denied
+            const isDenied = err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError';
+            if (isDenied) {
+                if (Capacitor.isNativePlatform()) {
+                    toast.error('录音权限未开启。请前往系统设置允许应用拉取麦克风');
+                } else {
+                    toast.error('录音权限被拒绝，请在浏览器地址栏检查并允许麦克风权限');
+                }
+            } else {
+                toast.error('无法访问麦克风，请检查硬件是否正常');
+            }
         }
     }, []);
 

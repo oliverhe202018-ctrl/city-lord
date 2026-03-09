@@ -32,6 +32,14 @@ function UserProfileContent() {
     const [isLiked, setIsLiked] = useState(false)
     const [isPending, startTransition] = useTransition()
 
+    const handleBack = useCallback(() => {
+        if (typeof window !== 'undefined' && window.history.state?.idx > 0) {
+            router.back()
+        } else {
+            router.push('/social')
+        }
+    }, [router])
+
     useEffect(() => {
         if (!userId) return
         loadProfile()
@@ -121,7 +129,7 @@ function UserProfileContent() {
         return (
             <div className="flex flex-col h-full bg-background">
                 <div className="sticky top-0 z-20 flex items-center gap-2 px-4 py-2 bg-background/80 backdrop-blur-lg">
-                    <button onClick={() => window.history.back()} className="p-1 rounded-full hover:bg-muted/20 transition-colors">
+                    <button onClick={handleBack} className="p-1 rounded-full hover:bg-muted/20 transition-colors">
                         <ArrowLeft className="w-5 h-5 text-foreground" />
                     </button>
                     <span className="text-sm font-medium text-foreground">用户主页</span>
@@ -169,7 +177,7 @@ function UserProfileContent() {
             {/* Top bar */}
             <div className="sticky top-0 z-20 flex items-center justify-between px-4 py-2 bg-background/80 backdrop-blur-lg">
                 <div className="flex items-center gap-2">
-                    <button onClick={() => window.history.back()} className="p-1 rounded-full hover:bg-muted/20 transition-colors">
+                    <button onClick={handleBack} className="p-1 rounded-full hover:bg-muted/20 transition-colors">
                         <ArrowLeft className="w-5 h-5 text-foreground" />
                     </button>
                     <span className="text-sm font-medium text-foreground">

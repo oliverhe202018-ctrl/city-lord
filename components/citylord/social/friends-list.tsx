@@ -19,6 +19,8 @@ import {
   Check,
   X
 } from "lucide-react"
+import { formatAreaFromHexCount } from "@/lib/citylord/area-utils"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import type { Friend, FriendRequest } from "@/types/social"
 
 import { toast } from "sonner"
@@ -242,9 +244,12 @@ export function FriendsList({
           {requests.map((req) => (
             <div key={req.id} className="flex items-center justify-between rounded-xl border border-primary/20 bg-primary/5 p-3">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-primary/30 to-cyan-500/30 text-sm font-bold text-foreground">
-                  {req.avatar || req.name[0]}
-                </div>
+                <Avatar className="h-10 w-10">
+                  <AvatarImage src={req.avatar?.startsWith('http') ? req.avatar : ''} alt={req.name} className="object-cover" />
+                  <AvatarFallback className="bg-gradient-to-br from-primary/30 to-cyan-500/30 text-sm font-bold text-foreground">
+                    {req.name?.[0]?.toUpperCase() || '?'}
+                  </AvatarFallback>
+                </Avatar>
                 <div>
                   <div
                     className="font-semibold text-foreground cursor-pointer hover:underline"
@@ -302,9 +307,12 @@ export function FriendsList({
                   className="relative cursor-pointer"
                   onClick={(e) => { e.stopPropagation(); openUserProfile(router, friend.id) }}
                 >
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-primary/30 to-cyan-500/30 text-lg font-bold text-foreground hover:ring-2 ring-primary/50 transition-all">
-                    {friend.avatar || friend.name[0]}
-                  </div>
+                  <Avatar className="h-12 w-12 hover:ring-2 ring-primary/50 transition-all cursor-pointer">
+                    <AvatarImage src={friend.avatar?.startsWith('http') ? friend.avatar : ''} alt={friend.name} className="object-cover" />
+                    <AvatarFallback className="bg-gradient-to-br from-primary/30 to-cyan-500/30 text-lg font-bold text-foreground">
+                      {friend.name?.[0]?.toUpperCase() || '?'}
+                    </AvatarFallback>
+                  </Avatar>
                   {/* Status Dot */}
                   <div
                     className={`absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-background ${status.color} ${status.animate ? "animate-pulse" : ""}`}
@@ -338,16 +346,16 @@ export function FriendsList({
                   <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1">
                       <MapPin className="h-3 w-3" />
-                      {friend.hexCount}格
+                      {formatAreaFromHexCount(friend.hexCount).fullText}
                     </span>
                     <span className="flex items-center gap-1">
                       <Zap className="h-3 w-3" />
                       {friend.totalKm}km
                     </span>
-                    {friend.nearbyDistance && (
+                    {friend.nearbyDistance !== undefined && (
                       <span className="flex items-center gap-1 text-primary">
                         <MapPin className="h-3 w-3" />
-                        {friend.nearbyDistance}m
+                        {Number(friend.nearbyDistance).toFixed(2)}m
                       </span>
                     )}
                   </div>

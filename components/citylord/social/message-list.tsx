@@ -59,6 +59,7 @@ interface Message {
 
 interface MessageListProps {
   initialFriendId?: string
+  mode?: 'system' | 'friend'
 }
 
 // 定义 fetcher
@@ -67,7 +68,7 @@ const fetcher = (url: string) => fetch(url).then(res => {
   return res.json()
 })
 
-export function MessageList({ initialFriendId }: MessageListProps) {
+export function MessageList({ initialFriendId, mode = 'system' }: MessageListProps) {
   const { data: messages = [], mutate, isLoading } = useSWR<Message[]>('/api/message/get-messages', fetcher, {
     revalidateOnFocus: true,
   })
@@ -222,16 +223,23 @@ export function MessageList({ initialFriendId }: MessageListProps) {
     return <p className="text-sm text-muted-foreground pl-7">{msg.content}</p>
   }
 
+  const filteredMessages = messages.filter((msg) => {
+    if (mode === 'system') {
+      return msg.type === 'system' || msg.type === 'challenge'
+    }
+    return (msg.sender_id === activeChat || msg.user_id === activeChat) && msg.type !== 'system'
+  });
+
   if (isLoading && (!messages || messages.length === 0)) return <div className="text-center text-muted-foreground py-10">加载消息中...</div>
 
   return (
     <div className="flex flex-col h-[600px] gap-4">
       {/* Message List */}
       <div className="flex-1 overflow-y-auto space-y-3 p-1">
-        {messages.length === 0 ? (
+        {filteredMessages.length === 0 ? (
           <div className="text-center text-muted-foreground py-10">暂无消息</div>
         ) : (
-          messages.map((msg) => (
+          filteredMessages.map((msg) => (
             <GlassCard key={msg.id} className={`p-3 border-l-4 ${msg.type === 'system' ? 'border-l-blue-500' :
               msg.type === 'challenge' ? 'border-l-orange-500' :
                 'border-l-green-500'
@@ -269,8 +277,8 @@ export function MessageList({ initialFriendId }: MessageListProps) {
         )}
       </div>
 
-      {/* Quick Reply (Only if active chat selected) */}
-      {activeChat && (
+      {/* Quick Reply (Only if active chat selected and not in system mode) */}
+      {mode === 'friend' && activeChat && (
         <div className="flex gap-2 pt-2 border-t border-border items-center">
           <button
             type="button"
