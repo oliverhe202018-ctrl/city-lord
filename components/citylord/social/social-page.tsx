@@ -261,14 +261,14 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
   if (subView === "friend-chat") {
     return (
       <div className="flex h-full flex-col bg-background">
-        <div className="p-3 border-b border-border flex items-center gap-2 shrink-0">
-          <CyberButton variant="ghost" size="sm" onClick={handleBack} className="flex items-center gap-0.5 pr-3 pl-1 group">
-            <ChevronLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
-            <span>返回</span>
-          </CyberButton>
+        <div className="p-3 border-b border-border flex items-center gap-2 shrink-0 bg-background/95 backdrop-blur z-10 sticky top-0">
+          <button onClick={handleBack} className="flex items-center gap-0.5 pr-3 pl-1 py-1 text-foreground hover:bg-muted/50 rounded-md transition-all active:scale-95">
+            <ChevronLeft className="w-5 h-5 -ml-1" />
+            <span className="text-sm">返回</span>
+          </button>
           <h2 className="text-base font-bold text-foreground">{selectedFriend?.name || "聊天"}</h2>
         </div>
-        <div className="flex-1 overflow-hidden p-4 pb-[calc(5rem+env(safe-area-inset-bottom))]">
+        <div className="flex-1 overflow-hidden p-0 pb-[calc(5rem+env(safe-area-inset-bottom))]">
           <MessageList initialFriendId={selectedFriend?.id} mode="friend" />
         </div>
       </div>

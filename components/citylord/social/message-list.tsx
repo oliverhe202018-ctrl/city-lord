@@ -38,8 +38,16 @@ const sendMessage = async (receiverId: string, content: string, type: 'text' | '
 }
 
 import { GlassCard } from "@/components/ui/GlassCard"
-import { formatDistanceToNow } from "date-fns"
+import { formatDistanceToNow, isToday, isYesterday, isThisWeek, format } from "date-fns"
 import { zhCN } from "date-fns/locale"
+
+function formatWeChatTime(dateStr: string) {
+  const date = new Date(dateStr)
+  if (isToday(date)) return format(date, "HH:mm")
+  if (isYesterday(date)) return "昨天 " + format(date, "HH:mm")
+  if (isThisWeek(date)) return format(date, "EEEE HH:mm", { locale: zhCN })
+  return format(date, "yyyy年MM月dd日 HH:mm")
+}
 
 interface Message {
   id: string
@@ -233,53 +241,110 @@ export function MessageList({ initialFriendId, mode = 'system' }: MessageListPro
   if (isLoading && (!messages || messages.length === 0)) return <div className="text-center text-muted-foreground py-10">加载消息中...</div>
 
   return (
-    <div className="flex flex-col h-full min-h-0 gap-4">
+    <div className="flex flex-col h-full min-h-0">
       {/* Message List */}
-      <div className="flex-1 overflow-y-auto space-y-3 p-1">
+      <div className={`flex-1 overflow-y-auto ${mode === 'friend' ? 'px-4 py-2 space-y-0 relative' : 'space-y-3 p-1'}`}>
         {filteredMessages.length === 0 ? (
           <div className="text-center text-muted-foreground py-10">暂无消息</div>
         ) : (
-          filteredMessages.map((msg) => (
-            <GlassCard key={msg.id} className={`p-3 border-l-4 ${msg.type === 'system' ? 'border-l-blue-500' :
-              msg.type === 'challenge' ? 'border-l-orange-500' :
-                'border-l-green-500'
-              }`}>
-              <div className="flex justify-between items-start mb-1">
-                <div className="flex items-center gap-2">
-                  {msg.type === 'system' ? (
-                    <Bell className="w-4 h-4 text-blue-500" />
-                  ) : (
-                    <div
-                      className="w-5 h-5 rounded-full bg-muted flex items-center justify-center overflow-hidden cursor-pointer hover:ring-2 ring-primary/50 transition-all"
-                      onClick={() => openUserProfile(router, msg.sender_id)}
-                    >
-                      {msg.sender?.avatar_url ? (
-                        <img src={msg.sender.avatar_url} className="w-full h-full object-cover" />
+          filteredMessages.map((msg, index) => {
+            const isMe = msg.sender_id === currentUserId;
+
+            if (mode === 'system') {
+              return (
+                <GlassCard key={msg.id} className={`p-3 border-l-4 ${msg.type === 'system' ? 'border-l-blue-500' :
+                  msg.type === 'challenge' ? 'border-l-orange-500' :
+                    'border-l-green-500'
+                  }`}>
+                  <div className="flex justify-between items-start mb-1">
+                    <div className="flex items-center gap-2">
+                      {msg.type === 'system' ? (
+                        <Bell className="w-4 h-4 text-blue-500" />
                       ) : (
-                        <User className="w-3 h-3 text-muted-foreground" />
+                        <div
+                          className="w-5 h-5 rounded-full bg-muted flex items-center justify-center overflow-hidden cursor-pointer hover:ring-2 ring-primary/50 transition-all"
+                          onClick={() => openUserProfile(router, msg.sender_id)}
+                        >
+                          {msg.sender?.avatar_url ? (
+                            <img src={msg.sender.avatar_url} className="w-full h-full object-cover" />
+                          ) : (
+                            <User className="w-3 h-3 text-muted-foreground" />
+                          )}
+                        </div>
                       )}
+                      <span
+                        className="font-bold text-sm text-foreground cursor-pointer hover:underline"
+                        onClick={() => openUserProfile(router, msg.sender_id)}
+                      >
+                        {msg.sender?.nickname || '系统通知'}
+                      </span>
                     </div>
-                  )}
-                  <span
-                    className="font-bold text-sm text-foreground cursor-pointer hover:underline"
+                    <span className="text-[10px] text-muted-foreground">
+                      {formatDistanceToNow(new Date(msg.created_at), { addSuffix: true, locale: zhCN })}
+                    </span>
+                  </div>
+                  {renderMessageContent(msg, isMe)}
+                </GlassCard>
+              )
+            }
+
+            // Friend mode map
+            const currentMsgTime = new Date(msg.created_at).getTime();
+            const prevMsgTime = index > 0 ? new Date(filteredMessages[index - 1].created_at).getTime() : 0;
+            const showTimeLabel = index === 0 || (currentMsgTime - prevMsgTime) > 5 * 60 * 1000;
+
+            return (
+              <div key={msg.id} className="flex flex-col w-full mb-4">
+                {showTimeLabel && (
+                  <div className="flex justify-center mb-4 mt-2">
+                    <span className="text-[11px] text-muted-foreground bg-muted/40 px-2 py-0.5 rounded-md">
+                      {formatWeChatTime(msg.created_at)}
+                    </span>
+                  </div>
+                )}
+                <div className={`flex w-full gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                  {/* Avatar */}
+                  <div
+                    className="w-10 h-10 rounded-full bg-muted flex items-center justify-center overflow-hidden shrink-0 cursor-pointer shadow-sm border border-border/10"
                     onClick={() => openUserProfile(router, msg.sender_id)}
                   >
-                    {msg.sender?.nickname || '系统通知'}
-                  </span>
+                    {msg.sender?.avatar_url ? (
+                      <img src={msg.sender.avatar_url} className="w-full h-full object-cover" />
+                    ) : (
+                      <User className="w-6 h-6 text-muted-foreground" />
+                    )}
+                  </div>
+
+                  {/* Bubble Content */}
+                  <div className={`flex flex-col max-w-[70%] justify-center ${isMe ? 'items-end' : 'items-start'}`}>
+                    {msg.type === 'voice' ? (
+                      <VoiceBubble
+                        messageId={msg.id}
+                        audioUrl={msg.audio_url || null}
+                        durationMs={msg.duration_ms || null}
+                        isOwn={isMe}
+                      />
+                    ) : msg.type === 'challenge' ? (
+                      renderMessageContent(msg, isMe)
+                    ) : (
+                      <div className={`px-3 py-2 text-[15px] leading-relaxed whitespace-pre-wrap break-words ${isMe
+                          ? 'bg-green-500 text-white rounded-2xl rounded-tr-sm shadow-sm'
+                          : 'bg-muted/80 text-foreground rounded-2xl rounded-tl-sm border border-border/50 shadow-sm'
+                        }`}>
+                        {msg.content}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <span className="text-[10px] text-muted-foreground">
-                  {formatDistanceToNow(new Date(msg.created_at), { addSuffix: true, locale: zhCN })}
-                </span>
               </div>
-              {renderMessageContent(msg, msg.sender_id === currentUserId)}
-            </GlassCard>
-          ))
+            )
+          })
         )}
       </div>
 
       {/* Quick Reply (Only if active chat selected and not in system mode) */}
       {mode === 'friend' && activeChat && (
-        <div className="flex gap-2 pt-2 border-t border-border items-center shrink-0">
+        <div className="flex gap-2 p-3 bg-card/95 backdrop-blur border-t border-border items-center shrink-0">
           <button
             type="button"
             onClick={() => setIsVoiceMode(!isVoiceMode)}
