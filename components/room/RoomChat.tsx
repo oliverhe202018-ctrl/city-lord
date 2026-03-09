@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
+import { openUserProfile } from '@/lib/utils/nav';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -92,7 +93,7 @@ export function RoomChat({ roomId, currentUser }: RoomChatProps) {
           table: 'room_messages',
           filter: `room_id=eq.${roomId}`,
         },
-        async (payload) => {
+        async (payload: any) => {
           const newMessage = payload.new as Message;
 
           // We need to fetch the profile for the new message because the payload doesn't have joined data
@@ -181,8 +182,8 @@ export function RoomChat({ roomId, currentUser }: RoomChatProps) {
                 className={`flex gap-3 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}
               >
                 <Avatar
-                  className={`w-8 h-8 border border-border ${!isMe ? 'cursor-pointer hover:ring-2 ring-primary/50 transition-all' : ''}`}
-                  onClick={() => { if (!isMe) router.push(`/profile/user?userId=${msg.user_id}`) }}
+                  className={`w-8 h-8 border border-border cursor-pointer hover:ring-2 ring-primary/50 transition-all`}
+                  onClick={() => openUserProfile(router, msg.user_id)}
                 >
                   <AvatarImage src={senderAvatar || undefined} />
                   <AvatarFallback className="text-[10px] bg-muted text-muted-foreground">
@@ -194,7 +195,7 @@ export function RoomChat({ roomId, currentUser }: RoomChatProps) {
                   {!isMe && (
                     <span
                       className="text-[10px] text-muted-foreground mb-1 ml-1 cursor-pointer hover:text-foreground transition-colors"
-                      onClick={() => router.push(`/profile/user?userId=${msg.user_id}`)}
+                      onClick={() => openUserProfile(router, msg.user_id)}
                     >
                       {senderName}
                     </span>

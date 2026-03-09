@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { RankData } from "./mock-data";
 import { useRouter } from 'next/navigation';
+import { openUserProfile } from "@/lib/utils/nav";
 
 interface RankItemProps {
   data: RankData;
@@ -41,7 +42,7 @@ export function RankItem({ data }: RankItemProps) {
 
   const handleClick = () => {
     if (data.id) {
-      router.push(`/profile/user?userId=${data.id}`);
+      openUserProfile(router, data.id);
     }
   };
 

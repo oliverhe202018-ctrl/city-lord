@@ -8,6 +8,8 @@ import useSWR from 'swr'
 import { VoiceRecorder } from "@/components/chat/voice/VoiceRecorder"
 import { VoiceBubble } from "@/components/chat/voice/VoiceBubble"
 import type { VoiceRecordResult } from "@/hooks/useAudioRecorder"
+import { useRouter } from 'next/navigation'
+import { openUserProfile } from '@/lib/utils/nav'
 
 const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
   const controller = new AbortController()
@@ -71,6 +73,7 @@ export function MessageList({ initialFriendId }: MessageListProps) {
   })
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const router = useRouter()
 
   useEffect(() => {
     let isMounted = true;
@@ -238,7 +241,10 @@ export function MessageList({ initialFriendId }: MessageListProps) {
                   {msg.type === 'system' ? (
                     <Bell className="w-4 h-4 text-blue-500" />
                   ) : (
-                    <div className="w-5 h-5 rounded-full bg-muted flex items-center justify-center overflow-hidden">
+                    <div
+                      className="w-5 h-5 rounded-full bg-muted flex items-center justify-center overflow-hidden cursor-pointer hover:ring-2 ring-primary/50 transition-all"
+                      onClick={() => openUserProfile(router, msg.sender_id)}
+                    >
                       {msg.sender?.avatar_url ? (
                         <img src={msg.sender.avatar_url} className="w-full h-full object-cover" />
                       ) : (
@@ -246,7 +252,10 @@ export function MessageList({ initialFriendId }: MessageListProps) {
                       )}
                     </div>
                   )}
-                  <span className="font-bold text-sm text-foreground">
+                  <span
+                    className="font-bold text-sm text-foreground cursor-pointer hover:underline"
+                    onClick={() => openUserProfile(router, msg.sender_id)}
+                  >
                     {msg.sender?.nickname || '系统通知'}
                   </span>
                 </div>

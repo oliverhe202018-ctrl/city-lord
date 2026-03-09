@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from 'next/navigation'
+import { openUserProfile } from '@/lib/utils/nav'
 import useSWR from 'swr'
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import {
@@ -64,6 +65,7 @@ interface FriendsListProps {
   onSelectFriend?: (friend: Friend) => void
   onChallenge?: (friend: Friend) => void
   onMessage?: (friend: Friend) => void
+  onDiscoverFriends?: () => void
   initialFriends?: Friend[]
   initialRequests?: FriendRequest[]
 }
@@ -72,6 +74,7 @@ export function FriendsList({
   onSelectFriend,
   onChallenge,
   onMessage,
+  onDiscoverFriends,
   initialFriends = [],
   initialRequests = []
 }: FriendsListProps) {
@@ -222,7 +225,10 @@ export function FriendsList({
       </div>
 
       {/* Add Friend Button */}
-      <button className="mb-4 flex items-center justify-center gap-2 rounded-xl border border-dashed border-primary/30 bg-primary/5 py-3 text-primary transition-all hover:bg-primary/10">
+      <button
+        onClick={onDiscoverFriends}
+        className="mb-4 flex items-center justify-center gap-2 rounded-xl border border-dashed border-primary/30 bg-primary/5 py-3 text-primary transition-all hover:bg-primary/10"
+      >
         <UserPlus className="h-5 w-5" />
         <span className="font-medium">添加新好友</span>
       </button>
@@ -240,7 +246,12 @@ export function FriendsList({
                   {req.avatar || req.name[0]}
                 </div>
                 <div>
-                  <div className="font-semibold text-foreground">{req.name}</div>
+                  <div
+                    className="font-semibold text-foreground cursor-pointer hover:underline"
+                    onClick={(e) => { e.stopPropagation(); openUserProfile(router, req.userId) }}
+                  >
+                    {req.name}
+                  </div>
                   <div className="text-xs text-muted-foreground">Lv.{req.level} • 请求添加好友</div>
                 </div>
               </div>
@@ -289,7 +300,7 @@ export function FriendsList({
                 {/* Avatar */}
                 <div
                   className="relative cursor-pointer"
-                  onClick={(e) => { e.stopPropagation(); router.push(`/profile/user?userId=${friend.id}`) }}
+                  onClick={(e) => { e.stopPropagation(); openUserProfile(router, friend.id) }}
                 >
                   <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-primary/30 to-cyan-500/30 text-lg font-bold text-foreground hover:ring-2 ring-primary/50 transition-all">
                     {friend.avatar || friend.name[0]}
@@ -305,7 +316,7 @@ export function FriendsList({
                   <div className="flex items-center gap-2">
                     <span
                       className="font-semibold text-foreground cursor-pointer hover:text-primary transition-colors"
-                      onClick={(e) => { e.stopPropagation(); router.push(`/profile/user?userId=${friend.id}`) }}
+                      onClick={(e) => { e.stopPropagation(); openUserProfile(router, friend.id) }}
                     >
                       {friend.name}
                     </span>
@@ -412,7 +423,7 @@ export function FriendsList({
           </p>
           <div className="flex gap-3">
             <button
-              onClick={() => document.querySelector<HTMLButtonElement>('.bg-cyan-500\\/20')?.click() /* A bit hacky but triggers the discover tab from parent */}
+              onClick={onDiscoverFriends}
               className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-2 rounded-xl font-bold transition-all active:scale-95 shadow-sm"
             >
               发现跑友
