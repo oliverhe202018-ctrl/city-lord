@@ -1,7 +1,6 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import {
     getAllBackgrounds,
@@ -25,9 +24,6 @@ import { toast } from 'sonner'
 import { Plus, Pencil, Trash2, Eye, Loader2 } from 'lucide-react'
 import Image from 'next/image'
 
-// ─── Admin Email Whitelist ─────────────────────────────────
-const ADMIN_EMAILS = ['xn_fly@qq.com', 'oliverhe202018@gmail.com']
-
 export default function AdminBackgroundsPage() {
     const router = useRouter()
     const [loading, setLoading] = useState(true)
@@ -38,33 +34,26 @@ export default function AdminBackgroundsPage() {
     const [viewImageUrl, setViewImageUrl] = useState<string | null>(null)
     const [deletingId, setDeletingId] = useState<string | null>(null)
 
-    // ─── Auth Check ────────────────────────────────────────────
-    useEffect(() => {
-        const checkAuth = async () => {
-            const supabase = createClient()
-            const { data: { user } } = await supabase.auth.getUser()
-
-            if (!user || !ADMIN_EMAILS.includes(user.email ?? '')) {
-                toast.error('无权限访问')
-                router.replace('/')
-                return
-            }
-
-            setAuthChecked(true)
-            loadBackgrounds()
-        }
-        checkAuth()
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [router])
-
     // ─── Load Backgrounds ──────────────────────────────────────
+    useEffect(() => {
+        loadBackgrounds()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+
     const loadBackgrounds = async () => {
         setLoading(true)
         try {
             const data = await getAllBackgrounds()
             setBackgrounds(data)
+            setAuthChecked(true)
         } catch (e: any) {
-            toast.error(e.message || '加载失败')
+            if (e.message?.includes('Unauthorized')) {
+                toast.error('已过期或无权限，请重新登录')
+                router.replace('/admin/login')
+            } else {
+                toast.error(e.message || '加载失败')
+                setAuthChecked(true) // Set to true to allow user strictly view the error state instead of infinite loading
+            }
         } finally {
             setLoading(false)
         }

@@ -1,6 +1,7 @@
 'use server'
 
 import { cookies } from 'next/headers'
+import { signAdminToken } from '@/lib/admin/auth'
 
 // ── Admin Login Server Action ────────────────────────────────────────────────
 // Authenticates via hardcoded username and password as requested.
@@ -17,9 +18,12 @@ export async function adminLogin(
 ): Promise<AdminLoginResult> {
     try {
         if (username === 'a251513541' && password === 'aaa021300') {
+            // Create a signed token for the session
+            const signedToken = await signAdminToken('admin_v1')
+
             // Set a secure HTTP-only cookie
             const cookieStore = await cookies()
-            cookieStore.set('citylord_admin_session', 'authenticated', {
+            cookieStore.set('citylord_admin_session', signedToken, {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === 'production',
                 sameSite: 'lax',

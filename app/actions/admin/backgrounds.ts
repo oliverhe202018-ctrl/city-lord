@@ -1,21 +1,13 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { requireAdminSession } from '@/lib/admin/auth'
 
 // ─── Admin Authorization ───────────────────────────────────
-const ADMIN_EMAILS = ['xn_fly@qq.com', 'oliverhe202018@gmail.com']
-
 async function checkAdminAuth() {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user || !ADMIN_EMAILS.includes(user.email ?? '')) {
-        throw new Error('Unauthorized: Admin access required')
-    }
-
-    return user
+    await requireAdminSession()
+    return true
 }
 
 // ─── Supabase Admin Client (Service Role) ─────────────────

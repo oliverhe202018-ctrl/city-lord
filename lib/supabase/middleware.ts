@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { verifyAdminToken } from '@/lib/admin/auth'
 
 export async function updateSession(request: NextRequest) {
   // 1. Basic Token Check (Lightweight)
@@ -42,8 +43,10 @@ export async function updateSession(request: NextRequest) {
     !request.nextUrl.pathname.startsWith('/admin/login')
 
   if (isAdminRoute) {
-    const hasAdminCookie = request.cookies.get('citylord_admin_session')?.value === 'authenticated'
-    if (!hasAdminCookie) {
+    const adminSessionToken = request.cookies.get('citylord_admin_session')?.value
+    const isValidAdmin = await verifyAdminToken(adminSessionToken || '')
+
+    if (!isValidAdmin) {
       const url = request.nextUrl.clone()
       url.pathname = '/admin/login'
       return NextResponse.redirect(url)
