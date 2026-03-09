@@ -43,7 +43,9 @@ import {
   Check,
   Sparkles,
   Target,
-  Zap
+  Zap,
+  Search,
+  X
 } from "lucide-react"
 
 
@@ -98,6 +100,13 @@ export function RecommendedFriends({ onAddFriend }: RecommendedFriendsProps) {
   const [filter, setFilter] = useState<"all" | "nearby" | "similar">("all")
   const [recommendedUsers, setRecommendedUsers] = useState<RecommendedUser[]>([])
   const [isLoading, setIsLoading] = useState(true)
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState("")
+  const [isSearching, setIsSearching] = useState(false)
+  const [hasSearched, setHasSearched] = useState(false)
+  const [searchResults, setSearchResults] = useState<(RecommendedUser & { friendStatus?: string })[]>([])
+
   const router = useRouter()
 
   useEffect(() => {
@@ -159,39 +168,116 @@ export function RecommendedFriends({ onAddFriend }: RecommendedFriendsProps) {
     }
   }
 
-  return (
-    <div>
-      {/* Header */}
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-          <Sparkles className="h-4 w-4" />
-          推荐好友
-        </h2>
-        <span className="text-xs text-muted-foreground/80">{recommendedUsers.length} 位推荐</span>
-      </div>
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = searchQuery.trim();
+    if (!q) return;
 
-      {/* Filter Tabs */}
-      <div className="mb-4 flex gap-2 rounded-xl bg-muted p-1">
-        {(["all", "nearby", "similar"] as const).map((f) => {
-          const labels = { all: "全部", nearby: "附近的人", similar: "相似跑者" }
-          return (
+    // Guardrails
+    if (q.length < 3) {
+      toast.error("请输入至少3个字符");
+      return;
+    }
+
+    setIsSearching(true);
+    setHasSearched(true);
+    try {
+      const res = await fetchWithTimeout(`/api/social/search?q=${encodeURIComponent(q)}`);
+      if (!res.ok) throw new Error("搜索请求失败");
+      const data = await res.json();
+
+      const mappedResults = (data.users || []).map((u: any) => ({
+        ...u,
+        reason: "nearby",
+        reasonDetail: "搜索结果",
+      }));
+      setSearchResults(mappedResults);
+    } catch (err) {
+      console.error(err);
+      toast.error("未找到跑友，请检查输入是否准确");
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const clearSearch = () => {
+    setSearchQuery("");
+    setHasSearched(false);
+    setSearchResults([]);
+  };
+
+  const displayUsers = hasSearched ? searchResults : filteredUsers;
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Search Bar */}
+      <form onSubmit={handleSearch} className="mb-4 flex items-center gap-2">
+        <div className="relative flex-1">
+          <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+            <Search className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <input
+            type="text"
+            className="block w-full rounded-full border border-border bg-muted/50 py-2 pl-9 pr-10 text-sm outline-none transition-all placeholder:text-muted-foreground focus:border-primary focus:bg-background"
+            placeholder="支持手机号 / 邮箱 / 昵称搜索..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
             <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-all ${filter === f
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground"
-                }`}
+              type="button"
+              onClick={clearSearch}
+              className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground"
             >
-              {labels[f]}
+              <X className="h-4 w-4" />
             </button>
-          )
-        })}
-      </div>
+          )}
+        </div>
+        <button
+          type="submit"
+          disabled={isSearching || !searchQuery.trim()}
+          className="rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-all hover:bg-primary/90 disabled:opacity-50 active:scale-95"
+        >
+          {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : "搜索"}
+        </button>
+      </form>
+
+      {!hasSearched && (
+        <>
+          {/* Header */}
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              <Sparkles className="h-4 w-4" />
+              推荐好友
+            </h2>
+            <span className="text-xs text-muted-foreground/80">{recommendedUsers.length} 位推荐</span>
+          </div>
+
+          {/* Filter Tabs */}
+          <div className="mb-4 flex gap-2 rounded-xl bg-muted p-1">
+            {(["all", "nearby", "similar"] as const).map((f) => {
+              const labels = { all: "全部", nearby: "附近的人", similar: "相似跑者" }
+              return (
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-all ${filter === f
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                    }`}
+                >
+                  {labels[f]}
+                </button>
+              )
+            })}
+          </div>
+        </>
+      )}
 
       {/* Recommended Users List */}
       <div className="space-y-3">
-        {filteredUsers.map((user) => {
+        {displayUsers.map((user: any) => {
           const reason = reasonConfig[user.reason] || { icon: Zap, label: "推荐", color: "#8b5cf6" }
           const Icon = reason.icon
           const isAdded = addedUsers.has(user.id)
@@ -268,20 +354,28 @@ export function RecommendedFriends({ onAddFriend }: RecommendedFriendsProps) {
                   </div>
 
                   {/* Add Button */}
-                  <button
-                    onClick={() => handleAddFriend(user.id)}
-                    disabled={isAdded}
-                    className={`flex items-center justify-center rounded-xl px-3 py-2 transition-all ${isAdded
-                      ? "bg-green-500/20 text-green-500"
-                      : "bg-primary text-primary-foreground hover:bg-primary/90 active:scale-95"
-                      }`}
-                  >
-                    {isAdded ? (
-                      <Check className="h-5 w-5" />
-                    ) : (
-                      <UserPlus className="h-5 w-5" />
-                    )}
-                  </button>
+                  {user.friendStatus === 'accepted' ? (
+                    <button
+                      disabled
+                      className="flex items-center justify-center rounded-xl px-3 py-2 transition-all bg-green-500/20 text-green-500 text-xs font-semibold"
+                    >
+                      已是好友
+                    </button>
+                  ) : user.friendStatus === 'pending' || isAdded ? (
+                    <button
+                      disabled
+                      className="flex items-center justify-center rounded-xl px-3 py-2 transition-all bg-muted text-muted-foreground text-xs font-semibold"
+                    >
+                      已发送
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleAddFriend(user.id)}
+                      className="flex items-center justify-center rounded-xl px-3 py-2 transition-all bg-primary text-primary-foreground hover:bg-primary/90 active:scale-95 text-xs font-semibold"
+                    >
+                      添加
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -290,13 +384,13 @@ export function RecommendedFriends({ onAddFriend }: RecommendedFriendsProps) {
       </div>
 
       {/* Empty State */}
-      {filteredUsers.length === 0 && (
+      {displayUsers.length === 0 && (
         <div className="flex flex-col items-center justify-center py-12 text-center">
           <div className="mb-3 rounded-full bg-muted p-4">
-            <Sparkles className="h-8 w-8 text-muted-foreground" />
+            {hasSearched ? <Search className="h-8 w-8 text-muted-foreground" /> : <Sparkles className="h-8 w-8 text-muted-foreground" />}
           </div>
-          <p className="text-muted-foreground">暂无推荐</p>
-          <p className="mt-1 text-sm text-muted-foreground/60">多跑步，发现更多跑友</p>
+          <p className="text-muted-foreground">{hasSearched ? "未找到相关跑友" : "暂无推荐"}</p>
+          <p className="mt-1 text-sm text-muted-foreground/60">{hasSearched ? "请检查输入是否准确" : "多跑步，发现更多跑友"}</p>
         </div>
       )}
     </div>

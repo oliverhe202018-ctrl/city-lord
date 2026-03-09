@@ -20,8 +20,8 @@ const SUPPORTED_SCOPES: LeaderboardScope[] = ['nearby'];
 
 const scopeOptions: { key: LeaderboardScope; label: string }[] = [
     { key: 'nearby', label: '附近' },
-    { key: 'city', label: '全城' },
-    { key: 'global', label: '全国' },
+    { key: 'city', label: '同城' },
+    { key: 'global', label: '全服' },
 ];
 
 function timeAgo(iso: string): string {

@@ -13,6 +13,7 @@ import {
   Trophy,
   Swords,
   ChevronRight,
+  ChevronLeft,
   LogIn
 } from "lucide-react"
 import { FriendsList } from "./friends-list"
@@ -149,8 +150,9 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
     return (
       <div className="flex h-full flex-col bg-background">
         <div className="p-3 border-b border-border flex items-center gap-2 shrink-0">
-          <CyberButton variant="ghost" size="sm" onClick={handleBack} className="rotate-180">
-            <ChevronRight />
+          <CyberButton variant="ghost" size="sm" onClick={handleBack} className="flex items-center gap-0.5 pr-3 pl-1 group">
+            <ChevronLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
+            <span>返回</span>
           </CyberButton>
           <h2 className="text-base font-bold text-foreground">邀请好友</h2>
         </div>
@@ -169,8 +171,9 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
     return (
       <div className="flex h-full flex-col bg-background">
         <div className="p-3 border-b border-border flex items-center gap-2 shrink-0">
-          <CyberButton variant="ghost" size="sm" onClick={handleBack} className="rotate-180">
-            <ChevronRight />
+          <CyberButton variant="ghost" size="sm" onClick={handleBack} className="flex items-center gap-0.5 pr-3 pl-1 group">
+            <ChevronLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
+            <span>返回</span>
           </CyberButton>
           <h2 className="text-base font-bold text-foreground">发现跑友</h2>
         </div>
@@ -185,8 +188,9 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
     return (
       <div className="flex h-full flex-col bg-background">
         <div className="p-3 border-b border-border flex items-center gap-2 shrink-0">
-          <CyberButton variant="ghost" size="sm" onClick={handleBack} className="rotate-180">
-            <ChevronRight />
+          <CyberButton variant="ghost" size="sm" onClick={handleBack} className="flex items-center gap-0.5 pr-3 pl-1 group">
+            <ChevronLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
+            <span>返回</span>
           </CyberButton>
           <h2 className="text-base font-bold text-foreground">发起挑战</h2>
         </div>
@@ -207,8 +211,9 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
     return (
       <div className="flex h-full flex-col bg-background">
         <div className="p-3 border-b border-border flex items-center gap-2 shrink-0">
-          <CyberButton variant="ghost" size="sm" onClick={handleBack} className="rotate-180">
-            <ChevronRight />
+          <CyberButton variant="ghost" size="sm" onClick={handleBack} className="flex items-center gap-0.5 pr-3 pl-1 group">
+            <ChevronLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
+            <span>返回</span>
           </CyberButton>
           <h2 className="text-base font-bold text-foreground">排行榜</h2>
         </div>
@@ -223,8 +228,9 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
     return (
       <div className="flex h-full flex-col bg-background">
         <div className="p-3 border-b border-border flex items-center gap-2 shrink-0">
-          <CyberButton variant="ghost" size="sm" onClick={handleBack} className="rotate-180">
-            <ChevronRight />
+          <CyberButton variant="ghost" size="sm" onClick={handleBack} className="flex items-center gap-0.5 pr-3 pl-1 group">
+            <ChevronLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
+            <span>返回</span>
           </CyberButton>
           <h2 className="text-base font-bold text-foreground">赛事与活动</h2>
         </div>
@@ -239,8 +245,9 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
     return (
       <div className="flex h-full flex-col bg-background">
         <div className="p-3 border-b border-border flex items-center gap-2 shrink-0">
-          <CyberButton variant="ghost" size="sm" onClick={handleBack} className="rotate-180">
-            <ChevronRight />
+          <CyberButton variant="ghost" size="sm" onClick={handleBack} className="flex items-center gap-0.5 pr-3 pl-1 group">
+            <ChevronLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
+            <span>返回</span>
           </CyberButton>
           <h2 className="text-base font-bold text-foreground">积分商城</h2>
         </div>
