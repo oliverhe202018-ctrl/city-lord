@@ -2,7 +2,6 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
-import { prisma } from '@/lib/prisma'
 import { revalidatePath, revalidateTag, unstable_cache } from 'next/cache'
 import { cachedFetch, invalidateCache } from '@/lib/cache'
 import { cookies } from 'next/headers'
@@ -88,10 +87,12 @@ export async function createClub(data: {
       territory: '0'
     }
 
-    // Check for duplicate name using Prisma
-    const existingClub = await prisma.clubs.findUnique({
-      where: { name: data.name }
-    })
+    // Check for duplicate name using Supabase Admin
+    const { data: existingClub } = await supabaseAdmin
+      .from('clubs')
+      .select('id')
+      .eq('name', data.name)
+      .maybeSingle()
 
     if (existingClub) {
       return { success: false, error: '俱乐部名称已存在' }
@@ -182,19 +183,16 @@ export async function getPendingClubs(): Promise<{ success: true; data: PendingC
       return { success: false, error: 'Unauthorized: User not found' }
     }
 
-    // Use Prisma to include creator info
-    const pendingClubs = await prisma.clubs.findMany({
-      where: { status: 'pending' },
-      orderBy: { created_at: 'desc' },
-      include: {
-        profiles_clubs_owner_idToprofiles: {
-          select: {
-            nickname: true,
-            avatar_url: true
-          }
-        }
-      }
-    })
+    // Use Supabase Admin to include creator info
+    const { data: pendingClubs, error: pendingError } = await supabaseAdmin
+      .from('clubs')
+      .select('*, profiles_clubs_owner_idToprofiles:profiles!clubs_owner_id_fkey(nickname, avatar_url)')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+
+    if (pendingError) {
+      throw new Error(`Supabase query failed: ${pendingError.message}`)
+    }
 
     const data: PendingClubDTO[] = pendingClubs.map(club => ({
       ...club,
@@ -209,7 +207,7 @@ export async function getPendingClubs(): Promise<{ success: true; data: PendingC
       creator_name: club.profiles_clubs_owner_idToprofiles?.nickname || 'Unknown',
       creator_avatar: club.profiles_clubs_owner_idToprofiles?.avatar_url || null,
       // Date formatting normalization if required, but string is guaranteed by prisma schema
-      created_at: club.created_at.toISOString()
+      created_at: new Date(club.created_at).toISOString()
     }))
 
     return { success: true, data }
@@ -318,29 +316,28 @@ export async function getClubs() {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
-    // Use Prisma to fetch clubs (Bypass RLS)
-    const clubs = await prisma.clubs.findMany({
-      where: { status: 'active' },
-      orderBy: { created_at: 'desc' },
-      include: {
-        club_members: {
-          select: { user_id: true } // Just need to check membership
-        }
-      }
-    })
+    // Use Supabase Admin to fetch clubs (Bypassing RLS)
+    const { data: clubs, error } = await supabaseAdmin
+      .from('clubs')
+      .select('*, club_members(user_id)')
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('Error fetching clubs from Supabase:', error)
+      return []
+    }
 
     // Get user memberships if logged in
     const userMemberships = new Set<string>()
-    if (user) {
-      // We can check local prisma result if we included all members, but better to query specific user membership
-      const memberships = await prisma.club_members.findMany({
-        where: {
-          user_id: user.id,
-          club_id: { in: clubs.map(c => c.id) }
-        },
-        select: { club_id: true }
-      })
-      memberships.forEach(m => userMemberships.add(m.club_id))
+    if (user && clubs && clubs.length > 0) {
+      const { data: memberships } = await supabaseAdmin
+        .from('club_members')
+        .select('club_id')
+        .eq('user_id', user.id)
+        .in('club_id', clubs.map(c => c.id))
+
+      memberships?.forEach(m => userMemberships.add(m.club_id))
     }
 
     return clubs.map((club) => {
@@ -379,19 +376,17 @@ export async function getUserClub() {
 
     return cachedFetch(`user_club:${user.id}`, 120, async () => {
       // Find the first active club membership
-      const membership = await prisma.club_members.findFirst({
-        where: {
-          user_id: user.id,
-          status: 'active'
-        },
-        include: {
-          clubs: true
-        }
-      })
+      const { data: membership } = await supabaseAdmin
+        .from('club_members')
+        .select('*, clubs(*)')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .limit(1)
+        .maybeSingle()
 
       if (!membership || !membership.clubs) return null
 
-      const club = membership.clubs
+      const club = Array.isArray(membership.clubs) ? membership.clubs[0] : membership.clubs
 
       // Process Avatar URL
       const rawAvatar = club.avatar_url
@@ -1252,32 +1247,35 @@ function processClubAvatar(club: any, supabase: any) {
 
 export async function getClubRankStats(clubId: string) {
   try {
-    const club = await prisma.clubs.findUnique({
-      where: { id: clubId },
-      select: { total_area: true, province: true }
-    })
+    const { data: club } = await supabaseAdmin
+      .from('clubs')
+      .select('total_area, province')
+      .eq('id', clubId)
+      .maybeSingle()
 
     if (!club) return { global: 0, provincial: 0 }
 
     const totalArea = club.total_area || 0
     const province = club.province
 
-    const globalRank = await prisma.clubs.count({
-      where: {
-        total_area: { gt: totalArea },
-        status: 'active'
-      }
-    }) + 1
+    const { count: globalRankCount } = await supabaseAdmin
+      .from('clubs')
+      .select('*', { count: 'exact', head: true })
+      .gt('total_area', totalArea)
+      .eq('status', 'active')
+
+    const globalRank = (globalRankCount || 0) + 1
 
     let provincialRank = 0
     if (province) {
-      provincialRank = await prisma.clubs.count({
-        where: {
-          total_area: { gt: totalArea },
-          status: 'active',
-          province: province
-        }
-      }) + 1
+      const { count: provincialRankCount } = await supabaseAdmin
+        .from('clubs')
+        .select('*', { count: 'exact', head: true })
+        .gt('total_area', totalArea)
+        .eq('status', 'active')
+        .eq('province', province)
+
+      provincialRank = (provincialRankCount || 0) + 1
     }
 
     return { global: globalRank, provincial: provincialRank }
@@ -1318,42 +1316,37 @@ export async function getAvailableProvinces() {
 
 export async function getClubDetailsById(id: string) {
   return cachedFetch(`club_detail:${id}`, 120, async () => {
-    const club = await prisma.clubs.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        avatar_url: true,
-        total_area: true
-      }
-    })
+    const { data: club } = await supabaseAdmin
+      .from('clubs')
+      .select('id, name, description, avatar_url, total_area')
+      .eq('id', id)
+      .maybeSingle()
 
     if (!club) return null
 
-    const [members, distanceAgg, memberCount] = await Promise.all([
-      prisma.club_members.findMany({
-        where: { club_id: id, status: 'active' },
-        include: {
-          profiles: {
-            select: {
-              id: true,
-              nickname: true,
-              avatar_url: true,
-              level: true
-            }
-          }
-        },
-        orderBy: { joined_at: 'asc' }
-      }),
-      prisma.runs.aggregate({
-        where: { club_id: id },
-        _sum: { distance: true }
-      }),
-      prisma.club_members.count({
-        where: { club_id: id, status: 'active' }
-      })
-    ])
+    const { data: membersResult } = await supabaseAdmin
+      .from('club_members')
+      .select('*, profiles(id, nickname, avatar_url, level)')
+      .eq('club_id', id)
+      .eq('status', 'active')
+      .order('joined_at', { ascending: true })
+
+    const members = membersResult || []
+
+    const { data: runs } = await supabaseAdmin
+      .from('runs')
+      .select('distance')
+      .eq('club_id', id)
+
+    const distanceAgg = { _sum: { distance: runs?.reduce((acc, curr) => acc + (curr.distance || 0), 0) || null } }
+
+    const { count: memberCountResult } = await supabaseAdmin
+      .from('club_members')
+      .select('*', { count: 'exact', head: true })
+      .eq('club_id', id)
+      .eq('status', 'active')
+
+    const memberCount = memberCountResult || 0
 
     return { club, members, distanceAgg, memberCount }
   }) // end cachedFetch
