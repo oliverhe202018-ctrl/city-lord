@@ -1,10 +1,15 @@
 'use server'
 
+import { requireAdminSession } from '@/lib/admin/auth'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+
 
 export async function getAdminUsers(searchQuery?: string) {
     try {
+        await requireAdminSession()
+
         let query = supabaseAdmin
+
             .from('profiles')
             .select('id, nickname, avatar_url, created_at')
             .order('created_at', { ascending: false })
@@ -27,7 +32,10 @@ export async function getAdminUsers(searchQuery?: string) {
 
 export async function getAdminRooms(searchQuery?: string) {
     try {
+        await requireAdminSession()
+
         let query = supabaseAdmin
+
             .from('rooms')
             .select('id, name, host_id, status, max_participants, is_private, created_at, is_banned, host_profile:profiles!rooms_host_id_fkey(nickname), participants:room_participants(count)')
             .order('created_at', { ascending: false })
@@ -50,7 +58,10 @@ export async function getAdminRooms(searchQuery?: string) {
 
 export async function getAdminMissions() {
     try {
+        await requireAdminSession()
+
         const { data, error } = await supabaseAdmin
+
             .from('missions')
             .select('id, title, description, type, target, frequency, reward_coins, reward_experience, created_at')
             .order('created_at', { ascending: false })

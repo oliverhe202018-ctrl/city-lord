@@ -19,8 +19,16 @@ import { GlobalLocationProvider } from '@/components/GlobalLocationProvider'
 import { PushNotificationBootstrapper } from '@/components/PushNotificationBootstrapper'
 import './globals.css'
 import { SpeedInsights } from '@vercel/speed-insights/next'
+import { useEffect } from "react";
+import { isNativePlatform, safeGetPlatform, safeStatusBarSetBackgroundColor, safeStatusBarSetOverlaysWebView, safeStatusBarSetStyle } from "@/lib/capacitor/safe-plugins";
+import { useBackgroundLocation } from '@/hooks/useBackgroundLocation';
+import { useImmersiveMode } from "@/hooks/useImmersiveMode";
+
+const amapSecurityCode = process.env.NEXT_PUBLIC_AMAP_SECURITY_CODE || ''
+const amapSecurityScript = `window._AMapSecurityConfig = { securityJsCode: ${JSON.stringify(amapSecurityCode)} }`
 
 const viewport: Viewport = {
+
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
@@ -57,14 +65,9 @@ const metadata: Metadata = {
   },
 }
 
-import { useEffect } from "react";
-import { isNativePlatform, safeGetPlatform, safeStatusBarSetBackgroundColor, safeStatusBarSetOverlaysWebView, safeStatusBarSetStyle } from "@/lib/capacitor/safe-plugins";
-
-
-import { useBackgroundLocation } from '@/hooks/useBackgroundLocation';
-import { useImmersiveMode } from "@/hooks/useImmersiveMode";
 
 // Client Component Wrapper for Status Bar
+
 function StatusBarConfig() {
   // Integrate Background Location Logic
   useBackgroundLocation();
@@ -101,12 +104,9 @@ export default function RootLayout({
         <StatusBarConfig />
         <PushNotificationBootstrapper />
         <Script id="amap-security" strategy="beforeInteractive">
-          {`
-            window._AMapSecurityConfig = {
-              securityJsCode: process.env.NEXT_PUBLIC_AMAP_SECURITY_CODE || '',
-            }
-          `}
+          {amapSecurityScript}
         </Script>
+
         <GlobalLocationProvider>
           <ErrorBoundary>
             <Providers>

@@ -7,6 +7,8 @@ import { cachedFetch, invalidateCache } from '@/lib/cache'
 import { cookies } from 'next/headers'
 import { Database } from '@/types/supabase'
 import { mapDecimalToNumber } from '@/lib/utils'
+import { requireAdminSession } from '@/lib/admin/auth'
+
 
 type ClubRow = Database['public']['Tables']['clubs']['Row']
 type ClubMemberRow = Database['public']['Tables']['club_members']['Row']
@@ -175,15 +177,8 @@ export async function updateClub(clubId: string, data: Partial<Club>) {
 
 export async function getPendingClubs(): Promise<{ success: true; data: PendingClubDTO[] } | { success: false; error: string }> {
   try {
-    const supabase = await createClient()
+    await requireAdminSession()
 
-    // Explicitly check session (optional based on your RLS/setup, but good practice for Admin queries)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return { success: false, error: 'Unauthorized: User not found' }
-    }
-
-    // Use Supabase Admin to include creator info
     const { data: pendingClubs, error: pendingError } = await supabaseAdmin
       .from('clubs')
       .select('*, profiles_clubs_owner_idToprofiles:profiles!clubs_owner_id_fkey(nickname, avatar_url)')
@@ -194,19 +189,16 @@ export async function getPendingClubs(): Promise<{ success: true; data: PendingC
       throw new Error(`Supabase query failed: ${pendingError.message}`)
     }
 
-    const data: PendingClubDTO[] = pendingClubs.map(club => ({
+    const data: PendingClubDTO[] = (pendingClubs || []).map(club => ({
       ...club,
-      // Safely map Decimals to numbers
       total_area: mapDecimalToNumber(club.total_area),
       rating: mapDecimalToNumber(club.rating),
       level: club.level || '1',
       status: (club.status as 'active' | 'pending' | 'rejected') || 'pending',
-      // Computed relational fields
       member_count: club.member_count || 1,
       territory: club.territory || '0',
       creator_name: club.profiles_clubs_owner_idToprofiles?.nickname || 'Unknown',
       creator_avatar: club.profiles_clubs_owner_idToprofiles?.avatar_url || null,
-      // Date formatting normalization if required, but string is guaranteed by prisma schema
       created_at: new Date(club.created_at).toISOString()
     }))
 
@@ -217,16 +209,14 @@ export async function getPendingClubs(): Promise<{ success: true; data: PendingC
   }
 }
 
-export async function getApprovedClubs(): Promise<{ success: true; data: ApprovedClubDTO[] } | { success: false; error: string }> {
-  console.log('[getApprovedClubs] called')
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  console.log('[getApprovedClubs] user:', user?.id ?? 'NULL')
 
+export async function getApprovedClubs(): Promise<{ success: true; data: ApprovedClubDTO[] } | { success: false; error: string }> {
   try {
+    await requireAdminSession()
+
     const { data: approvedClubs, error } = await supabaseAdmin
       .from('clubs')
-      .select('id, name, status, created_at, owner_id')
+      .select('*, profiles_clubs_owner_idToprofiles:profiles!clubs_owner_id_fkey(nickname, avatar_url)')
       .eq('status', 'active')
       .order('created_at', { ascending: false })
 
@@ -234,15 +224,15 @@ export async function getApprovedClubs(): Promise<{ success: true; data: Approve
       throw new Error(`Supabase query failed: ${error.message}`)
     }
 
-    const data: ApprovedClubDTO[] = approvedClubs.map(club => ({
+    const data: ApprovedClubDTO[] = (approvedClubs || []).map(club => ({
       ...club,
-      total_area: 0,
-      rating: 0,
-      level: '1',
+      total_area: mapDecimalToNumber(club.total_area),
+      rating: mapDecimalToNumber(club.rating),
+      level: club.level || '1',
       status: (club.status as 'active' | 'pending' | 'rejected') || 'active',
-      member_count: 1,
-      territory: '0',
-      creator_name: 'Unknown',
+      member_count: club.member_count || 1,
+      territory: club.territory || '0',
+      creator_name: club.profiles_clubs_owner_idToprofiles?.nickname || 'Unknown',
       created_at: new Date(club.created_at).toISOString()
     }))
 
@@ -253,8 +243,10 @@ export async function getApprovedClubs(): Promise<{ success: true; data: Approve
   }
 }
 
+
 export async function approveClub(clubId: string) {
-  // 1. Update club status - using supabaseAdmin to bypass RLS
+  await requireAdminSession()
+
   const { data: club, error } = await supabaseAdmin
     .from('clubs')
     .update({ status: 'active' })
@@ -264,7 +256,6 @@ export async function approveClub(clubId: string) {
 
   if (error) return { success: false, error: error.message }
 
-  // 2. Send notification
   if (club && club.owner_id) {
     await supabaseAdmin.from('notifications').insert({
       user_id: club.owner_id,
@@ -274,11 +265,17 @@ export async function approveClub(clubId: string) {
     })
   }
 
+  revalidatePath('/admin')
+  revalidatePath('/admin/clubs')
+  revalidateTag('club-details-v3')
+
   return { success: true }
 }
 
+
 export async function rejectClub(clubId: string, reason: string) {
-  // 1. Update club status - using supabaseAdmin to bypass RLS
+  await requireAdminSession()
+
   const { data: club, error } = await supabaseAdmin
     .from('clubs')
     .update({
@@ -291,7 +288,6 @@ export async function rejectClub(clubId: string, reason: string) {
 
   if (error) return { success: false, error: error.message }
 
-  // 2. Send notification
   if (club && club.owner_id) {
     await supabaseAdmin.from('notifications').insert({
       user_id: club.owner_id,
@@ -301,8 +297,13 @@ export async function rejectClub(clubId: string, reason: string) {
     })
   }
 
+  revalidatePath('/admin')
+  revalidatePath('/admin/clubs')
+  revalidateTag('club-details-v3')
+
   return { success: true }
 }
+
 
 export async function getClubs() {
   try {
