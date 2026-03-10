@@ -80,7 +80,7 @@ import {
 } from '@/lib/constants/territory'
 import { HotZoneCacheService } from '@/lib/services/hotzone-cache-service'
 import { redis } from '@/lib/redis'
-import { evaluatePenalty, PENALTY_FLAGS } from '@/lib/services/territory-penalty'
+import { evaluatePenalty, getPenaltyConfig } from '@/lib/services/territory-penalty'
 
 export async function claimTerritory(cityId: string, cellId: string, requestId?: string): Promise<{ success: boolean; error?: string; grantedBadges?: string[]; scoreChange?: number; isHotZone?: boolean }> {
   const cookieStore = await cookies()
@@ -145,6 +145,7 @@ export async function claimTerritory(cityId: string, cellId: string, requestId?:
 
       if (existing && existing.owner_id !== user.id && (existing.health ?? 0) <= 0) {
         // It's a capture against an enemy/neutral. Evaluate penalty.
+        const PENALTY_FLAGS = getPenaltyConfig();
         const lookbackDate = new Date()
         lookbackDate.setHours(lookbackDate.getHours() - PENALTY_FLAGS.lookbackHours)
 
