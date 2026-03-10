@@ -216,6 +216,7 @@ export default function AdminClubsPage() {
       }
 
       if (approvedRes.success) {
+        console.log('[loadClubs] approvedResult:', approvedRes)
         setApprovedClubs(approvedRes.data)
       } else {
         throw new Error(`获取已通过列表失败: ${approvedRes.error}`)

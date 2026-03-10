@@ -29,7 +29,7 @@ export async function getAdminRooms(searchQuery?: string) {
     try {
         let query = supabaseAdmin
             .from('rooms')
-            .select('id, name, host_id, is_active, max_players, created_at, host_profile:profiles!rooms_host_id_fkey(nickname)')
+            .select('id, name, host_id, status, max_participants, is_private, created_at, is_banned, host_profile:profiles!rooms_host_id_fkey(nickname), participants:room_participants(count)')
             .order('created_at', { ascending: false })
             .limit(100)
 
