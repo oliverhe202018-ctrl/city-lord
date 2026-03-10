@@ -226,7 +226,7 @@ export async function getApprovedClubs(): Promise<{ success: true; data: Approve
   try {
     const { data: approvedClubs, error } = await supabaseAdmin
       .from('clubs')
-      .select('*, profiles_clubs_owner_idToprofiles:profiles!clubs_owner_id_fkey(nickname)')
+      .select('id, name, status, created_at, owner_id')
       .eq('status', 'active')
       .order('created_at', { ascending: false })
 
