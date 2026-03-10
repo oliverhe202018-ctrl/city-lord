@@ -76,7 +76,7 @@ const withPWA = withPWAInit({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // 0. 服务端专用包，不参与 Webpack 客户端打包
-  serverExternalPackages: ['ioredis'],
+  serverExternalPackages: ['ioredis', '@prisma/client'],
 
   // 1. 忽略 TypeScript 类型错误
   typescript: {

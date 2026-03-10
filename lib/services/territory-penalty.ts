@@ -1,12 +1,14 @@
-export const PENALTY_FLAGS = {
-    enabled: process.env.FF_TERRITORY_ABUSE_PENALTY_ENABLED === 'true',
-    ratio: parseFloat(process.env.FF_TERRITORY_ABUSE_PENALTY_RATIO || '0.1'),
-    zeroRewardEnabled: process.env.FF_TERRITORY_ABUSE_PENALTY_ZERO_REWARD_ENABLED === 'true',
-    allowUserIds: (process.env.FF_TERRITORY_ABUSE_PENALTY_ALLOW_USER_IDS || '').split(',').map(s => s.trim()).filter(Boolean),
-    allowClubIds: (process.env.FF_TERRITORY_ABUSE_PENALTY_ALLOW_CLUB_IDS || '').split(',').map(s => s.trim()).filter(Boolean),
-    lookbackHours: parseInt(process.env.FF_TERRITORY_ABUSE_PENALTY_LOOKBACK_HOURS || '24', 10),
-    minFlips: parseInt(process.env.FF_TERRITORY_ABUSE_PENALTY_MIN_FLIPS || '3', 10),
-};
+export function getPenaltyConfig() {
+    return {
+        enabled: process.env.FF_TERRITORY_ABUSE_PENALTY_ENABLED === 'true',
+        ratio: parseFloat(process.env.FF_TERRITORY_ABUSE_PENALTY_RATIO || '0.1'),
+        zeroRewardEnabled: process.env.FF_TERRITORY_ABUSE_PENALTY_ZERO_REWARD_ENABLED === 'true',
+        allowUserIds: (process.env.FF_TERRITORY_ABUSE_PENALTY_ALLOW_USER_IDS || '').split(',').map(s => s.trim()).filter(Boolean),
+        allowClubIds: (process.env.FF_TERRITORY_ABUSE_PENALTY_ALLOW_CLUB_IDS || '').split(',').map(s => s.trim()).filter(Boolean),
+        lookbackHours: parseInt(process.env.FF_TERRITORY_ABUSE_PENALTY_LOOKBACK_HOURS || '24', 10),
+        minFlips: parseInt(process.env.FF_TERRITORY_ABUSE_PENALTY_MIN_FLIPS || '3', 10),
+    };
+}
 
 export interface PenaltyEvaluationResult {
     appliedRatio: number;
@@ -21,6 +23,7 @@ export function evaluatePenalty(
     attackerClubId: string | null,
     recentEvents: any[]
 ): PenaltyEvaluationResult {
+    const PENALTY_FLAGS = getPenaltyConfig();
     const defaultResult: PenaltyEvaluationResult = {
         appliedRatio: 1.0,
         matchedRule: 'NORMAL_REWARD',
