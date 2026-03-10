@@ -218,6 +218,11 @@ export async function getPendingClubs(): Promise<{ success: true; data: PendingC
 }
 
 export async function getApprovedClubs(): Promise<{ success: true; data: ApprovedClubDTO[] } | { success: false; error: string }> {
+  console.log('[getApprovedClubs] called')
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  console.log('[getApprovedClubs] user:', user?.id ?? 'NULL')
+
   try {
     const { data: approvedClubs, error } = await supabaseAdmin
       .from('clubs')
