@@ -1,0 +1,1166 @@
+﻿
+app\actions\admin\backgrounds.ts:16:    co
+nst serviceRoleKey = process.env.SUPABASE_
+SERVICE_ROLE_KEY!
+app\actions\admin\feedback.ts:8:    const 
+serviceRoleKey = process.env.SUPABASE_SERV
+ICE_ROLE_KEY!
+app\actions\admin\store-items.ts:15:    co
+nst serviceRoleKey = process.env.SUPABASE_
+SERVICE_ROLE_KEY!
+app\actions\admin-auth.ts:28:             
+   secure: process.env.NODE_ENV === 'produ
+ction',
+app\actions\badge.ts:20:    // Let's assum
+e we have process.env.SUPABASE_SERVICE_ROL
+E_KEY
+app\actions\badge.ts:21:    const serviceK
+ey = process.env.SUPABASE_SERVICE_ROLE_KEY
+ || key
+app\actions\club.ts:925:      process.env.
+SUPABASE_SERVICE_ROLE_KEY!
+app\actions\user-invitations.ts:29:       
+ .createHmac('sha256', process.env.INVITE_
+SECRET || 'city-lord-secret')
+app\api\cron\activity-reminder\route.ts:15
+:            process.env.VAPID_PRIVATE_KEY
+app\api\cron\activity-reminder\route.ts:37
+:    if (authHeader !== `Bearer ${process.
+env.CRON_SECRET}`) {
+app\api\cron\cleanup-invitations\route.ts:
+8:        if (authHeader !== `Bearer ${pro
+cess.env.CRON_SECRET}`) {
+app\api\cron\daily-stats\route.ts:8:    if
+ (authHeader !== `Bearer ${process.env.CRO
+N_SECRET}`) {
+app\api\cron\territory-decay\route.ts:8:  
+      if (authHeader !== `Bearer ${process
+.env.CRON_SECRET}`) {
+app\api\cron\territory-decay-monitor\route
+.ts:73:        deductEnabled: parseBoolean
+Flag(process.env.FF_DECAY_DEDUCT_ENABLED, 
+true),
+app\api\cron\territory-decay-monitor\route
+.ts:74:        neutralizeEnabled: parseBoo
+leanFlag(process.env.FF_DECAY_NEUTRALIZE_E
+NABLED, true),
+app\api\cron\territory-decay-monitor\route
+.ts:75:        thresholdDays: parseInteger
+Flag(process.env.FF_DECAY_THRESHOLD_DAYS, 
+DEFAULT_THRESHOLD_DAYS, 1),
+app\api\cron\territory-decay-monitor\route
+.ts:76:        deductRate: parseRateFlag(p
+rocess.env.FF_DECAY_DEDUCT_RATE, DEFAULT_D
+EDUCT_RATE),
+app\api\cron\territory-decay-monitor\route
+.ts:247:        if (process.env.CRON_SECRE
+T && authHeader !== `Bearer ${process.env.
+CRON_SECRET}`) {
+app\api\cron\territory-reconcile\route.ts:
+7:        if (process.env.CRON_SECRET && a
+uthHeader !== `Bearer ${process.env.CRON_S
+ECRET}`) {
+app\api\cron\territory-stats-worker\route.
+ts:8:        if (process.env.CRON_SECRET &
+& authHeader !== `Bearer ${process.env.CRO
+N_SECRET}`) {
+app\api\cron\update-faction-stats\route.ts
+:8:    if (authHeader !== `Bearer ${proces
+s.env.CRON_SECRET}`) {
+app\api\cron\update-province\route.ts:10: 
+ if (authHeader !== `Bearer ${process.env.
+CRON_SECRET}`) {
+app\api\debug\calc-stats\route.ts:8:  if (
+process.env.NODE_ENV === 'production' && s
+ecret !== process.env.CRON_SECRET) {
+app\api\debug\clubs\route.ts:6:    const k
+ey = process.env.SUPABASE_SERVICE_ROLE_KEY
+app\api\run\native-sync\route.ts:102:     
+     process.env.SUPABASE_SERVICE_ROLE_KEY
+!,
+app\api\run\save-pending\route.ts:23:     
+               process.env.SUPABASE_SERVIC
+E_ROLE_KEY!,
+app\api\territory\attack\route.ts:23:    i
+f (process.env.NODE_ENV === 'production') 
+{
+app\api\user\location\route.ts:9:const sup
+abaseServiceRoleKey = process.env.SUPABASE
+_SERVICE_ROLE_KEY!;
+app\error.tsx:129:  if (process.env.NODE_E
+NV === 'development') {
+components\map\MapRoot.tsx:136:    if (pro
+cess.env.NODE_ENV === 'development' || (ty
+peof window !== 'undefined' && window.loca
+tion.search.includes('debug=1'))) {
+components\mode\RoomDrawer.tsx:205:       
+   if (process.env.NODE_ENV === 'developme
+nt' && enriched.length > 0 && enriched[0].
+total_score === 0) {
+hooks\useImmersiveMode.ts:13:    const isP
+roduction = process.env.NODE_ENV === 'prod
+uction';
+lib\admin\auth.ts:5:const SECRET_KEY = pro
+cess.env.ADMIN_SESSION_SECRET || 'fallback
+-secret-for-development-only'
+lib\push\jpushProvider.ts:9: * 2. 在 init()
+ 中调用 JPush.init({ appKey: process.env.JPUS
+H_APP_KEY })
+lib\push\jpushProvider.ts:36:        // co
+nst appKey = process.env.JPUSH_APP_KEY
+lib\services\territory-penalty.ts:2:    en
+abled: process.env.FF_TERRITORY_ABUSE_PENA
+LTY_ENABLED === 'true',
+lib\services\territory-penalty.ts:3:    ra
+tio: parseFloat(process.env.FF_TERRITORY_A
+BUSE_PENALTY_RATIO || '0.1'),
+lib\services\territory-penalty.ts:4:    ze
+roRewardEnabled: process.env.FF_TERRITORY_
+ABUSE_PENALTY_ZERO_REWARD_ENABLED === 'tru
+e',
+lib\services\territory-penalty.ts:5:    al
+lowUserIds: (process.env.FF_TERRITORY_ABUS
+E_PENALTY_ALLOW_USER_IDS || '').split(',')
+.map(s => s.trim()).filter(Boolean),
+lib\services\territory-penalty.ts:6:    al
+lowClubIds: (process.env.FF_TERRITORY_ABUS
+E_PENALTY_ALLOW_CLUB_IDS || '').split(',')
+.map(s => s.trim()).filter(Boolean),
+lib\services\territory-penalty.ts:7:    lo
+okbackHours: parseInt(process.env.FF_TERRI
+TORY_ABUSE_PENALTY_LOOKBACK_HOURS || '24',
+ 10),
+lib\services\territory-penalty.ts:8:    mi
+nFlips: parseInt(process.env.FF_TERRITORY_
+ABUSE_PENALTY_MIN_FLIPS || '3', 10),
+lib\supabase\admin.ts:5:const supabaseServ
+iceRoleKey = process.env.SUPABASE_SERVICE_
+ROLE_KEY
+lib\email.ts:8:const ZEPTOMAIL_TOKEN = pro
+cess.env.ZEPTOMAIL_API_KEY || '';
+lib\email.ts:11:const FROM_ADDRESS = proce
+ss.env.ZEPTOMAIL_FROM_ADDRESS || 'noreply@
+citytour.games';
+lib\email.ts:12:const FROM_NAME = process.
+env.ZEPTOMAIL_FROM_NAME || '城市领主安全中心';
+lib\prisma.ts:7:if (process.env.NODE_ENV !
+== 'production') globalForPrisma.prisma = 
+prisma
+lib\redis.ts:3:const redisUrl = process.en
+v.REDIS_URL || 'redis://localhost:6379'
+lib\redis.ts:25:if (process.env.NODE_ENV !
+== 'production') globalForRedis.redis = re
+dis
+lib\sms.ts:26:    const pushToken = proces
+s.env.SPUG_PUSH_TOKEN
+node_modules\@capacitor\assets\node_module
+s\@ionic\utils-process\dist\index.d.ts:5: 
+* Creates an alternative implementation of
+ `process.env` object.
+node_modules\@capacitor\assets\node_module
+s\@ionic\utils-process\dist\index.d.ts:7: 
+* On a Windows shell, `process.env` is a m
+agic object that offers
+node_modules\@capacitor\assets\node_module
+s\@ionic\utils-process\dist\index.d.ts:9: 
+* sensitivity matters. This method creates
+ an empty "`process.env`" object
+node_modules\@capacitor\assets\node_module
+s\@ionic\utils-subprocess\dist\index.d.ts:
+16: * @param path Defaults to `process.env
+.PATH`
+node_modules\@fastify\otel\node_modules\@o
+pentelemetry\instrumentation\build\esm\sem
+convStability.d.ts:14: * `process.env.OTEL
+_SEMCONV_STABILITY_OPT_IN`) looking for th
+e `${namespace}`
+node_modules\@fastify\otel\node_modules\@o
+pentelemetry\instrumentation\build\esm\sem
+convStability.d.ts:35: *        process.en
+v.OTEL_SEMCONV_STABILITY_OPT_IN
+node_modules\@fastify\otel\node_modules\@o
+pentelemetry\instrumentation\build\esnext\
+semconvStability.d.ts:14: * `process.env.O
+TEL_SEMCONV_STABILITY_OPT_IN`) looking for
+ the `${namespace}`
+node_modules\@fastify\otel\node_modules\@o
+pentelemetry\instrumentation\build\esnext\
+semconvStability.d.ts:35: *        process
+.env.OTEL_SEMCONV_STABILITY_OPT_IN
+node_modules\@fastify\otel\node_modules\@o
+pentelemetry\instrumentation\build\src\sem
+convStability.d.ts:14: * `process.env.OTEL
+_SEMCONV_STABILITY_OPT_IN`) looking for th
+e `${namespace}`
+node_modules\@fastify\otel\node_modules\@o
+pentelemetry\instrumentation\build\src\sem
+convStability.d.ts:35: *        process.en
+v.OTEL_SEMCONV_STABILITY_OPT_IN
+node_modules\@hookform\resolvers\yup\src\y
+up.ts:64:      if (schemaOptions.context &
+& process.env.NODE_ENV === 'development') 
+{
+node_modules\@ionic\utils-process\dist\ind
+ex.d.ts:5: * Creates an alternative implem
+entation of `process.env` object.
+node_modules\@ionic\utils-process\dist\ind
+ex.d.ts:7: * On a Windows shell, `process.
+env` is a magic object that offers
+node_modules\@ionic\utils-process\dist\ind
+ex.d.ts:9: * sensitivity matters. This met
+hod creates an empty "`process.env`" objec
+t
+node_modules\@ionic\utils-subprocess\dist\
+index.d.ts:16: * @param path Defaults to `
+process.env.PATH`
+node_modules\@opentelemetry\instrumentatio
+n\build\esm\semconvStability.d.ts:14: * `p
+rocess.env.OTEL_SEMCONV_STABILITY_OPT_IN`)
+ looking for the `${namespace}`
+node_modules\@opentelemetry\instrumentatio
+n\build\esm\semconvStability.d.ts:35: *   
+     process.env.OTEL_SEMCONV_STABILITY_OP
+T_IN
+node_modules\@opentelemetry\instrumentatio
+n\build\esnext\semconvStability.d.ts:14: *
+ `process.env.OTEL_SEMCONV_STABILITY_OPT_I
+N`) looking for the `${namespace}`
+node_modules\@opentelemetry\instrumentatio
+n\build\esnext\semconvStability.d.ts:35: *
+        process.env.OTEL_SEMCONV_STABILITY
+_OPT_IN
+node_modules\@opentelemetry\instrumentatio
+n\build\src\semconvStability.d.ts:14: * `p
+rocess.env.OTEL_SEMCONV_STABILITY_OPT_IN`)
+ looking for the `${namespace}`
+node_modules\@opentelemetry\instrumentatio
+n\build\src\semconvStability.d.ts:35: *   
+     process.env.OTEL_SEMCONV_STABILITY_OP
+T_IN
+node_modules\@opentelemetry\semantic-conve
+ntions\build\esm\experimental_attributes.d
+.ts:11677: *     as the `process.environme
+nt_variable.USER` attribute with value `"u
+buntu"`.
+node_modules\@opentelemetry\semantic-conve
+ntions\build\esm\experimental_attributes.d
+.ts:11679: *     **SHOULD** be recorded as
+ the `process.environment_variable.PATH` a
+ttribute
+node_modules\@opentelemetry\semantic-conve
+ntions\build\esnext\experimental_attribute
+s.d.ts:11677: *     as the `process.enviro
+nment_variable.USER` attribute with value 
+`"ubuntu"`.
+node_modules\@opentelemetry\semantic-conve
+ntions\build\esnext\experimental_attribute
+s.d.ts:11679: *     **SHOULD** be recorded
+ as the `process.environment_variable.PATH
+` attribute
+node_modules\@opentelemetry\semantic-conve
+ntions\build\src\experimental_attributes.d
+.ts:11677: *     as the `process.environme
+nt_variable.USER` attribute with value `"u
+buntu"`.
+node_modules\@opentelemetry\semantic-conve
+ntions\build\src\experimental_attributes.d
+.ts:11679: *     **SHOULD** be recorded as
+ the `process.environment_variable.PATH` a
+ttribute
+node_modules\@prisma\instrumentation\node_
+modules\@opentelemetry\instrumentation\bui
+ld\esm\semconvStability.d.ts:14: * `proces
+s.env.OTEL_SEMCONV_STABILITY_OPT_IN`) look
+ing for the `${namespace}`
+node_modules\@prisma\instrumentation\node_
+modules\@opentelemetry\instrumentation\bui
+ld\esm\semconvStability.d.ts:35: *        
+process.env.OTEL_SEMCONV_STABILITY_OPT_IN
+node_modules\@prisma\instrumentation\node_
+modules\@opentelemetry\instrumentation\bui
+ld\esnext\semconvStability.d.ts:14: * `pro
+cess.env.OTEL_SEMCONV_STABILITY_OPT_IN`) l
+ooking for the `${namespace}`
+node_modules\@prisma\instrumentation\node_
+modules\@opentelemetry\instrumentation\bui
+ld\esnext\semconvStability.d.ts:35: *     
+   process.env.OTEL_SEMCONV_STABILITY_OPT_
+IN
+node_modules\@prisma\instrumentation\node_
+modules\@opentelemetry\instrumentation\bui
+ld\src\semconvStability.d.ts:14: * `proces
+s.env.OTEL_SEMCONV_STABILITY_OPT_IN`) look
+ing for the `${namespace}`
+node_modules\@prisma\instrumentation\node_
+modules\@opentelemetry\instrumentation\bui
+ld\src\semconvStability.d.ts:35: *        
+process.env.OTEL_SEMCONV_STABILITY_OPT_IN
+node_modules\@radix-ui\react-alert-dialog\
+src\AlertDialog.tsx:144:            {proce
+ss.env.NODE_ENV === 'development' && (
+node_modules\@sentry\bundler-plugin-core\n
+ode_modules\dotenv\lib\main.d.ts:56:   * e
+xample: `require('dotenv').config({ debug:
+ process.env.DEBUG })`
+node_modules\@sentry\bundler-plugin-core\n
+ode_modules\dotenv\lib\main.d.ts:70:   * D
+efault: `process.env`
+node_modules\@sentry\bundler-plugin-core\n
+ode_modules\dotenv\lib\main.d.ts:72:   * S
+pecify an object to write your secrets to.
+ Defaults to process.env environment varia
+bles.
+node_modules\@sentry\bundler-plugin-core\n
+ode_modules\dotenv\lib\main.d.ts:81:   * P
+ass the DOTENV_KEY directly to config opti
+ons. Defaults to looking for process.env.D
+OTENV_KEY environment variable. Note this 
+only applies to decrypting .env.vault file
+s. If passed as null or undefined, or not 
+passed at all, dotenv falls back to its tr
+aditional job of parsing a .env file.
+node_modules\@sentry\bundler-plugin-core\n
+ode_modules\dotenv\lib\main.d.ts:99:   * e
+xample: `require('dotenv').config({ debug:
+ process.env.DEBUG })`
+node_modules\@sentry\bundler-plugin-core\n
+ode_modules\dotenv\lib\main.d.ts:118: * Lo
+ads `.env` file contents into process.env 
+by default. If `DOTENV_KEY` is present, it
+ smartly attempts to load encrypted `.env.
+vault` file contents into process.env.
+node_modules\@sentry\bundler-plugin-core\n
+ode_modules\dotenv\lib\main.d.ts:129: * Lo
+ads `.env` file contents into process.env.
+node_modules\@sentry\bundler-plugin-core\n
+ode_modules\dotenv\lib\main.d.ts:140: * Lo
+ads `source` json contents into `target` l
+ike process.env.
+node_modules\@sentry\bundler-plugin-core\n
+ode_modules\dotenv\lib\main.d.ts:144: * @p
+aram processEnv - the target JSON object. 
+in most cases use process.env but you can 
+also pass your own JSON object
+node_modules\@sentry\core\build\types\trac
+ing\google-genai\index.d.ts:21: * const ge
+nAI = new GoogleGenAI({ apiKey: process.en
+v.GOOGLE_GENAI_API_KEY });
+node_modules\@sentry\core\build\types-ts3.
+8\tracing\google-genai\index.d.ts:21: * co
+nst genAI = new GoogleGenAI({ apiKey: proc
+ess.env.GOOGLE_GENAI_API_KEY });
+node_modules\@supabase\auth-js\dist\main\G
+oTrueAdminApi.d.ts:26:     *   headers: { 
+Authorization: `Bearer ${process.env.SUPAB
+ASE_SERVICE_ROLE_KEY}` },
+node_modules\@supabase\auth-js\dist\module
+\GoTrueAdminApi.d.ts:26:     *   headers: 
+{ Authorization: `Bearer ${process.env.SUP
+ABASE_SERVICE_ROLE_KEY}` },
+node_modules\@supabase\auth-js\src\GoTrueA
+dminApi.ts:57:   *   headers: { Authorizat
+ion: `Bearer ${process.env.SUPABASE_SERVIC
+E_ROLE_KEY}` },
+node_modules\@supabase\ssr\src\index.ts:2:
+if (typeof process !== "undefined" && proc
+ess.env?.npm_package_name) {
+node_modules\@supabase\ssr\src\index.ts:3:
+  const packageName = process.env.npm_pack
+age_name;
+node_modules\@tanstack\query-core\src\hydr
+ation.ts:89:      if (process.env.NODE_ENV
+ !== 'production') {
+node_modules\@tanstack\query-core\src\quer
+iesObserver.ts:95:    if (process.env.NODE
+_ENV !== 'production') {
+node_modules\@tanstack\query-core\src\quer
+y.ts:422:    if (process.env.NODE_ENV !== 
+'production') {
+node_modules\@tanstack\query-core\src\quer
+y.ts:550:        if (process.env.NODE_ENV 
+!== 'production') {
+node_modules\@tanstack\query-core\src\time
+outManager.ts:75:    if (process.env.NODE_
+ENV !== 'production') {
+node_modules\@tanstack\query-core\src\time
+outManager.ts:96:    if (process.env.NODE_
+ENV !== 'production') {
+node_modules\@tanstack\query-core\src\time
+outManager.ts:102:    if (process.env.NODE
+_ENV !== 'production') {
+node_modules\@tanstack\query-core\src\time
+outManager.ts:113:    if (process.env.NODE
+_ENV !== 'production') {
+node_modules\@tanstack\query-core\src\util
+s.ts:389:    if (process.env.NODE_ENV !== 
+'production') {
+node_modules\@tanstack\query-core\src\util
+s.ts:436:  if (process.env.NODE_ENV !== 'p
+roduction') {
+node_modules\@tanstack\query-persist-clien
+t-core\src\createPersister.ts:150:        
+if (process.env.NODE_ENV === 'development'
+) {
+node_modules\@tanstack\query-persist-clien
+t-core\src\createPersister.ts:172:        
+if (process.env.NODE_ENV === 'development'
+) {
+node_modules\@tanstack\query-persist-clien
+t-core\src\createPersister.ts:254:    } el
+se if (process.env.NODE_ENV === 'developme
+nt') {
+node_modules\@tanstack\query-persist-clien
+t-core\src\createPersister.ts:297:    } el
+se if (process.env.NODE_ENV === 'developme
+nt') {
+node_modules\@tanstack\query-persist-clien
+t-core\src\persist.ts:95:    if (process.e
+nv.NODE_ENV !== 'production') {
+node_modules\@tanstack\react-query\src\use
+BaseQuery.ts:44:  if (process.env.NODE_ENV
+ !== 'production') {
+node_modules\@tanstack\react-query\src\use
+BaseQuery.ts:69:  if (process.env.NODE_ENV
+ !== 'production') {
+node_modules\@tanstack\react-query\src\use
+SuspenseInfiniteQuery.ts:34:  if (process.
+env.NODE_ENV !== 'production') {
+node_modules\@tanstack\react-query\src\use
+SuspenseQueries.ts:194:        if (process
+.env.NODE_ENV !== 'production') {
+node_modules\@tanstack\react-query\src\use
+SuspenseQuery.ts:17:  if (process.env.NODE
+_ENV !== 'production') {
+node_modules\@tanstack\virtual-core\src\in
+dex.ts:471:      key: process.env.NODE_ENV
+ !== 'production' && 'maybeNotify',
+node_modules\@tanstack\virtual-core\src\in
+dex.ts:785:      key: process.env.NODE_ENV
+ !== 'production' && 'getMeasurements',
+node_modules\@tanstack\virtual-core\src\in
+dex.ts:809:      key: process.env.NODE_ENV
+ !== 'production' && 'calculateRange',
+node_modules\@tanstack\virtual-core\src\in
+dex.ts:843:      key: process.env.NODE_ENV
+ !== 'production' && 'getVirtualIndexes',
+node_modules\@tanstack\virtual-core\src\in
+dex.ts:901:        if (process.env.NODE_EN
+V !== 'production' && this.options.debug) 
+{
+node_modules\@tanstack\virtual-core\src\in
+dex.ts:947:      key: process.env.NODE_ENV
+ !== 'production' && 'getVirtualItems',
+node_modules\@tanstack\virtual-core\src\in
+dex.ts:1132:        if (process.env.NODE_E
+NV !== 'production' && this.options.debug)
+ {
+node_modules\@trapezedev\project\node_modu
+les\@ionic\utils-process\dist\index.d.ts:5
+: * Creates an alternative implementation 
+of `process.env` object.
+node_modules\@trapezedev\project\node_modu
+les\@ionic\utils-process\dist\index.d.ts:7
+: * On a Windows shell, `process.env` is a
+ magic object that offers
+node_modules\@trapezedev\project\node_modu
+les\@ionic\utils-process\dist\index.d.ts:9
+: * sensitivity matters. This method creat
+es an empty "`process.env`" object
+node_modules\@trapezedev\project\node_modu
+les\@ionic\utils-subprocess\dist\index.d.t
+s:16: * @param path Defaults to `process.e
+nv.PATH`
+node_modules\@types\babel__core\index.d.ts
+:789:     * api.cache.using(() => process.
+env.NODE_ENV)
+node_modules\@types\babel__core\index.d.ts
+:798:     * api.cache.invalidate(() => pro
+cess.env.NODE_ENV)
+node_modules\@types\node\child_process.d.t
+s:31: * variable if `env` is in the `optio
+ns` object. Otherwise, `process.env.PATH` 
+is
+node_modules\@types\node\child_process.d.t
+s:702:     *   env: process.env,
+node_modules\@types\node\child_process.d.t
+s:713:     * process, the default is `proc
+ess.env`.
+node_modules\@types\node\cluster.d.ts:403:
+         * True if the process is a primar
+y. This is determined by the `process.env.
+NODE_UNIQUE_ID`. If `process.env.NODE_UNIQ
+UE_ID`
+node_modules\@types\node\http.d.ts:1415:  
+       * new URL(`http://${process.env.HOS
+T ?? 'localhost'}${request.url}`);
+node_modules\@types\node\http.d.ts:1418:  
+       * When `request.url` is `'/status?n
+ame=ryan'` and `process.env.HOST` is undef
+ined:
+node_modules\@types\node\http.d.ts:1422:  
+       * > new URL(`http://${process.env.H
+OST ?? 'localhost'}${request.url}`);
+node_modules\@types\node\http.d.ts:1439:  
+       * Ensure that you set `process.env.
+HOST` to the server's host name, or consid
+er replacing this part entirely. If using 
+`req.headers.host`, ensure proper
+node_modules\@types\node\module.d.ts:106: 
+        * `process.env.NODE_COMPILE_CACHE`
+ value to compile cache directory so the b
+ehavior can
+node_modules\@types\node\process.d.ts:853:
+                 * The `process.env` prope
+rty returns an object containing the user 
+environment.
+node_modules\@types\node\process.d.ts:879:
+                 * node -e 'process.env.fo
+o = "bar"' &#x26;&#x26; echo $foo
+node_modules\@types\node\process.d.ts:891:
+                 * Assigning a property on
+ `process.env` will implicitly convert the
+ value
+node_modules\@types\node\process.d.ts:906:
+                 * Use `delete` to delete 
+a property from `process.env`.
+node_modules\@types\node\process.d.ts:928:
+                 * each `Worker` thread ha
+s its own copy of `process.env`, based on 
+its
+node_modules\@types\node\process.d.ts:929:
+                 * parent thread's `proces
+s.env`, or whatever was specified as the `
+env` option
+node_modules\@types\node\process.d.ts:930:
+                 * to the `Worker` constru
+ctor. Changes to `process.env` will not be
+ visible
+node_modules\@types\node\process.d.ts:932:
+                 * are visible to the oper
+ating system or to native add-ons. On Wind
+ows, a copy of `process.env` on a `Worker`
+ instance operates in a case-sensitive man
+ner
+node_modules\@types\node\process.d.ts:1464
+:                 * Loads the environment 
+configuration from a `.env` file into `pro
+cess.env`. If
+node_modules\@types\node\process.d.ts:1979
+:                 * **Default:** `process.
+env`.
+node_modules\@types\node\tty.d.ts:154:    
+     * @param [env=process.env] An object 
+containing the environment variables to ch
+eck. This enables simulating the usage of 
+a specific terminal.
+node_modules\@types\node\tty.d.ts:175:    
+     * @param [env=process.env] An object 
+containing the environment variables to ch
+eck. This enables simulating the usage of 
+a specific terminal.
+node_modules\@types\node\v8.d.ts:870:     
+*   // process.env and process.argv are re
+freshed during snapshot
+node_modules\@types\node\v8.d.ts:872:     
+*   const lang = process.env.BOOK_LANG || 
+'en_US';
+node_modules\@types\node\v8.d.ts:879:     
+* The resulted binary will get print the d
+ata deserialized from the snapshot during 
+start up, using the refreshed `process.env
+` and `process.argv` of the launched proce
+ss:
+node_modules\@types\node\wasi.d.ts:82:    
+     * An object similar to `process.env` 
+that the WebAssembly
+node_modules\@types\node\worker_threads.d.
+ts:316:     * * `process.env` is a copy of
+ the parent thread's environment variables
+,
+node_modules\dotenv\lib\main.d.ts:60:   * 
+example: `require('dotenv').config({ debug
+: process.env.DEBUG })`
+node_modules\dotenv\lib\main.d.ts:74:   * 
+Default: `process.env`
+node_modules\dotenv\lib\main.d.ts:76:   * 
+Specify an object to write your secrets to
+. Defaults to process.env environment vari
+ables.
+node_modules\dotenv\lib\main.d.ts:85:   * 
+Pass the DOTENV_KEY directly to config opt
+ions. Defaults to looking for process.env.
+DOTENV_KEY environment variable. Note this
+ only applies to decrypting .env.vault fil
+es. If passed as null or undefined, or not
+ passed at all, dotenv falls back to its t
+raditional job of parsing a .env file.
+node_modules\dotenv\lib\main.d.ts:112:   *
+ example: `require('dotenv').config({ debu
+g: process.env.DEBUG })`
+node_modules\dotenv\lib\main.d.ts:131: * L
+oads `.env` file contents into process.env
+ by default. If `DOTENV_KEY` is present, i
+t smartly attempts to load encrypted `.env
+.vault` file contents into process.env.
+node_modules\dotenv\lib\main.d.ts:142: * L
+oads `.env` file contents into process.env
+.
+node_modules\dotenv\lib\main.d.ts:153: * L
+oads `source` json contents into `target` 
+like process.env.
+node_modules\dotenv\lib\main.d.ts:157: * @
+param processEnv - the target JSON object.
+ in most cases use process.env but you can
+ also pass your own JSON object
+node_modules\eslint\lib\types\rules.d.ts:3
+385:	 * Rule to disallow the use of `proce
+ss.env`.
+node_modules\html-to-image\src\util.ts:120
+:    FINAL_PROCESS && FINAL_PROCESS.env
+node_modules\html-to-image\src\util.ts:121
+:      ? FINAL_PROCESS.env.devicePixelRati
+o
+node_modules\iceberg-js\dist\index.d.ts:25
+5: *   auth: { type: 'bearer', token: proc
+ess.env.ICEBERG_TOKEN }
+node_modules\nano-spawn\source\index.d.ts:
+76:	Override specific [environment variabl
+es](https://en.wikipedia.org/wiki/Environm
+ent_variable). Other environment variables
+ are inherited from the current process ([
+`process.env`](https://nodejs.org/api/proc
+ess.html#processenv)).
+node_modules\next\node_modules\postcss\lib
+\css-syntax-error.d.ts:227:   *           
+   and `process.env.NODE_DISABLE_COLORS`.
+node_modules\path-key\index.d.ts:6:		Use a
+ custom environment variables object. Defa
+ult: [`process.env`](https://nodejs.org/ap
+i/process.html#process_process_env).
+node_modules\path-key\index.d.ts:28:	const
+ PATH = process.env[key];
+node_modules\postcss\lib\css-syntax-error.
+d.ts:227:   *              and `process.en
+v.NODE_DISABLE_COLORS`.
+node_modules\svix\src\KitchenSink.test.ts:
+8:  const token = process.env.SVIX_TOKEN;
+node_modules\svix\src\KitchenSink.test.ts:
+9:  const serverUrl = process.env.SVIX_SER
+VER_URL;
+node_modules\tiny-invariant\src\tiny-invar
+iant.ts:1:const isProduction: boolean = pr
+ocess.env.NODE_ENV === 'production';
+node_modules\tsconfig-paths\src\config-loa
+der.ts:70:    getEnv: (key: string) => pro
+cess.env[key],
+node_modules\vite\dist\node\index.d.ts:317
+4:  * If true, `process.env` referenced in
+ code will be preserved as-is and evaluate
+d in runtime.
+node_modules\vite-tsconfig-paths\src\debug
+.ts:5:if (process.env.TEST === 'vite-tscon
+fig-paths') {
+node_modules\vitest\dist\chunks\reporters.
+d.CWXNI2jG.d.ts:1475:	* @default process.e
+nv.CI
+node_modules\vitest\dist\chunks\reporters.
+d.CWXNI2jG.d.ts:1502:	* @default !process.
+env.CI
+node_modules\vitest\dist\chunks\reporters.
+d.CWXNI2jG.d.ts:1937:	* Custom `process.en
+v`. All tasks in the same project will ref
+erence the same object,
+node_modules\vitest\dist\chunks\reporters.
+d.CWXNI2jG.d.ts:2631:	* @default !process.
+env.CI
+node_modules\vitest\dist\chunks\reporters.
+d.CWXNI2jG.d.ts:2761:	* @default !process.
+env.CI
+node_modules\vitest\dist\chunks\reporters.
+d.CWXNI2jG.d.ts:2799:	* @default !process.
+env.CI
+node_modules\vitest\dist\chunks\reporters.
+d.CWXNI2jG.d.ts:2807:	* Custom environment
+ variables assigned to `process.env` befor
+e running tests.
+node_modules\vitest\dist\index.d.ts:458:	*
+ Changes the value of `import.meta.env` an
+d `process.env`.
+node_modules\workbox-background-sync\src\l
+ib\QueueStore.ts:48:    if (process.env.NO
+DE_ENV !== 'production') {
+node_modules\workbox-background-sync\src\l
+ib\QueueStore.ts:79:    if (process.env.NO
+DE_ENV !== 'production') {
+node_modules\workbox-background-sync\src\l
+ib\StorableRequest.ts:98:    if (process.e
+nv.NODE_ENV !== 'production') {
+node_modules\workbox-background-sync\src\Q
+ueue.ts:156:    if (process.env.NODE_ENV !
+== 'production') {
+node_modules\workbox-background-sync\src\Q
+ueue.ts:191:    if (process.env.NODE_ENV !
+== 'production') {
+node_modules\workbox-background-sync\src\Q
+ueue.ts:300:    if (process.env.NODE_ENV !
+== 'production') {
+node_modules\workbox-background-sync\src\Q
+ueue.ts:364:        if (process.env.NODE_E
+NV !== 'production') {
+node_modules\workbox-background-sync\src\Q
+ueue.ts:373:        if (process.env.NODE_E
+NV !== 'production') {
+node_modules\workbox-background-sync\src\Q
+ueue.ts:382:    if (process.env.NODE_ENV !
+== 'production') {
+node_modules\workbox-background-sync\src\Q
+ueue.ts:401:        if (process.env.NODE_E
+NV !== 'production') {
+node_modules\workbox-background-sync\src\Q
+ueue.ts:423:          if (process.env.NODE
+_ENV !== 'production') {
+node_modules\workbox-background-sync\src\Q
+ueue.ts:464:      if (process.env.NODE_ENV
+ !== 'production') {
+node_modules\workbox-broadcast-update\src\
+BroadcastCacheUpdate.ts:129:    if (proces
+s.env.NODE_ENV !== 'production') {
+node_modules\workbox-broadcast-update\src\
+BroadcastCacheUpdate.ts:162:      if (proc
+ess.env.NODE_ENV !== 'production') {
+node_modules\workbox-broadcast-update\src\
+responsesAreSame.ts:29:  if (process.env.N
+ODE_ENV !== 'production') {
+node_modules\workbox-broadcast-update\src\
+responsesAreSame.ts:44:    if (process.env
+.NODE_ENV !== 'production') {
+node_modules\workbox-build\build\types.d.t
+s:243:     * here, the `process.env.NODE_E
+NV` value will be used, and failing that, 
+it
+node_modules\workbox-build\src\lib\bundle.
+ts:50:      'process.env.NODE_ENV': JSON.s
+tringify(mode),
+node_modules\workbox-build\src\types.ts:25
+9:   * here, the `process.env.NODE_ENV` va
+lue will be used, and failing that, it
+node_modules\workbox-cacheable-response\sr
+c\CacheableResponse.ts:47:    if (process.
+env.NODE_ENV !== 'production') {
+node_modules\workbox-cacheable-response\sr
+c\CacheableResponse.ts:89:    if (process.
+env.NODE_ENV !== 'production') {
+node_modules\workbox-cacheable-response\sr
+c\CacheableResponse.ts:110:    if (process
+.env.NODE_ENV !== 'production') {
+node_modules\workbox-core\src\models\messa
+ges\messageGenerator.ts:30:  process.env.N
+ODE_ENV === 'production' ? fallback : gene
+ratorFunction;
+node_modules\workbox-core\src\utils\welcom
+e.ts:14:if (process.env.NODE_ENV !== 'prod
+uction') {
+node_modules\workbox-core\src\_private\ass
+ert.ts:89:  process.env.NODE_ENV === 'prod
+uction'
+node_modules\workbox-core\src\_private\exe
+cuteQuotaErrorCallbacks.ts:21:  if (proces
+s.env.NODE_ENV !== 'production') {
+node_modules\workbox-core\src\_private\exe
+cuteQuotaErrorCallbacks.ts:30:    if (proc
+ess.env.NODE_ENV !== 'production') {
+node_modules\workbox-core\src\_private\exe
+cuteQuotaErrorCallbacks.ts:35:  if (proces
+s.env.NODE_ENV !== 'production') {
+node_modules\workbox-core\src\_private\log
+ger.ts:30:  process.env.NODE_ENV === 'prod
+uction'
+node_modules\workbox-core\src\registerQuot
+aErrorCallback.ts:24:  if (process.env.NOD
+E_ENV !== 'production') {
+node_modules\workbox-core\src\registerQuot
+aErrorCallback.ts:34:  if (process.env.NOD
+E_ENV !== 'production') {
+node_modules\workbox-core\src\setCacheName
+Details.ts:32:  if (process.env.NODE_ENV !
+== 'production') {
+node_modules\workbox-core\src\skipWaiting.
+ts:26:  if (process.env.NODE_ENV !== 'prod
+uction') {
+node_modules\workbox-expiration\src\CacheE
+xpiration.ts:54:    if (process.env.NODE_E
+NV !== 'production') {
+node_modules\workbox-expiration\src\CacheE
+xpiration.ts:121:    if (process.env.NODE_
+ENV !== 'production') {
+node_modules\workbox-expiration\src\CacheE
+xpiration.ts:154:    if (process.env.NODE_
+ENV !== 'production') {
+node_modules\workbox-expiration\src\CacheE
+xpiration.ts:179:      if (process.env.NOD
+E_ENV !== 'production') {
+node_modules\workbox-expiration\src\Expira
+tionPlugin.ts:69:    if (process.env.NODE_
+ENV !== 'production') {
+node_modules\workbox-expiration\src\Expira
+tionPlugin.ts:169:        if (process.env.
+NODE_ENV !== 'production') {
+node_modules\workbox-expiration\src\Expira
+tionPlugin.ts:253:    if (process.env.NODE
+_ENV !== 'production') {
+node_modules\workbox-google-analytics\src\
+initialize.ts:96:        if (process.env.N
+ODE_ENV !== 'production') {
+node_modules\workbox-google-analytics\src\
+initialize.ts:104:        if (process.env.
+NODE_ENV !== 'production') {
+node_modules\workbox-google-analytics\src\
+initialize.ts:113:    if (process.env.NODE
+_ENV !== 'production') {
+node_modules\workbox-navigation-preload\sr
+c\disable.ts:26:          if (process.env.
+NODE_ENV !== 'production') {
+node_modules\workbox-navigation-preload\sr
+c\disable.ts:33:    if (process.env.NODE_E
+NV !== 'production') {
+node_modules\workbox-navigation-preload\sr
+c\enable.ts:38:          if (process.env.N
+ODE_ENV !== 'production') {
+node_modules\workbox-navigation-preload\sr
+c\enable.ts:45:    if (process.env.NODE_EN
+V !== 'production') {
+node_modules\workbox-precaching\src\cleanu
+pOutdatedCaches.ts:27:        if (process.
+env.NODE_ENV !== 'production') {
+node_modules\workbox-precaching\src\Precac
+heController.ts:126:    if (process.env.NO
+DE_ENV !== 'production') {
+node_modules\workbox-precaching\src\Precac
+heController.ts:178:        if (process.en
+v.NODE_ENV === 'production') {
+node_modules\workbox-precaching\src\Precac
+heController.ts:229:      if (process.env.
+NODE_ENV !== 'production') {
+node_modules\workbox-precaching\src\Precac
+heController.ts:263:      if (process.env.
+NODE_ENV !== 'production') {
+node_modules\workbox-precaching\src\Precac
+heRoute.ts:65:      if (process.env.NODE_E
+NV !== 'production') {
+node_modules\workbox-precaching\src\Precac
+heStrategy.ts:122:      if (process.env.NO
+DE_ENV !== 'production') {
+node_modules\workbox-precaching\src\Precac
+heStrategy.ts:160:        if (process.env.
+NODE_ENV !== 'production') {
+node_modules\workbox-precaching\src\Precac
+heStrategy.ts:178:    if (process.env.NODE
+_ENV !== 'production') {
+node_modules\workbox-range-requests\src\ut
+ils\calculateEffectiveBoundaries.ts:28:  i
+f (process.env.NODE_ENV !== 'production') 
+{
+node_modules\workbox-range-requests\src\ut
+ils\parseRangeHeader.ts:22:  if (process.e
+nv.NODE_ENV !== 'production') {
+node_modules\workbox-range-requests\src\cr
+eatePartialResponse.ts:39:    if (process.
+env.NODE_ENV !== 'production') {
+node_modules\workbox-range-requests\src\cr
+eatePartialResponse.ts:96:    if (process.
+env.NODE_ENV !== 'production') {
+node_modules\workbox-routing\src\utils\nor
+malizeHandler.ts:23:    if (process.env.NO
+DE_ENV !== 'production') {
+node_modules\workbox-routing\src\utils\nor
+malizeHandler.ts:33:    if (process.env.NO
+DE_ENV !== 'production') {
+node_modules\workbox-routing\src\Navigatio
+nRoute.ts:69:    if (process.env.NODE_ENV 
+!== 'production') {
+node_modules\workbox-routing\src\Navigatio
+nRoute.ts:112:        if (process.env.NODE
+_ENV !== 'production') {
+node_modules\workbox-routing\src\Navigatio
+nRoute.ts:124:      if (process.env.NODE_E
+NV !== 'production') {
+node_modules\workbox-routing\src\Navigatio
+nRoute.ts:132:    if (process.env.NODE_ENV
+ !== 'production') {
+node_modules\workbox-routing\src\RegExpRou
+te.ts:48:    if (process.env.NODE_ENV !== 
+'production') {
+node_modules\workbox-routing\src\RegExpRou
+te.ts:70:        if (process.env.NODE_ENV 
+!== 'production') {
+node_modules\workbox-routing\src\registerR
+oute.ts:48:    if (process.env.NODE_ENV !=
+= 'production') {
+node_modules\workbox-routing\src\registerR
+oute.ts:75:      if (process.env.NODE_ENV 
+!== 'production') {
+node_modules\workbox-routing\src\Route.ts:
+50:    if (process.env.NODE_ENV !== 'produ
+ction') {
+node_modules\workbox-routing\src\Router.ts
+:119:        if (process.env.NODE_ENV !== 
+'production') {
+node_modules\workbox-routing\src\Router.ts
+:167:    if (process.env.NODE_ENV !== 'pro
+duction') {
+node_modules\workbox-routing\src\Router.ts
+:178:      if (process.env.NODE_ENV !== 'p
+roduction') {
+node_modules\workbox-routing\src\Router.ts
+:196:    if (process.env.NODE_ENV !== 'pro
+duction') {
+node_modules\workbox-routing\src\Router.ts
+:213:      if (process.env.NODE_ENV !== 'p
+roduction') {
+node_modules\workbox-routing\src\Router.ts
+:223:      if (process.env.NODE_ENV !== 'p
+roduction') {
+node_modules\workbox-routing\src\Router.ts
+:231:    if (process.env.NODE_ENV !== 'pro
+duction') {
+node_modules\workbox-routing\src\Router.ts
+:266:          if (process.env.NODE_ENV !=
+= 'production') {
+node_modules\workbox-routing\src\Router.ts
+:290:          if (process.env.NODE_ENV !=
+= 'production') {
+node_modules\workbox-routing\src\Router.ts
+:344:        if (process.env.NODE_ENV !== 
+'production') {
+node_modules\workbox-routing\src\Router.ts
+:422:    if (process.env.NODE_ENV !== 'pro
+duction') {
+node_modules\workbox-strategies\src\CacheF
+irst.ts:43:    if (process.env.NODE_ENV !=
+= 'production') {
+node_modules\workbox-strategies\src\CacheF
+irst.ts:56:      if (process.env.NODE_ENV 
+!== 'production') {
+node_modules\workbox-strategies\src\CacheF
+irst.ts:70:      if (process.env.NODE_ENV 
+!== 'production') {
+node_modules\workbox-strategies\src\CacheF
+irst.ts:78:      if (process.env.NODE_ENV 
+!== 'production') {
+node_modules\workbox-strategies\src\CacheF
+irst.ts:83:    if (process.env.NODE_ENV !=
+= 'production') {
+node_modules\workbox-strategies\src\CacheO
+nly.ts:39:    if (process.env.NODE_ENV !==
+ 'production') {
+node_modules\workbox-strategies\src\CacheO
+nly.ts:50:    if (process.env.NODE_ENV !==
+ 'production') {
+node_modules\workbox-strategies\src\Networ
+kFirst.ts:71:    if (process.env.NODE_ENV 
+!== 'production') {
+node_modules\workbox-strategies\src\Networ
+kFirst.ts:93:    if (process.env.NODE_ENV 
+!== 'production') {
+node_modules\workbox-strategies\src\Networ
+kFirst.ts:135:    if (process.env.NODE_ENV
+ !== 'production') {
+node_modules\workbox-strategies\src\Networ
+kFirst.ts:174:          if (process.env.NO
+DE_ENV !== 'production') {
+node_modules\workbox-strategies\src\Networ
+kFirst.ts:230:    if (process.env.NODE_ENV
+ !== 'production') {
+node_modules\workbox-strategies\src\Networ
+kFirst.ts:244:      if (process.env.NODE_E
+NV !== 'production') {
+node_modules\workbox-strategies\src\Networ
+kOnly.ts:65:    if (process.env.NODE_ENV !
+== 'production') {
+node_modules\workbox-strategies\src\Networ
+kOnly.ts:102:    if (process.env.NODE_ENV 
+!== 'production') {
+node_modules\workbox-strategies\src\StaleW
+hileRevalidate.ts:74:    if (process.env.N
+ODE_ENV !== 'production') {
+node_modules\workbox-strategies\src\StaleW
+hileRevalidate.ts:93:      if (process.env
+.NODE_ENV !== 'production') {
+node_modules\workbox-strategies\src\StaleW
+hileRevalidate.ts:100:      if (process.en
+v.NODE_ENV !== 'production') {
+node_modules\workbox-strategies\src\StaleW
+hileRevalidate.ts:117:    if (process.env.
+NODE_ENV !== 'production') {
+node_modules\workbox-strategies\src\Strate
+gy.ts:209:      } else if (process.env.NOD
+E_ENV !== 'production') {
+node_modules\workbox-strategies\src\Strate
+gyHandler.ts:108:    if (process.env.NODE_
+ENV !== 'production') {
+node_modules\workbox-strategies\src\Strate
+gyHandler.ts:161:        if (process.env.N
+ODE_ENV !== 'production') {
+node_modules\workbox-strategies\src\Strate
+gyHandler.ts:204:      if (process.env.NOD
+E_ENV !== 'production') {
+node_modules\workbox-strategies\src\Strate
+gyHandler.ts:221:      if (process.env.NOD
+E_ENV !== 'production') {
+node_modules\workbox-strategies\src\Strate
+gyHandler.ts:284:    if (process.env.NODE_
+ENV !== 'production') {
+node_modules\workbox-strategies\src\Strate
+gyHandler.ts:329:    if (process.env.NODE_
+ENV !== 'production') {
+node_modules\workbox-strategies\src\Strate
+gyHandler.ts:350:      if (process.env.NOD
+E_ENV !== 'production') {
+node_modules\workbox-strategies\src\Strate
+gyHandler.ts:365:      if (process.env.NOD
+E_ENV !== 'production') {
+node_modules\workbox-strategies\src\Strate
+gyHandler.ts:391:    if (process.env.NODE_
+ENV !== 'production') {
+node_modules\workbox-strategies\src\Strate
+gyHandler.ts:611:      if (process.env.NOD
+E_ENV !== 'production') {
+node_modules\workbox-streams\src\concatena
+te.ts:59:  if (process.env.NODE_ENV !== 'p
+roduction') {
+node_modules\workbox-streams\src\concatena
+te.ts:89:            if (process.env.NODE_
+ENV !== 'production') {
+node_modules\workbox-streams\src\concatena
+te.ts:99:              if (process.env.NOD
+E_ENV !== 'production') {
+node_modules\workbox-streams\src\concatena
+te.ts:126:          if (process.env.NODE_E
+NV !== 'production') {
+node_modules\workbox-streams\src\concatena
+te.ts:135:      if (process.env.NODE_ENV !
+== 'production') {
+node_modules\workbox-streams\src\strategy.
+ts:64:    if (process.env.NODE_ENV !== 'pr
+oduction') {
+node_modules\workbox-webpack-plugin\node_m
+odules\workbox-build\build\types.d.ts:243:
+     * here, the `process.env.NODE_ENV` va
+lue will be used, and failing that, it
+node_modules\workbox-webpack-plugin\node_m
+odules\workbox-build\src\lib\bundle.ts:50:
+      'process.env.NODE_ENV': JSON.stringi
+fy(mode),
+node_modules\workbox-webpack-plugin\node_m
+odules\workbox-build\src\types.ts:259:   *
+ here, the `process.env.NODE_ENV` value wi
+ll be used, and failing that, it
+node_modules\workbox-window\src\Workbox.ts
+:103:    if (process.env.NODE_ENV !== 'pro
+duction') {
+node_modules\workbox-window\src\Workbox.ts
+:166:          if (process.env.NODE_ENV !=
+= 'production') {
+node_modules\workbox-window\src\Workbox.ts
+:182:    if (process.env.NODE_ENV !== 'pro
+duction') {
+node_modules\workbox-window\src\Workbox.ts
+:233:      if (process.env.NODE_ENV !== 'p
+roduction') {
+node_modules\workbox-window\src\Workbox.ts
+:373:      if (process.env.NODE_ENV !== 'p
+roduction') {
+node_modules\workbox-window\src\Workbox.ts
+:432:      if (process.env.NODE_ENV !== 'p
+roduction') {
+node_modules\workbox-window\src\Workbox.ts
+:493:          if (process.env.NODE_ENV !=
+= 'production') {
+node_modules\workbox-window\src\Workbox.ts
+:515:    if (process.env.NODE_ENV !== 'pro
+duction') {
+node_modules\workbox-window\src\Workbox.ts
+:574:      if (process.env.NODE_ENV !== 'p
+roduction') {
+scripts\check-err.ts:6:const supabaseServi
+ceKey = process.env.SUPABASE_SERVICE_ROLE_
+KEY || '';
+scripts\check-events.ts:6:const supabaseSe
+rviceKey = process.env.SUPABASE_SERVICE_RO
+LE_KEY || '';
+scripts\check-fields.ts:6:const supabaseSe
+rviceKey = process.env.SUPABASE_SERVICE_RO
+LE_KEY || '';
+scripts\check-purge-err.ts:6:const supabas
+eServiceKey = process.env.SUPABASE_SERVICE
+_ROLE_KEY || '';
+scripts\check-table.ts:6:const supabaseSer
+viceKey = process.env.SUPABASE_SERVICE_ROL
+E_KEY || '';
+scripts\check_clubs.ts:6:const supabaseKey
+ = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+scripts\test-phase2b2a-penalty.ts:4:    en
+abled: process.env.FF_TERRITORY_ABUSE_PENA
+LTY_ENABLED === 'true',
+scripts\test-phase2b2a-penalty.ts:5:    ra
+tio: parseFloat(process.env.FF_TERRITORY_A
+BUSE_PENALTY_RATIO || '0.1'),
+scripts\test-phase2b2a-penalty.ts:6:    ze
+roRewardEnabled: process.env.FF_TERRITORY_
+ABUSE_PENALTY_ZERO_REWARD_ENABLED === 'tru
+e',
+scripts\test-phase2b2a-penalty.ts:7:    al
+lowUserIds: (process.env.FF_TERRITORY_ABUS
+E_PENALTY_ALLOW_USER_IDS || '').split(',')
+.map((s: string) => s.trim()).filter(Boole
+an),
+scripts\test-phase2b2a-penalty.ts:8:    al
+lowClubIds: (process.env.FF_TERRITORY_ABUS
+E_PENALTY_ALLOW_CLUB_IDS || '').split(',')
+.map((s: string) => s.trim()).filter(Boole
+an),
+scripts\test-phase2b2a-penalty.ts:9:    lo
+okbackHours: parseInt(process.env.FF_TERRI
+TORY_ABUSE_PENALTY_LOOKBACK_HOURS || '24',
+ 10),
+scripts\test-phase2b2a-penalty.ts:10:    m
+inFlips: parseInt(process.env.FF_TERRITORY
+_ABUSE_PENALTY_MIN_FLIPS || '3', 10),
+scripts\test-phase2b2b.ts:6:const supabase
+ServiceKey = process.env.SUPABASE_SERVICE_
+ROLE_KEY || '';
+scripts\test-supabase-admin.ts:8:const sup
+abaseKey = process.env.SUPABASE_SERVICE_RO
+LE_KEY!;
+scripts\test_approved_clubs.ts:6:const sup
+abaseKey = process.env.SUPABASE_SERVICE_RO
+LE_KEY!;
+scripts\verify-step4.ts:38:            hea
+ders: { 'Authorization': `Bearer ${process
+.env.CRON_SECRET || 'cron-secret'}` }
+store\useGameStore.ts:815:if (typeof windo
+w !== 'undefined' && process.env.NODE_ENV 
+=== 'development') {
+instrumentation.ts:4:    if (process.env.N
+EXT_RUNTIME === "nodejs") {
+instrumentation.ts:8:    if (process.env.N
+EXT_RUNTIME === "edge") {
+sentry.client.config.ts:11:    tracesSampl
+eRate: process.env.NODE_ENV === "productio
+n" ? 0.1 : 1.0,
+sentry.client.config.ts:18:    debug: proc
+ess.env.NODE_ENV !== "production",
+sentry.edge.config.ts:7:    tracesSampleRa
+te: process.env.NODE_ENV === "production" 
+? 0.1 : 1.0,
+sentry.edge.config.ts:9:    debug: process
+.env.NODE_ENV !== "production",
+sentry.server.config.ts:7:    tracesSample
+Rate: process.env.NODE_ENV === "production
+" ? 0.1 : 1.0,
+sentry.server.config.ts:9:    debug: proce
+ss.env.NODE_ENV !== "production",
+test-link.ts:4:const supabaseServiceKey = 
+process.env.SUPABASE_SERVICE_ROLE_KEY!
+
+

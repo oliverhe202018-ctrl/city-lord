@@ -1,0 +1,52 @@
+﻿
+app\api\user\location\route.ts:9:const sup
+abaseServiceRoleKey = process.env.SUPABASE
+_SERVICE_ROLE_KEY!;
+lib\admin\auth.ts:5:const SECRET_KEY = pro
+cess.env.ADMIN_SESSION_SECRET || 'fallback
+-secret-for-development-only'
+lib\supabase\admin.ts:5:const supabaseServ
+iceRoleKey = process.env.SUPABASE_SERVICE_
+ROLE_KEY
+lib\email.ts:8:const ZEPTOMAIL_TOKEN = pro
+cess.env.ZEPTOMAIL_API_KEY || '';
+lib\email.ts:11:const FROM_ADDRESS = proce
+ss.env.ZEPTOMAIL_FROM_ADDRESS || 'noreply@
+citytour.games';
+lib\email.ts:12:const FROM_NAME = process.
+env.ZEPTOMAIL_FROM_NAME || '城市领主安全中心';
+lib\redis.ts:3:const redisUrl = process.en
+v.REDIS_URL || 'redis://localhost:6379'
+node_modules\tiny-invariant\src\tiny-invar
+iant.ts:1:const isProduction: boolean = pr
+ocess.env.NODE_ENV === 'production';
+scripts\check-err.ts:6:const supabaseServi
+ceKey = process.env.SUPABASE_SERVICE_ROLE_
+KEY || '';
+scripts\check-events.ts:6:const supabaseSe
+rviceKey = process.env.SUPABASE_SERVICE_RO
+LE_KEY || '';
+scripts\check-fields.ts:6:const supabaseSe
+rviceKey = process.env.SUPABASE_SERVICE_RO
+LE_KEY || '';
+scripts\check-purge-err.ts:6:const supabas
+eServiceKey = process.env.SUPABASE_SERVICE
+_ROLE_KEY || '';
+scripts\check-table.ts:6:const supabaseSer
+viceKey = process.env.SUPABASE_SERVICE_ROL
+E_KEY || '';
+scripts\check_clubs.ts:6:const supabaseKey
+ = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+scripts\test-phase2b2b.ts:6:const supabase
+ServiceKey = process.env.SUPABASE_SERVICE_
+ROLE_KEY || '';
+scripts\test-supabase-admin.ts:8:const sup
+abaseKey = process.env.SUPABASE_SERVICE_RO
+LE_KEY!;
+scripts\test_approved_clubs.ts:6:const sup
+abaseKey = process.env.SUPABASE_SERVICE_RO
+LE_KEY!;
+test-link.ts:4:const supabaseServiceKey = 
+process.env.SUPABASE_SERVICE_ROLE_KEY!
+
+

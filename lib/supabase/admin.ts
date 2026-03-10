@@ -1,18 +1,24 @@
 import { createClient } from '@supabase/supabase-js'
 
-// Note: access to SUPABASE_SERVICE_ROLE_KEY is server-side only
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+let _adminClient: ReturnType<typeof createClient> | null = null;
 
-if (!supabaseUrl || !supabaseServiceRoleKey) {
-    throw new Error('Missing Supabase environment variables for Admin client')
-}
+export const supabaseAdmin = new Proxy({} as ReturnType<typeof createClient>, {
+    get(target, prop) {
+        if (!_adminClient) {
+            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+            const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-// Create a Supabase client with the SERVICE_ROLE_KEY
-// This client has admin privileges and should ONLY be used in Server Actions or API routes
-export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
-    auth: {
-        autoRefreshToken: false,
-        persistSession: false
+            if (!supabaseUrl || !supabaseServiceRoleKey) {
+                throw new Error('Missing Supabase environment variables for Admin client');
+            }
+
+            _adminClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
+                auth: {
+                    autoRefreshToken: false,
+                    persistSession: false
+                }
+            });
+        }
+        return Reflect.get(_adminClient, prop);
     }
-})
+});
