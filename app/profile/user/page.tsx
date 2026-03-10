@@ -182,6 +182,16 @@ function UserProfileContent() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                    {/* Edit profile (Self view) */}
+                    {data.isSelf && (
+                        <button
+                            onClick={() => router.push('/profile')}
+                            className="px-3 py-1.5 rounded-full bg-muted/20 text-foreground text-sm font-medium border border-border hover:bg-muted/30 transition-colors"
+                        >
+                            编辑资料
+                        </button>
+                    )}
+
                     {/* Follow button */}
                     {!data.isSelf && !data.isFollowing && (
                         <button

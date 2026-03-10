@@ -6,19 +6,19 @@ export async function POST(request: Request) {
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    
+
     if (!user) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     }
-    
+
     const body = await request.json()
-    const { cityId, h3Index } = body
-    
+    const { cityId, h3Index, requestId } = body
+
     if (!cityId || !h3Index) {
       return NextResponse.json({ error: 'cityId and h3Index required' }, { status: 400 })
     }
-    
-    const result = await claimTerritory(cityId, h3Index)
+
+    const result = await claimTerritory(cityId, h3Index, requestId)
     return NextResponse.json(result)
   } catch (error: any) {
     console.error('Claim territory error:', error)

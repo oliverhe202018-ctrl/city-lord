@@ -1,0 +1,51 @@
+--- Phase 2B-2A Gray Test Simulation ---
+Environment flags: {
+  "enabled": true,
+  "ratio": 0.1,
+  "zeroRewardEnabled": true,
+  "allowUserIds": [],
+  "allowClubIds": [],
+  "lookbackHours": 24,
+  "minFlips": 3
+}
+
+--- Scenario 1: Normal Claim (User A) ---
+Result: {
+  "success": true,
+  "action": "captured",
+  "scoreChange": 184,
+  "isHotZone": false,
+  "elapsedMs": 2532
+}
+Territory owner: aaa00000-0000-0000-0000-000000000000
+
+--- Scenario 2: Flip 1 (User B captures from A) ---
+Result (Expect full reward because flips < 3): {
+  "success": true,
+  "action": "captured",
+  "scoreChange": 184,
+  "isHotZone": false,
+  "elapsedMs": 3111
+}
+
+--- Scenario 3: Flip 2 (User A captures from B back, making it A->B->A, flip count 2) ---
+Result (Expect full because flips=2): {
+  "success": true,
+  "action": "captured",
+  "scoreChange": 184,
+  "isHotZone": false,
+  "elapsedMs": 3041
+}
+
+--- Scenario 4: Flip 3 (User B captures from A again, flip count 3!) ---
+Result (Expect penalty hit): {
+  "success": true,
+  "action": "captured",
+  "scoreChange": 0,
+  "isHotZone": true,
+  "elapsedMs": 3465
+}
+
+Checking Penalty Table Logs:
+
+ERROR: TypeError: Do not know how to serialize a BigInt

@@ -1,0 +1,213 @@
+﻿
+> city-lord-game@0.2.0 typecheck
+> tsc --noEmit
+
+app/(main)/clubs/manage/page.tsx(73,28): error TS2345: Argument of type '{ userId: string; role: "member" | "owner" | "admin"; joinedAt: string; user: { allow_direct_messages: string | null; allow_recommendations: boolean | null; api_key: string | null; ... 27 more ...; xp: number | null; } | null; }[]' is not assignable to parameter of type 'SetStateAction<MemberItem[]>'.
+  Type '{ userId: string; role: "member" | "owner" | "admin"; joinedAt: string; user: { allow_direct_messages: string | null; allow_recommendations: boolean | null; api_key: string | null; ... 27 more ...; xp: number | null; } | null; }[]' is not assignable to type 'MemberItem[]'.
+    Type '{ userId: string; role: "member" | "owner" | "admin"; joinedAt: string; user: { allow_direct_messages: string | null; allow_recommendations: boolean | null; api_key: string | null; ... 27 more ...; xp: number | null; } | null; }' is not assignable to type 'MemberItem'.
+      Types of property 'user' are incompatible.
+        Type '{ allow_direct_messages: string | null; allow_recommendations: boolean | null; api_key: string | null; avatar_url: string | null; background_url: string | null; badges: string[] | null; ... 24 more ...; xp: number | null; } | null' is not assignable to type '{ id: string; nickname: string; avatar_url: string | null; level: number; } | null'.
+          Type '{ allow_direct_messages: string | null; allow_recommendations: boolean | null; api_key: string | null; avatar_url: string | null; background_url: string | null; badges: string[] | null; ... 24 more ...; xp: number | null; }' is not assignable to type '{ id: string; nickname: string; avatar_url: string | null; level: number; }'.
+            Types of property 'nickname' are incompatible.
+              Type 'string | null' is not assignable to type 'string'.
+                Type 'null' is not assignable to type 'string'.
+app/(main)/clubs/manage/page.tsx(79,29): error TS2345: Argument of type '{ userId: string; name: string; avatar: string | undefined; level: number; appliedAt: string; }[]' is not assignable to parameter of type 'SetStateAction<JoinRequest[]>'.
+  Type '{ userId: string; name: string; avatar: string | undefined; level: number; appliedAt: string; }[]' is not assignable to type 'JoinRequest[]'.
+    Type '{ userId: string; name: string; avatar: string | undefined; level: number; appliedAt: string; }' is not assignable to type 'JoinRequest'.
+      Types of property 'avatar' are incompatible.
+        Type 'string | undefined' is not assignable to type 'string | null'.
+          Type 'undefined' is not assignable to type 'string | null'.
+app/(main)/clubs/manage/page.tsx(103,60): error TS2345: Argument of type 'RoleType' is not assignable to parameter of type '"member" | "admin" | "vice_president" | "elite"'.
+  Type '"owner"' is not assignable to type '"member" | "admin" | "vice_president" | "elite"'.
+app/(main)/clubs/manage/page.tsx(127,69): error TS2345: Argument of type '{ userId: string; role: "member" | "owner" | "admin"; joinedAt: string; user: { allow_direct_messages: string | null; allow_recommendations: boolean | null; api_key: string | null; ... 27 more ...; xp: number | null; } | null; }[]' is not assignable to parameter of type 'SetStateAction<MemberItem[]>'.
+  Type '{ userId: string; role: "member" | "owner" | "admin"; joinedAt: string; user: { allow_direct_messages: string | null; allow_recommendations: boolean | null; api_key: string | null; ... 27 more ...; xp: number | null; } | null; }[]' is not assignable to type 'MemberItem[]'.
+    Type '{ userId: string; role: "member" | "owner" | "admin"; joinedAt: string; user: { allow_direct_messages: string | null; allow_recommendations: boolean | null; api_key: string | null; ... 27 more ...; xp: number | null; } | null; }' is not assignable to type 'MemberItem'.
+      Types of property 'user' are incompatible.
+        Type '{ allow_direct_messages: string | null; allow_recommendations: boolean | null; api_key: string | null; avatar_url: string | null; background_url: string | null; badges: string[] | null; ... 24 more ...; xp: number | null; } | null' is not assignable to type '{ id: string; nickname: string; avatar_url: string | null; level: number; } | null'.
+          Type '{ allow_direct_messages: string | null; allow_recommendations: boolean | null; api_key: string | null; avatar_url: string | null; background_url: string | null; badges: string[] | null; ... 24 more ...; xp: number | null; }' is not assignable to type '{ id: string; nickname: string; avatar_url: string | null; level: number; }'.
+            Types of property 'nickname' are incompatible.
+              Type 'string | null' is not assignable to type 'string'.
+                Type 'null' is not assignable to type 'string'.
+app/actions/activities.ts(34,22): error TS18047: 'run.distance' is possibly 'null'.
+app/actions/activities.ts(34,44): error TS18047: 'run.distance' is possibly 'null'.
+app/actions/activities.ts(36,51): error TS18047: 'run.distance' is possibly 'null'.
+app/actions/activities.ts(36,51): error TS2345: Argument of type 'number | null' is not assignable to parameter of type 'number'.
+  Type 'null' is not assignable to type 'number'.
+app/actions/activities.ts(36,73): error TS18047: 'run.distance' is possibly 'null'.
+app/actions/activities.ts(55,24): error TS18047: 'data.distance' is possibly 'null'.
+app/actions/activities.ts(55,47): error TS18047: 'data.distance' is possibly 'null'.
+app/actions/activities.ts(61,56): error TS2345: Argument of type 'number | null' is not assignable to parameter of type 'number'.
+  Type 'null' is not assignable to type 'number'.
+app/actions/activities.ts(63,26): error TS2339: Property 'splits' does not exist on type '{ area: number; club_id: string | null; created_at: string | null; distance: number | null; duration: number; id: string; idempotency_key: string | null; path: Json; polygons: Json; ... 4 more ...; user_id: string | null; }'.
+app/actions/activities.ts(63,55): error TS2345: Argument of type 'number | null' is not assignable to parameter of type 'number'.
+  Type 'null' is not assignable to type 'number'.
+app/actions/badge.ts(297,6): error TS2339: Property 'from' does not exist on type 'Promise<SupabaseClient<Database, "public", "public", { Tables: { _prisma_migrations: { Row: { applied_steps_count: number; checksum: string; finished_at: string | null; id: string; logs: string | null; migration_name: string; rolled_back_at: string | null; started_at: string; }; Insert: { ...; }; Update: { ...; }; R...'.
+app/actions/badge.ts(305,6): error TS2339: Property 'from' does not exist on type 'Promise<SupabaseClient<Database, "public", "public", { Tables: { _prisma_migrations: { Row: { applied_steps_count: number; checksum: string; finished_at: string | null; id: string; logs: string | null; migration_name: string; rolled_back_at: string | null; started_at: string; }; Insert: { ...; }; Update: { ...; }; R...'.
+app/actions/badge.ts(309,49): error TS7006: Parameter 'ub' implicitly has an 'any' type.
+app/actions/badge.ts(335,10): error TS2339: Property 'from' does not exist on type 'Promise<SupabaseClient<Database, "public", "public", { Tables: { _prisma_migrations: { Row: { applied_steps_count: number; checksum: string; finished_at: string | null; id: string; logs: string | null; migration_name: string; rolled_back_at: string | null; started_at: string; }; Insert: { ...; }; Update: { ...; }; R...'.
+app/actions/city.ts(22,31): error TS2339: Property 'id' does not exist on type 'never'.
+app/actions/city.ts(25,13): error TS2339: Property 'data' does not exist on type '{ single: () => Promise<{ data: null; error: null; }>; maybeSingle: () => Promise<{ data: null; error: null; }>; order: (col: string, opts?: any) => { limit: (n: number) => Promise<{ data: never[]; error: null; }>; }; in: () => { ...; }; is: () => { ...; }; }'.
+app/actions/city.ts(25,29): error TS2339: Property 'error' does not exist on type '{ single: () => Promise<{ data: null; error: null; }>; maybeSingle: () => Promise<{ data: null; error: null; }>; order: (col: string, opts?: any) => { limit: (n: number) => Promise<{ data: never[]; error: null; }>; }; in: () => { ...; }; is: () => { ...; }; }'.
+app/actions/city.ts(86,33): error TS2554: Expected 0 arguments, but got 1.
+app/actions/city.ts(96,51): error TS2339: Property 'id' does not exist on type 'never'.
+app/actions/city.ts(121,27): error TS2339: Property 'id' does not exist on type 'never'.
+app/actions/city.ts(151,28): error TS2339: Property 'id' does not exist on type 'never'.
+app/actions/city.ts(162,45): error TS2339: Property 'id' does not exist on type 'never'.
+app/actions/city.ts(177,28): error TS2339: Property 'id' does not exist on type 'never'.
+app/actions/city.ts(207,42): error TS2339: Property 'id' does not exist on type 'never'.
+app/actions/city.ts(208,78): error TS2339: Property 'id' does not exist on type 'never'.
+app/actions/city.ts(230,54): error TS2339: Property 'id' does not exist on type 'never'.
+app/actions/city.ts(236,43): error TS2339: Property 'id' does not exist on type 'never'.
+app/actions/city.ts(238,22): error TS2339: Property 'id' does not exist on type 'never'.
+app/actions/city.ts(258,33): error TS2339: Property 'id' does not exist on type 'never'.
+app/actions/city.ts(356,33): error TS2554: Expected 0 arguments, but got 1.
+app/actions/city.ts(364,25): error TS2339: Property 'id' does not exist on type 'never'.
+app/actions/city.ts(365,6): error TS2339: Property 'eq' does not exist on type '{ single: () => Promise<{ data: null; error: null; }>; maybeSingle: () => Promise<{ data: null; error: null; }>; order: (col: string, opts?: any) => { limit: (n: number) => Promise<{ data: never[]; error: null; }>; }; in: () => { ...; }; is: () => { ...; }; }'.
+app/actions/city.ts(381,18): error TS2554: Expected 0-1 arguments, but got 2.
+app/actions/city.ts(383,6): error TS2339: Property 'gt' does not exist on type '{ single: () => Promise<{ data: null; error: null; }>; maybeSingle: () => Promise<{ data: null; error: null; }>; order: (col: string, opts?: any) => { limit: (n: number) => Promise<{ data: never[]; error: null; }>; }; in: () => { ...; }; is: () => { ...; }; }'.
+app/actions/city.ts(406,33): error TS2554: Expected 0 arguments, but got 1.
+app/actions/city.ts(414,21): error TS2339: Property 'id' does not exist on type 'never'.
+app/actions/city.ts(419,6): error TS2339: Property 'select' does not exist on type 'Promise<{ data: null; error: null; select: () => { single: () => Promise<{ data: null; error: null; }>; }; }>'.
+app/actions/club-dynamics.actions.ts(62,17): error TS2353: Object literal may only specify known properties, and 'profiles' does not exist in type 'club_activitiesInclude<DefaultArgs>'.
+app/actions/club-dynamics.actions.ts(96,33): error TS2365: Operator '<' cannot be applied to types 'Decimal' and 'number'.
+app/actions/club-dynamics.actions.ts(97,33): error TS2345: Argument of type 'Decimal' is not assignable to parameter of type 'number'.
+app/actions/club-dynamics.actions.ts(98,23): error TS2362: The left-hand side of an arithmetic operation must be of type 'any', 'number', 'bigint' or an enum type.
+app/actions/club-dynamics.actions.ts(105,28): error TS18047: 'r.created_at' is possibly 'null'.
+app/actions/club-dynamics.actions.ts(131,71): error TS2339: Property 'badge_name' does not exist on type '{ profiles: { nickname: string | null; avatar_url: string | null; }; } & { id: string; user_id: string; badge_id: string; earned_at: Date | null; }'.
+app/actions/club-dynamics.actions.ts(133,28): error TS18047: 'b.earned_at' is possibly 'null'.
+app/actions/club.ts(101,15): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(values: { audit_reason?: string | null | undefined; avatar_url?: string | null | undefined; created_at?: string | undefined; description?: string | null | undefined; id?: string | undefined; ... 9 more ...; total_area?: number | ... 1 more ... | undefined; }, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.
+    Argument of type '{ name: string; description: string | null; owner_id: string; avatar_url: string | null; province: string | null; is_public: boolean; status: string; level: string; rating: number; member_count: number; territory: string; }' is not assignable to parameter of type '{ audit_reason?: string | null | undefined; avatar_url?: string | null | undefined; created_at?: string | undefined; description?: string | null | undefined; id?: string | undefined; ... 9 more ...; total_area?: number | ... 1 more ... | undefined; }'.
+      Types of property 'status' are incompatible.
+        Type 'string' is not assignable to type '"pending" | "active" | "rejected" | "suspended" | null | undefined'.
+  Overload 2 of 2, '(values: { audit_reason?: string | null | undefined; avatar_url?: string | null | undefined; created_at?: string | undefined; description?: string | null | undefined; id?: string | undefined; ... 9 more ...; total_area?: number | ... 1 more ... | undefined; }[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.
+    Argument of type '{ name: string; description: string | null; owner_id: string; avatar_url: string | null; province: string | null; is_public: boolean; status: string; level: string; rating: number; member_count: number; territory: string; }' is not assignable to parameter of type '{ audit_reason?: string | null | undefined; avatar_url?: string | null | undefined; created_at?: string | undefined; description?: string | null | undefined; id?: string | undefined; ... 9 more ...; total_area?: number | ... 1 more ... | undefined; }[]'.
+      Type '{ name: string; description: string | null; owner_id: string; avatar_url: string | null; province: string | null; is_public: boolean; status: string; level: string; rating: number; member_count: number; territory: string; }' is missing the following properties from type '{ audit_reason?: string | null | undefined; avatar_url?: string | null | undefined; created_at?: string | undefined; description?: string | null | undefined; id?: string | undefined; ... 9 more ...; total_area?: number | ... 1 more ... | undefined; }[]': length, pop, push, concat, and 35 more.
+app/actions/club.ts(198,11): error TS2322: Type '{ total_area: number; rating: number; level: string; status: "pending" | "active" | "rejected"; member_count: number; territory: string; creator_name: string; creator_avatar: string | null; ... 9 more ...; is_public: boolean | null; }[]' is not assignable to type 'PendingClubDTO[]'.
+  Type '{ total_area: number; rating: number; level: string; status: "pending" | "active" | "rejected"; member_count: number; territory: string; creator_name: string; creator_avatar: string | null; ... 9 more ...; is_public: boolean | null; }' is not assignable to type 'PendingClubDTO'.
+    Types of property 'province' are incompatible.
+      Type 'string | null' is not assignable to type 'string | undefined'.
+        Type 'null' is not assignable to type 'string | undefined'.
+app/actions/club.ts(241,11): error TS2322: Type '{ total_area: number; rating: number; level: string; status: "pending" | "active" | "rejected"; member_count: number; territory: string; creator_name: string; created_at: string; profiles_clubs_owner_idToprofiles: { ...; } | null; ... 7 more ...; is_public: boolean | null; }[]' is not assignable to type 'ApprovedClubDTO[]'.
+  Type '{ total_area: number; rating: number; level: string; status: "pending" | "active" | "rejected"; member_count: number; territory: string; creator_name: string; created_at: string; profiles_clubs_owner_idToprofiles: { ...; } | null; ... 7 more ...; is_public: boolean | null; }' is not assignable to type 'ApprovedClubDTO'.
+    Types of property 'province' are incompatible.
+      Type 'string | null' is not assignable to type 'string | undefined'.
+        Type 'null' is not assignable to type 'string | undefined'.
+app/actions/club.ts(487,26): error TS2345: Argument of type '"increment_club_member_count"' is not assignable to parameter of type '"decay_territories_daily" | "update_user_location_rpc"'.
+app/actions/club.ts(527,22): error TS2345: Argument of type '"decrement_club_member_count"' is not assignable to parameter of type '"decay_territories_daily" | "update_user_location_rpc"'.
+app/actions/club.ts(613,53): error TS2345: Argument of type 'string | null' is not assignable to parameter of type 'string'.
+  Type 'null' is not assignable to type 'string'.
+app/actions/club.ts(1432,40): error TS2538: Type 'null' cannot be used as an index type.
+app/actions/mission.ts(181,54): error TS2345: Argument of type '"increment_user_stats"' is not assignable to parameter of type '"decay_territories_daily" | "update_user_location_rpc"'.
+app/actions/social.ts(639,28): error TS2345: Argument of type 'string | null' is not assignable to parameter of type 'string'.
+  Type 'null' is not assignable to type 'string'.
+app/actions/social.ts(645,30): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(value: string | number | Date): Date', gave the following error.
+    Argument of type 'string | null' is not assignable to parameter of type 'string | number | Date'.
+      Type 'null' is not assignable to type 'string | number | Date'.
+  Overload 2 of 4, '(value: string | number): Date', gave the following error.
+    Argument of type 'string | null' is not assignable to parameter of type 'string | number'.
+      Type 'null' is not assignable to type 'string | number'.
+app/admin/badges/page.tsx(50,18): error TS2322: Type '{ image: string; rarity: string; requirement_value: number; maxProgress: number; name: string; level: string | null; id: string; description: string | null; code: string; condition_value: number | null; ... 5 more ...; tier: string | null; }[]' is not assignable to type 'Badge[]'.
+  Type '{ image: string; rarity: string; requirement_value: number; maxProgress: number; name: string; level: string | null; id: string; description: string | null; code: string; condition_value: number | null; ... 5 more ...; tier: string | null; }' is not assignable to type 'Badge'.
+    Types of property 'description' are incompatible.
+      Type 'string | null' is not assignable to type 'string'.
+        Type 'null' is not assignable to type 'string'.
+app/admin/feedback/page.tsx(60,9): error TS2589: Type instantiation is excessively deep and possibly infinite.
+app/admin/feedback/page.tsx(61,17): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "profiles" | "route_plans" | "training_plans" | "seasons" | "user_season_stats" | "scheduled_workouts" | "admin_logs" | "app_admins" | "badges" | "challenges" | "club_members" | ... 47 more ... | "user_task_progress"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"feedback"' is not assignable to parameter of type '"profiles" | "route_plans" | "training_plans" | "seasons" | "user_season_stats" | "scheduled_workouts" | "admin_logs" | "app_admins" | "badges" | "challenges" | "club_members" | ... 47 more ... | "user_task_progress"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.1"; }, { Tables: { _prisma_migrations: { Row: { applied_steps_count: number; checksum: string; finished_at: string | null; id: string; logs: string | null; migration_name: string; rolled_back_at: string | null; started_at: string; }; Insert: { ...; }; Update: { ...; }; Relationships: []; }; ... 57 more ...; watch_activities: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"feedback"' is not assignable to parameter of type 'never'.
+app/admin/logs/page.tsx(161,40): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(value: string | number | Date): Date', gave the following error.
+    Argument of type 'string | null' is not assignable to parameter of type 'string | number | Date'.
+      Type 'null' is not assignable to type 'string | number | Date'.
+  Overload 2 of 4, '(value: string | number): Date', gave the following error.
+    Argument of type 'string | null' is not assignable to parameter of type 'string | number'.
+      Type 'null' is not assignable to type 'string | number'.
+app/admin/page.tsx(37,56): error TS2345: Argument of type '"get_user_growth_trend"' is not assignable to parameter of type '"decay_territories_daily" | "update_user_location_rpc"'.
+app/admin/rooms/page.tsx(193,28): error TS18047: 'room.host_id' is possibly 'null'.
+app/admin/rooms/page.tsx(198,29): error TS2339: Property 'participants_count' does not exist on type 'Room'.
+app/api/cron/territory-decay/route.ts(36,25): error TS2353: Object literal may only specify known properties, and 'created_at' does not exist in type 'territory_hp_logsWhereInput'.
+app/api/cron/territory-decay/route.ts(54,17): error TS2353: Object literal may only specify known properties, and 'created_at' does not exist in type 'territory_hp_logsWhereInput'.
+app/api/social/search/route.ts(93,17): error TS2322: Type 'string | null' is not assignable to type 'string'.
+  Type 'null' is not assignable to type 'string'.
+app/feedback/actions.ts(35,47): error TS2339: Property 'auth' does not exist on type 'Promise<SupabaseClient<Database, "public", "public", { Tables: { _prisma_migrations: { Row: { applied_steps_count: number; checksum: string; finished_at: string | null; id: string; logs: string | null; migration_name: string; rolled_back_at: string | null; started_at: string; }; Insert: { ...; }; Update: { ...; }; R...'.
+app/feedback/actions.ts(52,53): error TS2339: Property 'storage' does not exist on type 'Promise<SupabaseClient<Database, "public", "public", { Tables: { _prisma_migrations: { Row: { applied_steps_count: number; checksum: string; finished_at: string | null; id: string; logs: string | null; migration_name: string; rolled_back_at: string | null; started_at: string; }; Insert: { ...; }; Update: { ...; }; R...'.
+app/feedback/actions.ts(62,48): error TS2339: Property 'storage' does not exist on type 'Promise<SupabaseClient<Database, "public", "public", { Tables: { _prisma_migrations: { Row: { applied_steps_count: number; checksum: string; finished_at: string | null; id: string; logs: string | null; migration_name: string; rolled_back_at: string | null; started_at: string; }; Insert: { ...; }; Update: { ...; }; R...'.
+app/feedback/actions.ts(71,8): error TS2339: Property 'from' does not exist on type 'Promise<SupabaseClient<Database, "public", "public", { Tables: { _prisma_migrations: { Row: { applied_steps_count: number; checksum: string; finished_at: string | null; id: string; logs: string | null; migration_name: string; rolled_back_at: string | null; started_at: string; }; Insert: { ...; }; Update: { ...; }; R...'.
+app/lord-center/page.tsx(23,12): error TS2339: Property 'userStats' does not exist on type 'GameStore'.
+components/citylord/achievements/achievement-wall.tsx(266,46): error TS7006: Parameter 'p' implicitly has an 'any' type.
+components/citylord/club/ClubManageDrawer.tsx(508,7): error TS2322: Type '{ children: Element; open: boolean; onOpenChange: () => void; snapPoints: number[]; activeSnapPoint: string | number | null; onActiveSnapPointChange: Dispatch<SetStateAction<string | number | null>>; dismissible: true; repositionInputs: false; }' is not assignable to type 'IntrinsicAttributes & DialogProps'.
+  Property 'onActiveSnapPointChange' does not exist on type 'IntrinsicAttributes & DialogProps'.
+components/citylord/club/CreateClubDrawer.tsx(128,7): error TS2322: Type '{ children: Element; open: boolean; onOpenChange: (open: boolean) => false | void; snapPoints: number[]; activeSnapPoint: string | number | null; onActiveSnapPointChange: Dispatch<SetStateAction<...>>; dismissible: true; repositionInputs: false; }' is not assignable to type 'IntrinsicAttributes & DialogProps'.
+  Property 'onActiveSnapPointChange' does not exist on type 'IntrinsicAttributes & DialogProps'.
+components/citylord/club/CreateClubDrawer.tsx(161,17): error TS2322: Type '{ currentAvatarUrl: string; onUploadComplete: (url: string) => void; size: number; cropShape: "rect"; cropAspect: number; }' is not assignable to type 'IntrinsicAttributes & AvatarUploaderProps'.
+  Property 'cropAspect' does not exist on type 'IntrinsicAttributes & AvatarUploaderProps'.
+components/citylord/map/PlannerClientView.tsx(266,53): error TS2304: Cannot find name 'handleNativeTouch'.
+components/map/AMapView.tsx(95,15): error TS2322: Type 'AMapInstance | null | undefined' is not assignable to type 'Map_2 | null'.
+  Type 'undefined' is not assignable to type 'Map_2 | null'.
+components/map/CityDrawer.tsx(51,7): error TS2322: Type '{ children: Element; open: boolean; onOpenChange: (open: boolean) => false | void; snapPoints: number[]; activeSnapPoint: string | number | null; onActiveSnapPointChange: Dispatch<SetStateAction<...>>; dismissible: true; }' is not assignable to type 'IntrinsicAttributes & DialogProps'.
+  Property 'onActiveSnapPointChange' does not exist on type 'IntrinsicAttributes & DialogProps'.
+components/map/GaodeMap3D.tsx(17,5): error TS2717: Subsequent property declarations must have the same type.  Property 'AMap' must be of type 'typeof AMap', but here has type 'any'.
+components/map/GaodeMap3D.tsx(299,41): error TS2345: Argument of type 'string[]' is not assignable to parameter of type 'string'.
+components/map/GaodeMap3D.tsx(312,19): error TS2339: Property 'features' does not exist on type '{ type: string; geometry: { type: string; coordinates: number[][][]; }; properties: any; }'.
+components/map/GaodeMap3D.tsx(329,37): error TS2339: Property 'features' does not exist on type '{ type: string; geometry: { type: string; coordinates: number[][][]; }; properties: any; }'.
+components/map/GaodeMap3D.tsx(333,31): error TS2339: Property 'health' does not exist on type '{ h3Index: string; color: string; height: number; }'.
+components/map/GaodeMap3D.tsx(402,11): error TS2322: Type 'number[][]' is not assignable to type 'LngLatLike[] | LngLatLike[][] | undefined'.
+  Type 'number[][]' is not assignable to type 'LngLatLike[]'.
+    Type 'number[]' is not assignable to type 'LngLatLike'.
+      Type 'number[]' is not assignable to type '[number, number]'.
+        Target requires 2 element(s) but source may have fewer.
+components/map/GaodeMap3D.tsx(495,11): error TS2322: Type 'number[][]' is not assignable to type 'LngLatLike[] | LngLatLike[][] | undefined'.
+  Type 'number[][]' is not assignable to type 'LngLatLike[]'.
+    Type 'number[]' is not assignable to type 'LngLatLike'.
+      Type 'number[]' is not assignable to type '[number, number]'.
+        Target requires 2 element(s) but source may have fewer.
+components/map/GaodeMap3D.tsx(535,42): error TS2554: Expected 0 arguments, but got 1.
+components/map/layers/ClaimedPolygonLayer.tsx(65,50): error TS2554: Expected 0 arguments, but got 1.
+components/map/layers/ClubKingdomLayer.tsx(73,65): error TS2345: Argument of type '{ zIndex: number; zooms: [number, number]; }' is not assignable to parameter of type 'CustomLayerOption'.
+  Property 'render' is missing in type '{ zIndex: number; zooms: [number, number]; }' but required in type 'CustomLayerOption'.
+components/map/layers/ClubKingdomLayer.tsx(81,21): error TS2339: Property 'render' does not exist on type 'CustomLayer'.
+components/map/layers/KingdomLayer.tsx(69,54): error TS2554: Expected 0 arguments, but got 1.
+components/map/layers/UserMarkerLayer.tsx(94,9): error TS2322: Type 'number[]' is not assignable to type 'LngLat | Vector2 | undefined'.
+  Type 'number[]' is not assignable to type 'Vector2'.
+    Target requires 2 element(s) but source may have fewer.
+components/map/MapHeader.tsx(181,40): error TS2339: Property 'Geocoder' does not exist on type 'typeof AMap'.
+components/map/MapRoot.tsx(238,11): error TS2339: Property 'off' does not exist on type 'AMapInstance'.
+components/map/MapRoot.tsx(239,11): error TS2339: Property 'off' does not exist on type 'AMapInstance'.
+components/map/RunHistoryDrawer.tsx(99,7): error TS2322: Type '{ children: Element; open: boolean; onOpenChange: () => void; snapPoints: number[]; activeSnapPoint: string | number | null; onActiveSnapPointChange: Dispatch<SetStateAction<string | number | null>>; dismissible: true; }' is not assignable to type 'IntrinsicAttributes & DialogProps'.
+  Property 'onActiveSnapPointChange' does not exist on type 'IntrinsicAttributes & DialogProps'.
+components/map/TerritoryLayer.tsx(62,26): error TS2339: Property 'userId' does not exist on type 'City'.
+components/mode/ModeDrawer.tsx(75,7): error TS2322: Type '{ children: Element; open: boolean; onOpenChange: () => void; snapPoints: number[]; activeSnapPoint: string | number | null; onActiveSnapPointChange: Dispatch<SetStateAction<string | number | null>>; dismissible: true; }' is not assignable to type 'IntrinsicAttributes & DialogProps'.
+  Property 'onActiveSnapPointChange' does not exist on type 'IntrinsicAttributes & DialogProps'.
+components/mode/PlayerStatsDrawer.tsx(50,7): error TS2322: Type '{ children: Element; open: boolean; onOpenChange: () => void; snapPoints: number[]; activeSnapPoint: string | number | null; onActiveSnapPointChange: Dispatch<SetStateAction<string | number | null>>; dismissible: true; }' is not assignable to type 'IntrinsicAttributes & DialogProps'.
+  Property 'onActiveSnapPointChange' does not exist on type 'IntrinsicAttributes & DialogProps'.
+components/mode/RoomChat.tsx(71,23): error TS2345: Argument of type '(SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">)[]' is not assignable to parameter of type 'SetStateAction<Message[]>'.
+  Type '(SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">)[]' is not assignable to type 'Message[]'.
+    Type 'SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">' is not assignable to type 'Message'.
+      Type '{ error: true; } & String' is missing the following properties from type 'Message': id, room_id, user_id, content, created_at
+components/mode/RoomDrawer.tsx(271,19): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "profiles" | "route_plans" | "training_plans" | "seasons" | "user_season_stats" | "scheduled_workouts" | "admin_logs" | "app_admins" | "badges" | "challenges" | "club_members" | ... 47 more ... | "user_task_progress"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"run_records"' is not assignable to parameter of type '"profiles" | "route_plans" | "training_plans" | "seasons" | "user_season_stats" | "scheduled_workouts" | "admin_logs" | "app_admins" | "badges" | "challenges" | "club_members" | ... 47 more ... | "user_task_progress"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.1"; }, { Tables: { _prisma_migrations: { Row: { applied_steps_count: number; checksum: string; finished_at: string | null; id: string; logs: string | null; migration_name: string; rolled_back_at: string | null; started_at: string; }; Insert: { ...; }; Update: { ...; }; Relationships: []; }; ... 57 more ...; watch_activities: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"run_records"' is not assignable to parameter of type 'never'.
+lib/data-fetcher.ts(2,30): error TS2307: Cannot find module './CacheManager' or its corresponding type declarations.
+lib/game-logic/mission-checker.ts(26,33): error TS2554: Expected 0 arguments, but got 1.
+lib/game-logic/mission-checker.ts(46,6): error TS2339: Property 'neq' does not exist on type '{ single: () => Promise<{ data: null; error: null; }>; maybeSingle: () => Promise<{ data: null; error: null; }>; order: (col: string, opts?: any) => { limit: (n: number) => Promise<{ data: never[]; error: null; }>; }; in: () => { ...; }; is: () => { ...; }; }'.
+lib/game-logic/mission-checker.ts(137,17): error TS2339: Property 'count' does not exist on type '{ single: () => Promise<{ data: null; error: null; }>; maybeSingle: () => Promise<{ data: null; error: null; }>; order: (col: string, opts?: any) => { limit: (n: number) => Promise<{ data: never[]; error: null; }>; }; in: () => { ...; }; is: () => { ...; }; }'.
+lib/game-logic/mission-checker.ts(139,24): error TS2554: Expected 0-1 arguments, but got 2.
+lib/game-logic/mission-checker.ts(190,10): error TS2339: Property 'eq' does not exist on type 'Promise<{ data: null; error: null; }>'.
+lib/game-logic/mission-service.ts(171,33): error TS2554: Expected 0 arguments, but got 1.
+lib/game-logic/mission-service.ts(191,13): error TS2339: Property 'data' does not exist on type '{ single: () => Promise<{ data: null; error: null; }>; maybeSingle: () => Promise<{ data: null; error: null; }>; order: (col: string, opts?: any) => { limit: (n: number) => Promise<{ data: never[]; error: null; }>; }; in: () => { ...; }; is: () => { ...; }; }'.
+lib/game-logic/mission-service.ts(191,37): error TS2339: Property 'error' does not exist on type '{ single: () => Promise<{ data: null; error: null; }>; maybeSingle: () => Promise<{ data: null; error: null; }>; order: (col: string, opts?: any) => { limit: (n: number) => Promise<{ data: never[]; error: null; }>; }; in: () => { ...; }; is: () => { ...; }; }'.
+lib/game-logic/mission-service.ts(205,55): error TS7006: Parameter 'm' implicitly has an 'any' type.
+lib/game-logic/mission-service.ts(228,21): error TS2339: Property 'updated_at' does not exist on type '{}'.
+lib/game-logic/mission-service.ts(230,44): error TS2339: Property 'updated_at' does not exist on type '{}'.
+lib/game-logic/mission-service.ts(285,10): error TS2339: Property 'in' does not exist on type 'Promise<{ data: null; error: null; }>'.
+scripts/test-notification.ts(14,42): error TS2339: Property 'display_name' does not exist on type '{ badges: string[]; coins: number | null; level: number | null; id: string; created_at: Date; nickname: string | null; avatar_url: string | null; current_exp: number | null; max_exp: number | null; ... 21 more ...; last_social_read_at: Date | null; }'.
+types/supabase.ts(1771,11): error TS2300: Duplicate identifier 'owner_club_id'.
+types/supabase.ts(1772,11): error TS2300: Duplicate identifier 'owner_faction'.
+types/supabase.ts(1773,11): error TS2300: Duplicate identifier 'owner_club_id'.
+types/supabase.ts(1774,11): error TS2300: Duplicate identifier 'owner_faction'.
