@@ -58,7 +58,7 @@ export async function POST(request: Request) {
             }
         }
 
-        // 执行变更
+        // 执行变更 (Prisma)
         await prisma.profiles.update({
             where: { id: user.id },
             data: {
@@ -66,6 +66,23 @@ export async function POST(request: Request) {
                 last_faction_change_at: new Date()
             }
         })
+
+        // Phase 2B-2B: Faction Change Purge
+        const FF_FACTION_PURGE_ENABLED = true; // Feature Flag
+        if (FF_FACTION_PURGE_ENABLED) {
+            try {
+                // 需要使用 supabaseAdmin 来绕过 RLS 强制更新
+                const { supabaseAdmin } = await import('@/lib/supabase/admin');
+                const { error: purgeError } = await supabaseAdmin.rpc('purge_faction_territories', {
+                    p_user_id: user.id
+                });
+                if (purgeError) {
+                    console.error('Failed to purge territories on faction change:', purgeError);
+                }
+            } catch (e) {
+                console.error('Exception purging territories on faction change:', e);
+            }
+        }
 
         return NextResponse.json({
             success: true,

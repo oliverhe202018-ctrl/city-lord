@@ -19,7 +19,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AlertCircle, Edit, Save, Coins, Plus, Zap, RefreshCw } from 'lucide-react'
-import { Database } from '@/types/supabase'
+import { getAdminMissions } from '@/app/actions/admin'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -33,7 +33,17 @@ import {
 // Import default missions to use for seeding
 import { DEFAULT_MISSIONS } from '@/lib/game-logic/mission-service'
 
-type Mission = Database['public']['Tables']['missions']['Row']
+type Mission = {
+  id: string
+  title: string
+  description: string | null
+  type: string
+  target: number
+  reward_coins: number | null
+  reward_experience: number | null
+  frequency: string | null
+  created_at?: string
+}
 
 export default function MissionsPage() {
   const [missions, setMissions] = useState<Mission[]>([])
@@ -65,20 +75,16 @@ export default function MissionsPage() {
     setLoading(true)
     setError(null)
     try {
-      const { data, error } = await supabase
-        .from('missions')
-        .select('*')
-        .order('created_at', { ascending: false })
-
-      if (error) throw error
-      setMissions(data || [])
+      const res = await getAdminMissions()
+      if (!res.success) throw new Error(res.error)
+      setMissions(res.data as Mission[])
     } catch (err: any) {
       console.error('Error fetching missions:', err)
       setError(err.message || '获取任务列表失败')
     } finally {
       setLoading(false)
     }
-  }, [supabase])
+  }, [])
 
   useEffect(() => {
     fetchMissions()
@@ -151,7 +157,7 @@ export default function MissionsPage() {
       await logAction('update_mission', editingMission.id, `修改了任务参数`)
 
       setMissions(prev => prev.map(m =>
-        m.id === editingMission.id ? { ...m, ...formData } : m
+        m.id === editingMission.id ? { ...m, ...formData } as Mission : m
       ))
 
       toast.success('任务已更新')
@@ -191,7 +197,7 @@ export default function MissionsPage() {
 
       await logAction('create_mission', data.id, `创建新任务: ${data.title} (${data.id})`)
 
-      setMissions(prev => [data, ...prev])
+      setMissions(prev => [data as Mission, ...prev])
       toast.success('任务创建成功')
       setIsCreateOpen(false)
       // Reset form
