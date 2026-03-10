@@ -16,10 +16,15 @@ import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { format } from 'date-fns'
 import { Search, AlertCircle, Eye } from 'lucide-react'
-import { Database } from '@/types/supabase'
+import { getAdminUsers } from '@/app/actions/admin'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 
-type Profile = Database['public']['Tables']['profiles']['Row']
+type Profile = {
+  id: string
+  nickname: string | null
+  avatar_url: string | null
+  created_at: string | null
+}
 
 export default function UsersPage() {
   const [profiles, setProfiles] = useState<Profile[]>([])
@@ -28,7 +33,7 @@ export default function UsersPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
 
-  const supabase = createClient()
+  // const supabase = createClient() - removed for Server Action usage
 
   // Debounce search input
   useEffect(() => {
@@ -42,27 +47,16 @@ export default function UsersPage() {
     setLoading(true)
     setError(null)
     try {
-      let query = supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false })
-
-      if (debouncedSearch) {
-        query = query.ilike('nickname', `%${debouncedSearch}%`)
-      }
-
-      const { data, error } = await query
-
-      if (error) throw error
-
-      setProfiles(data || [])
+      const res = await getAdminUsers(debouncedSearch)
+      if (!res.success) throw new Error(res.error)
+      setProfiles(res.data as Profile[])
     } catch (err: any) {
       console.error('Error fetching profiles:', err)
       setError(err.message || '获取用户列表失败')
     } finally {
       setLoading(false)
     }
-  }, [supabase, debouncedSearch])
+  }, [debouncedSearch])
 
   useEffect(() => {
     fetchProfiles()

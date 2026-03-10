@@ -16,13 +16,21 @@ import { Spinner } from '@/components/ui/spinner'
 import { Badge } from '@/components/ui/badge'
 import { format } from 'date-fns'
 import { AlertCircle, Ban, Unlock } from 'lucide-react'
-import { Database } from '@/types/supabase'
+import { getAdminRooms } from '@/app/actions/admin'
 import { toast } from 'sonner'
 
-type Room = Database['public']['Tables']['rooms']['Row'] & {
+type Room = {
+  id: string
+  name: string
+  is_private: boolean
+  host_id: string
+  participants_count: number
+  max_participants: number
+  created_at: string
+  is_banned: boolean
   host_profile?: {
     nickname: string | null
-  }
+  } | null
 }
 
 export default function RoomsPage() {
@@ -37,30 +45,13 @@ export default function RoomsPage() {
     setLoading(true)
     setError(null)
     try {
-      const { data: roomsData, error: roomsError } = await supabase
-        .from('rooms')
-        .select('*')
-        .order('created_at', { ascending: false })
+      const res = await getAdminRooms()
+      if (!res.success) throw new Error(res.error)
 
-      if (roomsError) throw roomsError
-
-      if (!roomsData || roomsData.length === 0) {
-        setRooms([])
-        return
-      }
-
-      // Fetch host profiles manually
-      const hostIds = Array.from(new Set(roomsData.map((room: any) => room.host_id)))
-      const { data: profilesData } = await supabase
-        .from('profiles')
-        .select('id, nickname')
-        .in('id', hostIds)
-
-      const profileMap = new Map(profilesData?.map(p => [p.id, p]))
-
-      const joinedRooms = roomsData.map((room: any) => ({
+      // Get profile as an object or null since the JOIN could return an array or object
+      const joinedRooms = (res.data || []).map((room: any) => ({
         ...room,
-        host_profile: profileMap.get(room.host_id)
+        host_profile: Array.isArray(room.host_profile) ? room.host_profile[0] : room.host_profile
       }))
 
       setRooms(joinedRooms)

@@ -219,12 +219,6 @@ export async function getPendingClubs(): Promise<{ success: true; data: PendingC
 
 export async function getApprovedClubs(): Promise<{ success: true; data: ApprovedClubDTO[] } | { success: false; error: string }> {
   try {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return { success: false, error: 'Unauthorized: User not found' }
-    }
-
     const { data: approvedClubs, error } = await supabaseAdmin
       .from('clubs')
       .select('*, profiles_clubs_owner_idToprofiles:profiles!clubs_owner_id_fkey(nickname)')
@@ -255,11 +249,8 @@ export async function getApprovedClubs(): Promise<{ success: true; data: Approve
 }
 
 export async function approveClub(clubId: string) {
-  const supabase = await createClient()
-  await supabase.auth.getSession()
-
-  // 1. Update club status
-  const { data: club, error } = await supabase
+  // 1. Update club status - using supabaseAdmin to bypass RLS
+  const { data: club, error } = await supabaseAdmin
     .from('clubs')
     .update({ status: 'active' })
     .eq('id', clubId)
@@ -270,10 +261,10 @@ export async function approveClub(clubId: string) {
 
   // 2. Send notification
   if (club && club.owner_id) {
-    await supabase.from('notifications').insert({
+    await supabaseAdmin.from('notifications').insert({
       user_id: club.owner_id,
       title: '俱乐部审核通过',
-      message: `恭喜！您创建的俱乐部“${club.name}”已通过审核，快去管理您的俱乐部吧。`,
+      body: `恭喜！您创建的俱乐部“${club.name}”已通过审核，快去管理您的俱乐部吧。`,
       type: 'system'
     })
   }
@@ -282,11 +273,8 @@ export async function approveClub(clubId: string) {
 }
 
 export async function rejectClub(clubId: string, reason: string) {
-  const supabase = await createClient()
-  await supabase.auth.getSession()
-
-  // 1. Update club status
-  const { data: club, error } = await supabase
+  // 1. Update club status - using supabaseAdmin to bypass RLS
+  const { data: club, error } = await supabaseAdmin
     .from('clubs')
     .update({
       status: 'rejected',
@@ -300,7 +288,7 @@ export async function rejectClub(clubId: string, reason: string) {
 
   // 2. Send notification
   if (club && club.owner_id) {
-    await supabase.from('notifications').insert({
+    await supabaseAdmin.from('notifications').insert({
       user_id: club.owner_id,
       title: '俱乐部审核未通过',
       message: `很遗憾，您的俱乐部“${club.name}”申请未通过。原因：${reason}`,
@@ -516,6 +504,23 @@ export async function leaveClub(clubId: string) {
     .eq('user_id', user.id)
 
   if (error) throw error
+
+  // Phase 2B-2B: Detach territories from club on exit
+  const FF_CLUB_EXIT_DETACHMENT_ENABLED = true; // Feature Flag
+  if (FF_CLUB_EXIT_DETACHMENT_ENABLED) {
+    try {
+      const { error: detachError } = await supabaseAdmin.rpc('detach_club_territories', {
+        p_user_id: user.id,
+        p_club_id: clubId
+      });
+      if (detachError) {
+        console.error('Failed to detach territories on leaveClub:', detachError);
+        // We log the error but don't throw, to not block the leave club action itself
+      }
+    } catch (e) {
+      console.error('Exception detaching territories on leaveClub:', e);
+    }
+  }
 
   // Decrement member count
   await supabase.rpc('decrement_club_member_count', { row_id: clubId })
@@ -833,6 +838,23 @@ export async function kickMember(clubId: string, memberId: string) {
       .eq('user_id', memberId)
 
     if (error) throw error
+
+    // Phase 2B-2B: Detach territories from club on kick
+    const FF_CLUB_EXIT_DETACHMENT_ENABLED = true; // Feature Flag
+    if (FF_CLUB_EXIT_DETACHMENT_ENABLED) {
+      try {
+        const { error: detachError } = await supabaseAdmin.rpc('detach_club_territories', {
+          p_user_id: memberId,
+          p_club_id: clubId
+        });
+        if (detachError) {
+          console.error('Failed to detach territories on kickMember:', detachError);
+          // Log but don't throw to not block the kick action
+        }
+      } catch (e) {
+        console.error('Exception detaching territories on kickMember:', e);
+      }
+    }
 
     // Invalidate cache
     await invalidateCache(`user_club:${memberId}`, `club_detail:${clubId}`)

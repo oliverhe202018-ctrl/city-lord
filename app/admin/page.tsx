@@ -22,29 +22,28 @@ export default function AdminDashboardPage() {
     const fetchData = async () => {
       setLoading(true)
       try {
-        // 1. Get Summary (Custom API)
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_SERVER || ''}/api/admin/dashboard-summary`)
-        const summaryData = await res.json()
+        // Run all queries in parallel
+        const [res, factionRes, trendRes, logsRes] = await Promise.all([
+          fetch(`${process.env.NEXT_PUBLIC_API_SERVER || ''}/api/admin/dashboard-summary`),
+          fetch(`${process.env.NEXT_PUBLIC_API_SERVER || ''}/api/faction/stats`),
+          supabase.rpc('get_user_growth_trend'),
+          supabase
+            .from('admin_logs')
+            .select('id, admin_id, action, target_id, details, created_at')
+            .order('created_at', { ascending: false })
+            .limit(10)
+        ])
+
+        const summaryData = res.ok ? await res.json() : null
         if (summaryData && !summaryData.error) setSummary(summaryData)
 
-        const factionRes = await fetch(`${process.env.NEXT_PUBLIC_API_SERVER || ''}/api/faction/stats`)
         if (factionRes.ok) {
           const factionData = await factionRes.json()
           setFactionStats(factionData)
         }
 
-        // 2. Get Trend (RPC - keep for now if valid, or mock)
-        const { data: trendData } = await supabase.rpc('get_user_growth_trend')
-        if (trendData) setTrend(trendData)
-
-        // 3. Get Logs
-        const { data: logsData } = await supabase
-          .from('admin_logs')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(10)
-        
-        if (logsData) setLogs(logsData)
+        if (trendRes.data) setTrend(trendRes.data)
+        if (logsRes.data) setLogs(logsRes.data)
 
       } catch (error) {
         console.error('Failed to fetch dashboard data:', error)
@@ -85,7 +84,7 @@ export default function AdminDashboardPage() {
             </p>
           </CardContent>
         </Card>
-        
+
         {/* Pending Audits */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -105,7 +104,7 @@ export default function AdminDashboardPage() {
             )}
           </CardContent>
         </Card>
-        
+
         {/* Active Clubs */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -126,14 +125,14 @@ export default function AdminDashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="flex justify-between items-end mb-2">
-               <span className="text-2xl font-bold text-red-500">{redCount}</span>
-               <span className="text-sm text-muted-foreground">vs</span>
-               <span className="text-2xl font-bold text-blue-500">{blueCount}</span>
+              <span className="text-2xl font-bold text-red-500">{redCount}</span>
+              <span className="text-sm text-muted-foreground">vs</span>
+              <span className="text-2xl font-bold text-blue-500">{blueCount}</span>
             </div>
             {/* Mini Progress Bar */}
             <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden flex">
-               <div className="bg-red-500 h-full transition-all duration-500" style={{ width: `${redPercent}%` }} />
-               <div className="bg-blue-500 h-full transition-all duration-500" style={{ width: `${bluePercent}%` }} />
+              <div className="bg-red-500 h-full transition-all duration-500" style={{ width: `${redPercent}%` }} />
+              <div className="bg-blue-500 h-full transition-all duration-500" style={{ width: `${bluePercent}%` }} />
             </div>
           </CardContent>
         </Card>
@@ -155,47 +154,47 @@ export default function AdminDashboardPage() {
                   <AreaChart data={trend}>
                     <defs>
                       <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                    <XAxis 
-                      dataKey="report_date" 
-                      tickLine={false} 
-                      axisLine={false} 
-                      tick={{fontSize: 12, fill: '#6b7280'}}
+                    <XAxis
+                      dataKey="report_date"
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fontSize: 12, fill: '#6b7280' }}
                       tickFormatter={(val) => val.slice(5)} // Show MM-DD
                     />
-                    <YAxis 
-                      tickLine={false} 
-                      axisLine={false} 
-                      tick={{fontSize: 12, fill: '#6b7280'}}
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fontSize: 12, fill: '#6b7280' }}
                       allowDecimals={false}
                     />
-                    <Tooltip 
-                       contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                       cursor={{ stroke: '#9ca3af', strokeWidth: 1, strokeDasharray: '4 4' }}
+                    <Tooltip
+                      contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                      cursor={{ stroke: '#9ca3af', strokeWidth: 1, strokeDasharray: '4 4' }}
                     />
-                    <Area 
-                      type="monotone" 
-                      dataKey="user_count" 
-                      stroke="#3b82f6" 
+                    <Area
+                      type="monotone"
+                      dataKey="user_count"
+                      stroke="#3b82f6"
                       strokeWidth={2}
-                      fillOpacity={1} 
-                      fill="url(#colorCount)" 
+                      fillOpacity={1}
+                      fill="url(#colorCount)"
                     />
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (
                 <div className="flex h-full items-center justify-center text-muted-foreground">
-                   {loading ? "加载中..." : "暂无趋势数据"}
+                  {loading ? "加载中..." : "暂无趋势数据"}
                 </div>
               )}
             </div>
           </CardContent>
         </Card>
-        
+
         {/* Recent Audit Logs */}
         <Card className="col-span-3">
           <CardHeader>
@@ -206,32 +205,32 @@ export default function AdminDashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-               {logs.length > 0 ? (
-                 logs.map((log) => (
-                   <div key={log.id} className="flex items-start gap-3 pb-3 border-b last:border-0 last:pb-0">
-                      <div className="mt-1">
-                         {log.action.includes('reject') || log.action.includes('ban') ? (
-                            <AlertCircle className="h-4 w-4 text-red-500" />
-                         ) : (
-                            <CheckCircle2 className="h-4 w-4 text-green-500" />
-                         )}
-                      </div>
-                      <div className="flex-1 space-y-1">
-                         <p className="text-sm font-medium leading-none">{log.action}</p>
-                         <p className="text-xs text-muted-foreground line-clamp-2">
-                           {log.details || '无详细信息'}
-                         </p>
-                         <p className="text-[10px] text-muted-foreground/60">
-                           {format(new Date(log.created_at), 'yyyy-MM-dd HH:mm', { locale: zhCN })}
-                         </p>
-                      </div>
-                   </div>
-                 ))
-               ) : (
-                 <div className="flex h-[200px] items-center justify-center text-muted-foreground text-sm">
-                    {loading ? "加载中..." : "暂无日志记录"}
-                 </div>
-               )}
+              {logs.length > 0 ? (
+                logs.map((log) => (
+                  <div key={log.id} className="flex items-start gap-3 pb-3 border-b last:border-0 last:pb-0">
+                    <div className="mt-1">
+                      {log.action.includes('reject') || log.action.includes('ban') ? (
+                        <AlertCircle className="h-4 w-4 text-red-500" />
+                      ) : (
+                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      )}
+                    </div>
+                    <div className="flex-1 space-y-1">
+                      <p className="text-sm font-medium leading-none">{log.action}</p>
+                      <p className="text-xs text-muted-foreground line-clamp-2">
+                        {log.details || '无详细信息'}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground/60">
+                        {format(new Date(log.created_at), 'yyyy-MM-dd HH:mm', { locale: zhCN })}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="flex h-[200px] items-center justify-center text-muted-foreground text-sm">
+                  {loading ? "加载中..." : "暂无日志记录"}
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

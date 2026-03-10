@@ -625,6 +625,38 @@ export type Database = {
           },
         ]
       }
+      club_territory_stats: {
+        Row: {
+          club_id: string
+          last_synced_event_id: number
+          total_area: number
+          total_tiles: number
+          updated_at: string
+        }
+        Insert: {
+          club_id: string
+          last_synced_event_id?: number
+          total_area?: number
+          total_tiles?: number
+          updated_at?: string
+        }
+        Update: {
+          club_id?: string
+          last_synced_event_id?: number
+          total_area?: number
+          total_tiles?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_territory_stats_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: true
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clubs: {
         Row: {
           audit_reason: string | null
@@ -718,6 +750,7 @@ export type Database = {
         Row: {
           id: string
           platform: string | null
+          provider: string | null
           token: string
           updated_at: string | null
           user_id: string
@@ -725,6 +758,7 @@ export type Database = {
         Insert: {
           id?: string
           platform?: string | null
+          provider?: string | null
           token: string
           updated_at?: string | null
           user_id: string
@@ -732,6 +766,7 @@ export type Database = {
         Update: {
           id?: string
           platform?: string | null
+          provider?: string | null
           token?: string
           updated_at?: string | null
           user_id?: string
@@ -782,6 +817,30 @@ export type Database = {
           blue_area?: number
           id?: string
           red_area?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      faction_territory_stats: {
+        Row: {
+          faction_name: string
+          last_synced_event_id: number
+          total_area: number
+          total_tiles: number
+          updated_at: string
+        }
+        Insert: {
+          faction_name: string
+          last_synced_event_id?: number
+          total_area?: number
+          total_tiles?: number
+          updated_at?: string
+        }
+        Update: {
+          faction_name?: string
+          last_synced_event_id?: number
+          total_area?: number
+          total_tiles?: number
           updated_at?: string
         }
         Relationships: []
@@ -1946,6 +2005,7 @@ export type Database = {
           last_maintained_at: string | null
           last_owner_change_at: string | null
           level: number | null
+          neutral_until: string | null
           owner_change_count: number | null
           owner_club_id: string | null
           owner_faction: string | null
@@ -1962,6 +2022,7 @@ export type Database = {
           last_maintained_at?: string | null
           last_owner_change_at?: string | null
           level?: number | null
+          neutral_until?: string | null
           owner_change_count?: number | null
           owner_club_id?: string | null
           owner_faction?: string | null
@@ -1978,6 +2039,7 @@ export type Database = {
           last_maintained_at?: string | null
           last_owner_change_at?: string | null
           level?: number | null
+          neutral_until?: string | null
           owner_change_count?: number | null
           owner_club_id?: string | null
           owner_faction?: string | null
@@ -2119,6 +2181,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      territory_reward_penalties: {
+        Row: {
+          applied_ratio: number
+          attacker_club_id: string | null
+          attacker_user_id: string
+          claim_event_id: number
+          created_at: string | null
+          defender_user_id: string | null
+          id: string
+          matched_rule: string
+          penalty_enabled_snapshot: boolean
+          reason_window: string
+          reward_payload_snapshot: Json | null
+          source_event_ids: Json | null
+          territory_id: string
+        }
+        Insert: {
+          applied_ratio: number
+          attacker_club_id?: string | null
+          attacker_user_id: string
+          claim_event_id: number
+          created_at?: string | null
+          defender_user_id?: string | null
+          id?: string
+          matched_rule: string
+          penalty_enabled_snapshot?: boolean
+          reason_window: string
+          reward_payload_snapshot?: Json | null
+          source_event_ids?: Json | null
+          territory_id: string
+        }
+        Update: {
+          applied_ratio?: number
+          attacker_club_id?: string | null
+          attacker_user_id?: string
+          claim_event_id?: number
+          created_at?: string | null
+          defender_user_id?: string | null
+          id?: string
+          matched_rule?: string
+          penalty_enabled_snapshot?: boolean
+          reason_window?: string
+          reward_payload_snapshot?: Json | null
+          source_event_ids?: Json | null
+          territory_id?: string
+        }
+        Relationships: []
       }
       training_plans: {
         Row: {
@@ -2642,12 +2752,38 @@ export type Database = {
           },
         ]
       }
+      worker_cursors: {
+        Row: {
+          consumer_name: string
+          last_event_id: number
+          updated_at: string
+        }
+        Insert: {
+          consumer_name: string
+          last_event_id?: number
+          updated_at?: string
+        }
+        Update: {
+          consumer_name?: string
+          last_event_id?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
       decay_territories_daily: { Args: never; Returns: undefined }
+      detach_club_territories: {
+        Args: { p_club_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      purge_faction_territories: {
+        Args: { p_user_id: string }
+        Returns: undefined
+      }
       update_user_location_rpc: {
         Args: { p_lat: number; p_lng: number; p_user_id: string }
         Returns: undefined

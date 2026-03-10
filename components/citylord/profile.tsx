@@ -976,12 +976,22 @@ function FactionChangeButton({ currentFaction, onChanged }: { currentFaction: 'R
               每周仅可变更一次。
             </DialogDescription>
           </DialogHeader>
+
+          {/* Phase 2B-2B: Faction Change Warning (Feature Flag) */}
+          <div className="rounded-xl bg-destructive/10 border border-destructive/30 p-3 mt-2 text-sm text-destructive text-left flex flex-col gap-1.5">
+            <span className="font-bold flex items-center gap-1.5">
+              <MessageSquareWarning className="h-4 w-4" />
+              ⚠️ 严重警告：转换阵营属于背叛行为。
+            </span>
+            <span>您当前占领的<strong>所有领地</strong>将被彻底肃清（清空为中立），且无法恢复！</span>
+          </div>
+
           {cooldownMsg && (
-            <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 p-3 text-sm text-amber-400 text-center">
+            <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 p-3 mt-2 text-sm text-amber-400 text-center">
               ⏳ {cooldownMsg}
             </div>
           )}
-          <div className="flex justify-end gap-3 mt-2">
+          <div className="flex justify-end gap-3 mt-4">
             <Button variant="ghost" onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground">取消</Button>
             <Button
               onClick={handleChangeFaction}
@@ -989,7 +999,7 @@ function FactionChangeButton({ currentFaction, onChanged }: { currentFaction: 'R
               className={`bg-gradient-to-r ${targetColor} text-white hover:opacity-90`}
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-              确认加入{targetName}
+              我已了解风险，确认转换
             </Button>
           </div>
         </DialogContent>
