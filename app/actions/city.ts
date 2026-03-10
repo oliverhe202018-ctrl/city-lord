@@ -1,8 +1,8 @@
 'use server'
 
-import { createClient } from '@/mock-supabase'
-import { cookies } from '@/mock-headers'
-import { UserCityProgress, Territory } from '@/types/city'
+import { createClient } from '@/lib/supabase/server'
+import { cookies } from 'next/headers'
+import { UserCityProgress, Territory, ExtTerritory } from '@/types/city'
 
 // Redefine types to avoid dependency on mock-api
 export interface CityLeaderboardEntry {
@@ -16,13 +16,13 @@ export interface CityLeaderboardEntry {
   reputation: number
 }
 
-export async function fetchTerritories(cityId: string): Promise<Territory[]> {
+export async function fetchTerritories(cityId: string): Promise<ExtTerritory[]> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   const currentUserId = user?.id
 
   try {
-    const { data, error } = await supabase
+    const { data: terrData, error } = await supabase
       .from('territories')
       .select('*')
       .eq('city_id', cityId)
@@ -32,14 +32,14 @@ export async function fetchTerritories(cityId: string): Promise<Territory[]> {
       return []
     }
 
-    if (!data) {
+    if (!terrData || terrData.length === 0) {
       return []
     }
 
     const windowStart = new Date()
     windowStart.setDate(windowStart.getDate() - 7)
 
-    return data.map((t: any) => {
+    return terrData.map((t: any) => {
       const changeCount = t.owner_change_count ?? 0
       const lastChange = t.last_owner_change_at ? new Date(t.last_owner_change_at) : null
       const isHotZone = changeCount >= 2 && lastChange != null && lastChange >= windowStart
@@ -47,10 +47,12 @@ export async function fetchTerritories(cityId: string): Promise<Territory[]> {
       return {
         id: t.id,
         cityId: t.city_id,
-        ownerId: t.owner_id,
-        ownerType: currentUserId ? (t.owner_id === currentUserId ? 'me' : 'enemy') : 'neutral',
+        ownerId: t.owner_id ?? null,
+        ownerType: !t.owner_id ? 'neutral' : (t.owner_id === currentUserId ? 'me' : 'enemy'),
+        ownerClubId: t.owner_club_id ?? null,
+        ownerFaction: t.owner_faction ?? null,
         capturedAt: t.captured_at,
-        health: t.health,
+        health: t.health ?? 1000,
         maxHealth: 1000,
         lastMaintainedAt: t.last_maintained_at,
         isHotZone,
@@ -78,15 +80,18 @@ import {
 } from '@/lib/constants/territory'
 import { HotZoneCacheService } from '@/lib/services/hotzone-cache-service'
 import { redis } from '@/lib/redis'
+import { evaluatePenalty, PENALTY_FLAGS } from '@/lib/services/territory-penalty'
 
-export async function claimTerritory(cityId: string, cellId: string): Promise<{ success: boolean; error?: string; grantedBadges?: string[]; scoreChange?: number; isHotZone?: boolean }> {
+export async function claimTerritory(cityId: string, cellId: string, requestId?: string): Promise<{ success: boolean; error?: string; grantedBadges?: string[]; scoreChange?: number; isHotZone?: boolean }> {
   const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = await createClient(cookieStore)
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
     return { success: false, error: 'Unauthorized' }
   }
+
+  const generatedRequestId = requestId || crypto.randomUUID()
 
   const lockKey = `territory_claim_lock:${cellId}`
   const redisLock = await redis.set(lockKey, user.id, "EX", 10, "NX")
@@ -96,63 +101,94 @@ export async function claimTerritory(cityId: string, cellId: string): Promise<{ 
 
   try {
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Fetch User Profile for Faction
-      const profile = await tx.profiles.findUnique({
-        where: { id: user.id },
-        select: { faction: true, id: true }
-      })
-
-      if (!profile) throw new Error('Profile not found')
-
-      // 2. Faction Buff Logic (Underdog Bonus)
-      let multiplier = 1.0
-      if (profile.faction) {
-        const snapshot = await tx.faction_stats_snapshot.findFirst({
-          orderBy: { updated_at: 'desc' }
-        })
-
-        if (snapshot) {
-          const redScore = snapshot.red_area || 0
-          const blueScore = snapshot.blue_area || 0
-          const { underdog, multiplier: bonus, diffRatio } = calculateFactionBalance(
-            redScore,
-            blueScore
-          )
-          if (underdog && underdog.toUpperCase() === profile.faction.toUpperCase()) {
-            multiplier = bonus
-          }
-        }
-      }
-
-      // 3. Check territory state — cooldown, existing owner, etc.
-      const existing = await tx.territories.findUnique({
-        where: { id: cellId },
-        select: {
-          owner_id: true,
-          health: true,
-          neutral_until: true,
-          owner_change_count: true,
-        }
-      })
+      // 1. Lock territory row (FOR UPDATE) and check if it exists
+      const existingRows = await tx.$queryRaw<any[]>`
+        SELECT * FROM territories WHERE id = ${cellId} FOR UPDATE
+      `
+      const existing = existingRows.length > 0 ? existingRows[0] : null
 
       // If territory exists, check cooldown
       if (existing?.neutral_until && existing.neutral_until > new Date()) {
         throw new Error('该领地处于冷却期中，请稍后再试')
       }
 
-      // Track previous owner for score deduction and owner_change_log
+      // 2. Read existing snapshot data
       const previousOwnerId = existing?.owner_id ?? null
+      const previousClubId = existing?.owner_club_id ?? null
+      const previousFaction = existing?.owner_faction ?? null
 
-      // 4. Claim Logic (HP 1000 scale)
+      // 3. Read Attacker Profile Snapshot
+      const profile = await tx.profiles.findUnique({
+        where: { id: user.id },
+        select: { faction: true, club_id: true, id: true }
+      })
+
+      if (!profile) throw new Error('Profile not found')
+
+      // Check current Hot Zone status before updating the territory
+      const windowStart = new Date()
+      windowStart.setDate(windowStart.getDate() - 7)
+
+      let isHotZone = false
+      if (existing) {
+        const changeCount = existing.owner_change_count ?? 0
+        const lastChange = existing.last_owner_change_at ? new Date(existing.last_owner_change_at) : null
+        isHotZone = changeCount >= 2 && lastChange != null && lastChange >= windowStart
+      }
+
+      const hotZoneMultiplier = isHotZone ? HOT_ZONE_CAPTURE_MULTIPLIER : NORMAL_CAPTURE_MULTIPLIER
+      const baseScore = Math.round(H3_TILE_AREA_KM2 * BASE_SCORE_PER_KM2)
+      let earnedScore = Math.round(baseScore * hotZoneMultiplier)
+
+      let actionState = 'captured'
+      let penaltyLog: any = null
+
+      if (existing && existing.owner_id !== user.id && (existing.health ?? 0) <= 0) {
+        // It's a capture against an enemy/neutral. Evaluate penalty.
+        const lookbackDate = new Date()
+        lookbackDate.setHours(lookbackDate.getHours() - PENALTY_FLAGS.lookbackHours)
+
+        const recentEvents = await tx.$queryRaw<any[]>`
+          SELECT id, user_id, new_owner_id, created_at
+          FROM territory_events
+          WHERE territory_id = ${cellId}
+            AND created_at >= ${lookbackDate}
+          ORDER BY created_at DESC
+        `
+
+        const penaltyResult = evaluatePenalty(user.id, profile.club_id, recentEvents)
+        const penaltyRatio = penaltyResult.appliedRatio;
+
+        if (penaltyRatio < 1.0 || penaltyResult.matchedRule !== 'NORMAL_REWARD') {
+          const originalScore = earnedScore;
+          earnedScore = Math.round(earnedScore * penaltyRatio)
+          penaltyLog = {
+            territory_id: cellId,
+            attacker_user_id: user.id,
+            attacker_club_id: profile.club_id,
+            defender_user_id: previousOwnerId,
+            matched_rule: penaltyResult.matchedRule,
+            applied_ratio: penaltyRatio,
+            reason_window: penaltyResult.reasonWindow,
+            source_event_ids: penaltyResult.sourceEventIds,
+            penalty_enabled_snapshot: penaltyResult.penaltyEnabledSnapshot,
+            reward_payload_snapshot: { originalScore, finalScore: earnedScore }
+          }
+        }
+      }
+
+      // 4. Territory Upsert / Update
       if (!existing) {
-        // Create new territory — no previous owner
+        // Create new territory
         await tx.territories.create({
           data: {
             id: cellId,
             city_id: cityId,
             owner_id: user.id,
+            owner_club_id: profile.club_id,
+            owner_faction: profile.faction,
             captured_at: new Date(),
-            health: Math.round(1000 * multiplier),
+            health: 1000,
             level: 1,
             owner_change_count: 0,
             last_owner_change_at: new Date(),
@@ -160,7 +196,7 @@ export async function claimTerritory(cityId: string, cellId: string): Promise<{ 
           }
         })
       } else if (existing.owner_id === user.id) {
-        // Heal own territory
+        // Heal own territory (already owned, no faction/club overwrite needed)
         await tx.territories.update({
           where: { id: cellId },
           data: {
@@ -168,16 +204,18 @@ export async function claimTerritory(cityId: string, cellId: string): Promise<{ 
             last_maintained_at: new Date(),
           }
         })
-        return { action: 'healed', scoreChange: 0, isHotZone: false }
+        actionState = 'healed'
       } else if ((existing.health ?? 0) <= 0) {
-        // Enemy territory with 0 HP — capture it
+        // Capture enemy territory (overwrite attacker's club and faction)
         await tx.territories.update({
           where: { id: cellId },
           data: {
             owner_id: user.id,
+            owner_club_id: profile.club_id,
+            owner_faction: profile.faction,
             city_id: cityId,
             captured_at: new Date(),
-            health: Math.round(1000 * multiplier),
+            health: 1000,
             level: 1,
             last_maintained_at: new Date(),
             owner_change_count: { increment: 1 },
@@ -186,85 +224,64 @@ export async function claimTerritory(cityId: string, cellId: string): Promise<{ 
           }
         })
       } else {
-        // Enemy territory with HP > 0 — cannot capture directly
         throw new Error('Territory is protected')
       }
 
-      // 5. Write owner_change_log (only for REAL transfers: A→B)
-      // A→neutral is NOT logged here — handled by attack neutralization
-      if (previousOwnerId && previousOwnerId !== user.id) {
-        await tx.territory_owner_change_logs.create({
-          data: {
-            territory_id: cellId,
-            previous_owner: previousOwnerId,
-            new_owner: user.id,
+      // 5. Insert territory_events (Only if captured)
+      if (actionState === 'captured') {
+        // Try inserting into territory_events, which acts as the idempotent lock too. 
+        // If a duplicate request ID is used, this throws and rolls back the transaction.
+        let newEventId: bigint | null = null;
+        try {
+          const insertResult = await tx.$queryRaw<any[]>`
+            INSERT INTO territory_events (
+              territory_id, event_type, user_id, 
+              old_owner_id, new_owner_id, 
+              old_club_id, new_club_id, 
+              old_faction, new_faction, 
+              source_request_id, created_at
+            ) VALUES (
+              ${cellId}, 'CLAIM', ${user.id}::uuid, 
+              ${previousOwnerId ? previousOwnerId + '::uuid' : null}, ${user.id}::uuid, 
+              ${previousClubId ? previousClubId + '::uuid' : null}, ${profile.club_id ? profile.club_id + '::uuid' : null}, 
+              ${previousFaction}, ${profile.faction}, 
+              ${generatedRequestId}::uuid, NOW()
+            ) RETURNING id
+          `
+          if (insertResult.length > 0) {
+            newEventId = insertResult[0].id;
           }
-        })
+        } catch (eventError: any) {
+          // If the unique constraint idx_territory_events_idempotency is violated, fail gracefully.
+          if (eventError.message && eventError.message.includes('idx_territory_events_idempotency')) {
+            return { action: 'idempotent_skip', scoreChange: 0, isHotZone: false }
+          }
+          throw eventError
+        }
+
+        // Insert Penalty Log if triggered
+        if (penaltyLog && newEventId !== null) {
+          await tx.$executeRaw`
+            INSERT INTO territory_reward_penalties (
+              territory_id, claim_event_id, attacker_user_id, attacker_club_id, defender_user_id,
+              matched_rule, applied_ratio, reason_window, source_event_ids,
+              penalty_enabled_snapshot, reward_payload_snapshot
+            ) VALUES (
+              ${penaltyLog.territory_id}, ${newEventId}, ${penaltyLog.attacker_user_id}::uuid, 
+              ${penaltyLog.attacker_club_id ? penaltyLog.attacker_club_id + '::uuid' : null}, 
+              ${penaltyLog.defender_user_id ? penaltyLog.defender_user_id + '::uuid' : null},
+              ${penaltyLog.matched_rule}, ${penaltyLog.applied_ratio}, ${penaltyLog.reason_window},
+              ${JSON.stringify(penaltyLog.source_event_ids)}::jsonb, ${penaltyLog.penalty_enabled_snapshot},
+              ${JSON.stringify(penaltyLog.reward_payload_snapshot)}::jsonb
+            )
+          `
+        }
+
         // Invalidate hot zone cache for this territory
         await HotZoneCacheService.invalidate(cellId)
       }
 
-      // 6. Hot Zone Score Calculation using owner_change_logs
-      const windowStart = new Date()
-      windowStart.setDate(windowStart.getDate() - 7)
-
-      const recentChanges = await tx.territory_owner_change_logs.count({
-        where: {
-          territory_id: cellId,
-          changed_at: { gte: windowStart },
-        }
-      })
-
-      const isHotZone = recentChanges >= HOT_ZONE_THRESHOLD
-
-      // Score: base per km² * hot zone multiplier
-      // Hot zone: 0.5x (reduced reward for contested territory)
-      // Normal:   1.0x
-      const hotZoneMultiplier = isHotZone ? HOT_ZONE_CAPTURE_MULTIPLIER : NORMAL_CAPTURE_MULTIPLIER
-      const baseScore = Math.round(H3_TILE_AREA_KM2 * BASE_SCORE_PER_KM2)
-      const earnedScore = Math.round(baseScore * hotZoneMultiplier)
-
-      // 7. Deduct score from previous owner (50% of their original score)
-      if (previousOwnerId && previousOwnerId !== user.id) {
-        const lossPenalty = Math.round(baseScore * LOSS_PENALTY_RATIO)
-        await tx.user_city_progress.updateMany({
-          where: { user_id: previousOwnerId, city_id: cityId },
-          data: {
-            score: { decrement: lossPenalty },
-          }
-        })
-      }
-
-      // 8. Update User Progress (Tiles + Area + Score)
-      const progress = await tx.user_city_progress.findUnique({
-        where: { user_id_city_id: { user_id: user.id, city_id: cityId } }
-      })
-
-      if (progress) {
-        await tx.user_city_progress.update({
-          where: { user_id_city_id: { user_id: user.id, city_id: cityId } },
-          data: {
-            tiles_captured: (progress.tiles_captured || 0) + 1,
-            area_controlled: Number(progress.area_controlled || 0) + H3_TILE_AREA_KM2 * multiplier,
-            score: (progress.score || 0) + earnedScore,
-            last_active_at: new Date(),
-          }
-        })
-      } else {
-        await tx.user_city_progress.create({
-          data: {
-            user_id: user.id,
-            city_id: cityId,
-            tiles_captured: 1,
-            area_controlled: H3_TILE_AREA_KM2 * multiplier,
-            score: earnedScore,
-            last_active_at: new Date(),
-            joined_at: new Date(),
-          }
-        })
-      }
-
-      return { action: 'captured', scoreChange: earnedScore, isHotZone }
+      return { action: actionState, scoreChange: actionState === 'healed' ? 0 : earnedScore, isHotZone }
     })
 
     // 9. Check Hidden Badges (Outside Transaction)
@@ -394,7 +411,7 @@ export async function fetchCityLeaderboard(cityId: string, limit = 50): Promise<
 
 export async function getUserCityProgress(cityId: string): Promise<UserCityProgress | null> {
   const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = await createClient(cookieStore)
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) return null
@@ -444,7 +461,7 @@ export async function getUserCityProgress(cityId: string): Promise<UserCityProgr
 
 export async function initUserCityProgress(cityId: string) {
   const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = await createClient(cookieStore)
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) throw new Error('Unauthorized')

@@ -7,6 +7,8 @@ import { useTheme } from "next-themes"
 import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 import { Location } from "@/hooks/useRunningTracker"
+import { generateTerritoryStyle, generateNeutralTerritoryStyle } from "@/lib/citylord/territory-renderer"
+import { ViewContext, ExtTerritory } from "@/types/city"
 
 // Define global AMap types to avoid TS errors
 declare global {
@@ -22,8 +24,7 @@ interface GaodeMap3DProps {
   exploredHexes: string[]
   userLocation: [number, number]
   initialZoom?: number
-  // Optional: Pass full territory objects to render health
-  territories?: { id: string; health?: number; ownerType: 'me' | 'enemy' | 'neutral' }[]
+  territories?: ExtTerritory[]
   path?: Location[]
   ghostPath?: Location[]
   closedPolygons?: Location[][]
@@ -56,10 +57,12 @@ export function GaodeMap3D({
   const polylineRef = useRef<any>(null)
   const ghostPolylineRef = useRef<any>(null)
   const polygonRefs = useRef<any[]>([])
+  const reqAnimIdRef = useRef<number | null>(null)
 
   // User Color Preferences
   const [pathColor, setPathColor] = useState('#3B82F6')
   const [fillColor, setFillColor] = useState('#3B82F6')
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
   // Load user colors
   useEffect(() => {
@@ -67,14 +70,19 @@ export function GaodeMap3D({
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
-        const { data } = await supabase
-          .from('profiles')
-          .select('path_color, fill_color')
-          .eq('id', user.id)
-          .single()
-        if (data) {
-          if (data.path_color) setPathColor(data.path_color)
-          if (data.fill_color) setFillColor(data.fill_color)
+        setCurrentUserId(user.id)
+        try {
+          const { data } = await supabase
+            .from('profiles')
+            .select('path_color, fill_color')
+            .eq('id', user.id)
+            .single()
+          if (data) {
+            if (data.path_color) setPathColor(data.path_color)
+            if (data.fill_color) setFillColor(data.fill_color)
+          }
+        } catch (e) {
+          console.warn('Failed to fetch user colors', e)
         }
       }
     }
@@ -222,8 +230,7 @@ export function GaodeMap3D({
 
         // Animation Loop
         const animate = () => {
-          // loca.viewControl.addAnimFrame(animate) // Deprecated in some versions, simpler way:
-          requestAnimationFrame(animate)
+          reqAnimIdRef.current = requestAnimationFrame(animate)
           loca.animate.start()
         }
         animate()
@@ -246,6 +253,11 @@ export function GaodeMap3D({
         }
 
         markerRef.current?.remove?.()
+
+        if (reqAnimIdRef.current !== null) {
+          cancelAnimationFrame(reqAnimIdRef.current);
+          reqAnimIdRef.current = null;
+        }
 
         safeDestroyMap(mapInstanceRef.current);
         mapInstanceRef.current = null;
@@ -286,16 +298,29 @@ export function GaodeMap3D({
     // Convert Real Data
     const realGeoJSON = h3ToAmapGeoJSON(safeHexagons)
 
-    // Enrich with Health Data if available
-    if (safeTerritories.length > 0) {
+    // Build Territory Map for O(1) matching
+    const territoryMap = new Map();
+    safeTerritories.forEach(t => territoryMap.set(t.id, t));
+
+    const ctx: ViewContext = {
+      userId: currentUserId,
+      subject: 'individual' // default to individual for immersive mode unless specified
+    };
+
+    // Enrich with Health Data and Precompute Styles
+    if (safeHexagons.length > 0) {
       realGeoJSON.features.forEach((feature: any) => {
-        const t = safeTerritories.find(t => t.id === feature.properties.h3Index)
+        const t = territoryMap.get(feature.properties.h3Index);
         if (t) {
-          feature.properties.health = t.health ?? 100
-          feature.properties.ownerType = t.ownerType
+          feature.properties._styleCache = generateTerritoryStyle(t, ctx);
+          feature.properties.health = t.health ?? 1000;
+          feature.properties.maxHealth = t.maxHealth ?? 1000;
+          feature.properties.ownerType = t.ownerType;
         } else {
-          feature.properties.health = 100
-          feature.properties.ownerType = 'neutral'
+          feature.properties._styleCache = generateNeutralTerritoryStyle(ctx);
+          feature.properties.health = 1000;
+          feature.properties.maxHealth = 1000;
+          feature.properties.ownerType = 'neutral';
         }
       })
     }
@@ -304,10 +329,10 @@ export function GaodeMap3D({
     let finalFeatures = realGeoJSON.features
     if (finalFeatures.length === 0) {
       addLog("No hexagons provided, adding DEBUG feature")
+      // Quick dummy context
+      debugFeature.properties.health = 1000;
+      (debugFeature.properties as any)._styleCache = generateNeutralTerritoryStyle(ctx);
       finalFeatures = [debugFeature as any]
-    } else {
-      // Optional: Always add debug feature to ensure rendering works
-      // finalFeatures.push(debugFeature as any)
     }
 
     const source = new window.Loca.GeoJSONSource({
@@ -325,83 +350,43 @@ export function GaodeMap3D({
       sideColor: (index: number, feature: any) => {
         const props = feature.properties
         if (props.h3Index === 'DEBUG_HEX') return 'rgba(255, 0, 0, 0.5)'
-
-        const health = props.health ?? 100
-        const ownerType = props.ownerType || (exploredHexes.includes(props.h3Index) ? 'me' : 'neutral')
-
-        // Base color by faction
-        let baseColor = 'rgba(100, 100, 100, 0.3)'
-        if (ownerType === 'me') baseColor = 'rgba(34, 197, 94, 0.6)' // Green
-        else if (ownerType === 'enemy') baseColor = 'rgba(168, 85, 247, 0.6)' // Purple
-
-        // Health Modifier (Darker/Greyer as health drops)
-        if (health < 40) {
-          // Critical: Flashing Red/Grey look (simulated by low opacity or red tint)
-          return 'rgba(239, 68, 68, 0.4)'
-        } else if (health < 80) {
-          // Damaged: Yellow tint
-          return 'rgba(234, 179, 8, 0.5)'
-        }
-
-        return baseColor
+        return props._styleCache?.sideColor || 'rgba(100, 100, 100, 0.3)'
       },
       topColor: (index: number, feature: any) => {
         const props = feature.properties
         if (props.h3Index === 'DEBUG_HEX') return '#ff0000'
-
-        const health = props.health ?? 100
-        const ownerType = props.ownerType || (exploredHexes.includes(props.h3Index) ? 'me' : 'neutral')
-
-        // Base color
-        let color = '#3f3f46'
-        if (ownerType === 'me') color = '#22c55e'
-        else if (ownerType === 'enemy') color = '#a855f7'
-
-        // Health Modifier
-        if (health < 40) {
-          return '#ef4444' // Red for critical
-        } else if (health < 80) {
-          return '#eab308' // Yellow for damaged
-        }
-
-        return color
+        return props._styleCache?.topColor || '#3f3f46'
       },
       height: (index: number, feature: any) => {
-        // Lower height for low health?
-        const health = feature.properties.health ?? 100
         const baseHeight = feature.properties.height || 100
-        return baseHeight * (0.5 + (health / 200)) // 50% to 100% height based on health
+        const scale = feature.properties._styleCache?.heightScale ?? 1.0;
+        return baseHeight * scale
       },
       altitude: 0
     })
 
-    // Add Click Interaction for Health Status
-    // Loca doesn't have direct 'click' on layer in 2.0 the same way as 1.3 sometimes, 
-    // but usually pickFeature works.
-    // Let's try adding a click listener to the map and using queryFeature (if supported) or rely on layer events.
-    // Loca 2.0 PrismLayer usually supports events if configured? 
-    // Actually Loca is for visualization. Interaction is often done via picking.
-    // For simplicity, we just log health on click if we can.
-
+    // Click Interaction
     // Note: Loca 2.0 requires manual picking often.
     mapInstanceRef.current.on('click', (e: any) => {
       const feat = layer.queryFeature(e.pixel)
       if (feat) {
         const props = feat.properties
-        const health = props.health ?? 100
+        const health = props.health ?? 1000
+        const maxHealth = props.maxHealth ?? 1000
+
         let status = "Healthy"
-        if (health < 40) status = "Critical (Lost in <4 days)"
-        else if (health < 80) status = "Damaged"
+        if (props._styleCache?.isCritical) status = "Critical (Lost in <4 days)"
+        else if (props._styleCache?.isDamaged) status = "Damaged"
 
         toast(`Hex ${props.h3Index.substring(0, 6)}...`, {
-          description: `Health: ${health}% (${status})`
+          description: `Health: ${health}/${maxHealth} (${status})`
         })
       }
     })
 
     addLog("Layer Style Set & Rendered")
 
-  }, [isMapReady, safeHexagons, exploredHexes, safeTerritories])
+  }, [isMapReady, safeHexagons, exploredHexes, safeTerritories, currentUserId])
 
   // Path & Polygon Rendering
   useEffect(() => {
@@ -556,7 +541,7 @@ export function GaodeMap3D({
             fillOpacity: 0.4,
             zIndex: 90
           })
-        }).filter(Boolean) // Filter out nulls
+        }).filter(p => !!p) // Filter out nulls
 
       if (newPolygons.length > 0) {
         mapInstanceRef.current.add(newPolygons)

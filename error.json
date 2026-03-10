@@ -1,0 +1,5 @@
+{
+  "success": false,
+  "error": "\nInvalid `prisma.$queryRaw()` invocation:\n\n\nRaw query failed. Code: `42804`. Message: `ERROR: column \"new_club_id\" is of type uuid but expression is of type text\nHINT: You will need to rewrite or cast the expression.`",
+  "elapsedMs": 3043
+}

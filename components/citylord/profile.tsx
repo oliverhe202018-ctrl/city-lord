@@ -4,7 +4,7 @@ import React from "react"
 import { AvatarUploader } from "@/components/ui/AvatarUploader"
 import Image from "next/image"
 
-import { MapPin, Swords, Footprints, Eye, Settings, ChevronRight, Hexagon, Zap, Target, LogIn, LogOut, Edit2, Gift, MessageSquareWarning, Sparkles, Shuffle, ShieldCheck, FileText, UserX } from "lucide-react"
+import { MapPin, Swords, Footprints, Eye, Settings, ChevronRight, Hexagon, Zap, Target, LogIn, LogOut, Edit2, Gift, MessageSquareWarning, Sparkles, Shuffle, ShieldCheck, FileText, UserX, User } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useGameStore } from "@/store/useGameStore"
@@ -697,6 +697,23 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
               <div className="text-left">
                 <p className="text-sm font-semibold text-foreground">个性化主页</p>
                 <p className="text-xs text-muted-foreground">挑选动态封面，装扮个人资料</p>
+              </div>
+            </div>
+            <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
+          </Link>
+
+          {/* My Profile Entry */}
+          <Link
+            href={`/profile/user?${new URLSearchParams({ userId, returnTo: '/profile' }).toString()}`}
+            className="mb-2 flex w-full items-center justify-between rounded-xl border border-border bg-gradient-to-r from-blue-500/10 to-cyan-500/10 p-3 transition-all active:bg-muted/10 hover:bg-card/80"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 shadow-lg shadow-blue-500/20">
+                <User className="h-4 w-4 text-white" />
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-semibold text-foreground">我的主页</p>
+                <p className="text-xs text-muted-foreground">进入并查看自己的个人主页</p>
               </div>
             </div>
             <ChevronRight className="h-4 w-4 text-muted-foreground/50" />

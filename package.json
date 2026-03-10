@@ -13,7 +13,8 @@
     "lint:imports": "node scripts/check-dangerous-imports.js",
     "lint:imports:staged": "node scripts/check-dangerous-imports.js --staged",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "gen:types": "node scripts/gen-types.js"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx}": [

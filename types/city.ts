@@ -137,9 +137,10 @@ export interface Challenge {
 export interface Territory {
   id: string // H3 index
   cityId: string
-  ownerId: string
+  ownerId: string | null
+  /** @deprecated 仅供旧页面兼容，新地图渲染不得再以 ownerType 作为主输入 */
   ownerType: 'me' | 'enemy' | 'neutral' // Computed on client or returned by API
-  capturedAt: string
+  capturedAt?: string | null
   health?: number // 0-1000
   maxHealth?: number // 1000
   lastMaintainedAt?: string
@@ -260,4 +261,55 @@ export interface CityLeaderboardEntry {
   level: number
   /** 与上一排名的差距（可选） */
   delta?: number
+}
+
+// ============================================================================
+// 地图领地显示重构 Phase 1 新增类型定义
+// ============================================================================
+
+/**
+ * 客观实体（后端返回的扩充数据）
+ */
+export interface ExtTerritory extends Territory {
+  ownerClubId?: string | null;
+  ownerFaction?: string | null;
+}
+
+/**
+ * 地图展示主语（用来决定当前渲染的主题焦点）
+ * individual: 个人争霸（我 vs 散人）
+ * club: 俱乐部争霸
+ * faction: 阵营战
+ */
+export type TerritorySubject = 'individual' | 'club' | 'faction';
+
+/**
+ * 极简关系（第一阶段不引入 ally）
+ */
+export type TerritoryRelation = 'self' | 'enemy' | 'neutral';
+
+/**
+ * 最终供给表现层消费的渲染包装属性
+ */
+export interface TerritoryRenderStyle {
+  relation: TerritoryRelation;
+  subject: TerritorySubject;
+  baseColor: string;     // rgba() 基础阵营/个人底色
+  topColor: string;      // RGB 六角形顶色（已融入 health 混色的最终结果）
+  sideColor: string;     // RGB 侧面颜色（已融入 health 混色的最终结果）
+  fillColor2D: string;   // 供给 2D (TerritoryLayer) 专用的填充色
+  strokeColor2D: string; // 供给 2D 的描边色
+  heightScale: number;   // 基于真实 (health / maxHealth) 计算的高低比例
+  isDamaged: boolean;    // 是否处于受损状态 (供外部快捷调用)
+  isCritical: boolean;   // 是否处于极危状态 (供外部快捷调用)
+}
+
+/**
+ * 视图上下文，用于决定一整个画面的主题与当前观测者身份
+ */
+export interface ViewContext {
+  userId?: string | null;
+  clubId?: string | null;
+  faction?: string | null;
+  subject: TerritorySubject;
 }
