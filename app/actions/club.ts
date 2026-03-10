@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 import { prisma } from '@/lib/prisma'
 import { revalidatePath, revalidateTag, unstable_cache } from 'next/cache'
 import { cachedFetch, invalidateCache } from '@/lib/cache'
@@ -226,17 +227,15 @@ export async function getApprovedClubs(): Promise<{ success: true; data: Approve
       return { success: false, error: 'Unauthorized: User not found' }
     }
 
-    const approvedClubs = await prisma.clubs.findMany({
-      where: { status: 'active' },
-      orderBy: { created_at: 'desc' },
-      include: {
-        profiles_clubs_owner_idToprofiles: {
-          select: {
-            nickname: true
-          }
-        }
-      }
-    })
+    const { data: approvedClubs, error } = await supabaseAdmin
+      .from('clubs')
+      .select('*, profiles_clubs_owner_idToprofiles:profiles!clubs_owner_id_fkey(nickname)')
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      throw new Error(`Supabase query failed: ${error.message}`)
+    }
 
     const data: ApprovedClubDTO[] = approvedClubs.map(club => ({
       ...club,
@@ -247,7 +246,7 @@ export async function getApprovedClubs(): Promise<{ success: true; data: Approve
       member_count: club.member_count || 1,
       territory: club.territory || '0',
       creator_name: club.profiles_clubs_owner_idToprofiles?.nickname || 'Unknown',
-      created_at: club.created_at.toISOString()
+      created_at: new Date(club.created_at).toISOString()
     }))
 
     return { success: true, data }
