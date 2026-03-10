@@ -236,13 +236,13 @@ export async function getApprovedClubs(): Promise<{ success: true; data: Approve
 
     const data: ApprovedClubDTO[] = approvedClubs.map(club => ({
       ...club,
-      total_area: mapDecimalToNumber(club.total_area),
-      rating: mapDecimalToNumber(club.rating),
-      level: club.level || '1',
+      total_area: 0,
+      rating: 0,
+      level: '1',
       status: (club.status as 'active' | 'pending' | 'rejected') || 'active',
-      member_count: club.member_count || 1,
-      territory: club.territory || '0',
-      creator_name: club.profiles_clubs_owner_idToprofiles?.nickname || 'Unknown',
+      member_count: 1,
+      territory: '0',
+      creator_name: 'Unknown',
       created_at: new Date(club.created_at).toISOString()
     }))
 
