@@ -195,6 +195,8 @@ export default function AdminClubsPage() {
   const [loading, setLoading] = useState(true)
   const [processingId, setProcessingId] = useState<string | null>(null)
 
+  console.log('[clubs page component body] approvedClubs state:', approvedClubs)
+
   const { toast } = useToast()
 
   // Reject Dialog State
@@ -216,7 +218,8 @@ export default function AdminClubsPage() {
       }
 
       if (approvedRes.success) {
-        console.log('[loadClubs] approvedResult:', approvedRes)
+        console.log('[clubs page] approvedResult:', approvedRes)
+        console.log('[clubs page] approvedClubs state to be set:', approvedRes.data)
         setApprovedClubs(approvedRes.data)
       } else {
         throw new Error(`获取已通过列表失败: ${approvedRes.error}`)
