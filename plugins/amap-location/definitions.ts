@@ -42,6 +42,8 @@ export interface AMapPosition {
     address?: string;
     /** 定位提供者描述（可选，如 'gps', 'lbs', 'wifi'） */
     provider?: string;
+    /** 是否可能为模拟设备或伪造位置信号（反作弊特征） */
+    isMock?: boolean;
 }
 
 // ---------------------------------------------------------------------------

@@ -88,6 +88,7 @@ model profiles {
   push_subscriptions                            push_subscriptions[]
   sent_invitations                              friend_invitations[]          @relation("inviter_invitations")
   received_invitations                          friend_invitations[]          @relation("invitee_invitations")
+  anti_cheat_audit_logs                         anti_cheat_audit_logs[]
 
   @@index([club_id], map: "idx_profiles_club_id")
   @@index([faction], map: "idx_profiles_faction")
@@ -502,6 +503,10 @@ model runs {
   source          String?           @default("phone") // "phone", "watch", "gpx", "manual"
   idempotency_key String?           @unique
   photo_url       String?
+  risk_score      Int               @default(0)
+  risk_level      String            @default("LOW")
+  cheat_flags     Json?             @db.Json
+  client_distance Float?            @default(0)
   user_task_logs  user_task_logs[]
   watch_activity  watch_activities?
   clubs           clubs?            @relation(fields: [club_id], references: [id], onUpdate: NoAction)
@@ -509,6 +514,23 @@ model runs {
 
   @@index([club_id], map: "idx_runs_club_id")
   @@index([user_id])
+  @@schema("public")
+}
+
+model anti_cheat_audit_logs {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id        String    @db.Uuid
+  run_id         String?   @db.Uuid
+  risk_score     Int       @default(0)
+  cheat_flags    Json?     @db.Json
+  raw_payload    Json?     @db.Json
+  action_taken   String?
+  created_at     DateTime? @default(now()) @db.Timestamptz(6)
+
+  profiles       profiles  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([run_id])
   @@schema("public")
 }
 

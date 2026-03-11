@@ -63,6 +63,7 @@ public class LocationForegroundService extends Service implements AMapLocationLi
     public static final String EXTRA_SPEED = "speed";
     public static final String EXTRA_TIMESTAMP = "timestamp";
     public static final String EXTRA_LOCATION_TYPE = "locationType";
+    public static final String EXTRA_IS_MOCK = "isMock";
     public static final String EXTRA_PROVIDER = "provider";
     public static final String EXTRA_ADDRESS = "address";
     public static final String EXTRA_STEPS = "steps";
@@ -481,6 +482,8 @@ public class LocationForegroundService extends Service implements AMapLocationLi
         intent.putExtra(EXTRA_SPEED, location.getSpeed());
         intent.putExtra(EXTRA_TIMESTAMP, location.getTime());
         intent.putExtra(EXTRA_LOCATION_TYPE, location.getLocationType());
+        // Anti-cheat mock detection
+        intent.putExtra(EXTRA_IS_MOCK, location.isMock());
 
         String provider = location.getProvider();
         if (provider != null && !provider.isEmpty()) {

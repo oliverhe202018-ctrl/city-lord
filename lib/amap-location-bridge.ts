@@ -1214,6 +1214,7 @@ export class AMapLocationBridge {
             timestamp: pos.timestamp,
             source,
             coordSystem: 'gcj02', // AMap 原生固定 GCJ-02，禁止再转换
+            isMock: pos.isMock,
         };
     }
 

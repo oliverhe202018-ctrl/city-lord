@@ -468,6 +468,9 @@ public class AMapLocationPlugin extends Plugin {
                 result.put("timestamp", intent.getLongExtra(LocationForegroundService.EXTRA_TIMESTAMP, 0));
                 result.put("coordSystem", "gcj02");
                 result.put("locationType", intent.getIntExtra(LocationForegroundService.EXTRA_LOCATION_TYPE, 0));
+                
+                // Anti-cheat mock detection
+                result.put("isMock", intent.getBooleanExtra(LocationForegroundService.EXTRA_IS_MOCK, false));
 
                 String provider = intent.getStringExtra(LocationForegroundService.EXTRA_PROVIDER);
                 if (provider != null && !provider.isEmpty()) {
@@ -551,6 +554,9 @@ public class AMapLocationPlugin extends Plugin {
         obj.put("timestamp", location.getTime());
         obj.put("coordSystem", "gcj02");
         obj.put("locationType", location.getLocationType());
+        
+        // Anti-cheat mock detection
+        obj.put("isMock", location.isMock());
 
         String address = location.getAddress();
         if (address != null && !address.isEmpty()) {
