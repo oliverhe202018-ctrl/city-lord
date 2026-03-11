@@ -102,7 +102,7 @@ export function VoiceRecorder({ receiverId, onSend, disabled }: VoiceRecorderPro
 
             {/* Recording Overlay */}
             {isRecording && (
-                <div className="fixed inset-0 z-50 flex flex-col items-center justify-center pointer-events-none bg-black/20">
+                <div className="fixed inset-0 z-[10000] flex flex-col items-center justify-center pointer-events-none bg-black/20">
                     <div className={cn(
                         "w-36 h-36 rounded-2xl flex flex-col items-center justify-center backdrop-blur-md shadow-2xl transition-colors duration-200",
                         isCanceled ? "bg-red-500/80" : "bg-black/60"
@@ -128,7 +128,7 @@ export function VoiceRecorder({ receiverId, onSend, disabled }: VoiceRecorderPro
 
             {/* Permission Modal */}
             {showPermissionModal && (
-                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200 pointer-events-auto">
+                <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200 pointer-events-auto">
                     <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-[280px] overflow-hidden flex flex-col shadow-2xl">
                         <div className="p-6 pb-5 flex flex-col items-center text-center">
                             <Mic className="w-10 h-10 text-white/50 mb-3" />
