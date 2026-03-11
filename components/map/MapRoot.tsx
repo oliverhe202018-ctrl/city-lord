@@ -8,6 +8,7 @@ import type { GeoPoint } from '@/hooks/useSafeGeolocation';
 import { useLocationStore } from '@/store/useLocationStore';
 import { useLocationContext } from '@/components/GlobalLocationProvider';
 import { useGameStore } from '@/store/useGameStore';
+import type { ExtTerritory } from '@/types/city';
 
 const MAP_STYLES: Record<string, string> = {
   cyberpunk: 'amap://styles/22e069175d1afe32e9542abefde02cb5',
@@ -71,6 +72,7 @@ export function MapRoot({ children }: { children: ReactNode }) {
   const [showKingdom, setShowKingdom] = useState<boolean>(true); // Kingdom layer visible by default
   const [kingdomMode, setKingdomMode] = useState<'personal' | 'club'>('personal');
   const [showFog, setShowFog] = useState<boolean>(false); // Fog layer off by default
+  const [selectedTerritory, setSelectedTerritory] = useState<ExtTerritory | null>(null);
 
   const toggleKingdom = useCallback(() => {
     setShowKingdom(prev => !prev);
@@ -518,6 +520,8 @@ export function MapRoot({ children }: { children: ReactNode }) {
       setKingdomMode,
       showFog,
       toggleFog,
+      selectedTerritory,
+      setSelectedTerritory,
     }}>
       {children}
       {debugInfo && (

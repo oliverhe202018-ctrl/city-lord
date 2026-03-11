@@ -8,6 +8,7 @@ import { LoadingSkeleton } from './LoadingSkeleton';
 import { LocationIndicator } from './LocationIndicator';
 import { KingdomLayer } from './layers/KingdomLayer';
 import { ClubKingdomLayer } from './layers/ClubKingdomLayer';
+import TerritoryLayer from './TerritoryLayer';
 import FogLayer from './FogLayer';
 import { MapControls } from './MapControls';
 import { useAuth } from '@/hooks/useAuth';
@@ -49,6 +50,7 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
       showKingdom, // Kingdom layer visibility
       kingdomMode, // 'personal' | 'club'
       showFog, // Fog layer visibility
+      viewMode: mapViewMode, // 'individual' | 'faction'
     } = useMap();
 
     const { user } = useAuth();
@@ -75,6 +77,14 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
           )}
           {showKingdom && kingdomMode === 'club' && (
             <ClubKingdomLayer map={mapLayerRef?.current?.map} userId={user?.id || null} />
+          )}
+
+          {/* Layer 0b: All Territories (individual view — click to select) */}
+          {showKingdom && mapViewMode === 'individual' && (
+            <TerritoryLayer
+              map={mapLayerRef?.current?.map}
+              isVisible={true}
+            />
           )}
 
           {/* Layer 2a: Claimed Polygons (BEFORE TrajectoryLayer - z-index 40) */}

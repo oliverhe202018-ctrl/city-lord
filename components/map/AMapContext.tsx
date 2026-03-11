@@ -2,6 +2,7 @@
 
 import { createContext, useContext, ReactNode, RefObject } from 'react';
 import { GeoPoint, LocationStatus } from '@/hooks/useSafeGeolocation';
+import type { ExtTerritory } from '@/types/city';
 
 export interface LocationState {
   status: 'loading' | 'success' | 'error';
@@ -22,6 +23,7 @@ export interface AMapInstance {
   add: (overlay: unknown) => void;
   remove: (overlay: unknown) => void;
   on: (event: string, handler: (...args: unknown[]) => void) => void;
+  off: (event: string, handler: (...args: unknown[]) => void) => void;
   setZoomAndCenter: (zoom: number, center: [number, number], immediately?: boolean, duration?: number) => void;
 }
 
@@ -64,6 +66,10 @@ export interface AMapContextProps {
   // Fog (mask) layer control
   showFog?: boolean;
   toggleFog?: () => void;
+
+  // Territory selection (individual view detail interaction)
+  selectedTerritory?: ExtTerritory | null;
+  setSelectedTerritory?: (t: ExtTerritory | null) => void;
 }
 
 export const AMapContext = createContext<AMapContextProps | undefined>(undefined);

@@ -2,7 +2,77 @@
 
 import { requireAdminSession } from '@/lib/admin/auth'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { getFactionStats } from '@/app/actions/faction'
 
+export async function getAdminDashboardData() {
+    try {
+        await requireAdminSession()
+
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+
+        const [
+            { count: totalUsers },
+            { count: activeClubs },
+            { count: pendingClubs },
+            { count: redFaction },
+            { count: blueFaction },
+            { count: newUsersToday },
+            factionStatsRes,
+            trendRes,
+            logsRes
+        ] = await Promise.all([
+            // summary data
+            supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true }),
+            supabaseAdmin.from('clubs').select('*', { count: 'exact', head: true }).eq('status', 'active'),
+            supabaseAdmin.from('clubs').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+            supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true }).eq('faction', 'Red'),
+            supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true }).eq('faction', 'Blue'),
+            supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', today.toISOString()),
+            // faction stats
+            getFactionStats(),
+            // trend data
+            supabaseAdmin.rpc('get_user_growth_trend'),
+            // recent audit logs
+            supabaseAdmin
+                .from('admin_logs')
+                .select('id, admin_id, action, target_id, details, created_at')
+                .order('created_at', { ascending: false })
+                .limit(10)
+        ])
+
+        const summary = {
+            total_users: totalUsers || 0,
+            total_clubs: activeClubs || 0,
+            pending_audit: pendingClubs || 0,
+            red_faction: redFaction || 0,
+            blue_faction: blueFaction || 0,
+            new_users_today: newUsersToday || 0
+        }
+
+        const factionStats = {
+            red_faction: factionStatsRes?.RED || 0,
+            blue_faction: factionStatsRes?.BLUE || 0,
+            redArea: factionStatsRes?.redArea || 0,
+            blueArea: factionStatsRes?.blueArea || 0,
+            percentages: factionStatsRes?.percentages || { RED: 50, BLUE: 50 },
+            bonus: factionStatsRes?.bonus || { RED: 0, BLUE: 0 }
+        }
+
+        return {
+            success: true,
+            data: {
+                summary,
+                factionStats,
+                trend: trendRes.data || [],
+                logs: logsRes.data || []
+            }
+        }
+    } catch (error: any) {
+        console.error('getAdminDashboardData error:', error)
+        return { success: false, error: error.message }
+    }
+}
 
 export async function getAdminUsers(searchQuery?: string) {
     try {

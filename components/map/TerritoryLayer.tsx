@@ -1,8 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import type { Territory, ExtTerritory } from "@/types/city";
+import { useEffect, useState, useRef, useCallback } from "react";
+import type { ExtTerritory } from "@/types/city";
 import { useCity } from "@/contexts/CityContext";
+import { cellToBoundary } from "h3-js";
+import { useMap } from "./AMapContext";
+import { generateTerritoryStyle } from "@/lib/citylord/territory-renderer";
+import { ViewContext } from "@/types/city";
+import { useAuth } from "@/hooks/useAuth";
 
 const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
   const controller = new AbortController()
@@ -23,24 +28,74 @@ const fetchTerritories = async (cityId: string): Promise<ExtTerritory[]> => {
   if (!res.ok) throw new Error('Failed to fetch territories')
   return await res.json()
 }
-import { cellToBoundary } from "h3-js";
-import { useMap } from "./AMapContext";
+
+/**
+ * Darken a hex color by a factor (0-1, where 0.7 = 30% darker)
+ */
+function darkenColor(hex: string, factor: number = 0.6): string {
+  hex = hex.replace('#', '');
+  if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+  const r = Math.round(parseInt(hex.substring(0, 2), 16) * factor);
+  const g = Math.round(parseInt(hex.substring(2, 4), 16) * factor);
+  const b = Math.round(parseInt(hex.substring(4, 6), 16) * factor);
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+}
 
 interface TerritoryLayerProps {
   map: any | null;
   isVisible: boolean;
-  onTerritoryClick: (territory: ExtTerritory) => void;
 }
 
-// Deterministic color generator based on string
-import { generateTerritoryStyle } from "@/lib/citylord/territory-renderer";
-import { ViewContext } from "@/types/city";
-
-const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, onTerritoryClick }) => {
+/**
+ * TerritoryLayer: Renders ALL territories from API as colored polygons.
+ *
+ * Features:
+ * - Fetches all territories for the current city
+ * - Colors by ownership (self/enemy/neutral) via territory-renderer
+ * - Click handler selects a territory → updates selectedTerritory in context
+ * - Selected territory gets a persistent darker border highlight
+ * - Map blank click clears selection (with event conflict protection)
+ */
+const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible }) => {
   const [polygons, setPolygons] = useState<any[]>([]);
   const { currentCity: city } = useCity();
-  const { viewMode } = useMap(); // Use viewMode from context
+  const { viewMode, selectedTerritory, setSelectedTerritory } = useMap();
+  const { user } = useAuth();
 
+  // Track polygon → territory mapping for highlight updates
+  const polygonTerritoryMap = useRef<Map<any, { territory: ExtTerritory; defaultStrokeColor: string }>>(new Map());
+
+  // Flag to prevent map click from clearing territory selection immediately after polygon click
+  const territoryClickedRef = useRef(false);
+
+  // Handle map blank click → clear selection (with event conflict protection)
+  useEffect(() => {
+    if (!map) return;
+
+    const handleMapClick = () => {
+      // If a polygon was just clicked, skip this map click
+      if (territoryClickedRef.current) {
+        territoryClickedRef.current = false;
+        return;
+      }
+      // Clear selection on blank area click
+      setSelectedTerritory?.(null);
+    };
+
+    map.on('click', handleMapClick);
+    return () => {
+      if (map?.off) {
+        map.off('click', handleMapClick);
+      }
+    };
+  }, [map, setSelectedTerritory]);
+
+  // Clear selection when viewMode changes
+  useEffect(() => {
+    setSelectedTerritory?.(null);
+  }, [viewMode, setSelectedTerritory]);
+
+  // Load territories
   useEffect(() => {
     if (!map || !city) return;
 
@@ -52,6 +107,8 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, onTerri
 
         if (!mounted) return;
 
+        const newPolygonMap = new Map<any, { territory: ExtTerritory; defaultStrokeColor: string }>();
+
         const createdPolygons = (Array.isArray(data) ? data : []).map((territory) => {
           // Convert H3 index to polygon coordinates
           // h3-js returns [lat, lng], AMap expects [lng, lat]
@@ -59,8 +116,8 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, onTerri
           const path = boundary.map(([lat, lng]) => [lng, lat]);
 
           const ctx: ViewContext = {
-            userId: city.userId || null,
-            subject: viewMode === 'faction' ? 'faction' : 'individual' // Note: club mode not hooked up yet
+            userId: user?.id || null,
+            subject: viewMode === 'faction' ? 'faction' : 'individual'
           };
           const style = generateTerritoryStyle(territory, ctx);
 
@@ -71,15 +128,37 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, onTerri
             strokeColor: style.strokeColor2D,
             strokeWeight: 2,
             zIndex: 50,
-            extData: territory
+            extData: territory,
+            bubble: false, // Prevent click event from bubbling to map
           });
 
-          polygon.on("click", () => onTerritoryClick(territory));
-          polygon.on("mouseover", () => polygon.setOptions({ strokeWeight: 4 }));
-          polygon.on("mouseout", () => polygon.setOptions({ strokeWeight: 2 }));
+          // Store mapping for highlight management
+          newPolygonMap.set(polygon, {
+            territory,
+            defaultStrokeColor: style.strokeColor2D,
+          });
+
+          polygon.on("click", () => {
+            // Set flag to prevent map blank click from clearing immediately
+            territoryClickedRef.current = true;
+            setSelectedTerritory?.(territory);
+          });
+          polygon.on("mouseover", () => {
+            // Only apply hover effect if not the selected polygon
+            if (selectedTerritory?.id !== territory.id) {
+              polygon.setOptions({ strokeWeight: 3 });
+            }
+          });
+          polygon.on("mouseout", () => {
+            if (selectedTerritory?.id !== territory.id) {
+              polygon.setOptions({ strokeWeight: 2 });
+            }
+          });
 
           return polygon;
         });
+
+        polygonTerritoryMap.current = newPolygonMap;
 
         // Clear old polygons before adding new ones
         setPolygons(prev => {
@@ -104,27 +183,42 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, onTerri
 
     return () => {
       mounted = false;
-      // Cleanup happens in the effect that watches 'polygons' or here if needed
-      // But since we setPolygons, we can rely on the cleanup logic below? 
-      // Actually, we should clean up the newly created ones if unmounted quickly.
-      // But standard React pattern: the next render or unmount will clean up `polygons` via the other effect?
-      // No, the other effect only toggles visibility. We need cleanup here.
     };
-  }, [map, city, onTerritoryClick, viewMode]);
+  }, [map, city, viewMode]);
+
+  // Apply selection highlight when selectedTerritory changes
+  useEffect(() => {
+    polygonTerritoryMap.current.forEach(({ territory, defaultStrokeColor }, polygon) => {
+      if (selectedTerritory && territory.id === selectedTerritory.id) {
+        // Highlight: darker border, thicker stroke
+        polygon.setOptions({
+          strokeWeight: 5,
+          strokeColor: darkenColor(defaultStrokeColor, 0.5),
+          strokeStyle: 'solid',
+        });
+      } else {
+        // Reset to default
+        polygon.setOptions({
+          strokeWeight: 2,
+          strokeColor: defaultStrokeColor,
+          strokeStyle: 'solid',
+        });
+      }
+    });
+  }, [selectedTerritory]);
 
   // Cleanup polygons when component unmounts or they change
   useEffect(() => {
     return () => {
       try {
         if (map && polygons.length > 0) {
-          // map.remove(polygons) is standard, but defensive coding:
           polygons.forEach(p => {
             if (p && typeof p.setMap === 'function') {
-              p.setMap(null); // Safer than map.remove([p]) sometimes
+              p.setMap(null);
             }
           });
           if (typeof map?.remove === 'function') {
-            map.remove(polygons.filter(p => !!p));
+            map.remove(polygons.filter((p: any) => !!p));
           }
         }
       } catch (error) {
@@ -133,6 +227,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, onTerri
     };
   }, [polygons, map]);
 
+  // Visibility toggle
   useEffect(() => {
     if (isVisible) {
       polygons.forEach((p) => p.show());
