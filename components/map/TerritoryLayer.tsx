@@ -44,6 +44,7 @@ function darkenColor(hex: string, factor: number = 0.6): string {
 interface TerritoryLayerProps {
   map: any | null;
   isVisible: boolean;
+  kingdomMode?: 'personal' | 'club';
 }
 
 /**
@@ -56,8 +57,9 @@ interface TerritoryLayerProps {
  * - Selected territory gets a persistent darker border highlight
  * - Map blank click clears selection (with event conflict protection)
  */
-const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible }) => {
+const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdomMode }) => {
   const [polygons, setPolygons] = useState<any[]>([]);
+  const [markers, setMarkers] = useState<any[]>([]);
   const { currentCity: city } = useCity();
   const { viewMode, selectedTerritory, setSelectedTerritory } = useMap();
   const { user } = useAuth();
@@ -117,7 +119,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible }) => {
 
           const ctx: ViewContext = {
             userId: user?.id || null,
-            subject: viewMode === 'faction' ? 'faction' : 'individual'
+            subject: kingdomMode === 'club' ? 'club' : (viewMode === 'faction' ? 'faction' : 'individual')
           };
           const style = generateTerritoryStyle(territory, ctx);
 
@@ -138,6 +140,40 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible }) => {
             defaultStrokeColor: style.strokeColor2D,
           });
 
+          let marker = null;
+          if (kingdomMode === 'club' && territory.ownerClub) {
+            const centerLngLat = polygon.getBounds().getCenter();
+            
+            // Marker content with pointer-events-none (Constraint)
+            const content = document.createElement('div');
+            // Important: negative margins to perfectly center the custom DOM marker based on its size (w-6 h-6 is 24px)
+            content.className = 'w-6 h-6 pointer-events-none -ml-3 -mt-3';
+
+            const inner = document.createElement('div');
+            inner.className = 'w-full h-full rounded-full overflow-hidden border border-white bg-black/60 shadow flex items-center justify-center';
+            
+            if (territory.ownerClub.logoUrl) {
+              const img = document.createElement('img');
+              img.src = territory.ownerClub.logoUrl;
+              img.className = 'w-full h-full object-cover';
+              inner.appendChild(img);
+            } else {
+              const span = document.createElement('span');
+              span.className = 'text-[10px] text-white font-bold leading-none';
+              span.innerText = territory.ownerClub.name.substring(0, 1);
+              inner.appendChild(span);
+            }
+            content.appendChild(inner);
+
+            marker = new (window as any).AMap.Marker({
+              position: centerLngLat,
+              content: content,
+              zIndex: 60,
+              bubble: true, // Allow events to bubble up, though pointer-events-none prevents capturing anyway
+              zooms: [14, 20], // Handle zoom visibility: hide markers when zoomed out < 14
+            });
+          }
+
           polygon.on("click", () => {
             // Set flag to prevent map blank click from clearing immediately
             territoryClickedRef.current = true;
@@ -155,7 +191,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible }) => {
             }
           });
 
-          return polygon;
+          return { polygon, marker };
         });
 
         polygonTerritoryMap.current = newPolygonMap;
@@ -167,10 +203,21 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible }) => {
               p.setMap(null);
             }
           });
-          return createdPolygons;
+          const validPolygons = createdPolygons.map(item => item.polygon).filter(p => !!p);
+          map.add(validPolygons);
+          return validPolygons;
         });
 
-        map.add(createdPolygons);
+        setMarkers(prev => {
+          prev.forEach(m => {
+            if (m && typeof m.setMap === 'function') {
+              m.setMap(null);
+            }
+          });
+          const validMarkers = createdPolygons.map(item => item.marker).filter(m => !!m);
+          map.add(validMarkers);
+          return validMarkers;
+        });
 
       } catch (error: any) {
         if (error?.name !== 'AbortError' && error?.digest !== 'NEXT_REDIRECT') {
@@ -184,7 +231,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible }) => {
     return () => {
       mounted = false;
     };
-  }, [map, city, viewMode]);
+  }, [map, city, viewMode, kingdomMode]);
 
   // Apply selection highlight when selectedTerritory changes
   useEffect(() => {
@@ -221,20 +268,32 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible }) => {
             map.remove(polygons.filter((p: any) => !!p));
           }
         }
+        if (map && markers.length > 0) {
+          markers.forEach(m => {
+            if (m && typeof m.setMap === 'function') {
+              m.setMap(null);
+            }
+          });
+          if (typeof map?.remove === 'function') {
+            map.remove(markers.filter((m: any) => !!m));
+          }
+        }
       } catch (error) {
-        console.warn('Failed to remove polygons:', error);
+        console.warn('Failed to remove polygons or markers:', error);
       }
     };
-  }, [polygons, map]);
+  }, [polygons, markers, map]);
 
   // Visibility toggle
   useEffect(() => {
     if (isVisible) {
       polygons.forEach((p) => p.show());
+      markers.forEach((m) => m.show());
     } else {
       polygons.forEach((p) => p.hide());
+      markers.forEach((m) => m.hide());
     }
-  }, [isVisible, polygons]);
+  }, [isVisible, polygons, markers]);
 
   return null;
 };

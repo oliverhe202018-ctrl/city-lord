@@ -49,16 +49,19 @@ export function getTerritoryRelation(t: ExtTerritory, ctx: ViewContext): Territo
 /**
  * 计算未沾染战损的基础阵营颜色
  */
-export function getBaseColor(relation: TerritoryRelation, ownerId: string, subject: TerritorySubject): string {
+export function getBaseColor(relation: TerritoryRelation, t: Partial<ExtTerritory>, subject: TerritorySubject): string {
     if (relation === 'self') return '#22c55e'; // 绿色基调
     if (relation === 'neutral') return '#3f3f46'; // 中立灰调
 
     // 对于 enemy
     if (subject === 'individual') {
-        return ownerId ? stringToColor(ownerId) : '#a855f7';
+        return t.ownerId ? stringToColor(t.ownerId) : '#a855f7';
+    } else if (subject === 'club') {
+        // If it's club mode, we want a consistent color for this club
+        return t.ownerClubId ? stringToColor(t.ownerClubId) : '#3f3f46'; // fallback to neutral
     }
 
-    // club/faction 统一样式警示色
+    // faction 统一样式警示色
     return '#ef4444';
 }
 
@@ -118,7 +121,7 @@ export function calculateHealthVisuals(baseColor: string, health: number, maxHea
  */
 export function generateTerritoryStyle(t: ExtTerritory, ctx: ViewContext): TerritoryRenderStyle {
     const relation = getTerritoryRelation(t, ctx);
-    const baseHexColor = getBaseColor(relation, t.ownerId || '', ctx.subject);
+    const baseHexColor = getBaseColor(relation, t, ctx.subject);
 
     const maxHealth = t.maxHealth ?? 1000;
     const health = t.health ?? maxHealth;
@@ -143,7 +146,7 @@ export function generateTerritoryStyle(t: ExtTerritory, ctx: ViewContext): Terri
  * 纯中立空白地块默认渲染包装分配
  */
 export function generateNeutralTerritoryStyle(ctx: ViewContext): TerritoryRenderStyle {
-    const baseHexColor = getBaseColor('neutral', '', ctx.subject);
+    const baseHexColor = getBaseColor('neutral', {}, ctx.subject);
     const maxHealth = 1000;
     const health = maxHealth;
 
