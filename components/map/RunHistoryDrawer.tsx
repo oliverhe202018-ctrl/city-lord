@@ -32,7 +32,10 @@ interface Activity {
   id: string
   created_at: string
   distance: number
+  distance_km: number
   duration: number
+  duration_str: string
+  pace_min_per_km: string
   area: number
 }
 
@@ -64,19 +67,8 @@ export function RunHistoryDrawer({ isOpen, onClose }: RunHistoryDrawerProps) {
     }
   }, [isOpen])
 
-  const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins}:${secs.toString().padStart(2, '0')}`
-  }
-
-  const formatPace = (seconds: number, distance: number) => {
-    if (!distance || distance <= 0) return "--'--\""
-    const paceSeconds = seconds / distance
-    const mins = Math.floor(paceSeconds / 60)
-    const secs = Math.floor(paceSeconds % 60)
-    return `${mins}'${secs.toString().padStart(2, '0')}"`
-  }
+  // formatDuration and formatPace are now computed server-side in activities.ts
+  // and returned as `duration_str` and `pace_min_per_km` fields
 
   // Calculate totals from fetched data or user profile store?
   // The user prompt didn't ask to change the summary stats at the top, but it's weird if they are hardcoded.
@@ -91,9 +83,9 @@ export function RunHistoryDrawer({ isOpen, onClose }: RunHistoryDrawerProps) {
   // The user didn't explicitly ask to fix the summary cards.
 
   return (
-    <Drawer 
-      open={isOpen} 
-      onOpenChange={onClose} 
+    <Drawer
+      open={isOpen}
+      onOpenChange={onClose}
       snapPoints={[0.4, 1]}
       activeSnapPoint={snapPoint}
       onActiveSnapPointChange={setSnapPoint}
@@ -123,7 +115,7 @@ export function RunHistoryDrawer({ isOpen, onClose }: RunHistoryDrawerProps) {
           */}
 
           <h3 className="text-sm font-medium text-white/50 mb-3 px-1">最近记录</h3>
-          
+
           {loading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="w-6 h-6 text-white/30 animate-spin" />
@@ -135,7 +127,7 @@ export function RunHistoryDrawer({ isOpen, onClose }: RunHistoryDrawerProps) {
           ) : (
             <div className="space-y-3">
               {activities.map((run, index) => (
-                <div 
+                <div
                   key={run.id}
                   className="group relative overflow-hidden rounded-2xl bg-white/5 border border-white/10 active:scale-[0.98] transition-all duration-200"
                   style={{ animationDelay: `${index * 100}ms` }}
@@ -159,7 +151,7 @@ export function RunHistoryDrawer({ isOpen, onClose }: RunHistoryDrawerProps) {
                         <MapPin className="w-3 h-3 text-yellow-500" />
                         {/* Task 2: Show Area instead of Polygons */}
                         <span className="text-xs font-bold text-yellow-500">
-                           {run.area ? Number(run.area).toFixed(2) : 0} m²
+                          {run.area ? Number(run.area).toFixed(2) : 0} m²
                         </span>
                       </div>
                     </div>
@@ -167,19 +159,19 @@ export function RunHistoryDrawer({ isOpen, onClose }: RunHistoryDrawerProps) {
                     <div className="grid grid-cols-3 gap-4 pl-1">
                       <div>
                         <div className="text-2xl font-bold text-white font-mono tracking-tight">
-                          {run.distance ? run.distance.toFixed(2) : '0.00'}
+                          {run.distance_km != null ? run.distance_km.toFixed(2) : '0.00'}
                         </div>
                         <div className="text-xs text-white/40 mt-0.5">公里</div>
                       </div>
                       <div>
                         <div className="text-lg font-semibold text-white/90 font-mono mt-1">
-                          {formatPace(run.duration, run.distance)}
+                          {run.pace_min_per_km || "--'--\""}
                         </div>
                         <div className="text-xs text-white/40 mt-0.5">配速</div>
                       </div>
                       <div>
                         <div className="text-lg font-semibold text-white/90 font-mono mt-1">
-                          {formatDuration(run.duration)}
+                          {run.duration_str || '00:00:00'}
                         </div>
                         <div className="text-xs text-white/40 mt-0.5">时长</div>
                       </div>
@@ -192,7 +184,7 @@ export function RunHistoryDrawer({ isOpen, onClose }: RunHistoryDrawerProps) {
 
           {/* Task 3: Footer Button */}
           <div className="mt-4 pb-6">
-            <button 
+            <button
               onClick={() => {
                 // Task 3: Check more history
                 toast("功能开发中")

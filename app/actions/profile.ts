@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
+import { formatDuration, formatPace, metersToKm } from '@/lib/format/running'
 
 // ─── Types ──────────────────────────────────────────────
 export interface UserProfileBasic {
@@ -60,22 +61,7 @@ export type ProfileDataResult =
         user: UserProfileBasic
     }
 
-// ─── Helpers ──────────────────────────────────────────────
-function formatDuration(seconds: number): string {
-    if (!seconds) return '00:00:00'
-    const h = Math.floor(seconds / 3600)
-    const m = Math.floor((seconds % 3600) / 60)
-    const s = Math.floor(seconds % 60)
-    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
-}
 
-function formatPace(seconds: number, km: number): string {
-    if (!km || km === 0) return "00'00\""
-    const paceSeconds = seconds / km
-    const m = Math.floor(paceSeconds / 60)
-    const s = Math.floor(paceSeconds % 60)
-    return `${m}'${s.toString().padStart(2, '0')}"`
-}
 
 // ─── getProfileData ──────────────────────────────────────
 export async function getProfileData(targetUserId: string): Promise<ProfileDataResult> {
@@ -166,20 +152,21 @@ export async function getProfileData(targetUserId: string): Promise<ProfileDataR
     const pbDistances = [1, 5, 10]
     const personalBests: PersonalBest[] = pbDistances.map(d => {
         const qualifying = recentRuns.filter(r => {
-            const dist = (r.distance ?? 0) > 1000 ? (r.distance ?? 0) / 1000 : (r.distance ?? 0)
+            // DB stores distance in METERS
+            const dist = metersToKm(r.distance ?? 0)
             return dist >= d
         })
         if (qualifying.length === 0) return { distance: `${d}km`, time: null }
 
         // Best pace (lowest time per km) for that distance
         const bestRun = qualifying.reduce((best, run) => {
-            const dist = (run.distance ?? 0) > 1000 ? (run.distance ?? 0) / 1000 : (run.distance ?? 0)
+            const dist = metersToKm(run.distance ?? 0)
             const pace = run.duration / dist
-            const bestDist = (best.distance ?? 0) > 1000 ? (best.distance ?? 0) / 1000 : (best.distance ?? 0)
+            const bestDist = metersToKm(best.distance ?? 0)
             const bestPace = best.duration / bestDist
             return pace < bestPace ? run : best
         })
-        const bestDist = (bestRun.distance ?? 0) > 1000 ? (bestRun.distance ?? 0) / 1000 : (bestRun.distance ?? 0)
+        const bestDist = metersToKm(bestRun.distance ?? 0)
         const estimatedTime = Math.round((bestRun.duration / bestDist) * d)
         return { distance: `${d}km`, time: formatDuration(estimatedTime) }
     })
@@ -199,7 +186,8 @@ export async function getProfileData(targetUserId: string): Promise<ProfileDataR
             return d >= dayStart && d < dayEnd
         })
         const totalDist = dayRuns.reduce((sum, r) => {
-            const d = (r.distance ?? 0) > 1000 ? (r.distance ?? 0) / 1000 : (r.distance ?? 0)
+            // DB stores distance in METERS
+            const d = metersToKm(r.distance ?? 0)
             return sum + d
         }, 0)
         return {
@@ -285,9 +273,8 @@ export async function getRuns(
 
     return {
         runs: items.map(run => {
-            const distKm = (run.distance ?? 0) > 1000
-                ? (run.distance ?? 0) / 1000
-                : (run.distance ?? 0)
+            // DB stores distance in METERS
+            const distKm = metersToKm(run.distance ?? 0)
             const durationSec = run.duration
             return {
                 id: run.id,

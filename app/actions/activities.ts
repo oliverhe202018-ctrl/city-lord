@@ -1,10 +1,11 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { formatDuration, formatPace, metersToKm } from "@/lib/format/running";
 
 export async function getRecentActivities(userId?: string, limit: number = 5) {
   const supabase = await createClient();
-  
+
   // If userId not provided, try to get current user
   let targetUserId = userId;
   if (!targetUserId) {
@@ -27,14 +28,16 @@ export async function getRecentActivities(userId?: string, limit: number = 5) {
       return [];
     }
 
-    return data.map(run => ({
+    return data.map(run => {
+      // DB stores distance in METERS (written by saveRunActivity)
+      const distKm = metersToKm(run.distance);
+      return {
         ...run,
-        // Assuming distance is in meters if > 1000 usually, or kilometers? 
-        // Let's assume meters for safety based on typical app data
-        distance_km: run.distance > 1000 ? run.distance / 1000 : run.distance, 
+        distance_km: distKm,
         duration_str: formatDuration(run.duration),
-        pace_min_per_km: formatPace(run.duration, run.distance > 1000 ? run.distance / 1000 : run.distance)
-    }));
+        pace_min_per_km: formatPace(run.duration, distKm),
+      };
+    });
   } catch (error) {
     console.error("Unexpected error:", error);
     return [];
@@ -42,60 +45,46 @@ export async function getRecentActivities(userId?: string, limit: number = 5) {
 }
 
 export async function getRunDetail(runId: string) {
-    const supabase = await createClient();
-    try {
-        const { data, error } = await supabase
-            .from("runs")
-            .select("*")
-            .eq("id", runId)
-            .single();
-            
-        if (error) throw error;
-        
-        const distKm = data.distance > 1000 ? data.distance / 1000 : data.distance;
+  const supabase = await createClient();
+  try {
+    const { data, error } = await supabase
+      .from("runs")
+      .select("*")
+      .eq("id", runId)
+      .single();
 
-        return {
-            ...data,
-            distance_km: distKm,
-            duration_str: formatDuration(data.duration),
-            pace_min_per_km: formatPace(data.duration, distKm),
-            // Mock Splits if not present
-            splits: data.splits || generateMockSplits(distKm, data.duration)
-        };
-    } catch (e) {
-        console.error("Error fetching run detail", e);
-        return null;
-    }
-}
+    if (error) throw error;
 
-function formatDuration(seconds: number) {
-    if (!seconds) return "00:00:00";
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = Math.floor(seconds % 60);
-    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-}
+    // DB stores distance in METERS
+    const distKm = metersToKm(data.distance);
 
-function formatPace(seconds: number, km: number) {
-    if (!km || km === 0) return "00:00";
-    const paceSeconds = seconds / km;
-    const m = Math.floor(paceSeconds / 60);
-    const s = Math.floor(paceSeconds % 60);
-    return `${m}'${s.toString().padStart(2, '0')}"`;
+    return {
+      ...data,
+      distance_km: distKm,
+      duration_str: formatDuration(data.duration),
+      pace_min_per_km: formatPace(data.duration, distKm),
+      // Mock Splits if not present
+      splits: data.splits || generateMockSplits(distKm, data.duration)
+    };
+  } catch (e) {
+    console.error("Error fetching run detail", e);
+    return null;
+  }
 }
 
 function generateMockSplits(totalKm: number, totalSeconds: number) {
-    const splits = [];
-    const avgPace = totalSeconds / totalKm;
-    for (let i = 1; i <= Math.ceil(totalKm); i++) {
-        // Random variance
-        const variance = (Math.random() - 0.5) * 20; // +/- 10 seconds
-        const splitSeconds = avgPace + variance;
-        splits.push({
-            km: i,
-            pace: formatDuration(Math.floor(splitSeconds)).substring(3), // MM:SS
-            seconds: splitSeconds
-        });
-    }
-    return splits;
+  if (!totalKm || totalKm <= 0) return [];
+  const splits = [];
+  const avgPace = totalSeconds / totalKm;
+  for (let i = 1; i <= Math.ceil(totalKm); i++) {
+    // Random variance
+    const variance = (Math.random() - 0.5) * 20; // +/- 10 seconds
+    const splitSeconds = avgPace + variance;
+    splits.push({
+      km: i,
+      pace: formatDuration(Math.floor(splitSeconds)).substring(3), // MM:SS
+      seconds: splitSeconds
+    });
+  }
+  return splits;
 }
