@@ -273,6 +273,11 @@ export interface CityLeaderboardEntry {
 export interface ExtTerritory extends Territory {
   ownerClubId?: string | null;
   ownerFaction?: string | null;
+  ownerClub?: {
+    id: string;
+    name: string;
+    logoUrl: string | null;
+  } | null;
 }
 
 /**

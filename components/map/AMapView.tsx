@@ -7,7 +7,6 @@ import { UserMarkerLayer } from './layers/UserMarkerLayer';
 import { LoadingSkeleton } from './LoadingSkeleton';
 import { LocationIndicator } from './LocationIndicator';
 import { KingdomLayer } from './layers/KingdomLayer';
-import { ClubKingdomLayer } from './layers/ClubKingdomLayer';
 import TerritoryLayer from './TerritoryLayer';
 import FogLayer from './FogLayer';
 import { MapControls } from './MapControls';
@@ -75,15 +74,12 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
           {showKingdom && kingdomMode === 'personal' && (
             <KingdomLayer map={mapLayerRef?.current?.map} userId={user?.id || null} />
           )}
-          {showKingdom && kingdomMode === 'club' && (
-            <ClubKingdomLayer map={mapLayerRef?.current?.map} userId={user?.id || null} />
-          )}
-
-          {/* Layer 0b: All Territories (individual view — click to select) */}
-          {showKingdom && mapViewMode === 'individual' && (
+          {/* Layer 0b: All Territories (individual and club views) */}
+          {showKingdom && (mapViewMode === 'individual' || kingdomMode === 'club') && (
             <TerritoryLayer
               map={mapLayerRef?.current?.map}
               isVisible={true}
+              kingdomMode={kingdomMode}
             />
           )}
 
@@ -102,7 +98,7 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
           {/* Layer 2b: GPS Trajectory (Real-time Polyline - z-index 50) */}
           {userPath && userPath.length > 0 && (
             <TrajectoryLayer
-              map={mapLayerRef?.current?.map}
+              map={mapLayerRef?.current?.map as any}
               path={userPath}
               strokeColor="#3B82F6"
               strokeWeight={6}

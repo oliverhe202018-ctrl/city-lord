@@ -18,6 +18,7 @@ export interface TerritoryDetailResult {
     club: {
         id: string
         name: string
+        logoUrl: string | null
     } | null
     recentRun: {
         distanceKm: number
@@ -88,14 +89,15 @@ export async function getTerritoryDetail(territoryId: string): Promise<Territory
     if (territory.owner_club_id) {
         const { data: club } = await supabaseAdmin
             .from('clubs')
-            .select('id, name')
+            .select('id, name, logo_url')
             .eq('id', territory.owner_club_id)
             .single()
 
         if (club) {
             result.club = {
                 id: club.id,
-                name: club.name
+                name: club.name,
+                logoUrl: club.logo_url
             }
         }
     }

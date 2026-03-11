@@ -5,18 +5,19 @@ import { Drawer, DrawerContent, DrawerOverlay } from '@/components/ui/drawer'
 import { useMap } from '@/components/map/AMapContext'
 import { useQuery } from '@tanstack/react-query'
 import { getTerritoryDetail } from '@/app/actions/territory-detail'
-import { Loader2, MapPin, Clock, Medal, Flag, Timer } from 'lucide-react'
+import { Loader2, MapPin, Clock, Medal, Flag, Timer, User } from 'lucide-react'
 import { TerritoryMoreMenu } from './TerritoryMoreMenu'
 import dayjs from 'dayjs'
 import { TerritoryReportDialog } from './TerritoryReportDialog'
 
 export function TerritoryDetailSheet() {
-    const { selectedTerritory, viewMode, setSelectedTerritory } = useMap()
+    const { selectedTerritory, viewMode, kingdomMode, setSelectedTerritory } = useMap()
     const [reportDialogOpen, setReportDialogOpen] = useState(false)
 
     // Sheet is open when there's a selected territory in individual view
     const isOpen = selectedTerritory !== null && viewMode === 'individual'
     const territoryId = selectedTerritory?.id
+    const isClubMode = kingdomMode === 'club'
 
     const { data: detail, isLoading } = useQuery({
         queryKey: ['territory-detail', territoryId],
@@ -56,17 +57,27 @@ export function TerritoryDetailSheet() {
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-3">
                                         <div className="w-12 h-12 rounded-full overflow-hidden bg-muted border border-border flex items-center justify-center">
-                                            {detail.owner?.avatarUrl ? (
-                                                <img src={detail.owner.avatarUrl} alt="avatar" className="w-full h-full object-cover" />
+                                            {isClubMode && detail.club ? (
+                                                detail.club.logoUrl ? (
+                                                    <img src={detail.club.logoUrl} alt="club avatar" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <span className="text-lg font-bold text-muted-foreground">
+                                                        {detail.club.name.substring(0, 1)}
+                                                    </span>
+                                                )
                                             ) : (
-                                                <span className="text-lg font-bold">
-                                                    {detail.owner ? detail.owner.nickname.substring(0, 1) : '?'}
-                                                </span>
+                                                detail.owner?.avatarUrl ? (
+                                                    <img src={detail.owner.avatarUrl} alt="avatar" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <span className="text-lg font-bold text-muted-foreground">
+                                                        {detail.owner ? detail.owner.nickname.substring(0, 1) : '?'}
+                                                    </span>
+                                                )
                                             )}
                                         </div>
                                         <div className="flex flex-col">
                                             <span className="font-bold text-lg">
-                                                {detail.owner?.nickname || '神秘领主'}
+                                                {isClubMode && detail.club ? detail.club.name : (detail.owner?.nickname || '神秘领主')}
                                             </span>
                                             <span className="text-xs text-muted-foreground flex items-center gap-1">
                                                 <MapPin className="w-3 h-3" />
@@ -98,11 +109,11 @@ export function TerritoryDetailSheet() {
                                     </div>
                                     <div className="flex flex-col gap-1 p-3 rounded-lg bg-muted/50">
                                         <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                            <Medal className="w-3.5 h-3.5" />
-                                            所属俱乐部
+                                            {isClubMode ? <User className="w-3.5 h-3.5" /> : <Medal className="w-3.5 h-3.5" />}
+                                            {isClubMode ? '占领者个人' : '所属俱乐部'}
                                         </span>
                                         <span className="text-sm font-medium truncate">
-                                            {detail.club?.name || '--'}
+                                            {isClubMode ? (detail.owner?.nickname || '--') : (detail.club?.name || '--')}
                                         </span>
                                     </div>
                                 </div>

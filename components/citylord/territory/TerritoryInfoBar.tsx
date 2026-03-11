@@ -7,7 +7,7 @@ import { getTerritoryDetail } from '@/app/actions/territory-detail'
 import { Loader2 } from 'lucide-react'
 
 export function TerritoryInfoBar() {
-    const { selectedTerritory, viewMode } = useMap()
+    const { selectedTerritory, viewMode, kingdomMode } = useMap()
 
     const isVisible = selectedTerritory !== null && viewMode === 'individual'
 
@@ -17,6 +17,8 @@ export function TerritoryInfoBar() {
         enabled: !!selectedTerritory?.id,
         staleTime: 60 * 1000, // 1 minute
     })
+
+    const isClubMode = kingdomMode === 'club' && detail?.club
 
     return (
         <AnimatePresence>
@@ -41,10 +43,10 @@ export function TerritoryInfoBar() {
                                 <div className="flex flex-col">
                                     <div className="flex items-center gap-2 truncate">
                                         <span className="font-bold text-base truncate">
-                                            {detail?.owner?.nickname || '神秘领主'}
+                                            {isClubMode ? detail?.club?.name : (detail?.owner?.nickname || '神秘领主')}
                                         </span>
-                                        <span className="text-xs px-1.5 py-0.5 rounded-sm bg-primary/10 text-primary whitespace-nowrap">
-                                            领地领主
+                                        <span className={`text-xs px-1.5 py-0.5 rounded-sm whitespace-nowrap ${isClubMode ? 'bg-amber-500/10 text-amber-500' : 'bg-primary/10 text-primary'}`}>
+                                            {isClubMode ? '俱乐部领地' : '领地领主'}
                                         </span>
                                     </div>
                                     <div className="text-xs text-muted-foreground mt-0.5">
@@ -55,12 +57,20 @@ export function TerritoryInfoBar() {
                         </div>
                         {/* Optional right side icon or stat */}
                         <div className="flex-shrink-0 ml-3 text-right">
-                            {!isLoading && detail?.owner && (
+                            {!isLoading && isClubMode && detail.club ? (
+                                <div className="w-8 h-8 rounded-full overflow-hidden bg-muted border border-border flex items-center justify-center">
+                                    {detail.club.logoUrl ? (
+                                        <img src={detail.club.logoUrl} alt="club avatar" className="w-full h-full object-cover" />
+                                    ) : (
+                                        <span className="text-xs font-bold text-muted-foreground">{detail.club.name.substring(0, 1)}</span>
+                                    )}
+                                </div>
+                            ) : !isLoading && detail?.owner && (
                                 <div className="w-8 h-8 rounded-full overflow-hidden bg-muted border border-border flex items-center justify-center">
                                     {detail.owner.avatarUrl ? (
                                         <img src={detail.owner.avatarUrl} alt="avatar" className="w-full h-full object-cover" />
                                     ) : (
-                                        <span className="text-xs font-bold">{detail.owner.nickname.substring(0, 1)}</span>
+                                        <span className="text-xs font-bold text-muted-foreground">{detail.owner.nickname.substring(0, 1)}</span>
                                     )}
                                 </div>
                             )}

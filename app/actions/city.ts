@@ -25,7 +25,11 @@ export async function fetchTerritories(cityId: string): Promise<ExtTerritory[]> 
   try {
     const { data: terrData, error } = await supabaseAdmin
       .from('territories')
-      .select('id, city_id, owner_id, owner_club_id, owner_faction, captured_at, health, last_maintained_at, owner_change_count, last_owner_change_at')
+      .select(`
+        id, city_id, owner_id, owner_club_id, owner_faction, 
+        captured_at, health, last_maintained_at, owner_change_count, last_owner_change_at,
+        clubs ( id, name, logo_url )
+      `)
       .eq('city_id', cityId)
 
     if (error) {
@@ -58,6 +62,11 @@ export async function fetchTerritories(cityId: string): Promise<ExtTerritory[]> 
         lastMaintainedAt: t.last_maintained_at,
         isHotZone,
         ownerChangeCount: changeCount,
+        ownerClub: t.clubs ? {
+          id: Array.isArray(t.clubs) ? t.clubs[0]?.id : t.clubs.id,
+          name: Array.isArray(t.clubs) ? t.clubs[0]?.name : t.clubs.name,
+          logoUrl: Array.isArray(t.clubs) ? t.clubs[0]?.logo_url : t.clubs.logo_url
+        } : null
       }
     })
   } catch (err) {
