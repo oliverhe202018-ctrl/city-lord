@@ -178,7 +178,7 @@ export function MapHeader({
 
     // Load Geocoder plugin
     window.AMap.plugin('AMap.Geocoder', () => {
-      const geocoder = new window.AMap.Geocoder();
+      const geocoder = new (window.AMap as any).Geocoder();
 
       geocoder.getAddress([longitude, latitude], (status: string, result: any) => {
         if (status === 'complete' && result.info === 'OK') {

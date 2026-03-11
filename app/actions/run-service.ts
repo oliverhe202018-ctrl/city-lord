@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma';
 import { evaluateTasks, RunData, TaskResult } from '@/lib/game/task-engine';
 import { revalidatePath } from 'next/cache';
 import { RunRecordDTO, ActionResponse } from '@/types/run-sync';
+import { validateRunAndRebuildTerritories, AntiCheatValidationResult } from '@/lib/anti-cheat/territory-builder';
+import { checkRunRateLimit } from '@/lib/anti-cheat/rate-limiter';
 
 export interface SaveRunResult {
     runId?: string;
@@ -22,6 +24,16 @@ export async function saveRunActivity(
     try {
         if (!userId) throw new Error('User ID is required');
 
+        // Rate Limiting
+        const rateLimitResult = checkRunRateLimit(userId);
+        if (!rateLimitResult.allowed) {
+            console.warn(`[saveRunActivity] Rate limit exceeded for user: ${userId}`);
+            return {
+                success: false,
+                error: `Too many submissions. Please try again in ${rateLimitResult.retryAfter} seconds.`
+            };
+        }
+
         // 0. Strong Idempotency Check
         if (runData.idempotencyKey) {
             const existingRun = await prisma.runs.findUnique({
@@ -37,34 +49,71 @@ export async function saveRunActivity(
             }
         }
 
-        // 1. Prepare Run Data for Evaluation
+        // 1. Anti-Cheat Server-Side Validation & Territory Rebuild
+        const validation: AntiCheatValidationResult = validateRunAndRebuildTerritories(runData.path as any);
+
+        let finalPolygons = validation.validPolygons;
+        let finalArea = validation.totalArea;
+
+        // Settlement Gating
+        if (validation.riskLevel === 'MEDIUM') {
+            // Neutralize territory acquisition
+            finalPolygons = [];
+            finalArea = 0;
+            console.log(`[saveRunActivity] MEDIUM risk run. Polygons neutralized for user: ${userId}`);
+        } else if (validation.riskLevel === 'HIGH') {
+            // Hard block: Run marked as rejected, zero rewards, zero territory.
+            finalPolygons = [];
+            finalArea = 0;
+            console.log(`[saveRunActivity] HIGH risk run. Run rejected for user: ${userId}`);
+        }
+
+        // 2. Prepare Run Data for Evaluation
         const evaluationData: RunData = {
-            distance: runData.distance,
-            duration: runData.duration,
-            claims: runData.polygons,
+            distance: validation.serverDistance,
+            duration: validation.serverDuration,
+            claims: finalPolygons, // Server-calculated claims
             timestamp: new Date(runData.timestamp || Date.now()),
         };
 
-        // 2. Evaluate Tasks (In-Memory)
-        const potentialResults = evaluateTasks(evaluationData);
+        // 3. Evaluate Tasks (In-Memory)
+        const potentialResults = validation.riskLevel === 'HIGH' ? [] : evaluateTasks(evaluationData);
 
-        // 3. Transaction: Save Run + Process Rewards
+        // 4. Transaction: Save Run + Process Rewards + Audit Logs
         const result = await prisma.$transaction(async (tx: any) => {
             // A. Create Run Record
             const run = await tx.runs.create({
                 data: {
                     user_id: userId,
-                    distance: runData.distance,
-                    duration: runData.duration,
+                    distance: evaluationData.distance,
+                    duration: evaluationData.duration,
                     path: runData.path as any,
-                    polygons: runData.polygons as any,
-                    status: 'completed',
+                    polygons: evaluationData.claims as any,
+                    status: validation.riskLevel === 'HIGH' ? 'rejected' : 'completed',
                     created_at: new Date(runData.timestamp || Date.now()),
                     updated_at: new Date(),
                     idempotency_key: runData.idempotencyKey,
-                    // Province/City logic could be added here if needed
+                    // Anti-Cheat Fields
+                    risk_score: validation.riskScore,
+                    risk_level: validation.riskLevel,
+                    cheat_flags: validation.cheatFlags as any,
+                    client_distance: runData.distance,
                 },
             });
+
+            // Audit logging for suspicious runs
+            if (validation.riskLevel !== 'LOW') {
+                await tx.anti_cheat_audit_logs.create({
+                    data: {
+                        user_id: userId,
+                        run_id: run.id,
+                        risk_score: validation.riskScore,
+                        cheat_flags: validation.cheatFlags as any,
+                        raw_payload: runData as any,
+                        action_taken: validation.riskLevel === 'HIGH' ? 'rejected' : 'polygons_neutralized',
+                    }
+                });
+            }
 
             // B. Filter Tasks (Idempotency Check)
             const newTasks: TaskResult[] = [];
@@ -127,17 +176,17 @@ export async function saveRunActivity(
                         coins: { increment: totalCoins },
                         xp: { increment: totalXp },
                         // Update basic stats too
-                        total_distance_km: { increment: runData.distance / 1000 },
-                        total_area: { increment: runData.polygons.reduce((acc: number, p: any) => acc + (p.area || 0), 0) }
+                        total_distance_km: { increment: evaluationData.distance / 1000 },
+                        total_area: { increment: finalArea }
                     }
                 });
-            } else {
-                // Even if no tasks, update stats
+            } else if (validation.riskLevel !== 'HIGH') {
+                // Even if no tasks, update stats if not rejected
                 await tx.profiles.update({
                     where: { id: userId },
                     data: {
-                        total_distance_km: { increment: runData.distance / 1000 },
-                        total_area: { increment: runData.polygons.reduce((acc: number, p: any) => acc + (p.area || 0), 0) }
+                        total_distance_km: { increment: evaluationData.distance / 1000 },
+                        total_area: { increment: finalArea }
                     }
                 });
             }
@@ -155,19 +204,20 @@ export async function saveRunActivity(
         // Trigger Task Center Event (Async, non-blocking)
         try {
             const { TaskService } = await import('@/lib/services/task');
-            // Avoid blocking the response for too long, but wait enough to ensure no race condition on immediate fetch?
-            // Actually, we should catch errors so run save doesn't fail.
-            const eventPayload = {
-                type: 'RUN_FINISHED' as const,
-                userId: userId,
-                timestamp: new Date(),
-                data: {
-                    distance: runData.distance, // meters
-                    duration: runData.duration, // seconds
-                    pace: (runData.duration / (runData.distance / 1000)), // s/km
-                }
-            };
-            await TaskService.processEvent(userId, eventPayload);
+            // Try tracking the run event
+            if (validation.riskLevel !== 'HIGH') {
+                const eventPayload = {
+                    type: 'RUN_FINISHED' as const,
+                    userId: userId,
+                    timestamp: new Date(),
+                    data: {
+                        distance: evaluationData.distance, // meters
+                        duration: evaluationData.duration, // seconds
+                        pace: (evaluationData.duration / (evaluationData.distance / 1000)), // s/km
+                    }
+                };
+                await TaskService.processEvent(userId, eventPayload);
+            }
         } catch (taskError) {
             console.error('Task event processing failed', taskError);
         }
