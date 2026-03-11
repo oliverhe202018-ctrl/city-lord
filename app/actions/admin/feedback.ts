@@ -19,14 +19,14 @@ function getAdminClient() {
     })
 }
 
-export async function updateFeedbackStatus(id: string, source: 'feedback' | 'report', newStatus: string) {
+export async function updateFeedbackStatus(id: string, source: 'feedback' | 'report' | 'territory_report', newStatus: string) {
     // 1. Strictly require admin session (verifies signed token)
     await requireAdminSession()
 
     // 2. Perform the update using the Service Role Admin Client
     try {
         const adminClient = getAdminClient()
-        const table = source === 'feedback' ? 'feedback' : 'post_reports'
+        const table = source === 'feedback' ? 'feedback' : (source === 'report' ? 'post_reports' : 'territory_reports')
 
         const { error } = await adminClient
             .from(table)
