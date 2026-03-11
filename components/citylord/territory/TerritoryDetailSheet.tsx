@@ -34,9 +34,9 @@ export function TerritoryDetailSheet() {
 
     return (
         <>
-            <Drawer open={isOpen} onOpenChange={handleOpenChange} dismissible={true}>
-                <DrawerOverlay className="bg-transparent" />
-                <DrawerContent className="bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 outline-none max-w-md mx-auto pointer-events-auto">
+            <Drawer modal={false} open={isOpen} onOpenChange={handleOpenChange} dismissible={true}>
+                <DrawerOverlay className="bg-transparent z-[1050] pointer-events-none" />
+                <DrawerContent className="bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 outline-none max-w-md mx-auto pointer-events-auto z-[1050]">
                     {/* Prevent drawer from filling whole screen, allow interaction with map above */}
                     <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-muted mt-2" />
 
