@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getCityById } from '@/lib/city-data'
 import { cellArea } from 'h3-js'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 
 export interface TerritoryDetailResult {
     territoryId: string
@@ -29,7 +30,7 @@ export async function getTerritoryDetail(territoryId: string): Promise<Territory
     const supabase = await createClient()
 
     // 1. Fetch territory data
-    const { data: territory, error: terrError } = await supabase
+    const { data: territory, error: terrError } = await supabaseAdmin
         .from('territories')
         .select('owner_id, city_id, captured_at, owner_club_id')
         .eq('id', territoryId)
@@ -62,7 +63,7 @@ export async function getTerritoryDetail(territoryId: string): Promise<Territory
     }
 
     // 2. Fetch owner profile
-    const { data: profile } = await supabase
+    const { data: profile } = await supabaseAdmin
         .from('profiles')
         .select('id, nickname, avatar_url')
         .eq('id', territory.owner_id)
@@ -85,7 +86,7 @@ export async function getTerritoryDetail(territoryId: string): Promise<Territory
 
     // 3. Fetch club info if applicable
     if (territory.owner_club_id) {
-        const { data: club } = await supabase
+        const { data: club } = await supabaseAdmin
             .from('clubs')
             .select('id, name')
             .eq('id', territory.owner_club_id)
@@ -100,7 +101,7 @@ export async function getTerritoryDetail(territoryId: string): Promise<Territory
     }
 
     // 4. Fetch recent run (MVP option B: owner's most recent run)
-    const { data: recentRun } = await supabase
+    const { data: recentRun } = await supabaseAdmin
         .from('runs')
         .select('distance, duration')
         .eq('user_id', territory.owner_id)

@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { cookies } from 'next/headers'
 import { UserCityProgress, Territory, ExtTerritory } from '@/types/city'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 
 // Redefine types to avoid dependency on mock-api
 export interface CityLeaderboardEntry {
@@ -22,9 +23,9 @@ export async function fetchTerritories(cityId: string): Promise<ExtTerritory[]> 
   const currentUserId = user?.id
 
   try {
-    const { data: terrData, error } = await supabase
+    const { data: terrData, error } = await supabaseAdmin
       .from('territories')
-      .select('*')
+      .select('id, city_id, owner_id, owner_club_id, owner_faction, captured_at, health, last_maintained_at, owner_change_count, last_owner_change_at')
       .eq('city_id', cityId)
 
     if (error) {

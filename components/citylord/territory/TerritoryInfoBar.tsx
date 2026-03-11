@@ -26,7 +26,7 @@ export function TerritoryInfoBar() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -20 }}
                     transition={{ duration: 0.2 }}
-                    className="fixed left-4 right-4 z-[99]"
+                    className="fixed left-4 right-4 z-[1050]"
                     // Positioned safely below the MapHeader (which takes roughly 5rem)
                     style={{ top: 'calc(env(safe-area-inset-top) + 4.5rem)' }}
                 >
