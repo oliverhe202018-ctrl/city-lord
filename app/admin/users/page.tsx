@@ -1,6 +1,8 @@
 import AdminUsersPageClient from '@/components/admin/AdminUsersPageClient'
 import { getAdminUsers } from '@/app/actions/admin'
 
+export const dynamic = 'force-dynamic'
+
 export default async function UsersPage() {
   const res = await getAdminUsers()
 
