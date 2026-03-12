@@ -81,7 +81,7 @@ const FogLayer: React.FC<FogLayerProps> = ({ map }) => {
           fillOpacity: 0.4,          // 降低透明度以便在手机上可见地图内容
           strokeWeight: 0,            // 无边框
           strokeColor: "transparent",
-          bubble: true,               // 允许事件穿透
+          clickable: false,           // 禁止截获交互事件，点击穿透到下层 territory
           zIndex: 100,                // 确保在底图之上
         });
 

@@ -67,20 +67,25 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
   // Track polygon → territory mapping for highlight updates
   const polygonTerritoryMap = useRef<Map<any, { territory: ExtTerritory; defaultStrokeColor: string }>>(new Map());
 
-  // Flag to prevent map click from clearing territory selection immediately after polygon click
+  // 用于 hover handler 中获取最新的 selectedTerritory，避免 stale closure
+  const selectedTerritoryRef = useRef<ExtTerritory | null | undefined>(selectedTerritory);
+  useEffect(() => {
+    selectedTerritoryRef.current = selectedTerritory;
+  }, [selectedTerritory]);
+
+  // 防止 map click 在 polygon click 之后立即清除选择
   const territoryClickedRef = useRef(false);
 
-  // Handle map blank click → clear selection (with event conflict protection)
+  // 地图空白区域点击 → 清除选择（含事件竞态保护）
   useEffect(() => {
     if (!map) return;
 
     const handleMapClick = () => {
-      // If a polygon was just clicked, skip this map click
+      // polygon click handler 已设置 ref，本次 map click 应跳过
       if (territoryClickedRef.current) {
-        territoryClickedRef.current = false;
         return;
       }
-      // Clear selection on blank area click
+      // 空白区域点击，清除选择
       setSelectedTerritory?.(null);
     };
 
@@ -92,10 +97,11 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
     };
   }, [map, setSelectedTerritory]);
 
-  // Clear selection when viewMode changes
+  // 上下文切换时清除选择（city/viewMode/kingdomMode 变化意味着 polygon 实例即将重建）
+  // 注意：不包含 user?.id，避免 auth 刷新导致意外清除已选领地
   useEffect(() => {
     setSelectedTerritory?.(null);
-  }, [viewMode, setSelectedTerritory]);
+  }, [city, viewMode, kingdomMode, setSelectedTerritory]);
 
   // Load territories
   useEffect(() => {
@@ -175,18 +181,20 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
           }
 
           polygon.on("click", () => {
-            // Set flag to prevent map blank click from clearing immediately
+            // 设置标志位，防止 map blank click 在同一事件循环中清除选择
             territoryClickedRef.current = true;
             setSelectedTerritory?.(territory);
+            // 延迟重置：将 ref 回置推迟到下一个事件循环 turn，确保当前 click 链中 map click handler 能读到 true
+            setTimeout(() => { territoryClickedRef.current = false; }, 0);
           });
           polygon.on("mouseover", () => {
-            // Only apply hover effect if not the selected polygon
-            if (selectedTerritory?.id !== territory.id) {
+            // 使用 ref 获取最新的 selectedTerritory，避免 stale closure
+            if (selectedTerritoryRef.current?.id !== territory.id) {
               polygon.setOptions({ strokeWeight: 3 });
             }
           });
           polygon.on("mouseout", () => {
-            if (selectedTerritory?.id !== territory.id) {
+            if (selectedTerritoryRef.current?.id !== territory.id) {
               polygon.setOptions({ strokeWeight: 2 });
             }
           });
@@ -231,7 +239,8 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
     return () => {
       mounted = false;
     };
-  }, [map, city, viewMode, kingdomMode]);
+  // 加入 user?.id 确保认证状态变化后 polygon 重建，以获得正确的 self/enemy 样式
+  }, [map, city, viewMode, kingdomMode, user?.id]);
 
   // Apply selection highlight when selectedTerritory changes
   useEffect(() => {
