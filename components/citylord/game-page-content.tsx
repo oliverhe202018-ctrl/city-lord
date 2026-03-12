@@ -802,7 +802,7 @@ export function GamePageContent({
                       >
                         <Route className="h-5 w-5" />
                       </button>
-                      <span className="absolute left-12 pointer-events-none opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity whitespace-nowrap bg-black/80 text-white text-[10px] sm:text-xs px-2 py-1 rounded border border-white/10">路线规划</span>
+                      <span className="absolute left-12 pointer-events-none opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity whitespace-nowrap bg-black/80 text-white text-[10px] sm:text-xs px-2 py-1 rounded border border-white/10">智能规划</span>
                     </div>
 
                     <div className="group relative flex items-center">

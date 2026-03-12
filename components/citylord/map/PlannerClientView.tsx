@@ -1587,7 +1587,13 @@ export default function PlannerClientView() {
           >
             <List className="w-5 h-5" />
           </button>
-          <button onClick={() => window.history.back()} className="bg-slate-800/90 backdrop-blur p-2 rounded-full text-white/60 hover:text-white hover:bg-red-500/20 transition-all shadow-lg">
+          <button onClick={() => {
+            if (window.history.length > 1) {
+              router.back();
+            } else {
+              router.push('/game');
+            }
+          }} className="bg-slate-800/90 backdrop-blur p-2 rounded-full text-white/60 hover:text-white hover:bg-red-500/20 transition-all shadow-lg">
             <X className="w-5 h-5" />
           </button>
         </div>
