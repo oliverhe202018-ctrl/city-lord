@@ -74,8 +74,8 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
           {showKingdom && kingdomMode === 'personal' && (
             <KingdomLayer map={mapLayerRef?.current?.map} userId={user?.id || null} />
           )}
-          {/* Layer 0b: All Territories (individual and club views) */}
-          {showKingdom && (mapViewMode === 'individual' || kingdomMode === 'club') && (
+          {/* Layer 0b: All Territories (all kingdom modes) */}
+          {showKingdom && (
             <TerritoryLayer
               map={mapLayerRef?.current?.map}
               isVisible={true}

@@ -64,7 +64,7 @@ export function ModeTogglePills({ activeMode, onModeChange, attackTargetCount, o
                     className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-cyan-300 bg-cyan-500/20 border border-cyan-400/40 backdrop-blur-md transition-all duration-200 hover:bg-cyan-500/30 hover:border-cyan-400/60 active:scale-95 shadow-[0_0_10px_hsl(185,70%,50%,0.2)]"
                 >
                     <Brain className="h-3.5 w-3.5" />
-                    <span>路线推荐</span>
+                    <span>智能规划</span>
                 </button>
             )}
         </div>
