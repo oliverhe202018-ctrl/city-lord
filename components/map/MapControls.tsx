@@ -56,18 +56,18 @@ export const MapControls = () => {
                 variant="outline"
                 size="icon"
                 onClick={toggleFog}
-                className={`h-12 w-12 rounded-full shadow-lg transition-all border ${showFog
-                    ? 'bg-slate-700/80 text-white hover:bg-slate-600 border-white/20'
-                    : 'bg-white/90 text-zinc-500 hover:bg-white border-zinc-200/60 dark:bg-zinc-800/90 dark:text-white/50 dark:border-white/10 dark:hover:bg-zinc-700'
+                className={`h-9 w-9 rounded-full shadow-md transition-all border ${showFog
+                    ? 'bg-slate-600/70 text-white hover:bg-slate-500 border-white/15'
+                    : 'bg-white/80 text-zinc-400 hover:bg-white/90 border-zinc-200/40 dark:bg-zinc-800/80 dark:text-white/40 dark:border-white/10 dark:hover:bg-zinc-700'
                     }`}
                 title={showFog ? "关闭迷雾" : "开启迷雾"}
             >
-                {showFog ? <Cloud className="h-6 w-6" /> : <CloudOff className="h-6 w-6" />}
+                {showFog ? <Cloud className="h-4 w-4" /> : <CloudOff className="h-4 w-4" />}
                 <span className="sr-only">迷雾控制</span>
             </Button>
 
-            {/* Kingdom Mode Switch — inline, only when fog ON + kingdom visible */}
-            {showFog && showKingdom && (
+            {/* Kingdom Mode Switch — 领地图层开启时可切换个人/俱乐部视角 */}
+            {showKingdom && (
                 <Button
                     variant="outline"
                     size="icon"
