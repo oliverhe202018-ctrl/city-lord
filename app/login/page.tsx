@@ -13,6 +13,23 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 
+const AgreementCheckbox = ({ id, agreed, setAgreed }: { id: string, agreed: boolean, setAgreed: (val: boolean) => void }) => (
+  <div className="flex items-center space-x-2 mt-4 mb-3">
+    <Checkbox
+      id={id}
+      checked={agreed}
+      onCheckedChange={(checked) => setAgreed(checked as boolean)}
+      className="border-white/40 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600 w-4 h-4"
+    />
+    <Label htmlFor={id} className="text-xs text-white/60 font-normal">
+      阅读并同意
+      <Link href="/terms" className="text-green-500 hover:text-green-400 ml-1">《用户协议》</Link>
+      和
+      <Link href="/privacy" className="text-green-500 hover:text-green-400 mx-1">《隐私政策》</Link>
+    </Label>
+  </div>
+)
+
 function LoginPageContent() {
   const [email, setEmail] = useState("")
   const [phone, setPhone] = useState("")
@@ -81,13 +98,34 @@ function LoginPageContent() {
     }
   }, [router, supabase])
 
-  // Countdown timer for verification code
+  // Countdown timer with absolute time
   useEffect(() => {
-    if (countdown > 0) {
-      const timer = setTimeout(() => setCountdown(countdown - 1), 1000)
-      return () => clearTimeout(timer)
+    const checkTimer = () => {
+      const expiresAt = sessionStorage.getItem('otp_expires_at')
+      if (expiresAt) {
+        const remaining = Math.max(0, Math.ceil((parseInt(expiresAt) - Date.now()) / 1000))
+        setCountdown(remaining)
+        if (remaining <= 0) {
+           sessionStorage.removeItem('otp_expires_at')
+        }
+      } else {
+        setCountdown(0)
+      }
     }
-  }, [countdown])
+    
+    checkTimer()
+    const interval = setInterval(checkTimer, 1000)
+    
+    const handleVis = () => { 
+      if (document.visibilityState === 'visible') checkTimer() 
+    }
+    window.addEventListener('visibilitychange', handleVis)
+    
+    return () => {
+       clearInterval(interval)
+       window.removeEventListener('visibilitychange', handleVis)
+    }
+  }, [])
 
   // ==========================================
   // 核心逻辑: 发送验证码 (Register & Login)
@@ -130,6 +168,8 @@ function LoginPageContent() {
 
       // Success
       setCodeSent(true)
+      const expiresAt = Date.now() + 60000
+      sessionStorage.setItem('otp_expires_at', expiresAt.toString())
       setCountdown(60)
       toast.success("验证码已发送", { description: "请查看您的邮箱 (注意检查垃圾箱)" })
 
@@ -279,6 +319,8 @@ function LoginPageContent() {
       }
 
       setCodeSent(true)
+      const expiresAt = Date.now() + 60000
+      sessionStorage.setItem('otp_expires_at', expiresAt.toString())
       setCountdown(60)
       toast.success("验证码已发送", { description: "请查看您的手机短信" })
     } catch (error: any) {
@@ -391,21 +433,6 @@ function LoginPageContent() {
           <p className="text-white/60 text-sm">用脚步丈量城市，用汗水铸就领地</p>
         </div>
 
-        <div className="flex items-center justify-center space-x-2 mb-6">
-          <Checkbox
-            id="terms"
-            checked={agreed}
-            onCheckedChange={(checked) => setAgreed(checked as boolean)}
-            className="border-white/40 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600"
-          />
-          <Label htmlFor="terms" className="text-xs text-white/70">
-            我已经阅读并同意
-            <Link href="/terms" className="text-green-400 hover:text-green-300 ml-1">《用户协议》</Link>
-            和
-            <Link href="/privacy" className="text-green-400 hover:text-green-300 mx-1">《隐私政策》</Link>
-          </Label>
-        </div>
-
         <Tabs defaultValue="login" className="w-full">
           <TabsList className="grid w-full grid-cols-3 mb-4 bg-black/40 border border-white/10">
             <TabsTrigger value="login">登录</TabsTrigger>
@@ -483,6 +510,9 @@ function LoginPageContent() {
                         />
                       </div>
                     </div>
+                    
+                    <AgreementCheckbox id="terms-pwd" agreed={agreed} setAgreed={setAgreed} />
+                    
                     <Button
                       type="submit"
                       className="w-full bg-green-600 hover:bg-green-700 text-white"
@@ -543,6 +573,7 @@ function LoginPageContent() {
                         </Button>
                       </div>
                     </div>
+                    <AgreementCheckbox id="terms-code" agreed={agreed} setAgreed={setAgreed} />
                     <Button
                       type="submit"
                       className="w-full bg-green-600 hover:bg-green-700 text-white"
@@ -595,6 +626,7 @@ function LoginPageContent() {
                         </Button>
                       </div>
                     </div>
+                    <AgreementCheckbox id="terms-sms" agreed={agreed} setAgreed={setAgreed} />
                     <Button
                       type="submit"
                       className="w-full bg-green-600 hover:bg-green-700 text-white"
@@ -669,6 +701,7 @@ function LoginPageContent() {
                       />
                     </div>
                   </div>
+                  <AgreementCheckbox id="terms-reg" agreed={agreed} setAgreed={setAgreed} />
                   <Button
                     type="submit"
                     className="w-full bg-green-600 hover:bg-green-700 text-white"
@@ -743,6 +776,7 @@ function LoginPageContent() {
                       />
                     </div>
                   </div>
+                  <AgreementCheckbox id="terms-sms-reg" agreed={agreed} setAgreed={setAgreed} />
                   <Button
                     type="submit"
                     className="w-full bg-green-600 hover:bg-green-700 text-white"

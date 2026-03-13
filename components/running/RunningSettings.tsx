@@ -4,6 +4,7 @@ import { useState } from "react"
 import { ChevronLeft, ChevronRight, Volume2, Mic, Map as MapIcon, Download, Zap, Smartphone, Target, Hexagon } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
+import { useGameStore, useGameActions } from "@/store/useGameStore"
 
 interface RunningSettingsProps {
   isOpen: boolean
@@ -11,6 +12,9 @@ interface RunningSettingsProps {
 }
 
 export function RunningSettings({ isOpen, onClose }: RunningSettingsProps) {
+  const { appSettings } = useGameStore()
+  const { setKeepAliveEnabled } = useGameActions()
+
   if (!isOpen) return null
 
   return (
@@ -71,6 +75,15 @@ export function RunningSettings({ isOpen, onClose }: RunningSettingsProps) {
 
         {/* Section 4: System */}
         <div className="mt-4 bg-white">
+          <SettingItem 
+            label="后台雷达保活 (高耗电)" 
+            rightElement={
+              <Switch 
+                checked={appSettings.keepAliveEnabled} 
+                onCheckedChange={setKeepAliveEnabled} 
+              />
+            } 
+          />
           <SettingItem 
             label="系统通知监听权限" 
             hasArrow 

@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { LocationService } from '@/utils/locationService';
+
 import * as turf from '@turf/turf';
 import { toast } from 'sonner';
 import { syncManager } from '@/lib/sync/SyncManager';
+import { runCheckpoint } from '@/lib/sync/run-checkpoint';
 import { uploadTrajectoryBatch } from '@/app/actions/sync';
 import { saveRunActivity } from '@/app/actions/run-service';
 import { v4 as uuidv4 } from 'uuid';
@@ -10,8 +11,6 @@ import { isNativePlatform, safeGetBatteryInfo } from "@/lib/capacitor/safe-plugi
 import type { GeoPoint } from '@/hooks/useSafeGeolocation';
 import { useLocationStore } from '@/store/useLocationStore';
 import { getDistanceFromLatLonInMeters } from '@/lib/geometry-utils';
-
-const RECOVERY_KEY = 'CURRENT_RUN_RECOVERY';
 
 export interface Location {
   lat: number;
@@ -240,6 +239,16 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     return undefined;
   }, [isRunning, isPaused]);
 
+  const pause = useCallback(() => {
+    isStoppingRef.current = true;
+    setIsPaused(true);
+    if (startTimeRef.current !== null) {
+      pausedAccumulatorRef.current += (Date.now() - startTimeRef.current) / 1000;
+      startTimeRef.current = null;
+    }
+    runCheckpoint.flush().catch(console.error);
+  }, []);
+
   // Capacitor appStateChange — reconcile timer on foreground resume
   useEffect(() => {
     let cleanup: (() => void) | undefined;
@@ -263,7 +272,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   useEffect(() => {
     if (!isRunning || isStoppingRef.current) return;
 
-    const saveState = () => {
+    const saveState = async () => {
       try {
         const stateToSave = {
           path: pathRef.current || [],
@@ -274,7 +283,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           area: area || 0,
           timestamp: Date.now()
         };
-        localStorage.setItem(RECOVERY_KEY, JSON.stringify(stateToSave));
+        await runCheckpoint.saveCheckpoint(stateToSave);
       } catch (e) {
         console.error("[useRunningTracker] Failed to save run state", e);
       }
@@ -512,34 +521,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     };
   }, [isRunning, isPaused]);
 
-  // Background Service Management (Keep-Alive + Notification)
-  useEffect(() => {
-    let activeWatcherId: string | null = null;
-
-    const manageService = async () => {
-      if (isRunning && !isPaused && !isStoppingRef.current) {
-        // Start Background Service
-        console.log('[useRunningTracker] Starting Background Service...');
-        activeWatcherId = await LocationService.startTracking(userId);
-        watcherIdRef.current = activeWatcherId;
-      } else {
-        // Stop Background Service
-        if (watcherIdRef.current) {
-          console.log('[useRunningTracker] Stopping Background Service');
-          await LocationService.stopTracking(watcherIdRef.current);
-          watcherIdRef.current = null;
-        }
-      }
-    };
-
-    manageService();
-
-    return () => {
-      if (activeWatcherId) {
-        LocationService.stopTracking(activeWatcherId);
-      }
-    };
-  }, [isRunning, isPaused, userId]);
+    // Background Service Management (Keep-Alive + Notification)
+    // NOTE: This has been delegated to GlobalLocationProvider.tsx using backgroundLocationService,
+    // so we no longer manually start/stop a separate LocationService here.
 
   // Recovery on start — CRITICAL: reset isStoppingRef first!
   useEffect(() => {
@@ -549,58 +533,62 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       // blocking timer and location updates.
       isStoppingRef.current = false;
 
-      const recoveryJson = localStorage.getItem(RECOVERY_KEY);
-      let recovered = false;
-      if (recoveryJson) {
-        try {
-          const data = JSON.parse(recoveryJson);
-          const safePath = Array.isArray(data.path) ? data.path : [];
-          // Only restore if: within 24h, AND has real run data (path with points AND meaningful distance or duration)
-          const hasRealData = safePath.length > 0 && ((data.distance || 0) > 0 || (data.duration || 0) > 5);
-          if (data.startTime && (Date.now() - data.startTime < 24 * 60 * 60 * 1000) && hasRealData) {
-            setPath(safePath);
-            setDistance(data.distance || 0);
-            const restoredDuration = data.duration || 0;
-            setDuration(restoredDuration);
-            setClosedPolygons(data.closedPolygons || []);
-            setArea(data.area || 0);
-            // Restore timestamp-based timer state
-            pausedAccumulatorRef.current = restoredDuration;
-            startTimeRef.current = null; // Will be set when timer effect fires
-            if (safePath.length > 0) {
-              const lastLoc = safePath[safePath.length - 1];
-              lastLocationRef.current = lastLoc;
-              pathRef.current = safePath;
-              setCurrentLocation(lastLoc);
+      const attemptRecovery = async () => {
+        const data = await runCheckpoint.getCheckpoint();
+        let recovered = false;
+        
+        if (data) {
+          try {
+            const safePath = Array.isArray(data.path) ? (data.path as Location[]) : [];
+            // Only restore if: within 24h, AND has real run data (path with points AND meaningful distance or duration)
+            const hasRealData = safePath.length > 0 && ((data.distance || 0) > 0 || (data.duration || 0) > 5);
+            if (data.startTime && (Date.now() - data.startTime < 24 * 60 * 60 * 1000) && hasRealData) {
+              setPath(safePath);
+              setDistance(data.distance || 0);
+              const restoredDuration = data.duration || 0;
+              setDuration(restoredDuration);
+              setClosedPolygons((data.closedPolygons as Location[][]) || []);
+              setArea(data.area || 0);
+              // Restore timestamp-based timer state
+              pausedAccumulatorRef.current = restoredDuration;
+              startTimeRef.current = null; // Will be set when timer effect fires
+              if (safePath.length > 0) {
+                const lastLoc = safePath[safePath.length - 1];
+                lastLocationRef.current = lastLoc;
+                pathRef.current = safePath;
+                setCurrentLocation(lastLoc);
+              }
+              recovered = true;
+              toast.success('已恢复上次异常退出的跑步记录');
+            } else {
+              // Stale or empty recovery data — clean it up
+              await runCheckpoint.clearCheckpoint();
             }
-            recovered = true;
-            toast.success('已恢复上次异常退出的跑步记录');
-          } else {
-            // Stale or empty recovery data — clean it up
-            localStorage.removeItem(RECOVERY_KEY);
+          } catch (e) {
+            console.error("[useRunningTracker] Recovery failed", e);
+            await runCheckpoint.clearCheckpoint();
           }
-        } catch (e) {
-          console.error("[useRunningTracker] Recovery failed", e);
-          localStorage.removeItem(RECOVERY_KEY);
         }
-      }
 
-      if (!recovered) {
-        // ===== Force-reset ALL state for a clean start =====
-        setPath([]);
-        setDistance(0);
-        setDuration(0);
-        setClosedPolygons([]);
-        setSessionClaims([]);
-        setArea(0);
-        setCurrentLocation(null);
-        lastLocationRef.current = null;
-        pathRef.current = [];
-        // Reset timestamp-based timer
-        pausedAccumulatorRef.current = 0;
-        startTimeRef.current = null;
-        runIdempotencyKeyRef.current = uuidv4();
-      }
+        if (!recovered) {
+          // ===== Force-reset ALL state for a clean start =====
+          setPath([]);
+          setDistance(0);
+          setDuration(0);
+          setClosedPolygons([]);
+          setSessionClaims([]);
+          setArea(0);
+          setCurrentLocation(null);
+          lastLocationRef.current = null;
+          pathRef.current = [];
+          // Reset timestamp-based timer
+          pausedAccumulatorRef.current = 0;
+          startTimeRef.current = null;
+          runIdempotencyKeyRef.current = uuidv4();
+        }
+      };
+
+      attemptRecovery();
     }
   }, [isRunning]);
 
@@ -615,8 +603,8 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
       // Clear recovery
       if (typeof window !== 'undefined') {
-        localStorage.removeItem(RECOVERY_KEY);
-        console.log('[useRunningTracker] Recovery key cleared');
+        runCheckpoint.clearCheckpoint().catch(e => console.error('[useRunningTracker] Failed to clear checkpoint', e));
+        console.log('[useRunningTracker] Checkpoint cleared');
       }
     } catch (e) {
       console.error('[useRunningTracker] Error during stop:', e);
@@ -625,7 +613,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
   const clearRecovery = useCallback(() => {
     if (typeof window !== 'undefined') {
-      localStorage.removeItem(RECOVERY_KEY);
+      runCheckpoint.clearCheckpoint().catch(e => console.error(e));
     }
   }, []);
 
@@ -656,13 +644,12 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     if (livePath.length === 0 && liveDistance <= 0 && liveDuration <= 0) {
       console.warn('[useRunningTracker] Payload empty — attempting recovery fallback');
       try {
-        const recoveryJson = localStorage.getItem(RECOVERY_KEY);
-        if (recoveryJson) {
-          const data = JSON.parse(recoveryJson);
+        const data = await runCheckpoint.getCheckpoint();
+        if (data) {
           liveDistance = data.distance || 0;
           liveDuration = data.duration || 0;
-          livePath = Array.isArray(data.path) ? data.path : [];
-          liveClaims = Array.isArray(data.closedPolygons) ? data.closedPolygons : [];
+          livePath = Array.isArray(data.path) ? (data.path as Location[]) : [];
+          liveClaims = Array.isArray(data.closedPolygons) ? (data.closedPolygons as Location[][]) : [];
           console.log('[useRunningTracker] Recovery fallback payload used');
         }
       } catch (recoveryErr) {

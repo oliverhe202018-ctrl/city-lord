@@ -2,6 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { getUserKingdom, type KingdomPolygon } from '@/app/actions/user-service';
+import { useMapInteraction } from '@/components/map/MapInteractionContext';
+import { latLngToCell, gridDisk } from 'h3-js';
+import type { ExtTerritory } from '@/types/city';
 
 interface KingdomLayerProps {
     map: any | null;
@@ -12,17 +15,13 @@ interface KingdomLayerProps {
  * KingdomLayer: Renders user's historical claimed territories
  * 
  * Displays all polygons from past runs with a subtle gold overlay.
- * Lower opacity and z-index than current session claims to create "historical" feel.
- * 
- * Visual Style:
- * - Gold fill (#F59E0B) with 0.2 opacity (vs 0.3 for session claims)
- * - No stroke (strokeWeight: 0) to reduce visual clutter
- * - zIndex: 35 (below session claims at 40)
+ * Now also supports click-to-select via H3 reverse lookup.
  */
 export function KingdomLayer({ map, userId }: KingdomLayerProps) {
     const [polygons, setPolygons] = useState<KingdomPolygon[]>([]);
     const [loading, setLoading] = useState(false);
     const polygonRefs = useRef<any[]>([]);
+    const { setSelectedTerritory, kingdomMode } = useMapInteraction();
 
     // Fetch kingdom data when userId changes
     useEffect(() => {
@@ -69,10 +68,37 @@ export function KingdomLayer({ map, userId }: KingdomLayerProps) {
                 const poly = new window.AMap.Polygon({
                     path: amapPath,
                     fillColor: '#F59E0B', // Gold
-                    fillOpacity: 0.2, // Lower than session claims (0.3)
-                    strokeWeight: 0, // No border for cleaner look
-                    strokeOpacity: 0,
-                    zIndex: 35, // Below session claims (40) and trajectory (50)
+                    fillOpacity: 0.2,
+                    strokeColor: '#D97706',
+                    strokeWeight: 1,
+                    strokeOpacity: 0.8,
+                    zIndex: 35,
+                    bubble: false, // 拦截点击事件，不冒泡到 map
+                    cursor: 'pointer',
+                });
+
+                // 点击领地色块 → 构造最小 ExtTerritory → 触发详情
+                poly.on('click', (e: any) => {
+                    if (!e?.lnglat) return;
+                    const lat = e.lnglat.lat;
+                    const lng = e.lnglat.lng;
+                    
+                    // 用点击坐标的 H3 cellId 作为领地 ID
+                    const cellId = latLngToCell(lat, lng, 9);
+                    
+                    console.log(`[Audit] ★ KINGDOM CLICK ★ lnglat=${lng},${lat} cellId=${cellId}`);
+                    
+                    // 构造最小的 ExtTerritory 对象供 InfoBar/DetailSheet 使用
+                    const syntheticTerritory: ExtTerritory = {
+                        id: cellId,
+                        cityId: '', // 将由 detail API 填充
+                        ownerId: userId,
+                        ownerType: 'me',
+                        capturedAt: polygon.claimedAt || null,
+                    };
+                    
+                    (window as any).__amap_polygon_clicked = Date.now();
+                    setSelectedTerritory?.(syntheticTerritory);
                 });
 
                 map.add(poly);
@@ -97,7 +123,8 @@ export function KingdomLayer({ map, userId }: KingdomLayerProps) {
             }
             polygonRefs.current = [];
         };
-    }, [map, polygons]);
+    }, [map, polygons, userId, setSelectedTerritory]);
 
     return null;
 }
+

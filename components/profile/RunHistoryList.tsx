@@ -38,11 +38,25 @@ export function RunHistoryList({ userId, initialRuns, initialCursor }: RunHistor
 
             const result = await getRuns(userId, existingCursor)
 
-            if (existingCursor) {
-                setRuns(prev => [...prev, ...result.runs])
-            } else {
-                setRuns(result.runs)
-            }
+            const newRuns = existingCursor ? [...runs, ...result.runs] : result.runs
+            
+            // Deduplicate by idempotencyKey, keeping the latest one by createdAt
+            const deduplicated = Object.values(newRuns.reduce((acc: Record<string, RunRecord>, run: RunRecord) => {
+                const key = run.idempotencyKey;
+                if (!key) {
+                   acc[run.id] = run; 
+                } else {
+                   if (!acc[key] || new Date(run.createdAt) > new Date(acc[key].createdAt)) {
+                      acc[key] = run;
+                   }
+                }
+                return acc;
+            }, {} as Record<string, RunRecord>));
+            
+            // Sort again descending
+            deduplicated.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            
+            setRuns(deduplicated as RunRecord[]);
             setCursor(result.nextCursor)
         } catch (e) {
             console.error('Failed to load runs:', e)
