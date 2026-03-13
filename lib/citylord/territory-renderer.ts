@@ -123,8 +123,8 @@ export function generateTerritoryStyle(t: ExtTerritory, ctx: ViewContext): Terri
     const relation = getTerritoryRelation(t, ctx);
     const baseHexColor = getBaseColor(relation, t, ctx.subject);
 
-    const maxHealth = t.maxHealth ?? 1000;
-    const health = t.health ?? maxHealth;
+    const maxHealth = t.max_hp ?? t.maxHealth ?? 1000;
+    const health = t.current_hp ?? t.health ?? maxHealth;
 
     const visuals = calculateHealthVisuals(baseHexColor, health, maxHealth);
 

@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { useCity } from "@/contexts/CityContext";
@@ -324,10 +324,31 @@ export function MapHeader({
     )
   }
 
+  const headerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!headerRef.current) return;
+    
+    const updateHeight = () => {
+      if (headerRef.current) {
+        document.documentElement.style.setProperty('--top-bar-height', `${headerRef.current.offsetHeight}px`);
+      }
+    };
+    
+    const observer = new ResizeObserver(() => updateHeight());
+    observer.observe(headerRef.current);
+    updateHeight(); // initial measurement
+    
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <>
       {/* 头部状态栏容器 - 固定在顶部安全区域 */}
-      <div className="fixed top-0 left-0 right-0 z-[100] px-4 transition-all duration-300 pt-[calc(env(safe-area-inset-top)+1rem)] max-w-md mx-auto">
+      <div 
+        ref={headerRef}
+        className="fixed top-0 left-0 right-0 z-[100] px-4 transition-all duration-300 pt-[calc(env(safe-area-inset-top)+1rem)] max-w-md mx-auto"
+      >
         <GlassCard className="p-1">
           <div className="flex items-center justify-between gap-2">
             {/* 左侧：城市选择器 */}

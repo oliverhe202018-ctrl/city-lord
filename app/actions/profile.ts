@@ -23,6 +23,7 @@ export interface RunRecord {
     calories: number
     createdAt: string
     province: string | null
+    idempotencyKey: string | null
 }
 
 export interface PersonalBest {
@@ -265,6 +266,7 @@ export async function getRuns(
             duration: true,
             created_at: true,
             province: true,
+            idempotency_key: true,
         },
     })
 
@@ -285,6 +287,7 @@ export async function getRuns(
                 calories: Math.round(distKm * 60),
                 createdAt: run.created_at?.toISOString() ?? '',
                 province: run.province,
+                idempotencyKey: run.idempotency_key ?? null,
             }
         }),
         nextCursor: hasMore ? items[items.length - 1].id : null,

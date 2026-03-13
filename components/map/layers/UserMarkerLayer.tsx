@@ -50,6 +50,7 @@ export function UserMarkerLayer({ map, position, isTracking }: UserMarkerLayerPr
           width: 20px;
           height: 20px;
           transition: transform 0.3s ease-out; /* Smooth movement */
+          pointer-events: none; /* Prevent marker from swallowing map clicks */
         }
         .user-marker-dot {
           position: absolute;

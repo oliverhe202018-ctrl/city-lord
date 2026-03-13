@@ -33,6 +33,9 @@ import { ModeSwitcher } from '@/components/mode/ModeSwitcher';
 import { SinglePlayer } from '@/components/mode/SinglePlayer';
 import { PrivateLobby } from '@/components/mode/PrivateLobby';
 import { MyClub } from '@/components/mode/MyClub';
+import { MapRoot } from '@/components/map/MapRoot';
+import { TerritoryInfoBar } from '@/components/citylord/territory/TerritoryInfoBar';
+import { TerritoryDetailSheet } from '@/components/citylord/territory/TerritoryDetailSheet';
 import { AMapViewHandle } from "@/components/map/AMapView";
 import { FactionSelector } from "@/components/social/FactionSelector"
 import { ReferralWelcome } from "@/components/social/ReferralWelcome"
@@ -55,7 +58,7 @@ import type { RunMode } from "@/types/home";
 
 const MemoizedImmersiveRunningMode = memo(nextDynamic(() => import("@/components/citylord/running/immersive-mode").then(mod => mod.ImmersiveRunningMode), { ssr: false }));
 
-const MemoizedAMapView = memo(nextDynamic(() => import("@/components/map/AMapViewWithProvider").then(mod => mod.AMapViewWithProvider), {
+const MemoizedAMapView = memo(nextDynamic(() => import("@/components/map/AMapView"), {
   ssr: false,
   loading: () => <MapSkeleton className="absolute inset-0 w-full h-full" />
 }));
@@ -757,37 +760,46 @@ export function GamePageContent({
             </div>
           )}
 
-          {activeTab === "play" && (
-            <div className="relative h-dvh w-full overflow-hidden">
-              {/* Optimize: Hide main map when in immersive mode to prevent duplicate markers and save resources */}
-              {!showImmersiveMode && (
-                <div className="absolute inset-0 z-0">
-                  {/* --- Step 3: Replace JSX with Memoized Components --- */}
-                  <MemoizedAMapView
-                    ref={mapViewRef}
-                    showTerritory={showTerritory}
-                    onMapLoad={handleMapLoad}
-                    sessionClaims={sessionClaims}
-                  />
-                  <MemoizedFactionSelector initialUser={initialUser} />
-                  <MemoizedReferralWelcome />
-                </div>
-              )}
+          {(activeTab === "play" || activeTab === "mode") && (
+            <MapRoot>
+              {activeTab === "play" && (
+                <div className="relative h-dvh w-full overflow-hidden">
+                {/* Optimize: Hide main map when in immersive mode to prevent duplicate markers and save resources */}
+                {!showImmersiveMode && (
+                  <div className="absolute inset-0 z-0">
+                    {/* --- Step 3: Replace JSX with Memoized Components --- */}
+                    <MemoizedAMapView
+                      ref={mapViewRef}
+                      showTerritory={showTerritory}
+                      onMapLoad={handleMapLoad}
+                      sessionClaims={sessionClaims}
+                    />
+                    <MemoizedFactionSelector initialUser={initialUser} />
+                    <MemoizedReferralWelcome />
+                  </div>
+                )}
 
-              <div className="relative z-10 h-full w-full pointer-events-none">
-                <div className="pointer-events-auto">
-                  <MemoizedMapHeader setShowThemeSwitcher={setShowThemeSwitcher} />
-                </div>
+                {/* Unified Stacking Context for all UI overlays */}
+                <div className="relative z-10 h-full w-full pointer-events-none">
+                  <div className="pointer-events-auto">
+                    <MemoizedMapHeader setShowThemeSwitcher={setShowThemeSwitcher} />
+                  </div>
 
-                <div className="pointer-events-auto">
-                  <MemoizedModeSwitcher onDrawerOpenChange={handleDrawerOpenChange} />
-                </div>
+                  <div className="pointer-events-auto">
+                    <MemoizedModeSwitcher onDrawerOpenChange={handleDrawerOpenChange} />
+                  </div>
+                  
+                  {/* Territory Interactions as direct UI siblings (free from z-0 trap) */}
+                  <div className="pointer-events-auto">
+                    <TerritoryInfoBar />
+                    <TerritoryDetailSheet />
+                  </div>
 
-                {!shouldHideButtons && (
-                  <div className="pointer-events-auto absolute top-[130px] left-4 z-20 flex flex-col gap-4">
-                    <div className="group relative flex items-center">
-                      <button
-                        onClick={handleOpenThemeSettings}
+                  {!shouldHideButtons && (
+                    <div className="pointer-events-auto absolute top-[130px] left-4 z-20 flex flex-col gap-4">
+                      <div className="group relative flex items-center">
+                        <button
+                          onClick={handleOpenThemeSettings}
                         className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg text-white active:scale-90 active:bg-white/20 transition-all hover:bg-primary/20 hover:border-primary/50 hover:text-primary-foreground"
                       >
                         <Palette className="h-5 w-5" />
@@ -826,7 +838,6 @@ export function GamePageContent({
                     </div>
                   </div>
                 )}
-
                 {gameMode === 'map' && !shouldHideButtons && (
                   <div className="pointer-events-auto absolute bottom-[80px] left-4 right-4 z-20 flex justify-center">
                     <MemoizedQuickEntry
@@ -850,22 +861,28 @@ export function GamePageContent({
             </div>
           )}
 
-          {activeTab === "mode" && (
-            <div className="relative h-dvh w-full overflow-hidden">
-              <MemoizedAMapView ref={mapViewRef} showTerritory={showTerritory} viewMode={mapViewMode} sessionClaims={sessionClaims} />
-              <div className="relative z-10 h-full w-full pointer-events-none">
-                <div className="pointer-events-auto">
-                  <MemoizedMapHeader
-                    setShowThemeSwitcher={setShowThemeSwitcher}
-                    viewMode={mapViewMode}
-                    onViewModeChange={setMapViewMode}
-                  />
+              {activeTab === "mode" && (
+                <div className="relative h-dvh w-full overflow-hidden">
+                  <MemoizedAMapView ref={mapViewRef} showTerritory={showTerritory} viewMode={mapViewMode} sessionClaims={sessionClaims} />
+                  <div className="relative z-10 h-full w-full pointer-events-none">
+                    <div className="pointer-events-auto">
+                      <MemoizedMapHeader
+                        setShowThemeSwitcher={setShowThemeSwitcher}
+                        viewMode={mapViewMode}
+                        onViewModeChange={setMapViewMode}
+                      />
+                    </div>
+                    <div className="pointer-events-auto">
+                      <MemoizedModeSwitcher onDrawerOpenChange={handleDrawerOpenChange} />
+                    </div>
+                    <div className="pointer-events-auto">
+                      <TerritoryInfoBar />
+                      <TerritoryDetailSheet />
+                    </div>
+                  </div>
                 </div>
-                <div className="pointer-events-auto">
-                  <MemoizedModeSwitcher onDrawerOpenChange={handleDrawerOpenChange} />
-                </div>
-              </div>
-            </div>
+              )}
+            </MapRoot>
           )}
 
           {activeTab === "missions" && (
@@ -901,33 +918,22 @@ export function GamePageContent({
       {!hydrated ? (
         <ImmersiveSkeleton />
       ) : (
-        <MemoizedImmersiveRunningMode
-          isActive={showImmersiveMode}
-          userId={user?.id}
-          distance={distance}
-          distanceMeters={distanceMeters}
-          durationSeconds={durationSeconds}
-          steps={steps}
-          area={area}
-          pace={pace}
-          time={duration}
-          calories={calories}
-          heartRate={0}
-          hexesCaptured={sessionHexes}
-          currentHexProgress={0}
-          onPause={toggleTrackerPause}
-          onResume={toggleTrackerPause}
-          onStop={handleStopRun}
-          onManualLocation={addManualLocation}
-          onExpand={handleExpand}
-          currentLocation={currentLocation || (userLat && userLng ? { lat: userLat, lng: userLng } : undefined)}
-          path={path}
-          closedPolygons={closedPolygons}
-          onHexClaimed={handleHexClaimed}
-          saveRun={saveRun}
-          savedRunId={savedRunId}
-          idempotencyKey={idempotencyKey}
-        />
+        <div
+          style={{
+            display: showImmersiveMode ? 'flex' : 'none',
+            position: 'absolute',
+            inset: 0,
+            zIndex: 9999,
+            background: 'rgba(255,0,0,0.8)',
+            color: 'white',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '24px'
+          }}
+          onClick={handleStopRun}
+        >
+          DUMMY IMMERSIVE MODE (Click to Stop)
+        </div>
       )}
 
       {hydrated && currentCity && <MemoizedBottomNav activeTab={activeTab} onTabChange={setActiveTab} />}

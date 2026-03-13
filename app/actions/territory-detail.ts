@@ -25,6 +25,9 @@ export interface TerritoryDetailResult {
         durationStr: string
         paceMinPerKm: string
     } | null
+    current_hp?: number
+    score_weight?: number
+    territory_type?: string
 }
 
 export async function getTerritoryDetail(territoryId: string): Promise<TerritoryDetailResult | null> {
@@ -56,7 +59,10 @@ export async function getTerritoryDetail(territoryId: string): Promise<Territory
         area: Number(areaKm2.toFixed(2)),
         owner: null,
         club: null,
-        recentRun: null
+        recentRun: null,
+        current_hp: 1000,
+        score_weight: 1.0,
+        territory_type: 'NORMAL'
     }
 
     if (!territory.owner_id) {

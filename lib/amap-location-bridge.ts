@@ -512,16 +512,14 @@ export class AMapLocationBridge {
 
         try {
             if (this.isNative && this._AMapLocation) {
-                // ===== BUG FIX: Always use foreground service for ALL modes =====
-                // This ensures the status bar notification persists even when minimized/screen off.
-                // Previously only running mode used the foreground service.
-                const notifBody = options.mode === 'running' ? '跑步定位中…' : '位置追踪中…';
-                logInfo({ phase: 'startWatch-foreground-service', reason: `Using foreground service for ${options.mode} mode` });
-                await this._AMapLocation.startTracking({
-                    notificationTitle: 'City Lord',
-                    notificationBody: notifBody,
+                // Delegate persistent background tracking to background-location-service
+                // AMap now only runs normal watch (background allowed, but not foreground service prioritized by default).
+                await this._AMapLocation.startWatch({
+                    mode: options.mode,
+                    interval,
+                    distanceFilter
                 });
-                this.isUsingForegroundService = true;
+                this.isUsingForegroundService = false;
             } else {
                 this.startWebWatch(interval);
                 this.isUsingForegroundService = false;
@@ -545,18 +543,8 @@ export class AMapLocationBridge {
         this.isWatching = false;
         this.watchMode = null;
 
-        if (this.isUsingForegroundService && this.isNative && this._AMapLocation) {
-            // 停止前台 Service
-            try {
-                await this._AMapLocation.stopTracking();
-                logInfo({ phase: 'stopWatch-foreground-service-stopped', reason: 'Foreground service stopped' });
-            } catch (e) {
-                logError({ phase: 'stopWatch-foreground-service-error', reason: String(e) });
-            }
-            this.isUsingForegroundService = false;
-        } else {
-            await this.safeStopWatch(makeRequestId());
-        }
+        // Even if we tracked it differently before, always safe stop AMap watch.
+        await this.safeStopWatch(makeRequestId());
     }
 
     // =========================================================================

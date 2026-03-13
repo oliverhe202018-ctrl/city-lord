@@ -7,6 +7,7 @@ import { useMapInteraction } from "./MapInteractionContext";
 import { generateTerritoryStyle } from "@/lib/citylord/territory-renderer";
 import { ViewContext } from "@/types/city";
 import { useAuth } from "@/hooks/useAuth";
+import * as turf from '@turf/turf';
 
 const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
   const controller = new AbortController()
@@ -62,7 +63,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
   const [polygons, setPolygons] = useState<any[]>([]);
   const [markers, setMarkers] = useState<any[]>([]);
   const { currentCity: city } = useCity();
-  const { viewMode, selectedTerritory, setSelectedTerritory } = useMapInteraction();
+  const { viewMode, selectedTerritory, setSelectedTerritory, setIsDetailSheetOpen } = useMapInteraction();
   const { user } = useAuth();
 
   // Track polygon → territory mapping for highlight updates
@@ -144,15 +145,18 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
           };
           const style = generateTerritoryStyle(territory, ctx);
 
+          // 俱乐部模式下降低多边形填充透明度，以突出头像 Marker
+          const polygonFillOpacity = kingdomMode === 'club' ? 0.15 : 0.5;
+
           const polygon = new (window as any).AMap.Polygon({
             path: path,
             fillColor: style.fillColor2D,
-            fillOpacity: 0.5,
+            fillOpacity: polygonFillOpacity,
             strokeColor: style.strokeColor2D,
             strokeWeight: 2,
             zIndex: 50,
             extData: territory,
-            bubble: false, // Prevent click event from bubbling to map
+            bubble: false, // 阻止事件冒泡到地图，避免 blank click 误触发
           });
 
           // Store mapping for highlight management
@@ -163,12 +167,31 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
 
           let marker = null;
           if (kingdomMode === 'club' && territory.ownerClub) {
-            const centerLngLat = polygon.getBounds().getCenter();
+            // 使用 turf.pointOnFeature 确保标注点在多边形内部（非凸多边形的 centroid 可能落在外面）
+            let markerPosition: [number, number];
+            try {
+              const coords = path.map((p: any) => [p[0], p[1]]);
+              // 确保闭合
+              if (coords.length > 0 && (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1])) {
+                coords.push(coords[0]);
+              }
+              const poly = turf.polygon([coords]);
+              const pt = turf.pointOnFeature(poly);
+              markerPosition = pt.geometry.coordinates as [number, number];
+            } catch {
+              // 回退到 BBox 中心
+              const center = polygon.getBounds().getCenter();
+              markerPosition = [center.getLng(), center.getLat()];
+            }
             
-            // Marker content with pointer-events-none (Constraint)
+            // 基础尺寸 24px，会被 zoomchange 事件动态调整
+            const baseSize = 24;
             const content = document.createElement('div');
-            // Important: negative margins to perfectly center the custom DOM marker based on its size (w-6 h-6 is 24px)
-            content.className = 'w-6 h-6 pointer-events-none -ml-3 -mt-3';
+            content.className = 'pointer-events-none';
+            content.style.width = `${baseSize}px`;
+            content.style.height = `${baseSize}px`;
+            content.style.marginLeft = `-${baseSize / 2}px`;
+            content.style.marginTop = `-${baseSize / 2}px`;
 
             const inner = document.createElement('div');
             inner.className = 'w-full h-full rounded-full overflow-hidden border border-white bg-black/60 shadow flex items-center justify-center';
@@ -187,18 +210,23 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
             content.appendChild(inner);
 
             marker = new (window as any).AMap.Marker({
-              position: centerLngLat,
+              position: markerPosition,
               content: content,
               zIndex: 60,
-              bubble: true, // Allow events to bubble up, though pointer-events-none prevents capturing anyway
-              zooms: [14, 20], // Handle zoom visibility: hide markers when zoomed out < 14
+              bubble: true,
+              zooms: [12, 20], // zoom < 12 时隐藏头像
             });
+
+            // 缓存 DOM 引用用于缩放回调
+            (marker as any).__avatarContentEl = content;
           }
 
+          // 点击 Polygon 时同时打开 InfoBar 和 DetailSheet 抽屉
           polygon.on("click", (e: any) => {
             console.log(`[Audit] ★ POLYGON CLICK ★ territory=${territory.id}`);
             (window as any).__amap_polygon_clicked = Date.now();
             setSelectedTerritory?.(territory);
+            setIsDetailSheetOpen?.(true);
           });
           polygon.on("mouseover", () => {
             // 使用 ref 获取最新的 selectedTerritory，避免 stale closure
@@ -278,7 +306,37 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
     });
   }, [selectedTerritory]);
 
-  // Cleanup polygons when component unmounts or they change
+  // 俱乐部 Marker 头像随 zoom 级别动态缩放
+  useEffect(() => {
+    if (!map || kingdomMode !== 'club' || markers.length === 0) return;
+
+    const MIN_ZOOM = 12;
+    const MAX_ZOOM = 18;
+    const MIN_SIZE = 16;   // px
+    const MAX_SIZE = 64;   // px
+
+    const updateMarkerSizes = () => {
+      const zoom = map.getZoom();
+      // 线性映射 [MIN_ZOOM, MAX_ZOOM] → [MIN_SIZE, MAX_SIZE]
+      const t = Math.max(0, Math.min(1, (zoom - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM)));
+      const size = Math.round(MIN_SIZE + t * (MAX_SIZE - MIN_SIZE));
+
+      markers.forEach((m: any) => {
+        const el = m.__avatarContentEl;
+        if (el) {
+          el.style.width = `${size}px`;
+          el.style.height = `${size}px`;
+          el.style.marginLeft = `-${size / 2}px`;
+          el.style.marginTop = `-${size / 2}px`;
+        }
+      });
+    };
+
+    // 初始化一次
+    updateMarkerSizes();
+    map.on('zoomchange', updateMarkerSizes);
+    return () => { map.off('zoomchange', updateMarkerSizes); };
+  }, [map, markers, kingdomMode]);
   useEffect(() => {
     return () => {
       try {
