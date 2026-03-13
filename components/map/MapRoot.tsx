@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, ReactNode, useCallback, useRef } from 'react';
+import React, { useState, useEffect, ReactNode, useCallback, useRef, useMemo } from 'react';
 import { toast } from 'sonner';
 import { MapProvider, LocationState, AMapInstance } from './AMapContext';
+import { MapInteractionProvider } from './MapInteractionContext';
 import { useTheme } from '@/components/citylord/theme/theme-provider';
 import type { GeoPoint } from '@/hooks/useSafeGeolocation';
 import { useLocationStore } from '@/store/useLocationStore';
@@ -73,6 +74,7 @@ export function MapRoot({ children }: { children: ReactNode }) {
   const [kingdomMode, setKingdomMode] = useState<'personal' | 'club'>('personal');
   const [showFog, setShowFog] = useState<boolean>(false); // Fog layer off by default
   const [selectedTerritory, setSelectedTerritory] = useState<ExtTerritory | null>(null);
+  const [isDetailSheetOpen, setIsDetailSheetOpen] = useState<boolean>(false);
 
   const toggleKingdom = useCallback(() => {
     setShowKingdom(prev => !prev);
@@ -471,12 +473,12 @@ export function MapRoot({ children }: { children: ReactNode }) {
     }
   }, [userPosition, retry, map]);
 
-  // Backward compatibility location state
-  const locationState: LocationState = {
+  // 向下兼容的 locationState（useMemo 防止引用频繁变化击穿 contextValue）
+  const locationState: LocationState = useMemo(() => ({
     status: loading ? 'loading' : (error ? 'error' : 'success'),
     message: error || undefined,
-    coords: userPosition ? [userPosition.lng, userPosition.lat] : undefined
-  };
+    coords: userPosition ? [userPosition.lng, userPosition.lat] as [number, number] : undefined
+  }), [loading, error, userPosition]);
 
   const initLocation = useCallback(async () => {
     retry();
@@ -494,8 +496,26 @@ export function MapRoot({ children }: { children: ReactNode }) {
     checkAMap();
   }, []);
 
-  return (
-    <MapProvider value={{
+    const interactionValue = useMemo(() => ({
+      selectedTerritory,
+      setSelectedTerritory,
+      isDetailSheetOpen,
+      setIsDetailSheetOpen,
+      viewMode,
+      setViewMode,
+      kingdomMode,
+      setKingdomMode,
+      showKingdom,
+      toggleKingdom,
+      showFog,
+      toggleFog,
+    }), [
+      selectedTerritory, isDetailSheetOpen, viewMode, kingdomMode,
+      showKingdom, toggleKingdom, showFog, toggleFog,
+    ]);
+
+    // 高频位置状态 + 兼容旧 useMap()（仍包含交互字段以保持向后兼容）
+    const contextValue = useMemo(() => ({
       map,
       setMap,
       isLoaded,
@@ -505,7 +525,6 @@ export function MapRoot({ children }: { children: ReactNode }) {
       currentLocation: userPosition,
       initLocation,
       centerMap,
-      // Running game state
       userPath,
       mapCenter,
       isTracking,
@@ -514,6 +533,7 @@ export function MapRoot({ children }: { children: ReactNode }) {
       handleMapMoveEnd,
       gpsSignalStrength,
       locationStatus: status,
+      // 以下字段为向后兼容保留，消费者应逐步迁移到 useMapInteraction()
       showKingdom,
       toggleKingdom,
       kingdomMode,
@@ -522,22 +542,34 @@ export function MapRoot({ children }: { children: ReactNode }) {
       toggleFog,
       selectedTerritory,
       setSelectedTerritory,
-    }}>
-      {children}
-      {debugInfo && (
-        <div style={{
-          position: 'absolute', top: 50, left: 10, zIndex: 9999, background: 'rgba(0,0,0,0.7)',
-          color: 'lime', fontSize: '10px', padding: '8px', pointerEvents: 'none', borderRadius: '4px',
-          fontFamily: 'monospace', whiteSpace: 'pre', lineHeight: '1.2'
-        }}>
-          <div>src: {debugInfo.source} | acc: {debugInfo.accuracy}</div>
-          <div>track: {String(debugInfo.isTracking)} | drag: {String(debugInfo.userInteracted)}</div>
-          <div>timer: {String(debugInfo.hasTimer)}</div>
-          <div>pend: {debugInfo.pendingReason} | fly: {debugInfo.lastFlyReason}</div>
-          <div>watch: {String(debugInfo.watchIdExists)} | lock: {String(debugInfo.restartInFlight)}</div>
-          <div>sig: {debugInfo.gpsSignalStrength} | status: {debugInfo.status}</div>
-        </div>
-      )}
-    </MapProvider>
-  );
-}
+    }), [
+      map, isLoaded, viewMode, locationState,
+      userPosition, initLocation, centerMap,
+      userPath, mapCenter, isTracking,
+      handleMapMoveEnd, gpsSignalStrength, status,
+      showKingdom, toggleKingdom, kingdomMode,
+      showFog, toggleFog, selectedTerritory,
+    ]);
+
+    return (
+      <MapProvider value={contextValue}>
+        <MapInteractionProvider value={interactionValue}>
+        {children}
+        {debugInfo && (
+          <div style={{
+            position: 'absolute', top: 50, left: 10, zIndex: 9999, background: 'rgba(0,0,0,0.7)',
+            color: 'lime', fontSize: '10px', padding: '8px', pointerEvents: 'none', borderRadius: '4px',
+            fontFamily: 'monospace', whiteSpace: 'pre', lineHeight: '1.2'
+          }}>
+            <div>src: {debugInfo.source} | acc: {debugInfo.accuracy}</div>
+            <div>track: {String(debugInfo.isTracking)} | drag: {String(debugInfo.userInteracted)}</div>
+            <div>timer: {String(debugInfo.hasTimer)}</div>
+            <div>pend: {debugInfo.pendingReason} | fly: {debugInfo.lastFlyReason}</div>
+            <div>watch: {String(debugInfo.watchIdExists)} | lock: {String(debugInfo.restartInFlight)}</div>
+            <div>sig: {debugInfo.gpsSignalStrength} | status: {debugInfo.status}</div>
+          </div>
+        )}
+        </MapInteractionProvider>
+      </MapProvider>
+    );
+  }

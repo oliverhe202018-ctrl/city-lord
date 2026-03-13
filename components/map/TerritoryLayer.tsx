@@ -3,8 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import type { ExtTerritory } from "@/types/city";
 import { useCity } from "@/contexts/CityContext";
-import { cellToBoundary } from "h3-js";
-import { useMap } from "./AMapContext";
+import { useMapInteraction } from "./MapInteractionContext";
 import { generateTerritoryStyle } from "@/lib/citylord/territory-renderer";
 import { ViewContext } from "@/types/city";
 import { useAuth } from "@/hooks/useAuth";
@@ -57,11 +56,13 @@ interface TerritoryLayerProps {
  * - Selected territory gets a persistent darker border highlight
  * - Map blank click clears selection (with event conflict protection)
  */
+const DEBUG_FORCE_H3_FALLBACK = false; // 临时 debug 常量，已废弃
+
 const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdomMode }) => {
   const [polygons, setPolygons] = useState<any[]>([]);
   const [markers, setMarkers] = useState<any[]>([]);
   const { currentCity: city } = useCity();
-  const { viewMode, selectedTerritory, setSelectedTerritory } = useMap();
+  const { viewMode, selectedTerritory, setSelectedTerritory } = useMapInteraction();
   const { user } = useAuth();
 
   // Track polygon → territory mapping for highlight updates
@@ -73,34 +74,31 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
     selectedTerritoryRef.current = selectedTerritory;
   }, [selectedTerritory]);
 
-  // 防止 map click 在 polygon click 之后立即清除选择
+  // Fallback Map
+  const activeTerritoryMap = useRef<Map<string, ExtTerritory>>(new Map());
+
+  // 防止 map click 在 polygon click 之后立即清除选择（机制已移出到 AMapView Root Layer）
   const territoryClickedRef = useRef(false);
 
-  // 地图空白区域点击 → 清除选择（含事件竞态保护）
+  // 受控的 ContextSwitch 拦截器：确保真正的语义变更才触发清空
+  const prevContextRef = useRef({ cityId: city?.id, viewMode, kingdomMode });
   useEffect(() => {
-    if (!map) return;
+    const prev = prevContextRef.current;
+    
+    // 只在非初始挂载（即至少有一个已缓存），且确实发生了严格变化时，才清空选中
+    // 这里略过了对尚未设置 city 的极初期过滤
+    const isChanged = 
+      (city?.id !== undefined && city?.id !== prev.cityId) || 
+      (viewMode !== undefined && viewMode !== prev.viewMode) || 
+      (kingdomMode !== undefined && kingdomMode !== prev.kingdomMode);
 
-    const handleMapClick = () => {
-      // polygon click handler 已设置 ref，本次 map click 应跳过
-      if (territoryClickedRef.current) {
-        return;
-      }
-      // 空白区域点击，清除选择
+    if (isChanged) {
+      console.log(`[Audit] ContextSwitch clear: city ${prev.cityId}->${city?.id} viewMode ${prev.viewMode}->${viewMode} kingdomMode ${prev.kingdomMode}->${kingdomMode}`);
       setSelectedTerritory?.(null);
-    };
-
-    map.on('click', handleMapClick);
-    return () => {
-      if (map?.off) {
-        map.off('click', handleMapClick);
-      }
-    };
-  }, [map, setSelectedTerritory]);
-
-  // 上下文切换时清除选择（city/viewMode/kingdomMode 变化意味着 polygon 实例即将重建）
-  // 注意：不包含 user?.id，避免 auth 刷新导致意外清除已选领地
-  useEffect(() => {
-    setSelectedTerritory?.(null);
+    }
+    
+    // 永远同步最新 ref
+    prevContextRef.current = { cityId: city?.id, viewMode, kingdomMode };
   }, [city, viewMode, kingdomMode, setSelectedTerritory]);
 
   // Load territories
@@ -111,17 +109,34 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
 
     const loadTerritories = async () => {
       try {
+        console.log(`[Audit] loadTerritories: cityId=${city.id} map=${!!map}`);
         const data = await fetchTerritories(city.id);
+        console.log(`[Audit] loadTerritories: API returned ${Array.isArray(data) ? data.length : 'non-array'} items`);
 
         if (!mounted) return;
 
         const newPolygonMap = new Map<any, { territory: ExtTerritory; defaultStrokeColor: string }>();
+        const newCellMap = new Map<string, ExtTerritory>(); // Prepare fallback map
 
         const createdPolygons = (Array.isArray(data) ? data : []).map((territory) => {
-          // Convert H3 index to polygon coordinates
-          // h3-js returns [lat, lng], AMap expects [lng, lat]
-          const boundary = cellToBoundary(territory.id);
-          const path = boundary.map(([lat, lng]) => [lng, lat]);
+          // Populate fallback dictionary
+          newCellMap.set(territory.id, territory);
+
+          // Extract path from geojson
+          let path: [number, number][] = [];
+          
+          if (territory.geojson_json && territory.geojson_json.coordinates) {
+             // We enforce Option A: Backend always returns single Polygons.
+             if (territory.geojson_json.type === 'Polygon') {
+               path = territory.geojson_json.coordinates[0];
+             } else {
+               console.warn(`[TerritoryLayer] Unsupported or invalid geometry type for territory ${territory.id}: ${territory.geojson_json.type}. Check settlement backend split logic.`);
+               return null;
+             }
+          }
+          
+          // Safeguard: if parsing failed, fallback or skip
+          if (!path || path.length < 3) return null;
 
           const ctx: ViewContext = {
             userId: user?.id || null,
@@ -180,12 +195,10 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
             });
           }
 
-          polygon.on("click", () => {
-            // 设置标志位，防止 map blank click 在同一事件循环中清除选择
-            territoryClickedRef.current = true;
+          polygon.on("click", (e: any) => {
+            console.log(`[Audit] ★ POLYGON CLICK ★ territory=${territory.id}`);
+            (window as any).__amap_polygon_clicked = Date.now();
             setSelectedTerritory?.(territory);
-            // 延迟重置：将 ref 回置推迟到下一个事件循环 turn，确保当前 click 链中 map click handler 能读到 true
-            setTimeout(() => { territoryClickedRef.current = false; }, 0);
           });
           polygon.on("mouseover", () => {
             // 使用 ref 获取最新的 selectedTerritory，避免 stale closure
@@ -203,6 +216,8 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
         });
 
         polygonTerritoryMap.current = newPolygonMap;
+        activeTerritoryMap.current = newCellMap;
+        console.log(`[Audit] Territory lookup table built: ${newCellMap.size} entries`);
 
         // Clear old polygons before adding new ones
         setPolygons(prev => {
@@ -211,7 +226,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
               p.setMap(null);
             }
           });
-          const validPolygons = createdPolygons.map(item => item.polygon).filter(p => !!p);
+          const validPolygons = createdPolygons.filter(item => item !== null).map(item => item!.polygon).filter(p => !!p);
           map.add(validPolygons);
           return validPolygons;
         });
@@ -222,7 +237,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
               m.setMap(null);
             }
           });
-          const validMarkers = createdPolygons.map(item => item.marker).filter(m => !!m);
+          const validMarkers = createdPolygons.filter(item => item !== null).map(item => item!.marker).filter(m => !!m);
           map.add(validMarkers);
           return validMarkers;
         });
