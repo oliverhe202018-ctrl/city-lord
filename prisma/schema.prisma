@@ -593,8 +593,23 @@ model territories {
   health               Int?                          @default(1000)
   level                Int?                          @default(1)
   geojson              Unsupported("geometry")?
-  h3_index             String?
-  status               String?                       @default("active")
+  h3CellId             String?                       @map("h3_index")
+  h3_resolution        Int?                          @default(9)
+  source_type          TerritorySource               @default(RUN)
+  source_run_id        String?                       @db.Uuid
+  first_claimed_at     DateTime?                     @db.Timestamptz(6)
+  last_claimed_at      DateTime?                     @db.Timestamptz(6)
+  
+  max_hp               Int                           @default(1000)
+  current_hp           Int                           @default(1000)
+  territory_type       TerritoryType                 @default(NORMAL)
+  score_weight         Float                         @default(1.0)
+  geojson_json         Json?                         @db.Json
+  
+  status               TerritoryStatus               @default(ACTIVE)
+  status_old           String?                       @default("active")
+  destroyed_at         DateTime?                     @db.Timestamptz(6)
+  
   owner_change_count   Int?                          @default(0)
   last_owner_change_at DateTime?                     @db.Timestamptz(6)
   neutral_until        DateTime?                     @db.Timestamptz(6)
@@ -603,6 +618,7 @@ model territories {
   owner_change_logs    territory_owner_change_logs[]
   clubs                clubs?                        @relation(fields: [owner_club_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
+  @@unique([city_id, h3CellId], name: "city_id_h3_index")
   @@index([city_id], map: "idx_territories_city_id")
   @@index([owner_id], map: "idx_territories_owner_id")
   @@index([owner_club_id], map: "idx_territories_club")
@@ -611,22 +627,29 @@ model territories {
 }
 
 model territory_events {
-  id                BigInt    @id @default(autoincrement())
-  territory_id      String    @db.VarChar(50)
-  event_type        String    @db.VarChar(50)
-  user_id           String?   @db.Uuid
-  old_owner_id      String?   @db.Uuid
-  new_owner_id      String?   @db.Uuid
-  old_club_id       String?   @db.Uuid
-  new_club_id       String?   @db.Uuid
-  old_faction       String?   @db.VarChar(50)
-  new_faction       String?   @db.VarChar(50)
-  source_request_id String?   @db.Uuid
-  action_id         String?   @db.VarChar(100)
-  processed_for_stats Boolean? @default(false)
-  processed_at      DateTime? @db.Timestamptz(6)
-  processor_version String?   @db.VarChar(50)
-  created_at        DateTime? @default(now()) @db.Timestamptz(6)
+  id                  BigInt            @id @default(autoincrement())
+  territory_id        String            @db.VarChar(50)
+  event_type          TerritoryEventType @default(CREATED)
+  event_type_old      String?           @db.VarChar(50)
+  damage_value        Int               @default(0)
+  before_hp           Int               @default(0)
+  after_hp            Int               @default(0)
+  user_id             String?           @db.Uuid
+  old_owner_id        String?           @db.Uuid
+  new_owner_id        String?           @db.Uuid
+  old_club_id         String?           @db.Uuid
+  new_club_id         String?           @db.Uuid
+  old_faction         String?           @db.VarChar(50)
+  new_faction         String?           @db.VarChar(50)
+  payload_json        Json?             @db.Json
+  source_run_id       String?           @db.Uuid
+  source_type         TerritorySource?
+  source_request_id   String?           @db.Uuid
+  action_id           String?           @db.VarChar(100)
+  processed_for_stats Boolean?          @default(false)
+  processed_at        DateTime?         @db.Timestamptz(6)
+  processor_version   String?           @db.VarChar(50)
+  created_at          DateTime?         @default(now()) @db.Timestamptz(6)
 
   @@index([territory_id], map: "idx_territory_events_territory")
   @@index([processed_for_stats], map: "idx_territory_events_unprocessed")
@@ -746,6 +769,39 @@ enum club_status {
   active
   rejected
   suspended
+
+  @@schema("public")
+}
+
+enum TerritorySource {
+  RUN
+  BACKFILL
+  SYSTEM
+  MANUAL
+
+  @@schema("public")
+}
+
+enum TerritoryType {
+  NORMAL
+  HOT
+  COLD
+  
+  @@schema("public")
+}
+
+enum TerritoryStatus {
+  ACTIVE
+  DESTROYED
+
+  @@schema("public")
+}
+
+enum TerritoryEventType {
+  CREATED
+  ATTACKED
+  DESTROYED
+  OWNER_CHANGED
 
   @@schema("public")
 }

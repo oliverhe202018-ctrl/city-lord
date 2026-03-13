@@ -11,6 +11,8 @@ import TerritoryLayer from './TerritoryLayer';
 import FogLayer from './FogLayer';
 import { MapControls } from './MapControls';
 import { useAuth } from '@/hooks/useAuth';
+import { useMapInteraction } from '@/components/map/MapInteractionContext';
+import { useEffect } from 'react';
 
 export type AMapViewHandle = {
   zoomIn: () => void;
@@ -38,6 +40,7 @@ export interface AMapViewProps {
 const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
   ({ showTerritory, onMapLoad, viewMode, sessionClaims = [] }, ref) => {
     const {
+      map, // Added map instance
       currentLocation, // User GPS position
       userPath, // GPS trajectory history (source of truth)
       mapCenter, // Map viewport center
@@ -52,7 +55,29 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
       viewMode: mapViewMode, // 'individual' | 'faction'
     } = useMap();
 
+    const { setSelectedTerritory } = useMapInteraction();
     const { user } = useAuth();
+
+    // Map Click Root Handler: uniform empty space click to clear selection
+    useEffect(() => {
+      if (!map) return;
+      
+      const handleRootClick = () => {
+        // Deferred to allow overlay elements to write their timestamp first
+        setTimeout(() => {
+          const lastClick = (window as any).__amap_polygon_clicked || 0;
+          if (Date.now() - lastClick > 300) {
+            console.log(`[Audit] map.click (ROOT): clear selection`);
+            setSelectedTerritory?.(null);
+          }
+        }, 100);
+      };
+
+      map.on('click', handleRootClick);
+      return () => {
+        if (map.off) map.off('click', handleRootClick);
+      };
+    }, [map, setSelectedTerritory]);
 
     return (
       <div className="relative w-full h-full">

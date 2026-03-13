@@ -9,19 +9,22 @@ const getCachedTerritories = unstable_cache(
     return await prisma.territories.findMany({
       where: {
         city_id: cityId,
-        status: 'active'
+        status: 'ACTIVE'
       },
       select: {
         id: true,
         owner_id: true,
-        level: true,
-        health: true,
-        h3_index: true,
+        current_hp: true,
+        max_hp: true,
+        score_weight: true,
+        territory_type: true,
+        geojson_json: true,
         profiles: {
           select: {
             nickname: true,
             avatar_url: true,
-            faction: true
+            faction: true,
+            club_id: true
           }
         }
       }

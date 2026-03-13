@@ -19,6 +19,8 @@ import {
     MIN_LOOP_POINTS,
     type GeoPoint,
 } from '@/lib/geometry-utils';
+import { processTerritorySettlement } from '@/lib/territory/settlement';
+import { TerritorySource } from '@prisma/client';
 
 // ============================================================
 // Types
@@ -31,6 +33,8 @@ export interface TerritoryCreationInput {
     source: 'phone' | 'watch' | 'gpx' | 'manual';
     /** Duration in seconds */
     duration: number;
+    /** 城市 ID（用于 territory 持久化） */
+    cityId?: string;
 }
 
 export interface TerritoryCreationResult {
@@ -39,6 +43,8 @@ export interface TerritoryCreationResult {
     /** Area in m² */
     area?: number;
     territoryCreated: boolean;
+    /** 持久化的 territory 数量 */
+    materializedCount?: number;
     error?: string;
 }
 
@@ -53,6 +59,7 @@ export const TerritoryService = {
      * 1. Checks if the path forms a closed loop (same threshold as phone: 20m)
      * 2. Calculates polygon area via turf.js (same as useRunningTracker)
      * 3. If area >= 100m², creates run + records polygon in a single transaction
+     * 4. 事务完成后，调用 materializeTerritories 将 polygon 持久化为正式 territory 记录
      * 
      * @param userId - The authenticated user's ID
      * @param input  - Cleaned GPS points, source, and duration
@@ -61,9 +68,9 @@ export const TerritoryService = {
         userId: string,
         input: TerritoryCreationInput
     ): Promise<TerritoryCreationResult> {
-        const { points, source, duration } = input;
+        const { points, source, duration, cityId } = input;
 
-        // Validate minimum point count
+        // 校验最低轨迹点数
         if (points.length < MIN_LOOP_POINTS) {
             return {
                 success: false,
@@ -72,7 +79,7 @@ export const TerritoryService = {
             };
         }
 
-        // Check loop closure
+        // 校验回路闭合
         const loopCheck = isLoopClosed(points, LOOP_CLOSURE_THRESHOLD_M);
         if (!loopCheck.isClosed) {
             return {
@@ -82,9 +89,9 @@ export const TerritoryService = {
             };
         }
 
-        // Calculate polygon area using turf.js (consistent with useRunningTracker)
+        // 使用 turf.js 计算多边形面积（与 useRunningTracker 一致）
         const coords = points.map(p => [p.lng, p.lat]);
-        // Ensure closed ring
+        // 确保闭合环
         if (
             coords[0][0] !== coords[coords.length - 1][0] ||
             coords[0][1] !== coords[coords.length - 1][1]
@@ -112,12 +119,12 @@ export const TerritoryService = {
             };
         }
 
-        // Calculate total path distance
+        // 计算总路径距离
         const totalDistance = calculatePathDistance(points);
 
-        // Persist in a transaction
+        // 在事务中创建 Run 记录并更新用户统计
         const result = await prisma.$transaction(async (tx) => {
-            // Create run record (consistent with saveRunActivity)
+            // 创建 Run 记录
             const run = await tx.runs.create({
                 data: {
                     user_id: userId,
@@ -133,7 +140,7 @@ export const TerritoryService = {
                 },
             });
 
-            // Update user profile stats
+            // Update user stats
             await tx.profiles.update({
                 where: { id: userId },
                 data: {
@@ -148,11 +155,55 @@ export const TerritoryService = {
             timeout: 10000
         });
 
+        // ============================================================
+        // Phase 2: Territory Settlement — Process overlap and persistence
+        // ============================================================
+        let materializedCount = 0;
+        if (cityId) {
+            try {
+                // Determine owner info
+                const profile = await prisma.profiles.findUnique({
+                    where: { id: userId },
+                    select: { club_id: true },
+                });
+
+                // Convert points to turf Polygon
+                // Provide raw coordinates without 'z' for standard turf compatibility
+                const polygonGeoJSON = turf.polygon([points.map(p => [p.lng, p.lat])]);
+
+                const settlementResult = await processTerritorySettlement({
+                    runId: result.runId,
+                    userId: userId,
+                    clubId: profile?.club_id,
+                    pathGeoJSON: polygonGeoJSON
+                });
+
+                if (settlementResult.success) {
+                    materializedCount = settlementResult.createdTerritories;
+                    console.log(
+                        `[Territory Settlement] Run ${result.runId}: ` +
+                        `Created ${settlementResult.createdTerritories}, ` +
+                        `Damaged ${settlementResult.damagedTerritories}, ` +
+                        `Destroyed ${settlementResult.destroyedTerritories}`
+                    );
+                } else {
+                     console.error(`[Territory Settlement] Failed:`, settlementResult.error);
+                }
+            } catch (settlementError) {
+                console.error(
+                    `[Territory Settlement] Run ${result.runId} settlement failed, fallback to DB only`,
+                    settlementError
+                );
+            }
+        }
+
         return {
             success: true,
             runId: result.runId,
             area: polyArea,
             territoryCreated: true,
+            materializedCount,
         };
     },
 };
+
