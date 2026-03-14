@@ -92,7 +92,6 @@ export interface AppSettings {
   hapticEnabled: boolean;
   theme: 'light' | 'dark' | 'system';
   gpsCorrectionEnabled: boolean;
-  keepAliveEnabled: boolean;
 }
 
 export interface MyClub {
@@ -128,7 +127,6 @@ export interface ModeActions {
   setHapticEnabled: (enabled: boolean) => void;
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
   setGpsCorrectionEnabled: (enabled: boolean) => void;
-  setKeepAliveEnabled: (enabled: boolean) => void;
 
   // Room Actions
   setCurrentRoom: (room: Room | null) => void;
@@ -210,7 +208,6 @@ const initialAppSettings: AppSettings = {
   hapticEnabled: true,
   theme: 'system',
   gpsCorrectionEnabled: false,
-  keepAliveEnabled: false, // Default off to save battery
 };
 
 const initialUserState: UserState = {
@@ -283,8 +280,7 @@ const createModeSlice: StateCreator<GameStore, [], [], ModeActions> = (set, get)
   setSoundEnabled: (enabled) => set((state) => ({ appSettings: { ...state.appSettings, soundEnabled: enabled } })),
   setHapticEnabled: (enabled) => set((state) => ({ appSettings: { ...state.appSettings, hapticEnabled: enabled } })),
   setTheme: (theme) => set((state) => ({ appSettings: { ...state.appSettings, theme } })),
-  setGpsCorrectionEnabled: (gpsCorrectionEnabled) => set((state) => ({ appSettings: { ...state.appSettings, gpsCorrectionEnabled } })),
-  setKeepAliveEnabled: (keepAliveEnabled) => set((state) => ({ appSettings: { ...state.appSettings, keepAliveEnabled } })),
+  setGpsCorrectionEnabled: (enabled) => set((state) => ({ appSettings: { ...state.appSettings, gpsCorrectionEnabled: enabled } })),
 
   // Room Actions Implementation
   setCurrentRoom: (room) => set({ currentRoom: room }),
@@ -751,11 +747,6 @@ export const useGameActions = () => {
       setMyClub: state.setMyClub,
       updateMyClubInfo: state.updateMyClubInfo,
       updateAppSettings: state.updateAppSettings,
-      setSoundEnabled: state.setSoundEnabled,
-      setHapticEnabled: state.setHapticEnabled,
-      setTheme: state.setTheme,
-      setGpsCorrectionEnabled: state.setGpsCorrectionEnabled,
-      setKeepAliveEnabled: state.setKeepAliveEnabled,
       setCurrentRoom: state.setCurrentRoom,
       setJoinedRooms: state.setJoinedRooms,
       addJoinedRoom: state.addJoinedRoom,
