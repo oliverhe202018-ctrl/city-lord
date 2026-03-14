@@ -9,6 +9,8 @@ export interface SmsAuthResponse {
     success: boolean
     message: string
     error?: string
+    retryAfterSeconds?: number
+    cooldownEndsAt?: number
 }
 
 // Phone number validation (Chinese mobile)
@@ -51,13 +53,27 @@ export async function sendSmsCode(
             return { success: false, message: '手机号格式错误', error: phoneResult.error.errors[0].message }
         }
 
-        // 2. Rate limiting (60 seconds per phone)
-        const lastRequest = SMS_RATE_LIMIT.get(cleaned)
+        // 2. Rate limiting (60 seconds per phone/type)
+        const limitKey = `${type}:${cleaned}`
+        const lastRequest = SMS_RATE_LIMIT.get(limitKey)
         const now = Date.now()
         if (lastRequest && (now - lastRequest) < 60000) {
-            return { success: false, message: '发送过于频繁，请稍后再试' }
+            const retryAfterSec = Math.ceil((60000 - (now - lastRequest)) / 1000)
+            return { 
+                success: false, 
+                message: `发送过于频繁，请 ${retryAfterSec} 秒后再试`,
+                retryAfterSeconds: retryAfterSec,
+                cooldownEndsAt: lastRequest + 60000
+            }
         }
-        SMS_RATE_LIMIT.set(cleaned, now)
+        SMS_RATE_LIMIT.set(limitKey, now)
+        
+        // 增加脏数据清理策略：如果 SMS_RATE_LIMIT 过大，清理 10 分钟前的记录
+        if (SMS_RATE_LIMIT.size > 1000) {
+            for (const [key, time] of SMS_RATE_LIMIT.entries()) {
+                if (now - time > 600000) SMS_RATE_LIMIT.delete(key)
+            }
+        }
 
         // 3. Generate OTP code
         const code = generateCode()
@@ -152,7 +168,12 @@ export async function sendSmsCode(
             })
         }
 
-        return { success: true, message: '验证码已发送' }
+        return { 
+            success: true, 
+            message: '验证码已发送',
+            retryAfterSeconds: 60,
+            cooldownEndsAt: Date.now() + 60000
+        }
 
     } catch (err: any) {
         console.error('[SmsAuth] Unexpected Error:', err)

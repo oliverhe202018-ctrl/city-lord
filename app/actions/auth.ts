@@ -11,6 +11,8 @@ export interface ActionResponse {
     success: boolean
     message: string
     error?: string
+    retryAfterSeconds?: number
+    cooldownEndsAt?: number
 }
 
 // Zod schema for email validation
@@ -22,16 +24,31 @@ export async function sendAuthCode(
     password?: string
 ): Promise<ActionResponse> {
     try {
+        // 0. Normalize Email
+        const normalizedEmail = email.trim().toLowerCase()
+        
         // 1. Validate Email
-        const emailResult = EmailSchema.safeParse(email)
+        const emailResult = EmailSchema.safeParse(normalizedEmail)
         if (!emailResult.success) {
             return { success: false, message: "邮箱格式错误", error: emailResult.error.errors[0].message }
         }
+        
+        console.log(`[AuthAction] Sending code for: ${normalizedEmail}, type: ${type}`)
 
-        // 2. Server-side Rate Limiting via Redis (1 request per 60 seconds per email)
-        const rl = await rateLimit(`rl:auth:${email}`, 60, 1)
+        // 2. Server-side Rate Limiting via Redis (1 request per 60 seconds per email/type)
+        const limitKey = `rl:auth:${type}:${normalizedEmail}`
+        const rl = await rateLimit(limitKey, 60, 1)
+        
+        console.log(`[AuthAction] RateLimit Check: key=${limitKey}, allowed=${rl.allowed}, retryAfter=${rl.retryAfterSec}`)
+        
         if (!rl.allowed) {
-            return { success: false, message: `发送过于频繁，请 ${rl.retryAfterSec} 秒后再试` }
+            const cooldownEndsAt = Date.now() + (rl.retryAfterSec * 1000)
+            return { 
+                success: false, 
+                message: `发送过于频繁，请 ${rl.retryAfterSec} 秒后再试`,
+                retryAfterSeconds: rl.retryAfterSec,
+                cooldownEndsAt
+            }
         }
 
         // 3. Generate OTP via Supabase Admin
@@ -78,6 +95,7 @@ export async function sendAuthCode(
                 msg = "账号不存在，请先注册"
             } else if (error.status === 429) {
                 msg = "请求过多，请稍后再试"
+                return { success: false, message: msg, error: error.message, retryAfterSeconds: 60, cooldownEndsAt: Date.now() + 60000 }
             }
 
             return { success: false, message: msg, error: error.message }
@@ -111,7 +129,7 @@ export async function sendAuthCode(
             return { success: false, message: "邮件发送失败，请检查邮箱是否正确或稍后再试", error: String(sendRes.error) }
         }
 
-        return { success: true, message: "验证码已发送" }
+        return { success: true, message: "验证码已发送", retryAfterSeconds: 60, cooldownEndsAt: Date.now() + 60000 }
 
     } catch (err: any) {
         console.error('[AuthAction] Unexpected Error:', err)
@@ -134,7 +152,12 @@ export async function sendResetPasswordCode(email: string): Promise<ActionRespon
         // Rate limiting via Redis
         const rl = await rateLimit(`rl:reset:${email}`, 60, 1)
         if (!rl.allowed) {
-            return { success: false, message: `发送过于频繁，请 ${rl.retryAfterSec} 秒后再试` }
+            return { 
+                success: false, 
+                message: `发送过于频繁，请 ${rl.retryAfterSec} 秒后再试`,
+                retryAfterSeconds: rl.retryAfterSec,
+                cooldownEndsAt: Date.now() + (rl.retryAfterSec * 1000)
+            }
         }
 
         // Generate recovery link (returns OTP)
@@ -150,6 +173,7 @@ export async function sendResetPasswordCode(email: string): Promise<ActionRespon
                 msg = "该邮箱未注册"
             } else if (error.status === 429) {
                 msg = "请求过多，请稍后再试"
+                return { success: false, message: msg, error: error.message, retryAfterSeconds: 60, cooldownEndsAt: Date.now() + 60000 }
             }
             return { success: false, message: msg, error: error.message }
         }
@@ -167,7 +191,7 @@ export async function sendResetPasswordCode(email: string): Promise<ActionRespon
             return { success: false, message: "邮件发送失败，请检查邮箱是否正确或稍后再试", error: String(sendRes.error) }
         }
 
-        return { success: true, message: "重置验证码已发送" }
+        return { success: true, message: "重置验证码已发送", retryAfterSeconds: 60, cooldownEndsAt: Date.now() + 60000 }
     } catch (err: any) {
         console.error('[AuthAction] Reset Unexpected Error:', err)
         return { success: false, message: "服务暂时不可用，请稍后再试", error: err.message }
