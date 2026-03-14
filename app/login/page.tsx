@@ -13,31 +13,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 
-const AgreementCheckbox = ({ id, agreed, setAgreed }: { id: string, agreed: boolean, setAgreed: (val: boolean) => void }) => (
-  <div className="flex items-center space-x-2 mt-4 mb-3">
-    <Checkbox
-      id={id}
-      checked={agreed}
-      onCheckedChange={(checked) => setAgreed(checked as boolean)}
-      className="border-white/40 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600 w-4 h-4"
-    />
-    <Label htmlFor={id} className="text-xs text-white/60 font-normal">
-      阅读并同意
-      <Link href="/terms" className="text-green-500 hover:text-green-400 ml-1">《用户协议》</Link>
-      和
-      <Link href="/privacy" className="text-green-500 hover:text-green-400 mx-1">《隐私政策》</Link>
-    </Label>
-  </div>
-)
-
 function LoginPageContent() {
   const [email, setEmail] = useState("")
   const [phone, setPhone] = useState("")
   const [password, setPassword] = useState("")
   const [verificationCode, setVerificationCode] = useState("")
-  // verificationToken is no longer needed with Supabase SDK
   const [codeSent, setCodeSent] = useState(false)
-  const [countdown, setCountdown] = useState(0)
+  // cooldowns: { [scene_key]: timestamp }
+  const [cooldowns, setCooldowns] = useState<Record<string, number>>({})
+  const [now, setNow] = useState(Date.now())
   const [loading, setLoading] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [agreed, setAgreed] = useState(false)
@@ -98,34 +82,78 @@ function LoginPageContent() {
     }
   }, [router, supabase])
 
-  // Countdown timer with absolute time
+  // 1. 初始化从 LocalStorage 恢复 Cooldown 状态
   useEffect(() => {
-    const checkTimer = () => {
-      const expiresAt = sessionStorage.getItem('otp_expires_at')
-      if (expiresAt) {
-        const remaining = Math.max(0, Math.ceil((parseInt(expiresAt) - Date.now()) / 1000))
-        setCountdown(remaining)
-        if (remaining <= 0) {
-           sessionStorage.removeItem('otp_expires_at')
-        }
-      } else {
-        setCountdown(0)
+    try {
+      const saved = localStorage.getItem('verification_cooldown_v2')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        const filtered: Record<string, number> = {}
+        const currentTime = Date.now()
+        // 自动清理过期的、超过 10 分钟的脏数据，以及旧格式 key
+        Object.entries(parsed).forEach(([key, endAt]) => {
+          const timestamp = Number(endAt)
+          const isExpired = timestamp <= currentTime
+          const isInvalidKey = !key.startsWith('cd:') || key.split(':').length < 4 // 旧格式至少少一位
+          const isOldFormat = key.startsWith('cd:email:') && key.split(':').length === 3 
+          
+          if (!isExpired && !isInvalidKey && !isOldFormat && (timestamp - currentTime < 600000)) {
+            filtered[key] = timestamp
+          } else {
+            console.log(`[Cooldown] Cleaning up key: ${key}`)
+          }
+        })
+        setCooldowns(filtered)
+        localStorage.setItem('verification_cooldown_v2', JSON.stringify(filtered))
       }
-    }
-    
-    checkTimer()
-    const interval = setInterval(checkTimer, 1000)
-    
-    const handleVis = () => { 
-      if (document.visibilityState === 'visible') checkTimer() 
-    }
-    window.addEventListener('visibilitychange', handleVis)
-    
-    return () => {
-       clearInterval(interval)
-       window.removeEventListener('visibilitychange', handleVis)
+    } catch (e) {
+      console.error('Failed to load cooldowns', e)
     }
   }, [])
+
+  // 2. 统一的时钟更新器 (所有场景共用)
+  useEffect(() => {
+    const hasActiveCooldown = Object.values(cooldowns).some(endAt => endAt > Date.now())
+    if (!hasActiveCooldown) return
+
+    const timer = setInterval(() => {
+      const current = Date.now()
+      setNow(current)
+      
+      // 如果所有倒计时都结束了，停止定时器
+      const stillActive = Object.values(cooldowns).some(endAt => endAt > current)
+      if (!stillActive) {
+        setCooldowns(prev => {
+          const fresh: Record<string, number> = {}
+          Object.entries(prev).forEach(([k, v]) => {
+            if (v > current) fresh[k] = v
+          })
+          return fresh
+        })
+      }
+    }, 1000)
+    
+    return () => clearInterval(timer)
+  }, [cooldowns])
+
+  // 辅助函数：获取特定场景的剩余秒数
+  const getRemaining = (scene: string, target: string, type: string) => {
+    const normalized = target.trim().toLowerCase()
+    const key = `cd:${scene}:${type}:${normalized}`
+    const endAt = cooldowns[key]
+    if (!endAt) return 0
+    return Math.max(0, Math.ceil((endAt - now) / 1000))
+  }
+
+  // 辅助函数：保存 Cooldown
+  const saveCooldown = (scene: string, target: string, type: string, seconds: number) => {
+    const normalized = target.trim().toLowerCase()
+    const key = `cd:${scene}:${type}:${normalized}`
+    const endAt = Date.now() + (seconds * 1000)
+    const next = { ...cooldowns, [key]: endAt }
+    setCooldowns(next)
+    localStorage.setItem('verification_cooldown_v2', JSON.stringify(next))
+  }
 
   // ==========================================
   // 核心逻辑: 发送验证码 (Register & Login)
@@ -142,7 +170,12 @@ function LoginPageContent() {
       toast.error("请输入邮箱")
       return
     }
-    if (countdown > 0) return
+    const normalized = email.trim().toLowerCase()
+    const remain = getRemaining('email', normalized, type)
+    if (remain > 0) {
+      toast.error(`请等待 ${remain} 秒后再试`)
+      return
+    }
 
     setLoading(true)
     try {
@@ -168,9 +201,12 @@ function LoginPageContent() {
 
       // Success
       setCodeSent(true)
-      const expiresAt = Date.now() + 60000
-      sessionStorage.setItem('otp_expires_at', expiresAt.toString())
-      setCountdown(60)
+      if (res.cooldownEndsAt) {
+          const seconds = Math.ceil((res.cooldownEndsAt - Date.now()) / 1000)
+          saveCooldown('email', email, type, seconds)
+      } else {
+          saveCooldown('email', email, type, 60)
+      }
       toast.success("验证码已发送", { description: "请查看您的邮箱 (注意检查垃圾箱)" })
 
     } catch (error: any) {
@@ -178,6 +214,7 @@ function LoginPageContent() {
       toast.error("发送异常", { description: "服务连接失败，请检查网络" })
     } finally {
       setLoading(false)
+      setNow(Date.now())
     }
   }
 
@@ -306,7 +343,11 @@ function LoginPageContent() {
       toast.error("请输入手机号")
       return
     }
-    if (countdown > 0) return
+    const remain = getRemaining('sms', phone, type)
+    if (remain > 0) {
+      toast.error(`请等待 ${remain} 秒后再试`)
+      return
+    }
 
     setLoading(true)
     try {
@@ -319,9 +360,12 @@ function LoginPageContent() {
       }
 
       setCodeSent(true)
-      const expiresAt = Date.now() + 60000
-      sessionStorage.setItem('otp_expires_at', expiresAt.toString())
-      setCountdown(60)
+      if (res.cooldownEndsAt) {
+        const seconds = Math.ceil((res.cooldownEndsAt - Date.now()) / 1000)
+        saveCooldown('sms', phone, type, seconds)
+      } else {
+        saveCooldown('sms', phone, type, 60)
+      }
       toast.success("验证码已发送", { description: "请查看您的手机短信" })
     } catch (error: any) {
       console.error('Send SMS code error:', error)
@@ -433,6 +477,21 @@ function LoginPageContent() {
           <p className="text-white/60 text-sm">用脚步丈量城市，用汗水铸就领地</p>
         </div>
 
+        <div className="flex items-center justify-center space-x-2 mb-6">
+          <Checkbox
+            id="terms"
+            checked={agreed}
+            onCheckedChange={(checked) => setAgreed(checked as boolean)}
+            className="border-white/40 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600"
+          />
+          <Label htmlFor="terms" className="text-xs text-white/70">
+            我已经阅读并同意
+            <Link href="/terms" className="text-green-400 hover:text-green-300 ml-1">《用户协议》</Link>
+            和
+            <Link href="/privacy" className="text-green-400 hover:text-green-300 mx-1">《隐私政策》</Link>
+          </Label>
+        </div>
+
         <Tabs defaultValue="login" className="w-full">
           <TabsList className="grid w-full grid-cols-3 mb-4 bg-black/40 border border-white/10">
             <TabsTrigger value="login">登录</TabsTrigger>
@@ -510,9 +569,6 @@ function LoginPageContent() {
                         />
                       </div>
                     </div>
-                    
-                    <AgreementCheckbox id="terms-pwd" agreed={agreed} setAgreed={setAgreed} />
-                    
                     <Button
                       type="submit"
                       className="w-full bg-green-600 hover:bg-green-700 text-white"
@@ -566,14 +622,13 @@ function LoginPageContent() {
                           type="button"
                           variant="outline"
                           className="w-[120px] bg-white/5 border-white/10 text-white hover:bg-white/10 hover:text-white"
-                          disabled={loading || countdown > 0}
+                          disabled={loading || getRemaining('email', email, 'login') > 0}
                           onClick={() => handleSendCode('login')}
                         >
-                          {countdown > 0 ? `${countdown}s` : "获取验证码"}
+                          {getRemaining('email', email, 'login') > 0 ? `${getRemaining('email', email, 'login')}s` : "获取验证码"}
                         </Button>
                       </div>
                     </div>
-                    <AgreementCheckbox id="terms-code" agreed={agreed} setAgreed={setAgreed} />
                     <Button
                       type="submit"
                       className="w-full bg-green-600 hover:bg-green-700 text-white"
@@ -619,14 +674,13 @@ function LoginPageContent() {
                           type="button"
                           variant="outline"
                           className="w-[120px] bg-white/5 border-white/10 text-white hover:bg-white/10 hover:text-white"
-                          disabled={loading || countdown > 0}
+                          disabled={loading || getRemaining('sms', phone, 'login') > 0}
                           onClick={() => handleSendSmsCode('login')}
                         >
-                          {countdown > 0 ? `${countdown}s` : "获取验证码"}
+                          {getRemaining('sms', phone, 'login') > 0 ? `${getRemaining('sms', phone, 'login')}s` : "获取验证码"}
                         </Button>
                       </div>
                     </div>
-                    <AgreementCheckbox id="terms-sms" agreed={agreed} setAgreed={setAgreed} />
                     <Button
                       type="submit"
                       className="w-full bg-green-600 hover:bg-green-700 text-white"
@@ -681,10 +735,10 @@ function LoginPageContent() {
                         type="button"
                         variant="outline"
                         onClick={() => handleSendCode('register')}
-                        disabled={loading || countdown > 0 || !email}
+                        disabled={loading || getRemaining('email', email, 'register') > 0 || !email}
                         className="w-24 border-white/10 bg-white/5 text-white hover:bg-white/20 hover:text-white disabled:opacity-50"
                       >
-                        {countdown > 0 ? `${countdown}s` : (loading && !codeSent ? <Loader2 className="h-4 w-4 animate-spin" /> : "获取")}
+                        {getRemaining('email', email, 'register') > 0 ? `${getRemaining('email', email, 'register')}s` : (loading && !codeSent ? <Loader2 className="h-4 w-4 animate-spin" /> : "获取")}
                       </Button>
                     </div>
 
@@ -701,7 +755,6 @@ function LoginPageContent() {
                       />
                     </div>
                   </div>
-                  <AgreementCheckbox id="terms-reg" agreed={agreed} setAgreed={setAgreed} />
                   <Button
                     type="submit"
                     className="w-full bg-green-600 hover:bg-green-700 text-white"
@@ -756,10 +809,10 @@ function LoginPageContent() {
                         type="button"
                         variant="outline"
                         onClick={() => handleSendSmsCode('register')}
-                        disabled={loading || countdown > 0 || !phone}
+                        disabled={loading || getRemaining('sms', phone, 'register') > 0 || !phone}
                         className="w-24 border-white/10 bg-white/5 text-white hover:bg-white/20 hover:text-white disabled:opacity-50"
                       >
-                        {countdown > 0 ? `${countdown}s` : (loading && !codeSent ? <Loader2 className="h-4 w-4 animate-spin" /> : "获取")}
+                        {getRemaining('sms', phone, 'register') > 0 ? `${getRemaining('sms', phone, 'register')}s` : (loading && !codeSent ? <Loader2 className="h-4 w-4 animate-spin" /> : "获取")}
                       </Button>
                     </div>
 
@@ -776,7 +829,6 @@ function LoginPageContent() {
                       />
                     </div>
                   </div>
-                  <AgreementCheckbox id="terms-sms-reg" agreed={agreed} setAgreed={setAgreed} />
                   <Button
                     type="submit"
                     className="w-full bg-green-600 hover:bg-green-700 text-white"

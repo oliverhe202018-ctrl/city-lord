@@ -6,8 +6,6 @@ import { AMapLocationBridge, type LocationMeta } from '@/lib/amap-location-bridg
 import { safeRequestGeolocationPermission } from '@/lib/capacitor/safe-plugins';
 import { useGameStore } from '@/store/useGameStore';
 import type { GeoPoint } from '@/hooks/useSafeGeolocation';
-import { backgroundLocationService } from '@/lib/capacitor/background-location-service';
-import { Capacitor } from '@capacitor/core';
 
 // ---------------------------------------------------------------------------
 // Context for non-serializable values (retry + debug)
@@ -64,10 +62,6 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
     const bridgeRef = useRef<AMapLocationBridge | null>(null);
     const mountedRef = useRef(false);
     const initPromiseRef = useRef<Promise<void> | null>(null);
-
-    // Global settings for keep-alive
-    const keepAliveEnabled = useGameStore(s => s.appSettings.keepAliveEnabled);
-    const isRunning = useGameStore(s => s.isRunning);
 
     // --- Startup sequence ---
     useEffect(() => {
@@ -145,14 +139,12 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
 
             if (!mountedRef.current) return;
 
-            // Step 1.5: Check permission first, only request if not yet decided
+            // Step 1.5: [修复时序] 仅检查权限状态，绝不在此刻自动触发 request 请求
             const { safeCheckGeolocationPermission } = await import('@/lib/capacitor/safe-plugins');
             const currentPerm = await safeCheckGeolocationPermission();
-            let permStatus = currentPerm;
-            if (currentPerm === 'prompt') {
-                permStatus = await safeRequestGeolocationPermission();
-            }
-            console.log(`${TAG} Location permission status: ${permStatus} (was: ${currentPerm})`);
+            const permStatus = currentPerm;
+            // 移除了自动调用 safeRequestGeolocationPermission
+            console.log(`${TAG} Location permission status: ${permStatus}`);
 
             if (!mountedRef.current) return;
 
@@ -262,31 +254,6 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
         };
     }, []);
 
-    // --- Keep-Alive Background Radar ---
-    useEffect(() => {
-        if (!Capacitor.isNativePlatform()) return;
-
-        console.log(`${TAG} Keep-Alive Evaluation: enabled=${keepAliveEnabled}, isRunning=${isRunning}`);
-        if (keepAliveEnabled && !isRunning) {
-            // User opted in AND is not currently in an active run (active run uses high-frequency)
-            backgroundLocationService.startKeepAliveTracking();
-        } else {
-            // Either disabled or currently running. 
-            // NOTE: If running, upgradeToRunning already calls stopTracking internally before startHighFrequencyTracking,
-            // but just to be safe, if we arrive here and isRunning is false but keepAlive is false, we stop keepAlive.
-            if (!isRunning) {
-                backgroundLocationService.stopTracking();
-            }
-        }
-
-        // Cleanup when the setting or run state changes
-        return () => {
-            if (!isRunning) {
-                backgroundLocationService.stopTracking();
-            }
-        };
-    }, [keepAliveEnabled, isRunning]);
-
     // --- Context value (stable refs) ---
     const contextValue = React.useMemo<LocationContextValue>(() => ({
         retry: () => {
@@ -309,49 +276,19 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
         upgradeToRunning: async () => {
             console.log(`${TAG} Upgrading watch to RUNNING mode`);
             if (bridgeRef.current) {
-                if (Capacitor.isNativePlatform()) {
-                    // Stop AMap native watch to avoid conflict/drain, use background-geolocation instead
-                    await bridgeRef.current.stopWatch();
-                    await backgroundLocationService.startHighFrequencyTracking((bgLoc) => {
-                        useLocationStore.setState({
-                            location: {
-                                lat: bgLoc.latitude,
-                                lng: bgLoc.longitude,
-                                accuracy: Math.round(bgLoc.accuracy),
-                                timestamp: bgLoc.time,
-                                source: 'gps-precise',
-                                coordSystem: 'gcj02'
-                            },
-                            locationSource: 'gps',
-                            gpsSignalStrength: bgLoc.accuracy <= 50 ? 'good' : 'weak'
-                        });
-                        useGameStore.getState().updateLocation(bgLoc.latitude, bgLoc.longitude);
-                    });
-                } else {
-                    await bridgeRef.current.switchWatchMode('running', {
-                        interval: 1000,
-                        distanceFilter: 3,
-                    });
-                }
+                await bridgeRef.current.switchWatchMode('running', {
+                    interval: 1000,
+                    distanceFilter: 3,
+                });
             }
         },
         downgradeToBrowse: async () => {
             console.log(`${TAG} Downgrading watch to BROWSE mode`);
             if (bridgeRef.current) {
-                if (Capacitor.isNativePlatform()) {
-                    await backgroundLocationService.stopTracking();
-                    // Resume AMap's browse watch
-                    await bridgeRef.current.startWatch({
-                        mode: 'browse',
-                        interval: 5000,
-                        distanceFilter: 10,
-                    });
-                } else {
-                    await bridgeRef.current.switchWatchMode('browse', {
-                        interval: 5000,
-                        distanceFilter: 10,
-                    });
-                }
+                await bridgeRef.current.switchWatchMode('browse', {
+                    interval: 5000,
+                    distanceFilter: 10,
+                });
             }
         },
         getBridge: () => bridgeRef.current,

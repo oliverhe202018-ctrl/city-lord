@@ -311,19 +311,6 @@ export function MapHeader({
     return () => clearInterval(interval)
   }, [stamina, maxStamina, lastStaminaUpdate])
 
-  if (!currentCity || isLoading || !hydrated) {
-    return (
-      <div className="fixed top-0 left-0 right-0 z-[100] px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
-        <GlassCard className="flex items-center justify-center py-3">
-          <LoadingSpinner size="sm" />
-          <span className="ml-2 text-sm text-slate-700 dark:text-white/80">
-            {isLoading || !hydrated ? "加载中..." : "请选择城市"}
-          </span>
-        </GlassCard>
-      </div>
-    )
-  }
-
   const headerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -341,6 +328,20 @@ export function MapHeader({
     
     return () => observer.disconnect();
   }, []);
+
+  if (!currentCity || isLoading || !hydrated) {
+    return (
+      <div className="fixed top-0 left-0 right-0 z-[100] px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
+        <GlassCard className="flex items-center justify-center py-3">
+          <LoadingSpinner size="sm" />
+          <span className="ml-2 text-sm text-slate-700 dark:text-white/80">
+            {isLoading || !hydrated ? "加载中..." : "请选择城市"}
+          </span>
+        </GlassCard>
+      </div>
+    )
+  }
+
 
   return (
     <>

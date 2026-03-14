@@ -125,9 +125,6 @@ export function ImmersiveRunningMode({
   const [showKingdom, setShowKingdom] = useState(false)
   // Debounce ref for stop button
   const lastStopAttemptRef = useRef(0)
-  // 稳定的 fallback idempotencyKey — 整个组件生命周期内只生成一次，
-  // 防止每次进入 catch 块时 crypto.randomUUID() 生成不同值导致本地队列 upsert 失效
-  const stableIdempotencyKeyRef = useRef(idempotencyKey || crypto.randomUUID())
 
   const { currentCity } = useCity()
   const { ghostPath } = useGameLocation()
@@ -461,7 +458,7 @@ export function ImmersiveRunningMode({
         // Persist to localStorage as offline fallback before showing retry dialog
         try {
           const fallbackData = {
-            idempotencyKey: idempotencyKey || stableIdempotencyKeyRef.current,
+            idempotencyKey: idempotencyKey || crypto.randomUUID(),
             path: path || [],
             distance: distanceMeters || 0,
             duration: durationSeconds || 0,

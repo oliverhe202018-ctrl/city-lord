@@ -1,5 +1,3 @@
-export const dynamic = 'force-dynamic'
-
 import AdminDashboardPageClient from '@/components/admin/AdminDashboardPageClient'
 import { getAdminDashboardData } from '@/app/actions/admin'
 
