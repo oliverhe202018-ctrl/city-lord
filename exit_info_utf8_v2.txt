@@ -1,0 +1,32 @@
+﻿ACTIVITY MANAGER PROCESS EXIT INFO (dumpsys activity exit-info)
+Last Timestamp of Persistence Into Persistent Storage: 2026-03-14 05:31:19.889
+  package: com.citylord.game.pro
+    Historical Process Exit for uid=10223
+        ApplicationExitInfo #0:
+          timestamp=2026-03-14 05:32:41.125 pid=31904 realUid=10223 packageUid=10223 definingUid=10223 user=0
+          process=com.citylord.game.pro reason=4 (APP CRASH(EXCEPTION)) subreason=0 (UNKNOWN) status=0
+          importance=300 pss=0.00 rss=0.00 description=crash state=empty trace=null
+        ApplicationExitInfo #1:
+          timestamp=2026-03-14 05:32:38.099 pid=31808 realUid=99024 packageUid=10223 definingUid=10167 user=0
+          process=com.google.android.webview:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:0 reason=1 (EXIT_SELF) subreason=17 (ISOLATED NOT NEEDED) status=0
+          importance=400 pss=0.00 rss=0.00 description=isolated not needed state=empty trace=null
+        ApplicationExitInfo #2:
+          timestamp=2026-03-14 05:32:37.890 pid=31777 realUid=10223 packageUid=10223 definingUid=10223 user=0
+          process=com.citylord.game.pro reason=4 (APP CRASH(EXCEPTION)) subreason=0 (UNKNOWN) status=0
+          importance=100 pss=0.00 rss=0.00 description=crash state=empty trace=null
+        ApplicationExitInfo #3:
+          timestamp=2026-03-14 05:32:24.546 pid=31750 realUid=10223 packageUid=10223 definingUid=10223 user=0
+          process=com.citylord.game.pro reason=4 (APP CRASH(EXCEPTION)) subreason=0 (UNKNOWN) status=0
+          importance=100 pss=0.00 rss=0.00 description=crash state=empty trace=null
+        ApplicationExitInfo #4:
+          timestamp=2026-03-14 05:32:18.961 pid=31750 realUid=10223 packageUid=10223 definingUid=10223 user=0
+          process=com.citylord.game.pro reason=4 (APP CRASH(EXCEPTION)) subreason=0 (UNKNOWN) status=0
+          importance=300 pss=0.00 rss=0.00 description=crash state=empty trace=null
+        ApplicationExitInfo #5:
+          timestamp=2026-03-14 05:32:15.958 pid=31650 realUid=99023 packageUid=10223 definingUid=10167 user=0
+          process=com.google.android.webview:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:0 reason=13 (OTHER KILLS BY SYSTEM) subreason=17 (ISOLATED NOT NEEDED) status=0
+          importance=300 pss=0.00 rss=0.00 description=isolated not needed state=empty trace=null
+        ApplicationExitInfo #6:
+          timestamp=2026-03-14 05:32:15.857 pid=31612 realUid=10223 packageUid=10223 definingUid=10223 user=0
+          process=com.citylord.game.pro reason=4 (APP CRASH(EXCEPTION)) subreason=0 (UNKNOWN) status=0
+          importance=100 pss=0.00 rss=251MB description=crash state=empty trace=null

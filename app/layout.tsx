@@ -69,9 +69,6 @@ const metadata: Metadata = {
 // Client Component Wrapper for Status Bar
 
 function StatusBarConfig() {
-  // Integrate Background Location Logic
-  useBackgroundLocation();
-
   // Activate Immersive Mode Locks
   useImmersiveMode();
 
