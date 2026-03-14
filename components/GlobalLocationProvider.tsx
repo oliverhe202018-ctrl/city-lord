@@ -139,14 +139,12 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
 
             if (!mountedRef.current) return;
 
-            // Step 1.5: Check permission first, only request if not yet decided
+            // Step 1.5: [修复时序] 仅检查权限状态，绝不在此刻自动触发 request 请求
             const { safeCheckGeolocationPermission } = await import('@/lib/capacitor/safe-plugins');
             const currentPerm = await safeCheckGeolocationPermission();
-            let permStatus = currentPerm;
-            if (currentPerm === 'prompt') {
-                permStatus = await safeRequestGeolocationPermission();
-            }
-            console.log(`${TAG} Location permission status: ${permStatus} (was: ${currentPerm})`);
+            const permStatus = currentPerm;
+            // 移除了自动调用 safeRequestGeolocationPermission
+            console.log(`${TAG} Location permission status: ${permStatus}`);
 
             if (!mountedRef.current) return;
 

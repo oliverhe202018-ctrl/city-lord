@@ -152,18 +152,9 @@ export function GamePageContent({
   useEffect(() => {
     if (!user?.id) return;
 
-    // Request Local Notification Permissions
-    const requestPermissions = async () => {
-      try {
-        if (await isNativePlatform()) {
-          await safeRequestLocalNotificationPermission();
-        }
-
-      } catch (e) {
-        console.error("Failed to request notification permissions", e);
-      }
-    };
-    requestPermissions();
+    // 移除了挂载时自动请求通知权限 (Local Notification Permission) 的逻辑
+    // 以防止冷启动弹窗影响体验
+    // requestPermissions();
 
     const supabase = createClient();
 
