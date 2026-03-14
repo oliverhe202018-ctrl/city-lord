@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Base configuration for all connections -->
+    <base-config>
+        <trust-anchors>
+            <!-- Trust system-installed CAs (standard security) -->
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- Debug overrides: only active when android:debuggable="true" -->
+    <debug-overrides>
+        <trust-anchors>
+            <!-- Trust user-installed CAs (enables Charles/Fiddler/Mitmproxy interception) -->
+            <certificates src="user" />
+            <certificates src="system" />
+        </trust-anchors>
+    </debug-overrides>
+</network-security-config>

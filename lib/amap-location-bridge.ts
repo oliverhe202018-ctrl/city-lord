@@ -206,29 +206,49 @@ export class AMapLocationBridge {
         }
 
         if (this.isNative) {
+            const requestId = makeRequestId();
             try {
                 const mod = await import('@/plugins/amap-location/definitions');
                 this._AMapLocation = mod.AMapLocation;
 
-                // 隐私合规 — 必须在定位前调用
-                logInfo({ phase: 'privacy-compliance', reason: 'Calling updatePrivacyShow + updatePrivacyAgree' });
-                await this._AMapLocation.updatePrivacyShow({ isContains: true, isShow: true });
-                await this._AMapLocation.updatePrivacyAgree({ isAgree: true });
-                logInfo({ phase: 'privacy-compliance', reason: 'Privacy compliance confirmed' });
+                // [Anti-Crash] 为原生初始化增加超时保护 (5s)
+                // 解决某些环境（如 Key 错误 #1201）导致原生插件调用挂死的问题
+                const nativeInit = async () => {
+                    // 隐私合规 — 必须在定位前调用
+                    logInfo({ requestId, phase: 'privacy-compliance', reason: 'Calling updatePrivacyShow + updatePrivacyAgree' });
+                    await this._AMapLocation!.updatePrivacyShow({ isContains: true, isShow: true });
+                    await this._AMapLocation!.updatePrivacyAgree({ isAgree: true });
+                    logInfo({ requestId, phase: 'privacy-compliance', reason: 'Privacy compliance confirmed' });
 
-                // 注册事件监听
-                this.locationUpdateHandle = await this._AMapLocation.addListener(
-                    'locationUpdate',
-                    (pos: AMapPosition) => this.handleNativeUpdate(pos),
-                );
-                this.locationErrorHandle = await this._AMapLocation.addListener(
-                    'locationError',
-                    (err: AMapLocationError) => this.handleNativeError(err),
+                    // 注册事件监听
+                    this.locationUpdateHandle = await this._AMapLocation!.addListener(
+                        'locationUpdate',
+                        (pos: AMapPosition) => this.handleNativeUpdate(pos),
+                    );
+                    this.locationErrorHandle = await this._AMapLocation!.addListener(
+                        'locationError',
+                        (err: AMapLocationError) => this.handleNativeError(err),
+                    );
+                    return true;
+                };
+
+                const timeoutPromise = new Promise<boolean>((resolve) => 
+                    setTimeout(() => {
+                        logWarn({ requestId, phase: 'init-native-timeout', reason: 'Native init timed out after 5s' });
+                        resolve(false);
+                    }, 5000)
                 );
 
-                logInfo({ phase: 'init-complete', source: 'amap-native', reason: 'Native plugin initialized with listeners' });
+                const success = await Promise.race([nativeInit(), timeoutPromise]);
+
+                if (!success) {
+                    logWarn({ requestId, phase: 'init-native-degrade', reason: 'Fallback to non-native due to timeout' });
+                    this.isNative = false; 
+                } else {
+                    logInfo({ requestId, phase: 'init-complete', source: 'amap-native', reason: 'Native plugin initialized' });
+                }
             } catch (e) {
-                logError({ phase: 'init-native-fail', reason: String(e) });
+                logError({ requestId, phase: 'init-native-fail', reason: String(e) });
                 this.isNative = false; // 降级到 web
             }
         }

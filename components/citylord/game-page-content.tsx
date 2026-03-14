@@ -22,10 +22,10 @@ import useSWR from 'swr'
 import { LeaderboardDrawer } from "@/components/leaderboard/LeaderboardDrawer"
 import { useCity } from "@/contexts/CityContext"
 import {
-
   NetworkBanner,
   LocationPermissionPrompt,
 } from "@/components/citylord/feedback/error-feedback"
+import { useLocationContext } from "@/components/GlobalLocationProvider";
 import { useGameStore, useGameActions, useGameUser } from "@/store/useGameStore";
 import { useHydration } from "@/hooks/useHydration";
 import { ThemeSwitcher } from "@/components/citylord/theme/theme-provider";
@@ -108,6 +108,7 @@ export function GamePageContent({
   const { isLoading: isCityLoading, currentCity } = useCity()
   const { checkStaminaRecovery, dismissGeolocationPrompt, claimAchievement, addTotalDistance, openDrawer, closeDrawer } = useGameActions()
   const { achievements, totalDistance } = useGameUser()
+  const { initializeLocationSystem } = useLocationContext()
   const hydrated = useHydration();
   const mapViewRef = useRef<AMapViewHandle>(null);
   const [showTerritory, setShowTerritory] = useState(true);
@@ -129,10 +130,25 @@ export function GamePageContent({
     return 'home';
   })
 
-  // Preload AMap SDK is removed - map components will load it on mount
+  // [Anti-Crash] Android 14+ 定位系统受控初始化
+  // 仅在注水完成 + 用户登录 + 页面可见时触发
   useEffect(() => {
-    // Eager loading removed to allow route-level code splitting
-  }, []);
+    if (hydrated && isAuthenticated && document.visibilityState === 'visible') {
+      console.log('[GamePageContent] Conditions met, initializing location system (silent)...');
+      initializeLocationSystem({ onlyIfGranted: true }).catch((err: any) => {
+        console.error('[GamePageContent] Failed to initialize location system:', err);
+      });
+    }
+
+    // 监听切回前台，确保即便首次启动时被系统阻断，回到 App 后仍能再次激活
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && hydrated && isAuthenticated) {
+        initializeLocationSystem({ onlyIfGranted: true });
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [hydrated, isAuthenticated, initializeLocationSystem]);
 
   // Sync activeTab to URL + localStorage on every change
   useEffect(() => {
@@ -310,7 +326,6 @@ export function GamePageContent({
   // Error/feedback states
   // GPS weak popup state removed per user request
   const [showPermissionPrompt, setShowPermissionPrompt] = useState(false)
-  const [showBgLocationDisclosure, setShowBgLocationDisclosure] = useState(false)
   const [isOffline, setIsOffline] = useState(false)
   const [gpsStrength, setGpsStrength] = useState(5)
 
@@ -499,13 +514,7 @@ export function GamePageContent({
         return
       }
 
-      // Pre-check for Prominent Disclosure
-      const hasAgreed = localStorage.getItem('bg_location_agreed');
-      if (!hasAgreed) {
-        setShowBgLocationDisclosure(true);
-      } else {
-        startCountdown();
-      }
+      startCountdown();
 
     } else {
       setActiveTab(tab as TabType)
@@ -702,35 +711,6 @@ export function GamePageContent({
         onOpenSettings={handleOpenSettings}
       />
 
-      <Dialog open={showBgLocationDisclosure} onOpenChange={setShowBgLocationDisclosure}>
-        <DialogContent className="bg-card border-border sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <MapPin className="h-5 w-5 text-cyan-400" />
-              后台定位服务说明
-            </DialogTitle>
-            <DialogDescription className="text-foreground/80 pt-4 space-y-3 leading-relaxed text-sm">
-              <p>为了确保在您熄屏、将手机放入口袋进行长距离跑步时，绝不中断地真实记录您的**持续路线与精准配速**，我们需要在接下来的系统提示中申请【始终允许访问位置信息】的权限。</p>
-              <p>您的位置信息仅用于游戏内轨迹记录与领地判定，<strong>我们绝对不会用于任何跨应用广告跟踪</strong>。随时可以在系统设置中关闭此权限。</p>
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end gap-3 mt-4">
-            <Button variant="outline" onClick={() => setShowBgLocationDisclosure(false)} className="border-border">
-              取消
-            </Button>
-            <Button
-              className="bg-cyan-600 hover:bg-cyan-700 text-white"
-              onClick={() => {
-                localStorage.setItem('bg_location_agreed', 'true');
-                setShowBgLocationDisclosure(false);
-                startCountdown();
-              }}
-            >
-              同意并继续
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {hydrated && currentCity && (
         <main className="relative flex-1 overflow-hidden">
