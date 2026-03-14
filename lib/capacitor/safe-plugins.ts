@@ -160,8 +160,11 @@ export async function safeClearWatch(watchId: string | null) {
 
 export async function safeRequestGeolocationPermission(): Promise<'granted' | 'denied' | 'prompt'> {
   try {
+    console.log('[safe-plugins] Requesting foreground location permissions: ACCESS_COARSE_LOCATION, ACCESS_FINE_LOCATION');
     const { Geolocation } = await import('@capacitor/geolocation')
-    const status = await Geolocation.requestPermissions()
+    const status = await Geolocation.requestPermissions({
+      permissions: ['location', 'coarseLocation']
+    })
     return status.location as 'granted' | 'denied' | 'prompt'
   } catch {
     // Browser fallback: just check via permissions API

@@ -92,6 +92,7 @@ export interface AppSettings {
   hapticEnabled: boolean;
   theme: 'light' | 'dark' | 'system';
   gpsCorrectionEnabled: boolean;
+  keepAliveEnabled: boolean;
 }
 
 export interface MyClub {
@@ -208,6 +209,7 @@ const initialAppSettings: AppSettings = {
   hapticEnabled: true,
   theme: 'system',
   gpsCorrectionEnabled: false,
+  keepAliveEnabled: false,
 };
 
 const initialUserState: UserState = {
