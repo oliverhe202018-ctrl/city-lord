@@ -6,6 +6,7 @@ import { AMapLocationBridge, type LocationMeta } from '@/lib/amap-location-bridg
 import { safeRequestGeolocationPermission } from '@/lib/capacitor/safe-plugins';
 import { useGameStore } from '@/store/useGameStore';
 import type { GeoPoint } from '@/hooks/useSafeGeolocation';
+import { useHydration } from '@/hooks/useHydration';
 
 // ---------------------------------------------------------------------------
 // Context for non-serializable values (retry + debug)
@@ -20,6 +21,8 @@ interface LocationContextValue {
     downgradeToBrowse: () => Promise<void>;
     /** Get bridge ref for advanced usage (running location hook) */
     getBridge: () => AMapLocationBridge | null;
+    /** [NEW] Manually trigger permission check and bridge startup */
+    initializeLocationSystem: (options?: { onlyIfGranted?: boolean }) => Promise<void>;
 }
 
 const LocationContext = createContext<LocationContextValue | null>(null);
@@ -37,6 +40,7 @@ export function useLocationContext(): LocationContextValue {
             upgradeToRunning: async () => console.warn('[useLocationContext] upgradeToRunning called outside provider'),
             downgradeToBrowse: async () => console.warn('[useLocationContext] downgradeToBrowse called outside provider'),
             getBridge: () => null,
+            initializeLocationSystem: async (options?: { onlyIfGranted?: boolean }) => console.warn('[useLocationContext] initializeLocationSystem called outside provider'),
         };
     }
     return ctx;
@@ -49,9 +53,10 @@ export function useLocationContext(): LocationContextValue {
 // The ONLY component in the app that manages GPS state.
 // Mounted once in layout.tsx, it:
 //   1. Instantiates AMapLocationBridge (native AMap SDK or web fallback)
-//   2. Runs the startup sequence: cache hydrate → fast fix → browse watch
-//   3. Manages stale watchdog, app resume, and cleanup
-//   4. Syncs state into useLocationStore (Zustand)
+//   2. Wait for manual trigger via initializeLocationSystem()
+//   3. Runs the startup sequence: permission request -> cache hydrate → fast fix → browse watch
+//   4. Manages stale watchdog, app resume, and cleanup
+//   5. Syncs state into useLocationStore (Zustand)
 //
 // Replaces the previous useSafeGeolocation-based approach.
 // ---------------------------------------------------------------------------
@@ -62,6 +67,121 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
     const bridgeRef = useRef<AMapLocationBridge | null>(null);
     const mountedRef = useRef(false);
     const initPromiseRef = useRef<Promise<void> | null>(null);
+    const hydrated = useHydration();
+
+    const [permissionGranted, setPermissionGranted] = React.useState(false);
+    const [pendingStartLocation, setPendingStartLocation] = React.useState(false);
+    const [isAppActive, setIsAppActive] = React.useState(true);
+    const [pageVisible, setPageVisible] = React.useState(true);
+
+    // Startup sequence (async)
+    /**
+     * [NEW] Manually trigger permission check and bridge startup.
+     * @param options.onlyIfGranted If true, will NOT show permission request popup if not already granted.
+     */
+    const initializeLocationSystem = async (options?: { onlyIfGranted?: boolean }) => {
+        if (initPromiseRef.current) return initPromiseRef.current;
+
+        const onlyIfGranted = options?.onlyIfGranted ?? false;
+
+        const startup = async () => {
+            console.log(`${TAG} initializeLocationSystem: initializing basics (onlyIfGranted: ${onlyIfGranted})...`);
+
+            const { safeCheckGeolocationPermission, safeRequestGeolocationPermission, isNativePlatform } = await import('@/lib/capacitor/safe-plugins');
+            
+            // Step 1: 隐私合规初始化 (高德隐私合规)
+            if (!bridgeRef.current) {
+                console.error(`${TAG} Bridge not instantiated during startup!`);
+                return;
+            }
+            await bridgeRef.current.init();
+
+            if (!mountedRef.current) return;
+
+            // Step 2: 权限核对与申请
+            let hasPerm = false;
+            if (await isNativePlatform()) {
+                const currentPerm = await safeCheckGeolocationPermission();
+                if (currentPerm === 'granted') {
+                    hasPerm = true;
+                } else if (!onlyIfGranted) {
+                    console.log(`${TAG} Requesting foreground location permission...`);
+                    const newPerm = await safeRequestGeolocationPermission();
+                    if (newPerm === 'granted') {
+                        hasPerm = true;
+                    } else {
+                        console.warn(`${TAG} Foreground permission denied.`);
+                        useLocationStore.setState({ error: 'PERMISSION_DENIED', loading: false });
+                    }
+                } else {
+                    console.log(`${TAG} onlyIfGranted is true and no permission. Staying silent.`);
+                    // 不标记为错误，只是静默不启动
+                }
+            } else {
+                // Web 环境默认视为“弹过”
+                hasPerm = true;
+            }
+
+            if (hasPerm && mountedRef.current) {
+                console.log(`${TAG} Permission OK, marking granted & pending start...`);
+                setPermissionGranted(true);
+                setPendingStartLocation(true);
+            }
+        };
+
+        const p = startup();
+        initPromiseRef.current = p;
+        return p;
+    };
+
+    // [New Effect] 稳定态核心同步器：解决 Android 14+ 权限弹窗返回后立即启动 FGS 导致的闪退
+    // 只有在满足所有稳定物理条件时，才真正发起桥接启动
+    useEffect(() => {
+        if (!mountedRef.current || !bridgeRef.current) return;
+        
+        const isWatching = bridgeRef.current?.watching ?? false;
+        const canStart = 
+            hydrated &&
+            isAppActive && 
+            pageVisible && 
+            permissionGranted && 
+            pendingStartLocation && 
+            !isWatching;
+        
+        if (canStart) {
+            console.log(`${TAG} All stable conditions met (Hydrated+Active+Visible+Granted+Pending). Starting bridge...`);
+            
+            (async () => {
+                try {
+                    useLocationStore.setState({ loading: true, status: 'locating' });
+                    
+                    // 1. 获取首位点，确认硬件通路
+                    await bridgeRef.current!.getCurrentPosition({
+                        mode: 'fast',
+                        timeout: 8000,
+                        cacheMaxAge: 5000,
+                    });
+
+                    if (!mountedRef.current) return;
+
+                    // 2. 正式启动监控 (FGS)
+                    console.log(`${TAG} Conditions verified. Executing bridge.startWatch...`);
+                    await bridgeRef.current!.startWatch({
+                        mode: 'browse',
+                        interval: 5000,
+                        distanceFilter: 10,
+                    });
+                    
+                    // 启动成功后清除等待标记，防止并发重复触发
+                    setPendingStartLocation(false);
+                    console.log(`${TAG} Location watch started successfully in stable state.`);
+                } catch (err) {
+                    console.error(`${TAG} Async bridge startup failed:`, err);
+                    // 启动失败时不清除 pending，以便重试
+                }
+            })();
+        }
+    }, [hydrated, isAppActive, pageVisible, permissionGranted, pendingStartLocation, bridgeRef.current?.watching]);
 
     // --- Startup sequence ---
     useEffect(() => {
@@ -130,67 +250,17 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
 
         bridgeRef.current = bridge;
 
-        // Startup sequence (async)
-        const startup = async () => {
-            console.log(`${TAG} Startup sequence begin`);
+        // [IMPORTANT] REMOVED automatic startup() call from useEffect hook.
+        // It's now triggered manually by the Home Page component via initializeLocationSystem().
 
-            // Step 1: Init bridge (privacy compliance for native)
-            await bridge.init();
-
-            if (!mountedRef.current) return;
-
-            // Step 1.5: [修复时序] 仅检查权限状态，绝不在此刻自动触发 request 请求
-            const { safeCheckGeolocationPermission } = await import('@/lib/capacitor/safe-plugins');
-            const currentPerm = await safeCheckGeolocationPermission();
-            const permStatus = currentPerm;
-            // 移除了自动调用 safeRequestGeolocationPermission
-            console.log(`${TAG} Location permission status: ${permStatus}`);
-
-            if (!mountedRef.current) return;
-
-            // Step 2: Cache hydrate already handled by useLocationStore initial state
-            // (Zustand store reads from localStorage on creation)
-            const cachedLocation = useLocationStore.getState().location;
-            if (cachedLocation) {
-                console.log(`${TAG} Cache hydrate: lat=${cachedLocation.lat} lng=${cachedLocation.lng}`);
-            }
-
-            // Step 3: Fast fix (parallel to cache — will override cache if successful)
-            console.log(`${TAG} Starting fast fix getCurrentPosition`);
-            useLocationStore.setState({ loading: true, status: 'locating' });
-
-            const fastResult = await bridge.getCurrentPosition({
-                mode: 'fast',
-                timeout: 8000,
-                cacheMaxAge: 5000,
-            });
-
-            if (!mountedRef.current) return;
-
-            if (fastResult) {
-                console.log(`${TAG} Fast fix success: lat=${fastResult.lat} lng=${fastResult.lng} accuracy=${fastResult.accuracy}`);
-            } else {
-                console.warn(`${TAG} Fast fix returned null, keeping cache if available`);
-                // Keep the cached location if we have one
-                if (!useLocationStore.getState().location) {
-                    useLocationStore.setState({ loading: false });
-                }
-            }
-
-            // Step 4: Start browse watch (low power, home page)
+        // --- Visibility Listener ---
+        const handleVisibility = () => {
             if (mountedRef.current) {
-                console.log(`${TAG} Starting browse watch`);
-                await bridge.startWatch({
-                    mode: 'browse',
-                    interval: 5000,
-                    distanceFilter: 10,
-                });
+                setPageVisible(document.visibilityState === 'visible');
             }
-
-            console.log(`${TAG} Startup sequence complete`);
         };
-
-        initPromiseRef.current = startup();
+        document.addEventListener('visibilitychange', handleVisibility);
+        setPageVisible(document.visibilityState === 'visible');
 
         // --- App resume listener ---
         let appListenerHandle: { remove: () => void } | null = null;
@@ -203,24 +273,19 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
                     if (!mountedRef.current) return;
 
                     if (state.isActive) {
-                        console.log(`${TAG} App resumed — triggering forceFastFix and ensuring watch`);
+                        setIsAppActive(true);
+                        console.log(`${TAG} App resumed (isActive: true)`);
 
-                        // Wait for init to complete first
-                        await initPromiseRef.current;
-
-                        if (!mountedRef.current || !bridgeRef.current) return;
-
-                        // Force a fresh fix on resume
-                        await bridgeRef.current.forceFastFix();
-
-                        // Ensure watch is running
-                        if (!bridgeRef.current.watching) {
-                            await bridgeRef.current.startWatch({
-                                mode: 'browse',
-                                interval: 5000,
-                                distanceFilter: 10,
-                            });
+                        // If already initialized and permission granted but watch stopped, 
+                        // re-mark for pending start to trigger the stable Effect
+                        if (initPromiseRef.current && bridgeRef.current && !bridgeRef.current.watching) {
+                            const currentPerm = await (await import('@/lib/capacitor/safe-plugins')).safeCheckGeolocationPermission();
+                            if (currentPerm === 'granted') {
+                                setPendingStartLocation(true);
+                            }
                         }
+                    } else {
+                        setIsAppActive(false);
                     }
                 });
 
@@ -240,6 +305,8 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
             isListenerMounted = false;
 
             console.log(`${TAG} Unmounting — destroying bridge`);
+
+            document.removeEventListener('visibilitychange', handleVisibility);
 
             if (appListenerHandle) {
                 try { appListenerHandle.remove(); } catch { /* noop */ }
@@ -292,6 +359,7 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
             }
         },
         getBridge: () => bridgeRef.current,
+        initializeLocationSystem,
     }), []);
 
     return (

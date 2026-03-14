@@ -1,0 +1,234 @@
+﻿--------- beginning of main
+03-14 05:34:30.217 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:30.217 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:30.217 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:30.217 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:30.217 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:31.833 W/DnsResolver(14810): resNetworkResult:android.system.ErrnoException: resNetworkResult failed: ETIMEDOUT (Connection timed out)
+03-14 05:34:31.845 W/DnsResolver(14810): resNetworkResult:android.system.ErrnoException: resNetworkResult failed: ETIMEDOUT (Connection timed out)
+03-14 05:34:31.845 D/NetworkMonitor/102(14810): PROBE_DNS 10.0.2.2 10027ms FAIL in type ADDRCONFIG android.net.DnsResolver$DnsException: android.system.ErrnoException: resNetworkResult failed: ETIMEDOUT (Connection timed out)
+03-14 05:34:32.345 D/NetworkMonitor/102(14810): PROBE_HTTPS https://www.google.com/generate_204 time=498ms ret=204 request={Connection=[close], User-Agent=[Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.32 Safari/537.36]} headers={null=[HTTP/1.1 204 No Content], Connection=[close], Content-Length=[0], Cross-Origin-Resource-Policy=[cross-origin], Date=[Sat, 14 Mar 2026 05:34:32 GMT], X-Android-Received-Millis=[1773466472342], X-Android-Response-Source=[NETWORK 204], X-Android-Selected-Protocol=[http/1.1], X-Android-Sent-Millis=[1773466472098]}
+03-14 05:34:33.223 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:33.223 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:33.223 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:33.223 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:33.223 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:34.328 D/NetworkMonitor/102(14810): PROBE_DNS 10.0.2.2 12510ms FAIL in type ADDRCONFIG Timeout
+03-14 05:34:34.581 D/NetworkMonitor/102(14810): PROBE_HTTP http://connectivitycheck.gstatic.com/generate_204 time=249ms ret=204 request={Connection=[close], User-Agent=[Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.32 Safari/537.36]} headers={null=[HTTP/1.1 204 No Content], Connection=[close], Cross-Origin-Resource-Policy=[cross-origin], Date=[Sat, 14 Mar 2026 05:34:35 GMT], X-Android-Received-Millis=[1773466474578], X-Android-Response-Source=[NETWORK 204], X-Android-Selected-Protocol=[http/1.1], X-Android-Sent-Millis=[1773466474338]}
+03-14 05:34:34.583 D/NetworkMonitor/102(14810): isCaptivePortal: isSuccessful()=true isPortal()=false RedirectUrl=null isPartialConnectivity()=false Time=12766ms
+03-14 05:34:34.587 D/ConnectivityService(14457): [102 WIFI] validation passed
+03-14 05:34:35.571 I/bbax    (15215): (REDACTED) getHotwordActive::active query: %s, watch: %s, devices connected: %s
+03-14 05:34:35.909 D/SatelliteController(14861): iisInCarrierRoamingNbIotNtn: satellite is disabled
+03-14 05:34:36.228 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:36.228 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:36.229 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:36.229 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:36.229 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:37.720 W/dumpsys (32003): Thread Pool max thread count is 0. Cannot cache binder as linkToDeath cannot be implemented. serviceName: package
+03-14 05:34:38.053 I/artd    (14799): GetBestInfo: odex next to the dex file (/data/app/~~-FjcrG_KZqNeJyv49grTUg==/com.google.android.gms-wmn4bP6BIRPd6hp8DBcoFw==/oat/x86_64/base.odex) is kOatUpToDate with filter 'speed-profile' executable 'false'
+03-14 05:34:38.058 I/artd    (14799): GetBestInfo: odex next to the dex file (/data/app/~~-FjcrG_KZqNeJyv49grTUg==/com.google.android.gms-wmn4bP6BIRPd6hp8DBcoFw==/oat/x86_64/split_AdsDynamite_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+03-14 05:34:38.064 I/artd    (14799): GetBestInfo: odex next to the dex file (/data/app/~~-FjcrG_KZqNeJyv49grTUg==/com.google.android.gms-wmn4bP6BIRPd6hp8DBcoFw==/oat/x86_64/split_CronetDynamite_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+03-14 05:34:38.068 I/artd    (14799): GetBestInfo: odex next to the dex file (/data/app/~~-FjcrG_KZqNeJyv49grTUg==/com.google.android.gms-wmn4bP6BIRPd6hp8DBcoFw==/oat/x86_64/split_DynamiteLoader_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+03-14 05:34:38.071 I/artd    (14799): GetBestInfo: odex next to the dex file (/data/app/~~-FjcrG_KZqNeJyv49grTUg==/com.google.android.gms-wmn4bP6BIRPd6hp8DBcoFw==/oat/x86_64/split_DynamiteModulesA_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+03-14 05:34:38.073 I/artd    (14799): GetBestInfo: odex next to the dex file (/data/app/~~-FjcrG_KZqNeJyv49grTUg==/com.google.android.gms-wmn4bP6BIRPd6hp8DBcoFw==/oat/x86_64/split_DynamiteModulesC_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+03-14 05:34:38.074 I/artd    (14799): GetBestInfo: odex next to the dex file (/data/app/~~-FjcrG_KZqNeJyv49grTUg==/com.google.android.gms-wmn4bP6BIRPd6hp8DBcoFw==/oat/x86_64/split_GoogleCertificates_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+03-14 05:34:38.076 I/artd    (14799): GetBestInfo: odex next to the dex file (/data/app/~~-FjcrG_KZqNeJyv49grTUg==/com.google.android.gms-wmn4bP6BIRPd6hp8DBcoFw==/oat/x86_64/split_MapsDynamite_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+03-14 05:34:38.078 I/artd    (14799): GetBestInfo: odex next to the dex file (/data/app/~~-FjcrG_KZqNeJyv49grTUg==/com.google.android.gms-wmn4bP6BIRPd6hp8DBcoFw==/oat/x86_64/split_MeasurementDynamite_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+03-14 05:34:38.080 I/artd    (14799): GetBestInfo: odex next to the dex file (/data/app/~~-FjcrG_KZqNeJyv49grTUg==/com.google.android.gms-wmn4bP6BIRPd6hp8DBcoFw==/oat/x86_64/split_all_locale_splits.odex) is kOatUpToDate with filter 'speed' executable 'false'
+03-14 05:34:38.081 I/artd    (14799): GetBestInfo: /data/app/~~-FjcrG_KZqNeJyv49grTUg==/com.google.android.gms-wmn4bP6BIRPd6hp8DBcoFw==/split_maps_core_dynamite_ondemand.apk has no usable artifacts
+03-14 05:34:38.083 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000008/dl-VisionOcr.optional_250834100000.apk has no usable artifacts
+03-14 05:34:38.085 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000004/DynamiteModulesC.apk has no usable artifacts
+03-14 05:34:38.086 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000010/dl-MlkitBarcodeUi.optional_260931100800.apk has no usable artifacts
+03-14 05:34:38.090 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/0000000a/dl-TfliteDynamiteDynamite.integ_252130102100800.apk has no usable artifacts
+03-14 05:34:38.091 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000001/CronetDynamite.apk has no usable artifacts
+03-14 05:34:38.092 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/0000000c/dl-VisionOcr.optional_260931100000.apk has no usable artifacts
+03-14 05:34:38.093 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000002/DynamiteLoader.apk has no usable artifacts
+03-14 05:34:38.095 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/0000000b/dl-MlkitOcrCommon.optional_260931100800.apk has no usable artifacts
+03-14 05:34:38.095 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000005/GoogleCertificates.apk has no usable artifacts
+03-14 05:34:38.097 I/artd    (14799): GetBestInfo: vdex next to the dex file (/data/user/0/com.google.android.gms/app_dg_cache/E893C01D331CD1FBE6F076D28A1BA871F16A1DEC/oat/x86_64/the.vdex) is kOatUpToDate with filter 'verify' executable 'false'
+03-14 05:34:38.098 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/0000000f/dl-Appsearch.optional_260931100800.apk has no usable artifacts
+03-14 05:34:38.100 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/0000000e/dl-PlayCloudSearch.optional_260931100000.apk has no usable artifacts
+03-14 05:34:38.102 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000009/dl-MlkitOcrCommon.optional_250834100800.apk has no usable artifacts
+03-14 05:34:38.103 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000007/MeasurementDynamite.apk has no usable artifacts
+03-14 05:34:39.238 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:39.238 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:39.238 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:39.238 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:39.238 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:41.847 W/DnsResolver(14810): resNetworkResult:android.system.ErrnoException: resNetworkResult failed: ETIMEDOUT (Connection timed out)
+03-14 05:34:41.849 D/ConnectivityService(14457): Data stall detected with methods: 1
+03-14 05:34:41.849 D/NetworkMonitor/102(14810): isDataStall: result=1, tcp packets received=0, latest tcp fail rate=-1, consecutive dns timeout count=179
+03-14 05:34:41.849 D/NetworkMonitor/102(14810): Suspecting data stall, reevaluate
+03-14 05:34:41.859 W/DnsResolver(14810): resNetworkResult:android.system.ErrnoException: resNetworkResult failed: ETIMEDOUT (Connection timed out)
+03-14 05:34:42.244 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:42.244 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:42.244 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:42.244 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:42.244 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:45.119 D/NetworkMonitor/102(14810): PROBE_FALLBACK http://www.google.com/gen_204 time=266ms ret=204 request={Connection=[close], User-Agent=[Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.32 Safari/537.36]} headers={null=[HTTP/1.1 204 No Content], Connection=[close], Content-Security-Policy=[object-src 'none';base-uri 'self';script-src 'nonce-6wiFkOkGIqm2VBlXpLRq_w' 'strict-dynamic' 'report-sample' 'unsafe-eval' 'unsafe-inline' https: http:;report-uri https://csp.withgoogle.com/csp/gws/other], Content-Type=[text/html; charset=UTF-8], Date=[Sat, 14 Mar 2026 05:34:45 GMT], Permissions-Policy=[unload=()], Reporting-Endpoints=[default="//www.google.com/httpservice/retry/jserror?ei=dfO0aeuoJaib0PEPjYP0yA0&cad=crash&error=Page%20Crash&jsel=1&bver=2397&dpf=QAF50LPxg9N6o6exh4Rn-pBcg-S0V3rznMXmdG0yWjs"], Server=[gws], X-Android-Received-Millis=[1773466485117], X-Android-Response-Source=[NETWORK 204], X-Android-Selected-Protocol=[http/1.1], X-Android-Sent-Millis=[1773466484860], X-Frame-Options=[SAMEORIGIN], X-Xss-Protection=[0]}
+03-14 05:34:45.251 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:45.251 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:45.251 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:45.251 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:45.251 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:45.909 D/SatelliteController(14861): iisInCarrierRoamingNbIotNtn: satellite is disabled
+03-14 05:34:46.405 D/ControlsListingControllerImpl(14703): Subscribing callback, service count: 0
+03-14 05:34:46.406 D/ControlsListingControllerImpl(14703): Unsubscribing callback
+03-14 05:34:47.567 I/QuickAccessWalletTile(14703): QAW service is unavailable, recreating the wallet client.
+03-14 05:34:47.701 W/dumpsys (32013): Thread Pool max thread count is 0. Cannot cache binder as linkToDeath cannot be implemented. serviceName: package
+03-14 05:34:48.020 I/artd    (14799): GetBestInfo: odex next to the dex file (/data/app/~~-FjcrG_KZqNeJyv49grTUg==/com.google.android.gms-wmn4bP6BIRPd6hp8DBcoFw==/oat/x86_64/base.odex) is kOatUpToDate with filter 'speed-profile' executable 'false'
+03-14 05:34:48.025 I/artd    (14799): GetBestInfo: odex next to the dex file (/data/app/~~-FjcrG_KZqNeJyv49grTUg==/com.google.android.gms-wmn4bP6BIRPd6hp8DBcoFw==/oat/x86_64/split_AdsDynamite_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+03-14 05:34:48.028 I/artd    (14799): GetBestInfo: odex next to the dex file (/data/app/~~-FjcrG_KZqNeJyv49grTUg==/com.google.android.gms-wmn4bP6BIRPd6hp8DBcoFw==/oat/x86_64/split_CronetDynamite_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+03-14 05:34:48.029 I/artd    (14799): GetBestInfo: odex next to the dex file (/data/app/~~-FjcrG_KZqNeJyv49grTUg==/com.google.android.gms-wmn4bP6BIRPd6hp8DBcoFw==/oat/x86_64/split_DynamiteLoader_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+03-14 05:34:48.031 I/artd    (14799): GetBestInfo: odex next to the dex file (/data/app/~~-FjcrG_KZqNeJyv49grTUg==/com.google.android.gms-wmn4bP6BIRPd6hp8DBcoFw==/oat/x86_64/split_DynamiteModulesA_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+03-14 05:34:48.033 I/artd    (14799): GetBestInfo: odex next to the dex file (/data/app/~~-FjcrG_KZqNeJyv49grTUg==/com.google.android.gms-wmn4bP6BIRPd6hp8DBcoFw==/oat/x86_64/split_DynamiteModulesC_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+03-14 05:34:48.035 I/artd    (14799): GetBestInfo: odex next to the dex file (/data/app/~~-FjcrG_KZqNeJyv49grTUg==/com.google.android.gms-wmn4bP6BIRPd6hp8DBcoFw==/oat/x86_64/split_GoogleCertificates_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+03-14 05:34:48.038 I/artd    (14799): GetBestInfo: odex next to the dex file (/data/app/~~-FjcrG_KZqNeJyv49grTUg==/com.google.android.gms-wmn4bP6BIRPd6hp8DBcoFw==/oat/x86_64/split_MapsDynamite_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+03-14 05:34:48.040 I/artd    (14799): GetBestInfo: odex next to the dex file (/data/app/~~-FjcrG_KZqNeJyv49grTUg==/com.google.android.gms-wmn4bP6BIRPd6hp8DBcoFw==/oat/x86_64/split_MeasurementDynamite_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+03-14 05:34:48.042 I/artd    (14799): GetBestInfo: odex next to the dex file (/data/app/~~-FjcrG_KZqNeJyv49grTUg==/com.google.android.gms-wmn4bP6BIRPd6hp8DBcoFw==/oat/x86_64/split_all_locale_splits.odex) is kOatUpToDate with filter 'speed' executable 'false'
+03-14 05:34:48.043 I/artd    (14799): GetBestInfo: /data/app/~~-FjcrG_KZqNeJyv49grTUg==/com.google.android.gms-wmn4bP6BIRPd6hp8DBcoFw==/split_maps_core_dynamite_ondemand.apk has no usable artifacts
+03-14 05:34:48.044 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000008/dl-VisionOcr.optional_250834100000.apk has no usable artifacts
+03-14 05:34:48.046 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000004/DynamiteModulesC.apk has no usable artifacts
+03-14 05:34:48.047 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000010/dl-MlkitBarcodeUi.optional_260931100800.apk has no usable artifacts
+03-14 05:34:48.048 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/0000000a/dl-TfliteDynamiteDynamite.integ_252130102100800.apk has no usable artifacts
+03-14 05:34:48.049 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000001/CronetDynamite.apk has no usable artifacts
+03-14 05:34:48.050 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/0000000c/dl-VisionOcr.optional_260931100000.apk has no usable artifacts
+03-14 05:34:48.051 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000002/DynamiteLoader.apk has no usable artifacts
+03-14 05:34:48.051 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/0000000b/dl-MlkitOcrCommon.optional_260931100800.apk has no usable artifacts
+03-14 05:34:48.053 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000005/GoogleCertificates.apk has no usable artifacts
+03-14 05:34:48.054 I/artd    (14799): GetBestInfo: vdex next to the dex file (/data/user/0/com.google.android.gms/app_dg_cache/E893C01D331CD1FBE6F076D28A1BA871F16A1DEC/oat/x86_64/the.vdex) is kOatUpToDate with filter 'verify' executable 'false'
+03-14 05:34:48.055 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/0000000f/dl-Appsearch.optional_260931100800.apk has no usable artifacts
+03-14 05:34:48.057 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/0000000e/dl-PlayCloudSearch.optional_260931100000.apk has no usable artifacts
+03-14 05:34:48.058 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000009/dl-MlkitOcrCommon.optional_250834100800.apk has no usable artifacts
+03-14 05:34:48.059 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000007/MeasurementDynamite.apk has no usable artifacts
+03-14 05:34:48.257 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:48.257 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:48.257 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:48.257 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:48.258 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:49.876 I/system_server(14457): Background concurrent mark compact GC freed 24MB AllocSpace bytes, 7(140KB) LOS objects, 42% free, 32MB/56MB, paused 2.232ms,2.342ms total 140.816ms
+03-14 05:34:51.264 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:51.264 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:51.264 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:51.264 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:51.264 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:51.871 W/DnsResolver(14810): resNetworkResult:android.system.ErrnoException: resNetworkResult failed: ETIMEDOUT (Connection timed out)
+03-14 05:34:51.876 W/DnsResolver(14810): resNetworkResult:android.system.ErrnoException: resNetworkResult failed: ETIMEDOUT (Connection timed out)
+03-14 05:34:51.878 D/NetworkMonitor/102(14810): PROBE_DNS 10.0.2.2 10027ms FAIL in type ADDRCONFIG android.net.DnsResolver$DnsException: android.system.ErrnoException: resNetworkResult failed: ETIMEDOUT (Connection timed out)
+03-14 05:34:52.384 D/NetworkMonitor/102(14810): PROBE_HTTPS https://www.google.com/generate_204 Probe failed with exception java.io.IOException: unexpected end of stream on com.android.okhttp.Address@6a3205d3
+03-14 05:34:54.271 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:54.271 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:54.271 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:54.272 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:54.272 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:54.362 D/NetworkMonitor/102(14810): PROBE_DNS 10.0.2.2 12511ms FAIL in type ADDRCONFIG Timeout
+03-14 05:34:55.820 D/NetworkMonitor/102(14810): PROBE_HTTP http://connectivitycheck.gstatic.com/generate_204 time=1456ms ret=204 request={Connection=[close], User-Agent=[Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.32 Safari/537.36]} headers={null=[HTTP/1.1 204 No Content], Connection=[close], Cross-Origin-Resource-Policy=[cross-origin], Date=[Sat, 14 Mar 2026 05:34:55 GMT], X-Android-Received-Millis=[1773466495817], X-Android-Response-Source=[NETWORK 204], X-Android-Selected-Protocol=[http/1.1], X-Android-Sent-Millis=[1773466494372]}
+03-14 05:34:55.823 D/NetworkMonitor/102(14810): isCaptivePortal: isSuccessful()=false isPortal()=false RedirectUrl=null isPartialConnectivity()=true Time=13973ms
+03-14 05:34:55.825 D/ConnectivityService(14457): [102 WIFI] validation failed
+03-14 05:34:55.825 I/ConnectivityService(14457): Update capabilities for net 102 : -VALIDATED+PARTIAL_CONNECTIVITY
+03-14 05:34:55.825 I/ConnectivityService(14457): Update score for net 102 : -IS_VALIDATED
+03-14 05:34:55.826 I/GnssNetworkConnectivityHandler(14457): Network connection lost. Available networks count: 0
+03-14 05:34:55.826 D/com.android.ons.ONSProfileActivator(14861): Internet connection lost
+03-14 05:34:55.826 I/GnssNetworkConnectivityHandler(14457): updateNetworkState, state=CLOSED, connected=false, network=102, capabilityFlags=3, availableNetworkCount: 0
+03-14 05:34:55.831 D/ConnectivityService(14457): NetReassign [no changes] [c 1] [a 0] [i 5]
+03-14 05:34:55.838 D/SatelliteController(14861): EVENT_WIFI_CONNECTIVITY_STATE_CHANGED: mIsWifiConnected=false
+03-14 05:34:55.838 E/SatelliteController(14861): registerForSatelliteCommunicationAccessStateChanged: SatelliteManager is null
+03-14 05:34:55.838 D/SatelliteController(14861): isCarrierRoamingNtnEligible: satellite access is not allowed
+03-14 05:34:55.838 D/SatelliteController(14861): evaluateCarrierRoamingNtnEligibilityChange: isCarrierRoamingNtnEligible=false
+03-14 05:34:55.838 D/SatelliteController(14861): getSelectedSatelliteSubId: subId=-1
+03-14 05:34:55.838 D/SatelliteController(14861): notifyNtnEligibility: phoneId=0 currentNtnEligibility=false
+03-14 05:34:55.838 W/IPCThreadState(14457): Sending oneway calls to frozen process.
+03-14 05:34:55.838 W/IPCThreadState(14457): Sending oneway calls to frozen process.
+03-14 05:34:55.838 W/IPCThreadState(14457): Sending oneway calls to frozen process.
+03-14 05:34:55.839 W/IPCThreadState(14457): Sending oneway calls to frozen process.
+03-14 05:34:55.839 W/IPCThreadState(14457): Sending oneway calls to frozen process.
+03-14 05:34:55.839 W/IPCThreadState(14457): Sending oneway calls to frozen process.
+03-14 05:34:55.840 W/IPCThreadState(14457): Sending oneway calls to frozen process.
+03-14 05:34:55.840 W/IPCThreadState(14457): Sending oneway calls to frozen process.
+03-14 05:34:55.842 I/BugleRcsEngine(15238): handleMessage processing message:[NOTIFY_UPTIME_IGNORE_STATE_CHANGED] with [non-null]:RcsEngineImpl reference [CONTEXT log_prefix="RcsEngineImpl[DUAL_REG]:[040f17a0-249e]>Handler" thread_id=66 ]
+03-14 05:34:55.843 I/BugleRcsEngine(15238): Connected state: [1], networkType: [WIFI] [CONTEXT thread_id=58 ]
+03-14 05:34:55.845 W/IPCThreadState(14457): Sending oneway calls to frozen process.
+03-14 05:34:55.845 W/IPCThreadState(14457): Sending oneway calls to frozen process.
+03-14 05:34:55.845 W/IPCThreadState(14457): Sending oneway calls to frozen process.
+03-14 05:34:55.845 W/IPCThreadState(14457): Sending oneway calls to frozen process.
+03-14 05:34:55.845 W/IPCThreadState(14457): Sending oneway calls to frozen process.
+03-14 05:34:55.845 W/IPCThreadState(14457): Sending oneway calls to frozen process.
+--------- beginning of system
+03-14 05:34:55.846 W/ContextImpl(14457): Calling a method in the system process without a qualified user: android.app.ContextImpl.sendStickyBroadcast:1698 android.net.connectivity.com.android.server.ConnectivityService.sendStickyBroadcast:4081 android.net.connectivity.com.android.server.ConnectivityService.sendGeneralBroadcast:4051 android.net.connectivity.com.android.server.ConnectivityService.sendInetConditionBroadcast:4028 android.net.connectivity.com.android.server.ConnectivityService.updateInetCondition:12091 
+03-14 05:34:55.847 D/ConnectivityService(14457): handleNetworkUnvalidated [102 WIFI] cap=[ Transports: WIFI Capabilities: NOT_METERED&INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VPN&NOT_ROAMING&FOREGROUND&NOT_CONGESTED&NOT_SUSPENDED&PARTIAL_CONNECTIVITY&NOT_VCN_MANAGED&NOT_BANDWIDTH_CONSTRAINED LinkUpBandwidth>=12000Kbps LinkDnBandwidth>=30000Kbps Specifier: <WifiNetworkAgentSpecifier [WifiConfiguration=, SSID="AndroidWifi", BSSID=00:13:10:85:fe:01, band=1, mMatchLocalOnlySpecifiers=false]> TransportInfo: <SSID: "AndroidWifi", BSSID: 00:13:10:85:fe:01, MAC: 02:15:b2:00:00:00, IP: /10.0.2.16, Security type: 0, Supplicant state: COMPLETED, Wi-Fi standard: legacy, RSSI: -50, Link speed: 1Mbps, Tx Link speed: 1Mbps, Max Supported Tx Link speed: 11Mbps, Rx Link speed: 2Mbps, Max Supported Rx Link speed: 11Mbps, Frequency: 2447MHz, Net ID: 0, Metered hint: false, score: 60, isUsable: true, CarrierMerged: false, SubscriptionId: -1, IsPrimary: 1, Trusted: true, Restricted: false, Ephemeral: false, OEM paid: false, OEM private: false, OSU AP: false, FQDN: <none>, Provider friendly name: <none>, Requesting package name: <none>"AndroidWifi"openMLO Information: , Is TID-To-Link negotiation supported by the AP: false, AP MLD Address: <none>, AP MLO Link Id: <none>, AP MLO Affiliated links: <none>, Vendor Data: <none>> SignalStrength: -50 OwnerUid: 10177 AdminUids: [10177] SSID: "AndroidWifi" UnderlyingNetworks: Null]
+03-14 05:34:55.849 D/WifiClientModeImpl[3824171:wlan0](14457): NETWORK_STATUS_UNWANTED_VALIDATION_FAILED
+03-14 05:34:55.853 I/NullBinder(14985): NullBinder for android.net.action.RECOMMEND_NETWORKS triggering remote TransactionTooLargeException due to Service without Chimera impl, calling uid: 1000, calling pid: 0
+03-14 05:34:55.853 W/.gms.persistent(14985): Large reply transaction of 1056768 bytes, interface descriptor , code 1
+03-14 05:34:55.866 D/ActivityManager(14457): sync unfroze 15849 com.google.android.apps.messaging for 7
+03-14 05:34:55.872 I/WifiClientModeImpl[3824171:wlan0](14457): Temporarily disabling network because of no-internet access
+03-14 05:34:55.873 D/BackgroundInstallControlService(14457): Package event received: 0
+03-14 05:34:55.874 D/BackgroundInstallControlService(14457): Package event received: 0
+03-14 05:34:55.877 D/WM-NetworkStateTracker(15849): Network capabilities changed: [ Transports: WIFI Capabilities: NOT_METERED&INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VPN&NOT_ROAMING&FOREGROUND&NOT_CONGESTED&NOT_SUSPENDED&PARTIAL_CONNECTIVITY&NOT_VCN_MANAGED&NOT_BANDWIDTH_CONSTRAINED LinkUpBandwidth>=12000Kbps LinkDnBandwidth>=30000Kbps TransportInfo: <SSID: <unknown ssid>, BSSID: 02:00:00:00:00:00, MAC: 02:00:00:00:00:00, IP: /10.0.2.16, Security type: 0, Supplicant state: COMPLETED, Wi-Fi standard: legacy, RSSI: -50, Link speed: 1Mbps, Tx Link speed: 1Mbps, Max Supported Tx Link speed: 11Mbps, Rx Link speed: 2Mbps, Max Supported Rx Link speed: 11Mbps, Frequency: 2447MHz, Net ID: -1, Metered hint: false, score: 60, isUsable: true, CarrierMerged: false, SubscriptionId: -1, IsPrimary: -1, Trusted: true, Restricted: false, Ephemeral: false, OEM paid: false, OEM private: false, OSU AP: false, FQDN: <none>, Provider friendly name: <none>, Requesting package name: <none><none>MLO Information: , Is TID-To-Link negotiation supported by the AP: false, AP MLD Address: <none>, AP MLO Link Id: <none>, AP MLO Affiliated links: <none>, Vendor Data: <none>> SignalStrength: -50 UnderlyingNetworks: Null]
+03-14 05:34:55.901 I/ForwardSyncCache(15849): reclaimMemory: Clearing caches
+03-14 05:34:55.902 W/BugleSpam(15849): trimming memory: closing msg model.
+03-14 05:34:55.908 W/Bugle   (15849): TextClassifierLibManagerImpl: Reclaiming memory at level: 40
+03-14 05:34:55.910 I/ForwardSyncCache(15849): reclaimMemory: Clearing caches
+03-14 05:34:55.911 I/BugleRcsEngine(15238): No RCS Configuration was found in Bugle for simID: redacted-pii:sim_id[chars:20,last3:897] [CONTEXT log_prefix="ProvisioningEngineDataRetriever" thread_id=66 ]
+03-14 05:34:55.912 W/BugleSpam(15849): trimming memory: closing msg model.
+03-14 05:34:55.912 W/Bugle   (15849): TextClassifierLibManagerImpl: Reclaiming memory at level: 40
+03-14 05:34:55.913 I/ForwardSyncCache(15849): reclaimMemory: Clearing caches
+03-14 05:34:55.913 W/BugleSpam(15849): trimming memory: closing msg model.
+03-14 05:34:55.914 W/Bugle   (15849): TextClassifierLibManagerImpl: Reclaiming memory at level: 40
+03-14 05:34:55.914 I/ForwardSyncCache(15849): reclaimMemory: Clearing caches
+03-14 05:34:55.917 W/BugleSpam(15849): trimming memory: closing msg model.
+03-14 05:34:55.918 W/Bugle   (15849): TextClassifierLibManagerImpl: Reclaiming memory at level: 40
+03-14 05:34:55.919 W/ScanResultUtil(14457): Empty or null ScanResult list
+03-14 05:34:55.919 W/WifiService(14457): Attempt to retrieve WifiConfiguration with invalid scanResult List
+03-14 05:34:55.922 W/ScanResultUtil(14457): Empty or null ScanResult list
+03-14 05:34:55.923 W/WifiService(14457): Attempt to retrieve WifiConfiguration with invalid scanResult List
+03-14 05:34:55.924 W/ScanResultUtil(14457): Empty or null ScanResult list
+03-14 05:34:55.924 E/WifiService(14457): Attempt to retrieve passpoint with invalid scanResult List
+03-14 05:34:55.924 W/ScanResultUtil(14457): Empty or null ScanResult list
+03-14 05:34:55.924 W/WifiService(14457): Attempt to retrieve OsuProviders with invalid scanResult List
+03-14 05:34:55.931 D/BoundBrokerSvc(14985): onRebind: Intent { act=com.google.android.gms.common.telemetry.service.START dat=chimera-action:/... xflg=0x4 cmp=com.google.android.gms/.chimera.PersistentApiService }
+03-14 05:34:55.971 D/SatelliteController(14861): iisInCarrierRoamingNbIotNtn: satellite is disabled
+03-14 05:34:57.275 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:57.276 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:57.276 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:57.276 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:57.276 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:34:57.715 W/dumpsys (32026): Thread Pool max thread count is 0. Cannot cache binder as linkToDeath cannot be implemented. serviceName: package
+03-14 05:34:58.036 I/artd    (14799): GetBestInfo: odex next to the dex file (/data/app/~~-FjcrG_KZqNeJyv49grTUg==/com.google.android.gms-wmn4bP6BIRPd6hp8DBcoFw==/oat/x86_64/base.odex) is kOatUpToDate with filter 'speed-profile' executable 'false'
+03-14 05:34:58.042 I/artd    (14799): GetBestInfo: odex next to the dex file (/data/app/~~-FjcrG_KZqNeJyv49grTUg==/com.google.android.gms-wmn4bP6BIRPd6hp8DBcoFw==/oat/x86_64/split_AdsDynamite_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+03-14 05:34:58.046 I/artd    (14799): GetBestInfo: odex next to the dex file (/data/app/~~-FjcrG_KZqNeJyv49grTUg==/com.google.android.gms-wmn4bP6BIRPd6hp8DBcoFw==/oat/x86_64/split_CronetDynamite_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+03-14 05:34:58.048 I/artd    (14799): GetBestInfo: odex next to the dex file (/data/app/~~-FjcrG_KZqNeJyv49grTUg==/com.google.android.gms-wmn4bP6BIRPd6hp8DBcoFw==/oat/x86_64/split_DynamiteLoader_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+03-14 05:34:58.049 I/artd    (14799): GetBestInfo: odex next to the dex file (/data/app/~~-FjcrG_KZqNeJyv49grTUg==/com.google.android.gms-wmn4bP6BIRPd6hp8DBcoFw==/oat/x86_64/split_DynamiteModulesA_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+03-14 05:34:58.051 I/artd    (14799): GetBestInfo: odex next to the dex file (/data/app/~~-FjcrG_KZqNeJyv49grTUg==/com.google.android.gms-wmn4bP6BIRPd6hp8DBcoFw==/oat/x86_64/split_DynamiteModulesC_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+03-14 05:34:58.053 I/artd    (14799): GetBestInfo: odex next to the dex file (/data/app/~~-FjcrG_KZqNeJyv49grTUg==/com.google.android.gms-wmn4bP6BIRPd6hp8DBcoFw==/oat/x86_64/split_GoogleCertificates_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+03-14 05:34:58.055 I/artd    (14799): GetBestInfo: odex next to the dex file (/data/app/~~-FjcrG_KZqNeJyv49grTUg==/com.google.android.gms-wmn4bP6BIRPd6hp8DBcoFw==/oat/x86_64/split_MapsDynamite_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+03-14 05:34:58.056 I/artd    (14799): GetBestInfo: odex next to the dex file (/data/app/~~-FjcrG_KZqNeJyv49grTUg==/com.google.android.gms-wmn4bP6BIRPd6hp8DBcoFw==/oat/x86_64/split_MeasurementDynamite_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+03-14 05:34:58.057 I/artd    (14799): GetBestInfo: odex next to the dex file (/data/app/~~-FjcrG_KZqNeJyv49grTUg==/com.google.android.gms-wmn4bP6BIRPd6hp8DBcoFw==/oat/x86_64/split_all_locale_splits.odex) is kOatUpToDate with filter 'speed' executable 'false'
+03-14 05:34:58.059 I/artd    (14799): GetBestInfo: /data/app/~~-FjcrG_KZqNeJyv49grTUg==/com.google.android.gms-wmn4bP6BIRPd6hp8DBcoFw==/split_maps_core_dynamite_ondemand.apk has no usable artifacts
+03-14 05:34:58.061 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000008/dl-VisionOcr.optional_250834100000.apk has no usable artifacts
+03-14 05:34:58.062 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000004/DynamiteModulesC.apk has no usable artifacts
+03-14 05:34:58.064 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000010/dl-MlkitBarcodeUi.optional_260931100800.apk has no usable artifacts
+03-14 05:34:58.066 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/0000000a/dl-TfliteDynamiteDynamite.integ_252130102100800.apk has no usable artifacts
+03-14 05:34:58.067 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000001/CronetDynamite.apk has no usable artifacts
+03-14 05:34:58.068 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/0000000c/dl-VisionOcr.optional_260931100000.apk has no usable artifacts
+03-14 05:34:58.069 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000002/DynamiteLoader.apk has no usable artifacts
+03-14 05:34:58.070 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/0000000b/dl-MlkitOcrCommon.optional_260931100800.apk has no usable artifacts
+03-14 05:34:58.070 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000005/GoogleCertificates.apk has no usable artifacts
+03-14 05:34:58.072 I/artd    (14799): GetBestInfo: vdex next to the dex file (/data/user/0/com.google.android.gms/app_dg_cache/E893C01D331CD1FBE6F076D28A1BA871F16A1DEC/oat/x86_64/the.vdex) is kOatUpToDate with filter 'verify' executable 'false'
+03-14 05:34:58.073 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/0000000f/dl-Appsearch.optional_260931100800.apk has no usable artifacts
+03-14 05:34:58.075 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/0000000e/dl-PlayCloudSearch.optional_260931100000.apk has no usable artifacts
+03-14 05:34:58.076 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000009/dl-MlkitOcrCommon.optional_250834100800.apk has no usable artifacts
+03-14 05:34:58.077 I/artd    (14799): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000007/MeasurementDynamite.apk has no usable artifacts
+03-14 05:35:00.282 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:35:00.283 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:35:00.283 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:35:00.284 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:35:00.284 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:35:00.566 D/NetworkMonitor/102(14810): PROBE_FALLBACK http://www.google.com/gen_204 time=736ms ret=204 request={Connection=[close], User-Agent=[Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.32 Safari/537.36]} headers={null=[HTTP/1.1 204 No Content], Connection=[close], Content-Security-Policy=[object-src 'none';base-uri 'self';script-src 'nonce-kKhagvexY_sQHngyo0ZxCQ' 'strict-dynamic' 'report-sample' 'unsafe-eval' 'unsafe-inline' https: http:;report-uri https://csp.withgoogle.com/csp/gws/other], Content-Type=[text/html; charset=UTF-8], Date=[Sat, 14 Mar 2026 05:35:01 GMT], Permissions-Policy=[unload=()], Reporting-Endpoints=[default="//www.google.com/httpservice/retry/jserror?ei=hfO0acrPA9G10PEPhZDGuA8&cad=crash&error=Page%20Crash&jsel=1&bver=2397&dpf=QAF50LPxg9N6o6exh4Rn-pBcg-S0V3rznMXmdG0yWjs"], Server=[gws], X-Android-Received-Millis=[1773466500564], X-Android-Response-Source=[NETWORK 204], X-Android-Selected-Protocol=[http/1.1], X-Android-Sent-Millis=[1773466499836], X-Frame-Options=[SAMEORIGIN], X-Xss-Protection=[0]}
+03-14 05:35:00.955 D/BoundBrokerSvc(14985): onUnbind: Intent { act=com.google.android.gms.common.telemetry.service.START dat=chimera-action:/... xflg=0x4 cmp=com.google.android.gms/.chimera.PersistentApiService }
+03-14 05:35:01.887 W/DnsResolver(14810): resNetworkResult:android.system.ErrnoException: resNetworkResult failed: ETIMEDOUT (Connection timed out)
+03-14 05:35:01.892 W/DnsResolver(14810): resNetworkResult:android.system.ErrnoException: resNetworkResult failed: ETIMEDOUT (Connection timed out)
+03-14 05:35:03.292 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:35:03.293 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:35:03.293 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:35:03.293 W/BestClock(14457): java.time.DateTimeException: No network time available
+03-14 05:35:03.294 W/BestClock(14457): java.time.DateTimeException: No network time available
