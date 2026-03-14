@@ -135,14 +135,19 @@ export interface Challenge {
  * 领地信息接口
  */
 export interface Territory {
-  id: string // H3 index
+  id: string // Now this is UUID or slug, no longer H3 index
   cityId: string
   ownerId: string | null
   /** @deprecated 仅供旧页面兼容，新地图渲染不得再以 ownerType 作为主输入 */
   ownerType: 'me' | 'enemy' | 'neutral' // Computed on client or returned by API
   capturedAt?: string | null
-  health?: number // 0-1000
-  maxHealth?: number // 1000
+  health?: number // 0-1000  (deprecated, use current_hp)
+  maxHealth?: number // 1000 (deprecated, use max_hp)
+  current_hp?: number;
+  max_hp?: number;
+  score_weight?: number;
+  territory_type?: string;
+  geojson_json?: any; // The polygon data from PostGIS
   lastMaintainedAt?: string
   isHotZone?: boolean // 7天内 owner_change_count >= 2
   ownerChangeCount?: number

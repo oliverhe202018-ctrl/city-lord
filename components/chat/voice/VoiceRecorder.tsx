@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Mic, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import { useAudioRecorder, VoiceRecordResult } from '@/hooks/useAudioRecorder';
 import { cn } from '@/lib/utils';
 
@@ -126,38 +127,46 @@ export function VoiceRecorder({ receiverId, onSend, disabled }: VoiceRecorderPro
                 </div>
             )}
 
-            {/* Permission Modal */}
-            {showPermissionModal && (
-                <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200 pointer-events-auto">
-                    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-[280px] overflow-hidden flex flex-col shadow-2xl">
-                        <div className="p-6 pb-5 flex flex-col items-center text-center">
-                            <Mic className="w-10 h-10 text-white/50 mb-3" />
-                            <h3 className="font-bold text-base text-white mb-2">需要麦克风权限</h3>
-                            <p className="text-sm text-white/60 leading-relaxed">您需要开启麦克风权限才能发送语音消息。</p>
-                        </div>
-                        <div className="flex border-t border-zinc-800">
-                            <button
-                                type="button"
-                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowPermissionModal(false); }}
-                                className="flex-1 py-3 text-sm font-medium text-white/70 hover:bg-white/5 transition-colors border-r border-zinc-800"
-                            >
-                                取消
-                            </button>
-                            <button
-                                type="button"
-                                onClick={async (e) => {
-                                    e.preventDefault(); e.stopPropagation();
-                                    setShowPermissionModal(false);
-                                    const { safeOpenAppSettings } = await import('@/lib/capacitor/safe-plugins');
-                                    await safeOpenAppSettings();
-                                }}
-                                className="flex-1 py-3 text-sm font-bold text-cyan-400 hover:bg-white/5 transition-colors"
-                            >
-                                去设置
-                            </button>
+            {/* 权限弹窗 — Portal 到 document.body，z-index 超过所有 Sheet/Overlay 层 */}
+            {showPermissionModal && typeof document !== 'undefined' && createPortal(
+                <div
+                    className="fixed inset-0 z-[200000] bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+                    style={{ isolation: 'isolate', pointerEvents: 'auto' }}
+                    onClick={(e) => { if (e.target === e.currentTarget) setShowPermissionModal(false); }}
+                >
+                    {/* 精确 transform 居中，不依赖 flex/安全区/祖先 stacking context */}
+                    <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[200001] w-[280px]">
+                        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden flex flex-col shadow-2xl">
+                            <div className="p-6 pb-5 flex flex-col items-center text-center">
+                                <Mic className="w-10 h-10 text-white/50 mb-3" />
+                                <h3 className="font-bold text-base text-white mb-2">需要麦克风权限</h3>
+                                <p className="text-sm text-white/60 leading-relaxed">您需要开启麦克风权限才能发送语音消息。</p>
+                            </div>
+                            <div className="flex border-t border-zinc-800">
+                                <button
+                                    type="button"
+                                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowPermissionModal(false); }}
+                                    className="flex-1 py-3 text-sm font-medium text-white/70 hover:bg-white/5 transition-colors border-r border-zinc-800 active:bg-white/10"
+                                >
+                                    取消
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={async (e) => {
+                                        e.preventDefault(); e.stopPropagation();
+                                        setShowPermissionModal(false);
+                                        const { safeOpenAppSettings } = await import('@/lib/capacitor/safe-plugins');
+                                        await safeOpenAppSettings();
+                                    }}
+                                    className="flex-1 py-3 text-sm font-bold text-cyan-400 hover:bg-white/5 transition-colors active:bg-white/10"
+                                >
+                                    去设置
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </>
     );

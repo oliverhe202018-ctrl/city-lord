@@ -92,10 +92,26 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
   React.useEffect(() => {
     const fetchRuns = async () => {
       try {
-        const res = await fetch(`/api/user/activities?limit=3`, { credentials: 'include' });
+        const res = await fetch(`/api/user/activities?limit=10`, { credentials: 'include' }); // fetch more to allow dedupe
         if (!res.ok) throw new Error('Failed to fetch activities');
-        const runs = await res.json();
-        setRecentRuns(runs);
+        const rawRuns = await res.json();
+        
+        // Deduplicate by idempotency_key, keeping the latest one
+        const deduplicated = Object.values(rawRuns.reduce((acc: any, run: any) => {
+          const key = run.idempotency_key;
+          if (!key) {
+             acc[run.id] = run; // if no key, just keep it by id
+          } else {
+             if (!acc[key] || new Date(run.created_at) > new Date(acc[key].created_at)) {
+                acc[key] = run;
+             }
+          }
+          return acc;
+        }, {}));
+        
+        // Sort again descending and slice to limit
+        deduplicated.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        setRecentRuns(deduplicated.slice(0, 3));
       } catch (e) {
         console.error("Failed to fetch recent runs", e);
       } finally {

@@ -16,7 +16,7 @@ import Script from 'next/script'
 import { Providers } from '@/components/Providers'
 import { PendingRunUploadRetry } from '@/components/running/PendingRunUploadRetry'
 import { GlobalLocationProvider } from '@/components/GlobalLocationProvider'
-import { PushNotificationBootstrapper } from '@/components/PushNotificationBootstrapper'
+// import { PushNotificationBootstrapper } from '@/components/PushNotificationBootstrapper' // 已去除 Firebase 依赖
 import './globals.css'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 import { useEffect } from "react";
@@ -102,7 +102,7 @@ export default function RootLayout({
     <html lang="zh-CN" suppressHydrationWarning className="h-full">
       <body className={`font-sans antialiased h-full overflow-hidden overflow-x-hidden w-full relative pt-[env(safe-area-inset-top)]`}>
         <StatusBarConfig />
-        <PushNotificationBootstrapper />
+        {/* 已彻底切除高危启动项 PushNotificationBootstrapper */}
         <Script id="amap-security" strategy="beforeInteractive">
           {amapSecurityScript}
         </Script>
