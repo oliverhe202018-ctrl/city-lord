@@ -55,7 +55,7 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
       viewMode: mapViewMode, // 'individual' | 'faction'
     } = useMap();
 
-    const { setSelectedTerritory } = useMapInteraction();
+    const { setSelectedTerritory, setIsDetailSheetOpen } = useMapInteraction();
     const { user } = useAuth();
 
     // Map Click Root Handler: uniform empty space click to clear selection
@@ -67,8 +67,9 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
         setTimeout(() => {
           const lastClick = (window as any).__amap_polygon_clicked || 0;
           if (Date.now() - lastClick > 300) {
-            console.log(`[Audit] map.click (ROOT): clear selection`);
+            console.log(`[Interaction] map.click (ROOT): clear selection and close sheet`);
             setSelectedTerritory?.(null);
+            setIsDetailSheetOpen?.(false);
           }
         }, 100);
       };
@@ -77,7 +78,7 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
       return () => {
         if (map.off) map.off('click', handleRootClick);
       };
-    }, [map, setSelectedTerritory]);
+    }, [map, setSelectedTerritory, setIsDetailSheetOpen]);
 
     return (
       <div className="relative w-full h-full">

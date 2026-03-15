@@ -34,7 +34,7 @@ export function TerritoryInfoBar() {
                     transition={{ type: 'spring', damping: 25, stiffness: 200 }}
                     className="fixed top-0 left-0 right-0 z-[5000] pointer-events-auto max-w-md mx-auto"
                 >
-                    <div className="bg-card/90 backdrop-blur-xl shadow-2xl px-4 pb-4 pt-[calc(env(safe-area-inset-top)+1rem)] border-b border-white/10">
+                    <div className="bg-card/90 backdrop-blur-xl shadow-2xl px-4 pb-6 pt-[calc(env(safe-area-inset-top)+1rem)] border-b border-white/10">
                         {/* 状态指示器 */}
                         {!detail && selectedTerritory && (
                             <div className="mb-2 py-1 px-3 bg-orange-500/10 border border-orange-500/20 rounded-full flex items-center justify-center gap-1.5 self-center">
@@ -99,8 +99,11 @@ export function TerritoryInfoBar() {
                                             </div>
                                         )}
                                     </div>
-                                    <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center border border-white/5 text-muted-foreground">
-                                        <ChevronRight className="w-5 h-5" />
+                                    <div className="flex items-center gap-1.5 px-2">
+                                        <span className="text-[10px] text-muted-foreground font-medium">点击查看详情</span>
+                                        <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center border border-white/5 text-muted-foreground">
+                                            <ChevronRight className="w-5 h-5" />
+                                        </div>
                                     </div>
                                 </div>
                             </div>
