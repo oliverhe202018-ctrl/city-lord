@@ -112,6 +112,7 @@ export function GamePageContent({
   const hydrated = useHydration();
   const mapViewRef = useRef<AMapViewHandle>(null);
   const [showTerritory, setShowTerritory] = useState(true);
+  const hasAttemptedFirstInit = useRef(false);
 
   // 全屏加载状态 - 必须在所有 hooks 之后 return
   // Feature: 页面缓存 — 优先 URL 参数(深度链接) > localStorage 缓存 > 默认 "play"
@@ -134,15 +135,22 @@ export function GamePageContent({
   // 仅在注水完成 + 用户登录 + 页面可见时触发
   useEffect(() => {
     if (hydrated && isAuthenticated && document.visibilityState === 'visible') {
-      console.log('[GamePageContent] Conditions met, initializing location system (silent)...');
-      initializeLocationSystem({ onlyIfGranted: true }).catch((err: any) => {
+      const isFirstTime = !hasAttemptedFirstInit.current;
+      console.log(`[GamePageContent] Conditions met, initializing location system (isFirstTime: ${isFirstTime})...`);
+      
+      // [NEW] 只有首次进入 App 时，才允许弹出系统定位权限框 (onlyIfGranted: false)
+      // 后续返回、切换 Visible 场景均保持静默检测
+      initializeLocationSystem({ onlyIfGranted: !isFirstTime }).catch((err: any) => {
         console.error('[GamePageContent] Failed to initialize location system:', err);
       });
+      
+      hasAttemptedFirstInit.current = true;
     }
 
     // 监听切回前台，确保即便首次启动时被系统阻断，回到 App 后仍能再次激活
     const handleVisibility = () => {
       if (document.visibilityState === 'visible' && hydrated && isAuthenticated) {
+        // 切回前台场景，坚持静默检查，不主动弹出打扰
         initializeLocationSystem({ onlyIfGranted: true });
       }
     };

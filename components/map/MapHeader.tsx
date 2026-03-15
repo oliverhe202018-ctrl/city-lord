@@ -146,8 +146,19 @@ export function MapHeader({
     }
   }, []);
 
+  // [NEW] 响应式登录弹窗策略：
+  // 不再使用生硬的 setTimeout，改为监听定位系统的初始化准入状态
+  const locationInitialized = useGameStore(state => state.locationInitialized);
+  const isPermissionRequesting = useGameStore(state => state.isPermissionRequesting);
+
   useEffect(() => {
     const checkUser = async () => {
+      // 如果定位权限弹窗正在显示，绝对禁止弹出登录层
+      if (isPermissionRequesting) return;
+      
+      // 如果定位系统还没走完第一轮“权限尝试/初始化”，暂时阻塞自动登录弹窗
+      if (!locationInitialized) return;
+
       try {
         const supabase = createClient()
         const { data: { session }, error } = await supabase.auth.getSession()
@@ -155,17 +166,11 @@ export function MapHeader({
 
         const hasSession = !!session
         setIsLoggedIn(hasSession)
+        
         if (!hasSession) {
-          // 延迟一点显示弹窗，避免加载时的闪烁
-          setTimeout(() => {
-            // [NEW] 严格时序拦截：如果正在请求定位权限，禁止弹出自动登录窗
-            const isRequesting = useGameStore.getState().isPermissionRequesting;
-            if (isRequesting) {
-              console.log('[MapHeader] LoginModal suppressed: Permission requesting in progress');
-              return;
-            }
-            setShowLoginModal(true);
-          }, 500)
+          // 在满足定位优先级后，显示自动登录弹窗
+          console.log('[MapHeader] All gates open, displaying LoginModal');
+          setShowLoginModal(true);
         }
       } catch (e: any) {
         if (e?.name !== 'AbortError' && e?.digest !== 'NEXT_REDIRECT') {
@@ -173,8 +178,11 @@ export function MapHeader({
         }
       }
     }
+    
+    // 依赖项包含 locationInitialized 和 isPermissionRequesting，
+    // 这样当定位权限申请结束（initialized=true, requesting=false）时，能立刻触发后续逻辑
     checkUser()
-  }, [])
+  }, [locationInitialized, isPermissionRequesting])
 
   // Reverse Geocoding: Convert lat/lng to district name, with localStorage caching
   // Also sync to Zustand store so HomeTopBar can display location

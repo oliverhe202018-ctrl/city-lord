@@ -87,54 +87,70 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
         const startup = async () => {
             console.log(`${TAG} initializeLocationSystem: initializing basics (onlyIfGranted: ${onlyIfGranted})...`);
 
-            const { safeCheckGeolocationPermission, safeRequestGeolocationPermission, isNativePlatform } = await import('@/lib/capacitor/safe-plugins');
-            
-            // Step 1: 隐私合规初始化 (高德隐私合规)
-            if (!bridgeRef.current) {
-                console.error(`${TAG} Bridge not instantiated during startup!`);
-                return;
-            }
-            await bridgeRef.current.init();
+            // [NEW] 注册一个 8s 的超时降级，防止桥接初始化由于某种原因挂起导致登录界面锁死
+            const timeoutHandle = setTimeout(() => {
+                const isInit = useGameStore.getState().locationInitialized;
+                if (!isInit) {
+                    console.warn(`${TAG} Initialization guardian timeout (8s). Forcing locationInitialized = true.`);
+                    useGameStore.getState().setLocationInitialized(true);
+                }
+            }, 8000);
 
-            if (!mountedRef.current) return;
+            try {
+                const { safeCheckGeolocationPermission, safeRequestGeolocationPermission, isNativePlatform } = await import('@/lib/capacitor/safe-plugins');
+                
+                // Step 1: 隐私合规初始化 (高德隐私合规)
+                if (!bridgeRef.current) {
+                    console.error(`${TAG} Bridge not instantiated during startup!`);
+                    return;
+                }
+                await bridgeRef.current.init();
 
-            // Step 2: 权限核对与申请
-            let hasPerm = false;
-            if (await isNativePlatform()) {
-                const currentPerm = await safeCheckGeolocationPermission();
-                if (currentPerm === 'granted') {
-                    hasPerm = true;
-                } else if (!onlyIfGranted) {
-                    console.log(`${TAG} Requesting foreground location permission...`);
-                    
-                    // [NEW] 加锁阻止登录弹窗
-                    useGameStore.getState().setIsPermissionRequesting(true);
-                    
-                    try {
-                        const newPerm = await safeRequestGeolocationPermission();
-                        if (newPerm === 'granted') {
-                            hasPerm = true;
-                        } else {
-                            console.warn(`${TAG} Foreground permission denied.`);
-                            useLocationStore.setState({ error: 'PERMISSION_DENIED', loading: false });
+                if (!mountedRef.current) return;
+
+                // Step 2: 权限核对与申请
+                let hasPerm = false;
+                if (await isNativePlatform()) {
+                    const currentPerm = await safeCheckGeolocationPermission();
+                    if (currentPerm === 'granted') {
+                        hasPerm = true;
+                    } else if (!onlyIfGranted) {
+                        console.log(`${TAG} Requesting foreground location permission...`);
+                        
+                        // [NEW] 加锁阻止登录弹窗
+                        useGameStore.getState().setIsPermissionRequesting(true);
+                        
+                        try {
+                            const newPerm = await safeRequestGeolocationPermission();
+                            if (newPerm === 'granted') {
+                                hasPerm = true;
+                            } else {
+                                console.warn(`${TAG} Foreground permission denied.`);
+                                useLocationStore.setState({ error: 'PERMISSION_DENIED', loading: false });
+                            }
+                        } finally {
+                            // [NEW] 无论成功失败，在权限弹窗结束后立即解锁
+                            useGameStore.getState().setIsPermissionRequesting(false);
                         }
-                    } finally {
-                        // [NEW] 无论成功失败，在回调结束后立即解锁
-                        useGameStore.getState().setIsPermissionRequesting(false);
+                    } else {
+                        console.log(`${TAG} onlyIfGranted is true and no permission. Staying silent.`);
                     }
                 } else {
-                    console.log(`${TAG} onlyIfGranted is true and no permission. Staying silent.`);
-                    // 不标记为错误，只是静默不启动
+                    // Web 环境默认视为已处理
+                    hasPerm = true;
                 }
-            } else {
-                // Web 环境默认视为“弹过”
-                hasPerm = true;
-            }
 
-            if (hasPerm && mountedRef.current) {
-                console.log(`${TAG} Permission OK, marking granted & pending start...`);
-                setPermissionGranted(true);
-                setPendingStartLocation(true);
+                if (hasPerm && mountedRef.current) {
+                    console.log(`${TAG} Permission OK, marking granted & pending start...`);
+                    setPermissionGranted(true);
+                    setPendingStartLocation(true);
+                }
+            } catch (err) {
+                console.error(`${TAG} Critical initialization error:`, err);
+            } finally {
+                clearTimeout(timeoutHandle);
+                // [NEW] 无论流程最终结果（允许或拒绝），只要初始化这一轮尝试过了，就释放准入信号
+                useGameStore.getState().setLocationInitialized(true);
             }
         };
 
