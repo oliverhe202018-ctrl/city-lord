@@ -496,11 +496,10 @@ export async function safeOpenAppSettings(): Promise<boolean> {
       }
       
       if (platform === 'android') {
-        // [MODIFIED] Try to use the undocumented capability of Capacitor to trigger Intent if available 
-        // Or provide the exact package action for manual debugging if plugin is missing
         try {
-          // Check if @capacitor-community/native-settings is available dynamically
-          const mod = await import('@capacitor-community/native-settings').catch(() => null);
+          if (!(await isNativePlatform())) return false;
+          // [FIXED] Use webpackIgnore to stop Vercel/Webpack from trying to resolve this native-only package
+          const mod = await import(/* webpackIgnore: true */ '@capacitor-community/native-settings').catch(() => null);
           if (mod && mod.NativeSettings) {
              await mod.NativeSettings.open({ option: 'app_details' });
              return true;
@@ -509,9 +508,6 @@ export async function safeOpenAppSettings(): Promise<boolean> {
           console.error('NativeSettings plugin failed', e);
         }
         
-        // Final fallback for Android if No Plugin: 
-        // We cannot send Intent via pure JS in Capacitor without a bridge.
-        // This is marked as the point where "v3 Plan 方案 B" (adding dependency) would be required.
         return false
       }
     }
