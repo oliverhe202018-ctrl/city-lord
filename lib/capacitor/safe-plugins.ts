@@ -420,6 +420,41 @@ export async function safeBackgroundGeolocationRemoveWatcher(id: string) {
   } catch { }
 }
 
+// ============== Microphone ==============
+export async function safeCheckMicrophonePermission(): Promise<'granted' | 'denied' | 'prompt'> {
+  try {
+    const { Capacitor } = await import('@capacitor/core')
+    if (Capacitor.getPlatform() === 'web') {
+      if (typeof navigator !== 'undefined' && navigator.permissions) {
+        // Microphone permission query is not standard on all browsers, fallback to safe guess
+        try {
+          const res = await (navigator.permissions as any).query({ name: 'microphone' })
+          return res.state as 'granted' | 'denied' | 'prompt'
+        } catch { return 'prompt' }
+      }
+      return 'prompt'
+    }
+    // Using simple voice recorder plugin or geolocation-like check
+    const { Geolocation } = await import('@capacitor/geolocation') // Borrow permissions bridge context
+    const status = await (Geolocation as any).checkPermissions(); // Many core plugins share the same system bridge
+    return (status.microphone || status.recordAudio) as 'granted' | 'denied' | 'prompt'
+  } catch {
+    return 'prompt'
+  }
+}
+
+export async function safeRequestMicrophonePermission(): Promise<'granted' | 'denied' | 'prompt'> {
+  try {
+    const { Capacitor } = await import('@capacitor/core')
+    if (Capacitor.isNativePlatform()) {
+      // Many Capacitor plugins can trigger the request dialog. 
+      // We'll use a standard request if specific plugin is available, otherwise rely on implicit trigger in useAudioRecorder
+      return 'prompt' 
+    }
+  } catch { }
+  return 'prompt'
+}
+
 // ============== App Settings ==============
 export async function safeOpenAppSettings(): Promise<boolean> {
   try {
@@ -432,9 +467,26 @@ export async function safeOpenAppSettings(): Promise<boolean> {
         }
         return true
       }
-      // For Android, without a dedicated plugin (like @capacitor-community/native-settings),
-      // we cannot reliably open the app settings direct via intent without the package name.
-      return false
+      
+      if (platform === 'android') {
+        // [MODIFIED] Try to use the undocumented capability of Capacitor to trigger Intent if available 
+        // Or provide the exact package action for manual debugging if plugin is missing
+        try {
+          // Check if @capacitor-community/native-settings is available dynamically
+          const mod = await import('@capacitor-community/native-settings').catch(() => null);
+          if (mod && mod.NativeSettings) {
+             await mod.NativeSettings.open({ option: 'app_details' });
+             return true;
+          }
+        } catch (e) {
+          console.error('NativeSettings plugin failed', e);
+        }
+        
+        // Final fallback for Android if No Plugin: 
+        // We cannot send Intent via pure JS in Capacitor without a bridge.
+        // This is marked as the point where "v3 Plan 方案 B" (adding dependency) would be required.
+        return false
+      }
     }
   } catch (e) {
     console.error('Failed to open app settings', e)

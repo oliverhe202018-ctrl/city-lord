@@ -154,9 +154,29 @@ export function VoiceRecorder({ receiverId, onSend, disabled }: VoiceRecorderPro
                                     type="button"
                                     onClick={async (e) => {
                                         e.preventDefault(); e.stopPropagation();
-                                        setShowPermissionModal(false);
                                         const { safeOpenAppSettings } = await import('@/lib/capacitor/safe-plugins');
-                                        await safeOpenAppSettings();
+                                        const { App } = await import('@capacitor/app');
+                                        const { toast } = await import('sonner');
+                                        
+                                        let hasLeftApp = false;
+                                        const listener = await App.addListener('appStateChange', ({ isActive }) => {
+                                            if (!isActive) hasLeftApp = true;
+                                        });
+
+                                        const success = await safeOpenAppSettings();
+                                        
+                                        // 500ms 兜底检测是否切后台
+                                        setTimeout(async () => {
+                                            if (listener) await listener.remove();
+                                            if (!hasLeftApp && !success) {
+                                                setShowPermissionModal(false);
+                                                toast.error('无法自动打开设置，请手动：系统设置 > 应用管理 > 开启麦克风权限', {
+                                                    duration: 5000,
+                                                });
+                                            } else {
+                                                setShowPermissionModal(false);
+                                            }
+                                        }, 600);
                                     }}
                                     className="flex-1 py-3 text-sm font-bold text-cyan-400 hover:bg-white/5 transition-colors active:bg-white/10"
                                 >

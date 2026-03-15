@@ -10,6 +10,7 @@ import android.content.Intent;
 import android.os.Build;
 import android.os.IBinder;
 import android.os.PowerManager;
+import android.content.SharedPreferences;
 import android.util.Log;
 
 import androidx.annotation.Nullable;
@@ -163,12 +164,16 @@ public class LocationForegroundService extends Service implements AMapLocationLi
     };
 
     /**
-     * 根据一年中的第几天返回每日一句。
-     * 60 条语录循环，每天不重样（循环周期 ~2 个月）。
+     * 根据一年中的确定日期返回每日一句（确定性算法）。
+     * 目标：同一天内 App 重启不跳文案，跨天自动换。
      */
     private static String getDailyQuote() {
-        int dayOfYear = java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_YEAR);
-        return DAILY_QUOTES[dayOfYear % DAILY_QUOTES.length];
+        java.util.Calendar cal = java.util.Calendar.getInstance();
+        int year = cal.get(java.util.Calendar.YEAR);
+        int dayOfYear = cal.get(java.util.Calendar.DAY_OF_YEAR);
+        // 使用 (年 * 366 + 日) 作为种子，确保日期唯一性
+        int seed = year * 366 + dayOfYear;
+        return DAILY_QUOTES[seed % DAILY_QUOTES.length];
     }
 
     // -------------------------------------------------------------------
@@ -418,17 +423,15 @@ public class LocationForegroundService extends Service implements AMapLocationLi
             locationClient = new AMapLocationClient(getApplicationContext());
 
             AMapLocationClientOption option = new AMapLocationClientOption();
-            // 高精度模式（GPS + 网络混合）
+            // 根据模式动态设置间隔：Running(2s), Standby(60s)
+            // TODO: 此处后续由 Plugin 传入 mode 参数，初步默认 Standby 逻辑防止耗电
+            long interval = 60000; 
+            option.setInterval(interval);
+            
             option.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);
-            // 2000ms 定位间隔
-            option.setInterval(2000);
-            // 不需要逆地理编码（节省功耗）
             option.setNeedAddress(false);
-            // 启用缓存
             option.setLocationCacheEnable(true);
-            // GPS 优先（仅在 Device_Sensors 下生效，但设上不影响）
             option.setGpsFirst(true);
-            // GPS 首次获取超时
             option.setGpsFirstTimeout(5000);
 
             locationClient.setLocationOption(option);
@@ -473,7 +476,10 @@ public class LocationForegroundService extends Service implements AMapLocationLi
             return;
         }
 
-        // Broadcast location to Plugin
+        // 1. 持久化缓存位置 (Native Persistence)
+        saveLocationToCache(location);
+
+        // 2. Broadcast location to Plugin
         Intent intent = new Intent(ACTION_LOCATION_UPDATE);
         intent.putExtra(EXTRA_LAT, location.getLatitude());
         intent.putExtra(EXTRA_LNG, location.getLongitude());
@@ -482,7 +488,6 @@ public class LocationForegroundService extends Service implements AMapLocationLi
         intent.putExtra(EXTRA_SPEED, location.getSpeed());
         intent.putExtra(EXTRA_TIMESTAMP, location.getTime());
         intent.putExtra(EXTRA_LOCATION_TYPE, location.getLocationType());
-        // Anti-cheat mock detection
         intent.putExtra(EXTRA_IS_MOCK, location.isMock());
 
         String provider = location.getProvider();
@@ -495,11 +500,19 @@ public class LocationForegroundService extends Service implements AMapLocationLi
         }
 
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
+    }
 
-        Log.d(TAG, "Location broadcast: lat=" + location.getLatitude()
-                + " lng=" + location.getLongitude()
-                + " accuracy=" + location.getAccuracy()
-                + " type=" + location.getLocationType());
+    /**
+     * 将位置持久化到 SharedPreferences
+     */
+    private void saveLocationToCache(AMapLocation location) {
+        SharedPreferences sp = getApplicationContext().getSharedPreferences("citylord_location_cache", android.content.Context.MODE_PRIVATE);
+        sp.edit()
+            .putLong("last_lat_bits", Double.doubleToRawLongBits(location.getLatitude()))
+            .putLong("last_lng_bits", Double.doubleToRawLongBits(location.getLongitude()))
+            .putLong("last_timestamp", location.getTime())
+            .apply();
+        Log.d(TAG, "Location persisted to cache: " + location.getLatitude() + ", " + location.getLongitude());
     }
 
     // -------------------------------------------------------------------

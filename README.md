@@ -122,6 +122,18 @@ npm run dev
 
 ## 📅 近期更新日志 (Changelog)
 
+### 2026-03-15: 🎙️ 麦克风权限流优化 (四态状态机)
+*   **权限规范化**: 补全 `AndroidManifest.xml` 录音权限，重构 `useAudioRecorder` 状态机。
+*   **体验改进**: 实现“首次触发录音直请”及“永久拒绝自定义引导”。
+*   **跳转与兜底**: iOS 实现应用设置页直跳；Android 侧通过应用状态监测实现 Failback 文字引导闭环。
+*   **验收结论**: 有条件通过（Android 一键直达设置页待增强）。
+
+### 2026-03-15: 📍 常驻定位、UI 治理与数据链闭环
+*   **常驻定位 (Android)**: 完成 `START_STICKY` 服务守护、Native 缓存及确定性每日一语轮换逻辑。
+*   **UI Portal 化**: 将 `TerritoryInfoBar` 挂载至顶层 Portal，解决 zIndex 遮挡并适配 `safe-area`。
+*   **数据链集成**: 补全领地 HP、积分比重、类型字段，确立服务端为单一事实来源。
+*   **跨平台持久化**: `AMapLocationBridge` 引入 `localStorage` 持久化，优化首屏冷启动秒开体验。
+
 ### 2026-03-10: 🛡️ Admin 鉴权重构与举报反馈治理
 *   **鉴权升级**: 重写后台 Admin Auth 逻辑，抛弃前端直接读取明文 Cookie 的脆弱模式；接入 Web Crypto JWT 式安全签名 Session，严格防护敏感 Server Action。
 *   **举报中台**: 后台新增“双源汇聚反馈中心”。精准关联 Prisma 外键将普通 Bug 建议反馈及动态圈内的违规图文举报融为一体，赋予管理员「一键查证 / 确认违规 / 驳回」的可视化处理面板，并修补了直接改库的安全漏洞。

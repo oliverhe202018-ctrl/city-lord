@@ -36,7 +36,7 @@ export async function getTerritoryDetail(territoryId: string): Promise<Territory
     // 1. Fetch territory data
     const { data: territory, error: terrError } = await supabaseAdmin
         .from('territories')
-        .select('owner_id, city_id, captured_at, owner_club_id')
+        .select('owner_id, city_id, captured_at, owner_club_id, current_hp, score_weight, territory_type')
         .eq('id', territoryId)
         .single()
 
@@ -60,9 +60,9 @@ export async function getTerritoryDetail(territoryId: string): Promise<Territory
         owner: null,
         club: null,
         recentRun: null,
-        current_hp: 1000,
-        score_weight: 1.0,
-        territory_type: 'NORMAL'
+        current_hp: territory.current_hp || 1000,
+        score_weight: territory.score_weight || 1.0,
+        territory_type: territory.territory_type || 'NORMAL'
     }
 
     if (!territory.owner_id) {

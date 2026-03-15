@@ -2,6 +2,8 @@ import React from 'react'
 import { headers } from 'next/headers'
 import { AdminSidebar } from '@/components/admin/AdminSidebar'
 
+export const dynamic = 'force-dynamic'
+
 export default async function AdminLayout({
   children,
 }: {
