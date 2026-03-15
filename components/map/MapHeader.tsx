@@ -157,7 +157,15 @@ export function MapHeader({
         setIsLoggedIn(hasSession)
         if (!hasSession) {
           // 延迟一点显示弹窗，避免加载时的闪烁
-          setTimeout(() => setShowLoginModal(true), 500)
+          setTimeout(() => {
+            // [NEW] 严格时序拦截：如果正在请求定位权限，禁止弹出自动登录窗
+            const isRequesting = useGameStore.getState().isPermissionRequesting;
+            if (isRequesting) {
+              console.log('[MapHeader] LoginModal suppressed: Permission requesting in progress');
+              return;
+            }
+            setShowLoginModal(true);
+          }, 500)
         }
       } catch (e: any) {
         if (e?.name !== 'AbortError' && e?.digest !== 'NEXT_REDIRECT') {

@@ -22,7 +22,13 @@ export function VoiceRecorder({ receiverId, onSend, disabled }: VoiceRecorderPro
         try {
             await startRecording();
         } catch (error: any) {
+            // [NEW] 分级引导逻辑
             if (error?.message === 'PERMISSION_DENIED') {
+                const { toast } = await import('sonner');
+                toast.error('请授予麦克风权限以发送语音', {
+                    description: '点击系统弹窗中的“允许”'
+                });
+            } else if (error?.message === 'PERMISSION_PERMANENT_DENIED') {
                 setShowPermissionModal(true);
             }
         }

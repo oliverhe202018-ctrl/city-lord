@@ -27,27 +27,41 @@ export function useAudioRecorder() {
             const { App } = await import('@capacitor/app');
             
             // 1. Initial State Check
-            let permissionState: 'granted' | 'denied' | 'prompt' = 'prompt';
-            const localRequested = localStorage.getItem('has_requested_microphone') === 'true';
+            let micStatus: 'granted' | 'denied' | 'prompt' = 'prompt';
+            let hasRequested = false;
+            let shouldShowRationale = false;
 
-            if (Capacitor.isNativePlatform()) {
-                // We use a safe check. If native bridge fails, we fallback to 'prompt' to try getUserMedia anyway
-                const { safeCheckMicrophonePermission } = await import('@/lib/capacitor/safe-plugins');
-                permissionState = await safeCheckMicrophonePermission();
-            } else if (navigator.permissions && navigator.permissions.query) {
-                try {
-                    const perm = await navigator.permissions.query({ name: 'microphone' as PermissionName });
-                    permissionState = perm.state as any;
-                } catch {}
-            }
+            const { safeCheckMicrophonePermission } = await import('@/lib/capacitor/safe-plugins');
+            const permResult = await safeCheckMicrophonePermission();
+            micStatus = permResult.currentStatus;
+            hasRequested = permResult.hasRequested;
+            shouldShowRationale = permResult.shouldShowRationale || false;
 
-            // 2. State Machine Logic
-            if (permissionState === 'denied') {
-                // On Android, we'd check rationale. Here we use localRequested as heuristic
-                if (localRequested) {
+            // 2. State Machine Logic (Plan v2)
+            const isAndroid = Capacitor.getPlatform() === 'android';
+            const isIOS = Capacitor.getPlatform() === 'ios';
+
+            let isPermanentDenied = false;
+            if (micStatus === 'denied') {
+                if (isAndroid) {
+                    // Android: denied + no rationale + already requested = permanent
+                    if (!shouldShowRationale && hasRequested) {
+                        isPermanentDenied = true;
+                    }
+                } else if (isIOS) {
+                    // iOS: denied + already requested = permanent
+                    if (hasRequested) {
+                        isPermanentDenied = true;
+                    }
+                } else {
+                    // Web: usually denied means permanent until user manually resets in UI
+                    if (hasRequested) isPermanentDenied = true;
+                }
+
+                if (isPermanentDenied) {
                     throw new Error('PERMISSION_PERMANENT_DENIED');
                 } else {
-                    // This case is unlikely to hit unless system returns denied on first check without prompt
+                    // Retryable: show lightweight prompt instead of direct settings
                     throw new Error('PERMISSION_DENIED');
                 }
             }

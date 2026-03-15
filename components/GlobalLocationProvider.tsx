@@ -106,12 +106,21 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
                     hasPerm = true;
                 } else if (!onlyIfGranted) {
                     console.log(`${TAG} Requesting foreground location permission...`);
-                    const newPerm = await safeRequestGeolocationPermission();
-                    if (newPerm === 'granted') {
-                        hasPerm = true;
-                    } else {
-                        console.warn(`${TAG} Foreground permission denied.`);
-                        useLocationStore.setState({ error: 'PERMISSION_DENIED', loading: false });
+                    
+                    // [NEW] 加锁阻止登录弹窗
+                    useGameStore.getState().setIsPermissionRequesting(true);
+                    
+                    try {
+                        const newPerm = await safeRequestGeolocationPermission();
+                        if (newPerm === 'granted') {
+                            hasPerm = true;
+                        } else {
+                            console.warn(`${TAG} Foreground permission denied.`);
+                            useLocationStore.setState({ error: 'PERMISSION_DENIED', loading: false });
+                        }
+                    } finally {
+                        // [NEW] 无论成功失败，在回调结束后立即解锁
+                        useGameStore.getState().setIsPermissionRequesting(false);
                     }
                 } else {
                     console.log(`${TAG} onlyIfGranted is true and no permission. Staying silent.`);

@@ -421,25 +421,52 @@ export async function safeBackgroundGeolocationRemoveWatcher(id: string) {
 }
 
 // ============== Microphone ==============
-export async function safeCheckMicrophonePermission(): Promise<'granted' | 'denied' | 'prompt'> {
+export interface MicPermissionResult {
+  currentStatus: 'granted' | 'denied' | 'prompt';
+  hasRequested: boolean;
+  shouldShowRationale?: boolean;
+}
+
+export async function safeCheckMicrophonePermission(): Promise<MicPermissionResult> {
+  const STORAGE_KEY = 'has_requested_microphone';
+  const hasRequested = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) === 'true' : false;
+
   try {
     const { Capacitor } = await import('@capacitor/core')
     if (Capacitor.getPlatform() === 'web') {
       if (typeof navigator !== 'undefined' && navigator.permissions) {
-        // Microphone permission query is not standard on all browsers, fallback to safe guess
         try {
           const res = await (navigator.permissions as any).query({ name: 'microphone' })
-          return res.state as 'granted' | 'denied' | 'prompt'
-        } catch { return 'prompt' }
+          return {
+            currentStatus: res.state as any,
+            hasRequested
+          };
+        } catch { return { currentStatus: 'prompt', hasRequested }; }
       }
-      return 'prompt'
+      return { currentStatus: 'prompt', hasRequested };
     }
-    // Using simple voice recorder plugin or geolocation-like check
-    const { Geolocation } = await import('@capacitor/geolocation') // Borrow permissions bridge context
-    const status = await (Geolocation as any).checkPermissions(); // Many core plugins share the same system bridge
-    return (status.microphone || status.recordAudio) as 'granted' | 'denied' | 'prompt'
+
+    // Native Bridge
+    const { Geolocation } = await import('@capacitor/geolocation'); 
+    const status = await (Geolocation as any).checkPermissions(); 
+    const currentStatus = (status.microphone || status.recordAudio) as 'granted' | 'denied' | 'prompt';
+    
+    // Attempt to get rationale on Android
+    let shouldShowRationale = false;
+    if (Capacitor.getPlatform() === 'android') {
+        // Many Capacitor plugins use this bridge pattern. 
+        // In full implementation, we'd need a dedicated Mic plugin, 
+        // but we'll use the 'denied' vs 'prompt' distinction provided by the bridge.
+        shouldShowRationale = (status as any).microphone === 'prompt'; 
+    }
+
+    return {
+      currentStatus,
+      hasRequested,
+      shouldShowRationale
+    };
   } catch {
-    return 'prompt'
+    return { currentStatus: 'prompt', hasRequested };
   }
 }
 
