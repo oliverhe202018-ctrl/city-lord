@@ -34,6 +34,23 @@ interface RunSummaryViewProps {
     previousOwner?: string
   }
   runId?: string // Run ID for photo upload and sharing
+  runNumber?: number // Phase 3: Dynamic run number
+  damageSummary?: {
+    ownerName: string;
+    damage: number;
+    territoryType: string;
+    isDestroyed: boolean;
+    isCritical?: boolean;
+  }[]; // Phase 3: Damage details
+  maintenanceSummary?: {
+    territoryId: string;
+    type: 'HEAL' | 'FORTIFY' | 'BOTH';
+    oldMaxHp: number;
+    newMaxHp: number;
+    beforeHp: number;
+    afterHp: number;
+    level: number;
+  }[]; // Phase 4: Maintenance details
 }
 
 export function RunSummaryView({
@@ -48,7 +65,10 @@ export function RunSummaryView({
   onShare,
   runTrajectory = [],
   territoryInfo = { isCaptured: false },
-  runId
+  runId,
+  runNumber,
+  damageSummary = [],
+  maintenanceSummary = []
 }: RunSummaryViewProps) {
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
@@ -68,6 +88,17 @@ export function RunSummaryView({
 
   // Calculate territory area based on game constants
   const capturedArea = hexesCaptured * HEX_AREA_SQ_METERS
+
+  // Aggregate damage by owner for UI display
+  const aggregatedDamage = damageSummary.reduce((acc, curr) => {
+    const key = `${curr.ownerName}_${curr.isCritical ? 'crit' : 'norm'}`;
+    if (!acc[key]) {
+      acc[key] = { ownerName: curr.ownerName, totalDamage: 0, count: 0, isCritical: curr.isCritical };
+    }
+    acc[key].totalDamage += curr.damage;
+    acc[key].count += 1;
+    return acc;
+  }, {} as Record<string, { ownerName: string, totalDamage: number, count: number, isCritical?: boolean }>);
 
   const forceExit = (e?: any) => {
     if (e) {
@@ -212,7 +243,9 @@ export function RunSummaryView({
           {/* Divider / Info */}
           <div className="flex justify-center items-center gap-2 mb-8">
             <div className="h-[1px] w-12 bg-gray-200"></div>
-            <div className="text-xs text-[#22c55e]">这是第 N 次跑步</div>
+            <div className="text-xs text-[#22c55e]">
+              {runNumber ? `这是第 ${runNumber} 次跑步` : '这是第 N 次跑步'}
+            </div>
             <div className="h-[1px] w-12 bg-gray-200"></div>
           </div>
 
@@ -268,6 +301,49 @@ export function RunSummaryView({
               </div>
               <MapPin className="h-5 w-5 text-red-400" />
             </div>
+
+            {/* Phase 3: Damage Results */}
+            {Object.entries(aggregatedDamage).map(([key, data], idx) => (
+              <div key={idx} className="flex items-center justify-between mt-3 pt-3 border-t border-gray-50">
+                <div className="text-sm text-gray-600">
+                  {data.isCritical ? (
+                    <>
+                      对 <span className="font-bold text-gray-900">{data.ownerName}</span> 的领地造成 <span className="font-bold text-red-600">{data.totalDamage} 点暴击伤害</span>
+                    </>
+                  ) : (
+                    <>
+                      对 <span className="font-bold text-gray-900">{data.ownerName}</span> 的领地造成 {data.totalDamage} 点伤害
+                    </>
+                  )}
+                </div>
+                {data.isCritical ? (
+                  <Zap className="h-5 w-5 text-red-500 fill-red-500 animate-pulse" />
+                ) : (
+                  <Zap className="h-4 w-4 text-orange-500 fill-orange-500" />
+                )}
+              </div>
+            ))}
+
+            {/* Phase 4: Maintenance Results */}
+            {maintenanceSummary && maintenanceSummary.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-gray-50">
+                {maintenanceSummary.slice(0, 3).map((item, idx) => (
+                  <div key={idx} className="flex items-center justify-between mb-2 last:mb-0">
+                    <div className="text-sm text-gray-600">
+                      {item.type === 'FORTIFY' 
+                        ? `加固领地成功，上限提升至 ${item.newMaxHp} HP`
+                        : `回血成功，领地已恢复至 ${item.afterHp} HP`}
+                    </div>
+                    <Flame className="h-4 w-4 text-red-500 fill-red-500" />
+                  </div>
+                ))}
+                {maintenanceSummary.length > 3 && (
+                  <div className="text-[10px] text-gray-400 text-center mt-1">
+                    ...以及其他 {maintenanceSummary.length - 3} 处加固
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Photo Upload Section */}
