@@ -23,53 +23,78 @@ export function useAudioRecorder() {
 
     const startRecording = useCallback(async () => {
         try {
-            // 1. Check Permissions status (Web vs Capacitor check)
-            let permissionState = 'prompt'; // Default assumption
+            const { Capacitor } = await import('@capacitor/core');
+            const { App } = await import('@capacitor/app');
+            
+            // 1. Initial State Check
+            let permissionState: 'granted' | 'denied' | 'prompt' = 'prompt';
+            const localRequested = localStorage.getItem('has_requested_microphone') === 'true';
 
-            if (!Capacitor.isNativePlatform() && navigator.permissions && navigator.permissions.query) {
+            if (Capacitor.isNativePlatform()) {
+                // We use a safe check. If native bridge fails, we fallback to 'prompt' to try getUserMedia anyway
+                const { safeCheckMicrophonePermission } = await import('@/lib/capacitor/safe-plugins');
+                permissionState = await safeCheckMicrophonePermission();
+            } else if (navigator.permissions && navigator.permissions.query) {
                 try {
                     const perm = await navigator.permissions.query({ name: 'microphone' as PermissionName });
-                    permissionState = perm.state;
-                } catch (e) {
-                    console.log('Permission query not supported on this browser', e);
-                }
+                    permissionState = perm.state as any;
+                } catch {}
             }
 
+            // 2. State Machine Logic
             if (permissionState === 'denied') {
-                throw new Error('PERMISSION_DENIED');
+                // On Android, we'd check rationale. Here we use localRequested as heuristic
+                if (localRequested) {
+                    throw new Error('PERMISSION_PERMANENT_DENIED');
+                } else {
+                    // This case is unlikely to hit unless system returns denied on first check without prompt
+                    throw new Error('PERMISSION_DENIED');
+                }
             }
 
-            // 2. Request Permission & Start stream (prompt happens here if needed)
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const mediaRecorder = new MediaRecorder(stream);
+            // 3. Requesting Permission
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                // If success, mark as requested
+                localStorage.setItem('has_requested_microphone', 'true');
+                
+                const mediaRecorder = new MediaRecorder(stream);
+                mediaRecorderRef.current = mediaRecorder;
+                audioChunksRef.current = [];
+                setIsRecording(true);
+                setIsCanceled(false);
+                setRecordDurationMs(0);
+                startTimeRef.current = Date.now();
 
-            mediaRecorderRef.current = mediaRecorder;
-            audioChunksRef.current = [];
-            setIsRecording(true);
-            setIsCanceled(false);
-            setRecordDurationMs(0);
-            startTimeRef.current = Date.now();
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        audioChunksRef.current.push(event.data);
+                    }
+                };
 
-            mediaRecorder.ondataavailable = (event) => {
-                if (event.data.size > 0) {
-                    audioChunksRef.current.push(event.data);
+                mediaRecorder.start();
+
+                timerRef.current = setInterval(() => {
+                    setRecordDurationMs(Date.now() - startTimeRef.current);
+                }, 100);
+
+            } catch (err: any) {
+                const isDenied = err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError';
+                if (isDenied) {
+                    localStorage.setItem('has_requested_microphone', 'true');
+                    // Check if it's permanent (usually browsers don't give rationale, 
+                    // but if it failed after request, we treat it as retryable unless it's blocked)
+                    throw new Error('PERMISSION_DENIED');
                 }
-            };
-
-            mediaRecorder.start();
-
-            timerRef.current = setInterval(() => {
-                setRecordDurationMs(Date.now() - startTimeRef.current);
-            }, 100);
+                throw err;
+            }
 
         } catch (err: any) {
             console.error('Error accessing microphone', err);
             setIsRecording(false);
 
-            // 3. Handle Permission Denied
-            const isDenied = err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError';
-            if (isDenied) {
-                throw new Error('PERMISSION_DENIED');
+            if (err.message === 'PERMISSION_PERMANENT_DENIED' || err.message === 'PERMISSION_DENIED') {
+                throw err; // Let UI handle this
             } else {
                 toast.error('无法访问麦克风，请检查硬件是否正常');
             }

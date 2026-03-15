@@ -139,6 +139,7 @@ export class AMapLocationBridge {
     private isNative = false;
     private initialized = false;
     private destroyed = false;
+    private static STORAGE_KEY = 'citylord_last_known_location';
 
     // 并发控制
     private currentRequestId: string | null = null;
@@ -265,6 +266,52 @@ export class AMapLocationBridge {
         }
 
         this.initialized = true;
+
+        // [v3 Implementation] 冷启动优先读取持久化缓存
+        this.loadAndEmitCache();
+    }
+
+    /**
+     * 读取 localStorage 中的持久化缓存并立即推送给 UI。
+     * 解决冷启动时的白屏等待问题。
+     */
+    private loadAndEmitCache() {
+        if (typeof window === 'undefined') return;
+        try {
+            const raw = localStorage.getItem(AMapLocationBridge.STORAGE_KEY);
+            if (!raw) return;
+            const cached = JSON.parse(raw);
+            
+            // 校验缓存有效期 (30分钟)
+            const age = Date.now() - (cached.timestamp || 0);
+            if (age > 30 * 60 * 1000) {
+                logInfo({ phase: 'init-cache-stale', reason: `Cache age ${Math.round(age/1000)}s > 1800s` });
+                return;
+            }
+
+            const point: GeoPoint = {
+                ...cached,
+                source: 'cache' as LocationSource,
+                coordSystem: 'gcj02'
+            };
+
+            logInfo({ 
+                phase: 'init-cache-loaded', 
+                lat: point.lat, 
+                lng: point.lng, 
+                accuracy: point.accuracy,
+                reason: 'Cold start persistent cache emission' 
+            });
+
+            // 立即推送给回调，UI 会先展示此位置
+            this.callbacks.onLocationUpdate(point, { acceptedAsInitial: true, source: 'cache' });
+            
+            // 记录最后接受的点，用于去重对比
+            this.lastAcceptedPoint = point;
+            this.lastAcceptedTime = Date.now();
+        } catch (e) {
+            logWarn({ phase: 'init-cache-fail', reason: String(e) });
+        }
     }
 
     // =========================================================================
