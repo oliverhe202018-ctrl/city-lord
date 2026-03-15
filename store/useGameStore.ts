@@ -55,6 +55,8 @@ export interface LocationState {
   ghostPath: [number, number][] | null;
   isSmartRunStarting: boolean;
   lastKnownLocation: { lat: number; lng: number } | null;
+  /** [NEW] 全局权限请求状态锁，用于防止登录弹窗冲突 */
+  isPermissionRequesting: boolean;
 }
 
 export interface InventoryItem {
@@ -174,6 +176,7 @@ export interface LocationActions {
   setGhostPath: (path: [number, number][] | null) => void;
   setSmartRunStarting: (starting: boolean) => void;
   setLastKnownLocation: (location: { lat: number; lng: number } | null) => void;
+  setIsPermissionRequesting: (requesting: boolean) => void;
 }
 
 export interface InventoryActions {
@@ -253,6 +256,7 @@ const initialLocationState: LocationState = {
   ghostPath: null,
   isSmartRunStarting: false,
   lastKnownLocation: null,
+  isPermissionRequesting: false,
 };
 
 const initialInventoryState: InventoryState = {
@@ -554,6 +558,7 @@ const createLocationSlice: StateCreator<GameStore, [], [], LocationActions> = (s
   setGhostPath: (path) => set({ ghostPath: path }),
   setSmartRunStarting: (starting) => set({ isSmartRunStarting: starting }),
   setLastKnownLocation: (location) => set({ lastKnownLocation: location }),
+  setIsPermissionRequesting: (requesting) => set({ isPermissionRequesting: requesting }),
 });
 
 const createInventorySlice: StateCreator<GameStore, [], [], InventoryActions> = (set, get) => ({
@@ -789,6 +794,7 @@ export const useGameActions = () => {
       setGhostPath: state.setGhostPath,
       setSmartRunStarting: state.setSmartRunStarting,
       setStreetName: state.setStreetName,
+      setIsPermissionRequesting: state.setIsPermissionRequesting,
 
       // Inventory Actions
       addItem: state.addItem,
