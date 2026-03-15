@@ -57,6 +57,8 @@ export interface LocationState {
   lastKnownLocation: { lat: number; lng: number } | null;
   /** [NEW] 全局权限请求状态锁，用于防止登录弹窗冲突 */
   isPermissionRequesting: boolean;
+  /** [NEW] 标识定位系统是否已经尝试过至少一轮初始化（无论权限结果如何） */
+  locationInitialized: boolean;
 }
 
 export interface InventoryItem {
@@ -177,6 +179,7 @@ export interface LocationActions {
   setSmartRunStarting: (starting: boolean) => void;
   setLastKnownLocation: (location: { lat: number; lng: number } | null) => void;
   setIsPermissionRequesting: (requesting: boolean) => void;
+  setLocationInitialized: (initialized: boolean) => void;
 }
 
 export interface InventoryActions {
@@ -257,6 +260,7 @@ const initialLocationState: LocationState = {
   isSmartRunStarting: false,
   lastKnownLocation: null,
   isPermissionRequesting: false,
+  locationInitialized: false,
 };
 
 const initialInventoryState: InventoryState = {
@@ -559,6 +563,7 @@ const createLocationSlice: StateCreator<GameStore, [], [], LocationActions> = (s
   setSmartRunStarting: (starting) => set({ isSmartRunStarting: starting }),
   setLastKnownLocation: (location) => set({ lastKnownLocation: location }),
   setIsPermissionRequesting: (requesting) => set({ isPermissionRequesting: requesting }),
+  setLocationInitialized: (initialized: boolean) => set({ locationInitialized: initialized }),
 });
 
 const createInventorySlice: StateCreator<GameStore, [], [], InventoryActions> = (set, get) => ({
