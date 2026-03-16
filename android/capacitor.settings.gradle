@@ -37,3 +37,6 @@ project(':capawesome-capacitor-background-task').projectDir = new File('../node_
 
 include ':capacitor-health-connect'
 project(':capacitor-health-connect').projectDir = new File('../node_modules/capacitor-health-connect/android')
+
+include ':capacitor-native-settings'
+project(':capacitor-native-settings').projectDir = new File('../node_modules/capacitor-native-settings/android')

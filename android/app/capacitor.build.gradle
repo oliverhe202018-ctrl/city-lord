@@ -21,6 +21,7 @@ dependencies {
     implementation project(':capacitor-status-bar')
     implementation project(':capawesome-capacitor-background-task')
     implementation project(':capacitor-health-connect')
+    implementation project(':capacitor-native-settings')
 
 }
 
