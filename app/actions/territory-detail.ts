@@ -36,7 +36,7 @@ export async function getTerritoryDetail(territoryId: string): Promise<Territory
     // 1. Fetch territory data
     const { data: territory, error: terrError } = await supabaseAdmin
         .from('territories')
-        .select('owner_id, city_id, captured_at, owner_club_id, current_hp, score_weight, territory_type')
+        .select('owner_id, city_id, captured_at, owner_club_id, current_hp, score_weight, territory_type, source_run_id')
         .eq('id', territoryId)
         .single()
 
@@ -108,23 +108,25 @@ export async function getTerritoryDetail(territoryId: string): Promise<Territory
         }
     }
 
-    // 4. Fetch recent run (MVP option B: owner's most recent run)
-    const { data: recentRun } = await supabaseAdmin
-        .from('runs')
-        .select('distance, duration')
-        .eq('user_id', territory.owner_id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single()
+    // 4. Fetch the specific run that captured this territory (Legacy fallback to recent if missing)
+    let runQuery = supabaseAdmin.from('runs').select('distance, duration');
+    
+    if (territory.source_run_id) {
+        runQuery = runQuery.eq('id', territory.source_run_id);
+    } else {
+        runQuery = runQuery.eq('user_id', territory.owner_id).order('created_at', { ascending: false });
+    }
+    
+    const { data: captureRun } = await runQuery.limit(1).single();
 
-    if (recentRun) {
+    if (captureRun) {
         // distance from DB is in meters, duration in seconds
-        const distanceKm = (recentRun.distance || 0) / 1000
+        const distanceKm = (captureRun.distance || 0) / 1000
 
         // Format duration (MM:SS or HH:MM:SS)
-        const hours = Math.floor(recentRun.duration / 3600)
-        const minutes = Math.floor((recentRun.duration % 3600) / 60)
-        const seconds = recentRun.duration % 60
+        const hours = Math.floor(captureRun.duration / 3600)
+        const minutes = Math.floor((captureRun.duration % 3600) / 60)
+        const seconds = captureRun.duration % 60
         let durationStr = ''
         if (hours > 0) {
             durationStr += `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
@@ -134,8 +136,8 @@ export async function getTerritoryDetail(territoryId: string): Promise<Territory
 
         // Format pace (MM'SS")
         let paceStr = '--\'--"'
-        if (distanceKm > 0 && recentRun.duration > 0) {
-            const paceSecondsPerKm = recentRun.duration / distanceKm
+        if (distanceKm > 0 && captureRun.duration > 0) {
+            const paceSecondsPerKm = captureRun.duration / distanceKm
             const paceMins = Math.floor(paceSecondsPerKm / 60)
             const paceSecs = Math.floor(paceSecondsPerKm % 60)
             paceStr = `${paceMins}'${paceSecs.toString().padStart(2, '0')}"`

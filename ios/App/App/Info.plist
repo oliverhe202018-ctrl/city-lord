@@ -43,6 +43,16 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>我们需要您的位置信息来记录跑步轨迹和领地争夺</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>为了确保在锁屏或切后台时仍能准确记录您的跑步轨迹，我们需要始终访问位置信息的权限</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 </dict>

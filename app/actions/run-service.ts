@@ -2,15 +2,20 @@
 
 import { prisma } from '@/lib/prisma';
 import { evaluateTasks, RunData, TaskResult } from '@/lib/game/task-engine';
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import { RunRecordDTO, ActionResponse } from '@/types/run-sync';
 import { validateRunAndRebuildTerritories, AntiCheatValidationResult } from '@/lib/anti-cheat/territory-builder';
 import { checkRunRateLimit } from '@/lib/anti-cheat/rate-limiter';
+import { processTerritorySettlement } from '@/lib/territory/settlement';
+import * as turf from '@turf/turf';
 
 export interface SaveRunResult {
     runId?: string;
+    runNumber?: number;
     newTasks?: TaskResult[];
     totalReward?: { coins: number; xp: number };
+    damageSummary?: any[];
+    maintenanceSummary?: any[];
 }
 
 /**
@@ -168,20 +173,84 @@ export async function saveRunActivity(
                 }
             }
 
-            // C. Grant Rewards to User
+            // C. Territory Settlement (Phase 2 & 4)
+            let settledTerritoriesCount = 0;
+            const allDamageDetails: any[] = [];
+            const allMaintenanceDetails: any[] = [];
+            if (finalPolygons.length > 0 && validation.riskLevel === 'LOW') {
+                for (const polyPoints of finalPolygons) {
+                    const coords = polyPoints.map(p => [p.lng, p.lat]);
+                    if (coords[0][0] !== coords[coords.length-1][0] || coords[0][1] !== coords[coords.length-1][1]) {
+                        coords.push(coords[0]);
+                    }
+                    const polyFeature = turf.polygon([coords]);
+                    
+                    // TODO: Extract actual cityId from points if needed, 
+                    // for now use the one from runData or fallback
+                    const cityId = (runData as any).cityId || "default_city";
+
+                    const settlement = await processTerritorySettlement({
+                        runId: run.id,
+                        userId: userId,
+                        cityId: cityId,
+                        pathGeoJSON: polyFeature,
+                        db: tx
+                    });
+                    if (settlement.success) {
+                        settledTerritoriesCount += settlement.createdTerritories;
+                        if (settlement.damageDetails) {
+                            allDamageDetails.push(...settlement.damageDetails);
+                        }
+                        if (settlement.maintenanceDetails) {
+                            allMaintenanceDetails.push(...settlement.maintenanceDetails);
+                        }
+                    }
+                }
+            }
+
+            // D. Get Run Number (Phase 3)
+            const runNumber = await tx.runs.count({
+                where: { user_id: userId }
+            });
+
+            // E. Update City Progress (Phase 2)
+            if (validation.riskLevel !== 'HIGH') {
+                const cityId = (runData as any).cityId || "default_city";
+                await tx.user_city_progress.upsert({
+                    where: {
+                        user_id_city_id: {
+                            user_id: userId,
+                            city_id: cityId
+                        }
+                    },
+                    update: {
+                        area_controlled: { increment: finalArea },
+                        tiles_captured: { increment: settledTerritoriesCount },
+                        last_active_at: new Date()
+                    },
+                    create: {
+                        user_id: userId,
+                        city_id: cityId,
+                        area_controlled: finalArea,
+                        tiles_captured: settledTerritoriesCount,
+                        last_active_at: new Date(),
+                        joined_at: new Date()
+                    }
+                });
+            }
+
+            // E. Grant Rewards to User
             if (totalCoins > 0 || totalXp > 0) {
                 await tx.profiles.update({
                     where: { id: userId },
                     data: {
                         coins: { increment: totalCoins },
                         xp: { increment: totalXp },
-                        // Update basic stats too
                         total_distance_km: { increment: evaluationData.distance / 1000 },
                         total_area: { increment: finalArea }
                     }
                 });
             } else if (validation.riskLevel !== 'HIGH') {
-                // Even if no tasks, update stats if not rejected
                 await tx.profiles.update({
                     where: { id: userId },
                     data: {
@@ -193,18 +262,23 @@ export async function saveRunActivity(
 
             return {
                 runId: run.id,
+                runNumber,
                 newTasks,
-                rewards: { coins: totalCoins, xp: totalXp }
+                rewards: { coins: totalCoins, xp: totalXp },
+                damageSummary: allDamageDetails,
+                maintenanceSummary: allMaintenanceDetails
             };
         });
 
         revalidatePath('/dashboard');
         revalidatePath('/profile/me');
+        revalidateTag('territories');
+        revalidateTag('city-stats');
+        revalidateTag('city-leaderboard');
 
-        // Trigger Task Center Event (Async, non-blocking)
+        // Trigger Task Center Event (Awaiting to ensure consistency before response)
         try {
             const { TaskService } = await import('@/lib/services/task');
-            // Try tracking the run event
             if (validation.riskLevel !== 'HIGH') {
                 const eventPayload = {
                     type: 'RUN_FINISHED' as const,
@@ -217,6 +291,7 @@ export async function saveRunActivity(
                     }
                 };
                 await TaskService.processEvent(userId, eventPayload);
+                console.log(`[Task] Event processed synchronously for user: ${userId}`);
             }
         } catch (taskError) {
             console.error('Task event processing failed', taskError);
@@ -226,8 +301,11 @@ export async function saveRunActivity(
             success: true,
             data: {
                 runId: result.runId,
+                runNumber: result.runNumber,
                 newTasks: result.newTasks,
-                totalReward: result.rewards
+                totalReward: result.rewards,
+                damageSummary: result.damageSummary,
+                maintenanceSummary: result.maintenanceSummary
             }
         };
 

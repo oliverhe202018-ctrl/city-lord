@@ -173,7 +173,7 @@ export function TerritoryDetailSheet() {
                                 <div className="pt-2 border-t mt-2">
                                     <h4 className="text-xs font-semibold text-muted-foreground mb-3 flex items-center gap-1.5">
                                         <Flag className="w-3.5 h-3.5" />
-                                        领主最近跑步
+                                        攻占地块跑步记录
                                     </h4>
                                     <div className="grid grid-cols-4 gap-2">
                                         <div className="flex flex-col items-center text-center p-2 rounded-lg bg-muted/50 border border-border/50">

@@ -1,7 +1,6 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
-import { Mic, Trash2 } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 
 export interface VoiceRecordResult {
@@ -12,6 +11,7 @@ export interface VoiceRecordResult {
 }
 
 export function useAudioRecorder() {
+    const [permissionStatus, setPermissionStatus] = useState<'prompt' | 'granted' | 'denied' | 'permanent-denied'>('prompt');
     const [isRecording, setIsRecording] = useState(false);
     const [isCanceled, setIsCanceled] = useState(false);
     const [recordDurationMs, setRecordDurationMs] = useState(0);
@@ -21,56 +21,70 @@ export function useAudioRecorder() {
     const startTimeRef = useRef<number>(0);
     const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-    const startRecording = useCallback(async () => {
+    const checkPermissions = useCallback(async () => {
+        if (!Capacitor.isNativePlatform()) {
+            setPermissionStatus('granted'); // Assume handled by browser prompt
+            return;
+        }
         try {
-            const { Capacitor } = await import('@capacitor/core');
-            const { App } = await import('@capacitor/app');
-            
-            // 1. Initial State Check
-            let micStatus: 'granted' | 'denied' | 'prompt' = 'prompt';
-            let hasRequested = false;
-            let shouldShowRationale = false;
-
             const { safeCheckMicrophonePermission } = await import('@/lib/capacitor/safe-plugins');
             const permResult = await safeCheckMicrophonePermission();
-            micStatus = permResult.currentStatus;
-            hasRequested = permResult.hasRequested;
-            shouldShowRationale = permResult.shouldShowRationale || false;
-
-            // 2. State Machine Logic (Plan v2)
-            const isAndroid = Capacitor.getPlatform() === 'android';
-            const isIOS = Capacitor.getPlatform() === 'ios';
-
-            let isPermanentDenied = false;
-            if (micStatus === 'denied') {
-                if (isAndroid) {
-                    // Android: denied + no rationale + already requested = permanent
-                    if (!shouldShowRationale && hasRequested) {
-                        isPermanentDenied = true;
-                    }
-                } else if (isIOS) {
-                    // iOS: denied + already requested = permanent
-                    if (hasRequested) {
-                        isPermanentDenied = true;
-                    }
+            const platform = Capacitor.getPlatform();
+            
+            if (permResult.currentStatus === 'granted') {
+                setPermissionStatus('granted');
+            } else if (permResult.currentStatus === 'denied') {
+                if (permResult.hasRequested && !permResult.shouldShowRationale && platform === 'android') {
+                    setPermissionStatus('permanent-denied');
+                } else if (permResult.hasRequested && platform === 'ios') {
+                    setPermissionStatus('permanent-denied');
                 } else {
-                    // Web: usually denied means permanent until user manually resets in UI
-                    if (hasRequested) isPermanentDenied = true;
+                    setPermissionStatus('denied');
                 }
+            } else {
+                setPermissionStatus('prompt');
+            }
+        } catch (e) {
+            console.warn('[useAudioRecorder] checkPermissions failed', e);
+        }
+    }, []);
 
-                if (isPermanentDenied) {
-                    throw new Error('PERMISSION_PERMANENT_DENIED');
-                } else {
-                    // Retryable: show lightweight prompt instead of direct settings
-                    throw new Error('PERMISSION_DENIED');
+    // Refresh on Mount and Foreground
+    useEffect(() => {
+        checkPermissions();
+        
+        // Setup App listener
+        let handler: any;
+        const setupListener = async () => {
+            const { App } = await import('@capacitor/app');
+            handler = await App.addListener('appStateChange', ({ isActive }) => {
+                if (isActive) {
+                    console.log('[useAudioRecorder] Refreshing permissions on foreground');
+                    checkPermissions();
                 }
+            });
+        };
+
+        setupListener();
+        return () => {
+            if (handler) handler.remove();
+        };
+    }, [checkPermissions]);
+
+    const startRecording = useCallback(async () => {
+        try {
+            // 1. Re-check before starting
+            await checkPermissions();
+            
+            if (permissionStatus === 'permanent-denied') {
+                throw new Error('PERMISSION_PERMANENT_DENIED');
+            } else if (permissionStatus === 'denied') {
+                throw new Error('PERMISSION_DENIED');
             }
 
-            // 3. Requesting Permission
+            // 2. Requesting Permission & Starting
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                // If success, mark as requested
-                localStorage.setItem('has_requested_microphone', 'true');
                 
                 const mediaRecorder = new MediaRecorder(stream);
                 mediaRecorderRef.current = mediaRecorder;
@@ -95,9 +109,6 @@ export function useAudioRecorder() {
             } catch (err: any) {
                 const isDenied = err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError';
                 if (isDenied) {
-                    localStorage.setItem('has_requested_microphone', 'true');
-                    // Check if it's permanent (usually browsers don't give rationale, 
-                    // but if it failed after request, we treat it as retryable unless it's blocked)
                     throw new Error('PERMISSION_DENIED');
                 }
                 throw err;
@@ -113,7 +124,7 @@ export function useAudioRecorder() {
                 toast.error('无法访问麦克风，请检查硬件是否正常');
             }
         }
-    }, []);
+    }, [checkPermissions, permissionStatus]);
 
     const stopRecording = useCallback(async (cancel: boolean, receiverId: string): Promise<VoiceRecordResult | null> => {
         return new Promise((resolve) => {
@@ -196,5 +207,13 @@ export function useAudioRecorder() {
         });
     }, []);
 
-    return { isRecording, isCanceled, setIsCanceled, recordDurationMs, startRecording, stopRecording };
+    return { 
+        isRecording, 
+        isCanceled, 
+        setIsCanceled, 
+        recordDurationMs, 
+        startRecording, 
+        stopRecording,
+        permissionStatus 
+    };
 }

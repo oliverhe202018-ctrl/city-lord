@@ -64,6 +64,9 @@ interface ImmersiveModeProps {
   onManualLocation?: (lat: number, lng: number) => void
   saveRun?: (isFinal?: boolean) => Promise<void>
   savedRunId?: string | null
+  runNumber?: number
+  damageSummary?: any[]
+  maintenanceSummary?: any[]
   idempotencyKey?: string
 }
 
@@ -108,6 +111,9 @@ export function ImmersiveRunningMode({
   onManualLocation,
   saveRun,
   savedRunId,
+  runNumber,
+  damageSummary,
+  maintenanceSummary,
   idempotencyKey
 }: ImmersiveModeProps) {
   const [isPaused, setIsPaused] = useState(false)
@@ -453,6 +459,10 @@ export function ImmersiveRunningMode({
 
         onStop();
         setShowSummary(false);
+        // Trigger map refresh (Phase 2)
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('citylord:refresh-territories'));
+        }
         router.replace('/');
       } catch (saveError) {
         // Persist to localStorage as offline fallback before showing retry dialog
@@ -548,6 +558,9 @@ export function ImmersiveRunningMode({
           steps={steps}
           onClose={handleStop}
           runId={savedRunId || undefined}
+          runNumber={runNumber}
+          damageSummary={damageSummary}
+          maintenanceSummary={maintenanceSummary}
           onShare={() => {
             toast.success("分享图片已生成 (模拟)")
           }}

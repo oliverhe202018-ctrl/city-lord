@@ -52,8 +52,9 @@ public class LocationForegroundService extends Service implements AMapLocationLi
     private static final int NOTIFICATION_ID = 20001;
 
     // Intent extras
-    public static final String EXTRA_NOTIFICATION_TITLE = "notification_title";
-    public static final String EXTRA_NOTIFICATION_BODY = "notification_body";
+    public static final String EXTRA_NOTIFICATION_TITLE = "extra_notification_title";
+    public static final String EXTRA_NOTIFICATION_BODY = "extra_notification_body";
+    public static final String EXTRA_INTERVAL = "extra_interval";
 
     // Broadcast action — 定位结果推送
     public static final String ACTION_LOCATION_UPDATE = "com.xiangfei.citylord.LOCATION_UPDATE";
@@ -97,7 +98,9 @@ public class LocationForegroundService extends Service implements AMapLocationLi
 
     // Notification content
     private String notificationTitle = "City Lord";
-    private String notificationBody = null; // Will be set to daily quote on start
+    private String notificationBody = null;
+    private long locationInterval = 60000; // Default 60s
+ // Will be set to daily quote on start
 
     // ---- Daily motivational quotes (60 条，每天不重样) ----
     private static final String[] DAILY_QUOTES = {
@@ -183,7 +186,7 @@ public class LocationForegroundService extends Service implements AMapLocationLi
     @Override
     public void onCreate() {
         super.onCreate();
-        Log.i(TAG, "onCreate — creating notification channel and acquiring WakeLock");
+        Log.i(TAG, "[Lifecycle] onCreate — creating notification channel and acquiring WakeLock");
 
         // 1. Create notification channel (Android 8+)
         createNotificationChannel();
@@ -203,7 +206,7 @@ public class LocationForegroundService extends Service implements AMapLocationLi
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        Log.i(TAG, "onStartCommand — starting foreground service and location tracking");
+        Log.i(TAG, "[Lifecycle] onStartCommand — starting foreground service and location tracking");
 
         // Read notification content from intent (intent may be null on START_STICKY restart)
         if (intent != null) {
@@ -211,6 +214,7 @@ public class LocationForegroundService extends Service implements AMapLocationLi
             String body = intent.getStringExtra(EXTRA_NOTIFICATION_BODY);
             if (title != null && !title.isEmpty()) notificationTitle = title;
             if (body != null && !body.isEmpty()) notificationBody = body;
+            locationInterval = intent.getLongExtra(EXTRA_INTERVAL, 60000); // Default to 60s if not provided
         } else {
             Log.w(TAG, "onStartCommand: intent is null (likely START_STICKY restart)");
         }
@@ -423,10 +427,8 @@ public class LocationForegroundService extends Service implements AMapLocationLi
             locationClient = new AMapLocationClient(getApplicationContext());
 
             AMapLocationClientOption option = new AMapLocationClientOption();
-            // 根据模式动态设置间隔：Running(2s), Standby(60s)
-            // TODO: 此处后续由 Plugin 传入 mode 参数，初步默认 Standby 逻辑防止耗电
-            long interval = 60000; 
-            option.setInterval(interval);
+            // User dynamic interval passed from Intent
+            option.setInterval(locationInterval);
             
             option.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);
             option.setNeedAddress(false);
@@ -438,7 +440,7 @@ public class LocationForegroundService extends Service implements AMapLocationLi
             locationClient.setLocationListener(this);
             locationClient.startLocation();
 
-            Log.i(TAG, "AMap location tracking started: Hight_Accuracy, interval=2000ms");
+            Log.i(TAG, "AMap location tracking started: Hight_Accuracy, interval=" + locationInterval + "ms");
         } catch (Exception e) {
             Log.e(TAG, "Failed to start location tracking: " + e.getMessage(), e);
             broadcastError(-1, "Start tracking failed: " + e.getMessage());

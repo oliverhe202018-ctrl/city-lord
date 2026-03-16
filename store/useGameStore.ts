@@ -165,8 +165,11 @@ export interface LocationActions {
   updateLocation: (lat: number, lng: number) => void;
   setRegion: (adcode: string, cityName: string, countyName: string) => void;
   setStreetName: (streetName: string | null) => void;
-  startRunning: () => void;
+  setCountdownState: (state: number) => void;
+  startRunning: (sessionId?: string) => void;
   stopRunning: () => void;
+  finalizeRunCleanup: () => void;
+  recoverRunFromNative: () => Promise<void>;
   updateSpeed: (speed: number) => void;
   addDistance: (distance: number) => void;
   updateDuration: () => void;

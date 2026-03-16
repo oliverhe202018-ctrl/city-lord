@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { mutate } from 'swr';
 import { LocationService } from '@/utils/locationService';
 import * as turf from '@turf/turf';
 import { toast } from 'sonner';
@@ -30,6 +31,7 @@ interface RunningStats {
   isPaused: boolean;
   togglePause: () => void;
   stop: () => void;
+  finalize: () => void;
   clearRecovery: () => void;
   rawDuration: number; // seconds
   area: number; // m²
@@ -43,6 +45,9 @@ interface RunningStats {
   durationSeconds: number; // seconds — use this for speed/pace calculations
   steps: number; // estimated steps (Math.floor(distanceMeters * 1.3))
   savedRunId: string | null; // Run ID for photo upload and sharing
+  runNumber?: number; // Phase 3: Total runs for user
+  damageSummary?: any[]; // Phase 3: Damage details
+  maintenanceSummary?: any[]; // Phase 4: Maintenance details
   idempotencyKey: string;
 }
 
@@ -144,6 +149,14 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   // Idempotency key for the current run
   const runIdempotencyKeyRef = useRef<string>(uuidv4());
 
+  // --- Persistence & Sync State (Moved up to avoid TDZ) ---
+  const [isSaving, setIsSaving] = useState(false);
+  const [savedRunId, setSavedRunId] = useState<string | null>(null);
+  const [runNumber, setRunNumber] = useState<number | undefined>(undefined);
+  const [damageSummary, setDamageSummary] = useState<any[] | undefined>(undefined);
+  const [maintenanceSummary, setMaintenanceSummary] = useState<any[] | undefined>(undefined);
+  const [lastSavedClaimsCount, setLastSavedClaimsCount] = useState(0);
+
   // ======== CRITICAL: Use centralized global location store ========
   // REMOVED: Direct useSafeGeolocation call — now consumed from useLocationStore
   // which is written to by the GlobalLocationProvider singleton.
@@ -240,16 +253,23 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     return undefined;
   }, [isRunning, isPaused]);
 
-  // Capacitor appStateChange — reconcile timer on foreground resume
+  // Capacitor appStateChange — reconcile timer on foreground resume & log state
   useEffect(() => {
     let cleanup: (() => void) | undefined;
     import('@capacitor/app').then(({ App }) => {
       const listenerHandle = App.addListener('appStateChange', ({ isActive }) => {
+        console.log(`[Lifecycle] appStateChange: ${isActive ? 'active' : 'background'} | time: ${new Date().toISOString()}`);
+        
         if (isActive && isRunning && !isPausedRef.current && startTimeRef.current !== null) {
           // Force re-calculate duration from absolute timestamp
           const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
           setDuration(pausedAccumulatorRef.current + elapsed);
           console.log('[useRunningTracker] Foreground resume — timer reconciled');
+        }
+
+        // 关键事件：切后台时立即强制落盘一次
+        if (!isActive && isRunning) {
+          saveState();
         }
       });
       cleanup = () => { listenerHandle.then(h => h.remove()); };
@@ -259,31 +279,39 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     return () => { cleanup?.(); };
   }, [isRunning]);
 
-  // Periodic Save (Every 5 seconds)
+  // --- Persistence & Auto-Save Function ---
+  const saveState = useCallback(() => {
+    if (!isRunning || isStoppingRef.current) return;
+    try {
+      const stateToSave = {
+        runId: savedRunId, // 可能为 null，表示尚未有服务端 ID
+        idempotencyKey: runIdempotencyKeyRef.current,
+        path: pathRef.current || [],
+        distance: distanceRef.current,
+        duration: durationRef.current,
+        pausedAccumulator: pausedAccumulatorRef.current,
+        isRunning: isRunning,
+        isPaused: isPausedRef.current,
+        startTime: startTimeRef.current,
+        closedPolygons: closedPolygonsRef.current || [],
+        area: areaRef.current || 0,
+        timestamp: Date.now(),
+        restoreSource: 'storage'
+      };
+      localStorage.setItem(RECOVERY_KEY, JSON.stringify(stateToSave));
+      console.debug('[Session] periodic_save executed');
+    } catch (e) {
+      console.error("[useRunningTracker] Failed to save run state", e);
+    }
+  }, [isRunning, savedRunId]);
+
+  // Periodic Save (Every 10 seconds per Revised Plan)
   useEffect(() => {
     if (!isRunning || isStoppingRef.current) return;
-
-    const saveState = () => {
-      try {
-        const stateToSave = {
-          path: pathRef.current || [],
-          distance: distance,
-          duration: duration,
-          startTime: Date.now() - (duration * 1000),
-          closedPolygons: closedPolygons || [],
-          area: area || 0,
-          timestamp: Date.now()
-        };
-        localStorage.setItem(RECOVERY_KEY, JSON.stringify(stateToSave));
-      } catch (e) {
-        console.error("[useRunningTracker] Failed to save run state", e);
-      }
-    };
-
-    saveState();
-    const interval = setInterval(saveState, 5000);
+    
+    const interval = setInterval(saveState, 10000);
     return () => clearInterval(interval);
-  }, [isRunning, distance, duration, closedPolygons, area]);
+  }, [isRunning, saveState]);
 
   // Weighted Smoothing
   const smoothLocation = (newLoc: Location, prevLoc: Location | null): Location => {
@@ -544,83 +572,117 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   // Recovery on start — CRITICAL: reset isStoppingRef first!
   useEffect(() => {
     if (isRunning) {
-      // ===== BUG FIX: Always reset isStoppingRef when starting a new run =====
-      // Without this, quick restart after stop keeps isStoppingRef=true,
-      // blocking timer and location updates.
       isStoppingRef.current = false;
 
-      const recoveryJson = localStorage.getItem(RECOVERY_KEY);
-      let recovered = false;
-      if (recoveryJson) {
-        try {
-          const data = JSON.parse(recoveryJson);
-          const safePath = Array.isArray(data.path) ? data.path : [];
-          // Only restore if: within 24h, AND has real run data (path with points AND meaningful distance or duration)
-          const hasRealData = safePath.length > 0 && ((data.distance || 0) > 0 || (data.duration || 0) > 5);
-          if (data.startTime && (Date.now() - data.startTime < 24 * 60 * 60 * 1000) && hasRealData) {
-            setPath(safePath);
-            setDistance(data.distance || 0);
-            const restoredDuration = data.duration || 0;
-            setDuration(restoredDuration);
-            setClosedPolygons(data.closedPolygons || []);
-            setArea(data.area || 0);
-            // Restore timestamp-based timer state
-            pausedAccumulatorRef.current = restoredDuration;
-            startTimeRef.current = null; // Will be set when timer effect fires
-            if (safePath.length > 0) {
-              const lastLoc = safePath[safePath.length - 1];
-              lastLocationRef.current = lastLoc;
-              pathRef.current = safePath;
-              setCurrentLocation(lastLoc);
-            }
-            recovered = true;
-            toast.success('已恢复上次异常退出的跑步记录');
-          } else {
-            // Stale or empty recovery data — clean it up
-            localStorage.removeItem(RECOVERY_KEY);
-          }
-        } catch (e) {
-          console.error("[useRunningTracker] Recovery failed", e);
-          localStorage.removeItem(RECOVERY_KEY);
-        }
-      }
+      const performRecovery = async () => {
+        const recoveryJson = localStorage.getItem(RECOVERY_KEY);
+        let recovered = false;
+        let restoreSource = 'none';
 
-      if (!recovered) {
-        // ===== Force-reset ALL state for a clean start =====
-        setPath([]);
-        setDistance(0);
-        setDuration(0);
-        setClosedPolygons([]);
-        setSessionClaims([]);
-        setArea(0);
-        setCurrentLocation(null);
-        lastLocationRef.current = null;
-        pathRef.current = [];
-        // Reset timestamp-based timer
-        pausedAccumulatorRef.current = 0;
-        startTimeRef.current = null;
-        runIdempotencyKeyRef.current = uuidv4();
-      }
+        // 1. Try LocalStorage
+        if (recoveryJson) {
+          try {
+            const data = JSON.parse(recoveryJson);
+            const safePath = Array.isArray(data.path) ? data.path : [];
+            const hasRealData = safePath.length > 0 && ((data.distance || 0) > 0 || (data.duration || 0) > 5);
+            
+            if (data.idempotencyKey && hasRealData) {
+              console.log(`[Session] attempting restore from storage | key: ${data.idempotencyKey}`);
+              
+              runIdempotencyKeyRef.current = data.idempotencyKey;
+              setSavedRunId(data.runId || null);
+              setPath(safePath);
+              setDistance(data.distance || 0);
+              const restoredDuration = data.duration || 0;
+              setDuration(restoredDuration);
+              setClosedPolygons(data.closedPolygons || []);
+              setArea(data.area || 0);
+              
+              setIsPaused(data.isPaused ?? false);
+              pausedAccumulatorRef.current = data.pausedAccumulator ?? restoredDuration;
+              startTimeRef.current = data.startTime || null; // 关键：如果之前在跑，需保持 startTime
+              
+              if (safePath.length > 0) {
+                const lastLoc = safePath[safePath.length - 1];
+                lastLocationRef.current = lastLoc;
+                pathRef.current = safePath;
+                setCurrentLocation(lastLoc);
+              }
+              recovered = true;
+              restoreSource = 'storage';
+            }
+          } catch (e) {
+            console.error("[useRunningTracker] LocalStorage recovery failed", e);
+          }
+        }
+
+        // 2. Try Native Mirror if LocalStorage failed but store says we are running
+        if (!recovered && await isNativePlatform()) {
+          try {
+            const { safeAMapGetSessionMirror } = await import('@/lib/capacitor/safe-plugins');
+            const mirror = await safeAMapGetSessionMirror();
+            if (mirror && mirror.isRunning && mirror.runStartTime) {
+              const elapsed = Math.floor((Date.now() - mirror.runStartTime) / 1000);
+              if (elapsed > 0 && elapsed < 86400) {
+                setDuration(elapsed);
+                pausedAccumulatorRef.current = elapsed;
+                startTimeRef.current = mirror.runStartTime;
+                recovered = true;
+                restoreSource = 'native';
+                toast.success('已从原生服务恢复后台跑步会话');
+              }
+            }
+          } catch (e) {
+            console.warn('[useRunningTracker] Native recovery attempt failed', e);
+          }
+        }
+
+        console.log(`[Session] restored: ${recovered} | source: ${restoreSource}`);
+
+        if (!recovered) {
+          // Force-reset ALL state for a clean start
+          setPath([]);
+          setDistance(0);
+          setDuration(0);
+          setClosedPolygons([]);
+          setSessionClaims([]);
+          setArea(0);
+          setCurrentLocation(null);
+          lastLocationRef.current = null;
+          pathRef.current = [];
+          pausedAccumulatorRef.current = 0;
+          startTimeRef.current = null;
+          runIdempotencyKeyRef.current = uuidv4();
+        }
+      };
+
+      performRecovery();
     }
   }, [isRunning]);
 
   const togglePause = useCallback(() => {
-    setIsPaused(prev => !prev);
-  }, []);
+    setIsPaused(prev => {
+      const next = !prev;
+      setTimeout(saveState, 0); // 低优先同步落盘
+      return next;
+    });
+  }, [saveState]);
 
   const stop = useCallback(() => {
-    try {
-      isStoppingRef.current = true;
-      setIsPaused(true);
+    isStoppingRef.current = true;
+    setIsPaused(true);
+    saveState();
+  }, [saveState]);
 
-      // Clear recovery
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem(RECOVERY_KEY);
-        console.log('[useRunningTracker] Recovery key cleared');
-      }
-    } catch (e) {
-      console.error('[useRunningTracker] Error during stop:', e);
+  const finalize = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(RECOVERY_KEY);
     }
+    // Deep reset local state
+    setPath([]);
+    setDistance(0);
+    setDuration(0);
+    lastLocationRef.current = null;
   }, []);
 
   const clearRecovery = useCallback(() => {
@@ -635,9 +697,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   const calories = Math.round(distanceKm * 70 * 1.036);
 
   // --- Persistence & Auto-Save ---
-  const [isSaving, setIsSaving] = useState(false);
-  const [lastSavedClaimsCount, setLastSavedClaimsCount] = useState(0);
-  const [savedRunId, setSavedRunId] = useState<string | null>(null);
+  // (State declarations moved to top)
 
   // Core save function — reads from REFS to avoid stale closures after sleep
   const saveRun = useCallback(async (isFinal: boolean = false) => {
@@ -688,8 +748,31 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       });
 
       if (result.success) {
+        console.log(`[useRunningTracker] Save successful | runId: ${result.data?.runId}`);
+        
+        if (isFinal) {
+          // Clear recovery key only on final successful save
+          clearRecovery();
+          setSessionClaims([]);
+          sessionClaimsRef.current = [];
+          
+          // Explicitly mutate SWR keys for Home and Task page
+          mutate('/api/home/summary');
+          mutate('/api/mission/fetch-user-missions');
+          console.log('[useRunningTracker] Triggered SWR mutation for sync');
+        }
+        
         if (result.data?.runId) {
           setSavedRunId(result.data.runId);
+        }
+        if (result.data?.runNumber) {
+          setRunNumber(result.data.runNumber);
+        }
+        if (result.data?.damageSummary) {
+          setDamageSummary(result.data.damageSummary);
+        }
+        if (result.data?.maintenanceSummary) {
+          setMaintenanceSummary(result.data.maintenanceSummary);
         }
         if (isFinal) {
           console.log("Run saved successfully:", result.data?.runId);
@@ -748,11 +831,15 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     addManualLocation,
     isSyncing: isSaving,
     saveRun, // Expose for manual final save
+    finalize, // Phase B cleanup
     // Raw data contract (preferred for calculations)
     distanceMeters: distance, // raw meters
     durationSeconds: duration, // raw seconds
     steps: estimatedSteps,
     savedRunId, // Expose the run ID for photo upload and sharing
+    runNumber,
+    damageSummary,
+    maintenanceSummary,
     idempotencyKey: runIdempotencyKeyRef.current,
   };
 }
