@@ -516,3 +516,16 @@ export async function safeOpenAppSettings(): Promise<boolean> {
   }
   return false
 }
+
+// ============== AMap Location Service Helpers ==============
+export async function safeAMapGetSessionMirror(): Promise<any> {
+    try {
+        if (!(await isNativePlatform())) return null;
+        const { registerPlugin } = await import('@capacitor/core');
+        const AMapLocation = registerPlugin<any>('AMapLocation');
+        return await AMapLocation.getSessionMirror();
+    } catch (e) {
+        console.warn('AMapLocation.getSessionMirror failed', e);
+        return null;
+    }
+}

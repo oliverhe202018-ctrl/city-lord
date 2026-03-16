@@ -12,11 +12,11 @@ export function HomeTopBar({ notificationCount = 0, onNotificationClick }: HomeT
     const { status, cityLabel } = useLocationStatus();
 
     return (
-        <div className="flex items-center justify-between px-4 py-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
+        <div className="flex items-center justify-between px-4 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] bg-white/5 backdrop-blur-md border-b border-white/5">
             {/* Left: City/Area */}
             <div className="flex items-center gap-1.5 min-w-0">
                 <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-primary" />
-                <span className="text-xs font-medium text-foreground/80 truncate max-w-[180px]">
+                <span className="text-xs font-semibold text-white/90 truncate max-w-[180px] drop-shadow-sm">
                     {cityLabel}
                 </span>
             </div>

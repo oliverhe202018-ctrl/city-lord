@@ -204,6 +204,7 @@ export function RunningHUD({
 
   // 1. Fetch Missions on Mount
   useEffect(() => {
+    console.log(`[Page] runner_page_mount | time: ${new Date().toISOString()}`);
     const loadMissions = async () => {
       try {
         const missions = await fetchUserMissions()

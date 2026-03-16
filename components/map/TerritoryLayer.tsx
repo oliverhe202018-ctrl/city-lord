@@ -279,8 +279,15 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
 
     loadTerritories();
 
+    const handleRefresh = () => {
+      console.log(`[Audit] Manual refresh triggered via event`);
+      loadTerritories();
+    };
+    window.addEventListener('citylord:refresh-territories', handleRefresh);
+
     return () => {
       mounted = false;
+      window.removeEventListener('citylord:refresh-territories', handleRefresh);
     };
   // 加入 user?.id 确保认证状态变化后 polygon 重建，以获得正确的 self/enemy 样式
   }, [map, city, viewMode, kingdomMode, user?.id]);

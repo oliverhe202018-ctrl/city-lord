@@ -272,6 +272,9 @@ export function GamePageContent({
     steps,
     area,
     savedRunId,
+    runNumber,
+    damageSummary,
+    maintenanceSummary,
     idempotencyKey,
   } = useRunningTracker(isRunning, user?.id)
 
@@ -905,6 +908,9 @@ export function GamePageContent({
           onHexClaimed={handleHexClaimed}
           saveRun={saveRun}
           savedRunId={savedRunId}
+          runNumber={runNumber}
+          damageSummary={damageSummary}
+          maintenanceSummary={maintenanceSummary}
           idempotencyKey={idempotencyKey}
         />
       )}
