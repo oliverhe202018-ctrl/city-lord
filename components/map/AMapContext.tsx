@@ -79,7 +79,7 @@ export const MapProvider = AMapContext.Provider;
 export function useMap() {
   const context = useContext(AMapContext);
   if (context === undefined) {
-    throw new Error('useMap must be used within an MapRoot (formerly AMapProvider)');
+    throw new Error('useMap must be used within a MapRoot');
   }
   return context;
 }

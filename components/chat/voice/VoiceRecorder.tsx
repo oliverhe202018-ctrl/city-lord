@@ -41,7 +41,7 @@ interface VoiceRecorderProps {
 }
 
 export function VoiceRecorder({ receiverId, onSend, disabled }: VoiceRecorderProps) {
-    const { isRecording, isCanceled, setIsCanceled, recordDurationMs, startRecording, stopRecording, stream } = useAudioRecorder();
+    const { isRecording, isCanceled, setIsCanceled, recordDurationMs, startRecording, stopRecording, stream, permissionStatus } = useAudioRecorder();
     const [showPermissionModal, setShowPermissionModal] = useState(false);
     const startYRef = useRef<number>(0);
     const buttonRef = useRef<HTMLButtonElement>(null);
@@ -52,7 +52,9 @@ export function VoiceRecorder({ receiverId, onSend, disabled }: VoiceRecorderPro
         try {
             await startRecording();
         } catch (error: any) {
-            // [NEW] 分级引导逻辑
+            console.log('[VoiceRecorder] Trigger modal interception. permissionStatus:', permissionStatus, 'showPermissionModal:', showPermissionModal);
+            // 临时注释掉触发“授权提示框”的 if 拦截逻辑，让代码直接去调用底层录音 API 暴露错误
+            /* // [NEW] 分级引导逻辑
             if (error?.message === 'PERMISSION_DENIED') {
                 const { toast } = await import('sonner');
                 toast.error('请授予麦克风权限以发送语音', {
@@ -60,7 +62,7 @@ export function VoiceRecorder({ receiverId, onSend, disabled }: VoiceRecorderPro
                 });
             } else if (error?.message === 'PERMISSION_PERMANENT_DENIED') {
                 setShowPermissionModal(true);
-            }
+            } */
         }
     };
 

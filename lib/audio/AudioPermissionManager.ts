@@ -24,34 +24,18 @@ export async function queryMicrophonePermission(): Promise<PermissionQueryResult
     return { state: 'prompt', canAskAgain: true };
   }
 
-  // 原生平台：尝试使用 @capacitor/microphone（如已安装）
-  try {
-    const { Microphone } = await import('@capacitor-community/microphone');
-    const result = await Microphone.checkPermissions();
-    const s = result.microphone;
-    return {
-      state: s === 'granted' ? 'granted' : s === 'denied' ? 'denied' : 'prompt',
-      canAskAgain: s !== 'denied',
-    };
-  } catch {
-    // 插件未安装，降级为 unknown，由调用方通过 getUserMedia 判断
-    return { state: 'unknown', canAskAgain: true };
-  }
+  // 原生平台：经核实当前项目未安装专用麦克风插件包。
+  // ⚠️ 极其重要：在此环境下严禁调用 getUserMedia 以防 WebView 渲染进程因挂起的权限请求而死锁卡住。
+  console.error('[NativePermissionError] No microphone plugin available. Blocking implicit getUserMedia call to prevent WebView hang.');
+  return { state: 'denied', canAskAgain: true };
 }
 
 export async function requestMicrophonePermission(): Promise<PermissionQueryResult> {
   if (!Capacitor.isNativePlatform()) {
     return queryMicrophonePermission();
   }
-  try {
-    const { Microphone } = await import('@capacitor-community/microphone');
-    const result = await Microphone.requestPermissions();
-    const s = result.microphone;
-    return {
-      state: s === 'granted' ? 'granted' : s === 'denied' ? 'denied' : 'prompt',
-      canAskAgain: s !== 'denied',
-    };
-  } catch {
-    return { state: 'unknown', canAskAgain: true };
-  }
+  
+  // 原生平台：通过由于插件缺失而触发的显式失败，来引导上层 UI 提示而非静默卡死。
+  console.error('[NativePermissionError] Cannot request microphone permission: native plugin missing.');
+  return { state: 'denied', canAskAgain: true };
 }

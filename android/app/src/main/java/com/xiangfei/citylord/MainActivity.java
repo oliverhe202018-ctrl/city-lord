@@ -9,6 +9,14 @@ import android.provider.Settings;
 import android.util.Log;
 
 import com.getcapacitor.BridgeActivity;
+import android.webkit.PermissionRequest;
+import android.webkit.WebChromeClient;
+import com.getcapacitor.BridgeWebChromeClient;
+import java.util.Arrays;
+import android.Manifest;
+import android.content.pm.PackageManager;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
 public class MainActivity extends BridgeActivity {
 
@@ -20,6 +28,41 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(AMapLocationPlugin.class);
 
         super.onCreate(savedInstanceState);
+
+        // 诊断注入：观察权限请求
+        setupDiagnostics();
+    }
+
+    private void setupDiagnostics() {
+        Log.d(TAG, "Setting up optimized WebChromeClient for audio permission bridging");
+        getBridge().getWebView().setWebChromeClient(new BridgeWebChromeClient(getBridge()) {
+            @Override
+            public void onPermissionRequest(final PermissionRequest request) {
+                String[] resources = request.getResources();
+                boolean isAudioRequest = false;
+                for (String resource : resources) {
+                    if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource)) {
+                        isAudioRequest = true;
+                        break;
+                    }
+                }
+
+                if (isAudioRequest) {
+                    Log.i(TAG, "Audio permission request detected from WebView");
+                    // 检查 RECORD_AUDIO 权限状态
+                    if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                        Log.i(TAG, "RECORD_AUDIO already granted, granting to WebView");
+                        request.grant(new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE});
+                    } else {
+                        Log.i(TAG, "RECORD_AUDIO not granted, falling back to official Capacitor bridge for prompting");
+                        // 如果缺失 MODIFY_AUDIO_SETTINGS 导致官方 super 不工作，此处可根据后续诊断决定是否手动 ActivityCompat.requestPermissions
+                        super.onPermissionRequest(request);
+                    }
+                } else {
+                    super.onPermissionRequest(request);
+                }
+            }
+        });
     }
 
     @Override

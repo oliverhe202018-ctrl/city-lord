@@ -14,6 +14,7 @@ export async function acquireAudioStream(): Promise<StreamResult> {
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       return { ok: true, stream };
     } catch (err: any) {
+      console.log('[AudioStreamManager] getUserMedia exception caught:', err, 'error.name:', err?.name, 'error.message:', err?.message);
       const isDenied =
         err.name === 'NotAllowedError' ||
         err.name === 'PermissionDeniedError' ||
