@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Mic, X } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { useAudioRecorder, VoiceRecordResult } from '@/hooks/useAudioRecorder';
+import { useWaveform } from '@/hooks/useWaveform';
 import { cn } from '@/lib/utils';
 import { registerPlugin, Capacitor } from '@capacitor/core';
 
@@ -15,6 +16,24 @@ interface AMapLocationPlugin {
 
 const AMapLocation = registerPlugin<AMapLocationPlugin>('AMapLocation');
 
+function WaveformAnimation({ stream }: { stream: MediaStream | null }) {
+    const bars = useWaveform(stream);
+
+    return (
+        <div className="flex items-end gap-[4px] h-10 mb-2">
+            {bars.map((bar, i)=>(
+                <div
+                    key={i}
+                    className="w-[4px] bg-white rounded-full transition-[height] duration-75"
+                    style={{
+                        height: `${bar.height}px`
+                    }}
+                />
+            ))}
+        </div>
+    );
+}
+
 interface VoiceRecorderProps {
     receiverId: string;
     onSend: (result: VoiceRecordResult) => void;
@@ -22,7 +41,7 @@ interface VoiceRecorderProps {
 }
 
 export function VoiceRecorder({ receiverId, onSend, disabled }: VoiceRecorderProps) {
-    const { isRecording, isCanceled, setIsCanceled, recordDurationMs, startRecording, stopRecording } = useAudioRecorder();
+    const { isRecording, isCanceled, setIsCanceled, recordDurationMs, startRecording, stopRecording, stream } = useAudioRecorder();
     const [showPermissionModal, setShowPermissionModal] = useState(false);
     const startYRef = useRef<number>(0);
     const buttonRef = useRef<HTMLButtonElement>(null);
@@ -68,7 +87,10 @@ export function VoiceRecorder({ receiverId, onSend, disabled }: VoiceRecorderPro
     };
 
     // Touch events
-    const onTouchStart = (e: React.TouchEvent) => handleStart(e.touches[0].clientY);
+    const onTouchStart = (e: React.TouchEvent) => {
+        e.preventDefault();
+        handleStart(e.touches[0].clientY);
+    };
     const onTouchMove = (e: React.TouchEvent) => handleMove(e.touches[0].clientY);
     const onTouchEnd = () => handleEnd();
 
@@ -99,8 +121,9 @@ export function VoiceRecorder({ receiverId, onSend, disabled }: VoiceRecorderPro
             <button
                 ref={buttonRef}
                 type="button" // prevent form submission
+                onContextMenu={(e)=>e.preventDefault()}
                 className={cn(
-                    "flex-1 h-10 flex items-center justify-center font-medium rounded-xl select-none transition-colors",
+                    "flex-1 h-10 flex items-center justify-center font-medium rounded-xl select-none touch-none transition-colors",
                     isRecording
                         ? "bg-zinc-700 text-white"
                         : "bg-muted text-muted-foreground hover:bg-muted/80",
@@ -128,7 +151,7 @@ export function VoiceRecorder({ receiverId, onSend, disabled }: VoiceRecorderPro
                         {isCanceled ? (
                             <X className="w-12 h-12 text-white mb-2" />
                         ) : (
-                            <Mic className="w-12 h-12 text-white mb-2 animate-pulse" />
+                            <WaveformAnimation stream={stream} />
                         )}
 
                         <span className="text-white text-sm font-medium px-2 text-center">

@@ -3,6 +3,9 @@ import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { logEvent } from '@/lib/native-log';
 import { Capacitor } from '@capacitor/core';
+import { queryMicrophonePermission } from '@/lib/audio/AudioPermissionManager';
+import { acquireAudioStream, releaseStream, getMediaRecorderOptions } from '@/lib/audio/AudioStreamManager';
+import { uploadAudio } from '@/lib/audio/AudioUploader';
 
 export interface VoiceRecordResult {
     audioUrl: string;
@@ -17,6 +20,11 @@ export function useAudioRecorder() {
     const [isCanceled, setIsCanceled] = useState(false);
     const [recordDurationMs, setRecordDurationMs] = useState(0);
 
+    const hasRequestedRef = useRef(false);
+    const maxDurationTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const retryCountRef = useRef(0);
+    const onAutoStopRef = useRef<(() => void) | null>(null);
+
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const audioChunksRef = useRef<Blob[]>([]);
     const startTimeRef = useRef<number>(0);
@@ -28,26 +36,18 @@ export function useAudioRecorder() {
             return 'granted';
         }
         try {
-            const { safeCheckMicrophonePermission } = await import('@/lib/capacitor/safe-plugins');
-            const permResult = await safeCheckMicrophonePermission();
-            const platform = Capacitor.getPlatform();
-            
+            const result = await queryMicrophonePermission();
+
             let status: 'prompt' | 'granted' | 'denied' | 'permanent-denied' = 'prompt';
 
-            if (permResult.currentStatus === 'granted') {
+            if (result.state === 'granted') {
                 status = 'granted';
-            } else if (permResult.currentStatus === 'denied') {
-                if (permResult.hasRequested && !permResult.shouldShowRationale && platform === 'android') {
-                    status = 'permanent-denied';
-                } else if (permResult.hasRequested && platform === 'ios') {
-                    status = 'permanent-denied';
-                } else {
-                    status = 'denied';
-                }
+            } else if (result.state === 'denied' || (result.state === 'unknown' && hasRequestedRef.current && !result.canAskAgain)) {
+                status = result.canAskAgain ? 'denied' : 'permanent-denied';
             } else {
                 status = 'prompt';
             }
-            
+
             setPermissionStatus(status);
             return status;
         } catch (e) {
@@ -78,79 +78,121 @@ export function useAudioRecorder() {
         };
     }, [checkPermissions]);
 
-    const startRecording = useCallback(async () => {
+    const setupMediaRecorder = useCallback((stream: MediaStream): MediaRecorder => {
+        const options = getMediaRecorderOptions();
+        const mediaRecorder = new MediaRecorder(stream, options);
+
+        mediaRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) {
+                audioChunksRef.current.push(event.data);
+            }
+        };
+
+        mediaRecorder.onerror = async () => {
+            if (retryCountRef.current >= 1) {
+                toast.error('录音异常，请重试');
+                setIsRecording(false);
+                retryCountRef.current = 0;
+                return;
+            }
+            retryCountRef.current += 1;
+            console.warn('[useAudioRecorder] MediaRecorder error, retrying...');
+
+            releaseStream(stream);
+            const retryResult = await acquireAudioStream();
+            if (!retryResult.ok) {
+                toast.error('录音恢复失败，请重试');
+                setIsRecording(false);
+                retryCountRef.current = 0;
+                return;
+            }
+            const newRecorder = setupMediaRecorder(retryResult.stream);
+            audioChunksRef.current = []; // 清空损坏数据，从干净状态开始
+            mediaRecorderRef.current = newRecorder;
+            newRecorder.start(250);
+        };
+
+        return mediaRecorder;
+    }, []);
+
+    const startRecording = useCallback(async (onAutoStop?: () => void) => {
         try {
-            // 1. 实时权限快照
-            const { safeCheckMicrophonePermission } = await import('@/lib/capacitor/safe-plugins');
-            const permResult = await safeCheckMicrophonePermission();
-            
-            logEvent('audio_permission_snapshot', { 
-                status: permResult.currentStatus, 
-                hasRequested: permResult.hasRequested,
-                platform: Capacitor.getPlatform() 
-            });
-            
-            // 2. 直接发起录制请求 (getUserMedia 会在 Webview/Bridge 层面自动处理权限申请流程)
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                
-                permResult.markRequested();
-                if (typeof window !== 'undefined') localStorage.removeItem('has_requested_microphone');
-                
-                logEvent('audio_permission_granted');
+            retryCountRef.current = 0;
+            onAutoStopRef.current = onAutoStop ?? null;
 
-                const mediaRecorder = new MediaRecorder(stream);
-                mediaRecorderRef.current = mediaRecorder;
-                audioChunksRef.current = [];
-                setIsRecording(true);
-                setIsCanceled(false);
-                setRecordDurationMs(0);
-                startTimeRef.current = Date.now();
+            const streamResult = await acquireAudioStream();
 
-                mediaRecorder.ondataavailable = (event) => {
-                    if (event.data.size > 0) {
-                        audioChunksRef.current.push(event.data);
-                    }
-                };
+            if (!streamResult.ok) {
+                const wasAlreadyRequested = hasRequestedRef.current;
+                hasRequestedRef.current = true;
 
-                mediaRecorder.start();
+                logEvent('audio_record_start_failed', { reason: streamResult.reason });
 
-                logEvent('audio_record_start_success');
-
-                timerRef.current = setInterval(() => {
-                    setRecordDurationMs(Date.now() - startTimeRef.current);
-                }, 100);
-
-            } catch (err: any) {
-                const wasAlreadyRequested = permResult.hasRequested; // 先读旧值
-                permResult.markRequested();                           // 再写入
-
-                const isDenied =
-                    err.name === 'NotAllowedError' ||
-                    err.name === 'PermissionDeniedError' ||
-                    err.name === 'SecurityError';
-
-                logEvent('audio_record_start_failed', { errorName: err.name, errorMessage: err.message });
-
-                if (isDenied) {
+                if (streamResult.reason === 'permission-denied') {
                     throw new Error(wasAlreadyRequested ? 'PERMISSION_PERMANENT_DENIED' : 'PERMISSION_DENIED');
                 }
-                throw err;
+                if (streamResult.reason === 'not-found') {
+                    throw new Error('DEVICE_NOT_FOUND');
+                }
+                throw new Error('STREAM_ERROR');
             }
+
+            hasRequestedRef.current = false;
+
+            const stream = streamResult.stream;
+            logEvent('audio_permission_granted');
+
+            const mediaRecorder = setupMediaRecorder(stream);
+            mediaRecorderRef.current = mediaRecorder;
+            audioChunksRef.current = [];
+            setIsRecording(true);
+            setIsCanceled(false);
+            setRecordDurationMs(0);
+            startTimeRef.current = Date.now();
+
+            mediaRecorder.start(250);
+            logEvent('audio_record_start_success');
+
+            timerRef.current = setInterval(() => {
+                setRecordDurationMs(Date.now() - startTimeRef.current);
+            }, 100);
+
+            maxDurationTimerRef.current = setTimeout(() => {
+                if (mediaRecorderRef.current?.state === 'recording') {
+                    logEvent('audio_record_auto_stop', { reason: 'max_duration' });
+                    mediaRecorderRef.current.stop();
+                    setIsRecording(false);
+                    if (timerRef.current) {
+                        clearInterval(timerRef.current);
+                        timerRef.current = null;
+                    }
+                    if (maxDurationTimerRef.current) {
+                        clearTimeout(maxDurationTimerRef.current);
+                        maxDurationTimerRef.current = null;
+                    }
+                    onAutoStopRef.current?.();
+                }
+            }, 60000);
 
         } catch (err: any) {
             console.error('Error accessing microphone', err);
             setIsRecording(false);
 
             if (err.message === 'PERMISSION_PERMANENT_DENIED' || err.message === 'PERMISSION_DENIED') {
-                throw err; // 由 UI 层拦截并弹出设置引导或提示
+                throw err;
+            } else if (err.message === 'DEVICE_NOT_FOUND') {
+                toast.error('未检测到麦克风设备，请检查硬件连接');
             } else {
                 toast.error('无法激活麦克风，请检查权限或硬件连接');
             }
         }
-    }, [checkPermissions]);
+    }, [setupMediaRecorder]);
 
     const stopRecording = useCallback(async (cancel: boolean, receiverId: string): Promise<VoiceRecordResult | null> => {
+        if (maxDurationTimerRef.current) {
+            clearTimeout(maxDurationTimerRef.current);
+            maxDurationTimerRef.current = null;
+        }
         return new Promise((resolve) => {
             if (!mediaRecorderRef.current || mediaRecorderRef.current.state === 'inactive') {
                 resolve(null);
@@ -183,43 +225,33 @@ export function useAudioRecorder() {
                     return;
                 }
 
-                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+                const mimeType = mediaRecorderRef.current?.mimeType || 'audio/webm';
+                const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
 
-                // Upload to Supabase 
+                const supabase = createClient();
+                const { data: { session } } = await supabase.auth.getSession();
+                const senderId = session?.user?.id;
+                if (!senderId) {
+                    toast.error('未登录');
+                    resolve(null);
+                    return;
+                }
+
                 try {
-                    const supabase = createClient();
-                    const { data: { session } } = await supabase.auth.getSession();
-                    const senderId = session?.user?.id;
-                    if (!senderId) {
-                        toast.error('未登录');
-                        resolve(null);
-                        return;
-                    }
-
-                    const fileName = `private/${senderId}/${receiverId}/${Date.now()}_${Math.random().toString(36).substring(7)}.webm`;
-
-                    const { data, error } = await supabase.storage
-                        .from('voice-messages')
-                        .upload(fileName, audioBlob, {
-                            contentType: 'audio/webm',
-                            cacheControl: '3600',
-                            upsert: false
-                        });
-
-                    if (error) {
-                        console.error('Upload error:', error);
-                        toast.error('语音发送失败');
-                        resolve(null);
-                        return;
-                    }
-
-                    resolve({
-                        audioUrl: data.path,
+                    const uploadResult = await uploadAudio({
+                        senderId,
+                        receiverId,
+                        audioBlob,
+                        mimeType,
                         durationMs,
-                        mimeType: 'audio/webm',
-                        sizeBytes: audioBlob.size,
                     });
 
+                    resolve({
+                        audioUrl: uploadResult.path,
+                        durationMs,
+                        mimeType,
+                        sizeBytes: uploadResult.sizeBytes,
+                    });
                 } catch (uploadErr) {
                     console.error('Upload exception:', uploadErr);
                     toast.error('语音发送失败');
@@ -238,6 +270,7 @@ export function useAudioRecorder() {
         recordDurationMs, 
         startRecording, 
         stopRecording,
-        permissionStatus 
+        permissionStatus,
+        stream: mediaRecorderRef.current?.stream ?? null,
     };
 }
