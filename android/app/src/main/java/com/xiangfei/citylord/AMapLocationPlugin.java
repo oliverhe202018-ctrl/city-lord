@@ -41,6 +41,7 @@ public class AMapLocationPlugin extends Plugin {
     private BroadcastReceiver trackingLocationReceiver = null;
     private BroadcastReceiver trackingErrorReceiver = null;
     private BroadcastReceiver trackingLogReceiver = null;
+    private boolean isTracking = false;
 
     // -----------------------------------------------------------------------
     // Plugin lifecycle
