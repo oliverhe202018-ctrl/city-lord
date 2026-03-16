@@ -484,38 +484,28 @@ export async function safeRequestMicrophonePermission(): Promise<'granted' | 'de
 
 // ============== App Settings ==============
 export async function safeOpenAppSettings(): Promise<boolean> {
+  if (typeof window === 'undefined') return false
+
   try {
     const { Capacitor } = await import('@capacitor/core')
-    if (Capacitor.isNativePlatform()) {
-      const platform = Capacitor.getPlatform()
-      if (platform === 'ios') {
-        if (typeof window !== 'undefined') {
-          window.location.href = 'app-settings:'
-        }
-        return true
-      }
-      
-      if (platform === 'android') {
-        try {
-          if (!(await isNativePlatform())) return false;
-          // [FIXED] Use webpackIgnore to stop Vercel/Webpack from trying to resolve this native-only package
-          const mod = await import(/* webpackIgnore: true */ '@capacitor-community/native-settings').catch(() => null);
-          if (mod && mod.NativeSettings) {
-             await mod.NativeSettings.open({ option: 'app_details' });
-             return true;
-          }
-        } catch (e) {
-          console.error('NativeSettings plugin failed', e);
-        }
-        
-        return false
-      }
-    }
+    if (Capacitor.getPlatform() === 'web') return false
+
+    // 使用动态导入，确保构建时不会解析到 native 包
+    const mod = await import('capacitor-native-settings')
+    const { NativeSettings, AndroidSettings, IOSSettings } = mod
+
+    await NativeSettings.open({
+      optionAndroid: AndroidSettings.ApplicationDetails,
+      optionIOS: IOSSettings.App,
+    })
+
+    return true
   } catch (e) {
     console.error('Failed to open app settings', e)
+    return false
   }
-  return false
 }
+
 
 // ============== AMap Location Service Helpers ==============
 export async function safeAMapGetSessionMirror(): Promise<any> {

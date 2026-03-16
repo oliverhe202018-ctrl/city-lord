@@ -31,9 +31,9 @@
 		"HapticsPlugin",
 		"KeyboardPlugin",
 		"LocalNotificationsPlugin",
-		"PushNotificationsPlugin",
 		"StatusBarPlugin",
 		"BackgroundTaskPlugin",
-		"CapacitorHealthkitPlugin"
+		"CapacitorHealthkitPlugin",
+		"NativeSettingsPlugin"
 	]
 }
