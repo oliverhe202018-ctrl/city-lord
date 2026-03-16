@@ -122,6 +122,13 @@ npm run dev
 
 ## 📅 近期更新日志 (Changelog)
 
+### 2026-03-16: 🛡️ 核心故障修复与系统加固 (v4 灰度版)
+*   **Android 前台服务 (P0)**: 深度适配 Android 14+；实现 `FOREGROUND_SERVICE_TYPE_LOCATION` 强制声明；重构 `onStartCommand` 为“先恢复状态、后启动通知”的严谨时序，支持 `START_STICKY` 后的 `null intent` 状态自愈。
+*   **Session 崩溃恢复 (P0)**: 升级至 Recovery 2.0 机制；补全 `isRunning`、`status`、`sessionVersion` 等 7 项快照字段；引入版本硬分叉校验与 24h 失效强制清理逻辑，杜绝误恢复与循环弹窗。
+*   **SQL 与领地可见性 (P1)**: 修复 `settlement.ts` 中 Join 查询产生的字段歧义故障 (SQL Ambiguity)；补齐 `city.ts` 领地流接口中缺失的 `geojson_json` 字段，确保占领地在全网立即同步可见。
+*   **全链路观测系统**: 建立全系统统一命名埋点体系 (如 `fgs_start_success`, `run_session_restore_failed`)，覆盖 Native 启动、Session 状态机、地图重试及语音竞态等 11 类核心监控位。
+*   **录音竞态修复**: 解决麦克风权限授予与 MediaRecorder 启动间的 React 异步状态竞态，实现“授权即刻录制”的毫秒级响应。
+
 ### 2026-03-15: ⚡ 包含区域暴击逻辑与面积排除
 *   **暴击机制**: 实现新领地完全包围旧领地时触发 3 倍伤害结算；同步记录 `CRIT_ATTACKED` 事件。
 *   **判定算法**: 引入 PostGIS `ST_Contains` 精确判定包围关系，并通过 `turf.difference` 在新领地中自动形成“洞”，实现被包围面积的自动排除。
