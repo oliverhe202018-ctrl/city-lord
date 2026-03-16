@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Mail, Loader2, Lock, KeyRound, Phone } from "lucide-react"
 import Link from "next/link"
+import { logEvent } from '@/lib/native-log';
 import { toast } from "sonner"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -28,16 +29,6 @@ function LoginPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClient()
-
-  // Helper for logging events
-  const logEvent = (eventName: string, data?: any) => {
-    if (typeof window !== 'undefined' && (window as any).Capacitor?.Plugins?.AMapLocation) {
-      (window as any).Capacitor.Plugins.AMapLocation.logEvent({ 
-        eventName, 
-        data: data ? JSON.stringify(data) : undefined 
-      });
-    }
-  };
 
   useEffect(() => {
     logEvent('login_page_view', { platform: Capacitor.getPlatform() });

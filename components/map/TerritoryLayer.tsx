@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
+import { logEvent } from '@/lib/native-log';
 import type { ExtTerritory } from "@/types/city";
 import { useCity } from "@/contexts/CityContext";
 import { useMapInteraction } from "./MapInteractionContext";
@@ -119,13 +120,9 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
         }
 
         if (data && data.length > 0) {
-          if (typeof window !== 'undefined' && (window as any).Capacitor?.Plugins?.AMapLocation) {
-             (window as any).Capacitor.Plugins.AMapLocation.logEvent({ eventName: 'territory_render_success', data: JSON.stringify({ count: data.length }) });
-          }
+          logEvent('territory_render_success', { count: data.length });
         } else {
-          if (typeof window !== 'undefined' && (window as any).Capacitor?.Plugins?.AMapLocation) {
-             (window as any).Capacitor.Plugins.AMapLocation.logEvent({ eventName: 'territory_render_empty', data: JSON.stringify({ cityId: city.id }) });
-          }
+          logEvent('territory_render_empty', { cityId: city.id });
         }
 
         console.log(`[Audit] Success: API returned ${data.length} items`);
@@ -259,9 +256,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
         }
         
         // [埋点补齐] 渲染成功
-        if (typeof window !== 'undefined' && (window as any).Capacitor?.Plugins?.AMapLocation) {
-           (window as any).Capacitor.Plugins.AMapLocation.logEvent({ eventName: 'territory_render_success', data: JSON.stringify({ cityId: city.id, count: data.length }) });
-        }
+        logEvent('territory_render_success', { cityId: city.id, count: data.length });
 
       } catch (error: any) {
         if (!mounted) return;
@@ -269,9 +264,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
           console.error(`Failed to load territories (retry=${retryCount}):`, error);
           
           // 埋点: territory_render_retry
-          if (typeof window !== 'undefined' && (window as any).Capacitor?.Plugins?.AMapLocation) {
-             (window as any).Capacitor.Plugins.AMapLocation.logEvent({ eventName: 'territory_render_retry', data: JSON.stringify({ retryCount: retryCount + 1, error: error.message }) });
-          }
+          logEvent('territory_render_retry', { retryCount: retryCount + 1, error: error.message });
 
           if (retryCount < 4) {
             const delay = 500 * Math.pow(2, retryCount); 

@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
+import { logEvent } from '@/lib/native-log';
 import { Capacitor } from '@capacitor/core';
 
 export interface VoiceRecordResult {
@@ -81,12 +82,7 @@ export function useAudioRecorder() {
         try {
             // 1. 实时权限快照埋点
             const currentStatus = await checkPermissions();
-            if (typeof window !== 'undefined' && (window as any).Capacitor?.Plugins?.AMapLocation) {
-                (window as any).Capacitor.Plugins.AMapLocation.logEvent({ 
-                    eventName: 'audio_permission_snapshot', 
-                    data: JSON.stringify({ status: currentStatus, platform: Capacitor.getPlatform() }) 
-                });
-            }
+            logEvent('audio_permission_snapshot', { status: currentStatus, platform: Capacitor.getPlatform() });
             
             if (currentStatus === 'permanent-denied') {
                 throw new Error('PERMISSION_PERMANENT_DENIED');
@@ -97,10 +93,7 @@ export function useAudioRecorder() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 
-                // 埋点: audio_permission_granted
-                if (typeof window !== 'undefined' && (window as any).Capacitor?.Plugins?.AMapLocation) {
-                    (window as any).Capacitor.Plugins.AMapLocation.logEvent({ eventName: 'audio_permission_granted' });
-                }
+                logEvent('audio_permission_granted');
 
                 const mediaRecorder = new MediaRecorder(stream);
                 mediaRecorderRef.current = mediaRecorder;
@@ -118,10 +111,7 @@ export function useAudioRecorder() {
 
                 mediaRecorder.start();
 
-                // 埋点: audio_record_start_success
-                if (typeof window !== 'undefined' && (window as any).Capacitor?.Plugins?.AMapLocation) {
-                    (window as any).Capacitor.Plugins.AMapLocation.logEvent({ eventName: 'audio_record_start_success' });
-                }
+                logEvent('audio_record_start_success');
 
                 timerRef.current = setInterval(() => {
                     setRecordDurationMs(Date.now() - startTimeRef.current);
@@ -130,13 +120,7 @@ export function useAudioRecorder() {
             } catch (err: any) {
                 const isDenied = err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError' || err.name === 'SecurityError';
                 
-                // 埋点: audio_record_start_failed
-                if (typeof window !== 'undefined' && (window as any).Capacitor?.Plugins?.AMapLocation) {
-                    (window as any).Capacitor.Plugins.AMapLocation.logEvent({ 
-                        eventName: 'audio_record_start_failed', 
-                        data: JSON.stringify({ errorName: err.name, errorMessage: err.message }) 
-                    });
-                }
+                logEvent('audio_record_start_failed', { errorName: err.name, errorMessage: err.message });
 
                 if (isDenied) {
                     // 再次检查权限，确认是否是永久拒绝
