@@ -123,9 +123,13 @@ function setupMediaSession(item: QueueItem, audio: HTMLAudioElement) {
 
 function stopCurrent() {
   if (currentAudio) {
+    console.log('[AudioPlayer] stopping current audio', currentMessageId);
     currentAudio.pause();
     currentAudio.onended = null;
     currentAudio.onerror = null;
+    currentAudio.oncanplay = null;
+    // 释放资源，防止内存泄漏和实例竞争
+    currentAudio.src = '';
     currentAudio = null;
   }
   currentMessageId = null;
@@ -141,12 +145,29 @@ async function playItem(item: QueueItem): Promise<void> {
   const cached = preloadCache.get(item.messageId);
   const audio = cached ?? new Audio(item.url);
 
+  console.log('[AudioPlayer] playItem start', {
+    messageId: item.messageId,
+    url: item.url,
+    cached: !!cached,
+    readyState: audio.readyState,
+    paused: audio.paused
+  });
+
   // 确保 src 正确（URL 刷新后 cached.src 已更新）
   if (!cached) {
     audio.preload = 'auto';
+    // 仅对非本地地址添加 crossOrigin
+    const isRemote = item.url.startsWith('http') && !item.url.includes(window.location.host);
+    if (isRemote) {
+      audio.crossOrigin = 'anonymous';
+    }
   }
 
+  // 明确初始化音频状态，防止静音或音量为 0
+  audio.volume = 1;
+  audio.muted = false;
   audio.playbackRate = currentRate;
+  
   currentAudio = audio;
   currentMessageId = item.messageId;
   notifyListeners();
@@ -155,6 +176,7 @@ async function playItem(item: QueueItem): Promise<void> {
 
   return new Promise((resolve) => {
     audio.onended = () => {
+      console.log('[AudioPlayer] playback ended', item.messageId);
       clearMediaSession();
       item.onEnd?.(item.messageId);
       currentAudio = null;
@@ -163,8 +185,12 @@ async function playItem(item: QueueItem): Promise<void> {
       resolve();
     };
 
-    audio.onerror = () => {
-      console.error('[AudioPlayer] playback error', item.messageId);
+    audio.onerror = (e) => {
+      console.error('[AudioPlayer] HTMLAudioElement error', {
+        messageId: item.messageId,
+        url: audio.src,
+        error: audio.error
+      });
       clearMediaSession();
       currentAudio = null;
       currentMessageId = null;
@@ -172,14 +198,31 @@ async function playItem(item: QueueItem): Promise<void> {
       resolve();
     };
 
-    audio.play().catch((e) => {
-      console.error('[AudioPlayer] play() rejected', e);
-      clearMediaSession();
-      currentAudio = null;
-      currentMessageId = null;
-      notifyListeners();
+    const playPromise = audio.play();
+    if (playPromise !== undefined) {
+      playPromise
+        .then(() => {
+          console.log('[AudioPlayer] play() success', item.messageId);
+        })
+        .catch((e) => {
+          console.error('[AudioPlayer] play() rejected', {
+            messageId: item.messageId,
+            url: audio.src,
+            error: e.message,
+            readyState: audio.readyState,
+            volume: audio.volume,
+            muted: audio.muted
+          });
+          clearMediaSession();
+          currentAudio = null;
+          currentMessageId = null;
+          notifyListeners();
+          resolve();
+        });
+    } else {
+      console.log('[AudioPlayer] play() called (legacy synchronous)');
       resolve();
-    });
+    }
   });
 }
 

@@ -147,7 +147,7 @@ export function VoiceRecorder({ receiverId, onSend, disabled }: VoiceRecorderPro
             {isRecording && (
                 <div className="fixed inset-0 z-[10000] flex flex-col items-center justify-center pointer-events-none bg-black/20">
                     <div className={cn(
-                        "w-36 h-36 rounded-2xl flex flex-col items-center justify-center backdrop-blur-md shadow-2xl transition-colors duration-200",
+                        "w-36 h-36 rounded-2xl flex flex-col items-center justify-center backdrop-blur-md shadow-2xl transition-colors duration-200 -translate-y-24",
                         isCanceled ? "bg-red-500/80" : "bg-black/60"
                     )}>
                         {isCanceled ? (

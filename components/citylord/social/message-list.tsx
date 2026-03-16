@@ -157,7 +157,6 @@ export function MessageList({ initialFriendId, mode = 'system' }: MessageListPro
         throw new Error(resp.error);
       }
       mutate()
-      toast.success("语音发送成功")
     } catch (error: any) {
       toast.error(error.message || "语音发送失败")
       if (result.audioUrl) {

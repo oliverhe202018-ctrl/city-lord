@@ -150,7 +150,8 @@ export function VoiceMessageBubble({
     if (audioCtxRef.current) return;
 
     try {
-      const ctx = new AudioContext();
+      console.log('[VoiceMessageBubble] starting analyser for', messageId);
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
       const source = ctx.createMediaElementSource(audio);
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 64; // 低 fftSize = 低延迟，够用
@@ -162,7 +163,15 @@ export function VoiceMessageBubble({
       sourceNodeRef.current = source;
       analyserRef.current = analyser;
     } catch (e) {
-      console.warn('[VoiceMessageBubble] AnalyserNode init failed', e);
+      console.warn('[VoiceMessageBubble] AnalyserNode init failed (will still play audio)', {
+        messageId,
+        error: e instanceof Error ? e.message : String(e),
+        url: audioUrl
+      });
+      // 确保即使报错也将相关 ref 置空，防止下次重复尝试导致更多错误
+      audioCtxRef.current = null;
+      sourceNodeRef.current = null;
+      analyserRef.current = null;
     }
   }
 
@@ -175,7 +184,8 @@ export function VoiceMessageBubble({
 
     function tickWave() {
       const audio = getCurrentAudio();
-      if (!audio || audio.paused) return;
+      const analyser = analyserRef.current;
+      if (!audio || audio.paused || !analyser) return;
 
       analyser.getByteFrequencyData(data);
 
@@ -218,6 +228,11 @@ export function VoiceMessageBubble({
     if (isLoading) return;
 
     const isCurrentlyPlaying = getCurrentPlayingId() === messageId;
+    console.log('[VoiceMessageBubble] handleToggle click', {
+      messageId,
+      isCurrentlyPlaying,
+      hasAudioUrl: !!audioUrl
+    });
 
     if (isCurrentlyPlaying) {
       pauseCurrent();
@@ -226,7 +241,16 @@ export function VoiceMessageBubble({
     }
 
     const url = await ensureFreshUrl();
-    if (!url) return;
+    if (!url) {
+      console.error('[VoiceMessageBubble] toggle failed: no fresh URL', messageId);
+      return;
+    }
+
+    // 满足浏览器自动播放策略：在用户交互路径中恢复 AudioContext
+    if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
+      console.log('[VoiceMessageBubble] resuming suspended AudioContext');
+      audioCtxRef.current.resume().catch(e => console.error('[VoiceMessageBubble] resume context failed', e));
+    }
 
     // 自动已读（点击即标记）
     if (!isSender && !localIsRead) {
@@ -252,27 +276,6 @@ export function VoiceMessageBubble({
       },
     });
 
-    // 把后续语音加入队列（无需 await signed URL，队列播放前会通过各自组件刷新）
-    if (tail.length > 0) {
-      // 仅加入已有 preload 缓存的（挂载过的气泡）
-      // 未挂载的气泡不在缓存里，跳过不影响体验
-      const queueItems = tail
-        .map((v) => {
-          // 从 preloadCache 读 URL 是不可能的（模块私有），
-          // 所以这里用一个约定：尾部队列在播放时 AudioPlayer 会用 preloadCache 里的 Audio
-          // 只需要传占位 url，实际播放走缓存
-          return { url: '', messageId: v.messageId, onEnd: undefined };
-        })
-        // 过滤掉没有预热缓存的（url 为空且不在缓存里的无法播放）
-        .filter((item) => item.messageId !== messageId);
-
-      // 注意：因为 preloadCache 在 AudioPlayer 内部，
-      // 空 url 的队列项在 playItem 里 new Audio('') 会报错。
-      // 正确做法：在 AudioPlayer 暴露 hasPreload() 判断
-      // 这里暂时只把有 url 的加入队列（见下方说明）
-      // 实际自动连续播放由父组件统一传入带 url 的 voiceQueue 实现
-    }
-
     // 启动进度同步
     startRaf();
 
@@ -281,7 +284,12 @@ export function VoiceMessageBubble({
       const audio = getCurrentAudio();
       if (audio) {
         startAnalyser(audio);
-        startWaveformRaf();
+        // 只有 analyser 成功初始化才启动波形 RAF
+        if (analyserRef.current) {
+          startWaveformRaf();
+        }
+      } else {
+        console.warn('[VoiceMessageBubble] cannot start analyser: audio object not found');
       }
     });
   }, [isLoading, messageId, audioUrl, isSender, localIsRead, voiceQueue]);
