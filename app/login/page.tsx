@@ -5,13 +5,14 @@ import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowLeft, Mail, Loader2, Lock, KeyRound, Phone } from "lucide-react"
+import { Mail, Loader2, Lock, KeyRound, Phone } from "lucide-react"
 import Link from "next/link"
 import { toast } from "sonner"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
+import { Capacitor } from "@capacitor/core"
 
 function LoginPageContent() {
   const [email, setEmail] = useState("")
@@ -19,59 +20,59 @@ function LoginPageContent() {
   const [password, setPassword] = useState("")
   const [verificationCode, setVerificationCode] = useState("")
   const [codeSent, setCodeSent] = useState(false)
-  // cooldowns: { [scene_key]: timestamp }
   const [cooldowns, setCooldowns] = useState<Record<string, number>>({})
   const [now, setNow] = useState(Date.now())
   const [loading, setLoading] = useState(false)
-  const [submitted, setSubmitted] = useState(false)
   const [agreed, setAgreed] = useState(false)
   const [loginMethod, setLoginMethod] = useState<"password" | "code" | "sms">("password")
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClient()
 
-  // Read referral params for auto-join
+  // Helper for logging events
+  const logEvent = (eventName: string, data?: any) => {
+    if (typeof window !== 'undefined' && (window as any).Capacitor?.Plugins?.AMapLocation) {
+      (window as any).Capacitor.Plugins.AMapLocation.logEvent({ 
+        eventName, 
+        data: data ? JSON.stringify(data) : undefined 
+      });
+    }
+  };
+
+  useEffect(() => {
+    logEvent('login_page_view', { platform: Capacitor.getPlatform() });
+  }, []);
+
   const lobbyId = searchParams.get('lobby')
   const clubId = searchParams.get('club')
 
-  // Process auto-join after successful auth
   const processAutoJoin = async () => {
     try {
       if (clubId) {
         const { joinClub } = await import('@/app/actions/club')
-        const result = await joinClub(clubId)
-        if (result.success) {
-          toast.success('已自动加入推荐俱乐部')
-        }
+        await joinClub(clubId)
       }
       if (lobbyId) {
         const { joinRoom } = await import('@/app/actions/room')
-        const result = await joinRoom(lobbyId)
-        if (result.success) {
-          toast.success('已自动加入推荐房间')
-        }
+        await joinRoom(lobbyId)
       }
     } catch (e) {
       console.error('Auto-join error:', e)
     }
   }
 
-  // 检查登录状态，如果已登录则自动跳转
   useEffect(() => {
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (session) {
-        toast.success("您已登录，正在跳转...")
         window.location.href = "/"
       }
     }
-
     checkSession()
 
-    // 监听 Auth 状态变化 (例如 Magic Link 完成后)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "SIGNED_IN" && session) {
-        toast.success("登录成功")
+        logEvent('login_success', { method: loginMethod });
         await processAutoJoin()
         window.location.href = "/"
       }
@@ -80,9 +81,8 @@ function LoginPageContent() {
     return () => {
       subscription.unsubscribe()
     }
-  }, [router, supabase])
+  }, [supabase, loginMethod])
 
-  // 1. 初始化从 LocalStorage 恢复 Cooldown 状态
   useEffect(() => {
     try {
       const saved = localStorage.getItem('verification_cooldown_v2')
@@ -90,28 +90,19 @@ function LoginPageContent() {
         const parsed = JSON.parse(saved)
         const filtered: Record<string, number> = {}
         const currentTime = Date.now()
-        // 自动清理过期的、超过 10 分钟的脏数据，以及旧格式 key
         Object.entries(parsed).forEach(([key, endAt]) => {
           const timestamp = Number(endAt)
-          const isExpired = timestamp <= currentTime
-          const isInvalidKey = !key.startsWith('cd:') || key.split(':').length < 4 // 旧格式至少少一位
-          const isOldFormat = key.startsWith('cd:email:') && key.split(':').length === 3 
-          
-          if (!isExpired && !isInvalidKey && !isOldFormat && (timestamp - currentTime < 600000)) {
+          if (timestamp > currentTime && (timestamp - currentTime < 600000)) {
             filtered[key] = timestamp
-          } else {
-            console.log(`[Cooldown] Cleaning up key: ${key}`)
           }
         })
         setCooldowns(filtered)
-        localStorage.setItem('verification_cooldown_v2', JSON.stringify(filtered))
       }
     } catch (e) {
       console.error('Failed to load cooldowns', e)
     }
   }, [])
 
-  // 2. 统一的时钟更新器 (所有场景共用)
   useEffect(() => {
     const hasActiveCooldown = Object.values(cooldowns).some(endAt => endAt > Date.now())
     if (!hasActiveCooldown) return
@@ -119,24 +110,11 @@ function LoginPageContent() {
     const timer = setInterval(() => {
       const current = Date.now()
       setNow(current)
-      
-      // 如果所有倒计时都结束了，停止定时器
-      const stillActive = Object.values(cooldowns).some(endAt => endAt > current)
-      if (!stillActive) {
-        setCooldowns(prev => {
-          const fresh: Record<string, number> = {}
-          Object.entries(prev).forEach(([k, v]) => {
-            if (v > current) fresh[k] = v
-          })
-          return fresh
-        })
-      }
     }, 1000)
     
     return () => clearInterval(timer)
   }, [cooldowns])
 
-  // 辅助函数：获取特定场景的剩余秒数
   const getRemaining = (scene: string, target: string, type: string) => {
     const normalized = target.trim().toLowerCase()
     const key = `cd:${scene}:${type}:${normalized}`
@@ -145,7 +123,6 @@ function LoginPageContent() {
     return Math.max(0, Math.ceil((endAt - now) / 1000))
   }
 
-  // 辅助函数：保存 Cooldown
   const saveCooldown = (scene: string, target: string, type: string, seconds: number) => {
     const normalized = target.trim().toLowerCase()
     const key = `cd:${scene}:${type}:${normalized}`
@@ -155,12 +132,6 @@ function LoginPageContent() {
     localStorage.setItem('verification_cooldown_v2', JSON.stringify(next))
   }
 
-  // ==========================================
-  // 核心逻辑: 发送验证码 (Register & Login)
-  // ==========================================
-  // ==========================================
-  // 核心逻辑: 发送验证码 (Register & Login)
-  // ==========================================
   const handleSendCode = async (type: 'register' | 'login') => {
     if (!agreed) {
       toast.error("请先阅读并同意以勾选《用户协议》与《隐私政策》")
@@ -170,18 +141,13 @@ function LoginPageContent() {
       toast.error("请输入邮箱")
       return
     }
-    const normalized = email.trim().toLowerCase()
-    const remain = getRemaining('email', normalized, type)
-    if (remain > 0) {
-      toast.error(`请等待 ${remain} 秒后再试`)
-      return
-    }
+    const remain = getRemaining('email', email, type)
+    if (remain > 0) return
 
     setLoading(true)
+    logEvent('auth_code_request', { type, medium: 'email' });
     try {
-      // Server Action 调用
       const { sendAuthCode } = await import('@/app/actions/auth')
-
       let res
       if (type === 'register') {
         if (!password) {
@@ -195,101 +161,36 @@ function LoginPageContent() {
       }
 
       if (!res.success) {
-        toast.error(res.message, { description: res.error })
+        toast.error(res.message)
         return
       }
 
-      // Success
       setCodeSent(true)
-      if (res.cooldownEndsAt) {
-          const seconds = Math.ceil((res.cooldownEndsAt - Date.now()) / 1000)
-          saveCooldown('email', email, type, seconds)
-      } else {
-          saveCooldown('email', email, type, 60)
-      }
-      toast.success("验证码已发送", { description: "请查看您的邮箱 (注意检查垃圾箱)" })
-
-    } catch (error: any) {
-      console.error('Send code error:', error)
-      toast.error("发送异常", { description: "服务连接失败，请检查网络" })
-    } finally {
-      setLoading(false)
-      setNow(Date.now())
-    }
-  }
-
-  // ==========================================
-  // 核心逻辑: 验证验证码 (Register Final Step)
-  // ==========================================
-  const handleRegisterVerify = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!agreed) {
-      toast.error("请先阅读并同意以勾选《用户协议》与《隐私政策》")
-      return
-    }
-    if (!email || !verificationCode) return
-
-    setLoading(true)
-    try {
-      // [注册验证]
-      // 对应 Admin generateLink type: 'signup'
-      const { data, error } = await supabase.auth.verifyOtp({
-        email,
-        token: verificationCode,
-        type: 'signup',
-      })
-
-      if (error) throw error
-
-      toast.success("注册成功", { description: "欢迎加入城市领主" })
-      // Session 建立后，useEffect 会自动跳转
-    } catch (error: any) {
-      console.error('Register verify error:', error)
-      toast.error("注册验证失败", { description: error.message || "验证码错误或已失效" })
+      saveCooldown('email', email, type, 60)
+      toast.success("验证码已发送")
+    } catch (error) {
+      toast.error("发送失败，请重试")
     } finally {
       setLoading(false)
     }
   }
 
-  // ==========================================
-  // 核心逻辑: 验证验证码 (Login Final Step)
-  // ==========================================
   const handleLoginVerify = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!agreed) {
       toast.error("请先阅读并同意以勾选《用户协议》与《隐私政策》")
       return
     }
-    if (!email || !verificationCode) return
-
     setLoading(true)
     try {
-      // [登录验证]
-      // 对应 Admin generateLink type: 'magiclink'
-      // 注意：这里必须使用 'magiclink' (或 'recovery')，取决于 generateLink 的 type
-      const { data, error } = await supabase.auth.verifyOtp({
+      const { error } = await supabase.auth.verifyOtp({
         email,
         token: verificationCode,
         type: 'magiclink',
       })
-
       if (error) throw error
-
-      toast.success("登录成功")
     } catch (error: any) {
-      console.error('Login verify error:', error)
-      // 尝试降级：如果 magiclink 失败，尝试 email 类型 (兼容旧数据)
-      try {
-        const retry = await supabase.auth.verifyOtp({
-          email,
-          token: verificationCode,
-          type: 'email',
-        })
-        if (retry.error) throw retry.error
-        toast.success("登录成功")
-      } catch (retryError) {
-        toast.error("登录失败", { description: error.message || "验证码错误或已失效" })
-      }
+      toast.error("验证失败: " + error.message)
     } finally {
       setLoading(false)
     }
@@ -297,43 +198,22 @@ function LoginPageContent() {
 
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+    logEvent('login_attempt', { method: 'password' });
     if (!agreed) {
       toast.error("请先阅读并同意以勾选《用户协议》与《隐私政策》")
       return
     }
     setLoading(true)
-
     try {
-      const response = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-      const error = response?.error
-
-      if (error) {
-        throw error
-      }
-
-      toast.success("登录成功")
-
-      // Process auto-join before redirect
-      await processAutoJoin()
-
-      // 强制重定向，确保状态同步
-      window.location.href = "/"
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) throw error
     } catch (error: any) {
-      console.error("Login error:", error)
-      toast.error("登录失败", {
-        description: error?.message ?? "登录失败，请检查网络"
-      })
+      toast.error("登录失败: " + error.message)
     } finally {
       setLoading(false)
     }
   }
 
-  // ==========================================
-  // 核心逻辑: 发送短信验证码
-  // ==========================================
   const handleSendSmsCode = async (type: 'register' | 'login') => {
     if (!agreed) {
       toast.error("请先阅读并同意以勾选《用户协议》与《隐私政策》")
@@ -344,126 +224,109 @@ function LoginPageContent() {
       return
     }
     const remain = getRemaining('sms', phone, type)
-    if (remain > 0) {
-      toast.error(`请等待 ${remain} 秒后再试`)
-      return
-    }
+    if (remain > 0) return
 
     setLoading(true)
+    logEvent('auth_code_request', { type, medium: 'sms' });
     try {
       const { sendSmsCode } = await import('@/app/actions/sms-auth')
       const res = await sendSmsCode(phone, type, type === 'register' ? password : undefined)
-
       if (!res.success) {
-        toast.error(res.message, { description: res.error })
+        toast.error(res.message)
         return
       }
-
       setCodeSent(true)
-      if (res.cooldownEndsAt) {
-        const seconds = Math.ceil((res.cooldownEndsAt - Date.now()) / 1000)
-        saveCooldown('sms', phone, type, seconds)
-      } else {
-        saveCooldown('sms', phone, type, 60)
-      }
-      toast.success("验证码已发送", { description: "请查看您的手机短信" })
-    } catch (error: any) {
-      console.error('Send SMS code error:', error)
-      toast.error("发送异常", { description: "服务连接失败，请检查网络" })
+      saveCooldown('sms', phone, type, 60)
+      toast.success("验证码已发送")
+    } catch (error) {
+      toast.error("发送失败")
     } finally {
       setLoading(false)
     }
   }
 
-  // ==========================================
-  // 核心逻辑: 验证短信验证码 (Login)
-  // ==========================================
   const handleSmsLoginVerify = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!agreed) {
       toast.error("请先阅读并同意以勾选《用户协议》与《隐私政策》")
       return
     }
-    if (!phone || !verificationCode) return
-
     setLoading(true)
     try {
       const { verifySmsCode } = await import('@/app/actions/sms-auth')
-      // Pass the current URL for redirect_to
       const res = await verifySmsCode(phone, verificationCode, 'login', window.location.origin)
-
-      if (!res.success) {
-        toast.error(res.message, { description: res.error })
-        return
-      }
-
-      // Use token_hash to establish session directly (no browser redirect)
+      if (!res.success) throw new Error(res.message)
       if (res.tokenHash) {
-        const { error } = await supabase.auth.verifyOtp({
-          token_hash: res.tokenHash,
-          type: 'magiclink',
-        })
-        if (error) {
-          console.error('verifyOtp error:', error)
-          toast.error("登录失败", { description: error.message })
-          return
-        }
-        toast.success("登录成功")
-        // Session established — onAuthStateChange will redirect to /
-      } else if (res.actionLink) {
-        // Fallback: navigate to actionLink (web only)
-        window.location.href = res.actionLink
+        await supabase.auth.verifyOtp({ token_hash: res.tokenHash, type: 'magiclink' })
       }
     } catch (error: any) {
-      console.error('SMS login verify error:', error)
-      toast.error("验证失败", { description: error.message || "请稍后再试" })
+      toast.error("验证失败: " + error.message)
     } finally {
       setLoading(false)
     }
   }
 
-  // ==========================================
-  // 核心逻辑: 验证短信验证码 (Register)
-  // ==========================================
+  const handleRegisterVerify = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!agreed) {
+      toast.error("请先阅读并同意以勾选《用户协议》与《隐私政策》")
+      return
+    }
+    setLoading(true)
+    logEvent('register_attempt', { method: 'email' });
+    try {
+      const { error } = await supabase.auth.verifyOtp({ email, token: verificationCode, type: 'signup' })
+      if (error) throw error
+      logEvent('register_success', { method: 'email' });
+    } catch (error: any) {
+      toast.error("注册验证失败: " + error.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleSmsRegisterVerify = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!agreed) {
       toast.error("请先阅读并同意以勾选《用户协议》与《隐私政策》")
       return
     }
-    if (!phone || !verificationCode || !password) return
-
     setLoading(true)
+    logEvent('register_attempt', { method: 'sms' });
     try {
       const { verifySmsCode } = await import('@/app/actions/sms-auth')
       const res = await verifySmsCode(phone, verificationCode, 'register')
-
-      if (!res.success) {
-        toast.error(res.message, { description: res.error })
-        return
-      }
-
-      // Sign in with the virtual email and password
+      if (!res.success) throw new Error(res.message)
       const virtualEmail = `${phone.replace(/\s+/g, '')}@sms.citylord.local`
-      const { error } = await supabase.auth.signInWithPassword({
-        email: virtualEmail,
-        password,
-      })
-
+      const { error } = await supabase.auth.signInWithPassword({ email: virtualEmail, password })
       if (error) throw error
-
-      toast.success("注册成功", { description: "欢迎加入城市领主" })
+      logEvent('register_success', { method: 'sms' });
     } catch (error: any) {
-      console.error('SMS register verify error:', error)
-      toast.error("注册验证失败", { description: error.message || "验证码错误或已失效" })
+      toast.error("注册验证失败: " + error.message)
     } finally {
       setLoading(false)
     }
   }
 
+  const AgreementBox = ({ id }: { id: string }) => (
+    <div className="flex items-center justify-center space-x-2 py-2 mt-4 opacity-80">
+      <Checkbox
+        id={id}
+        checked={agreed}
+        onCheckedChange={(checked) => setAgreed(checked as boolean)}
+        className="h-3.5 w-3.5 border-white/40 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600"
+      />
+      <Label htmlFor={id} className="text-[10px] text-white/60">
+        我已阅读并同意
+        <Link href="/terms" className="text-green-400 hover:text-green-300 ml-0.5">《用户协议》</Link>
+        和
+        <Link href="/privacy" className="text-green-400 hover:text-green-300 ml-0.5">《隐私政策》</Link>
+      </Label>
+    </div>
+  );
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#0a0f1a] p-4 relative overflow-hidden">
-      {/* Background Effects */}
       <div className="absolute inset-0 z-0">
         <div className="absolute top-0 -left-1/4 w-1/2 h-1/2 bg-green-500/10 rounded-full blur-[128px]" />
         <div className="absolute bottom-0 -right-1/4 w-1/2 h-1/2 bg-blue-500/10 rounded-full blur-[128px]" />
@@ -477,22 +340,7 @@ function LoginPageContent() {
           <p className="text-white/60 text-sm">用脚步丈量城市，用汗水铸就领地</p>
         </div>
 
-        <div className="flex items-center justify-center space-x-2 mb-6">
-          <Checkbox
-            id="terms"
-            checked={agreed}
-            onCheckedChange={(checked) => setAgreed(checked as boolean)}
-            className="border-white/40 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600"
-          />
-          <Label htmlFor="terms" className="text-xs text-white/70">
-            我已经阅读并同意
-            <Link href="/terms" className="text-green-400 hover:text-green-300 ml-1">《用户协议》</Link>
-            和
-            <Link href="/privacy" className="text-green-400 hover:text-green-300 mx-1">《隐私政策》</Link>
-          </Label>
-        </div>
-
-        <Tabs defaultValue="login" className="w-full">
+        <Tabs defaultValue="login" className="w-full space-y-4">
           <TabsList className="grid w-full grid-cols-3 mb-4 bg-black/40 border border-white/10">
             <TabsTrigger value="login">登录</TabsTrigger>
             <TabsTrigger value="register">邮箱注册</TabsTrigger>
@@ -504,191 +352,64 @@ function LoginPageContent() {
               <CardHeader>
                 <CardTitle className="text-xl text-white">欢迎回来</CardTitle>
                 <CardDescription className="text-white/40">
-                  {loginMethod === "password" ? "使用账号密码登录游戏" : "使用邮箱验证码登录"}
+                  {loginMethod === "password" ? "使用账号密码登录游戏" : loginMethod === "code" ? "使用邮箱验证码登录" : "使用短信验证码登录"}
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {/* 登录方式切换 */}
                 <div className="flex gap-2 mb-4 p-1 bg-white/5 rounded-lg">
-                  <button
-                    type="button"
-                    onClick={() => setLoginMethod("password")}
-                    className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${loginMethod === "password"
-                      ? "bg-green-600 text-white shadow-lg"
-                      : "text-white/60 hover:text-white hover:bg-white/5"
-                      }`}
-                  >
-                    密码登录
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setLoginMethod("code")}
-                    className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${loginMethod === "code"
-                      ? "bg-green-600 text-white shadow-lg"
-                      : "text-white/60 hover:text-white hover:bg-white/5"
-                      }`}
-                  >
-                    邮箱验证码
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setLoginMethod("sms")}
-                    className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${loginMethod === "sms"
-                      ? "bg-green-600 text-white shadow-lg"
-                      : "text-white/60 hover:text-white hover:bg-white/5"
-                      }`}
-                  >
-                    短信登录
-                  </button>
+                  {(['password', 'code', 'sms'] as const).map(m => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setLoginMethod(m)}
+                      className={`flex-1 py-2 text-xs font-medium rounded-md transition-all ${loginMethod === m ? "bg-green-600 text-white shadow-lg" : "text-white/60 hover:text-white hover:bg-white/5"}`}
+                    >
+                      {m === 'password' ? '密码' : m === 'code' ? '邮箱码' : '短信'}
+                    </button>
+                  ))}
                 </div>
 
-                {/* 密码登录表单 */}
                 {loginMethod === "password" && (
                   <form onSubmit={handlePasswordLogin} className="space-y-4">
                     <div className="space-y-2">
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-3 h-4 w-4 text-white/40" />
-                        <Input
-                          type="email"
-                          placeholder="邮箱地址"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-green-500/50"
-                          required
-                        />
-                      </div>
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-3 h-4 w-4 text-white/40" />
-                        <Input
-                          type="password"
-                          placeholder="密码"
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-green-500/50"
-                          required
-                        />
-                      </div>
+                       <div className="relative"><Mail className="absolute left-3 top-3 h-4 w-4 text-white/40" /><Input type="email" placeholder="邮箱" value={email} onChange={e => setEmail(e.target.value)} className="pl-10 bg-white/5 border-white/10 text-white" required /></div>
+                       <div className="relative"><Lock className="absolute left-3 top-3 h-4 w-4 text-white/40" /><Input type="password" placeholder="密码" value={password} onChange={e => setPassword(e.target.value)} className="pl-10 bg-white/5 border-white/10 text-white" required /></div>
                     </div>
-                    <Button
-                      type="submit"
-                      className="w-full bg-green-600 hover:bg-green-700 text-white"
-                      disabled={loading}
-                    >
-                      {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                      登录
-                    </Button>
-
-                    <div className="text-center mt-2">
-                      <Link
-                        href="/reset-password"
-                        className="text-sm text-green-400 hover:text-green-300 underline-offset-4 hover:underline transition-colors"
-                      >
-                        忘记密码？
-                      </Link>
-                    </div>
+                    <Button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white" disabled={loading}>{loading ? <Loader2 className="animate-spin" /> : "登录"}</Button>
+                    <AgreementBox id="terms-pass" />
+                    <div className="text-center mt-2 font-mono"><Link href="/reset-password" onClick={() => logEvent('forgot_password_click')} className="text-[10px] text-green-400 hover:underline">忘记密码？</Link></div>
                   </form>
                 )}
 
-                {/* 验证码登录表单 */}
                 {loginMethod === "code" && (
                   <form onSubmit={handleLoginVerify} className="space-y-4">
                     <div className="space-y-2">
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-3 h-4 w-4 text-white/40" />
-                        <Input
-                          type="email"
-                          placeholder="邮箱地址"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-green-500/50"
-                          required
-                        />
-                      </div>
-
+                      <div className="relative"><Mail className="absolute left-3 top-3 h-4 w-4 text-white/40" /><Input type="email" placeholder="邮箱" value={email} onChange={e => setEmail(e.target.value)} className="pl-10 bg-white/5 border-white/10 text-white" required /></div>
                       <div className="flex gap-2">
-                        <div className="relative flex-1">
-                          <KeyRound className="absolute left-3 top-3 h-4 w-4 text-white/40" />
-                          <Input
-                            type="text"
-                            placeholder="验证码"
-                            value={verificationCode}
-                            onChange={(e) => setVerificationCode(e.target.value)}
-                            className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-green-500/50"
-                            required
-                            maxLength={6}
-                          />
-                        </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="w-[120px] bg-white/5 border-white/10 text-white hover:bg-white/10 hover:text-white"
-                          disabled={loading || getRemaining('email', email, 'login') > 0}
-                          onClick={() => handleSendCode('login')}
-                        >
-                          {getRemaining('email', email, 'login') > 0 ? `${getRemaining('email', email, 'login')}s` : "获取验证码"}
+                        <div className="relative flex-1"><KeyRound className="absolute left-3 top-3 h-4 w-4 text-white/40" /><Input type="text" placeholder="码" value={verificationCode} onChange={e => setVerificationCode(e.target.value)} className="pl-10 bg-white/5 border-white/10 text-white" required maxLength={6} /></div>
+                        <Button type="button" variant="outline" className="w-24 bg-white/5 border-white/10 text-white" disabled={loading || getRemaining('email', email, 'login') > 0} onClick={() => handleSendCode('login')}>
+                          {getRemaining('email', email, 'login') > 0 ? `${getRemaining('email', email, 'login')}s` : "获取"}
                         </Button>
                       </div>
                     </div>
-                    <Button
-                      type="submit"
-                      className="w-full bg-green-600 hover:bg-green-700 text-white"
-                      disabled={loading}
-                    >
-                      {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                      登录
-                    </Button>
+                    <Button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white" disabled={loading}>{loading ? <Loader2 className="animate-spin" /> : "登录"}</Button>
+                    <AgreementBox id="terms-code" />
                   </form>
                 )}
 
-                {/* 短信验证码登录表单 */}
                 {loginMethod === "sms" && (
                   <form onSubmit={handleSmsLoginVerify} className="space-y-4">
                     <div className="space-y-2">
-                      <div className="relative">
-                        <Phone className="absolute left-3 top-3 h-4 w-4 text-white/40" />
-                        <Input
-                          type="tel"
-                          placeholder="手机号码"
-                          value={phone}
-                          onChange={(e) => setPhone(e.target.value)}
-                          className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-green-500/50"
-                          required
-                          maxLength={11}
-                        />
-                      </div>
-
+                      <div className="relative"><Phone className="absolute left-3 top-3 h-4 w-4 text-white/40" /><Input type="tel" placeholder="手机号" value={phone} onChange={e => setPhone(e.target.value)} className="pl-10 bg-white/5 border-white/10 text-white" required maxLength={11} /></div>
                       <div className="flex gap-2">
-                        <div className="relative flex-1">
-                          <KeyRound className="absolute left-3 top-3 h-4 w-4 text-white/40" />
-                          <Input
-                            type="text"
-                            placeholder="验证码"
-                            value={verificationCode}
-                            onChange={(e) => setVerificationCode(e.target.value)}
-                            className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-green-500/50"
-                            required
-                            maxLength={6}
-                          />
-                        </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="w-[120px] bg-white/5 border-white/10 text-white hover:bg-white/10 hover:text-white"
-                          disabled={loading || getRemaining('sms', phone, 'login') > 0}
-                          onClick={() => handleSendSmsCode('login')}
-                        >
-                          {getRemaining('sms', phone, 'login') > 0 ? `${getRemaining('sms', phone, 'login')}s` : "获取验证码"}
+                        <div className="relative flex-1"><KeyRound className="absolute left-3 top-3 h-4 w-4 text-white/40" /><Input type="text" placeholder="码" value={verificationCode} onChange={e => setVerificationCode(e.target.value)} className="pl-10 bg-white/5 border-white/10 text-white" required maxLength={6} /></div>
+                        <Button type="button" variant="outline" className="w-24 bg-white/5 border-white/10 text-white" disabled={loading || getRemaining('sms', phone, 'login') > 0} onClick={() => handleSendSmsCode('login')}>
+                          {getRemaining('sms', phone, 'login') > 0 ? `${getRemaining('sms', phone, 'login')}s` : "获取"}
                         </Button>
                       </div>
                     </div>
-                    <Button
-                      type="submit"
-                      className="w-full bg-green-600 hover:bg-green-700 text-white"
-                      disabled={loading}
-                    >
-                      {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                      登录
-                    </Button>
+                    <Button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white" disabled={loading}>{loading ? <Loader2 className="animate-spin" /> : "登录"}</Button>
+                    <AgreementBox id="terms-sms" />
                   </form>
                 )}
               </CardContent>
@@ -697,72 +418,21 @@ function LoginPageContent() {
 
           <TabsContent value="register">
             <Card className="border-white/10 bg-black/40 backdrop-blur-xl shadow-2xl">
-              <CardHeader>
-                <CardTitle className="text-xl text-white">注册账号</CardTitle>
-                <CardDescription className="text-white/40">
-                  使用邮箱验证码注册
-                </CardDescription>
-              </CardHeader>
+              <CardHeader><CardTitle className="text-xl text-white">邮箱注册</CardTitle></CardHeader>
               <CardContent>
                 <form onSubmit={handleRegisterVerify} className="space-y-4">
                   <div className="space-y-2">
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-3 h-4 w-4 text-white/40" />
-                      <Input
-                        type="email"
-                        placeholder="邮箱地址"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-green-500/50"
-                        required
-                      />
-                    </div>
-
+                    <div className="relative"><Mail className="absolute left-3 top-3 h-4 w-4 text-white/40" /><Input type="email" placeholder="邮箱" value={email} onChange={e => setEmail(e.target.value)} className="pl-10 bg-white/5 border-white/10 text-white" required /></div>
                     <div className="flex gap-2">
-                      <div className="relative flex-1">
-                        <KeyRound className="absolute left-3 top-3 h-4 w-4 text-white/40" />
-                        <Input
-                          type="text"
-                          placeholder="验证码"
-                          value={verificationCode}
-                          onChange={(e) => setVerificationCode(e.target.value)}
-                          className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-green-500/50"
-                          required
-                          maxLength={6}
-                        />
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => handleSendCode('register')}
-                        disabled={loading || getRemaining('email', email, 'register') > 0 || !email}
-                        className="w-24 border-white/10 bg-white/5 text-white hover:bg-white/20 hover:text-white disabled:opacity-50"
-                      >
-                        {getRemaining('email', email, 'register') > 0 ? `${getRemaining('email', email, 'register')}s` : (loading && !codeSent ? <Loader2 className="h-4 w-4 animate-spin" /> : "获取")}
+                      <div className="relative flex-1"><KeyRound className="absolute left-3 top-3 h-4 w-4 text-white/40" /><Input type="text" placeholder="码" value={verificationCode} onChange={e => setVerificationCode(e.target.value)} className="pl-10 bg-white/5 border-white/10 text-white" required maxLength={6} /></div>
+                      <Button type="button" variant="outline" onClick={() => handleSendCode('register')} disabled={loading || getRemaining('email', email, 'register') > 0 || !email} className="w-24 bg-white/5 border-white/10 text-white">
+                        {getRemaining('email', email, 'register') > 0 ? `${getRemaining('email', email, 'register')}s` : "获取"}
                       </Button>
                     </div>
-
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-3 h-4 w-4 text-white/40" />
-                      <Input
-                        type="password"
-                        placeholder="设置密码"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-green-500/50"
-                        required
-                        minLength={6}
-                      />
-                    </div>
+                    <div className="relative"><Lock className="absolute left-3 top-3 h-4 w-4 text-white/40" /><Input type="password" placeholder="设置密码" value={password} onChange={e => setPassword(e.target.value)} className="pl-10 bg-white/5 border-white/10 text-white" required minLength={6} /></div>
                   </div>
-                  <Button
-                    type="submit"
-                    className="w-full bg-green-600 hover:bg-green-700 text-white"
-                    disabled={loading}
-                  >
-                    {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    注册并登录
-                  </Button>
+                  <Button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white" disabled={loading}>注册并登录</Button>
+                  <AgreementBox id="terms-reg" />
                 </form>
               </CardContent>
             </Card>
@@ -770,73 +440,21 @@ function LoginPageContent() {
 
           <TabsContent value="sms-register">
             <Card className="border-white/10 bg-black/40 backdrop-blur-xl shadow-2xl">
-              <CardHeader>
-                <CardTitle className="text-xl text-white">手机号注册</CardTitle>
-                <CardDescription className="text-white/40">
-                  使用手机短信验证码注册
-                </CardDescription>
-              </CardHeader>
+              <CardHeader><CardTitle className="text-xl text-white">手机注册</CardTitle></CardHeader>
               <CardContent>
                 <form onSubmit={handleSmsRegisterVerify} className="space-y-4">
                   <div className="space-y-2">
-                    <div className="relative">
-                      <Phone className="absolute left-3 top-3 h-4 w-4 text-white/40" />
-                      <Input
-                        type="tel"
-                        placeholder="手机号码"
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
-                        className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-green-500/50"
-                        required
-                        maxLength={11}
-                      />
-                    </div>
-
+                    <div className="relative"><Phone className="absolute left-3 top-3 h-4 w-4 text-white/40" /><Input type="tel" placeholder="手机号" value={phone} onChange={e => setPhone(e.target.value)} className="pl-10 bg-white/5 border-white/10 text-white" required maxLength={11} /></div>
                     <div className="flex gap-2">
-                      <div className="relative flex-1">
-                        <KeyRound className="absolute left-3 top-3 h-4 w-4 text-white/40" />
-                        <Input
-                          type="text"
-                          placeholder="验证码"
-                          value={verificationCode}
-                          onChange={(e) => setVerificationCode(e.target.value)}
-                          className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-green-500/50"
-                          required
-                          maxLength={6}
-                        />
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => handleSendSmsCode('register')}
-                        disabled={loading || getRemaining('sms', phone, 'register') > 0 || !phone}
-                        className="w-24 border-white/10 bg-white/5 text-white hover:bg-white/20 hover:text-white disabled:opacity-50"
-                      >
-                        {getRemaining('sms', phone, 'register') > 0 ? `${getRemaining('sms', phone, 'register')}s` : (loading && !codeSent ? <Loader2 className="h-4 w-4 animate-spin" /> : "获取")}
+                      <div className="relative flex-1"><KeyRound className="absolute left-3 top-3 h-4 w-4 text-white/40" /><Input type="text" placeholder="码" value={verificationCode} onChange={e => setVerificationCode(e.target.value)} className="pl-10 bg-white/5 border-white/10 text-white" required maxLength={6} /></div>
+                      <Button type="button" variant="outline" onClick={() => handleSendSmsCode('register')} disabled={loading || getRemaining('sms', phone, 'register') > 0 || !phone} className="w-24 bg-white/5 border-white/10 text-white">
+                        {getRemaining('sms', phone, 'register') > 0 ? `${getRemaining('sms', phone, 'register')}s` : "获取"}
                       </Button>
                     </div>
-
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-3 h-4 w-4 text-white/40" />
-                      <Input
-                        type="password"
-                        placeholder="设置密码"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-green-500/50"
-                        required
-                        minLength={6}
-                      />
-                    </div>
+                    <div className="relative"><Lock className="absolute left-3 top-3 h-4 w-4 text-white/40" /><Input type="password" placeholder="设置密码" value={password} onChange={e => setPassword(e.target.value)} className="pl-10 bg-white/5 border-white/10 text-white" required minLength={6} /></div>
                   </div>
-                  <Button
-                    type="submit"
-                    className="w-full bg-green-600 hover:bg-green-700 text-white"
-                    disabled={loading}
-                  >
-                    {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    注册并登录
-                  </Button>
+                  <Button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white" disabled={loading}>注册并登录</Button>
+                  <AgreementBox id="terms-sms-reg" />
                 </form>
               </CardContent>
             </Card>

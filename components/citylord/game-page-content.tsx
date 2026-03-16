@@ -290,16 +290,41 @@ export function GamePageContent({
     if (recoveryJson) {
       try {
         const data = JSON.parse(recoveryJson);
-        // Check 24h validity
-        if (data.startTime && (Date.now() - data.startTime < 24 * 60 * 60 * 1000)) {
-          console.log("Found crash recovery data, restoring run...");
+        
+        // 1. 基础有效性检查 (24h 超时 + 版本匹配)
+        const isSessionValid = data.startTime && 
+                             (Date.now() - data.startTime < 24 * 60 * 60 * 1000) && 
+                             data.isRunning && 
+                             data.sessionVersion === '2.0';
+
+        if (isSessionValid) {
+          console.log("[Recovery] Valid session found, restoring UI...", data.runId);
+          // 统一埋点: run_session_found
+          if (typeof window !== 'undefined' && (window as any).Capacitor?.Plugins?.AMapLocation) {
+            (window as any).Capacitor.Plugins.AMapLocation.logEvent({ eventName: 'run_session_found', data: JSON.stringify({ runId: data.runId }) });
+          }
+
           setIsRunning(true);
           setShowImmersiveMode(true);
-        } else {
+          setActiveTab('play'); 
+          
+          // 统一埋点: run_session_restore_success
+          if (typeof window !== 'undefined' && (window as any).Capacitor?.Plugins?.AMapLocation) {
+             (window as any).Capacitor.Plugins.AMapLocation.logEvent({ eventName: 'run_session_restore_success', data: JSON.stringify({ runId: data.runId }) });
+          }
+        } else if (data.isRunning) {
+          console.log("[Recovery] Session expired or version mismatch, cleaning up...");
           localStorage.removeItem(RECOVERY_KEY);
+          // 统一埋点: run_session_restore_failed
+          if (typeof window !== 'undefined' && (window as any).Capacitor?.Plugins?.AMapLocation) {
+            (window as any).Capacitor.Plugins.AMapLocation.logEvent({ 
+              eventName: 'run_session_restore_failed', 
+              data: JSON.stringify({ reason: 'expired_or_invalid_version', runId: data.runId }) 
+            });
+          }
         }
       } catch (e) {
-        console.warn("Invalid crash recovery data, cleaning up...", e);
+        console.warn("[Recovery] Invalid data, cleaning up...", e);
         localStorage.removeItem(RECOVERY_KEY);
       }
     }

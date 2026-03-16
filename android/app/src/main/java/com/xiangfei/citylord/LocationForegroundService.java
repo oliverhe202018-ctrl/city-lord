@@ -11,6 +11,7 @@ import android.os.Build;
 import android.os.IBinder;
 import android.os.PowerManager;
 import android.content.SharedPreferences;
+import android.content.pm.ServiceInfo;
 import android.util.Log;
 
 import androidx.annotation.Nullable;
@@ -55,6 +56,13 @@ public class LocationForegroundService extends Service implements AMapLocationLi
     public static final String EXTRA_NOTIFICATION_TITLE = "extra_notification_title";
     public static final String EXTRA_NOTIFICATION_BODY = "extra_notification_body";
     public static final String EXTRA_INTERVAL = "extra_interval";
+    public static final String EXTRA_RUN_ID = "extra_run_id";
+    public static final String EXTRA_STARTED_AT = "extra_started_at";
+
+    // Broadcast action — 埋点日志推送
+    public static final String ACTION_LOG_EVENT = "com.xiangfei.citylord.LOG_EVENT";
+    public static final String EXTRA_EVENT_NAME = "eventName";
+    public static final String EXTRA_EVENT_REASON = "reason";
 
     // Broadcast action — 定位结果推送
     public static final String ACTION_LOCATION_UPDATE = "com.xiangfei.citylord.LOCATION_UPDATE";
@@ -99,8 +107,9 @@ public class LocationForegroundService extends Service implements AMapLocationLi
     // Notification content
     private String notificationTitle = "City Lord";
     private String notificationBody = null;
-    private long locationInterval = 60000; // Default 60s
- // Will be set to daily quote on start
+    private long locationInterval = 60000;
+    private String currentRunId = null;
+    private long runStartedAt = 0;
 
     // ---- Daily motivational quotes (60 条，每天不重样) ----
     private static final String[] DAILY_QUOTES = {
@@ -206,41 +215,119 @@ public class LocationForegroundService extends Service implements AMapLocationLi
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        Log.i(TAG, "[Lifecycle] onStartCommand — starting foreground service and location tracking");
-
-        // Read notification content from intent (intent may be null on START_STICKY restart)
-        if (intent != null) {
-            String title = intent.getStringExtra(EXTRA_NOTIFICATION_TITLE);
-            String body = intent.getStringExtra(EXTRA_NOTIFICATION_BODY);
-            if (title != null && !title.isEmpty()) notificationTitle = title;
-            if (body != null && !body.isEmpty()) notificationBody = body;
-            locationInterval = intent.getLongExtra(EXTRA_INTERVAL, 60000); // Default to 60s if not provided
+        // 1. 状态恢复/保存 (优先处理数据状态，避免空指针)
+        if (intent == null) {
+            Log.w(TAG, "intent is null (Sticky Restart), restoring state from Prefs");
+            restoreFromPrefs();
+            logEvent("fgs_null_intent_recovered", "sticky_restart");
         } else {
-            Log.w(TAG, "onStartCommand: intent is null (likely START_STICKY restart)");
+            saveToPrefs(intent);
         }
 
-        // Default body: show daily quote (no step count for now)
+        logEvent("fgs_start_requested", "ok");
+
+        // 2. 权限预检
+        if (!hasLocationPermission()) {
+            Log.e(TAG, "Missing location permission, stopping service");
+            logEvent("fgs_start_failed", "missing_permission");
+            stopSelf();
+            return START_NOT_STICKY;
+        }
+
+        // 3. 构建并启动前台通知 (Android 14+ 要求在 onStartCommand 早期启动)
         if (notificationBody == null) {
             notificationBody = "定位中… · " + getDailyQuote();
         }
-
-        // 1. Start foreground IMMEDIATELY (Android 12+ requires this within 5s)
         Notification notification = buildNotification(notificationTitle, notificationBody);
-        startForeground(NOTIFICATION_ID, notification);
+        
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                // API 29+ 必须声明类型
+                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION);
+            } else {
+                // 低版本平滑退避，避免无效参数异常
+                startForeground(NOTIFICATION_ID, notification);
+            }
+            logEvent("fgs_start_success", "ok");
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to start foreground: " + e.getMessage());
+            logEvent("fgs_start_failed", e.getClass().getSimpleName()); // 补齐埋点
+            stopSelf();
+            return START_NOT_STICKY;
+        }
 
-        // 2. AMap privacy compliance — must call before AMapLocationClient
+        // 4. 高德隐私合规
         try {
             AMapLocationClient.updatePrivacyShow(getApplicationContext(), true, true);
             AMapLocationClient.updatePrivacyAgree(getApplicationContext(), true);
         } catch (Exception e) {
-            Log.e(TAG, "Privacy compliance failed: " + e.getMessage(), e);
+            Log.e(TAG, "Privacy compliance failed: " + e.getMessage());
         }
 
-        // 3. Start location tracking
+        // 5. 启动定位引擎
         startLocationTracking();
 
-        // START_STICKY: if killed, system will restart the service
         return START_STICKY;
+    }
+
+    private boolean hasLocationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            boolean fine = androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+            boolean coarse = androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+            
+            // 埋点快照 (统一命令)
+            JSObject snapshot = new JSObject();
+            snapshot.put("fine", fine);
+            snapshot.put("coarse", coarse);
+            broadcastEvent("fgs_permission_snapshot", snapshot.toString()); // 补齐埋点
+            
+            return fine || coarse;
+        }
+        return true;
+    }
+
+    private void saveToPrefs(Intent intent) {
+        String title = intent.getStringExtra(EXTRA_NOTIFICATION_TITLE);
+        String body = intent.getStringExtra(EXTRA_NOTIFICATION_BODY);
+        if (title != null) notificationTitle = title;
+        if (body != null) notificationBody = body;
+        
+        locationInterval = intent.getLongExtra(EXTRA_INTERVAL, 60000);
+        currentRunId = intent.getStringExtra(EXTRA_RUN_ID);
+        runStartedAt = intent.getLongExtra(EXTRA_STARTED_AT, System.currentTimeMillis());
+
+        getSharedPreferences("citylord_service_config", MODE_PRIVATE).edit()
+            .putString("title", notificationTitle)
+            .putString("body", notificationBody)
+            .putLong("interval", locationInterval)
+            .putString("run_id", currentRunId)
+            .putLong("started_at", runStartedAt)
+            .apply();
+    }
+
+    private void restoreFromPrefs() {
+        SharedPreferences sp = getSharedPreferences("citylord_service_config", MODE_PRIVATE);
+        notificationTitle = sp.getString("title", "City Lord");
+        notificationBody = sp.getString("body", null);
+        locationInterval = sp.getLong("interval", 60000);
+        currentRunId = sp.getString("run_id", null);
+        runStartedAt = sp.getLong("started_at", 0);
+    }
+
+    private void logEvent(String name, String reason) {
+        Intent intent = new Intent(ACTION_LOG_EVENT);
+        intent.putExtra(EXTRA_EVENT_NAME, name);
+        intent.putExtra(EXTRA_EVENT_REASON, reason);
+        intent.putExtra("ts", System.currentTimeMillis());
+        LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
+    }
+
+    private void broadcastEvent(String name, String dataJson) {
+        Intent intent = new Intent(ACTION_LOG_EVENT);
+        intent.putExtra(EXTRA_EVENT_NAME, name);
+        intent.putExtra("data", dataJson);
+        intent.putExtra("ts", System.currentTimeMillis());
+        LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
     }
 
     @Override

@@ -38,9 +38,9 @@ public class AMapLocationPlugin extends Plugin {
     private boolean privacyAgreed = false;
 
     // Foreground service tracking state
-    private boolean isTracking = false;
     private BroadcastReceiver trackingLocationReceiver = null;
     private BroadcastReceiver trackingErrorReceiver = null;
+    private BroadcastReceiver trackingLogReceiver = null;
 
     // -----------------------------------------------------------------------
     // Plugin lifecycle
@@ -382,8 +382,14 @@ public class AMapLocationPlugin extends Plugin {
 
         String title = call.getString("notificationTitle", "City Lord");
         String body = call.getString("notificationBody", "正在追踪您的位置…");
+        String runId = call.getString("runId");
+        long startedAt = call.getLong("startedAt", System.currentTimeMillis());
+
         serviceIntent.putExtra(LocationForegroundService.EXTRA_NOTIFICATION_TITLE, title);
         serviceIntent.putExtra(LocationForegroundService.EXTRA_NOTIFICATION_BODY, body);
+        serviceIntent.putExtra(LocationForegroundService.EXTRA_RUN_ID, runId);
+        serviceIntent.putExtra(LocationForegroundService.EXTRA_STARTED_AT, startedAt);
+        serviceIntent.putExtra(LocationForegroundService.EXTRA_INTERVAL, (long)call.getInt("interval", 2000));
 
         // Android O+ requires startForegroundService
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -487,20 +493,27 @@ public class AMapLocationPlugin extends Plugin {
         lbm.registerReceiver(trackingLocationReceiver,
                 new IntentFilter(LocationForegroundService.ACTION_LOCATION_UPDATE));
 
-        // Error receiver
-        trackingErrorReceiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                JSObject error = new JSObject();
-                error.put("code", intent.getIntExtra(LocationForegroundService.EXTRA_ERROR_CODE, -1));
-                error.put("message", intent.getStringExtra(LocationForegroundService.EXTRA_ERROR_MSG));
-                notifyListeners("locationError", error);
-            }
-        };
         lbm.registerReceiver(trackingErrorReceiver,
                 new IntentFilter(LocationForegroundService.ACTION_LOCATION_ERROR));
 
-        Log.i(TAG, "Tracking BroadcastReceivers registered");
+        // Log event receiver
+        trackingLogReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                JSObject log = new JSObject();
+                log.put("eventName", intent.getStringExtra(LocationForegroundService.EXTRA_EVENT_NAME));
+                log.put("reason", intent.getStringExtra(LocationForegroundService.EXTRA_EVENT_REASON));
+                log.put("data", intent.getStringExtra("data"));
+                log.put("ts", intent.getLongExtra("ts", System.currentTimeMillis()));
+                
+                // 给 TS 层统一的事件名，由 TS 转发给埋点系统
+                notifyListeners("logEvent", log);
+            }
+        };
+        lbm.registerReceiver(trackingLogReceiver,
+                new IntentFilter(LocationForegroundService.ACTION_LOG_EVENT));
+
+        Log.i(TAG, "Tracking BroadcastReceivers registered (Location, Error, Log)");
     }
 
     private void unregisterTrackingReceivers() {
@@ -522,6 +535,15 @@ public class AMapLocationPlugin extends Plugin {
                 Log.w(TAG, "Unregister error receiver error: " + e.getMessage());
             }
             trackingErrorReceiver = null;
+        }
+
+        if (trackingLogReceiver != null) {
+            try {
+                lbm.unregisterReceiver(trackingLogReceiver);
+            } catch (Exception e) {
+                Log.w(TAG, "Unregister log receiver error: " + e.getMessage());
+            }
+            trackingLogReceiver = null;
         }
 
         Log.i(TAG, "Tracking BroadcastReceivers unregistered");

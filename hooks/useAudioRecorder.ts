@@ -24,28 +24,34 @@ export function useAudioRecorder() {
     const checkPermissions = useCallback(async () => {
         if (!Capacitor.isNativePlatform()) {
             setPermissionStatus('granted'); // Assume handled by browser prompt
-            return;
+            return 'granted';
         }
         try {
             const { safeCheckMicrophonePermission } = await import('@/lib/capacitor/safe-plugins');
             const permResult = await safeCheckMicrophonePermission();
             const platform = Capacitor.getPlatform();
             
+            let status: 'prompt' | 'granted' | 'denied' | 'permanent-denied' = 'prompt';
+
             if (permResult.currentStatus === 'granted') {
-                setPermissionStatus('granted');
+                status = 'granted';
             } else if (permResult.currentStatus === 'denied') {
                 if (permResult.hasRequested && !permResult.shouldShowRationale && platform === 'android') {
-                    setPermissionStatus('permanent-denied');
+                    status = 'permanent-denied';
                 } else if (permResult.hasRequested && platform === 'ios') {
-                    setPermissionStatus('permanent-denied');
+                    status = 'permanent-denied';
                 } else {
-                    setPermissionStatus('denied');
+                    status = 'denied';
                 }
             } else {
-                setPermissionStatus('prompt');
+                status = 'prompt';
             }
+            
+            setPermissionStatus(status);
+            return status;
         } catch (e) {
             console.warn('[useAudioRecorder] checkPermissions failed', e);
+            return 'denied';
         }
     }, []);
 
@@ -73,19 +79,29 @@ export function useAudioRecorder() {
 
     const startRecording = useCallback(async () => {
         try {
-            // 1. Re-check before starting
-            await checkPermissions();
+            // 1. 实时权限快照埋点
+            const currentStatus = await checkPermissions();
+            if (typeof window !== 'undefined' && (window as any).Capacitor?.Plugins?.AMapLocation) {
+                (window as any).Capacitor.Plugins.AMapLocation.logEvent({ 
+                    eventName: 'audio_permission_snapshot', 
+                    data: JSON.stringify({ status: currentStatus, platform: Capacitor.getPlatform() }) 
+                });
+            }
             
-            if (permissionStatus === 'permanent-denied') {
+            if (currentStatus === 'permanent-denied') {
                 throw new Error('PERMISSION_PERMANENT_DENIED');
-            } else if (permissionStatus === 'denied') {
-                throw new Error('PERMISSION_DENIED');
             }
 
-            // 2. Requesting Permission & Starting
+            // 2. 直接发起录制请求 (getUserMedia 会在 Webview/Bridge 层面自动处理权限申请流程)
+            // 即使 currentStatus 是 'denied' 或 'prompt'，也要尝试，以消除 React 状态同步延迟。
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 
+                // 埋点: audio_permission_granted
+                if (typeof window !== 'undefined' && (window as any).Capacitor?.Plugins?.AMapLocation) {
+                    (window as any).Capacitor.Plugins.AMapLocation.logEvent({ eventName: 'audio_permission_granted' });
+                }
+
                 const mediaRecorder = new MediaRecorder(stream);
                 mediaRecorderRef.current = mediaRecorder;
                 audioChunksRef.current = [];
@@ -102,13 +118,32 @@ export function useAudioRecorder() {
 
                 mediaRecorder.start();
 
+                // 埋点: audio_record_start_success
+                if (typeof window !== 'undefined' && (window as any).Capacitor?.Plugins?.AMapLocation) {
+                    (window as any).Capacitor.Plugins.AMapLocation.logEvent({ eventName: 'audio_record_start_success' });
+                }
+
                 timerRef.current = setInterval(() => {
                     setRecordDurationMs(Date.now() - startTimeRef.current);
                 }, 100);
 
             } catch (err: any) {
-                const isDenied = err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError';
+                const isDenied = err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError' || err.name === 'SecurityError';
+                
+                // 埋点: audio_record_start_failed
+                if (typeof window !== 'undefined' && (window as any).Capacitor?.Plugins?.AMapLocation) {
+                    (window as any).Capacitor.Plugins.AMapLocation.logEvent({ 
+                        eventName: 'audio_record_start_failed', 
+                        data: JSON.stringify({ errorName: err.name, errorMessage: err.message }) 
+                    });
+                }
+
                 if (isDenied) {
+                    // 再次检查权限，确认是否是永久拒绝
+                    const latestStatus = await checkPermissions();
+                    if (latestStatus === 'permanent-denied') {
+                        throw new Error('PERMISSION_PERMANENT_DENIED');
+                    }
                     throw new Error('PERMISSION_DENIED');
                 }
                 throw err;
@@ -119,12 +154,12 @@ export function useAudioRecorder() {
             setIsRecording(false);
 
             if (err.message === 'PERMISSION_PERMANENT_DENIED' || err.message === 'PERMISSION_DENIED') {
-                throw err; // Let UI handle this
+                throw err; // 由 UI 层拦截并弹出设置引导或提示
             } else {
-                toast.error('无法访问麦克风，请检查硬件是否正常');
+                toast.error('无法激活麦克风，请检查权限或硬件连接');
             }
         }
-    }, [checkPermissions, permissionStatus]);
+    }, [checkPermissions]);
 
     const stopRecording = useCallback(async (cancel: boolean, receiverId: string): Promise<VoiceRecordResult | null> => {
         return new Promise((resolve) => {
