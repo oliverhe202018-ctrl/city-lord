@@ -80,18 +80,22 @@ export function useAudioRecorder() {
 
     const startRecording = useCallback(async () => {
         try {
-            // 1. 实时权限快照埋点
-            const currentStatus = await checkPermissions();
-            logEvent('audio_permission_snapshot', { status: currentStatus, platform: Capacitor.getPlatform() });
+            // 1. 实时权限快照
+            const { safeCheckMicrophonePermission } = await import('@/lib/capacitor/safe-plugins');
+            const permResult = await safeCheckMicrophonePermission();
             
-            if (currentStatus === 'permanent-denied') {
-                throw new Error('PERMISSION_PERMANENT_DENIED');
-            }
-
+            logEvent('audio_permission_snapshot', { 
+                status: permResult.currentStatus, 
+                hasRequested: permResult.hasRequested,
+                platform: Capacitor.getPlatform() 
+            });
+            
             // 2. 直接发起录制请求 (getUserMedia 会在 Webview/Bridge 层面自动处理权限申请流程)
-            // 即使 currentStatus 是 'denied' 或 'prompt'，也要尝试，以消除 React 状态同步延迟。
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                permResult.markRequested();
+                if (typeof window !== 'undefined') localStorage.removeItem('has_requested_microphone');
                 
                 logEvent('audio_permission_granted');
 
@@ -118,17 +122,18 @@ export function useAudioRecorder() {
                 }, 100);
 
             } catch (err: any) {
-                const isDenied = err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError' || err.name === 'SecurityError';
-                
+                const wasAlreadyRequested = permResult.hasRequested; // 先读旧值
+                permResult.markRequested();                           // 再写入
+
+                const isDenied =
+                    err.name === 'NotAllowedError' ||
+                    err.name === 'PermissionDeniedError' ||
+                    err.name === 'SecurityError';
+
                 logEvent('audio_record_start_failed', { errorName: err.name, errorMessage: err.message });
 
                 if (isDenied) {
-                    // 再次检查权限，确认是否是永久拒绝
-                    const latestStatus = await checkPermissions();
-                    if (latestStatus === 'permanent-denied') {
-                        throw new Error('PERMISSION_PERMANENT_DENIED');
-                    }
-                    throw new Error('PERMISSION_DENIED');
+                    throw new Error(wasAlreadyRequested ? 'PERMISSION_PERMANENT_DENIED' : 'PERMISSION_DENIED');
                 }
                 throw err;
             }

@@ -13,8 +13,9 @@ import {
   Flag,
   Award,
   MessageSquareWarning,
-  Image as ImageIcon,
-  ShoppingBag
+  ImageIcon,
+  ShoppingBag,
+  ScrollText
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
@@ -61,6 +62,11 @@ const sidebarItems = [
     title: '用户反馈',
     href: '/admin/feedback',
     icon: MessageSquareWarning
+  },
+  {
+    title: '版本日志',
+    href: '/admin/changelog',
+    icon: ScrollText
   },
   {
     title: '系统日志',

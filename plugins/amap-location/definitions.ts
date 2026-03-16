@@ -154,6 +154,16 @@ export interface AMapLocationPlugin {
      * 通知格式："今日 X 步 · 每日跑步语录"
      */
     updateNotificationSteps(options: { steps: number }): Promise<void>;
+    
+    /**
+     * 跳转至系统的应用权限设置页面。
+     * iOS 端直接跳转至 App 专属设置页；Android 端尝试适配不同厂商的权限编辑页。
+     */
+    openAppPermissionSettings(): Promise<{
+        opened: boolean;
+        route: 'manufacturer' | 'app_details' | 'system_settings';
+        component: string;
+    }>;
 }
 
 // ---------------------------------------------------------------------------

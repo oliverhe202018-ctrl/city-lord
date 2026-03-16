@@ -90,6 +90,8 @@ model profiles {
   received_invitations                          friend_invitations[]          @relation("invitee_invitations")
   anti_cheat_audit_logs                         anti_cheat_audit_logs[]
 
+  changelog_reads user_changelog_reads[]
+
   @@index([club_id], map: "idx_profiles_club_id")
   @@index([faction], map: "idx_profiles_faction")
   @@index([invited_by], map: "idx_profiles_invited_by")
@@ -1164,5 +1166,48 @@ model friend_invitations {
   @@index([inviter_user_id])
   @@index([invite_link])
   @@index([status, expired_at])
+  @@schema("public")
+}
+
+model changelog_versions {
+  id           String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  version      String            @unique
+  title        String?
+  is_latest    Boolean           @default(false)
+  release_date DateTime          @default(now()) @db.Timestamptz(6)
+  created_at   DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime          @default(now()) @updatedAt @db.Timestamptz(6)
+  published_at DateTime?         @db.Timestamptz(6)
+  items        changelog_items[]
+  reads        user_changelog_reads[]
+
+  @@index([release_date(sort: Desc)])
+  @@schema("public")
+}
+
+model changelog_items {
+  id         String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  version_id String             @db.Uuid
+  tag        String             // 'new_feature' | 'improvement' | 'bug_fix'
+  content    String
+  sort_order Int                @default(0)
+  created_at DateTime           @default(now()) @db.Timestamptz(6)
+  version    changelog_versions @relation(fields: [version_id], references: [id], onDelete: Cascade)
+
+  @@index([version_id, sort_order])
+  @@schema("public")
+}
+
+model user_changelog_reads {
+  id         String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String             @db.Uuid
+  version_id String             @db.Uuid
+  read_at    DateTime           @default(now()) @db.Timestamptz(6)
+
+  user    profiles           @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  version changelog_versions @relation(fields: [version_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, version_id])
+  @@index([user_id])
   @@schema("public")
 }

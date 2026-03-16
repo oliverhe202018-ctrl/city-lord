@@ -5,7 +5,16 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Build;
+import android.net.Uri;
+import android.content.ActivityNotFoundException;
+import android.content.ComponentName;
+import android.content.pm.PackageManager;
+import android.provider.Settings;
 import android.util.Log;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 
 import androidx.core.content.ContextCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
@@ -592,5 +601,141 @@ public class AMapLocationPlugin extends Plugin {
         }
 
         return obj;
+    }
+
+    // -----------------------------------------------------------------------
+    // openAppPermissionSettings — 跳转权限设置页 (厂商适配 + 兜底)
+    // -----------------------------------------------------------------------
+
+    @PluginMethod
+    public void openAppPermissionSettings(PluginCall call) {
+        JSObject ret = new JSObject();
+        
+        // 1. 尝试厂商专属页 (方案 B: 绕过 Package Visibility 限制)
+        try {
+            List<Intent> intents = getManufacturerPermissionIntents();
+            for (Intent intent : intents) {
+                try {
+                    getContext().startActivity(intent);
+                    ComponentName component = intent.getComponent();
+                    String cmpName = (component != null) ? component.flattenToShortString() : intent.getAction();
+                    Log.i(TAG, "Successfully opened manufacturer settings: " + cmpName);
+                    
+                    ret.put("opened", true);
+                    ret.put("route", "manufacturer");
+                    ret.put("component", cmpName);
+                    call.resolve(ret);
+                    return;
+                } catch (ActivityNotFoundException | SecurityException e) {
+                    // 当前 Intent 不可用，尝试列表中的下一个
+                    Log.d(TAG, "Intent not available, trying next: " + intent);
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Manufacturer intent traversal failed: " + e.getMessage());
+        }
+
+        // 2. 兜底 1: 标准应用详情页
+        try {
+            Intent fallback = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+            fallback.setData(Uri.parse("package:" + getContext().getPackageName()));
+            fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(fallback);
+            Log.i(TAG, "Opened app details settings (fallback 1)");
+            ret.put("opened", true);
+            ret.put("route", "app_details");
+            call.resolve(ret);
+            return;
+        } catch (Exception e) {
+            Log.w(TAG, "App details fallback failed: " + e.getMessage());
+        }
+
+        // 3. 终极兜底 2: 系统设置首页
+        try {
+            Intent settings = new Intent(Settings.ACTION_SETTINGS);
+            settings.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(settings);
+            Log.i(TAG, "Opened system settings home (fallback 2)");
+            ret.put("opened", true);
+            ret.put("route", "system_settings");
+            call.resolve(ret);
+        } catch (Exception e) {
+            Log.e(TAG, "Critical error: unable to open any settings page", e);
+            call.reject("OPEN_SETTINGS_FAILED", "无法打开任何设置页面: " + e.getMessage());
+        }
+    }
+
+    private List<Intent> getManufacturerPermissionIntents() {
+        List<Intent> intents = new ArrayList<>();
+        String manufacturer = Build.MANUFACTURER.toLowerCase(Locale.ROOT);
+        String brand = Build.BRAND.toLowerCase(Locale.ROOT);
+        String packageName = getContext().getPackageName();
+
+        // 小米/红米/POCO
+        if (manufacturer.contains("xiaomi") || brand.contains("xiaomi") ||
+            brand.contains("redmi") || brand.contains("poco")) {
+            Intent intent = new Intent("miui.intent.action.APP_PERM_EDITOR");
+            intent.setClassName("com.miui.securitycenter", "com.miui.permcenter.permissions.PermissionsEditorActivity");
+            intent.putExtra("extra_pkgname", packageName);
+            intents.add(intent);
+        }
+
+        // 华为/荣耀
+        if (manufacturer.contains("huawei") || brand.contains("huawei") || brand.contains("honor")) {
+            Intent intent1 = new Intent();
+            intent1.setComponent(new ComponentName("com.huawei.systemmanager", "com.huawei.permissionmanager.ui.SingleAppActivity"));
+            intent1.putExtra("packageName", packageName);
+            intents.add(intent1);
+            
+            Intent intent2 = new Intent();
+            intent2.setComponent(new ComponentName("com.android.settings", "com.android.settings.permission.TabItem"));
+            intents.add(intent2);
+        }
+
+        // OPPO/Realme/一加
+        if (manufacturer.contains("oppo") || brand.contains("oppo") || 
+            brand.contains("realme") || brand.contains("oneplus")) {
+            Intent intent1 = new Intent();
+            intent1.setClassName("com.coloros.safecenter", "com.coloros.safecenter.permission.PermissionAppAllPermissionActivity");
+            intent1.putExtra("packageName", packageName);
+            intents.add(intent1);
+            
+            Intent intent2 = new Intent();
+            intent2.setClassName("com.oppo.safe", "com.oppo.safe.permission.PermissionAppAllPermissionActivity");
+            intent2.putExtra("packageName", packageName);
+            intents.add(intent2);
+
+            Intent intent3 = new Intent();
+            intent3.setClassName("com.coloros.safecenter", "com.coloros.safecenter.permission.PermissionManagerActivity");
+            intents.add(intent3);
+        }
+
+        // vivo/iQOO
+        if (manufacturer.contains("vivo") || brand.contains("vivo") || brand.contains("iqoo")) {
+            Intent intent1 = new Intent();
+            intent1.setComponent(new ComponentName("com.vivo.permissionmanager", "com.vivo.permissionmanager.activity.SoftPermissionDetailActivity"));
+            intent1.putExtra("packagename", packageName);
+            intents.add(intent1);
+            
+            Intent intent2 = new Intent();
+            intent2.setComponent(new ComponentName("com.iqoo.secure", "com.iqoo.secure.safeguard.SoftPermissionDetailActivity"));
+            intent2.putExtra("packagename", packageName);
+            intents.add(intent2);
+        }
+
+        // 魅族
+        if (manufacturer.contains("meizu") || brand.contains("meizu")) {
+            Intent intent = new Intent("com.meizu.safe.security.SHOW_APPSEC");
+            intent.addCategory(Intent.CATEGORY_DEFAULT);
+            intent.putExtra("packageName", packageName);
+            intents.add(intent);
+        }
+
+        // 为所有 Intent 添加 FLAG_ACTIVITY_NEW_TASK
+        for (Intent it : intents) {
+            it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        }
+
+        return intents;
     }
 }

@@ -9,6 +9,7 @@
  * 禁止从外部直接操作 AMapLocation 插件，统一通过此 Bridge 调用。
  */
 
+import { registerPlugin, Capacitor } from '@capacitor/core';
 import type { PluginListenerHandle } from '@capacitor/core';
 import type { AMapPosition, AMapLocationError } from '@/plugins/amap-location/definitions';
 import type { GeoPoint } from '@/hooks/useSafeGeolocation';
@@ -579,16 +580,22 @@ export class AMapLocationBridge {
 
         try {
             if (this.isNative && this._AMapLocation) {
-                // ===== BUG FIX: Always use foreground service for ALL modes =====
-                // This ensures the status bar notification persists even when minimized/screen off.
-                // Previously only running mode used the foreground service.
-                const notifBody = options.mode === 'running' ? '跑步定位中…' : '位置追踪中…';
-                logInfo({ phase: 'startWatch-foreground-service', reason: `Using foreground service for ${options.mode} mode` });
-                await this._AMapLocation.startTracking({
-                    notificationTitle: 'City Lord',
-                    notificationBody: notifBody,
-                });
-                this.isUsingForegroundService = true;
+                if (Capacitor.getPlatform() === 'android') {
+                    // ===== BUG FIX: Always use foreground service for ALL modes =====
+                    // This ensures the status bar notification persists even when minimized/screen off.
+                    // Previously only running mode used the foreground service.
+                    const notifBody = options.mode === 'running' ? '跑步定位中…' : '位置追踪中…';
+                    logInfo({ phase: 'startWatch-foreground-service', reason: `Using foreground service for ${options.mode} mode` });
+                    await this._AMapLocation.startTracking({
+                        notificationTitle: 'City Lord',
+                        notificationBody: notifBody,
+                    });
+                    this.isUsingForegroundService = true;
+                } else {
+                    // iOS: 无 ForegroundService 概念，直接使用 startWatch
+                    await this._AMapLocation.startWatch({ mode: options.mode });
+                    this.isUsingForegroundService = false;
+                }
             } else {
                 this.startWebWatch(interval);
                 this.isUsingForegroundService = false;

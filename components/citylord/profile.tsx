@@ -4,7 +4,8 @@ import React from "react"
 import { AvatarUploader } from "@/components/ui/AvatarUploader"
 import Image from "next/image"
 
-import { MapPin, Swords, Footprints, Eye, Settings, ChevronRight, Hexagon, Zap, Target, LogIn, LogOut, Edit2, Gift, MessageSquareWarning, Sparkles, Shuffle, ShieldCheck, FileText, UserX, User } from "lucide-react"
+import { MapPin, Swords, Footprints, Eye, Settings, ChevronRight, Hexagon, Zap, Target, LogIn, LogOut, Edit2, Gift, MessageSquareWarning, Sparkles, Shuffle, ShieldCheck, FileText, UserX, User, ScrollText } from "lucide-react"
+import { ChangelogUnreadBadge } from '@/components/changelog/ChangelogUnreadBadge'
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useGameStore } from "@/store/useGameStore"
@@ -760,6 +761,25 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
               </div>
             </div>
             <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
+          </Link>
+
+          <Link
+            href="/changelog"
+            className="mt-2 flex w-full items-center justify-between rounded-xl border border-border bg-card/50 p-3 transition-all active:bg-muted/10 hover:bg-card/80"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/20">
+                <ScrollText className="h-4 w-4 text-emerald-500" />
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-semibold text-foreground">功能更新日志</p>
+                <p className="text-xs text-muted-foreground">查看最新版本功能与改动说明</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5">
+                <ChangelogUnreadBadge />
+                <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
+            </div>
           </Link>
 
           <Link href="/terms" className="mt-2 flex w-full items-center justify-between rounded-xl border border-border bg-card/50 p-3 transition-all active:bg-muted/10 hover:bg-card/80">

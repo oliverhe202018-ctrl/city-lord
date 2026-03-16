@@ -3,6 +3,17 @@ import { Mic, X } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { useAudioRecorder, VoiceRecordResult } from '@/hooks/useAudioRecorder';
 import { cn } from '@/lib/utils';
+import { registerPlugin, Capacitor } from '@capacitor/core';
+
+interface AMapLocationPlugin {
+  openAppPermissionSettings(): Promise<{
+    opened: boolean;
+    route: 'manufacturer' | 'app_details' | 'system_settings';
+    component: string;
+  }>;
+}
+
+const AMapLocation = registerPlugin<AMapLocationPlugin>('AMapLocation');
 
 interface VoiceRecorderProps {
     receiverId: string;
@@ -158,32 +169,47 @@ export function VoiceRecorder({ receiverId, onSend, disabled }: VoiceRecorderPro
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={async (e) => {
-                                        e.preventDefault(); e.stopPropagation();
-                                        const { safeOpenAppSettings } = await import('@/lib/capacitor/safe-plugins');
-                                        const { App } = await import('@capacitor/app');
-                                        const { toast } = await import('sonner');
-                                        
-                                        let hasLeftApp = false;
-                                        const listener = await App.addListener('appStateChange', ({ isActive }) => {
-                                            if (!isActive) hasLeftApp = true;
-                                        });
+                                onClick={async (e) => {
+                                    e.preventDefault(); e.stopPropagation();
+                                    const { safeOpenAppSettings } = await import('@/lib/capacitor/safe-plugins');
+                                    const { App } = await import('@capacitor/app');
+                                    const { toast } = await import('sonner');
+                                    
+                                    let hasLeftApp = false;
+                                    const listener = await App.addListener('appStateChange', ({ isActive }) => {
+                                        if (!isActive) hasLeftApp = true;
+                                    });
 
-                                        const success = await safeOpenAppSettings();
-                                        
-                                        // 500ms 兜底检测是否切后台
-                                        setTimeout(async () => {
-                                            if (listener) await listener.remove();
-                                            if (!hasLeftApp && !success) {
-                                                setShowPermissionModal(false);
-                                                toast.error('无法自动打开设置，请手动：系统设置 > 应用管理 > 开启麦克风权限', {
-                                                    duration: 5000,
-                                                });
-                                            } else {
-                                                setShowPermissionModal(false);
+                                    let opened = false;
+                                    // P0: Android 优先并增加 try-catch 守卫
+                                    if (Capacitor.getPlatform() === 'android') {
+                                        try {
+                                            const res = await AMapLocation.openAppPermissionSettings();
+                                            opened = res?.opened === true;
+                                            if (!opened) {
+                                                opened = await safeOpenAppSettings();
                                             }
-                                        }, 600);
-                                    }}
+                                        } catch (err) {
+                                            // 插件抛错或拒绝时，执行跨平台兜底
+                                            opened = await safeOpenAppSettings();
+                                        }
+                                    } else {
+                                        opened = await safeOpenAppSettings();
+                                    }
+                                    
+                                    // 500ms 兜底检测是否切后台
+                                    setTimeout(async () => {
+                                        if (listener) await listener.remove();
+                                        if (!hasLeftApp && !opened) {
+                                            setShowPermissionModal(false);
+                                            toast.error('无法自动打开设置，请手动：系统设置 > 应用管理 > 开启麦克风权限', {
+                                                duration: 5000,
+                                            });
+                                        } else {
+                                            setShowPermissionModal(false);
+                                        }
+                                    }, 600);
+                                }}
                                     className="flex-1 py-3 text-sm font-bold text-cyan-400 hover:bg-white/5 transition-colors active:bg-white/10"
                                 >
                                     去设置

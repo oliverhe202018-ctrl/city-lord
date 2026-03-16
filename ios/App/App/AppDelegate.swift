@@ -1,5 +1,6 @@
 import UIKit
 import Capacitor
+import AMapFoundationKit
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -8,6 +9,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // Override point for customization after application launch.
+        // 高德地图 iOS Key（请将占位符替换为真实 Key）
+        AMapServices.shared().apiKey = "PLEASE_REPLACE_WITH_YOUR_IOS_AMAP_KEY"
         return true
     }
 
