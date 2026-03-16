@@ -284,15 +284,17 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     if (!isRunning || isStoppingRef.current) return;
     try {
       const stateToSave = {
-        runId: savedRunId, // 可能为 null，表示尚未有服务端 ID
+        runId: savedRunId, 
         idempotencyKey: runIdempotencyKeyRef.current,
         path: pathRef.current || [],
         distance: distanceRef.current,
         duration: durationRef.current,
         pausedAccumulator: pausedAccumulatorRef.current,
-        isRunning: isRunning,
-        isPaused: isPausedRef.current,
+        isRunning: isRunning, // 必需字段
+        status: isPausedRef.current ? 'paused' : 'running', // 状态明细
         startTime: startTimeRef.current,
+        lastLocationAt: lastLocationRef.current?.timestamp || Date.now(),
+        sessionVersion: '2.0', 
         closedPolygons: closedPolygonsRef.current || [],
         area: areaRef.current || 0,
         timestamp: Date.now(),

@@ -84,26 +84,30 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
     const BASE_DAMAGE = 100;
 
     // 2. Fetch overlapping territories using PostGIS BBox/Intersects (Raw SQL)
-    // We use raw SQL to leverage PostGIS capabilities and also read the geojson output easily
-    // We only fetch ACTIVE territories
-    const overlappingTerritories = await client.$queryRaw<any[]>`
-        SELECT 
-            id, 
-            owner_id,
-            owner_club_id,
-            current_hp,
-            max_hp,
-            score_weight,
-            territory_type,
-            level,
-            p.nickname as owner_name,
-            ST_AsGeoJSON(geojson)::jsonb as geometry,
-            ST_Contains(ST_GeomFromGeoJSON(${JSON.stringify(pathGeoJSON.geometry)}), geojson) as is_contained
-        FROM territories t
-        LEFT JOIN profiles p ON t.owner_id = p.id
-        WHERE status = 'ACTIVE'::"TerritoryStatus"
-        AND ST_Intersects(geojson, ST_GeomFromGeoJSON(${JSON.stringify(pathGeoJSON.geometry)}))
-    `;
+    let overlappingTerritories: any[] = [];
+    try {
+        overlappingTerritories = await client.$queryRaw<any[]>`
+            SELECT 
+                t.id, 
+                t.owner_id,
+                t.owner_club_id,
+                t.current_hp,
+                t.max_hp,
+                t.score_weight,
+                t.territory_type,
+                t.level,
+                p.nickname as owner_name,
+                ST_AsGeoJSON(t.geojson)::jsonb as geometry,
+                ST_Contains(ST_GeomFromGeoJSON(${JSON.stringify(pathGeoJSON.geometry)}), t.geojson) as is_contained
+            FROM territories t
+            LEFT JOIN profiles p ON t.owner_id = p.id
+            WHERE t.status = 'ACTIVE'::"TerritoryStatus"
+            AND ST_Intersects(t.geojson, ST_GeomFromGeoJSON(${JSON.stringify(pathGeoJSON.geometry)}))
+        `;
+    } catch (sqlErr: any) {
+        console.error(`[Settlement SQL Error] userId: ${userId}, runId: ${runId}, error: ${sqlErr.message}`);
+        return { success: false, createdTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: `SQL Error: ${sqlErr.message}` };
+    }
 
     const processLogic = async (tx: Prisma.TransactionClient) => {
         

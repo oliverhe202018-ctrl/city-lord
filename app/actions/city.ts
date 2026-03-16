@@ -28,6 +28,7 @@ export async function fetchTerritories(cityId: string): Promise<ExtTerritory[]> 
       .select(`
         id, city_id, owner_id, owner_club_id, owner_faction, 
         captured_at, health, last_maintained_at, owner_change_count, last_owner_change_at,
+        geojson_json,
         clubs ( id, name, logo_url )
       `)
       .eq('city_id', cityId)
@@ -62,6 +63,7 @@ export async function fetchTerritories(cityId: string): Promise<ExtTerritory[]> 
         lastMaintainedAt: t.last_maintained_at,
         isHotZone,
         ownerChangeCount: changeCount,
+        geojson_json: t.geojson_json,
         ownerClub: t.clubs ? {
           id: Array.isArray(t.clubs) ? t.clubs[0]?.id : t.clubs.id,
           name: Array.isArray(t.clubs) ? t.clubs[0]?.name : t.clubs.name,

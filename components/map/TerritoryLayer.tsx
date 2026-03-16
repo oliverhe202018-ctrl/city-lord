@@ -108,35 +108,42 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
 
     let mounted = true;
 
-    const loadTerritories = async () => {
+    const loadTerritories = async (retryCount = 0) => {
       try {
-        console.log(`[Audit] loadTerritories: cityId=${city.id} map=${!!map}`);
+        console.log(`[Audit] loadTerritories: cityId=${city.id} map=${!!map} retry=${retryCount}`);
         const data = await fetchTerritories(city.id);
-        console.log(`[Audit] loadTerritories: API returned ${Array.isArray(data) ? data.length : 'non-array'} items`);
-
+        
         if (!mounted) return;
+        if (!data || !Array.isArray(data)) {
+           throw new Error('API returned invalid data format');
+        }
+
+        if (data && data.length > 0) {
+          if (typeof window !== 'undefined' && (window as any).Capacitor?.Plugins?.AMapLocation) {
+             (window as any).Capacitor.Plugins.AMapLocation.logEvent({ eventName: 'territory_render_success', data: JSON.stringify({ count: data.length }) });
+          }
+        } else {
+          if (typeof window !== 'undefined' && (window as any).Capacitor?.Plugins?.AMapLocation) {
+             (window as any).Capacitor.Plugins.AMapLocation.logEvent({ eventName: 'territory_render_empty', data: JSON.stringify({ cityId: city.id }) });
+          }
+        }
+
+        console.log(`[Audit] Success: API returned ${data.length} items`);
 
         const newPolygonMap = new Map<any, { territory: ExtTerritory; defaultStrokeColor: string }>();
-        const newCellMap = new Map<string, ExtTerritory>(); // Prepare fallback map
+        const newCellMap = new Map<string, ExtTerritory>();
 
-        const createdPolygons = (Array.isArray(data) ? data : []).map((territory) => {
-          // Populate fallback dictionary
+        const createdPolygons = data.map((territory) => {
           newCellMap.set(territory.id, territory);
-
-          // Extract path from geojson
           let path: [number, number][] = [];
           
           if (territory.geojson_json && territory.geojson_json.coordinates) {
-             // We enforce Option A: Backend always returns single Polygons.
              if (territory.geojson_json.type === 'Polygon') {
                path = territory.geojson_json.coordinates[0];
              } else {
-               console.warn(`[TerritoryLayer] Unsupported or invalid geometry type for territory ${territory.id}: ${territory.geojson_json.type}. Check settlement backend split logic.`);
                return null;
              }
           }
-          
-          // Safeguard: if parsing failed, fallback or skip
           if (!path || path.length < 3) return null;
 
           const ctx: ViewContext = {
@@ -144,8 +151,6 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
             subject: kingdomMode === 'club' ? 'club' : (viewMode === 'faction' ? 'faction' : 'individual')
           };
           const style = generateTerritoryStyle(territory, ctx);
-
-          // 俱乐部模式下降低多边形填充透明度，以突出头像 Marker
           const polygonFillOpacity = kingdomMode === 'club' ? 0.15 : 0.5;
 
           const polygon = new (window as any).AMap.Polygon({
@@ -156,10 +161,9 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
             strokeWeight: 2,
             zIndex: 50,
             extData: territory,
-            bubble: false, // 阻止事件冒泡到地图，避免 blank click 误触发
+            bubble: false,
           });
 
-          // Store mapping for highlight management
           newPolygonMap.set(polygon, {
             territory,
             defaultStrokeColor: style.strokeColor2D,
@@ -167,11 +171,9 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
 
           let marker = null;
           if (kingdomMode === 'club' && territory.ownerClub) {
-            // 使用 turf.pointOnFeature 确保标注点在多边形内部（非凸多边形的 centroid 可能落在外面）
             let markerPosition: [number, number];
             try {
               const coords = path.map((p: any) => [p[0], p[1]]);
-              // 确保闭合
               if (coords.length > 0 && (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1])) {
                 coords.push(coords[0]);
               }
@@ -179,12 +181,10 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
               const pt = turf.pointOnFeature(poly);
               markerPosition = pt.geometry.coordinates as [number, number];
             } catch {
-              // 回退到 BBox 中心
               const center = polygon.getBounds().getCenter();
               markerPosition = [center.getLng(), center.getLat()];
             }
             
-            // 基础尺寸 24px，会被 zoomchange 事件动态调整
             const baseSize = 24;
             const content = document.createElement('div');
             content.className = 'pointer-events-none';
@@ -214,22 +214,17 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
               content: content,
               zIndex: 60,
               bubble: true,
-              zooms: [12, 20], // zoom < 12 时隐藏头像
+              zooms: [12, 20],
             });
-
-            // 缓存 DOM 引用用于缩放回调
             (marker as any).__avatarContentEl = content;
           }
 
-          // 点击 Polygon 时同时打开 InfoBar 和 DetailSheet 抽屉
           polygon.on("click", (e: any) => {
-            console.log(`[Audit] ★ POLYGON CLICK ★ territory=${territory.id}`);
             (window as any).__amap_polygon_clicked = Date.now();
             setSelectedTerritory?.(territory);
             setIsDetailSheetOpen?.(true);
           });
           polygon.on("mouseover", () => {
-            // 使用 ref 获取最新的 selectedTerritory，避免 stale closure
             if (selectedTerritoryRef.current?.id !== territory.id) {
               polygon.setOptions({ strokeWeight: 3 });
             }
@@ -245,34 +240,45 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
 
         polygonTerritoryMap.current = newPolygonMap;
         activeTerritoryMap.current = newCellMap;
-        console.log(`[Audit] Territory lookup table built: ${newCellMap.size} entries`);
 
-        // Clear old polygons before adding new ones
-        setPolygons(prev => {
-          prev.forEach(p => {
-            if (p && typeof p.setMap === 'function') {
-              p.setMap(null);
-            }
+        // Atomic update on map
+        if (map) {
+          setPolygons(prev => {
+            prev.forEach(p => p && p.setMap && p.setMap(null));
+            const validPolygons = createdPolygons.filter(item => item !== null).map(item => item!.polygon).filter(p => !!p);
+            map.add(validPolygons);
+            return validPolygons;
           });
-          const validPolygons = createdPolygons.filter(item => item !== null).map(item => item!.polygon).filter(p => !!p);
-          map.add(validPolygons);
-          return validPolygons;
-        });
 
-        setMarkers(prev => {
-          prev.forEach(m => {
-            if (m && typeof m.setMap === 'function') {
-              m.setMap(null);
-            }
+          setMarkers(prev => {
+            prev.forEach(m => m && m.setMap && m.setMap(null));
+            const validMarkers = createdPolygons.filter(item => item !== null).map(item => item!.marker).filter(m => !!m);
+            map.add(validMarkers);
+            return validMarkers;
           });
-          const validMarkers = createdPolygons.filter(item => item !== null).map(item => item!.marker).filter(m => !!m);
-          map.add(validMarkers);
-          return validMarkers;
-        });
+        }
+        
+        // [埋点补齐] 渲染成功
+        if (typeof window !== 'undefined' && (window as any).Capacitor?.Plugins?.AMapLocation) {
+           (window as any).Capacitor.Plugins.AMapLocation.logEvent({ eventName: 'territory_render_success', data: JSON.stringify({ cityId: city.id, count: data.length }) });
+        }
 
       } catch (error: any) {
+        if (!mounted) return;
         if (error?.name !== 'AbortError' && error?.digest !== 'NEXT_REDIRECT') {
-          console.error("Failed to load territories:", error);
+          console.error(`Failed to load territories (retry=${retryCount}):`, error);
+          
+          // 埋点: territory_render_retry
+          if (typeof window !== 'undefined' && (window as any).Capacitor?.Plugins?.AMapLocation) {
+             (window as any).Capacitor.Plugins.AMapLocation.logEvent({ eventName: 'territory_render_retry', data: JSON.stringify({ retryCount: retryCount + 1, error: error.message }) });
+          }
+
+          if (retryCount < 4) {
+            const delay = 500 * Math.pow(2, retryCount); 
+            setTimeout(() => {
+              if (mounted) loadTerritories(retryCount + 1);
+            }, delay);
+          }
         }
       }
     };
@@ -280,7 +286,6 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
     loadTerritories();
 
     const handleRefresh = () => {
-      console.log(`[Audit] Manual refresh triggered via event`);
       loadTerritories();
     };
     window.addEventListener('citylord:refresh-territories', handleRefresh);
@@ -344,6 +349,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
     map.on('zoomchange', updateMarkerSizes);
     return () => { map.off('zoomchange', updateMarkerSizes); };
   }, [map, markers, kingdomMode]);
+  
   useEffect(() => {
     return () => {
       try {
