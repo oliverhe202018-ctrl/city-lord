@@ -128,6 +128,7 @@ const RouteThumbnail = memo(({ waypoints }: { waypoints?: [number, number][] }) 
         );
     }
 });
+RouteThumbnail.displayName = 'RouteThumbnail';
 
 function GameHomePageInner({ onStartRun, onNavigateToMap, onNavigateToTab, onSmartPlan }: GameHomePageProps) {
     const { data, isLoading: isHomeLoading } = useHomeData();
