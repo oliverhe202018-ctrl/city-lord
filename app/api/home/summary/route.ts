@@ -34,7 +34,6 @@ export async function GET(request: Request) {
     // Run all queries in parallel for speed
     const [
         profileResult,
-        territoriesResult,
         battleFeedResult,
         progressResult,
         leaderboardResult,
@@ -42,7 +41,6 @@ export async function GET(request: Request) {
         notificationCountResult,
     ] = await Promise.allSettled([
         fetchProfile(userId),
-        fetchNearbyTargets(userId, userLat, userLng),
         fetchBattleFeed(userId),
         fetchDailyProgress(userId),
         fetchLeaderboard(userId),
@@ -51,7 +49,6 @@ export async function GET(request: Request) {
     ]);
 
     const profile = profileResult.status === 'fulfilled' ? profileResult.value : null;
-    const nearbyTargets = territoriesResult.status === 'fulfilled' ? territoriesResult.value : [];
     const battleFeed = battleFeedResult.status === 'fulfilled' ? battleFeedResult.value : [];
     const progressItems = progressResult.status === 'fulfilled' ? progressResult.value : [];
     const { leaderboard, myRank } = leaderboardResult.status === 'fulfilled'
@@ -85,6 +82,14 @@ export async function GET(request: Request) {
         updatedAt: new Date().toISOString(),
     };
 
+    // === Step: Assemble Nearby Targets (A -> B -> C Fill-in) ===
+    const nearbyTargets = await assembleNearbyTargets({
+        userId,
+        userLat,
+        userLng,
+        province: profile?.province || '上海'
+    });
+
     const data: HomeSummaryData & { notificationCount: number } = {
         location,
         hero,
@@ -101,6 +106,192 @@ export async function GET(request: Request) {
 }
 
 // ======================== Query Functions ========================
+
+/** 
+ * 核心装配逻辑：A (领地) -> B (路线) -> C (兜底)
+ * 实现补位逻辑，填满 6 个目标。
+ */
+async function assembleNearbyTargets({ 
+    userId, 
+    userLat, 
+    userLng,
+    province 
+}: { 
+    userId: string, 
+    userLat: number, 
+    userLng: number,
+    province: string
+}): Promise<Target[]> {
+    const TARGET_COUNT = 6;
+    const results: any[] = [];
+    const seenIds = new Set<string>();
+
+    const getDist = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+        if (!lat1 || !lon1 || !lat2 || !lon2) return 999999;
+        const R = 6371e3;
+        const φ1 = lat1 * Math.PI/180;
+        const φ2 = lat2 * Math.PI/180;
+        const Δφ = (lat2-lat1) * Math.PI/180;
+        const Δλ = (lon2-lon1) * Math.PI/180;
+        const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                  Math.cos(φ1) * Math.cos(φ2) *
+                  Math.sin(Δλ/2) * Math.sin(Δλ/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    };
+
+    // --- Phase A: Nearby Active Territories ---
+    const territories = await prisma.territories.findMany({
+        where: {
+            owner_id: { not: userId },
+            status: 'ACTIVE',
+        },
+        orderBy: [
+            { last_maintained_at: 'asc' }, // 活跃度/维护度排序
+        ],
+        take: 10, // 为了后续排序取稍多一点
+        select: {
+            id: true,
+            owner_id: true,
+            health: true,
+            level: true,
+            profiles: { select: { nickname: true } }
+        }
+    });
+
+    const mappedA = territories.map(t => {
+        // Mock coordinates if not in DB, centered around user with small offset
+        const tLat = userLat + (Math.random() - 0.5) * 0.01;
+        const tLng = userLng + (Math.random() - 0.5) * 0.01;
+        const distM = Math.round(getDist(userLat, userLng, tLat, tLng));
+        const health = t.health ?? 1000;
+        const riskLevel = health > 700 ? 'high' : health > 400 ? 'med' : 'low';
+        
+        return {
+            source: 'territory',
+            id: t.id,
+            title: `${t.profiles?.nickname ?? '神秘领主'}的领地`,
+            type: (health < 300 ? 'claim' : 'attack') as any,
+            distance: distM > 1000 ? `${(distM / 1000).toFixed(1)}km` : `${distM}m`,
+            distanceMeters: distM,
+            summary: health < 300 ? '防守薄弱，速来占领' : `精力充沛 (${health} HP)`,
+            rewardEstimate: `+${Math.round((1000 - health) / 20) + 10} 勋章`,
+            thumbnail: 'map-pin',
+            action: `/game/map?targetId=${t.id}`,
+            riskLevel: riskLevel,
+            riskLabel: health > 700 ? '对方非常强大' : health > 400 ? '有一场硬仗' : '防守极其松懈'
+        };
+    }).sort((a: any, b: any) => a.distanceMeters - b.distanceMeters);
+
+    for (const item of mappedA) {
+        if (results.length >= TARGET_COUNT) break;
+        const key = `${item.source}:${item.id}`;
+        if (!seenIds.has(key)) {
+            results.push(item);
+            seenIds.add(key);
+        }
+    }
+
+    // --- Phase B: Nearby Recommended Routes ---
+    if (results.length < TARGET_COUNT) {
+        const routes = await prisma.route_plans.findMany({
+            orderBy: { created_at: 'desc' },
+            take: 10,
+            select: {
+                id: true,
+                name: true,
+                distance: true,
+                capture_area: true,
+            }
+        });
+
+        const mappedB = routes.map((r: any) => {
+            // 模拟一个随机偏移，使距离看起来更加“真实”地分布在附近
+            const distKm = r.distance || (Math.random() * 2 + 0.5); 
+            const distM = Math.round(distKm * 1000);
+            
+            return {
+                source: 'route',
+                id: r.id,
+                title: r.name || '附近的规划路线',
+                type: 'claim' as any,
+                distance: distKm >= 1 ? `${distKm.toFixed(1)}km` : `${distM}m`,
+                distanceMeters: Number(distM), // 强制确保为 number
+                summary: `预计产出 ${(r.capture_area || 0.5).toFixed(1)}km² 领地`,
+                rewardEstimate: `+${Math.round(distKm * 5 + 10)} 勋章`, // 格式化为字符串
+                thumbnail: 'route',
+                action: `/game/planner?id=${r.id}`,
+                riskLevel: 'low' as any,
+                riskLabel: '安全路线'
+            };
+        }).sort((a: any, b: any) => a.distanceMeters - b.distanceMeters);
+
+        for (const item of mappedB) {
+            if (results.length >= TARGET_COUNT) break;
+            const key = `${item.source}:${item.id}`;
+            if (!seenIds.has(key)) {
+                results.push(item);
+                seenIds.add(key);
+            }
+        }
+    }
+
+    // --- Phase C: Actionable Fallback Cards ---
+    if (results.length < TARGET_COUNT) {
+        const fallbackCards = [
+            {
+                id: 'c-plan',
+                title: '规划新起点',
+                type: 'claim' as any,
+                distance: '步行 5min',
+                distanceMeters: 500,
+                summary: '开启一段全新的占地征程',
+                rewardEstimate: '首次规划奖励',
+                thumbnail: 'edit',
+                action: '/game/planner',
+                riskLevel: 'low' as any,
+                riskLabel: '全速开启'
+            },
+            {
+                id: 'c-hot',
+                title: '探索热门区域',
+                type: 'hotspot' as any,
+                distance: '由你定义',
+                distanceMeters: 1000,
+                summary: '看看其他玩家都在哪里占领',
+                rewardEstimate: '发现惊喜',
+                thumbnail: 'trending-up',
+                action: '/game/map',
+                riskLevel: 'med' as any,
+                riskLabel: '充满机遇'
+            },
+            {
+                id: 'c-tutorial',
+                title: '占领秘籍',
+                type: 'defend' as any,
+                distance: '就在手边',
+                distanceMeters: 0,
+                summary: '学习如何高效扩张你的领土',
+                rewardEstimate: '成长加速',
+                thumbnail: 'book-open',
+                action: '/lord-center',
+                riskLevel: 'low' as any,
+                riskLabel: '轻松学习'
+            }
+        ];
+
+        for (const item of fallbackCards) {
+            if (results.length >= TARGET_COUNT) break;
+            const key = `fallback:${item.id}`;
+            if (!seenIds.has(key)) {
+                results.push({ source: 'fallback', ...item });
+                seenIds.add(key);
+            }
+        }
+    }
+
+    return results;
+}
 
 async function fetchProfile(userId: string) {
     const profile = await prisma.profiles.findUnique({
@@ -143,79 +334,6 @@ async function fetchProfile(userId: string) {
         territory_count_today: territoryCountToday,
         coins_earned_today: todayLogs._sum.reward_coins ?? 0,
     };
-}
-
-async function fetchNearbyTargets(userId: string, userLat: number, userLng: number): Promise<Target[]> {
-    // 1. Fetch territories NOT owned by the user
-    const recentTargets = await prisma.territories.findMany({
-        where: {
-            owner_id: { not: userId },
-            status: 'ACTIVE',
-        },
-        orderBy: { last_maintained_at: 'asc' },
-        take: 6,
-        select: {
-            id: true,
-            city_id: true,
-            owner_id: true,
-            health: true,
-            level: true,
-            h3CellId: true,
-            captured_at: true,
-            profiles: {
-                select: { nickname: true },
-            },
-        },
-    });
-
-    // 辅助函数：哈夫赛式距离 (米)
-    const getDist = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-        if (!lat1 || !lon1 || !lat2 || !lon2) return 999999;
-        const R = 6371e3; // meters
-        const φ1 = lat1 * Math.PI/180;
-        const φ2 = lat2 * Math.PI/180;
-        const Δφ = (lat2-lat1) * Math.PI/180;
-        const Δλ = (lon2-lon1) * Math.PI/180;
-        const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-                  Math.cos(φ1) * Math.cos(φ2) *
-                  Math.sin(Δλ/2) * Math.sin(Δλ/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        return R * c;
-    };
-
-    const targetsWithDist = await Promise.all(recentTargets.map(async (t) => {
-        // [City Lord DB]: 默认从 H3 Index 动态计算中心点（如果表中无坐标）
-        // 这里假设我们通过某种方式得到了坐标，或使用 H3
-        // 简单起见，从 profiles 获取城市中心或 mock 一个在此基础上的偏移
-        // 在正式环境应使用 ST_Distance 或 H3 Center
-        let tLat = 31.23; // Mock 上海中心
-        let tLng = 121.47;
-        
-        // 如果有真实的 h3_index，可以转换，这里作为 P1 补齐逻辑
-        // 此处为了展示效果，对 placeholder 逻辑进行显著性真实化改进：
-        // 随机产生在用户 1km 范围内的偏移（仅当 mock 时），但在真实 DB 中应来自地块中心。
-        const dist = userLat !== 0 ? getDist(userLat, userLng, tLat, tLng) : (Math.random() * 2000 + 500);
-
-        const health = t.health ?? 1000;
-        const riskLevel = health > 700 ? 'high' : health > 400 ? 'med' : 'low';
-        const type = health < 300 ? 'claim' : 'attack';
-        const estimatedReward = Math.round((1000 - health) / 50) + 5;
-
-        return {
-            id: t.id,
-            type: type as any,
-            title: `${t.profiles?.nickname ?? '玩家'}的地块`,
-            distanceMeters: Math.round(dist),
-            rewardEstimate: `+${estimatedReward} 分`,
-            riskLevel: riskLevel as any,
-            riskLabel: riskLevel === 'high' ? '对方强度高' : riskLevel === 'med' ? '对方强度中等' : '防守薄弱',
-            lat: tLat,
-            lng: tLng,
-        };
-    }));
-
-    // 按距离排序
-    return targetsWithDist.sort((a,b) => a.distanceMeters - b.distanceMeters);
 }
 
 async function fetchBattleFeed(userId: string): Promise<BattleEvent[]> {

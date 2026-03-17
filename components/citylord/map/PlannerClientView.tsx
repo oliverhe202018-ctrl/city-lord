@@ -1395,7 +1395,7 @@ export default function PlannerClientView() {
         id: isEditing && editingRoute ? editingRoute.id : undefined,
         name,
         points: currentPath,
-        distance: distance / 1000, // km
+        distance: distance, // distance state is already in km
         capture_area: area / 1000000 // sq km
       };
 

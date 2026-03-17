@@ -379,47 +379,141 @@ export async function fetchCityStats(cityId: string) {
   return await getCachedCityStats(cityId)
 }
 
-const getCachedCityLeaderboard = unstable_cache(
-  async (cityId: string, limit: number) => {
-    const data = await prisma.user_city_progress.findMany({
-      where: { city_id: cityId },
+// --- 排行榜每日快照逻辑 ---
+
+/**
+ * 内部函数：从数据库生成排行榜原始数据
+ */
+async function generateLeaderboardData(cityId: string, limit: number): Promise<CityLeaderboardEntry[]> {
+  const isGlobal = cityId === 'global';
+  
+  if (isGlobal) {
+    // 全国榜：从 profiles 表按 total_area 总计排序
+    const data = await prisma.profiles.findMany({
+      orderBy: { total_area: 'desc' },
+      take: limit,
       select: {
-        user_id: true,
-        area_controlled: true,
-        tiles_captured: true,
-        reputation: true,
-        profiles: {
-          select: {
-            nickname: true,
-            avatar_url: true,
-            level: true
-          }
-        }
-      },
-      orderBy: { area_controlled: 'desc' },
-      take: limit
-    })
+        id: true,
+        nickname: true,
+        avatar_url: true,
+        level: true,
+        total_area: true
+      }
+    });
 
     return data.map((entry, index) => ({
       rank: index + 1,
-      userId: entry.user_id,
-      nickname: entry.profiles?.nickname || 'Unknown',
-      level: entry.profiles?.level || 1,
-      avatar: entry.profiles?.avatar_url || '',
-      totalArea: Number(entry.area_controlled || 0),
-      tilesCaptured: entry.tiles_captured || 0,
-      reputation: entry.reputation || 0
-    }))
-  },
-  ['city-leaderboard'],
-  { revalidate: 30, tags: ['city-leaderboard'] } // 榜单时效性高点设为30s
-)
+      userId: entry.id,
+      nickname: entry.nickname || 'Unknown',
+      level: entry.level || 1,
+      avatar: entry.avatar_url || '',
+      totalArea: Number(entry.total_area || 0),
+      tilesCaptured: 0, // 全国维度暂不聚合具体地块数
+      reputation: 0     // 全国维度暂不聚合具体声望
+    }));
+  }
 
+  // 城市榜：从 user_city_progress 按该城市控制面积排序
+  const data = await prisma.user_city_progress.findMany({
+    where: { city_id: cityId },
+    select: {
+      user_id: true,
+      area_controlled: true,
+      tiles_captured: true,
+      reputation: true,
+      profiles: {
+        select: {
+          nickname: true,
+          avatar_url: true,
+          level: true
+        }
+      }
+    },
+    orderBy: { area_controlled: 'desc' },
+    take: limit
+  });
+
+  return data.map((entry, index) => ({
+    rank: index + 1,
+    userId: entry.user_id,
+    nickname: entry.profiles?.nickname || 'Unknown',
+    level: entry.profiles?.level || 1,
+    avatar: entry.profiles?.avatar_url || '',
+    totalArea: Number(entry.area_controlled || 0),
+    tilesCaptured: entry.tiles_captured || 0,
+    reputation: entry.reputation || 0
+  }));
+}
+
+/**
+ * 获取排行榜数据 (含每日快照、幂等锁任务触发及最近快照兜底逻辑)
+ */
 export async function fetchCityLeaderboard(cityId: string, limit = 50): Promise<CityLeaderboardEntry[]> {
-  if (!cityId) return []
-  // 增加边界与攻击防范：限制最大返回 100 条且禁止负值，防止被滥用刷爆 Redis 键名或打垮 DB
-  const safeLimit = Math.min(Math.max(1, limit), 100)
-  return await getCachedCityLeaderboard(cityId, safeLimit)
+  if (!cityId) return [];
+  
+  const safeLimit = Math.min(Math.max(1, limit), 100);
+  const isGlobal = cityId === 'global';
+  const scope = isGlobal ? 'nation' : 'city';
+  const effectiveCityId = isGlobal ? 'global' : cityId;
+  const today = new Date().toISOString().split('T')[0];
+
+  // 定义 Key 规则
+  const snapshotKey = isGlobal 
+    ? `lead:snapshot:${today}:global:nation`
+    : `lead:snapshot:${today}:${cityId}:city`;
+  
+  const latestKey = isGlobal
+    ? `lead:snapshot:latest:global:nation`
+    : `lead:snapshot:latest:${cityId}:city`;
+
+  const lockKey = `lock:leaderboard:${today}:${effectiveCityId}:${scope}`;
+
+  try {
+    // 1. 优先尝试从今日快照读取
+    const cached = await redis.get(snapshotKey);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      return parsed.slice(0, safeLimit);
+    }
+
+    // 2. 今日无快照，尝试抢占生成锁
+    // 使用 SET NX EX 实现分布式幂等，过期时间 300s
+    const lock = await redis.set(lockKey, 'processing', 'EX', 300, 'NX');
+    
+    if (lock) {
+      // 抢锁成功，后台启动生成任务 (非阻塞)
+      // 生成 100 条作为标准快照存储
+      (async () => {
+        try {
+          console.log(`[Leaderboard] Starting generation for ${scope} - ${effectiveCityId}`);
+          const freshData = await generateLeaderboardData(cityId, 100);
+          const serialized = JSON.stringify(freshData);
+          
+          await Promise.all([
+            redis.set(snapshotKey, serialized, 'EX', 172800), // 存 48 小时
+            redis.set(latestKey, serialized) // 永久更新为 Latest
+          ]);
+          console.log(`[Leaderboard] Successfully generated snapshot: ${snapshotKey}`);
+        } catch (genErr) {
+          console.error(`[Leaderboard] Generation failed for ${snapshotKey}:`, genErr);
+          // 异常时清除锁，允许下一个请求重试
+          await redis.del(lockKey);
+        }
+      })();
+    }
+
+    // 3. 无论是否抢锁成功，均返回 Latest 缓存作为兜底
+    const latest = await redis.get(latestKey);
+    if (latest) {
+      const parsed = JSON.parse(latest);
+      return parsed.slice(0, safeLimit);
+    }
+  } catch (err) {
+    console.error(`[Leaderboard] logic error for ${cityId}:`, err);
+  }
+
+  // 4. 若无缓存且无 Latest，返回空数组
+  return [];
 }
 
 export async function getUserCityProgress(cityId: string): Promise<UserCityProgress | null> {
