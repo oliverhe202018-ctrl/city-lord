@@ -7,7 +7,7 @@ import { Database } from '@/types/supabase'
 import { format } from 'date-fns'
 
 type MissionConfig = Database['public']['Tables']['missions']['Row']
-type UserMission = Database['public']['Tables']['user_missions']['Row']
+type UserMission = Database['public']['Tables']['user_missions_deprecated']['Row']
 
 export type MissionWithStatus = MissionConfig & {
   isCompleted: boolean
@@ -51,7 +51,7 @@ export function useMissions() {
 
       // 2. Fetch user's progress
       const { data: userMissions, error: userError } = await supabase
-        .from('user_missions')
+        .from('user_missions_deprecated')
         .select('*')
         .eq('user_id', user.id)
 

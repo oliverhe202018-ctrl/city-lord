@@ -7,7 +7,7 @@ datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
-  schemas   = ["public"]
+  schemas   = ["public", "auth"]
 }
 
 model profiles {
@@ -66,7 +66,7 @@ model profiles {
   user_season_stats                             user_season_stats[]
   user_achievements                             user_achievements[]
   user_badges                                   user_badges[]
-  user_missions                                 user_missions[]
+  user_missions_deprecated                      user_missions_deprecated[]
   user_task_logs                                user_task_logs[]
   profileLikesReceived                          profile_likes[]               @relation("profile_likes_user")
   profileLikesGiven                             profile_likes[]               @relation("profile_likes_liker")
@@ -91,6 +91,8 @@ model profiles {
   anti_cheat_audit_logs                         anti_cheat_audit_logs[]
 
   changelog_reads user_changelog_reads[]
+  expLogs         ExpLog[]
+  rewardLogs      RewardLog[]
 
   @@index([club_id], map: "idx_profiles_club_id")
   @@index([faction], map: "idx_profiles_faction")
@@ -396,7 +398,7 @@ model missions {
   target            Int?            @default(1)
   reward_experience Int?            @default(0)
   target_count      Int?            @default(1)
-  user_missions     user_missions[]
+  user_missions_deprecated user_missions_deprecated[]
 
   @@schema("public")
 }
@@ -409,12 +411,12 @@ model notifications {
   type        String?
   data        Json?
   is_read     Boolean?  @default(false)
-  push_status String?   @default("pending") // "pending", "sent", "failed"
+  // push_status String?   @default("pending") // "pending", "sent", "failed"
   created_at  DateTime? @default(now()) @db.Timestamptz(6)
   profiles    profiles  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([user_id])
-  @@index([push_status])
+  // @@index([push_status])
   @@schema("public")
 }
 
@@ -728,7 +730,7 @@ model territory_owner_change_logs {
   @@schema("public")
 }
 
-model user_missions {
+model user_missions_deprecated {
   id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   user_id    String    @db.Uuid
   mission_id String
@@ -742,6 +744,7 @@ model user_missions {
   @@unique([user_id, mission_id])
   @@index([user_id], map: "idx_user_missions_user_id")
   @@index([mission_id])
+  @@map("user_missions_deprecated")
   @@schema("public")
 }
 
@@ -888,11 +891,13 @@ model UserTaskProgress {
   userId       String    @map("user_id") @db.Uuid
   taskId       String    @map("task_id") @db.Uuid
   currentValue Int       @default(0) @map("current_value")
-  status       String    @default("IN_PROGRESS") // IN_PROGRESS, COMPLETED, CLAIMED
+  status       String    @default("IN_PROGRESS") // IN_PROGRESS, COMPLETED, CLAIMED. TODO: upgrade to Prisma enum in future.
   completedAt  DateTime? @map("completed_at") @db.Timestamptz(6)
+  claimedAt    DateTime? @map("claimed_at") @db.Timestamptz(6)
   expiresAt    DateTime  @map("expires_at") @db.Timestamptz(6)
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  lastEventId  String?   @map("last_event_id")
 
   user profiles @relation(fields: [userId], references: [id], onDelete: Cascade)
   task Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
@@ -1209,5 +1214,37 @@ model user_changelog_reads {
 
   @@unique([user_id, version_id])
   @@index([user_id])
+  @@schema("public")
+}
+
+model ExpLog {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id") @db.Uuid
+  amount    Int
+  oldExp    Int      @map("old_exp")
+  newExp    Int      @map("new_exp")
+  source    String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user profiles @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("exp_logs")
+  @@schema("public")
+}
+
+model RewardLog {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id") @db.Uuid
+  exp         Int?
+  coins       Int?
+  source      String
+  referenceId String?  @map("reference_id")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user profiles @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("reward_logs")
   @@schema("public")
 }

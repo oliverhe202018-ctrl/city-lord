@@ -25,136 +25,182 @@ export class TaskService {
     /**
      * Main Entry Point: Process an event and update relevant tasks
      */
-    static async processEvent(userId: string, event: TaskEvent) {
+    static async processEvent(userId: string, event: TaskEvent, eventId?: string) {
         // 1. Ensure tasks are initialized for the current period
         await this.initTasks(userId)
 
-        // 2. Fetch active in-progress tasks
-        const activeProgress = await prisma.userTaskProgress.findMany({
-            where: {
-                userId,
-                status: 'IN_PROGRESS',
-                expiresAt: { gt: new Date() }, // Not expired
-            },
-            include: { task: true },
-        })
+        const completedTasks: any[] = []
 
-        const updates: Promise<any>[] = []
+        // 2. Execute process in a single Serializable transaction
+        await prisma.$transaction(async (tx) => {
+            const activeProgress = await tx.userTaskProgress.findMany({
+                where: {
+                    userId,
+                    status: 'IN_PROGRESS',
+                    expiresAt: { gt: new Date() }, // Not expired
+                },
+                include: { task: true },
+            })
 
-        for (const progress of activeProgress) {
-            const { task } = progress
-            let newValue = progress.currentValue
-            let shouldUpdate = false
+            const updates: any[] = []
 
-            // 3. Strategy Dispatch
-            switch (task.condition) {
-                // --- Daily Tasks ---
-                case 'DISTANCE_SUM': // "轻量热身", "马拉松征程"
-                    if (event.type === 'RUN_FINISHED' && event.data.distance) {
-                        newValue += Math.floor(event.data.distance)
-                        shouldUpdate = true
-                    }
-                    break
+            for (const progress of activeProgress) {
+                // Idempotency check inside transaction
+                if (eventId && progress.lastEventId === eventId) {
+                    continue
+                }
 
-                case 'RUN_MORNING_CHECK': // "晨间巡逻" (06:00-09:00, >1km)
-                    if (event.type === 'RUN_FINISHED' && event.data.distance && event.data.distance >= 1000) {
-                        const hour = event.timestamp.getUTCHours() + 8 // Simple UTC+8 check
-                        // 06:00 - 09:00 CST means 22:00 - 01:00 UTC?
-                        // Wait, getUTCHours() returns UTC hour.
-                        // If China 06:00, UTC is 22:00 (prev day).
-                        // If China 09:00, UTC is 01:00.
-                        // Better to use date-fns-tz or simple offset.
-                        // Let's use simple offset for robustness if lib not avail.
-                        // China is UTC+8.
-                        const cstHour = (event.timestamp.getUTCHours() + 8) % 24
-                        if (cstHour >= 6 && cstHour < 9) {
+                const { task } = progress
+                let newValue = progress.currentValue
+                let shouldUpdate = false
+
+                // 3. Strategy Dispatch
+                switch (task.condition) {
+                    // --- Daily / Generic ---
+                    case 'DISTANCE_SUM': // Distance sum in meters
+                        if (event.type === 'RUN_FINISHED' && event.data.distance) {
+                            newValue += Math.floor(event.data.distance)
+                            shouldUpdate = true
+                        }
+                        break
+
+                    case 'RUN_COUNT': // Simple run completion count
+                        if (event.type === 'RUN_FINISHED') {
                             newValue += 1
                             shouldUpdate = true
                         }
-                    }
-                    break
+                        break
 
-                case 'GRID_CAPTURE_NEW': // "领地扩张"
-                    if (event.type === 'GRID_CAPTURED' && event.data.isNew) {
-                        newValue += 1
-                        shouldUpdate = true
-                    }
-                    break
+                    case 'RUN_MORNING_CHECK': // Morning run (06:00-09:00, >1km)
+                        if (event.type === 'RUN_FINISHED' && event.data.distance && event.data.distance >= 1000) {
+                            const cstHour = (event.timestamp.getUTCHours() + 8) % 24
+                            if (cstHour >= 6 && cstHour < 9) {
+                                newValue += 1
+                                shouldUpdate = true
+                            }
+                        }
+                        break
 
-                case 'TERRITORY_CHECKIN': // "城主威严"
-                    if (event.type === 'TERRITORY_CHECKIN' && event.data.isSelf) {
-                        newValue += 1
-                        shouldUpdate = true
-                    }
-                    break
+                    case 'NIGHT_RUN': // Night run (22:00-04:00)
+                        if (event.type === 'RUN_FINISHED') {
+                            const cstHour = (event.timestamp.getUTCHours() + 8) % 24
+                            if (cstHour >= 22 || cstHour < 4) {
+                                newValue += 1
+                                shouldUpdate = true
+                            }
+                        }
+                        break
 
-                // --- Weekly Tasks ---
-                case 'RUN_PACE_LIMIT': // "极速突袭" (<5'30"/km, >3km)
-                    if (event.type === 'RUN_FINISHED' && event.data.distance && event.data.pace) {
-                        // 5'30" = 330 seconds/km
-                        if (event.data.distance >= 3000 && event.data.pace <= 330) {
+                    case 'CALORIES': // Calories burned (assuming 1km = 60 kcal roughly if not provided)
+                        if (event.type === 'RUN_FINISHED' && event.data.distance) {
+                            const kcalBurned = (event.data.distance / 1000) * 60 // extremely crude estimate
+                            newValue += Math.floor(kcalBurned)
+                            shouldUpdate = true
+                        }
+                        break
+
+                    case 'GRID_CAPTURE_NEW': // Unique / New grids
+                    case 'UNIQUE_HEX':
+                        if (event.type === 'GRID_CAPTURED' && event.data.isNew) {
                             newValue += 1
                             shouldUpdate = true
                         }
-                    }
-                    break
+                        break
 
-                case 'GRID_CAPTURE_COUNT': // "版图霸主" (Unique grids?)
-                    // Prompt says "gridId 去重". 
-                    // Current simple logic: just count captures. To strictly dedup, we need access to history or store gridIds in a separate table/field.
-                    // Given schema limitations, we'll assume "Capture 10 grids" means 10 capture events for now, OR valid "New" captures.
-                    // "isNew" flag helps. If Weekly requires 10 *different* grids, checking isNew=true is a good proxy for "expansion".
-                    // If the requirement is just "occupy 10", maybe `currentValue` is just count.
-                    // Let's use `isNew` for "版图霸主" to ensure they are distinct additions?
-                    // Or just count any capture? "累计占领 10 个不同的网格". "不同的" implies unique.
-                    if (event.type === 'GRID_CAPTURED') {
-                        // If we really need unique, we might need to query `territories` count?
-                        // Or rely on `isNew` if valid.
-                        if (event.data.gridId) {
+                    case 'HEX_COUNT': // Total grids touched/captured today
+                        if (event.type === 'GRID_CAPTURED' || event.type === 'TERRITORY_CHECKIN') {
                             newValue += 1
                             shouldUpdate = true
                         }
-                    }
-                    break
+                        break
 
-                case 'ACTIVE_DAYS': // "坚持不懈" (Active days > 5)
-                    if (event.type === 'RUN_FINISHED') {
-                        // Check if already updated today
-                        // We can check `progress.updatedAt` vs `event.timestamp`
-                        const lastUpdate = new Date(progress.updatedAt)
-                        // Convert both to CST day string YYYY-MM-DD
-                        const getCSTDate = (d: Date) => {
-                            const offset = 8 * 60 * 60 * 1000
-                            return new Date(d.getTime() + offset).toISOString().split('T')[0]
-                        }
-
-                        // BUT `updatedAt` is updated on ANY change. If task created today, currentValue=0.
-                        // If currentValue == 0 -> update.
-                        // If currentValue > 0 -> check equality.
-                        if (progress.currentValue === 0 || getCSTDate(lastUpdate) !== getCSTDate(event.timestamp)) {
+                    case 'HEX_TOTAL': // Total distinct hexes owned (Achievement style)
+                        if (event.type === 'GRID_CAPTURED' && event.data.isNew) {
                             newValue += 1
                             shouldUpdate = true
                         }
+                        break
+
+                    case 'TERRITORY_CHECKIN': // Territory check-ins
+                        if (event.type === 'TERRITORY_CHECKIN' && event.data.isSelf) {
+                            newValue += 1
+                            shouldUpdate = true
+                        }
+                        break
+
+                    // --- Weekly Tasks ---
+                    case 'RUN_PACE_LIMIT': // Fast pace run (<5'30"/km, >3km)
+                        if (event.type === 'RUN_FINISHED' && event.data.distance && event.data.pace) {
+                            // 5'30" = 330 seconds/km
+                            if (event.data.distance >= 3000 && event.data.pace <= 330) {
+                                newValue += 1
+                                shouldUpdate = true
+                            }
+                        }
+                        break
+
+                    case 'ACTIVE_DAYS': // Active days logic
+                        if (event.type === 'RUN_FINISHED') {
+                            const lastUpdate = new Date(progress.updatedAt)
+                            const getCSTDate = (d: Date) => {
+                                const offset = 8 * 60 * 60 * 1000
+                                return new Date(d.getTime() + offset).toISOString().split('T')[0]
+                            }
+
+                            if (progress.currentValue === 0 || getCSTDate(lastUpdate) !== getCSTDate(event.timestamp)) {
+                                newValue += 1
+                                shouldUpdate = true
+                            }
+                        }
+                        break
+
+                    default:
+                        console.warn(`[TaskService] Unhandled condition type: ${task.condition}`)
+                        break
+                }
+
+                // 4. Queue Database Update
+                if (shouldUpdate) {
+                    const isCompleted = newValue >= task.targetValue
+                    const updatePromise = tx.userTaskProgress.update({
+                        where: { id: progress.id },
+                        data: {
+                            currentValue: Math.min(newValue, task.targetValue),
+                            status: isCompleted ? 'COMPLETED' : 'IN_PROGRESS',
+                            completedAt: isCompleted ? new Date() : null,
+                            lastEventId: eventId || null
+                        }
+                    })
+                    updates.push(updatePromise)
+                    
+                    if (isCompleted) {
+                        completedTasks.push({ taskId: task.id, code: task.code, reward: task.reward })
                     }
-                    break
+                }
             }
 
-            // 4. Update Database
-            if (shouldUpdate) {
-                const isCompleted = newValue >= task.targetValue
-                const updatePromise = prisma.userTaskProgress.update({
-                    where: { id: progress.id },
-                    data: {
-                        currentValue: Math.min(newValue, task.targetValue), // Cap at target? Or allow overflow? Usually cap for UI.
-                        status: isCompleted ? 'COMPLETED' : 'IN_PROGRESS',
-                        completedAt: isCompleted ? new Date() : null,
-                    }
-                })
-                updates.push(updatePromise)
+            if (updates.length > 0) {
+                await Promise.all(updates)
+            }
+        }, { isolationLevel: 'Serializable' })
+
+        // 5. Emit MISSION_COMPLETED event if any task completed (Outside transaction)
+        if (completedTasks.length > 0) {
+            const { eventBus } = await import('@/lib/game-logic/event-bus')
+            for (const ct of completedTasks) {
+                try {
+                    await eventBus.emit({
+                        type: 'MISSION_COMPLETED',
+                        userId,
+                        missionId: ct.taskId,
+                        missionCode: ct.code,
+                        rewards: ct.reward
+                    })
+                } catch (err) {
+                    console.error('[TaskService] Failed to emit MISSION_COMPLETED:', err)
+                }
             }
         }
-
-        await Promise.all(updates)
     }
 
     /**

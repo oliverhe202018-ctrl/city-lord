@@ -16,6 +16,7 @@ import {
     type MembershipInfo,
 } from '@/lib/types/club-chat.types'
 import { Prisma } from '@prisma/client'
+import { eventBus } from '@/lib/game-logic/event-bus'
 
 // ─── Auth Helper ───────────────────────────────────────────────
 async function getAuthUserId(): Promise<string | null> {
@@ -419,5 +420,72 @@ export async function getActivityRegistrations(
     } catch (error) {
         console.error('[getActivityRegistrations] Error:', error)
         return { success: false, error: ClubChatError.INTERNAL_ERROR, message: '获取报名列表失败' }
+    }
+}
+
+// ─── 6. Complete Activity (member) ─────────────────────────────
+/**
+ * 标记活动为已完成
+ * 1. 验证报名状态
+ * 2. 事务内更新状态并统计名次（防止 Top 3 竞态）
+ * 3. 发射 ACTIVITY_COMPLETED 事件
+ */
+export async function completeActivityAction(
+    activityId: string
+): Promise<ClubChatResult<{ status: 'completed'; isTopThree: boolean }>> {
+    try {
+        const userId = await getAuthUserId()
+        if (!userId) {
+            return { success: false, error: ClubChatError.NOT_AUTHENTICATED, message: '请先登录' }
+        }
+
+        // 1. 检查是否存在报名且未完成
+        const registration = await prisma.club_activity_registrations.findUnique({
+            where: { user_id_activity_id: { user_id: userId, activity_id: activityId } },
+            select: { id: true, status: true, club_id: true }
+        })
+
+        if (!registration || registration.status !== 'registered') {
+            return { success: false, error: ClubChatError.NOT_REGISTERED, message: '未找到有效报名记录' }
+        }
+
+        // 2. 事务处理：更新状态并计算名次
+        const result = await prisma.$transaction(async (tx) => {
+            // 更新状态
+            await tx.club_activity_registrations.update({
+                where: { id: registration.id },
+                data: { status: 'completed' }
+            })
+
+            // 统计此活动已完成人数（包含当前用户）
+            const completionCount = await tx.club_activity_registrations.count({
+                where: { activity_id: activityId, status: 'completed' }
+            })
+
+            return {
+                isTopThree: completionCount <= 3
+            }
+        })
+
+        // 3. 发射事件 (Post-TX)
+        eventBus.emit({
+            type: 'ACTIVITY_COMPLETED',
+            userId,
+            activityId,
+            clubId: registration.club_id || undefined,
+            isTopThree: result.isTopThree
+        }).catch(err => console.error('[completeActivityAction] Event emit failed:', err))
+
+        return { 
+            success: true, 
+            data: { 
+                status: 'completed', 
+                isTopThree: result.isTopThree 
+            } 
+        }
+
+    } catch (error) {
+        console.error('[completeActivityAction] Error:', error)
+        return { success: false, error: ClubChatError.INTERNAL_ERROR, message: '操作失败' }
     }
 }

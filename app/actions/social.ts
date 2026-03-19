@@ -265,7 +265,7 @@ export async function fetchFriendActivities(): Promise<FriendActivity[]> {
   // 3. Fetch completed missions
   // Assuming user_missions table
   const { data: missionsData } = await supabase
-    .from('user_missions')
+    .from('user_missions_deprecated')
     .select(`
       id,
       mission_id,

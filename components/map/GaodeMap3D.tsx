@@ -14,9 +14,17 @@ import { ViewContext, ExtTerritory } from "@/types/city"
 declare global {
   interface Window {
     _AMapSecurityConfig: any
-    AMap: any
+    // AMap: any // Commented out to avoid conflict with existing types
     Loca: any
   }
+}
+
+// Utility to ensure map style is valid
+function resolveMapStyle(style?: string): string {
+  if (!style || typeof style !== 'string' || !style.startsWith('amap://styles/')) {
+    return 'amap://styles/normal';
+  }
+  return style;
 }
 
 interface GaodeMap3DProps {
@@ -58,6 +66,7 @@ export function GaodeMap3D({
   const ghostPolylineRef = useRef<any>(null)
   const polygonRefs = useRef<any[]>([])
   const reqAnimIdRef = useRef<number | null>(null)
+  const destroyedRef = useRef(false)
 
   // User Color Preferences
   const [pathColor, setPathColor] = useState('#3B82F6')
@@ -104,6 +113,7 @@ export function GaodeMap3D({
   useEffect(() => {
     if (!mapContainerRef.current) return
 
+    destroyedRef.current = false;
     (async () => {
       try {
         const AMap = await safeLoadAMap({
@@ -112,6 +122,8 @@ export function GaodeMap3D({
             version: "2.0.0"
           }
         });
+
+        if (destroyedRef.current) return;
 
         if (!AMap || !mapContainerRef.current) {
           addLog("AMap Load Failed or Container Missing");
@@ -144,7 +156,7 @@ export function GaodeMap3D({
           center: initCenter,
           pitch: 50, // 3D Tilt (45-60 is recommended)
           rotation: 0,
-          mapStyle: "amap://styles/22e069175d1afe32e9542abefde02cb5",
+          mapStyle: resolveMapStyle("amap://styles/22e069175d1afe32e9542abefde02cb5"),
           showLabel: false,
           skyColor: '#1f2029'
         })
@@ -238,11 +250,29 @@ export function GaodeMap3D({
       } catch (e: any) {
         console.error("AMap Load Failed:", e)
         addLog(`Load Error: ${e.message}`)
+        
+        // Fallback for style or initialization failure
+        if (mapInstanceRef.current && !destroyedRef.current) {
+          try {
+            console.warn('[AMap] 样式设置失败，已降级:', e)
+            mapInstanceRef.current.setMapStyle("amap://styles/normal")
+          } catch (styleErr) {
+            console.warn('[AMap] 降级样式设置亦失败:', styleErr)
+          }
+        }
       }
     })();
 
     return () => {
+      destroyedRef.current = true;
       if (mapInstanceRef.current) {
+        // Explicitly destroy the map instance to prevent WebView crashes
+        try {
+          mapInstanceRef.current.destroy?.();
+        } catch (e) {
+          console.warn('Failed to destroy map instance:', e);
+        }
+
         // Safe Cleanup using optional chaining
         ghostPolylineRef.current?.remove?.()
         polylineRef.current?.remove?.()

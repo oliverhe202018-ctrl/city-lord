@@ -10,6 +10,7 @@ import { Prisma } from '@prisma/client'
 
 import { fetchUserProfileStats } from '@/lib/game-logic/user-core'
 import { checkAndAwardBadges } from '@/lib/game-logic/achievement-core'
+import { eventBus } from '@/lib/game-logic/event-bus'
 
 export async function stopRunningAction(context: RunContext) {
   const supabase = await createClient()
@@ -44,7 +45,7 @@ export async function stopRunningAction(context: RunContext) {
     const result = await prisma.$transaction(async (tx) => {
       // 1. Mission Progress Updates
       // Fetch active missions
-      const userMissions = await tx.user_missions.findMany({
+      const userMissions = await tx.user_missions_deprecated.findMany({
         where: {
           user_id: user.id,
           status: { notIn: ['completed', 'claimed'] }
@@ -114,7 +115,7 @@ export async function stopRunningAction(context: RunContext) {
         }
 
         if (newProgress !== um.progress || isCompleted) {
-          await tx.user_missions.update({
+          await tx.user_missions_deprecated.update({
             where: { id: um.id },
             data: {
               progress: newProgress,
@@ -185,11 +186,32 @@ export async function stopRunningAction(context: RunContext) {
     })
 
     // Check Badges after transaction
-    const newBadges = await checkAndAwardBadges(user.id, 'RUN_FINISHED', {
-      distance: context.distance * 1000,
-      endTime: context.endTime,
-      pace: context.distance > 0 ? ((context.endTime.getTime() - context.startTime.getTime()) / 1000 / 60) / context.distance : 0 // min/km
-    })
+    // Moved to event-listeners.ts Phase 1
+    // const newBadges = await checkAndAwardBadges(user.id, 'RUN_FINISHED', {
+    //   distance: context.distance * 1000,
+    //   endTime: context.endTime,
+    //   pace: context.distance > 0 ? ((context.endTime.getTime() - context.startTime.getTime()) / 1000 / 60) / context.distance : 0 // min/km
+    // })
+    const newBadges: any[] = [] // Empty for now, will be fetched via events later if needed by UI
+
+    try {
+      await eventBus.emit({
+        type: 'RUN_FINISHED',
+        userId: user.id,
+        runId: 'latest', // Temporarily using 'latest' or could derive from DB response
+        distance: context.distance * 1000,
+        duration: Math.floor((context.endTime.getTime() - context.startTime.getTime()) / 1000),
+        pace: context.distance > 0 ? ((context.endTime.getTime() - context.startTime.getTime()) / 1000 / 60) / context.distance : 0,
+        capturedHexes: context.capturedHexes,
+        newHexCount: context.newHexCount || 0,
+        capturedHexIds: context.capturedHexIds || [],
+        startTime: context.startTime,
+        endTime: context.endTime,
+        regionId: context.regionId
+      })
+    } catch (e) {
+      console.error('[stopRunningAction] failed to emit RUN_FINISHED:', e)
+    }
 
     return {
       success: true,
@@ -295,48 +317,12 @@ export async function ensureUserProfile(userId: string) {
   return _ensureUserProfile(userId)
 }
 
-export async function addExperience(amount: number) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user) return { success: false, error: 'Not authenticated' }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('level, current_exp')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile) return { success: false, error: 'Profile not found' }
-
-  const newExp = ((profile as any).current_exp || 0) + amount
-  const newLevel = calculateLevel(newExp)
-
-  const updates: { current_exp: number; updated_at: string; level?: number } = {
-    current_exp: newExp,
-    updated_at: new Date().toISOString()
-  }
-
-  if (newLevel > ((profile as any).level || 1)) {
-    updates.level = newLevel
-    // Here we could also trigger level up notification or rewards
-  }
-
-  const { error } = await (supabase
-    .from('profiles') as any)
-    .update(updates)
-    .eq('id', user.id)
-
-  if (error) return { success: false, error: error.message }
-
-  return {
-    success: true,
-    newLevel,
-    levelUp: newLevel > ((profile as any).level || 1),
-    newExp
-  }
-}
-
+/**
+ * @deprecated This standalone function is deprecated. 
+ * Please use `grantRewards` in `lib/game-logic/reward-service.ts` instead to ensure unified transactional experience and coin reward processing.
+ */
 export async function addCoins(amount: number) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

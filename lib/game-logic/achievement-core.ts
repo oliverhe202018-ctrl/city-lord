@@ -1,260 +1,114 @@
 import { prisma } from '@/lib/prisma'
-import { fetchUserProfileStats } from '@/lib/game-logic/user-core'
+import { eventBus } from '@/lib/game-logic/event-bus'
+import { BADGE_REGISTRY } from './badge-conditions'
+import { buildBadgeContext, BadgeCheckContext } from './badge-context'
 
-export type TriggerType = 'RUN_FINISHED' | 'TERRITORY_CAPTURE' | 'SOCIAL' | 'ACTIVITY_COMPLETE'
+export type AwardStatus = 'awarded' | 'already_owned' | 'not_qualified' | 'badge_not_found' | 'error'
 
-export interface BadgeCheckContext {
-  distance?: number // meters
-  duration?: number // seconds
-  pace?: number // min/km
-  endTime?: Date
-}
-
-export async function checkAndAwardBadges(
-  userId: string,
-  triggerType: TriggerType,
-  context?: BadgeCheckContext
-) {
-  try {
-    // 1. Fetch all badges and user's earned badges
-    const [allBadges, earnedBadges] = await Promise.all([
-      prisma.badges.findMany(),
-      prisma.user_badges.findMany({
-        where: { user_id: userId },
-        select: { badge_id: true }
-      })
-    ])
-
-    const earnedBadgeIds = new Set(earnedBadges.map(ub => ub.badge_id))
-    const unearnedBadges = allBadges.filter(b => !earnedBadgeIds.has(b.id))
-
-    if (unearnedBadges.length === 0) return []
-
-    // 2. Fetch User Stats using the shared logic (replaces direct prisma call)
-    // This avoids circular dependency with user.ts and unifies logic
-    const stats = await fetchUserProfileStats(userId)
-
-    const newBadges: any[] = []
-
-    // 3. Iterate and Check Conditions
-    for (const badge of unearnedBadges) {
-      let isQualified = false
-      const code = badge.code // Using code as the unique identifier for logic
-
-      // --- Territory Logic ---
-      if (triggerType === 'TERRITORY_CAPTURE') {
-        if (code === 'landlord') {
-          // 大地主: active领地数 >= 10
-          const count = await prisma.territories.count({ where: { owner_id: userId } })
-          if (count >= 10) isQualified = true
-        }
-        else if (code === 'territory-raider') {
-          // 掠夺者: 历史总领地数 >= 50
-          if (stats.totalTiles >= 50) isQualified = true
-        }
-        else if (code === 'first-territory') {
-          // First Territory
-          if (stats.totalTiles >= 1) isQualified = true
-        }
-      }
-
-      // --- Running Logic ---
-      if (triggerType === 'RUN_FINISHED') {
-        if (code === 'shoe-killer') {
-          // 跑鞋终结者: 总里程 >= 500km
-          if (stats.totalDistance >= 500) isQualified = true
-        }
-        else if (code === '100km-club') {
-          if (stats.totalDistance >= 100) isQualified = true
-        }
-        else if (code === 'city-walker') {
-          if (stats.totalDistance >= 50) isQualified = true
-        }
-        else if (code === 'flash' && context) {
-          // 闪电侠: 配速 < 4'00" (4.0 min/km)
-          const distKm = (context.distance || 0) / 1000
-          if (distKm >= 1 && context.pace && context.pace < 4.0) {
-            isQualified = true
-          }
-        }
-        else if (code === 'marathon-god' && context) {
-          // Marathon: Single run > 42km
-          const distKm = (context.distance || 0) / 1000
-          if (distKm >= 42) isQualified = true
-        }
-        else if (code === 'early-bird' && context?.endTime) {
-          // 早起的鸟儿: 5:00 - 7:00
-          const hour = context.endTime.getHours()
-          if (hour >= 5 && hour < 7) isQualified = true
-        }
-        else if (code === 'night-walker' && context?.endTime) {
-          // 夜行者: 22:00 - 02:00
-          const hour = context.endTime.getHours()
-          if (hour >= 22 || hour < 2) isQualified = true
-        }
-        else if (code === 'continuous-checkin') {
-          // 连续打卡: completed runs on 7 unique days within the last 7 days
-          const sevenDaysAgo = new Date();
-          sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-          const recentRuns = await prisma.runs.findMany({
-            where: { user_id: userId, created_at: { gte: sevenDaysAgo } },
-            select: { created_at: true }
-          });
-          const uniqueDays = new Set(recentRuns.map(r => r.created_at?.toISOString().split('T')[0]));
-          if (uniqueDays.size >= 7) isQualified = true;
-        }
-      }
-
-      // --- Social Logic ---
-      if (triggerType === 'SOCIAL') {
-        if (code === 'activity-ambassador') {
-          // 活动大使 (Placeholder for Step 4)
-          // To be triggered when an invited friend completes an activity
-          // Currently not auto-awarded here.
-        }
-      }
-
-      // --- Awarding ---
-      if (isQualified) {
-        try {
-          await prisma.$transaction(async (tx) => {
-            // Check again
-            const existing = await tx.user_badges.findUnique({
-              where: {
-                user_id_badge_id: {
-                  user_id: userId,
-                  badge_id: badge.id
-                }
-              }
-            })
-
-            if (!existing) {
-              // 1. Award Badge
-              await tx.user_badges.create({
-                data: {
-                  user_id: userId,
-                  badge_id: badge.id,
-                  earned_at: new Date()
-                }
-              })
-
-              // 2. Create Notification
-              await tx.notifications.create({
-                data: {
-                  user_id: userId,
-                  title: '恭喜获得新勋章！',
-                  body: `你已解锁【${badge.name}】勋章！${badge.description || ''}`,
-                  type: 'badge',
-                  is_read: false
-                }
-              })
-
-              newBadges.push(badge)
-            }
-          })
-        } catch (error) {
-          console.error(`Failed to award badge ${badge.code}:`, error)
-          // Continue to next badge
-        }
-      }
-    }
-
-    return newBadges
-
-  } catch (error) {
-    console.error('checkAndAwardBadges error:', error)
-    return []
-  }
-}
-
-// ──────────────────────────────────────────────
-// Activity Completion Achievement Check
-// Called when a user completes a club activity
-// ──────────────────────────────────────────────
-export async function checkActivityCompletion(
-  userId: string,
-  activityId: string
-) {
-  try {
-    // 1. Check total completed activities for '活动达人' badge
-    const completedCount = await prisma.club_activity_registrations.count({
-      where: { user_id: userId, status: 'completed' },
-    })
-
-    if (completedCount >= 5) {
-      await tryAwardBadgeByCode(userId, 'activity-enthusiast', '活动达人', '完成了5次俱乐部活动')
-    }
-
-    if (completedCount >= 1) {
-      await tryAwardBadgeByCode(userId, 'first-activity', '初次参与', '完成了第一次俱乐部活动')
-    }
-
-    // 2. Check if user ranked top 3 in this activity
-    const topThree = await prisma.club_activity_registrations.findMany({
-      where: { activity_id: activityId, status: 'completed' },
-      orderBy: { score: 'desc' },
-      take: 3,
-      select: { user_id: true },
-    })
-
-    const isTopThree = topThree.some((r: { user_id: string }) => r.user_id === userId)
-    if (isTopThree) {
-      await tryAwardBadgeByCode(userId, 'activity-top3', '活动前三', '在俱乐部活动中排名前三')
-    }
-  } catch (error) {
-    console.error('checkActivityCompletion error:', error)
-  }
+export interface AwardResult {
+  status: AwardStatus
+  badgeCode?: string
+  badgeName?: string
 }
 
 /**
- * Helper: try to award a badge by its code, with idempotent double-check
+ * 原子化授予勋章
+ * 1. 确保数据库唯一约束 (user_id, badge_id)
+ * 2. 事务执行：插入记录 + 创建系统通知
+ * 3. 事务外部捕获 P2002 (已拥有) 错误
+ * 4. 事务提交后发射 BADGE_EARNED 事件
  */
-async function tryAwardBadgeByCode(
-  userId: string,
-  badgeCode: string,
-  badgeName: string,
-  description: string
-) {
+export async function awardBadgeAtomic(userId: string, badgeCode: string): Promise<AwardResult> {
   const badge = await prisma.badges.findUnique({
-    where: { code: badgeCode },
+    where: { code: badgeCode }
   })
+
   if (!badge) {
-    console.warn(`Badge code '${badgeCode}' not found in badges table`)
-    return
+    console.error(`[awardBadgeAtomic] Badge not found: ${badgeCode}`)
+    return { status: 'badge_not_found' }
   }
 
   try {
     await prisma.$transaction(async (tx) => {
-      const existing = await tx.user_badges.findUnique({
-        where: {
-          user_id_badge_id: {
-            user_id: userId,
-            badge_id: badge.id,
-          },
-        },
-      })
-      if (existing) return
-
+      // 插入授予记录 (由于唯一约束，重复插入会抛出 P2002)
       await tx.user_badges.create({
         data: {
           user_id: userId,
           badge_id: badge.id,
-          earned_at: new Date(),
-        },
+          earned_at: new Date()
+        }
       })
 
+      // 创建系统通知
+      // NOTE: push_status 列尚未迁移到数据库，暂不设置
       await tx.notifications.create({
         data: {
           user_id: userId,
-          title: '🏆 成就解锁！',
-          body: `你已解锁【${badgeName}】：${description}`,
+          title: '🏆 获得新勋章！',
+          body: `恭喜！你已解锁【${badge.name}】勋章！`,
           type: 'badge',
-          is_read: false,
-        },
+          is_read: false
+        }
       })
     })
+
+    // 事务成功提交后，发射事件触发后续逻辑（如 UI Toast、社交分享）
+    // 异步执行，不阻塞返回
+    eventBus.emit({
+      type: 'BADGE_EARNED',
+      userId,
+      badgeId: badge.id,
+      badgeCode,
+      badgeName: badge.name
+    }).catch(err => console.error('[awardBadgeAtomic] Event emit failed:', err))
+
+    return { status: 'awarded', badgeCode, badgeName: badge.name }
+
+  } catch (error: any) {
+    // 捕获唯一约束冲突，说明用户已拥有该勋章
+    if (error.code === 'P2002') {
+      return { status: 'already_owned', badgeCode }
+    }
+
+    console.error(`[awardBadgeAtomic] Failed to award ${badgeCode}:`, error)
+    return { status: 'error' }
+  }
+}
+
+/**
+ * 勋章检查调度中心
+ * 1. 构建全量上下文 (Context)
+ * 2. 过滤当前触发事件相关的勋章
+ * 3. 排除已拥有的勋章
+ * 4. 验证并原子化授予新勋章
+ */
+export async function checkAndAwardBadges(
+  userId: string,
+  triggerType: string,
+  eventData?: any
+): Promise<AwardResult[]> {
+  try {
+    const ctx = await buildBadgeContext(userId, eventData)
+    const results: AwardResult[] = []
+
+    // 找出所有受此事件触发且用户尚未获得的勋章
+    const relevantBadges = BADGE_REGISTRY.filter(condition => 
+      condition.triggerTypes.includes(triggerType) && 
+      !ctx.earnedBadgeCodes.has(condition.id)
+    )
+
+    for (const condition of relevantBadges) {
+      if (condition.check(ctx)) {
+        const result = await awardBadgeAtomic(userId, condition.id)
+        results.push(result)
+      }
+    }
+
+    return results
+
   } catch (error) {
-    console.error(`Failed to award badge ${badgeCode}:`, error)
+    console.error(`[checkAndAwardBadges] Error for user ${userId} on ${triggerType}:`, error)
+    return []
   }
 }
 

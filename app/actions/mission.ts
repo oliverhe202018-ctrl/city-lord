@@ -5,6 +5,10 @@ import { getFactionStats } from '@/app/actions/faction'
 import { ensureUserProfile } from '@/app/actions/user'
 
 import { initializeUserMissions } from '@/lib/game-logic/mission-service'
+import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
+import { grantRewards } from '@/lib/game-logic/reward-service'
+import { eventBus } from '@/lib/game-logic/event-bus'
 
 export interface Mission {
   id: string
@@ -69,7 +73,7 @@ export async function fetchUserMissions() {
 
   const fetchStart = performance.now()
   const { data, error } = await supabase
-    .from('user_missions')
+    .from('user_missions_deprecated')
     .select(`
       mission_id,
       status,
@@ -120,32 +124,52 @@ export async function claimMissionReward(missionId: string) {
 
   if (!user) return { success: false, error: 'Not authenticated' }
 
-  // 1. Verify mission is completed but not claimed
-  const { data: userMission, error: fetchError } = await supabase
-    .from('user_missions')
-    .select('status, missions (reward_coins, reward_experience)')
-    .eq('user_id', user.id)
-    .eq('mission_id', missionId)
-    .single()
+  // 1. Prisma Serializable Transaction to lock and update mission status
+  let rewardExp = 0
+  let rewardCoins = 0
+  let missionTitle = ''
 
-  if (fetchError || !userMission) {
-    return { success: false, error: 'Mission not found' }
+  try {
+    await prisma.$transaction(
+      async (tx) => {
+        const um = await tx.user_missions_deprecated.findUnique({
+          where: { user_id_mission_id: { user_id: user.id, mission_id: missionId } },
+          include: { missions: true }
+        })
+
+        if (!um) throw new Error('Mission not found')
+        if (um.status === 'claimed') throw new Error('Mission already claimed')
+        if (um.status !== 'completed') throw new Error('Mission not completed')
+
+        rewardExp = um.missions?.reward_experience || 0
+        rewardCoins = um.missions?.reward_coins || 0
+        missionTitle = um.missions?.title || ''
+
+        await tx.user_missions_deprecated.update({
+          where: { id: um.id },
+          data: {
+            status: 'claimed',
+            claimed_at: new Date(),
+            updated_at: new Date()
+          }
+        })
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+    )
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to claim mission' }
   }
 
-  if (userMission.status !== 'completed') {
-    return { success: false, error: 'Mission not completed or already claimed' }
-  }
-
-  const reward = (userMission.missions as any) || { reward_coins: 0, reward_experience: 0 }
-
-  // 1.5 Calculate Faction Bonus
-  let finalCoins = reward.reward_coins || 0
-  let finalExp = reward.reward_experience || 0
+  // 1.5 Calculate Faction Bonus (Using Prisma)
+  let finalCoins = rewardCoins
+  let finalExp = rewardExp
   let appliedBonusPercentage = 0
 
   try {
-    // Get user faction
-    const { data: profile } = await supabase.from('profiles').select('faction').eq('id', user.id).single()
+    const profile = await prisma.profiles.findUnique({
+      where: { id: user.id },
+      select: { faction: true }
+    })
     if (profile?.faction && profile.faction !== 'Neutral' && profile.faction !== 'Unknown') {
       const stats = await getFactionStats()
       const factionKey = profile.faction.toUpperCase() as 'RED' | 'BLUE'
@@ -162,39 +186,25 @@ export async function claimMissionReward(missionId: string) {
     console.warn('Failed to calculate faction bonus for mission claim:', e)
   }
 
-  // 2. Transaction (Update status + Give rewards)
-  // Supabase doesn't support transactions in client lib easily, so we do sequential updates
-  // Ideally this should be an RPC or RLS protected flow
+  // 2. Grant Rewards via unified service
+  const rewardResult = await grantRewards(
+    user.id,
+    { exp: finalExp, coins: finalCoins },
+    'mission_claim',
+    missionId
+  )
 
-  // A. Update status to claimed
-  const { error: updateError } = await supabase
-    .from('user_missions')
-    .update({ status: 'claimed', updated_at: new Date().toISOString() })
-    .eq('user_id', user.id)
-    .eq('mission_id', missionId)
-
-  if (updateError) {
-    return { success: false, error: 'Failed to claim reward' }
-  }
-
-  // B. Give Rewards (using boosted values)
-  const { error: profileError } = await supabase.rpc('increment_user_stats', {
-    p_user_id: user.id,
-    p_coins: finalCoins,
-    p_exp: finalExp
-  })
-
-  // If RPC fails (e.g. function missing), fallback to manual update
-  if (profileError) {
-    console.warn('RPC increment_user_stats failed, falling back to manual update', profileError)
-    // Fetch current profile
-    const { data: profile } = await supabase.from('profiles').select('coins, current_exp').eq('id', user.id).single()
-    if (profile) {
-      await supabase.from('profiles').update({
-        coins: (profile.coins || 0) + finalCoins,
-        current_exp: (profile.current_exp || 0) + finalExp
-      }).eq('id', user.id)
-    }
+  // 3. Emit Event for Phase 1 Listeners
+  try {
+    await eventBus.emit({
+      type: 'MISSION_CLAIMED',
+      userId: user.id,
+      missionId: missionId,
+      missionCode: missionId,
+      rewards: { exp: finalExp, coins: finalCoins }
+    })
+  } catch (err) {
+    console.error('[claimMissionReward] MISSION_CLAIMED emit failed:', err)
   }
 
   return {
