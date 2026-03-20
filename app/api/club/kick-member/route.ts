@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { kickMember } from '@/app/actions/club'
+import { ClubMemberActionSchema } from '@/lib/schemas/club'
 
 export async function POST(request: Request) {
   try {
@@ -12,12 +13,13 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { clubId, memberId } = body || {}
+    const parsed = ClubMemberActionSchema.safeParse(body)
 
-    if (!clubId || !memberId) {
-      return NextResponse.json({ error: 'clubId and memberId required' }, { status: 400 })
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid input', details: parsed.error.issues }, { status: 400 })
     }
 
+    const { clubId, memberId } = parsed.data
     const result = await kickMember(clubId, memberId)
     return NextResponse.json(result)
   } catch (error: any) {

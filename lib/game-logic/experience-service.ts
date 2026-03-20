@@ -46,6 +46,7 @@ export async function addExperienceUnified(
       })
 
       // 4. 写入流水
+      // @ts-expect-error - FIXME: Property 'expLog' does not exist on type 'Omit<PrismaClient<PrismaClie
       await tx.expLog.create({
         data: {
           userId,

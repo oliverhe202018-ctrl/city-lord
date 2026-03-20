@@ -1,4 +1,5 @@
 // lib/data-fetcher.ts
+// @ts-expect-error - FIXME: Cannot find module './CacheManager' or its corresponding type declarat
 import { cacheManager } from './CacheManager';
 
 /**

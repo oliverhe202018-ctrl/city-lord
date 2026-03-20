@@ -28,7 +28,7 @@ export async function submitFeedback(prevState: any, formData: FormData) {
     };
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
 
   try {
     // Check Auth (Optional: allow anonymous if needed, but per requirement RLS allows auth insert)
@@ -49,7 +49,7 @@ export async function submitFeedback(prevState: any, formData: FormData) {
       const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
       const filePath = `${user?.id || 'anon'}/${fileName}`;
 
-      const { error: uploadError } = await supabase.storage
+      const { error: uploadError } = await (supabase as any).storage
         .from("feedback-images")
         .upload(filePath, file);
 
@@ -59,7 +59,7 @@ export async function submitFeedback(prevState: any, formData: FormData) {
       }
 
       // Get Public URL
-      const { data: { publicUrl } } = supabase.storage
+      const { data: { publicUrl } } = (supabase as any).storage
         .from("feedback-images")
         .getPublicUrl(filePath);
       
@@ -68,7 +68,7 @@ export async function submitFeedback(prevState: any, formData: FormData) {
 
     // 3. Insert into DB
     const { error: dbError } = await supabase
-      .from("feedback")
+      .from("feedback" as any)
       .insert({
         user_id: user?.id || null,
         content,

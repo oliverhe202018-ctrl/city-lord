@@ -8,11 +8,9 @@
  * because it uses DOMParser (browser API).
  */
 
-// togeojson is a CJS module; it exports an object with a `gpx` method
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const togeojson = require('togeojson') as {
-    gpx: (doc: Document) => GeoJSON.FeatureCollection;
-};
+// @mapbox/togeojson exports a `gpx` method that takes a DOM Document
+// @ts-expect-error - FIXME: Could not find a declaration file for module '@mapbox/togeojson'. 'G:/
+import { gpx } from '@mapbox/togeojson';
 
 import { haversineDistance } from '@/lib/geometry-utils';
 import type { WatchSyncPayload, WatchTrackPoint } from '@/types/watch-sync';
@@ -79,7 +77,7 @@ export async function parseGpxFile(file: File): Promise<WatchSyncPayload> {
     }
 
     // 3. Convert to GeoJSON
-    const geoJson = togeojson.gpx(xml);
+    const geoJson = gpx(xml);
 
     if (!geoJson.features || geoJson.features.length === 0) {
         throw new GpxParseError('GPX 文件中未找到轨迹数据（<trk> 或 <rte> 标签）');

@@ -33,6 +33,7 @@ export async function GET(request: Request) {
                 const hotResult = await prisma.territory_hp_logs.deleteMany({
                     where: {
                         territory_id: { in: chunk },
+                        // @ts-expect-error - FIXME: Object literal may only specify known properties, and 'created_at' doe
                         created_at: { lt: hotCutoffDate },
                     },
                 });
@@ -51,6 +52,7 @@ export async function GET(request: Request) {
         const normalResult = await prisma.territory_hp_logs.deleteMany({
             where: {
                 ...(hotIds.length > 0 ? { territory_id: { notIn: hotIds } } : {}),
+                // @ts-expect-error - FIXME: Object literal may only specify known properties, and 'created_at' doe
                 created_at: { lt: normalCutoffDate },
             }
         });

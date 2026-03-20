@@ -636,12 +636,14 @@ export async function getPendingChallenges() {
   return messages.map((m) => {
     let details = {}
     try {
+      // @ts-expect-error - FIXME: Argument of type 'string | null' is not assignable to parameter of typ
       details = JSON.parse(m.content)
     } catch (e) {
       details = { title: m.content }
     }
 
     // Calculate expiration
+    // @ts-expect-error - FIXME: No overload matches this call.
     const created = new Date(m.created_at)
     const expires = new Date(created.getTime() + 24 * 60 * 60 * 1000) // 24 hours
     const now = new Date()

@@ -56,12 +56,9 @@ export async function getAdminFeedbackData(): Promise<{ data: UnifiedFeedback[] 
                 .from('post_reports')
                 .select(`*, reporter:profiles!post_reports_user_id_fkey (nickname), post:posts!post_reports_post_id_fkey (content, media_urls)`)
                 .order('created_at', { ascending: false }),
-            // @ts-ignore
             supabase
                 .from('territory_reports')
-                // @ts-ignore
                 .select(`*, reporter:profiles!territory_reports_reporter_id_fkey (nickname), reported:profiles!territory_reports_reported_user_id_fkey (nickname)`)
-                // @ts-ignore
                 .order('created_at', { ascending: false })
         ])
 

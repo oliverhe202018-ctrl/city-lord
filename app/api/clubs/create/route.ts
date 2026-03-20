@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
+import { AdminCreateClubSchema } from '@/lib/schemas/club'
 
 export async function POST(req: Request) {
   try {
@@ -12,11 +13,13 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json()
-    const { name, description, province, avatar_url } = body
+    const parsed = AdminCreateClubSchema.safeParse(body)
 
-    if (!name || !province) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Missing required fields', details: parsed.error.issues }, { status: 400 })
     }
+
+    const { name, description, province, avatar_url } = parsed.data
 
     // Check for duplicate name
     const existingClub = await prisma.clubs.findUnique({

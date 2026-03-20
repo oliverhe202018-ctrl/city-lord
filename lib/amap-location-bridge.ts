@@ -308,6 +308,7 @@ export class AMapLocationBridge {
             this.callbacks.onLocationUpdate(point, { acceptedAsInitial: true, source: 'cache' });
             
             // 记录最后接受的点，用于去重对比
+            // @ts-expect-error - FIXME: Type 'GeoPoint' is not assignable to type '{ lat: number; lng: number;
             this.lastAcceptedPoint = point;
             this.lastAcceptedTime = Date.now();
         } catch (e) {

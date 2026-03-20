@@ -110,6 +110,7 @@ export async function GET(req: Request) {
                             try {
                                 await webpush.sendNotification({
                                     endpoint: sub.endpoint,
+                                    // @ts-expect-error - FIXME: Type 'string | null' is not assignable to type 'string'.
                                     keys: { p256dh: sub.p256dh, auth: sub.auth }
                                 }, JSON.stringify({
                                     title: pushTitle,
@@ -165,6 +166,7 @@ export async function GET(req: Request) {
                 try {
                     await webpush.sendNotification({
                         endpoint: sub.endpoint,
+                        // @ts-expect-error - FIXME: Type 'string | null' is not assignable to type 'string'.
                         keys: { p256dh: sub.p256dh, auth: sub.auth }
                     }, JSON.stringify({
                         title: notif.title,

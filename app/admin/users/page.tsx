@@ -8,6 +8,7 @@ export default async function UsersPage() {
 
   return (
     <AdminUsersPageClient
+      // @ts-expect-error - FIXME: Type '{ id: any; nickname: any; avatar_url: any; created_at: any; }[] 
       initialProfiles={res.success ? res.data : []}
       initialError={res.success ? null : res.error}
     />

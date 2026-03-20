@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { joinClub } from '@/app/actions/club'
+import { JoinClubSchema } from '@/lib/schemas/club'
 
 export async function POST(request: Request) {
   try {
@@ -12,13 +13,13 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { clubId } = body || {}
+    const parsed = JoinClubSchema.safeParse(body)
 
-    if (!clubId) {
-      return NextResponse.json({ error: 'clubId required' }, { status: 400 })
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid input', details: parsed.error.issues }, { status: 400 })
     }
 
-    const result = await joinClub(clubId)
+    const result = await joinClub(parsed.data.clubId)
     return NextResponse.json(result)
   } catch (error: any) {
     console.error('joinClub error:', error)

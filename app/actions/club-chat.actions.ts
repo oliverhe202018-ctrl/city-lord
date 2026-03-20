@@ -313,7 +313,6 @@ export async function sendClubMessage(
                 channel_id: channelId,
                 sender_id: userId,
                 content: content.trim(),
-                // @ts-ignore: TS server may not have picked up generated prisma client yet
                 message_type: messageType,
                 audio_url: audioUrl,
                 duration_ms: durationMs,

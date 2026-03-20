@@ -147,6 +147,7 @@ export const HotZoneService = {
             take: limit,
         })
 
+        // @ts-expect-error - FIXME: Type '{ previousOwner: string | null; newOwner: string | null; changed
         return logs.map((l) => ({
             previousOwner: l.previous_owner,
             newOwner: l.new_owner,

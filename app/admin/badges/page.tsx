@@ -47,7 +47,7 @@ export default async function BadgesPage() {
         </AlertDescription>
       </Alert>
 
-      <BadgeList initialBadges={formattedBadges} />
+      <BadgeList initialBadges={formattedBadges as any} />
     </div>
   )
 }

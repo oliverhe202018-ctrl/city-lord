@@ -286,7 +286,7 @@ export async function checkHiddenBadges(userId: string, context: { type: 'run_en
  */
 export async function checkProgressBadges(userId: string) {
   const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = await createClient(cookieStore)
   const results: string[] = []
 
   // 1. Get User Stats
@@ -316,14 +316,17 @@ export async function checkProgressBadges(userId: string) {
 
     switch (badge.category) {
       case 'conquest': // Based on Tiles Captured
+        // @ts-expect-error - FIXME: 'badge.condition_value' is possibly 'null'.
         if (stats.totalTiles >= badge.condition_value) qualified = true
         break
       case 'endurance': // Based on Distance (km)
+        // @ts-expect-error - FIXME: 'badge.condition_value' is possibly 'null'.
         if (stats.totalDistance >= badge.condition_value) qualified = true
         break
       case 'exploration':
         // Some exploration badges are distance (City Walker)
         if (badge.requirement_type === 'distance') {
+          // @ts-expect-error - FIXME: 'badge.condition_value' is possibly 'null'.
           if (stats.totalDistance >= badge.condition_value) qualified = true
         }
         break

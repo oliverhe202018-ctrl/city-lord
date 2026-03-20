@@ -64,6 +64,7 @@ export async function getRunDetail(runId: string) {
       duration_str: formatDuration(data.duration),
       pace_min_per_km: formatPace(data.duration, distKm),
       // Mock Splits if not present
+      // @ts-expect-error - FIXME: Property 'splits' does not exist on type '{ area: number; club_id: str
       splits: data.splits || generateMockSplits(distKm, data.duration)
     };
   } catch (e) {

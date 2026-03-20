@@ -161,7 +161,7 @@ export async function saveRunActivity(
                                 type: res.type,
                                 period_key: res.periodKey,
                                 reward_coins: res.reward,
-                                reward_xp: 0, // Assuming constant for now, or assume reward is coins
+                                reward_xp: 0, // TODO: 当 XP 奖励系统上线后，此处需接入真实的 XP 计算逻辑
                                 completed_at: new Date(),
                             }
                         });

@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/dialog"
 
 // Import default missions to use for seeding
-import { DEFAULT_MISSIONS } from '@/lib/game-logic/mission-service'
+import { SEED_DEFAULT_MISSIONS } from '@/lib/game-logic/mission-service'
 
 type Mission = {
   id: string
@@ -124,10 +124,10 @@ export default function MissionsPage() {
   const handleSeedDefaults = async () => {
     setIsSeeding(true)
     try {
-      // Insert DEFAULT_MISSIONS ignoring conflicts
+      // Insert SEED_DEFAULT_MISSIONS ignoring conflicts
       const { data, error } = await supabase
         .from('missions')
-        .upsert(DEFAULT_MISSIONS as any, { onConflict: 'id' })
+        .upsert(SEED_DEFAULT_MISSIONS as any, { onConflict: 'id' })
 
       if (error) throw error
 

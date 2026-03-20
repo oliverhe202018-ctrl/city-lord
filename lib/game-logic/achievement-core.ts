@@ -3,6 +3,9 @@ import { eventBus } from '@/lib/game-logic/event-bus'
 import { BADGE_REGISTRY } from './badge-conditions'
 import { buildBadgeContext, BadgeCheckContext } from './badge-context'
 
+export type TriggerType = string
+export type { BadgeCheckContext }
+
 export type AwardStatus = 'awarded' | 'already_owned' | 'not_qualified' | 'badge_not_found' | 'error'
 
 export interface AwardResult {

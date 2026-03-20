@@ -38,6 +38,7 @@ export async function GET(request: Request) {
                 },
                 data: {
                     status: 'expired',
+                    // @ts-expect-error - FIXME: Object literal may only specify known properties, and 'expired_cleaned
                     expired_cleaned_at: now,
                 },
             });

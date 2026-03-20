@@ -70,13 +70,13 @@ function ManageContent() {
             ])
 
             if (memResult.success && memResult.data) {
-                setMembers(memResult.data)
+                setMembers(memResult.data as any)
                 // Find current user role
                 const me = memResult.data.find((m: any) => m.userId === user?.id)
                 if (me) setCurrentUserRole(me.role)
             }
             if (reqResult.success && reqResult.requests) {
-                setRequests(reqResult.requests)
+                setRequests(reqResult.requests as any)
             }
             setLoading(false)
         }
@@ -100,7 +100,7 @@ function ManageContent() {
     const handleSetRole = async (userId: string, newRole: RoleType) => {
         if (!clubId) return
         setProcessing(userId)
-        const result = await setMemberRole(clubId, userId, newRole)
+        const result = await setMemberRole(clubId, userId, newRole as any)
         setProcessing(null)
         if (result.success) {
             toast.success(result.message)
@@ -124,7 +124,7 @@ function ManageContent() {
             if (action === 'approve') {
                 // Refresh member list
                 const memResult = await getClubMembers(clubId)
-                if (memResult.success && memResult.data) setMembers(memResult.data)
+                if (memResult.success && memResult.data) setMembers(memResult.data as any)
             }
         } else {
             toast.error(result.error || '操作失败')

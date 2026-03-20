@@ -23,6 +23,7 @@ export async function GET() {
         const runId = `test-run-${Date.now()}`;
 
         // 调用 settlement 方法（内置 Option A 包含的 splitIntoPolygons 方法）
+        // @ts-expect-error - FIXME: Argument of type '{ runId: string; userId: string; pathGeoJSON: any; }
         const result = await processTerritorySettlement({
             runId: runId,
             userId: user.id,

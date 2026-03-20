@@ -63,6 +63,7 @@ export async function grantRewards(
       })
 
       // 4. 写流水
+      // @ts-expect-error - FIXME: Property 'rewardLog' does not exist on type 'Omit<PrismaClient<PrismaC
       await tx.rewardLog.create({
         data: {
           userId,

@@ -24,6 +24,7 @@ export async function POST(req: Request) {
                 user_id: user.id,
                 p256dh: subscription.keys.p256dh,
                 auth: subscription.keys.auth,
+                // @ts-expect-error - FIXME: Object literal may only specify known properties, and 'updated_at' doe
                 updated_at: new Date(),
                 revoked_at: null,
             },

@@ -9,7 +9,7 @@ import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { grantRewards } from '@/lib/game-logic/reward-service'
 import { eventBus } from '@/lib/game-logic/event-bus'
-
+import { MissionTemplateSchema } from '@/lib/validations/mission'
 export interface Mission {
   id: string
   title: string
@@ -73,7 +73,7 @@ export async function fetchUserMissions() {
 
   const fetchStart = performance.now()
   const { data, error } = await supabase
-    .from('user_missions_deprecated')
+    .from('user_missions_deprecated' as any)
     .select(`
       mission_id,
       status,
@@ -141,9 +141,16 @@ export async function claimMissionReward(missionId: string) {
         if (um.status === 'claimed') throw new Error('Mission already claimed')
         if (um.status !== 'completed') throw new Error('Mission not completed')
 
-        rewardExp = um.missions?.reward_experience || 0
-        rewardCoins = um.missions?.reward_coins || 0
-        missionTitle = um.missions?.title || ''
+        const parseResult = MissionTemplateSchema.safeParse(um.missions);
+        if (!parseResult.success) {
+          console.error('[claimMissionReward] Invalid mission config:', parseResult.error.flatten());
+          throw new Error('任务配置数据异常，无法领取奖励');
+        }
+        const mission = parseResult.data;
+
+        rewardExp = mission.reward_experience || 0
+        rewardCoins = mission.reward_coins || 0
+        missionTitle = mission.title || ''
 
         await tx.user_missions_deprecated.update({
           where: { id: um.id },

@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { checkAndRewardMissions, RunContext } from '@/lib/game-logic/mission-checker'
+import type { RunContext } from '@/lib/game-logic/mission-service'
 import { initializeUserMissions } from '@/lib/game-logic/mission-service'
 import { cache } from 'react'
 import { calculateLevel } from '@/lib/game-logic/level-system'

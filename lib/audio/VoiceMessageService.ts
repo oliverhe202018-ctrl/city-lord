@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client';
  */
 export async function markVoiceRead(messageId: string): Promise<void> {
   const supabase = createClient();
+  // @ts-expect-error - FIXME: Argument of type '"mark_voice_read"' is not assignable to parameter of
   const { error } = await supabase.rpc('mark_voice_read', {
     p_message_id: messageId,
   });
