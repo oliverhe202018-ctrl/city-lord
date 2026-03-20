@@ -12,6 +12,7 @@ import { NearbyTargetsCarousel } from './NearbyTargetsCarousel';
 import { BattleFeedMini } from './BattleFeedMini';
 import { DailyProgressBars } from './DailyProgressBars';
 import type { RunMode, Target, BattleEvent } from '@/types/home';
+import { useMissions } from '@/hooks/useMissions';
 
 // Only lazy-load heavy below-fold component (~14KB)
 const LeaderboardMini = lazy(() =>
@@ -34,7 +35,7 @@ interface GameHomePageProps {
     /** Navigate to the map tab, optionally highlighting a target */
     onNavigateToMap: (targetId?: string) => void;
     /** Navigate to a specific tab (missions, social, etc.) */
-    onNavigateToTab: (tab: string) => void;
+    onNavigateToTab: (tab: string, options?: { initialFilter?: 'all' | 'daily' | 'weekly' }) => void;
     /** Navigate to smart planning page */
     onSmartPlan?: () => void;
 }
@@ -132,6 +133,31 @@ RouteThumbnail.displayName = 'RouteThumbnail';
 
 function GameHomePageInner({ onStartRun, onNavigateToMap, onNavigateToTab, onSmartPlan }: GameHomePageProps) {
     const { data, isLoading: isHomeLoading } = useHomeData();
+    const { missions, loading: isMissionsLoading, error: missionsError } = useMissions();
+    
+    // Filter and map daily missions for the dashboard
+    const dailyMissionsItems = useMemo(() => {
+        if (!missions) return [];
+        return missions
+            .filter(m => m.frequency === 'daily')
+            .map(m => {
+                const isComplete = m.status === 'completed' || m.status === 'claimed' || (m as any).isCompleted;
+                const progress = m.progress?.progress || 0;
+                // m.target might not exist on type MissionConfig, let's check MissionCenter how it's done: m.target || 1
+                const target = (m as any).target || 1; 
+
+                return {
+                    key: m.id,
+                    label: m.title,
+                    current: progress,
+                    total: target,
+                    status: m.status,
+                    isCompleted: isComplete,
+                    icon: m.frequency === 'daily' ? 'Footprints' : 'Hexagon'
+                };
+            });
+    }, [missions]);
+
     const [routes, setRoutes] = useState<RouteData[]>([]);
     const [isRoutesLoading, setIsRoutesLoading] = useState(true);
     const [routesError, setRoutesError] = useState(false);
@@ -197,8 +223,8 @@ function GameHomePageInner({ onStartRun, onNavigateToMap, onNavigateToTab, onSma
         [onNavigateToMap]
     );
 
-    const handleGoToMissions = useCallback(() => {
-        onNavigateToTab('missions');
+    const handleGoToMissions = useCallback((options?: { initialFilter?: 'all' | 'daily' | 'weekly' }) => {
+        onNavigateToTab('missions', options);
     }, [onNavigateToTab]);
 
     // Full skeleton while first load
@@ -280,9 +306,10 @@ function GameHomePageInner({ onStartRun, onNavigateToMap, onNavigateToTab, onSma
 
                     {/* 4) Daily Progress — direct import, no lazy */}
                     <DailyProgressBars
-                        items={data?.dailyProgress ?? []}
+                        items={dailyMissionsItems}
                         onGoToMissions={handleGoToMissions}
-                        isLoading={isLoading}
+                        isLoading={isLoading || isMissionsLoading}
+                        error={missionsError || undefined}
                     />
 
                     {/* My Planned Routes Section */}

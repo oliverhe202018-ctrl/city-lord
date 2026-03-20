@@ -239,6 +239,7 @@ export function GamePageContent({
 
   // Mission Count
   const [missionCount, setMissionCount] = useState(0)
+  const [missionsInitialFilter, setMissionsInitialFilter] = useState<'all' | 'daily' | 'weekly'>('all')
 
   // Initialize mission count from props
   useEffect(() => {
@@ -318,6 +319,13 @@ export function GamePageContent({
       }
     }
   }, [hasCheckedRecovery]);
+
+  // Reset missionsInitialFilter when leaving missions tab
+  useEffect(() => {
+    if (activeTab !== 'missions') {
+      setMissionsInitialFilter('all')
+    }
+  }, [activeTab]);
 
   const [sessionHexes, setSessionHexes] = useState(0)
 
@@ -532,7 +540,11 @@ export function GamePageContent({
     setIsCountingDown(true)
   }
 
-  const handleQuickNavigate = useCallback((tab: string) => {
+  const handleQuickNavigate = useCallback((tab: string, options?: { initialFilter?: 'all' | 'daily' | 'weekly' }) => {
+    if (options?.initialFilter) {
+      setMissionsInitialFilter(options.initialFilter);
+    }
+
     if (tab === "running") {
       if (!isAuthenticated) {
         toast.warning('请先登录才能开始占领领地！')
@@ -866,7 +878,7 @@ export function GamePageContent({
 
           {activeTab === "missions" && (
             <div className="flex-1 w-full h-full bg-[#0f172a] z-40 relative">
-              <MemoizedMissionCenter initialData={initialMissions} />
+              <MemoizedMissionCenter initialData={initialMissions} initialFilter={missionsInitialFilter} />
             </div>
           )}
 

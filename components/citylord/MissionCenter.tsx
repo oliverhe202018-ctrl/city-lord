@@ -217,8 +217,18 @@ export function MissionCard({
 
 // --- Mission Center Page Component ---
 
-export function MissionCenter({ initialData }: { initialData?: any[] }) {
-  const [activeFilter, setActiveFilter] = useState<"daily" | "weekly" | "all">("all")
+export function MissionCenter({ initialData, initialFilter = "all" }: { initialData?: any[], initialFilter?: "daily" | "weekly" | "all" }) {
+  const [activeFilter, setActiveFilter] = useState<"daily" | "weekly" | "all">(initialFilter)
+  const lastInitialFilterRef = React.useRef(initialFilter)
+
+  // Sync with initialFilter from props only on actual changes
+  React.useEffect(() => {
+    if (initialFilter && initialFilter !== lastInitialFilterRef.current) {
+      setActiveFilter(initialFilter)
+      lastInitialFilterRef.current = initialFilter
+    }
+  }, [initialFilter])
+
   const { addExperience, addCoins, userId } = useGameStore()
   const isHydrated = useHydration()
   const router = useRouter()
