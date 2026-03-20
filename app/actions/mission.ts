@@ -73,7 +73,7 @@ export async function fetchUserMissions() {
 
   const fetchStart = performance.now()
   const { data, error } = await supabase
-    .from('user_missions_deprecated' as any)
+    .from('user_missions')
     .select(`
       mission_id,
       status,
@@ -132,7 +132,7 @@ export async function claimMissionReward(missionId: string) {
   try {
     await prisma.$transaction(
       async (tx) => {
-        const um = await tx.user_missions_deprecated.findUnique({
+        const um = await tx.user_missions.findUnique({
           where: { user_id_mission_id: { user_id: user.id, mission_id: missionId } },
           include: { missions: true }
         })
@@ -152,7 +152,7 @@ export async function claimMissionReward(missionId: string) {
         rewardCoins = mission.reward_coins || 0
         missionTitle = mission.title || ''
 
-        await tx.user_missions_deprecated.update({
+        await tx.user_missions.update({
           where: { id: um.id },
           data: {
             status: 'claimed',

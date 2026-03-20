@@ -51,7 +51,7 @@ export function useMissions() {
 
       // 2. Fetch user's progress
       const { data: userMissions, error: userError } = await supabase
-        .from('user_missions_deprecated')
+        .from('user_missions')
         .select('*')
         .eq('user_id', user.id)
 

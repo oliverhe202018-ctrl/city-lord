@@ -45,7 +45,7 @@ export async function stopRunningAction(context: RunContext) {
     const result = await prisma.$transaction(async (tx) => {
       // 1. Mission Progress Updates
       // Fetch active missions
-      const userMissions = await tx.user_missions_deprecated.findMany({
+      const userMissions = await tx.user_missions.findMany({
         where: {
           user_id: user.id,
           status: { notIn: ['completed', 'claimed'] }
@@ -115,7 +115,7 @@ export async function stopRunningAction(context: RunContext) {
         }
 
         if (newProgress !== um.progress || isCompleted) {
-          await tx.user_missions_deprecated.update({
+          await tx.user_missions.update({
             where: { id: um.id },
             data: {
               progress: newProgress,

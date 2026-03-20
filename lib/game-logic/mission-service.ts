@@ -183,7 +183,7 @@ export async function initializeUserMissions(userId: string) {
 
   try {
     // 2. READ FIRST: Fetch existing user missions via Prisma
-    const existingMissions = await prisma.user_missions_deprecated.findMany({
+    const existingMissions = await prisma.user_missions.findMany({
       where: { user_id: userId },
       select: {
         mission_id: true,
@@ -284,7 +284,7 @@ export async function initializeUserMissions(userId: string) {
         `[MissionService] Inserting ${missionsToInsert.length} missing missions...`
       )
 
-      await prisma.user_missions_deprecated.createMany({
+      await prisma.user_missions.createMany({
         data: missionsToInsert,
         skipDuplicates: true
       })
@@ -296,7 +296,7 @@ export async function initializeUserMissions(userId: string) {
         `[MissionService] Resetting ${missionsToReset.length} stale missions...`
       )
 
-      await prisma.user_missions_deprecated.updateMany({
+      await prisma.user_missions.updateMany({
         where: {
           user_id: userId,
           mission_id: { in: missionsToReset }
