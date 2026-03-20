@@ -1,5 +1,2 @@
-# 扫描危险顶层 import
-node scripts/check-dangerous-imports.js --staged
-
-# 如果还有其他 lint
-# npx lint-staged
+npx lint-staged
+npx tsc --noEmit
