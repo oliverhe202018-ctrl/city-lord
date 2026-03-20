@@ -731,6 +731,23 @@ model territory_owner_change_logs {
 }
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 model spatial_ref_sys {
   srid      Int     @id
   auth_name String? @db.VarChar(256)
@@ -1232,15 +1249,6 @@ model RewardLog {
   @@schema("public")
 }
 
-model faction_territory_stats {
-  faction_name         String   @id
-  total_area           Decimal  @default(0) @db.Decimal
-  total_tiles          Int      @default(0)
-  last_synced_event_id BigInt   @default(0)
-  updated_at           DateTime @default(now()) @db.Timestamptz(6)
-
-  @@schema("public")
-}
 
 model user_missions {
   id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -1257,4 +1265,4 @@ model user_missions {
   @@index([user_id], map: "idx_user_missions_user_id")
   @@index([mission_id])
   @@schema("public")
-}
+}
