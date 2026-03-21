@@ -7,6 +7,7 @@ export type Room = {
   name: string
   host_id: string
   host_name?: string
+  host_avatar?: string
   target_distance_km: number | null
   target_duration_minutes: number | null
   max_participants: number
@@ -42,7 +43,7 @@ export async function fetchRoomDetails(roomId: string) {
     .from('rooms')
     .select(`
       *,
-      host:profiles!host_id(nickname),
+      host:profiles!host_id(nickname, avatar_url),
       participants:room_participants(count)
     `)
     .eq('id', roomId)
@@ -55,6 +56,7 @@ export async function fetchRoomDetails(roomId: string) {
     name: room.name,
     host_id: room.host_id,
     host_name: room.host?.nickname || 'Unknown',
+    host_avatar: room.host?.avatar_url || null,
     target_distance_km: room.target_distance_km,
     target_duration_minutes: room.target_duration_minutes,
     max_participants: room.max_participants,
@@ -84,7 +86,7 @@ export async function getCurrentRoom() {
     .select(`
       room:rooms (
         *,
-        host:profiles!host_id(nickname),
+        host:profiles!host_id(nickname, avatar_url),
         participants:room_participants(count)
       )
     `)
@@ -103,6 +105,7 @@ export async function getCurrentRoom() {
     name: room.name,
     host_id: room.host_id,
     host_name: room.host?.nickname || 'Unknown',
+    host_avatar: room.host?.avatar_url || null,
     target_distance_km: room.target_distance_km,
     target_duration_minutes: room.target_duration_minutes,
     max_participants: room.max_participants,
@@ -126,7 +129,7 @@ export async function getRooms() {
     .from('rooms')
     .select(`
       *,
-      host:profiles!host_id(nickname),
+      host:profiles!host_id(nickname, avatar_url),
       participants:room_participants(count)
     `)
     .in('status', ['waiting', 'active'])
@@ -143,6 +146,7 @@ export async function getRooms() {
     name: room.name,
     host_id: room.host_id,
     host_name: room.host?.nickname || 'Unknown',
+    host_avatar: room.host?.avatar_url || null,
     target_distance_km: room.target_distance_km,
     target_duration_minutes: room.target_duration_minutes,
     max_participants: room.max_participants,
@@ -426,7 +430,7 @@ export async function getJoinedRooms() {
       .select(`
         room:rooms (
           *,
-          host:profiles!host_id(nickname),
+          host:profiles!host_id(nickname, avatar_url),
           participants:room_participants(count)
         )
       `)
@@ -442,6 +446,7 @@ export async function getJoinedRooms() {
         name: room.name,
         host_id: room.host_id,
         host_name: room.host?.nickname || 'Unknown',
+        host_avatar: room.host?.avatar_url || null,
         target_distance_km: room.target_distance_km,
         target_duration_minutes: room.target_duration_minutes,
         max_participants: room.max_participants,

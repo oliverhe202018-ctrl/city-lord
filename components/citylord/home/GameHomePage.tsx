@@ -376,7 +376,7 @@ function GameHomePageInner({ onStartRun, onNavigateToMap, onNavigateToTab, onSma
                                                     {format(new Date(route.created_at), 'MM-dd')}
                                                 </span>
                                                 <button
-                                                    onClick={() => router.push(`/run/detail?id=${route.id}`)}
+                                                    onClick={() => router.push(`/route-planner?editId=${route.id}`)}
                                                     className="flex items-center gap-0.5 text-primary/60 hover:text-primary transition-colors font-medium"
                                                 >
                                                     查看

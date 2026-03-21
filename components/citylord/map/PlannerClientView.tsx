@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { PlannerTutorial } from "@/components/citylord/map/PlannerTutorial";
 import SaveRouteModal from "@/components/citylord/map/SaveRouteModal";
 import { SaveSuccessDialog } from "@/components/citylord/map/SaveSuccessDialog";
@@ -105,6 +105,9 @@ export default function PlannerClientView() {
   const [previewPath, setPreviewPath] = useState<string>("");
 
   const currentPath = points.length > 0 ? points : [];
+
+  const searchParams = useSearchParams();
+  const editId = searchParams?.get('editId');
 
   // --- Map Initialization ---
   useEffect(() => {
@@ -1467,17 +1470,29 @@ export default function PlannerClientView() {
     useGameStore.getState().setGhostPath(points.map(p => [p.lat, p.lng]));
     useGameStore.getState().setSmartRunStarting(true);
 
-    // Go back to the map (which is usually the previous page)
-    // If we came from /game, back() works.
-    // If direct link, we might need push.
-    if (window.history.length > 1) {
+    if (window.history.length > 2) {
       router.back();
     } else {
-      router.push('/game');
+      router.push('/');
     }
   };
 
-
+  useEffect(() => {
+    if (isMapReady && editId && !isEditing) {
+      fetch(`${process.env.NEXT_PUBLIC_API_SERVER || ''}/api/routes`)
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) {
+            const route = data.find((r: any) => r.id === editId);
+            if (route) {
+              handleEditRoute(route);
+            }
+          }
+        })
+        .catch(console.error);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMapReady, editId, isEditing]);
 
   return (
     <div className="relative w-full h-[100dvh] overflow-hidden flex flex-col pointer-events-none max-w-[480px] mx-auto shadow-2xl bg-slate-900">
@@ -1592,7 +1607,7 @@ export default function PlannerClientView() {
             if (window.history.length > 2) {
               router.back();
             } else {
-              router.push('/game');
+              router.push('/');
             }
           }} className="bg-slate-800/90 backdrop-blur p-2 rounded-full text-white/60 hover:text-white hover:bg-red-500/20 transition-all shadow-lg">
             <X className="w-5 h-5" />

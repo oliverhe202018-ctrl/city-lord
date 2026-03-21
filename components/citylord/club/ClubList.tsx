@@ -82,6 +82,9 @@ export default function ClubList() {
       if (res.success) {
         if (res.status === 'active') {
              toast({ title: '加入成功', description: '你已成功加入该俱乐部！' })
+             setTimeout(() => {
+               window.location.reload();
+             }, 800);
         } else {
              toast({ title: '申请已提交', description: '已申请加入俱乐部，请等待审核。' })
         }

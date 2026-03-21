@@ -444,13 +444,13 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
                   exit={{ scale: 0.9, opacity: 0 }}
                   className="relative w-full max-w-sm aspect-square rounded-2xl overflow-hidden bg-muted shadow-2xl"
                 >
-                  {activeRoom.avatar_url ? (
+                  {activeRoom.host_avatar ? (
                     <Image
-                      src={activeRoom.avatar_url}
-                      alt={activeRoom.name || ''}
+                      src={activeRoom.host_avatar}
+                      alt={activeRoom.host_name || activeRoom.name || ''}
                       fill
                       className="object-cover"
-                      unoptimized={activeRoom.avatar_url.startsWith('blob:')}
+                      unoptimized={activeRoom.host_avatar.startsWith('blob:')}
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-[120px] font-bold text-muted-foreground bg-gradient-to-br from-muted to-muted/80">
@@ -492,13 +492,13 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
                 onClick={() => setIsAvatarExpanded(true)}
                 className="ml-2 w-10 h-10 rounded-full bg-muted border border-border overflow-hidden flex-shrink-0 relative focus:outline-none"
               >
-                {activeRoom.avatar_url ? (
+                {activeRoom.host_avatar ? (
                   <Image
-                    src={activeRoom.avatar_url}
-                    alt={activeRoom.name || ''}
+                    src={activeRoom.host_avatar}
+                    alt={activeRoom.host_name || activeRoom.name || ''}
                     fill
                     className="object-cover"
-                    unoptimized={activeRoom.avatar_url.startsWith('blob:')}
+                    unoptimized={activeRoom.host_avatar.startsWith('blob:')}
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-lg font-bold text-muted-foreground bg-gradient-to-br from-muted to-muted/80">
@@ -837,7 +837,7 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
 
                 {/* Chat tab rendered OUTSIDE scrollable container so input isn't clipped */}
                 {activeTab === 'chat' && (
-                  <div className="flex-1 flex flex-col animate-in fade-in zoom-in-95 duration-300 overflow-hidden px-6 pb-[calc(env(safe-area-inset-bottom)+8px)]">
+                  <div className="flex-1 flex flex-col animate-in fade-in zoom-in-95 duration-300 overflow-hidden px-6 pb-[calc(env(safe-area-inset-bottom)+80px)]">
                     <RoomChat
                       roomId={activeRoom.id}
                       participants={participants}
