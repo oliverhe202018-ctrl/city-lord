@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Send, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { EmojiPicker } from '@/components/ui/EmojiPicker';
 
 interface Message {
   id: string;
@@ -220,6 +221,7 @@ export function RoomChat({ roomId, currentUser }: RoomChatProps) {
 
       {/* Input Area */}
       <div className="p-3 bg-muted/20 border-t border-border flex gap-2 items-center">
+        <EmojiPicker onEmojiSelect={(emoji) => setNewMessage(p => p + emoji)} className="mr-1 shadow-none" />
         <form onSubmit={handleSendMessage} className="flex gap-2 flex-1">
           <Input
             value={newMessage}

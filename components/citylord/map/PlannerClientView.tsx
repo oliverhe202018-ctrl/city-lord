@@ -136,6 +136,13 @@ export default function PlannerClientView() {
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
+    // Capacitor Touch Protection Hoisted
+    const handleNativeTouch = (e: TouchEvent) => {
+      if (modeRef.current === 'draw') {
+        e.stopPropagation();
+      }
+    };
+
     if (typeof window !== "undefined") {
       (window as any)._AMapSecurityConfig = {
         securityJsCode: 'e827ba611fad4802c48dd900d01eb4bf',
@@ -232,12 +239,6 @@ export default function PlannerClientView() {
           container.addEventListener('mouseup', handleDrawEnd);
 
           // Capacitor Touch Protection
-          const handleNativeTouch = (e: TouchEvent) => {
-            if (modeRef.current === 'draw') {
-              e.stopPropagation();
-            }
-          };
-
           const setupNativeTouch = async () => {
             if (await isNativePlatform()) {
               container.addEventListener('touchstart', handleNativeTouch, { passive: false });
@@ -1588,7 +1589,7 @@ export default function PlannerClientView() {
             <List className="w-5 h-5" />
           </button>
           <button onClick={() => {
-            if (window.history.length > 1) {
+            if (window.history.length > 2) {
               router.back();
             } else {
               router.push('/game');

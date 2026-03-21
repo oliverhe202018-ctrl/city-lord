@@ -77,7 +77,7 @@ export function BackgroundSelector() {
         <div className="flex flex-col h-full bg-background">
             {/* Header */}
             <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-lg border-b border-border px-4 py-3 flex items-center gap-3">
-                <button onClick={() => router.back()} className="p-1 rounded-full hover:bg-muted/20 transition-colors">
+                <button onClick={() => { if(window.history.length > 2) router.back(); else router.push('/profile/me'); }} className="p-1 rounded-full hover:bg-muted/20 transition-colors">
                     <ArrowLeft className="w-5 h-5 text-foreground" />
                 </button>
                 <h1 className="text-lg font-bold text-foreground">选择背景</h1>

@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback, useEffect, memo, lazy, Suspense } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { MessageSquarePlus, Route, Calendar, TrendingUp, ChevronRight, Loader2, MapPin } from 'lucide-react';
 import { format } from 'date-fns';
 import { useHomeData } from '@/hooks/useHomeData';
@@ -132,6 +133,7 @@ const RouteThumbnail = memo(({ waypoints }: { waypoints?: [number, number][] }) 
 RouteThumbnail.displayName = 'RouteThumbnail';
 
 function GameHomePageInner({ onStartRun, onNavigateToMap, onNavigateToTab, onSmartPlan }: GameHomePageProps) {
+    const router = useRouter();
     const { data, isLoading: isHomeLoading } = useHomeData();
     const { missions, loading: isMissionsLoading, error: missionsError } = useMissions();
     
@@ -349,11 +351,6 @@ function GameHomePageInner({ onStartRun, onNavigateToMap, onNavigateToTab, onSma
                                         key={route.id}
                                         className="flex-shrink-0 w-[200px] rounded-xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm transition-all hover:border-primary/30 hover:bg-white/8"
                                     >
-                                        {/* Thumbnail Container */}
-                                        <div className="mb-2.5 h-16 w-full rounded-lg bg-white/5 border border-white/5 flex items-center justify-center overflow-hidden">
-                                            <RouteThumbnail waypoints={route.waypoints} />
-                                        </div>
-
                                         <h4 className="text-xs font-bold text-foreground mb-2 truncate">
                                             {route.name || '未命名路线'}
                                         </h4>
@@ -379,7 +376,7 @@ function GameHomePageInner({ onStartRun, onNavigateToMap, onNavigateToTab, onSma
                                                     {format(new Date(route.created_at), 'MM-dd')}
                                                 </span>
                                                 <button
-                                                    onClick={onSmartPlan}
+                                                    onClick={() => router.push(`/run/detail?id=${route.id}`)}
                                                     className="flex items-center gap-0.5 text-primary/60 hover:text-primary transition-colors font-medium"
                                                 >
                                                     查看

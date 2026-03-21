@@ -32,12 +32,12 @@ export function usePageBackNavigation(fallbackUrl: string = '/social') {
             return
         }
         // 2. Safe in-app back check
-        if (typeof window !== 'undefined' && window.history.state?.idx > 0) {
+        if (typeof window !== 'undefined' && window.history.length > 2) {
             router.back()
             return
         }
         // 3. Ultimate Fallback
-        router.replace(fallbackUrl)
+        router.push(fallbackUrl)
     }, [router, searchParams, fallbackUrl])
 
     // 向 Context 注册，组件卸载时自动注销

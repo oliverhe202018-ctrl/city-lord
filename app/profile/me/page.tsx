@@ -97,7 +97,7 @@ export default function MyProfilePage() {
             {/* Header Fixed */}
             <div className="flex-none sticky top-0 z-20 flex items-center gap-2 px-4 py-2 bg-background/80 backdrop-blur-lg border-b border-border/10">
                 <button
-                    onClick={() => window.history.back()}
+                    onClick={() => router.back()}
                     className="p-1 rounded-full hover:bg-muted/20 transition-colors"
                 >
                     <ArrowLeft className="w-5 h-5 text-foreground" />

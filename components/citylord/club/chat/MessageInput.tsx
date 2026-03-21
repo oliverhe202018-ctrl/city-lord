@@ -4,6 +4,7 @@ import { useState, useRef, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Send, Loader2, Lock } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { EmojiPicker } from '@/components/ui/EmojiPicker'
 import { ChannelKey } from '@/lib/types/club-chat.types'
 
 const MAX_LENGTH = 500
@@ -78,6 +79,7 @@ export function MessageInput({ channelKey, userRole, onSend, disabled }: Message
     return (
         <div className="border-t border-white/5 bg-zinc-900/80 px-3 py-2.5">
             <div className="flex items-end gap-2">
+                <EmojiPicker onEmojiSelect={(emoji) => setContent(p => p + emoji)} />
                 <div className="flex-1 relative">
                     <textarea
                         ref={textareaRef}

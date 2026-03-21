@@ -10,6 +10,7 @@ import { VoiceBubble } from "@/components/chat/voice/VoiceBubble"
 import type { VoiceRecordResult } from "@/hooks/useAudioRecorder"
 import { useRouter } from 'next/navigation'
 import { openUserProfile } from '@/lib/utils/nav'
+import { EmojiPicker } from "@/components/ui/EmojiPicker"
 
 const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
   const controller = new AbortController()
@@ -421,6 +422,7 @@ export function MessageList({ initialFriendId, mode = 'system' }: MessageListPro
             <VoiceRecorder receiverId={activeChat} onSend={handleSendVoice} />
           ) : (
             <>
+              <EmojiPicker onEmojiSelect={(emoji) => setInput(p => p + emoji)} className="p-1 mr-1 text-muted-foreground hover:text-foreground" iconClassName="w-6 h-6" />
               <input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
