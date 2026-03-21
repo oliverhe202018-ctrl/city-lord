@@ -299,7 +299,7 @@ export async function claimTerritory(cityId: string, cellId: string, requestId?:
 
     // 9. Check Hidden Badges (Outside Transaction)
     const newBadges = await checkAndAwardBadges(user.id, 'TERRITORY_CAPTURE')
-    // @ts-expect-error - FIXME: Property 'code' does not exist on type 'AwardResult'.
+    // @ts-expect-error - FIXME: Property 'code' does not exist on type 'AwardResult'. - [Ticket-202603-SchemaSync] baseline exemption
     const grantedBadges = newBadges.map(b => b.code)
 
     // Trigger Task Center Event

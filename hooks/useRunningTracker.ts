@@ -62,7 +62,8 @@ function formatDuration(seconds: number): string {
 }
 
 function formatPace(seconds: number, distanceKm: number): string {
-  if (distanceKm <= 0.01) return "00:00";
+  if (distanceKm < 0.01) return "--'--\"";
+  if (seconds <= 0) return "00:00";
   const paceSeconds = seconds / distanceKm;
   const m = Math.floor(paceSeconds / 60);
   const s = Math.floor(paceSeconds % 60);

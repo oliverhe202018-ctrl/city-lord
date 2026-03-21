@@ -59,7 +59,7 @@ export async function getClubDynamics(clubId: string): Promise<DynamicItem[]> {
             orderBy: { created_at: 'desc' },
             take: 10,
             include: {
-                // @ts-expect-error - FIXME: Object literal may only specify known properties, and 'profiles' does 
+                // @ts-expect-error - FIXME: Object literal may only specify known properties, and 'profiles' does  - [Ticket-202603-SchemaSync] baseline exemption
                 profiles: {
                     select: { nickname: true, avatar_url: true },
                 },
@@ -94,11 +94,11 @@ export async function getClubDynamics(clubId: string): Promise<DynamicItem[]> {
         })
 
         for (const r of runs) {
-            // @ts-expect-error - FIXME: Operator '<' cannot be applied to types 'Decimal' and 'number'.
+            // @ts-expect-error - FIXME: Operator '<' cannot be applied to types 'Decimal' and 'number'. - [Ticket-202603-SchemaSync] baseline exemption
             const areaDisplay = (r.area || 0) < 10000
-                // @ts-expect-error - FIXME: Argument of type 'Decimal' is not assignable to parameter of type 'num
+                // @ts-expect-error - FIXME: Argument of type 'Decimal' is not assignable to parameter of type 'num - [Ticket-202603-SchemaSync] baseline exemption
                 ? `${Math.round(r.area || 0)} ㎡`
-                // @ts-expect-error - FIXME: The left-hand side of an arithmetic operation must be of type 'any', '
+                // @ts-expect-error - FIXME: The left-hand side of an arithmetic operation must be of type 'any', ' - [Ticket-202603-SchemaSync] baseline exemption
                 : `${((r.area || 0) / 1000000).toFixed(2)} k㎡`
             items.push({
                 id: `run_${r.id}`,
@@ -106,7 +106,7 @@ export async function getClubDynamics(clubId: string): Promise<DynamicItem[]> {
                 title: '领地拓展',
                 description: `${r.profiles?.nickname || '成员'} 跑步开拓了 ${areaDisplay} 领地`,
                 avatarUrl: r.profiles?.avatar_url,
-                // @ts-expect-error - FIXME: 'r.created_at' is possibly 'null'.
+                // @ts-expect-error - FIXME: 'r.created_at' is possibly 'null'. - [Ticket-202603-SchemaSync] baseline exemption
                 timestamp: r.created_at.toISOString(),
             })
         }
@@ -133,10 +133,10 @@ export async function getClubDynamics(clubId: string): Promise<DynamicItem[]> {
                 id: `badge_${b.id}`,
                 type: 'member_milestone',
                 title: '成就达成',
-                // @ts-expect-error - FIXME: Property 'badge_name' does not exist on type '{ profiles: { avatar_url
+                // @ts-expect-error - FIXME: Property 'badge_name' does not exist on type '{ profiles: { avatar_url - [Ticket-202603-SchemaSync] baseline exemption
                 description: `${b.profiles?.nickname || '成员'} 获得了「${b.badge_name}」成就`,
                 avatarUrl: b.profiles?.avatar_url,
-                // @ts-expect-error - FIXME: 'b.earned_at' is possibly 'null'.
+                // @ts-expect-error - FIXME: 'b.earned_at' is possibly 'null'. - [Ticket-202603-SchemaSync] baseline exemption
                 timestamp: b.earned_at.toISOString(),
             })
         }

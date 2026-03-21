@@ -171,7 +171,7 @@ export const TerritoryService = {
                 // Provide raw coordinates without 'z' for standard turf compatibility
                 const polygonGeoJSON = turf.polygon([points.map(p => [p.lng, p.lat])]);
 
-                // @ts-expect-error - FIXME: Argument of type '{ runId: string; userId: string; clubId: string | nu
+                // @ts-expect-error - FIXME: Argument of type '{ runId: string; userId: string; clubId: string | nu - [Ticket-202603-SchemaSync] baseline exemption
                 const settlementResult = await processTerritorySettlement({
                     runId: result.runId,
                     userId: userId,

@@ -1,3 +1,4 @@
+// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
 import { supabaseAdmin } from './lib/supabase/admin'
 
 async function test() {

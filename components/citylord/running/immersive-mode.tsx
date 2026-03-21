@@ -561,6 +561,7 @@ export function ImmersiveRunningMode({
           runNumber={runNumber}
           damageSummary={damageSummary}
           maintenanceSummary={maintenanceSummary}
+          runTrajectory={path}
           onShare={() => {
             toast.success("分享图片已生成 (模拟)")
           }}

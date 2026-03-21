@@ -9,7 +9,7 @@
  */
 
 // @mapbox/togeojson exports a `gpx` method that takes a DOM Document
-// @ts-expect-error - FIXME: Could not find a declaration file for module '@mapbox/togeojson'. 'G:/
+// @ts-expect-error - FIXME: Could not find a declaration file for module '@mapbox/togeojson'. 'G:/ - [Ticket-202603-SchemaSync] baseline exemption
 import { gpx } from '@mapbox/togeojson';
 
 import { haversineDistance } from '@/lib/geometry-utils';

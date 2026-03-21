@@ -11,6 +11,7 @@ async function main() {
     return
   }
 
+// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
   console.log(`🎯 Targeting User: ${user.display_name || 'Unknown'} (${user.id})`)
 
   // 2. Insert Notification

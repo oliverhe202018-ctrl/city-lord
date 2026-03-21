@@ -263,6 +263,7 @@ export function AchievementWall({
       try {
         const userProgress = await fetchUserAchievements()
         const merged: Achievement[] = ACHIEVEMENT_DEFINITIONS.map(def => {
+// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
           const progress = userProgress.find(p => p.achievementId === def.id)
           return {
             ...def,

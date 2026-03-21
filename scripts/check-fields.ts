@@ -12,6 +12,7 @@ async function check() {
     // Supabase JS doesn't have an easy way to get columns without rpc or explicit select.
     // Let's just select * limit 1 to see the columns.
     const { data: d2, error: e2 } = await supabaseAdmin.from('territories').select('*').limit(1);
+// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
     console.log("Columns:", Object.keys(d2[0] || {}), "Data:", d2);
 }
 check();

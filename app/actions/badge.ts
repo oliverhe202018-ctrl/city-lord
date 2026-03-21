@@ -316,17 +316,17 @@ export async function checkProgressBadges(userId: string) {
 
     switch (badge.category) {
       case 'conquest': // Based on Tiles Captured
-        // @ts-expect-error - FIXME: 'badge.condition_value' is possibly 'null'.
+        // @ts-expect-error - FIXME: 'badge.condition_value' is possibly 'null'. - [Ticket-202603-SchemaSync] baseline exemption
         if (stats.totalTiles >= badge.condition_value) qualified = true
         break
       case 'endurance': // Based on Distance (km)
-        // @ts-expect-error - FIXME: 'badge.condition_value' is possibly 'null'.
+        // @ts-expect-error - FIXME: 'badge.condition_value' is possibly 'null'. - [Ticket-202603-SchemaSync] baseline exemption
         if (stats.totalDistance >= badge.condition_value) qualified = true
         break
       case 'exploration':
         // Some exploration badges are distance (City Walker)
         if (badge.requirement_type === 'distance') {
-          // @ts-expect-error - FIXME: 'badge.condition_value' is possibly 'null'.
+          // @ts-expect-error - FIXME: 'badge.condition_value' is possibly 'null'. - [Ticket-202603-SchemaSync] baseline exemption
           if (stats.totalDistance >= badge.condition_value) qualified = true
         }
         break

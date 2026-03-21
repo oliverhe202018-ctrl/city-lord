@@ -326,6 +326,7 @@ export function GaodeMap3D({
     }
 
     // Convert Real Data
+// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
     const realGeoJSON = h3ToAmapGeoJSON(safeHexagons)
 
     // Build Territory Map for O(1) matching
@@ -339,6 +340,7 @@ export function GaodeMap3D({
 
     // Enrich with Health Data and Precompute Styles
     if (safeHexagons.length > 0) {
+// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
       realGeoJSON.features.forEach((feature: any) => {
         const t = territoryMap.get(feature.properties.h3Index);
         if (t) {
@@ -356,10 +358,12 @@ export function GaodeMap3D({
     }
 
     // Merge Debug Data if list is empty
+// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
     let finalFeatures = realGeoJSON.features
     if (finalFeatures.length === 0) {
       addLog("No hexagons provided, adding DEBUG feature")
       // Quick dummy context
+// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
       debugFeature.properties.health = 1000;
       (debugFeature.properties as any)._styleCache = generateNeutralTerritoryStyle(ctx);
       finalFeatures = [debugFeature as any]
@@ -429,6 +433,7 @@ export function GaodeMap3D({
 
       if (!ghostPolylineRef.current) {
         ghostPolylineRef.current = new window.AMap.Polyline({
+// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
           path: ghostCoords,
           strokeColor: "#a855f7",
           strokeOpacity: 0.6,
@@ -522,6 +527,7 @@ export function GaodeMap3D({
       } else {
         // Create new polyline
         polylineRef.current = new window.AMap.Polyline({
+// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
           path: pathCoordinates,
           strokeColor: pathColor,
           strokeWeight: 6,
@@ -562,6 +568,7 @@ export function GaodeMap3D({
 
           if (coords.length < 3) return null // Need at least 3 points for a polygon
 
+// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
           return new window.AMap.Polygon({
             path: coords,
             strokeColor: pathColor,

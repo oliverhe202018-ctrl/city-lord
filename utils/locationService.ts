@@ -1,18 +1,9 @@
-import { isCapacitorAvailable, safeBackgroundGeolocationAddWatcher, safeBackgroundGeolocationRemoveWatcher } from "@/lib/capacitor/safe-plugins";
+import { isCapacitorAvailable, safeAMapStartTracking, safeAMapStopTracking } from "@/lib/capacitor/safe-plugins";
 
 export const LocationService = {
   // 启动跑步记录
-  startTracking: async (authToken?: string) => {
+  startTracking: async (userId?: string) => {
     try {
-      const syncConfig = authToken ? {
-        url: `${process.env.NEXT_PUBLIC_API_URL || ''}/api/run/native-sync`,
-        headers: { Authorization: `Bearer ${authToken}` },
-        autoSync: true,
-        autoSyncThreshold: 5, // Sync every 5 items
-        batchSync: true,
-        maxDaysToKeep: 1,
-      } : {};
-
       // Capacitor logic skipped in Web View to prevent console spam
       // We only use this in native app context
       if (typeof window !== 'undefined' && !isCapacitorAvailable()) {
@@ -20,29 +11,24 @@ export const LocationService = {
           return 'web-watcher-id';
       }
 
-      // 1. 先添加 Watcher
-      const watcherId = await safeBackgroundGeolocationAddWatcher(
-        {
-          backgroundMessage: "正在记录您的领地征程...",
-          backgroundTitle: "City Lord 跑步中",
-          requestPermissions: true, // 自动申请权限
-          stale: false,
-          distanceFilter: 5, // 5米更新一次
-          ...syncConfig
-        },
-        (location, error) => {
-          if (error) {
-            console.error("Location error:", error);
-            return;
-          }
-          // 发送自定义事件，供 UI 层监听并画线
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('new-location', { detail: location }));
-          }
-        }
-      );
-      if (!watcherId) return 'web-watcher-id';
-      return watcherId;
+      // Start the native iOS/Android Foreground Service via AMapLocationPlugin
+      // This guarantees WakeLock, persistent notification, and 2s interval tracking
+      const result = await safeAMapStartTracking({
+          notificationTitle: "City Lord 跑步中",
+          notificationBody: "正在记录您的领地征程...",
+          interval: 2000,
+          startedAt: Date.now()
+      });
+
+      if (!result.success) {
+          console.warn('[LocationService] Native tracking failed to start (might be web/simulator)', result.reason);
+          return 'web-watcher-id';
+      }
+
+      // The native service will broadcast 'locationUpdate' events via the plugin listener,
+      // which are caught by GlobalLocationProvider in _app.tsx or useSafeGeolocation.
+      
+      return 'native-amap-tracking';
     } catch (e) {
       console.error("Start tracking failed", e);
       throw e;
@@ -52,12 +38,11 @@ export const LocationService = {
   // 停止跑步记录
   stopTracking: async (watcherId: string) => {
     if (watcherId === 'web-watcher-id') return;
-    if (watcherId) {
-      try {
-        await safeBackgroundGeolocationRemoveWatcher(watcherId);
-      } catch (e) {
-        console.warn("Stop tracking failed or already stopped", e);
-      }
+    try {
+        console.log('[LocationService] Stopping native tracking...');
+        await safeAMapStopTracking();
+    } catch (e) {
+      console.warn("Stop tracking failed or already stopped", e);
     }
   },
 

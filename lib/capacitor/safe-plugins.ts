@@ -516,3 +516,85 @@ export async function safeAMapGetSessionMirror(): Promise<any> {
         return null;
     }
 }
+
+export async function safeAMapStartTracking(options: {
+    notificationTitle?: string;
+    notificationBody?: string;
+    interval?: number;
+    runId?: string;
+    startedAt?: number;
+}): Promise<{ success: boolean; error?: string; reason?: string }> {
+    try {
+        if (!(await isNativePlatform())) return { success: false, reason: 'web_platform' };
+        
+        let hasNotification = true;
+        let hasLocation = true;
+        let missingReason = '';
+
+        // Android 13+ Notification Permission Check (Good practice before starting Foreground Service)
+        try {
+            const { LocalNotifications } = await import('@capacitor/local-notifications');
+            let permStatus = await LocalNotifications.checkPermissions();
+            if (permStatus.display === 'prompt') {
+                permStatus = await LocalNotifications.requestPermissions();
+            }
+            if (permStatus.display !== 'granted') {
+                hasNotification = false;
+                missingReason = 'notification_permission_missing';
+                console.warn('[safe-plugins] Notification permission not granted, Foreground Service might not show UI');
+            }
+        } catch (e) {
+            console.warn('[safe-plugins] Skip LocalNotifications permission check', e);
+        }
+
+        // Location Permissions Check
+        try {
+            const { Geolocation } = await import('@capacitor/geolocation');
+            let geoStatus = await Geolocation.checkPermissions();
+            if (geoStatus.location === 'prompt' || geoStatus.location === 'prompt-with-rationale') {
+                geoStatus = await Geolocation.requestPermissions({ permissions: ['location'] });
+            }
+            if (geoStatus.location !== 'granted') {
+                hasLocation = false;
+                missingReason = 'location_permission_missing';
+                console.error('[safe-plugins] Location permission denied, tracking will likely fail');
+            }
+        } catch (e) {
+            console.warn('[safe-plugins] Skip Geolocation permission check', e);
+        }
+
+        if (!hasNotification || !hasLocation) {
+            try {
+                const { Dialog } = await import('@capacitor/dialog');
+                await Dialog.alert({
+                    title: '权限受限',
+                    message: `后台持续轨迹需要"始终允许定位"${!hasNotification ? '和"通知"' : ''}权限。请前往系统设置开启以确保记录不被挂断。`,
+                    buttonTitle: '我知道了'
+                });
+                console.log('[Tracking] Event: tracking_start_denied_reason', { reason: missingReason });
+            } catch (e) {}
+            return { success: false, error: 'Permissions not granted', reason: missingReason };
+        }
+
+        const { registerPlugin } = await import('@capacitor/core');
+        const AMapLocation = registerPlugin<any>('AMapLocation');
+        await AMapLocation.startTracking(options);
+        return { success: true };
+    } catch (e: any) {
+        console.warn('AMapLocation.startTracking failed', e);
+        return { success: false, error: e?.message || 'Unknown error', reason: 'plugin_error' };
+    }
+}
+
+export async function safeAMapStopTracking(): Promise<boolean> {
+    try {
+        if (!(await isNativePlatform())) return false;
+        const { registerPlugin } = await import('@capacitor/core');
+        const AMapLocation = registerPlugin<any>('AMapLocation');
+        await AMapLocation.stopTracking();
+        return true;
+    } catch (e) {
+        console.warn('AMapLocation.stopTracking failed', e);
+        return false;
+    }
+}

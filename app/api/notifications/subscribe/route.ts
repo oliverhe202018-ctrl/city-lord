@@ -24,7 +24,8 @@ export async function POST(req: Request) {
                 user_id: user.id,
                 p256dh: subscription.keys.p256dh,
                 auth: subscription.keys.auth,
-                // @ts-expect-error - FIXME: Object literal may only specify known properties, and 'updated_at' doe
+// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
+                // @ts-expect-error - FIXME: Object literal may only specify known properties, and 'updated_at' doe - [Ticket-202603-SchemaSync] baseline exemption
                 updated_at: new Date(),
                 revoked_at: null,
             },

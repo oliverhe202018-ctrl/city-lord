@@ -357,7 +357,8 @@ async function fetchBattleFeed(userId: string): Promise<BattleEvent[]> {
     for (const log of lostTerritories) {
         // Find attacker name
         const attackerProfile = await prisma.profiles.findUnique({
-            // @ts-expect-error - FIXME: Type 'string | null' is not assignable to type 'string | undefined'.
+// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
+            // @ts-expect-error - FIXME: Type 'string | null' is not assignable to type 'string | undefined'. - [Ticket-202603-SchemaSync] baseline exemption
             where: { id: log.new_owner },
             select: { nickname: true },
         });

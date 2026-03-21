@@ -1,5 +1,5 @@
 // lib/data-fetcher.ts
-// @ts-expect-error - FIXME: Cannot find module './CacheManager' or its corresponding type declarat
+// @ts-expect-error - FIXME: Cannot find module './CacheManager' or its corresponding type declarat - [Ticket-202603-SchemaSync] baseline exemption
 import { cacheManager } from './CacheManager';
 
 /**

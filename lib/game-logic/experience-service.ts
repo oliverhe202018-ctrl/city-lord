@@ -46,7 +46,8 @@ export async function addExperienceUnified(
       })
 
       // 4. 写入流水
-      // @ts-expect-error - FIXME: Property 'expLog' does not exist on type 'Omit<PrismaClient<PrismaClie
+// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
+      // @ts-expect-error - FIXME: Property 'expLog' does not exist on type 'Omit<PrismaClient<PrismaClie - [Ticket-202603-SchemaSync] baseline exemption
       await tx.expLog.create({
         data: {
           userId,

@@ -102,7 +102,7 @@ export async function createClub(data: {
 
     const { data: club, error } = await supabase
       .from('clubs')
-      // @ts-expect-error - FIXME: No overload matches this call.
+      // @ts-expect-error - FIXME: No overload matches this call. - [Ticket-202603-SchemaSync] baseline exemption
       .insert(insertData)
       .select()
       .single()
@@ -473,7 +473,7 @@ export async function joinClub(clubId: string) {
 
     // 4. 如果直接加入，更新成员计数
     if (initialStatus === 'active') {
-      // @ts-expect-error - FIXME: Argument of type '"increment_club_member_count"' is not assignable to 
+      // @ts-expect-error - FIXME: Argument of type '"increment_club_member_count"' is not assignable to  - [Ticket-202603-SchemaSync] baseline exemption
       await supabase.rpc('increment_club_member_count', { row_id: clubId })
     }
 
@@ -531,7 +531,7 @@ export async function leaveClub(clubId: string) {
   }
 
   // Decrement member count
-  // @ts-expect-error - FIXME: Argument of type '"decrement_club_member_count"' is not assignable to 
+  // @ts-expect-error - FIXME: Argument of type '"decrement_club_member_count"' is not assignable to  - [Ticket-202603-SchemaSync] baseline exemption
   await supabase.rpc('decrement_club_member_count', { row_id: clubId })
 
   // Invalidate cache
@@ -618,7 +618,7 @@ export async function getClubJoinRequests(clubId: string) {
       .eq('user_id', user.id)
       .single()
 
-    // @ts-expect-error - FIXME: Argument of type 'string | null' is not assignable to parameter of typ
+    // @ts-expect-error - FIXME: Argument of type 'string | null' is not assignable to parameter of typ - [Ticket-202603-SchemaSync] baseline exemption
     if (!memberData || !['admin', 'owner'].includes(memberData.role)) {
       return { success: false, error: '权限不足' }
     }
@@ -1453,7 +1453,7 @@ export async function setMemberRole(
 
   // Vice president cannot modify someone with an equal or higher role
   if (operatorRole !== 'owner') {
-    // @ts-expect-error - FIXME: Type 'null' cannot be used as an index type.
+    // @ts-expect-error - FIXME: Type 'null' cannot be used as an index type. - [Ticket-202603-SchemaSync] baseline exemption
     const targetLevel = ROLE_HIERARCHY[targetMember.role] ?? 0
     if (targetLevel >= opLevel) {
       return { success: false, error: '权限不足以修改该成员' }

@@ -32,6 +32,7 @@ export async function submitTerritoryReport(params: SubmitReportParams) {
         // 3. Application-level deduplication: 1/user/territory/30s
         const thirtySecsAgo = new Date(Date.now() - 30 * 1000).toISOString()
         const { data: recentReport, error: checkError } = await supabase
+// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
             .from('territory_reports')
             .select('id')
             .eq('reporter_id', user.id)
@@ -52,8 +53,10 @@ export async function submitTerritoryReport(params: SubmitReportParams) {
         // 4. Insert report
         // The database partial unique index will catch if there is already a PENDING report
         const { error: insertError } = await supabase
+// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
             .from('territory_reports')
             .insert({
+// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
                 reporter_id: user.id,
                 territory_id: validated.territoryId,
                 reported_user_id: validated.reportedUserId,

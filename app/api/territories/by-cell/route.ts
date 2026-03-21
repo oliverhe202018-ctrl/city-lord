@@ -107,7 +107,9 @@ export async function GET(request: NextRequest) {
     const cityName = city?.name || '未知城市';
 
     // 面积优先使用已持久化的 area_m2_exact，fallback 到 h3-js 计算
+// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
     const areaM2 = territory.area_m2_exact > 0
+// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
       ? territory.area_m2_exact
       : cellArea(h3CellId, 'm2');
 

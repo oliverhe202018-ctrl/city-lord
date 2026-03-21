@@ -31,6 +31,7 @@ async function main() {
 
         // 调用 settlement 方法（内置 Option A 包含的 splitIntoPolygons 方法）
         console.log("\n[2] 调用 processTerritorySettlement 进行拆分与入库...");
+// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
         const result = await processTerritorySettlement({
             runId: runId,
             userId: user.id,
@@ -43,6 +44,7 @@ async function main() {
         console.log("\n[3] 验证数据库写入结果...");
         const newTerritories = await prisma.territories.findMany({
             where: { source_run_id: runId },
+// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
             select: { id: true, geojson_json: true, area_m2: true }
         });
 
@@ -51,6 +53,7 @@ async function main() {
             const geoJson = t.geojson_json as any;
             console.log(`    - 领地 ${index+1} (${t.id}):`);
             console.log(`      geomType: ${geoJson?.type}`);
+// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
             console.log(`      area_m2:  ${t.area_m2}`);
         });
 

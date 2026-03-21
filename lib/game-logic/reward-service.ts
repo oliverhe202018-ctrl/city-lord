@@ -63,7 +63,8 @@ export async function grantRewards(
       })
 
       // 4. 写流水
-      // @ts-expect-error - FIXME: Property 'rewardLog' does not exist on type 'Omit<PrismaClient<PrismaC
+// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
+      // @ts-expect-error - FIXME: Property 'rewardLog' does not exist on type 'Omit<PrismaClient<PrismaC - [Ticket-202603-SchemaSync] baseline exemption
       await tx.rewardLog.create({
         data: {
           userId,

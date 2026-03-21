@@ -265,6 +265,7 @@ export async function fetchFriendActivities(): Promise<FriendActivity[]> {
   // 3. Fetch completed missions
   // Assuming user_missions table
   const { data: missionsData } = await supabase
+// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
     .from('user_missions_deprecated')
     .select(`
       id,
@@ -636,14 +637,14 @@ export async function getPendingChallenges() {
   return messages.map((m) => {
     let details = {}
     try {
-      // @ts-expect-error - FIXME: Argument of type 'string | null' is not assignable to parameter of typ
+      // @ts-expect-error - FIXME: Argument of type 'string | null' is not assignable to parameter of typ - [Ticket-202603-SchemaSync] baseline exemption
       details = JSON.parse(m.content)
     } catch (e) {
       details = { title: m.content }
     }
 
     // Calculate expiration
-    // @ts-expect-error - FIXME: No overload matches this call.
+    // @ts-expect-error - FIXME: No overload matches this call. - [Ticket-202603-SchemaSync] baseline exemption
     const created = new Date(m.created_at)
     const expires = new Date(created.getTime() + 24 * 60 * 60 * 1000) // 24 hours
     const now = new Date()

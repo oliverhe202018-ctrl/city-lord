@@ -158,7 +158,7 @@ export default function AdminLogsPage() {
                 {logs.map((log) => (
                   <TableRow key={log.id} className={getRowClass(log.action)}>
                     <TableCell className="whitespace-nowrap font-mono text-xs text-muted-foreground">
-                      {/* @ts-expect-error - FIXME: No overload matches this call. */}
+                      {/* @ts-expect-error - FIXME: No overload matches this call. */} - [Ticket-202603-SchemaSync] baseline exemption
                       {format(new Date(log.created_at), 'yyyy-MM-dd HH:mm:ss')}
                     </TableCell>
                     <TableCell>

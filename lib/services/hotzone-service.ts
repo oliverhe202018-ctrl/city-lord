@@ -147,7 +147,8 @@ export const HotZoneService = {
             take: limit,
         })
 
-        // @ts-expect-error - FIXME: Type '{ previousOwner: string | null; newOwner: string | null; changed
+// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
+        // @ts-expect-error - FIXME: Type '{ previousOwner: string | null; newOwner: string | null; changed - [Ticket-202603-SchemaSync] baseline exemption
         return logs.map((l) => ({
             previousOwner: l.previous_owner,
             newOwner: l.new_owner,

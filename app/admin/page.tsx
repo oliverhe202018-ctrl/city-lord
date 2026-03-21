@@ -8,7 +8,7 @@ export default async function AdminDashboardPage() {
 
   return (
     <AdminDashboardPageClient
-      // @ts-expect-error - FIXME: Type '{ summary: { total_users: number; total_clubs: number; pending_a
+      // @ts-expect-error - FIXME: Type '{ summary: { total_users: number; total_clubs: number; pending_a - [Ticket-202603-SchemaSync] baseline exemption
       initialData={res.success ? res.data : null}
       initialError={res.success ? null : res.error}
     />

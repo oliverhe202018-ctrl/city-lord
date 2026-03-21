@@ -118,19 +118,56 @@ export function RunSummaryView({
     if (!file || !userId) return;
 
     setIsUploading(true);
+    const fileExt = file.name.split('.').pop();
+    const filePath = `${userId}/${Date.now()}.${fileExt}`;
+    const startTime = Date.now();
+    let attempt = 0;
+    const maxAttempts = 3;
+
     try {
       const supabase = createClient();
-      const fileExt = file.name.split('.').pop();
-      const filePath = `run-photos/${userId}/${Date.now()}.${fileExt}`;
+      let uploadResult;
 
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file, { upsert: true });
+      console.log(`[Upload] Starting upload for ${filePath} to run-photos bucket...`);
 
-      if (uploadError) throw uploadError;
+      while (attempt < maxAttempts) {
+        attempt++;
+        try {
+          console.log(`[Upload] Attempt ${attempt}`);
+          const attemptStart = Date.now();
+          const abortController = new AbortController();
+          
+          uploadResult = await Promise.race([
+            // We cast to any to inject signal as Supabase TS might not expose standard fetch options in all V2 releases.
+            supabase.storage.from('run-photos').upload(filePath, file, { 
+              upsert: true,
+              ...( { signal: abortController.signal } as any )
+            }),
+            new Promise<never>((_, reject) => 
+              setTimeout(() => {
+                abortController.abort('UPLOAD_TIMEOUT');
+                reject(new Error('UPLOAD_TIMEOUT'));
+              }, 30000)
+            )
+          ]);
+          
+          if (uploadResult?.error) throw uploadResult.error;
+          
+          console.log(`[Upload] Attempt ${attempt} succeeded in ${Date.now() - attemptStart}ms`);
+          break; // Success, exit retry loop
+        } catch (err: any) {
+          console.error(`[Upload] Attempt ${attempt} failed:`, err);
+          if (attempt >= maxAttempts) throw err;
+          
+          // Exponential backoff: 2s, 4s
+          const backoff = Math.pow(2, attempt) * 1000;
+          console.log(`[Upload] Waiting ${backoff}ms before retry...`);
+          await new Promise(r => setTimeout(r, backoff));
+        }
+      }
 
       const { data: urlData } = supabase.storage
-        .from('avatars')
+        .from('run-photos')
         .getPublicUrl(filePath);
 
       const publicUrl = urlData.publicUrl;
@@ -145,12 +182,14 @@ export function RunSummaryView({
           .eq('id', runId);
       }
 
+      console.log(`[Upload] Fully completed in ${Date.now() - startTime}ms. URL: ${publicUrl}`);
       toast.success('照片添加成功！');
-    } catch (err) {
-      console.error('Photo upload failed:', err);
-      toast.error('照片上传失败，请重试');
+    } catch (err: any) {
+      console.error(`[Upload] Permanently failed after ${attempt} attempts. Total time: ${Date.now() - startTime}ms. Error:`, err);
+      toast.error(err?.message === 'UPLOAD_TIMEOUT' ? '上传超时，请检查网络后重试' : '照片上传失败，请重试');
+      // Ensure we clean up any partial state if needed, though state machine handles the final finally block
     } finally {
-      setIsUploading(false);
+      setIsUploading(false); // State Machine Guarantee: Always exit uploading state
     }
   };
 
@@ -172,16 +211,21 @@ export function RunSummaryView({
 
       const mediaUrls = photoUrl ? [photoUrl] : [];
 
+      const isRunValid = !!runId;
+      if (!isRunValid) {
+        toast.info('路线数据未完成上传，已转为文字动态');
+      }
+
       const result = await createPost({
         content,
-        source_type: 'RUN',
-        source_id: runId || undefined,
+        source_type: isRunValid ? 'RUN' : 'TEXT',
+        source_id: isRunValid ? runId : undefined,
         mediaUrls,
         visibility: 'PUBLIC'
       });
 
       if (result.success) {
-        toast.success('已分享到动态！');
+        toast.success(isRunValid ? '已分享到动态！' : '文字战绩已分享！');
         setHasShared(true);
         setIsShareModalOpen(false);
       } else {

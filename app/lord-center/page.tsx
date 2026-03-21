@@ -20,7 +20,7 @@ import { toast } from "sonner"
 
 export default function LordCenterPage() {
    const router = useRouter()
-   // @ts-expect-error - FIXME: Property 'userStats' does not exist on type 'GameStore'.
+   // @ts-expect-error - FIXME: Property 'userStats' does not exist on type 'GameStore'. - [Ticket-202603-SchemaSync] baseline exemption
    const { userStats, nickname, avatar, userId } = useGameStore()
    const [activities, setActivities] = useState<any[]>([])
    const [loading, setLoading] = useState(true)
