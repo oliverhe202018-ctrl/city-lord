@@ -78,9 +78,8 @@ export function MessageInput({ channelKey, userRole, onSend, disabled }: Message
 
     return (
         <div className="border-t border-white/5 bg-zinc-900/80 px-3 py-2.5">
-            <div className="flex items-end gap-2">
-                <EmojiPicker onEmojiSelect={(emoji) => setContent(p => p + emoji)} />
-                <div className="flex-1 relative">
+            <div className="flex items-center gap-2">
+                <div className="flex-1 min-w-0 relative">
                     <textarea
                         ref={textareaRef}
                         id="message-input"
@@ -111,24 +110,27 @@ export function MessageInput({ channelKey, userRole, onSend, disabled }: Message
                     )}
                 </div>
 
-                <Button
-                    id="send-message-btn"
-                    onClick={handleSend}
-                    disabled={!canSend}
-                    size="icon"
-                    className={cn(
-                        'h-10 w-10 rounded-xl transition-all duration-150 flex-shrink-0 mb-1',
-                        canSend
-                            ? 'bg-yellow-500 hover:bg-yellow-400 text-black'
-                            : 'bg-white/5 text-white/20 cursor-not-allowed'
-                    )}
-                >
-                    {isSending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                        <Send className="h-4 w-4" />
-                    )}
-                </Button>
+                <div className="flex items-center gap-1 shrink-0">
+                    <EmojiPicker onEmojiSelect={(emoji) => setContent(p => p + emoji)} />
+                    <Button
+                        id="send-message-btn"
+                        onClick={handleSend}
+                        disabled={!canSend}
+                        size="icon"
+                        className={cn(
+                            'h-10 w-10 rounded-xl transition-all duration-150 flex-shrink-0',
+                            canSend
+                                ? 'bg-yellow-500 hover:bg-yellow-400 text-black'
+                                : 'bg-white/5 text-white/20 cursor-not-allowed'
+                        )}
+                    >
+                        {isSending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                            <Send className="h-4 w-4" />
+                        )}
+                    </Button>
+                </div>
             </div>
         </div>
     )

@@ -134,7 +134,10 @@ RouteThumbnail.displayName = 'RouteThumbnail';
 
 function GameHomePageInner({ onStartRun, onNavigateToMap, onNavigateToTab, onSmartPlan }: GameHomePageProps) {
     const router = useRouter();
-    const { data, isLoading: isHomeLoading } = useHomeData();
+
+
+    const [scope, setScope] = useState<'nearby' | 'city' | 'global'>('nearby');
+    const { data, isLoading: isHomeLoading } = useHomeData(scope);
     const { missions, loading: isMissionsLoading, error: missionsError } = useMissions();
     
     // Filter and map daily missions for the dashboard
@@ -390,13 +393,12 @@ function GameHomePageInner({ onStartRun, onNavigateToMap, onNavigateToTab, onSma
                         )}
                     </div>
 
-                    {/* 5) Leaderboard & Club — lazy loaded (heavy component) */}
+                    {/* 5) [Tech Lead] Leaderboard - 现在是独立可交互组件 */}
                     <Suspense fallback={<LeaderboardFallback />}>
                         <LeaderboardMini
-                            leaderboard={data?.leaderboardMini ?? []}
+                            initialLeaderboard={data?.leaderboardMini ?? []}
                             myRank={data?.myRank ?? null}
-                            clubEvents={data?.clubMini ?? []}
-                            isLoading={isLoading}
+                            isLoadingInitial={isLoading}
                         />
                     </Suspense>
                 </div>

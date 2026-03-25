@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client'
+﻿import { PrismaClient } from '@prisma/client'
 import { TerritoryStatsAggregatorService } from '../lib/services/territory-stats-aggregator'
 import { TerritoryReconcileService } from '../lib/services/territory-reconcile'
 import { H3_TILE_AREA_KM2 } from '../lib/constants/territory'

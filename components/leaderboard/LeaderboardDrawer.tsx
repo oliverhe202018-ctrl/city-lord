@@ -180,7 +180,7 @@ export function LeaderboardDrawer() {
     <Sheet open={isOpen} onOpenChange={(open) => !open && closeDrawer()}>
       <SheetContent
         side="bottom"
-        className="w-full sm:max-w-md p-0 flex flex-col bg-background/95 backdrop-blur-xl border-none h-[100dvh] rounded-none z-[40]" // z-[40] to keep bottom nav (z-50) accessible
+        className="w-full sm:max-w-md p-0 flex flex-col bg-background/95 backdrop-blur-xl border-none h-[100dvh] rounded-none z-[51]"
       >
         <SheetHeader className="px-6 pt-12 pb-2 shrink-0">
           <SheetTitle className="text-center flex items-center justify-center gap-2 text-xl font-bold bg-gradient-to-r from-yellow-500 to-amber-600 bg-clip-text text-transparent">
@@ -350,7 +350,7 @@ function StickyBottom({ data, label }: { data?: LeaderboardEntry; label: string 
   };
 
   return (
-    <div className="absolute bottom-[80px] left-0 right-0 p-4 bg-gradient-to-t from-background via-background to-transparent pt-10">
+    <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background via-background to-transparent pt-10">
       <div className="bg-primary/10 border border-primary/20 backdrop-blur-md rounded-xl p-3 shadow-lg flex items-center">
         <div className="bg-primary text-primary-foreground text-[10px] px-2 py-0.5 rounded mr-3 whitespace-nowrap">
           {label}

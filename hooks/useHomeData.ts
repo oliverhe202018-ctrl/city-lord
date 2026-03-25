@@ -16,9 +16,9 @@ const fetcher = (url: string) =>
  * Aggregated SWR hook for the Game Home page.
  * Single request that returns all homepage sections.
  */
-export function useHomeData() {
+export function useHomeData(scope: string = 'nearby') {
     const { data, error, isLoading, mutate } = useSWR<HomeSummaryData>(
-        '/api/home/summary',
+        `/api/home/summary?scope=${scope}`,
         fetcher,
         {
             revalidateOnFocus: true,

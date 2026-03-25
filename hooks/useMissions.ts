@@ -1,19 +1,17 @@
-"use client"
+﻿"use client"
 
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/hooks/useAuth'
 import { Database } from '@/types/supabase'
-import { format } from 'date-fns'
 
 type MissionConfig = Database['public']['Tables']['missions']['Row']
-// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
 type UserMission = Database['public']['Tables']['user_missions_deprecated']['Row']
 
 export type MissionWithStatus = MissionConfig & {
   isCompleted: boolean
-  status: string // 'pending', 'completed', 'claimed'
-  progress?: UserMission // Optional reference to the user record
+  status: string 
+  progress?: UserMission 
 }
 
 export function useMissions() {
@@ -32,25 +30,22 @@ export function useMissions() {
       return
     }
 
-    // Set fetching state for background updates
     setIsFetching(true)
     setError(null)
 
     try {
-      // 1. Fetch all active mission configs (from missions table)
       const { data: configs, error: configError } = await supabase
         .from('missions')
         .select('*')
-        .order('reward_coins', { ascending: true }) // Sort by reward
+        .order('reward_coins', { ascending: true })
 
       if (configError) throw configError
       if (!configs) {
         setMissions([])
-        if (typeof window !== 'undefined') localStorage.removeItem(CACHE_KEY) // Clear cache if no data
+        if (typeof window !== 'undefined') localStorage.removeItem(CACHE_KEY)
         return
       }
 
-      // 2. Fetch user's progress
       const { data: userMissions, error: userError } = await supabase
         .from('user_missions')
         .select('*')
@@ -58,39 +53,23 @@ export function useMissions() {
 
       if (userError) throw userError
 
-      // 3. Merge data
-      const today = format(new Date(), 'yyyy-MM-dd')
+      const statusPriority: Record<string, number> = {
+        'claimed': 0, 'completed': 1, 'ongoing': 2, 'in-progress': 2, 'active': 2, 'todo': 2
+      }
 
       const mergedMissions: MissionWithStatus[] = configs.map(config => {
-        // Find relevant user records for this mission id
         const relevantRecords = userMissions?.filter((um: any) => um.mission_id === config.id) || []
 
-        let isCompleted = false
-        let status = 'pending'
-        let currentRecord: UserMission | undefined
+        const sortedRecords = [...relevantRecords].sort((a: any, b: any) => {
+          const orderA = statusPriority[a.status || ''] ?? 99
+          const orderB = statusPriority[b.status || ''] ?? 99
+          if (orderA !== orderB) return orderA - orderB
+          return new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime()
+        })
 
-        if (config.frequency === 'once') {
-          // For one-time missions, look for any completed record
-          // Usually reset_key is 'permanent' or similar, but checking existence is enough for now
-          // We assume 'completed' status means done.
-          const completedRecord = relevantRecords.find((r: any) => r.status === 'completed' || r.status === 'claimed')
-          if (completedRecord) {
-            isCompleted = true
-            status = completedRecord.status || 'completed'
-            currentRecord = completedRecord
-          }
-        } else if (config.frequency === 'daily') {
-          // For daily missions, look for a record with today's reset_key
-          const dailyRecord = relevantRecords.find((r: any) => r.reset_key === today)
-          if (dailyRecord && (dailyRecord.status === 'completed' || dailyRecord.status === 'claimed')) {
-            isCompleted = true
-            status = dailyRecord.status || 'completed'
-            currentRecord = dailyRecord
-          }
-        } else if (config.frequency === 'weekly') {
-          // Logic for weekly can be added here (e.g., reset_key = '2023-W42')
-          // For now, treat same as daily logic logic if needed or default to not completed
-        }
+        const currentRecord = sortedRecords[0] as any
+        const status = currentRecord?.status || 'pending'
+        const isCompleted = status === 'completed' || status === 'claimed'
 
         return {
           ...config,
@@ -102,14 +81,13 @@ export function useMissions() {
 
       setMissions(mergedMissions)
 
-      // Update cache (SSR-safe)
       if (typeof window !== 'undefined') {
         localStorage.setItem(CACHE_KEY, JSON.stringify(mergedMissions))
       }
 
     } catch (err: any) {
       console.error('Error fetching missions:', err)
-      setError(err.message || '获取任务失败')
+      setError(err.message || '鑾峰彇浠诲姟澶辫触')
     } finally {
       setLoading(false)
       setIsFetching(false)
@@ -117,34 +95,22 @@ export function useMissions() {
   }, [user, supabase])
 
   useEffect(() => {
-    // 1. Try to load from cache immediately (SSR-safe)
     if (typeof window !== 'undefined') {
       const cachedData = localStorage.getItem(CACHE_KEY)
       if (cachedData) {
         try {
           const parsed = JSON.parse(cachedData)
           setMissions(parsed)
-          setLoading(false) // Show cached data immediately
+          setLoading(false)
         } catch (e) {
           console.error('[useMissions] Failed to parse cached missions:', e)
         }
       }
     }
-
-    // 2. Fetch fresh data
     fetchMissions()
   }, [fetchMissions])
 
-  // Helper to refresh data
-  const refresh = () => {
-    fetchMissions()
-  }
+  const refresh = () => { fetchMissions() }
 
-  return {
-    missions,
-    loading,
-    isFetching,
-    error,
-    refresh
-  }
+  return { missions, loading, isFetching, error, refresh }
 }

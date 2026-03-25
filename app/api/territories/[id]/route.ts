@@ -8,7 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCityById } from '@/lib/city-data';
-import { cellArea } from 'h3-js';
+// H3 legacy import removed
 
 export async function GET(
   request: NextRequest,
@@ -58,10 +58,8 @@ export async function GET(
     const city = getCityById(territory.city_id);
     const cityName = city?.name || '未知城市';
 
-    // 面积优先使用 area_m2_exact，fallback 到 h3-js 调用
-    const areaM2 = territory.area_m2_exact > 0
-      ? territory.area_m2_exact
-      : cellArea(territoryId, 'm2');
+    // 面积优先使用 area_m2_exact，或者由 postgis 计算。不再依赖 h3-js
+    const areaM2 = (territory as any).area_m2_exact || 0;
 
     return NextResponse.json({
       found: true,
@@ -70,8 +68,7 @@ export async function GET(
         id: territory.id,
         cityId: territory.city_id,
         cityName,
-        h3Index: territory.h3CellId || territoryId,
-        h3Resolution: territory.h3_resolution || 9,
+        territoryId: territoryId,
         areaM2: Number(areaM2.toFixed(2)),
         capturedAt: territory.captured_at?.toISOString() || null,
         firstClaimedAt: territory.first_claimed_at?.toISOString() || null,

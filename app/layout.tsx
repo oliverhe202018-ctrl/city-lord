@@ -8,7 +8,8 @@ import { Analytics } from '@vercel/analytics/next'
 import { ThemeProvider } from '@/components/citylord/theme/theme-provider'
 import { CityProvider } from '@/contexts/CityContext'
 import { RegionProvider } from '@/contexts/RegionContext'
-import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { GlobalErrorBoundary } from '@/components/GlobalErrorBoundary'
+
 import { Toaster } from "@/components/ui/sonner"
 import { AuthSync } from "@/components/auth/AuthSync"
 import { NetworkStatus } from "@/components/NetworkStatus"
@@ -161,7 +162,7 @@ export default function RootLayout({
           </Script>
 
           <GlobalLocationProvider>
-            <ErrorBoundary>
+            <GlobalErrorBoundary>
               <Providers>
                 <ThemeProvider>
                   <RegionProvider>
@@ -177,7 +178,8 @@ export default function RootLayout({
                   </RegionProvider>
                 </ThemeProvider>
               </Providers>
-            </ErrorBoundary>
+            </GlobalErrorBoundary>
+
           </GlobalLocationProvider>
           <Analytics />
           <SpeedInsights />

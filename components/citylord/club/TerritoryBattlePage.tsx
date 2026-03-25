@@ -51,8 +51,9 @@ export function TerritoryBattlePage({ clubId }: { clubId: string }) {
     }, [clubId])
 
     const formatArea = (area: number) => {
-        if (area < 10000) return `${Math.round(area)} ㎡`
-        return `${(area / 1000000).toFixed(2)} k㎡`
+        if (area < 1000) return `${Math.round(area)} ㎡`
+        if (area < 1000000) return `${(area / 1000).toFixed(1)} k㎡`
+        return `${(area / 1000000).toFixed(2)} km²`
     }
 
     const eventConfig = {

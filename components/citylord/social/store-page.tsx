@@ -3,10 +3,12 @@
 import React, { useState, useEffect } from "react"
 import { toast } from "sonner"
 import { handleAppError } from "@/lib/utils/app-error"
-import { getStoreItems, redeemItem } from "@/app/actions/redemption"
-import { Loader2, ShoppingBag, Coins, Gift, AlertCircle, ShoppingCart, HelpCircle, X } from "lucide-react"
+import { getStoreItems } from "@/app/actions/redemption"
+import { buyStoreItem } from "@/app/actions/store"
+import { Loader2, ShoppingBag, Coins, HelpCircle, X, ShoppingCart } from "lucide-react"
 import { v4 as uuidv4 } from "uuid"
 import { useGameStore } from "@/store/useGameStore"
+import { StoreItemCard } from "./StoreItemCard"
 
 export function StorePage() {
     const [items, setItems] = useState<any[]>([])
@@ -45,9 +47,9 @@ export function StorePage() {
         const idempotencyKey = uuidv4()
 
         try {
-            const res = await redeemItem({ itemId: item.id, idempotencyKey })
+            const res = await buyStoreItem(item.id)
             if (!res.success) {
-                throw new Error(res.error?.message || "兑换失败")
+                throw new Error(res.error || "兑换失败")
             }
             toast.success("兑换成功！", { description: `成功兑换 ${item.name}` })
 
@@ -147,53 +149,16 @@ export function StorePage() {
                     <p>商店暂无商品</p>
                 </div>
             ) : (
-                <div className="grid grid-cols-2 gap-3">
-                    {items.map(item => {
-                        const isOutOfStock = item.inventory_count === 0
-                        const canAfford = userCoins >= item.price
-                        const isRedeeming = redeemingId === item.id
-
-                        return (
-                            <div key={item.id} className="relative overflow-hidden rounded-2xl border border-border bg-card p-3 shadow-sm flex flex-col transition-transform active:scale-95">
-                                <div className="flex justify-between items-start mb-2">
-                                    <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                                        <Gift className="h-5 w-5 text-primary" />
-                                    </div>
-                                    {item.inventory_count > 0 && item.inventory_count <= 10 && (
-                                        <span className="text-[10px] font-medium text-red-400 bg-red-400/10 px-1.5 py-0.5 rounded flex items-center gap-0.5">
-                                            <AlertCircle className="h-2 w-2" />
-                                            仅剩 {item.inventory_count}
-                                        </span>
-                                    )}
-                                </div>
-
-                                <h3 className="font-bold text-sm text-foreground mb-1 line-clamp-1">{item.name}</h3>
-                                <p className="text-[10px] text-muted-foreground line-clamp-2 mb-3 flex-1">{item.description}</p>
-
-                                <button
-                                    onClick={() => handleRedeem(item)}
-                                    disabled={isOutOfStock || !canAfford || !!redeemingId}
-                                    className={`w-full flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition-all ${isOutOfStock
-                                        ? "bg-muted text-muted-foreground opacity-50"
-                                        : !canAfford
-                                            ? "bg-muted text-muted-foreground/70"
-                                            : "bg-primary text-primary-foreground shadow-lg shadow-primary/20 hover:bg-primary/90"
-                                        }`}
-                                >
-                                    {isRedeeming ? (
-                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                    ) : isOutOfStock ? (
-                                        "已售罄"
-                                    ) : (
-                                        <>
-                                            <Coins className="h-3 w-3" />
-                                            {item.price}
-                                        </>
-                                    )}
-                                </button>
-                            </div>
-                        )
-                    })}
+                <div className="grid grid-cols-2 gap-4 mt-6">
+                    {items.map(item => (
+                        <StoreItemCard 
+                            key={item.id}
+                            item={item}
+                            userPoints={userCoins}
+                            isRedeeming={redeemingId === item.id}
+                            onRedeem={handleRedeem}
+                        />
+                    ))}
                 </div>
             )}
         </div>

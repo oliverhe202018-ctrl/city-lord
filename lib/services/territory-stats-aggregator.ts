@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { H3_TILE_AREA_KM2 } from '@/lib/constants/territory'
+import { DEFAULT_TERRITORY_AREA_KM2 } from '@/lib/constants/territory'
 
 const CONSUMER_NAME = 'stats_aggregator'
 const BATCH_SIZE_LIMIT = 500
@@ -62,24 +62,24 @@ export class TerritoryStatsAggregatorService {
                 if (oldClub && oldClub !== newClub) {
                     if (!clubDeltas[oldClub]) clubDeltas[oldClub] = { tiles: 0, area: 0 }
                     clubDeltas[oldClub].tiles -= 1
-                    clubDeltas[oldClub].area -= H3_TILE_AREA_KM2
+                    clubDeltas[oldClub].area -= DEFAULT_TERRITORY_AREA_KM2
                 }
                 if (newClub && newClub !== oldClub) {
                     if (!clubDeltas[newClub]) clubDeltas[newClub] = { tiles: 0, area: 0 }
                     clubDeltas[newClub].tiles += 1
-                    clubDeltas[newClub].area += H3_TILE_AREA_KM2
+                    clubDeltas[newClub].area += DEFAULT_TERRITORY_AREA_KM2
                 }
 
                 // Faction Math
                 if (oldFaction && oldFaction !== newFaction) {
                     if (!factionDeltas[oldFaction]) factionDeltas[oldFaction] = { tiles: 0, area: 0 }
                     factionDeltas[oldFaction].tiles -= 1
-                    factionDeltas[oldFaction].area -= H3_TILE_AREA_KM2
+                    factionDeltas[oldFaction].area -= DEFAULT_TERRITORY_AREA_KM2
                 }
                 if (newFaction && newFaction !== oldFaction) {
                     if (!factionDeltas[newFaction]) factionDeltas[newFaction] = { tiles: 0, area: 0 }
                     factionDeltas[newFaction].tiles += 1
-                    factionDeltas[newFaction].area += H3_TILE_AREA_KM2
+                    factionDeltas[newFaction].area += DEFAULT_TERRITORY_AREA_KM2
                 }
             }
 

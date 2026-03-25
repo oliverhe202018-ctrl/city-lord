@@ -5,6 +5,8 @@ import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client
 import { createIDBPersister } from '@/lib/query-persist'
 import { useState, useEffect } from 'react'
 
+import { SyncManager } from './running/SyncManager'
+
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient({
     defaultOptions: {
@@ -41,6 +43,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     return (
       <QueryClientProvider client={queryClient}>
         {children}
+        <SyncManager />
       </QueryClientProvider>
     )
   }
@@ -60,6 +63,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       }}
     >
       {children}
+      <SyncManager />
     </PersistQueryClientProvider>
   )
 }

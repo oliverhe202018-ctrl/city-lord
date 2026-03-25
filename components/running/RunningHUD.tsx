@@ -210,11 +210,12 @@ export function RunningHUD({
         const missions = await fetchUserMissions()
         // Filter: Active, Daily, Not Claimed
         // FIX: Ensure missions have frequency property or filter safely
-        const dailyActive = missions.filter((m: any) =>
-          m.missions?.frequency === 'daily' && // Access nested relation if necessary or check type
-          m.status !== 'claimed' &&
-          m.status !== 'completed'
-        )
+        const dailyActive = missions.filter((m: any) => {
+          // Handle both nested (m.missions.frequency) and flat (m.frequency) data shapes
+          const freq = m.missions?.frequency ?? m.frequency;
+          const isDailyOrUnset = !freq || freq === 'daily'; // show if frequency missing or daily
+          return isDailyOrUnset && m.status !== 'claimed' && m.status !== 'completed';
+        })
         setActiveMissions(dailyActive)
       } catch (err) {
         console.error("Failed to fetch missions for HUD", err)

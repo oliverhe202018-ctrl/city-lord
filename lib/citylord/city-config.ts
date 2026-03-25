@@ -151,7 +151,7 @@ export interface CityChallenge {
     prerequisiteChallenge?: string
   }
   goals: {
-    type: "distance" | "area" | "hexes" | "streak" | "speed"
+    type: "distance" | "area" | "hexes" | "territories" | "streak" | "speed"
     target: number
     unit: LocalizedText
   }[]
@@ -224,12 +224,12 @@ export const CITY_CHALLENGES: CityChallenge[] = [
     },
     rules: [
       { zh: "沿外滩线路跑步", en: "Run along the Bund route" },
-      { zh: "至少占领20个六边形", en: "Capture at least 20 hexagons" },
+      { zh: "至少占领20个领地", en: "Capture at least 20 territories" },
     ],
     difficulty: "medium",
     duration: 72,
     requirements: { minLevel: 3 },
-    goals: [{ type: "hexes", target: 20, unit: { zh: "个领地", en: "territories" } }],
+    goals: [{ type: "territories", target: 20, unit: { zh: "个领地", en: "territories" } }],
     rewards: { xp: 300, coins: 150, badge: { zh: "外滩之王", en: "King of Bund" } },
     seasonOnly: false,
   },

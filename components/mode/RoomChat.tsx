@@ -68,7 +68,6 @@ export function RoomChat({ roomId, participants = [], currentUser }: RoomChatPro
           .limit(50);
 
         if (!error && data) {
-// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
           setMessages(data as any);
           setTimeout(scrollToBottom, 100);
         }
@@ -294,19 +293,19 @@ export function RoomChat({ roomId, participants = [], currentUser }: RoomChatPro
       </div>
 
       {/* 底部输入框 */}
-      <div className="p-3 bg-white/5 border-t border-white/5 flex gap-2">
+      <div className="p-3 bg-white/5 border-t border-white/5 flex gap-2 items-center">
         <input
           type="text"
           value={newMessage}
           onChange={(e) => setNewMessage(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="发送消息..."
-          className="flex-1 bg-black/30 text-white text-sm rounded-full px-4 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500/50 placeholder-white/30"
+          className="flex-1 min-w-0 bg-black/30 text-white text-sm rounded-full px-4 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500/50 placeholder-white/30"
         />
         <button
           onClick={handleSend}
           disabled={!newMessage.trim()}
-          className="p-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:hover:bg-blue-600 rounded-full text-white transition-colors"
+          className="p-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:hover:bg-blue-600 rounded-full text-white transition-colors shrink-0"
         >
           <Send className="w-4 h-4" />
         </button>

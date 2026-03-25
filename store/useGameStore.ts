@@ -1,4 +1,4 @@
-import { create, StateCreator } from 'zustand';
+﻿import { create, StateCreator } from 'zustand';
 import { persist, StateStorage, createJSONStorage } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
 import { Room } from '@/types/room';
@@ -31,7 +31,7 @@ export interface UserState {
   achievements: Record<string, boolean>; // id -> claimed
   unreadMessageCount: number;
   unreadSocialCount: number;
-  clubId: string | null; // 新增：当前俱乐部ID
+  clubId: string | null; // 鏂板锛氬綋鍓嶄勘涔愰儴ID
   backgroundUrl?: string | null;
 }
 
@@ -55,9 +55,9 @@ export interface LocationState {
   ghostPath: [number, number][] | null;
   isSmartRunStarting: boolean;
   lastKnownLocation: { lat: number; lng: number } | null;
-  /** [NEW] 全局权限请求状态锁，用于防止登录弹窗冲突 */
+  /** [NEW] 鍏ㄥ眬鏉冮檺璇锋眰鐘舵€侀攣锛岀敤浜庨槻姝㈢櫥褰曞脊绐楀啿绐?*/
   isPermissionRequesting: boolean;
-  /** [NEW] 标识定位系统是否已经尝试过至少一轮初始化（无论权限结果如何） */
+  /** [NEW] 鏍囪瘑瀹氫綅绯荤粺鏄惁宸茬粡灏濊瘯杩囪嚦灏戜竴杞垵濮嬪寲锛堟棤璁烘潈闄愮粨鏋滃浣曪級 */
   locationInitialized: boolean;
 }
 
@@ -79,7 +79,7 @@ export interface InventoryState {
   totalItems: number;
 }
 
-export interface HexState {
+export interface TerritoryState {
   id: string;
   status: 'owned' | 'enemy' | 'neutral' | 'contested' | 'fog';
   level: number;
@@ -88,7 +88,7 @@ export interface HexState {
 }
 
 export interface WorldState {
-  hexes: Map<string, HexState>;
+  territories: Map<string, TerritoryState>;
 }
 
 export interface AppSettings {
@@ -194,9 +194,9 @@ export interface InventoryActions {
 }
 
 export interface WorldActions {
-  occupyHex: (hexId: string) => void;
-  attackHex: (hexId: string) => void;
-  updateHex: (hexId: string, data: Partial<HexState>) => void;
+  occupyTerritory: (territoryId: string) => void;
+  attackTerritory: (territoryId: string) => void;
+  updateTerritory: (territoryId: string, data: Partial<TerritoryState>) => void;
 }
 
 // Combined State and Actions
@@ -223,7 +223,7 @@ const initialAppSettings: AppSettings = {
 
 const initialUserState: UserState = {
   userId: 'user_' + Date.now(),
-  nickname: '玩家',
+  nickname: '鐜╁',
   faction: null,
   role: null,
   level: 1,
@@ -272,7 +272,7 @@ const initialInventoryState: InventoryState = {
 };
 
 const initialWorldState: WorldState = {
-  hexes: new Map(),
+  territories: new Map(),
 };
 
 // ==================== Slices ====================
@@ -422,9 +422,9 @@ const createUserSlice: StateCreator<GameStore, [], [], UserActions> = (set, get)
     const state = get();
     const newLevel = state.level + 1;
 
-    toast.success(`升级啦！达到等级 ${newLevel}`, {
-      description: "获得体力上限 +10",
-      icon: "🎉"
+    toast.success(`鍗囩骇鍟︼紒杈惧埌绛夌骇 ${newLevel}`, {
+      description: "鑾峰緱浣撳姏涓婇檺 +10",
+      icon: "馃帀"
     });
 
     set({
@@ -517,7 +517,7 @@ const createUserSlice: StateCreator<GameStore, [], [], UserActions> = (set, get)
   },
 });
 
-// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
+
 const createLocationSlice: StateCreator<GameStore, [], [], LocationActions> = (set, get) => ({
   updateLocation: (lat, lng) => set((state) => {
     const newPath = state.isRunning ? [...state.currentRunPath, [lat, lng] as [number, number]] : state.currentRunPath;
@@ -622,34 +622,34 @@ const createInventorySlice: StateCreator<GameStore, [], [], InventoryActions> = 
 });
 
 const createWorldSlice: StateCreator<GameStore, [], [], WorldActions> = (set, get) => ({
-  occupyHex: (hexId) => {
-    const { hexes, stamina, nickname } = get();
-    if (hexes.get(hexId)?.status === 'owned' || stamina < 10) return;
+  occupyTerritory: (territoryId) => {
+    const { territories, stamina, nickname } = get();
+    if (territories.get(territoryId)?.status === 'owned' || stamina < 10) return;
 
     get().consumeStamina(10);
     get().addTotalArea(1);
     get().addExperience(50);
 
-    const newHexes = new Map(hexes);
-    newHexes.set(hexId, {
-      id: hexId,
+    const newterritories = new Map(territories);
+    newterritories.set(territoryId, {
+      id: territoryId,
       status: 'owned',
       level: 1,
       ownerName: nickname,
       lastActivity: new Date().toISOString(),
     });
-    set({ hexes: newHexes });
+    set({ territories: newterritories });
   },
-  attackHex: (hexId) => {
+  attackTerritory: (territoryId) => {
     /* ... */
   },
-  updateHex: (hexId, data) => {
+  updateTerritory: (territoryId, data) => {
     const state = get();
-    const newHexes = new Map(state.hexes);
-    const existing = newHexes.get(hexId);
+    const newterritories = new Map(state.territories);
+    const existing = newterritories.get(territoryId);
     if (existing) {
-      newHexes.set(hexId, { ...existing, ...data });
-      set({ hexes: newHexes });
+      newterritories.set(territoryId, { ...existing, ...data });
+      set({ territories: newterritories });
     }
   },
 });
@@ -703,7 +703,7 @@ export const useGameStore = create<GameStore>()(
       name: 'city-lord-storage',
       storage: createJSONStorage(() => ssrSafeLocalStorage, {
         reviver: (key, value) => {
-          if (key === 'items' || key === 'hexes') {
+          if (key === 'items' || key === 'territories') {
             return new Map(value as [string, any][]);
           }
           return value;
@@ -816,9 +816,9 @@ export const useGameActions = () => {
       resetInventory: state.resetInventory,
 
       // World Actions
-      occupyHex: state.occupyHex,
-      attackHex: state.attackHex,
-      updateHex: state.updateHex,
+      occupyTerritory: state.occupyTerritory,
+      attackTerritory: state.attackTerritory,
+      updateTerritory: state.updateTerritory,
     }))
   );
 };
@@ -880,4 +880,4 @@ export const useGameLocation = () =>
     })),
   );
 export const useGameInventory = () => useGameStore(useShallow((state) => ({ items: state.items, totalItems: state.totalItems })));
-export const useGameWorld = () => useGameStore(useShallow((state) => ({ hexes: state.hexes })));
+export const useGameWorld = () => useGameStore(useShallow((state) => ({ territories: state.territories })));

@@ -1,18 +1,18 @@
-/**
+﻿/**
  * HotZoneService
  *
- * Determines whether a territory is a "hot zone" (频繁易主的热门区域)
+ * Determines whether a territory is a "hot zone" (棰戠箒鏄撲富鐨勭儹闂ㄥ尯鍩?
  * and provides score multipliers accordingly.
  *
  * Hot Zone Definition:
- *   A territory with >= 2 REAL ownership transfers (A→B, not A→neutral)
+ *   A territory with >= 2 REAL ownership transfers (A鈫払, not A鈫抧eutral)
  *   within the last 7 days, counted from territory_owner_change_logs.
  *
  * Scoring Rules (FINAL):
  *   - Hot Zone capture:  0.5x score  (reduced reward for contested territory)
  *   - Normal capture:    1.0x score
  *   - Loss penalty:      0.5x of original score (both hot/normal)
- *   - Base score:        1000 points per km²
+ *   - Base score:        1000 points per km虏
  */
 
 import { prisma } from '@/lib/prisma'
@@ -59,7 +59,7 @@ export const HotZoneService = {
      * Check whether a territory qualifies as a hot zone.
      *
      * Uses territory_owner_change_logs to count REAL ownership transfers
-     * (A→B only) within the 7-day window. This is more accurate than
+     * (A鈫払 only) within the 7-day window. This is more accurate than
      * the cumulative owner_change_count field.
      */
     async getHotZoneStatus(territoryId: string): Promise<HotZoneStatus> {
@@ -147,11 +147,11 @@ export const HotZoneService = {
             take: limit,
         })
 
-// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
-        // @ts-expect-error - FIXME: Type '{ previousOwner: string | null; newOwner: string | null; changed - [Ticket-202603-SchemaSync] baseline exemption
+
+        
         return logs.map((l) => ({
             previousOwner: l.previous_owner,
-            newOwner: l.new_owner,
+            newOwner: l.new_owner as string,
             changedAt: l.changed_at ?? new Date(),
         }))
     },

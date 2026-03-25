@@ -7,6 +7,7 @@ import { RunRecordDTO, ActionResponse } from '@/types/run-sync';
 import { validateRunAndRebuildTerritories, AntiCheatValidationResult } from '@/lib/anti-cheat/territory-builder';
 import { checkRunRateLimit } from '@/lib/anti-cheat/rate-limiter';
 import { processTerritorySettlement } from '@/lib/territory/settlement';
+import { validateRunData } from '@/lib/validators/run-validator';
 import * as turf from '@turf/turf';
 
 export interface SaveRunResult {
@@ -54,39 +55,50 @@ export async function saveRunActivity(
             }
         }
 
-        // 1. Anti-Cheat Server-Side Validation & Territory Rebuild
-        const validation: AntiCheatValidationResult = validateRunAndRebuildTerritories(runData.path as any);
+        // 1. Metadata-based Anti-Cheat check (Speed, Stride, Teleportation)
+        const metadataValidation = validateRunData({
+            distanceMeters: runData.distance,
+            durationSeconds: runData.duration,
+            steps: runData.steps || 0
+        });
 
-        let finalPolygons = validation.validPolygons;
-        let finalArea = validation.totalArea;
+        // 2. Server-Side Path Analysis & Territory Rebuild (Existing Logic)
+        const pathValidation: AntiCheatValidationResult = validateRunAndRebuildTerritories(runData.path as any);
+
+        // Combined risk assessment
+        const isFlagged = metadataValidation.isFlagged || pathValidation.riskLevel === 'HIGH';
+        const flagReason = metadataValidation.flagReason || (pathValidation.riskLevel === 'HIGH' ? 'PATH_ANALYSIS_FAILED' : undefined);
+
+        let finalPolygons = pathValidation.validPolygons;
+        let finalArea = pathValidation.totalArea;
 
         // Settlement Gating
-        if (validation.riskLevel === 'MEDIUM') {
-            // Neutralize territory acquisition
+        if (isFlagged) {
+            // Shadowban: Force zero territory and rewards later
+            finalPolygons = [];
+            finalArea = 0;
+            console.warn(`[Anti-Cheat] Shadowban triggered for user ${userId}. Reason: ${flagReason}`);
+        } else if (pathValidation.riskLevel === 'MEDIUM') {
             finalPolygons = [];
             finalArea = 0;
             console.log(`[saveRunActivity] MEDIUM risk run. Polygons neutralized for user: ${userId}`);
-        } else if (validation.riskLevel === 'HIGH') {
-            // Hard block: Run marked as rejected, zero rewards, zero territory.
-            finalPolygons = [];
-            finalArea = 0;
-            console.log(`[saveRunActivity] HIGH risk run. Run rejected for user: ${userId}`);
         }
 
-        // 2. Prepare Run Data for Evaluation
+        // 3. Prepare Run Data for Evaluation
         const evaluationData: RunData = {
-            distance: validation.serverDistance,
-            duration: validation.serverDuration,
+            distance: pathValidation.serverDistance,
+            duration: pathValidation.serverDuration,
             claims: finalPolygons, // Server-calculated claims
             timestamp: new Date(runData.timestamp || Date.now()),
         };
 
-        // 3. Evaluate Tasks (In-Memory)
-        const potentialResults = validation.riskLevel === 'HIGH' ? [] : evaluateTasks(evaluationData);
+        // 4. Evaluate Tasks (In-Memory)
+        // If flagged, we skip rewards by setting results to empty
+        const potentialResults = (isFlagged || pathValidation.riskLevel === 'HIGH') ? [] : evaluateTasks(evaluationData);
 
-        // 4. Transaction: Save Run + Process Rewards + Audit Logs
+        // 5. Transaction: Save Run + Process Rewards + Audit Logs
         const result = await prisma.$transaction(async (tx: any) => {
-            // A. Create Run Record
+            // A. Create Run Record (Always saved, even if flagged)
             const run = await tx.runs.create({
                 data: {
                     user_id: userId,
@@ -94,36 +106,53 @@ export async function saveRunActivity(
                     duration: evaluationData.duration,
                     path: runData.path as any,
                     polygons: evaluationData.claims as any,
-                    status: validation.riskLevel === 'HIGH' ? 'rejected' : 'completed',
+                    status: isFlagged ? 'flagged' : 'completed',
                     created_at: new Date(runData.timestamp || Date.now()),
                     updated_at: new Date(),
                     idempotency_key: runData.idempotencyKey,
                     // Anti-Cheat Fields
-                    risk_score: validation.riskScore,
-                    risk_level: validation.riskLevel,
-                    cheat_flags: validation.cheatFlags as any,
+                    risk_score: pathValidation.riskScore,
+                    risk_level: pathValidation.riskLevel,
+                    cheat_flags: pathValidation.cheatFlags as any,
                     client_distance: runData.distance,
+                    // New Validator Fields
+                    is_flagged: isFlagged,
+                    flag_reason: flagReason,
                 },
             });
 
             // Audit logging for suspicious runs
-            if (validation.riskLevel !== 'LOW') {
+            if (isFlagged || pathValidation.riskLevel !== 'LOW') {
                 await tx.anti_cheat_audit_logs.create({
                     data: {
                         user_id: userId,
                         run_id: run.id,
-                        risk_score: validation.riskScore,
-                        cheat_flags: validation.cheatFlags as any,
+                        risk_score: pathValidation.riskScore,
+                        cheat_flags: pathValidation.cheatFlags as any,
                         raw_payload: runData as any,
-                        action_taken: validation.riskLevel === 'HIGH' ? 'rejected' : 'polygons_neutralized',
+                        action_taken: isFlagged ? 'shadowban' : 'polygons_neutralized',
                     }
                 });
+            }
+
+            // Shadowban intercept: If flagged, return success early to client without processing rewards
+            if (isFlagged) {
+                return {
+                    runId: run.id,
+                    runNumber: 0, // Not precisely needed for shadowban
+                    newTasks: [],
+                    rewards: { coins: 0, xp: 0 },
+                    damageSummary: [],
+                    maintenanceSummary: []
+                };
             }
 
             // B. Filter Tasks (Idempotency Check)
             const newTasks: TaskResult[] = [];
             let totalCoins = 0;
             let totalXp = 0;
+            
+            // ... (Rest of existing reward and settlement logic)
 
             if (potentialResults.length > 0) {
                 // Find existing logs for these specific tasks & periods to prevent duplicates
@@ -177,7 +206,7 @@ export async function saveRunActivity(
             let settledTerritoriesCount = 0;
             const allDamageDetails: any[] = [];
             const allMaintenanceDetails: any[] = [];
-            if (finalPolygons.length > 0 && validation.riskLevel === 'LOW') {
+            if (finalPolygons.length > 0 && !isFlagged && pathValidation.riskLevel === 'LOW') {
                 for (const polyPoints of finalPolygons) {
                     const coords = polyPoints.map(p => [p.lng, p.lat]);
                     if (coords[0][0] !== coords[coords.length-1][0] || coords[0][1] !== coords[coords.length-1][1]) {
@@ -214,7 +243,7 @@ export async function saveRunActivity(
             });
 
             // E. Update City Progress (Phase 2)
-            if (validation.riskLevel !== 'HIGH') {
+            if (!isFlagged) {
                 const cityId = (runData as any).cityId || "default_city";
                 await tx.user_city_progress.upsert({
                     where: {
@@ -250,7 +279,7 @@ export async function saveRunActivity(
                         total_area: { increment: finalArea }
                     }
                 });
-            } else if (validation.riskLevel !== 'HIGH') {
+            } else if (!isFlagged) {
                 await tx.profiles.update({
                     where: { id: userId },
                     data: {
@@ -279,7 +308,7 @@ export async function saveRunActivity(
         // Trigger Task Center Event (Awaiting to ensure consistency before response)
         try {
             const { TaskService } = await import('@/lib/services/task');
-            if (validation.riskLevel !== 'HIGH') {
+            if (!isFlagged) {
                 const eventPayload = {
                     type: 'RUN_FINISHED' as const,
                     userId: userId,

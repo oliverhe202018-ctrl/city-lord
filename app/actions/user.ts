@@ -76,7 +76,10 @@ export async function stopRunningAction(context: RunContext) {
         if (mission.type === 'DISTANCE' || mission.type === 'DISTANCE_DAILY') {
           newProgress += distanceMeters
         } else if (mission.type === 'RUN_COUNT') {
-          newProgress += 1
+          // Only count runs >= 1km
+          if (distanceMeters >= 1000) {
+            newProgress += 1
+          }
         } else if (mission.type === 'ACTIVE_DAYS') {
           const lastUpdate = um.updated_at ? new Date(um.updated_at) : new Date(0)
           const now = new Date()

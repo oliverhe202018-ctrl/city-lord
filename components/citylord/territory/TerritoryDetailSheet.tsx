@@ -8,7 +8,6 @@ import { getTerritoryDetail } from '@/app/actions/territory-detail'
 import { Loader2, MapPin, Clock, Medal, Flag, Timer, User } from 'lucide-react'
 import { TerritoryMoreMenu } from './TerritoryMoreMenu'
 import dayjs from 'dayjs'
-import { cellArea, isValidCell } from 'h3-js'
 import { TerritoryReportDialog } from './TerritoryReportDialog'
 
 export function TerritoryDetailSheet() {
@@ -55,10 +54,9 @@ export function TerritoryDetailSheet() {
                             // Render with real detail or fallback to synthetic selectedTerritory data
                             (() => {
                                 const fallbackId = selectedTerritory?.id || '未知';
-                                let fallbackArea = 0;
-                                if (fallbackId !== '未知' && isValidCell(fallbackId)) {
-                                    try { fallbackArea = Number(cellArea(fallbackId, 'km2').toFixed(2)); } catch(e){}
-                                }
+                                // H3-based area calculation removed. Area should come from database or be calculated via postgis/turf.
+                                const fallbackArea = 0; 
+                                
                                 const displayDetail = detail || {
                                     territoryId: fallbackId,
                                     cityName: '由历史轨迹映射',

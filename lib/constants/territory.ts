@@ -12,12 +12,12 @@
 // H3 Grid
 // ============================================================
 
-/** H3 resolution used across the entire territory system.
- *  MUST match the value in lib/hex-utils.ts (H3_RESOLUTION = 9). */
-export const TERRITORY_H3_RESOLUTION = 9
+/** Approximate area of a single territory polygon in km² (Fallback for transition) */
+export const DEFAULT_TERRITORY_AREA_KM2 = 0.0001053
 
-/** Approximate area of a single H3 resolution-9 hex tile in km² */
-export const H3_TILE_AREA_KM2 = 0.0001053
+/** H3 resolution used across the entire territory system.
+ *  [DEPRECATED] No longer used for indexing. */
+export const TERRITORY_H3_RESOLUTION = 9
 
 // ============================================================
 // Territory HP

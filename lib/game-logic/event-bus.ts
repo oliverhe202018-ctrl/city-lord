@@ -59,7 +59,6 @@ export interface TerritoryCapturedPayload {
   type: 'TERRITORY_CAPTURED'
   userId: string
   territoryId: string
-  hexId: string
   isNew: boolean
 }
 

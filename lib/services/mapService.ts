@@ -17,7 +17,6 @@ export interface CreateTerritoryInput {
   cityId: string;
   ownerId: string;
   geojson: string; // GeoJSON string to be passed to ST_GeomFromGeoJSON
-  h3Index?: string;
   status?: string;
 }
 
@@ -91,7 +90,7 @@ export const MapService = {
    */
   async createTerritory(data: CreateTerritoryInput): Promise<void> {
     try {
-      const { id, cityId, ownerId, geojson, h3Index, status = 'active' } = data;
+      const { id, cityId, ownerId, geojson, status = 'active' } = data;
 
       // Use ST_GeomFromGeoJSON to convert JSON string to geometry
       await prisma.$executeRaw`
@@ -100,7 +99,6 @@ export const MapService = {
           city_id, 
           owner_id, 
           geojson, 
-          h3_index, 
           status, 
           captured_at, 
           last_maintained_at, 
@@ -112,7 +110,6 @@ export const MapService = {
           ${cityId}, 
           ${ownerId}::uuid, 
           ST_SetSRID(ST_GeomFromGeoJSON(${geojson}), 4326), 
-          ${h3Index || null}, 
           ${status}, 
           NOW(), 
           NOW(), 

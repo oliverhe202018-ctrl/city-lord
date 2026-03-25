@@ -236,20 +236,25 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       if (startTimeRef.current === null) {
         startTimeRef.current = Date.now();
       }
+      
       const tick = () => {
         if (startTimeRef.current === null) return;
         const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
-        setDuration(pausedAccumulatorRef.current + elapsed);
+        const totalDuration = pausedAccumulatorRef.current + elapsed;
+        setDuration(totalDuration);
       };
+
       tick(); // Immediate first tick (reconciles after sleep)
       const interval = setInterval(tick, 1000);
       return () => clearInterval(interval);
     } else if (isPaused && startTimeRef.current !== null) {
       // Freeze: accumulate elapsed time into the accumulator
-      pausedAccumulatorRef.current += Math.floor(
-        (Date.now() - startTimeRef.current) / 1000
-      );
+      const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+      pausedAccumulatorRef.current += elapsed;
       startTimeRef.current = null;
+      
+      // Sync state immediately on pause
+      setDuration(pausedAccumulatorRef.current);
     }
     return undefined;
   }, [isRunning, isPaused]);
@@ -312,7 +317,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   useEffect(() => {
     if (!isRunning || isStoppingRef.current) return;
     
-    const interval = setInterval(saveState, 10000);
+    const interval = setInterval(saveState, 5000);
     return () => clearInterval(interval);
   }, [isRunning, saveState]);
 
@@ -601,9 +606,26 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
               setClosedPolygons(data.closedPolygons || []);
               setArea(data.area || 0);
               
-              setIsPaused(data.isPaused ?? false);
-              pausedAccumulatorRef.current = data.pausedAccumulator ?? restoredDuration;
-              startTimeRef.current = data.startTime || null; // 关键：如果之前在跑，需保持 startTime
+              const isPausedNow = data.isPaused ?? false;
+              setIsPaused(isPausedNow);
+              
+              // --- CRITICAL: Time Gap Handling (Anti-Pace-Corruption) ---
+              // If we were killed, the time between 'timestamp' (last save) 
+              // and 'now' should be treated as PAUSED time.
+              const lastSaveTime = data.timestamp || Date.now();
+              const gapSeconds = Math.max(0, Math.floor((Date.now() - lastSaveTime) / 1000));
+              
+              if (gapSeconds > 30) {
+                console.log(`[Session] detected ${gapSeconds}s gap since last save — shifting to pausedAccumulator`);
+                pausedAccumulatorRef.current = (data.pausedAccumulator ?? restoredDuration);
+                // gapSeconds is implicitly added to pausedAccumulatorRef via setDuration and pausedAccumulatorRef.current update if needed,
+                // but for simplicity, we just freeze the duration at restoredDuration and treat the rest as a pause.
+                startTimeRef.current = null; 
+                setIsPaused(true); // Always force pause if gap is significant
+              } else {
+                pausedAccumulatorRef.current = data.pausedAccumulator ?? restoredDuration;
+                startTimeRef.current = data.startTime || null;
+              }
               
               if (safePath.length > 0) {
                 const lastLoc = safePath[safePath.length - 1];
@@ -654,8 +676,12 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           lastLocationRef.current = null;
           pathRef.current = [];
           pausedAccumulatorRef.current = 0;
-          startTimeRef.current = null;
           runIdempotencyKeyRef.current = uuidv4();
+          // ⚠️ CRITICAL: Recovery effect runs AFTER the Timer effect (both on [isRunning]).
+          // Timer effect set startTimeRef.current = Date.now(), but then recovery
+          // reset it to null — causing all timer ticks to bail out (stale-clock bug).
+          // Fix: Re-initialize startTimeRef to NOW so the timer can count correctly.
+          startTimeRef.current = Date.now();
         }
       };
 

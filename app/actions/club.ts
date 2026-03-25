@@ -770,6 +770,10 @@ export async function processJoinRequest(clubId: string, requestId: string, acti
 
       if (error) throw error
 
+      // 新增：批准加入时更新成员计数
+      // @ts-expect-error - FIXME: Argument of type '"increment_club_member_count"' is not assignable to  - [Ticket-202603-SchemaSync] baseline exemption
+      await supabase.rpc('increment_club_member_count', { row_id: clubId })
+
       // Send notification (optional)
       await supabase.from('messages').insert({
         sender_id: user.id,
@@ -789,6 +793,9 @@ export async function processJoinRequest(clubId: string, requestId: string, acti
 
       if (error) throw error
     }
+
+    // 新增：批准或拒绝后都会使相关缓存失效
+    await invalidateCache(`user_club:${applicantId}`, `club_detail:${clubId}`)
 
     return { success: true }
   } catch (error: any) {
@@ -865,6 +872,10 @@ export async function kickMember(clubId: string, memberId: string) {
         console.error('Exception detaching territories on kickMember:', e);
       }
     }
+
+    // 新增：踢出成员时减少成员计数
+    // @ts-expect-error - FIXME: Argument of type '"decrement_club_member_count"' is not assignable to  - [Ticket-202603-SchemaSync] baseline exemption
+    await supabase.rpc('decrement_club_member_count', { row_id: clubId })
 
     // Invalidate cache
     await invalidateCache(`user_club:${memberId}`, `club_detail:${clubId}`)

@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { getCityById } from '@/lib/city-data'
-import { cellArea } from 'h3-js'
+// H3 legacy import removed
 import { supabaseAdmin } from '@/lib/supabase/admin'
 
 export interface TerritoryDetailResult {
@@ -45,8 +45,8 @@ export async function getTerritoryDetail(territoryId: string): Promise<Territory
         return null
     }
 
-    // Calculate area from H3 index
-    const areaKm2 = cellArea(territoryId, 'km2')
+    // Area calculation via H3 removed.
+    const areaKm2 = 0; // Area should be provided by DB in future or calculated via postgis
 
     // Resolve city name
     const city = getCityById(territory.city_id)

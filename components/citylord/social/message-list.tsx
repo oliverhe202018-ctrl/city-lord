@@ -409,34 +409,42 @@ export function MessageList({ initialFriendId, mode = 'system' }: MessageListPro
 
       {/* Quick Reply (Only if active chat selected and not in system mode) */}
       {mode === 'friend' && activeChat && (
-        <div className="flex gap-2 p-3 bg-card/95 backdrop-blur border-t border-border items-center shrink-0">
+        <div className="flex gap-2 p-2.5 bg-card/95 backdrop-blur border-t border-border items-center shrink-0">
           <button
             type="button"
             onClick={() => setIsVoiceMode(!isVoiceMode)}
-            className="p-2 text-muted-foreground hover:text-foreground transition-colors"
+            className="p-1.5 text-muted-foreground hover:text-foreground transition-colors shrink-0"
           >
             {isVoiceMode ? <Keyboard className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
           </button>
 
           {isVoiceMode ? (
-            <VoiceRecorder receiverId={activeChat} onSend={handleSendVoice} />
+            <div className="flex-1 min-w-0">
+              <VoiceRecorder receiverId={activeChat} onSend={handleSendVoice} />
+            </div>
           ) : (
             <>
-              <EmojiPicker onEmojiSelect={(emoji) => setInput(p => p + emoji)} className="p-1 mr-1 text-muted-foreground hover:text-foreground" iconClassName="w-6 h-6" />
               <input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="输入消息..."
-                className="flex-1 bg-muted/50 border border-border rounded-xl px-4 py-2 text-foreground focus:outline-none focus:border-green-500/50"
+                className="flex-1 min-w-0 bg-muted/50 border border-border rounded-xl px-4 py-2 text-[15px] text-foreground focus:outline-none focus:border-green-500/50"
                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
               />
-              <button
-                onClick={handleSend}
-                disabled={!input.trim()}
-                className="p-2 bg-green-500 rounded-xl text-white disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Send className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-0.5 shrink-0">
+                <EmojiPicker 
+                  onEmojiSelect={(emoji) => setInput(p => p + emoji)} 
+                  className="p-1.5 text-muted-foreground hover:text-foreground transition-colors" 
+                  iconClassName="w-6 h-6" 
+                />
+                <button
+                  onClick={handleSend}
+                  disabled={!input.trim()}
+                  className="p-2 bg-green-500 rounded-xl text-white shadow-sm hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
+                >
+                  <Send className="w-5 h-5" />
+                </button>
+              </div>
             </>
           )}
         </div>

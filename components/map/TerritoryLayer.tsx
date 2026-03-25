@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { logEvent } from '@/lib/native-log';
@@ -54,11 +54,11 @@ interface TerritoryLayerProps {
  * Features:
  * - Fetches all territories for the current city
  * - Colors by ownership (self/enemy/neutral) via territory-renderer
- * - Click handler selects a territory → updates selectedTerritory in context
+ * - Click handler selects a territory 鈫?updates selectedTerritory in context
  * - Selected territory gets a persistent darker border highlight
  * - Map blank click clears selection (with event conflict protection)
  */
-const DEBUG_FORCE_H3_FALLBACK = false; // 临时 debug 常量，已废弃
+const DEBUG_FORCE_H3_FALLBACK = false; // 涓存椂 debug 甯搁噺锛屽凡搴熷純
 
 const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdomMode }) => {
   const [polygons, setPolygons] = useState<any[]>([]);
@@ -67,10 +67,10 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
   const { viewMode, selectedTerritory, setSelectedTerritory, setIsDetailSheetOpen } = useMapInteraction();
   const { user } = useAuth();
 
-  // Track polygon → territory mapping for highlight updates
+  // Track polygon 鈫?territory mapping for highlight updates
   const polygonTerritoryMap = useRef<Map<any, { territory: ExtTerritory; defaultStrokeColor: string }>>(new Map());
 
-  // 用于 hover handler 中获取最新的 selectedTerritory，避免 stale closure
+  // 鐢ㄤ簬 hover handler 涓幏鍙栨渶鏂扮殑 selectedTerritory锛岄伩鍏?stale closure
   const selectedTerritoryRef = useRef<ExtTerritory | null | undefined>(selectedTerritory);
   useEffect(() => {
     selectedTerritoryRef.current = selectedTerritory;
@@ -79,16 +79,16 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
   // Fallback Map
   const activeTerritoryMap = useRef<Map<string, ExtTerritory>>(new Map());
 
-  // 防止 map click 在 polygon click 之后立即清除选择（机制已移出到 AMapView Root Layer）
+  // 闃叉 map click 鍦?polygon click 涔嬪悗绔嬪嵆娓呴櫎閫夋嫨锛堟満鍒跺凡绉诲嚭鍒?AMapView Root Layer锛?
   const territoryClickedRef = useRef(false);
 
-  // 受控的 ContextSwitch 拦截器：确保真正的语义变更才触发清空
+  // 鍙楁帶鐨?ContextSwitch 鎷︽埅鍣細纭繚鐪熸鐨勮涔夊彉鏇存墠瑙﹀彂娓呯┖
   const prevContextRef = useRef({ cityId: city?.id, viewMode, kingdomMode });
   useEffect(() => {
     const prev = prevContextRef.current;
     
-    // 只在非初始挂载（即至少有一个已缓存），且确实发生了严格变化时，才清空选中
-    // 这里略过了对尚未设置 city 的极初期过滤
+    // 鍙湪闈炲垵濮嬫寕杞斤紙鍗宠嚦灏戞湁涓€涓凡缂撳瓨锛夛紝涓旂‘瀹炲彂鐢熶簡涓ユ牸鍙樺寲鏃讹紝鎵嶆竻绌洪€変腑
+    // 杩欓噷鐣ヨ繃浜嗗灏氭湭璁剧疆 city 鐨勬瀬鍒濇湡杩囨护
     const isChanged = 
       (city?.id !== undefined && city?.id !== prev.cityId) || 
       (viewMode !== undefined && viewMode !== prev.viewMode) || 
@@ -99,7 +99,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
       setSelectedTerritory?.(null);
     }
     
-    // 永远同步最新 ref
+    // 姘歌繙鍚屾鏈€鏂?ref
     prevContextRef.current = { cityId: city?.id, viewMode, kingdomMode };
   }, [city, viewMode, kingdomMode, setSelectedTerritory]);
 
@@ -255,7 +255,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
           });
         }
         
-        // [埋点补齐] 渲染成功
+        // [鍩嬬偣琛ラ綈] 娓叉煋鎴愬姛
         logEvent('territory_render_success', { cityId: city.id, count: data.length });
 
       } catch (error: any) {
@@ -263,7 +263,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
         if (error?.name !== 'AbortError' && error?.digest !== 'NEXT_REDIRECT') {
           console.error(`Failed to load territories (retry=${retryCount}):`, error);
           
-          // 埋点: territory_render_retry
+          // 鍩嬬偣: territory_render_retry
           logEvent('territory_render_retry', { retryCount: retryCount + 1, error: error.message });
 
           if (retryCount < 4) {
@@ -287,7 +287,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
       mounted = false;
       window.removeEventListener('citylord:refresh-territories', handleRefresh);
     };
-  // 加入 user?.id 确保认证状态变化后 polygon 重建，以获得正确的 self/enemy 样式
+  // 鍔犲叆 user?.id 纭繚璁よ瘉鐘舵€佸彉鍖栧悗 polygon 閲嶅缓锛屼互鑾峰緱姝ｇ‘鐨?self/enemy 鏍峰紡
   }, [map, city, viewMode, kingdomMode, user?.id]);
 
   // Apply selection highlight when selectedTerritory changes
@@ -311,7 +311,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
     });
   }, [selectedTerritory]);
 
-  // 俱乐部 Marker 头像随 zoom 级别动态缩放
+  // 淇变箰閮?Marker 澶村儚闅?zoom 绾у埆鍔ㄦ€佺缉鏀?
   useEffect(() => {
     if (!map || kingdomMode !== 'club' || markers.length === 0) return;
 
@@ -322,7 +322,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
 
     const updateMarkerSizes = () => {
       const zoom = map.getZoom();
-      // 线性映射 [MIN_ZOOM, MAX_ZOOM] → [MIN_SIZE, MAX_SIZE]
+      // 绾挎€ф槧灏?[MIN_ZOOM, MAX_ZOOM] 鈫?[MIN_SIZE, MAX_SIZE]
       const t = Math.max(0, Math.min(1, (zoom - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM)));
       const size = Math.round(MIN_SIZE + t * (MAX_SIZE - MIN_SIZE));
 
@@ -337,7 +337,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
       });
     };
 
-    // 初始化一次
+    // 鍒濆鍖栦竴娆?
     updateMarkerSizes();
     map.on('zoomchange', updateMarkerSizes);
     return () => { map.off('zoomchange', updateMarkerSizes); };

@@ -1,13 +1,13 @@
-import { prisma } from '@/lib/prisma'
+﻿import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { calculateLevel, getTitle } from '@/lib/game-logic/level-system'
 import { eventBus } from '@/lib/game-logic/event-bus'
 
 /**
- * 统一奖励发放服务 (金币 & 经验)
+ * 缁熶竴濂栧姳鍙戞斁鏈嶅姟 (閲戝竵 & 缁忛獙)
  *
- * 此处使用单一 Serializable 事务，将金币、经验、等级、流水一并写入，
- * 不嵌套调用 addExperienceUnified，避免死锁或一致性问题。
+ * 姝ゅ浣跨敤鍗曚竴 Serializable 浜嬪姟锛屽皢閲戝竵銆佺粡楠屻€佺瓑绾с€佹祦姘翠竴骞跺啓鍏ワ紝
+ * 涓嶅祵濂楄皟鐢?addExperienceUnified锛岄伩鍏嶆閿佹垨涓€鑷存€ч棶棰樸€?
  */
 export async function grantRewards(
   userId: string,
@@ -19,7 +19,7 @@ export async function grantRewards(
   const incCoins = rewards.coins || 0
 
   if (incExp === 0 && incCoins === 0) {
-    // 没获得任何奖励的短路处理
+    // 娌¤幏寰椾换浣曞鍔辩殑鐭矾澶勭悊
     const current = await prisma.profiles.findUnique({
       where: { id: userId },
       select: { current_exp: true, level: true, coins: true }
@@ -32,10 +32,10 @@ export async function grantRewards(
     }
   }
 
-  // --- 事务内执行 ---
+  // --- 浜嬪姟鍐呮墽琛?---
   const result = await prisma.$transaction(
     async (tx) => {
-      // 1. 获取当前状态
+      // 1. 鑾峰彇褰撳墠鐘舵€?
       const profile = await tx.profiles.findUniqueOrThrow({
         where: { id: userId },
         select: { current_exp: true, level: true, coins: true }
@@ -45,13 +45,13 @@ export async function grantRewards(
       const currentLevel = profile.level || 1
       const currentCoins = profile.coins || 0
 
-      // 2. 计算新状态，金币加上限制保证不跌落负数
+      // 2. 璁＄畻鏂扮姸鎬侊紝閲戝竵鍔犱笂闄愬埗淇濊瘉涓嶈穼钀借礋鏁?
       const newCoins = Math.max(0, currentCoins + incCoins)
       const newExp = currentExp + incExp
       const newLevel = calculateLevel(newExp)
       const levelUp = newLevel > currentLevel
 
-      // 3. 更新 profile
+      // 3. 鏇存柊 profile
       await tx.profiles.update({
         where: { id: userId },
         data: {
@@ -62,9 +62,9 @@ export async function grantRewards(
         }
       })
 
-      // 4. 写流水
-// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
-      // @ts-expect-error - FIXME: Property 'rewardLog' does not exist on type 'Omit<PrismaClient<PrismaC - [Ticket-202603-SchemaSync] baseline exemption
+      // 4. 鍐欐祦姘?
+
+      
       await tx.rewardLog.create({
         data: {
           userId,
@@ -86,10 +86,10 @@ export async function grantRewards(
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
   )
 
-  // --- 事务外执行 ---
+  // --- 浜嬪姟澶栨墽琛?---
   if (result.levelUp) {
     try {
-      // 事务已提交，升级已生效。emit 失败仅影响通知，不影响数据
+      // 浜嬪姟宸叉彁浜わ紝鍗囩骇宸茬敓鏁堛€俥mit 澶辫触浠呭奖鍝嶉€氱煡锛屼笉褰卞搷鏁版嵁
       await eventBus.emit({
         type: 'LEVEL_UP',
         userId: userId,
