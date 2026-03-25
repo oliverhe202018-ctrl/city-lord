@@ -379,8 +379,9 @@ export function ClubDetailView({
 
   const formatArea = (area: number | undefined) => {
     if (!area) return '0 ㎡';
-    if (area < 10000) return `${Math.round(area)} ㎡`;
-    return `${(area / 1000000).toFixed(1)} k㎡`;
+    if (area < 1000) return `${Math.round(area)} ㎡`;
+    if (area < 1000000) return `${(area / 1000).toFixed(1)} k㎡`;
+    return `${(area / 1000000).toFixed(2)} km²`;
   };
 
   // ── Sub-view rendering ─────────────────────────────────────────
@@ -534,7 +535,7 @@ export function ClubDetailView({
 
         {/* ✅ 关键修改：已加入时的 Tabs 内容区域 */}
         {effectiveIsMember ? (
-          <div className="px-4 mt-4 pb-4">
+          <div className="px-4 mt-4 pb-24">
             {/* ── Quick-action row: social feature entries ── */}
             <div className="grid grid-cols-4 gap-1.5 mb-4">
               <button
@@ -673,7 +674,7 @@ export function ClubDetailView({
                 )}
               </TabsContent>
 
-              <TabsContent value="data" className="mt-3 pb-20">
+              <TabsContent value="data" className="mt-3">
                 <div className="grid grid-cols-2 gap-2">
                   <div className="rounded-xl border border-border bg-muted/30 p-2.5">
                     <div className="text-xs text-muted-foreground">总里程</div>

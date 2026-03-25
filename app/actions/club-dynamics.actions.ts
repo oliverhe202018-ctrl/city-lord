@@ -94,12 +94,12 @@ export async function getClubDynamics(clubId: string): Promise<DynamicItem[]> {
         })
 
         for (const r of runs) {
-            // @ts-expect-error - FIXME: Operator '<' cannot be applied to types 'Decimal' and 'number'. - [Ticket-202603-SchemaSync] baseline exemption
-            const areaDisplay = (r.area || 0) < 10000
-                // @ts-expect-error - FIXME: Argument of type 'Decimal' is not assignable to parameter of type 'num - [Ticket-202603-SchemaSync] baseline exemption
-                ? `${Math.round(r.area || 0)} ㎡`
-                // @ts-expect-error - FIXME: The left-hand side of an arithmetic operation must be of type 'any', ' - [Ticket-202603-SchemaSync] baseline exemption
-                : `${((r.area || 0) / 1000000).toFixed(2)} k㎡`
+            const rawArea = Number(r.area || 0)
+            const areaDisplay = rawArea < 1000
+                ? `${Math.round(rawArea)} ㎡`
+                : rawArea < 1000000
+                    ? `${(rawArea / 1000).toFixed(1)} k㎡`
+                    : `${(rawArea / 1000000).toFixed(2)} km²`
             items.push({
                 id: `run_${r.id}`,
                 type: 'territory_expanded',

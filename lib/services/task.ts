@@ -1,11 +1,11 @@
-import { prisma } from '@/lib/prisma'
+﻿import { prisma } from '@/lib/prisma'
 import { Task, UserTaskProgress } from '@prisma/client'
 import { startOfDay, endOfDay, startOfWeek, endOfWeek, addDays, addWeeks, isAfter } from 'date-fns'
 // Define Timezone
 const TV_TIMEZONE = 'Asia/Shanghai'
 
 // Event Types
-export type TaskEventType = 'RUN_FINISHED' | 'GRID_CAPTURED' | 'TERRITORY_CHECKIN'
+export type TaskEventType = 'RUN_FINISHED' | 'TERRITORY_CAPTURED' | 'TERRITORY_CHECKIN'
 
 export interface TaskEvent {
     type: TaskEventType
@@ -15,7 +15,7 @@ export interface TaskEvent {
         distance?: number // meters
         duration?: number // seconds
         pace?: number // seconds per km
-        gridId?: string
+        territoryId?: string
         isNew?: boolean
         isSelf?: boolean
     }
@@ -46,9 +46,7 @@ export class TaskService {
 
             for (const progress of activeProgress) {
                 // Idempotency check inside transaction
-// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
-                // @ts-expect-error - FIXME: Property 'lastEventId' does not exist on type '{ task: { id: string; d - [Ticket-202603-SchemaSync] baseline exemption
-                if (eventId && progress.lastEventId === eventId) {
+                if (eventId && (progress as any).lastEventId === eventId) {
                     continue
                 }
 
@@ -66,8 +64,8 @@ export class TaskService {
                         }
                         break
 
-                    case 'RUN_COUNT': // Simple run completion count
-                        if (event.type === 'RUN_FINISHED') {
+                    case 'RUN_COUNT': // Run completion count (鈮?1km)
+                        if (event.type === 'RUN_FINISHED' && event.data.distance && event.data.distance >= 1000) {
                             newValue += 1
                             shouldUpdate = true
                         }
@@ -101,23 +99,23 @@ export class TaskService {
                         }
                         break
 
-                    case 'GRID_CAPTURE_NEW': // Unique / New grids
-                    case 'UNIQUE_HEX':
-                        if (event.type === 'GRID_CAPTURED' && event.data.isNew) {
+                    case 'TERRITORY_CAPTURE_NEW': // Unique / New territories
+                    case 'UNIQUE_TERRITORY':
+                        if (event.type === 'TERRITORY_CAPTURED' && event.data.isNew) {
                             newValue += 1
                             shouldUpdate = true
                         }
                         break
 
-                    case 'HEX_COUNT': // Total grids touched/captured today
-                        if (event.type === 'GRID_CAPTURED' || event.type === 'TERRITORY_CHECKIN') {
+                    case 'TERRITORY_COUNT': // Total territories touched/captured today
+                        if (event.type === 'TERRITORY_CAPTURED' || event.type === 'TERRITORY_CHECKIN') {
                             newValue += 1
                             shouldUpdate = true
                         }
                         break
 
-                    case 'HEX_TOTAL': // Total distinct hexes owned (Achievement style)
-                        if (event.type === 'GRID_CAPTURED' && event.data.isNew) {
+                    case 'TERRITORY_TOTAL': // Total distinct territories owned
+                        if (event.type === 'TERRITORY_CAPTURED' && event.data.isNew) {
                             newValue += 1
                             shouldUpdate = true
                         }
@@ -170,10 +168,8 @@ export class TaskService {
                             currentValue: Math.min(newValue, task.targetValue),
                             status: isCompleted ? 'COMPLETED' : 'IN_PROGRESS',
                             completedAt: isCompleted ? new Date() : null,
-// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
-                            // @ts-expect-error - FIXME: Object literal may only specify known properties, and 'lastEventId' do - [Ticket-202603-SchemaSync] baseline exemption
                             lastEventId: eventId || null
-                        }
+                        } as any
                     })
                     updates.push(updatePromise)
                     

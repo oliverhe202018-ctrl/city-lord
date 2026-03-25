@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { H3_TILE_AREA_KM2 } from '@/lib/constants/territory'
+import { DEFAULT_TERRITORY_AREA_KM2 } from '@/lib/constants/territory'
 
 export class TerritoryReconcileService {
     /**
@@ -26,7 +26,7 @@ export class TerritoryReconcileService {
         SELECT 
           owner_club_id as club_id,
           COUNT(*)::int as total_tiles,
-          (COUNT(*) * ${H3_TILE_AREA_KM2})::numeric as total_area
+          (COUNT(*) * ${DEFAULT_TERRITORY_AREA_KM2})::numeric as total_area
         FROM public.territories
         WHERE owner_club_id IS NOT NULL
         GROUP BY owner_club_id

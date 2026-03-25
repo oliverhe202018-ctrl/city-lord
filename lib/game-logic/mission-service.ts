@@ -21,9 +21,9 @@ export const SEED_DEFAULT_MISSIONS = [
   {
     id: 'daily_run_1',
     title: '每日开跑',
-    description: '完成一次任意距离的跑步',
-    type: 'RUN_COUNT',
-    target: 1,
+    description: '完成一次距离大于1公里的跑步',
+    type: 'DISTANCE',
+    target: 1000, // 1km in meters
     reward_coins: 10,
     reward_experience: 50,
     frequency: 'daily'

@@ -19,9 +19,14 @@ export async function fetchUserProfileStats(userId: string): Promise<UserProfile
       level: true,
       current_exp: true,
       total_distance_km: true,
-      coins: true,
       faction: true
     }
+  })
+
+  // 1.2 Fetch Wallet Data
+  const wallet = await prisma.userWallet.findUnique({
+    where: { user_id: userId },
+    select: { sweat_coins: true }
   })
 
   // 2. Fetch City Progress (for Area/Tiles aggregation)
@@ -53,7 +58,7 @@ export async function fetchUserProfileStats(userId: string): Promise<UserProfile
     battlesWon: 0, // Placeholder
     level: profile?.level || 1,
     xp: profile?.current_exp || 0,
-    coins: profile?.coins || 0,
+    coins: wallet?.sweat_coins || 0,
     faction: profile?.faction || null
   }
 }

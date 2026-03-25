@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 
 export interface KingdomPolygon {
+    id: string;
     coordinates: Array<{ lat: number; lng: number }>;
     area?: number;
     claimedAt?: string;
@@ -47,6 +48,7 @@ export async function getUserKingdom(userId: string): Promise<KingdomPolygon[]> 
                         // Case 1: Array of coordinate arrays [[{lat, lng}], [{lat, lng}], ...]
                         if (Array.isArray(poly) && poly.length > 0 && poly[0]?.lat !== undefined) {
                             allPolygons.push({
+                                id: `legacy_${run.created_at?.getTime()}_${allPolygons.length}`,
                                 coordinates: poly.map((p: any) => ({ lat: p.lat, lng: p.lng })),
                                 claimedAt: run.created_at?.toISOString()
                             });
@@ -54,6 +56,7 @@ export async function getUserKingdom(userId: string): Promise<KingdomPolygon[]> 
                         // Case 2: Polygon object with coordinates field
                         else if (poly.coordinates && Array.isArray(poly.coordinates)) {
                             allPolygons.push({
+                                id: poly.id || `terr_migrated_${run.created_at?.getTime()}_${allPolygons.length}`,
                                 coordinates: poly.coordinates.map((p: any) => ({ lat: p.lat, lng: p.lng })),
                                 area: poly.area,
                                 claimedAt: poly.claimedAt || run.created_at?.toISOString()

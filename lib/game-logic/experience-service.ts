@@ -1,27 +1,27 @@
-import { prisma } from '@/lib/prisma'
+﻿import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { calculateLevel, getTitle } from '@/lib/game-logic/level-system'
 import { eventBus } from '@/lib/game-logic/event-bus'
 
 /**
- * 统一经验管理服务
+ * 缁熶竴缁忛獙绠＄悊鏈嶅姟
  *
- * 只处理单一经验增加场景。包含：
- * 1. 串行化事务（防并发修改导致经验丢失）
- * 2. 数据库写入（用户表与经验流水表）
- * 3. 升级判定与事件触发
+ * 鍙鐞嗗崟涓€缁忛獙澧炲姞鍦烘櫙銆傚寘鍚細
+ * 1. 涓茶鍖栦簨鍔★紙闃插苟鍙戜慨鏀瑰鑷寸粡楠屼涪澶憋級
+ * 2. 鏁版嵁搴撳啓鍏ワ紙鐢ㄦ埛琛ㄤ笌缁忛獙娴佹按琛級
+ * 3. 鍗囩骇鍒ゅ畾涓庝簨浠惰Е鍙?
  *
- * 注意：如果需要同时颁发经验和金币，请直接调用 reward-service.ts 中的 grantRewards
+ * 娉ㄦ剰锛氬鏋滈渶瑕佸悓鏃堕鍙戠粡楠屽拰閲戝竵锛岃鐩存帴璋冪敤 reward-service.ts 涓殑 grantRewards
  */
 export async function addExperienceUnified(
   userId: string,
   amount: number,
   source: string
 ): Promise<{ newExp: number; newLevel: number; levelUp: boolean }> {
-  // --- 事务内执行 ---
+  // --- 浜嬪姟鍐呮墽琛?---
   const result = await prisma.$transaction(
     async (tx) => {
-      // 1. 获取当前等级与经验（找不到抛出错误）
+      // 1. 鑾峰彇褰撳墠绛夌骇涓庣粡楠岋紙鎵句笉鍒版姏鍑洪敊璇級
       const profile = await tx.profiles.findUniqueOrThrow({
         where: { id: userId },
         select: { level: true, current_exp: true }
@@ -30,12 +30,12 @@ export async function addExperienceUnified(
       const currentExp = profile.current_exp || 0
       const currentLevel = profile.level || 1
 
-      // 2. 计算新经验与等级
+      // 2. 璁＄畻鏂扮粡楠屼笌绛夌骇
       const newExp = currentExp + amount
       const newLevel = calculateLevel(newExp)
       const levelUp = newLevel > currentLevel
 
-      // 3. 更新属性
+      // 3. 鏇存柊灞炴€?
       await tx.profiles.update({
         where: { id: userId },
         data: {
@@ -45,9 +45,9 @@ export async function addExperienceUnified(
         }
       })
 
-      // 4. 写入流水
-// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
-      // @ts-expect-error - FIXME: Property 'expLog' does not exist on type 'Omit<PrismaClient<PrismaClie - [Ticket-202603-SchemaSync] baseline exemption
+      // 4. 鍐欏叆娴佹按
+
+      
       await tx.expLog.create({
         data: {
           userId,
@@ -68,10 +68,10 @@ export async function addExperienceUnified(
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
   )
 
-  // --- 事务外执行 ---
+  // --- 浜嬪姟澶栨墽琛?---
   if (result.levelUp) {
     try {
-      // 事务已提交，升级已生效。emit 失败仅影响通知，不影响数据
+      // 浜嬪姟宸叉彁浜わ紝鍗囩骇宸茬敓鏁堛€俥mit 澶辫触浠呭奖鍝嶉€氱煡锛屼笉褰卞搷鏁版嵁
       await eventBus.emit({
         type: 'LEVEL_UP',
         userId: userId,

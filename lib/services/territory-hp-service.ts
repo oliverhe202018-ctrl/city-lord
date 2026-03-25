@@ -43,7 +43,7 @@ import {
     MAX_DAMAGE,
     DAMAGE_PER_KM2,
     MAX_TERRITORY_HP,
-    H3_TILE_AREA_KM2,
+    DEFAULT_TERRITORY_AREA_KM2,
     NEUTRAL_COOLDOWN_MINUTES,
 } from '@/lib/constants/territory'
 import { redis } from '@/lib/redis'
@@ -143,7 +143,7 @@ export const TerritoryHPService = {
                     // ── Step 3: Calculate damage ──
                     const areaKm2 = intersectionAreaM2
                         ? intersectionAreaM2 / 1_000_000
-                        : H3_TILE_AREA_KM2
+                        : DEFAULT_TERRITORY_AREA_KM2
 
                     const damage = Math.round(
                         Math.max(MIN_DAMAGE, Math.min(MAX_DAMAGE, areaKm2 * DAMAGE_PER_KM2))
@@ -275,7 +275,7 @@ export const TerritoryHPService = {
         MAX_DAMAGE,
         DAMAGE_PER_KM2,
         MAX_TERRITORY_HP,
-        H3_TILE_AREA_KM2,
+        DEFAULT_TERRITORY_AREA_KM2,
         NEUTRAL_COOLDOWN_MINUTES,
     },
 }

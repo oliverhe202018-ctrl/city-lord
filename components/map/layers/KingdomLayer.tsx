@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { getUserKingdom, type KingdomPolygon } from '@/app/actions/user-service';
 import { useMapInteraction } from '@/components/map/MapInteractionContext';
-import { latLngToCell, gridDisk } from 'h3-js';
 import type { ExtTerritory } from '@/types/city';
 
 interface KingdomLayerProps {
@@ -15,7 +14,7 @@ interface KingdomLayerProps {
  * KingdomLayer: Renders user's historical claimed territories
  * 
  * Displays all polygons from past runs with a subtle gold overlay.
- * Now also supports click-to-select via H3 reverse lookup.
+ * Now also supports click-to-select via UUID lookup.
  */
 export function KingdomLayer({ map, userId }: KingdomLayerProps) {
     const [polygons, setPolygons] = useState<KingdomPolygon[]>([]);
@@ -76,22 +75,18 @@ export function KingdomLayer({ map, userId }: KingdomLayerProps) {
                     zIndex: 35,
                     bubble: false, // 拦截点击事件，不冒泡到 map
                     cursor: 'pointer',
+                    extData: { id: polygon.id }
                 });
 
                 // 点击领地色块 → 构造最小 ExtTerritory → 触发详情
                 poly.on('click', (e: any) => {
-                    if (!e?.lnglat) return;
-                    const lat = e.lnglat.lat;
-                    const lng = e.lnglat.lng;
+                    const targetId = e.target.getExtData().id;
                     
-                    // 用点击坐标的 H3 cellId 作为领地 ID
-                    const cellId = latLngToCell(lat, lng, 9);
-                    
-                    console.log(`[Audit] ★ KINGDOM CLICK ★ lnglat=${lng},${lat} cellId=${cellId}`);
+                    console.log(`[Audit] ★ KINGDOM CLICK ★ id=${targetId}`);
                     
                     // 构造最小的 ExtTerritory 对象供 InfoBar/DetailSheet 使用
                     const syntheticTerritory: ExtTerritory = {
-                        id: cellId,
+                        id: targetId,
                         cityId: '', // 将由 detail API 填充
                         ownerId: userId,
                         ownerType: 'me',
@@ -128,4 +123,3 @@ export function KingdomLayer({ map, userId }: KingdomLayerProps) {
 
     return null;
 }
-

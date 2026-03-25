@@ -18,11 +18,11 @@ import { formatArea } from "@/lib/citylord/area-utils"
 // Types
 // ============================================================
 
-type HexState = "unexplored" | "mine" | "enemy" | "neutral" | "contested"
+type TerritoryState = "unexplored" | "mine" | "enemy" | "neutral" | "contested"
 
 interface HexCellData {
   coord: HexCoordinate
-  state: HexState
+  state: TerritoryState
   captureProgress?: number
   ownerId?: string
   lastUpdated?: number
@@ -37,7 +37,7 @@ interface AdaptiveHexGridProps {
   viewportWidth: number
   viewportHeight: number
   hexData?: Map<string, HexCellData>
-  onHexClick?: (coord: HexCoordinate, state: HexState) => void
+  onHexClick?: (coord: HexCoordinate, state: TerritoryState) => void
   onZoomChange?: (newZoom: number, config: ZoomLevelConfig) => void
   showLegend?: boolean
   showUserLocation?: boolean
@@ -48,7 +48,7 @@ interface AdaptiveHexGridProps {
 // State Configuration
 // ============================================================
 
-const stateConfig: Record<HexState, { 
+const stateConfig: Record<TerritoryState, { 
   fill: string
   stroke: string
   glow: string
@@ -210,7 +210,7 @@ export function AdaptiveHexGrid({
     }
   }, [])
 
-  // Calculate visible hexes
+  // Calculate visible territories
   const visibleHexes = useMemo(() => {
     // Calculate viewport bounds in lat/lng
     const metersPerPixel = layout.metersPerPixel
@@ -233,12 +233,12 @@ export function AdaptiveHexGrid({
     // Get hex range for viewport
     const range = ScaleConfig.getVisibleHexRange(bounds, layout, currentZoomConfig)
     
-    // Generate hexes within range
-    const hexes: HexCellData[] = []
-    const states: HexState[] = ["mine", "enemy", "neutral", "unexplored", "contested"]
+    // Generate territories within range
+    const territories: HexCellData[] = []
+    const states: TerritoryState[] = ["mine", "enemy", "neutral", "unexplored", "contested"]
     const weights = [0.2, 0.15, 0.25, 0.35, 0.05]
     
-    const getRandomState = (q: number, r: number): HexState => {
+    const getRandomState = (q: number, r: number): TerritoryState => {
       // Use deterministic random based on coordinates for consistency
       const seed = Math.abs(q * 31 + r * 37) % 100
       let cumulative = 0
@@ -258,11 +258,11 @@ export function AdaptiveHexGrid({
         const existingData = hexData?.get(key)
         
         if (existingData) {
-          hexes.push(existingData)
+          territories.push(existingData)
         } else {
           // Generate pseudo-random state
           const state = getRandomState(q, r)
-          hexes.push({
+          territories.push({
             coord,
             state,
             captureProgress: state === "contested" ? Math.abs((q * 17 + r * 23) % 100) : undefined,
@@ -280,14 +280,14 @@ export function AdaptiveHexGrid({
     
     // Limit hex count for performance
     return ScaleConfig.limitHexCount(
-      hexes.map(h => h.coord),
+      territories.map(h => h.coord),
       currentZoomConfig.maxRenderCount,
       userHex
     ).map(coord => {
       const key = hexCoordToKey(coord)
-      return hexes.find(h => hexCoordToKey(h.coord) === key) || {
+      return territories.find(h => hexCoordToKey(h.coord) === key) || {
         coord,
-        state: "unexplored" as HexState,
+        state: "unexplored" as TerritoryState,
       }
     })
   }, [centerLat, centerLng, viewportWidth, viewportHeight, layout, currentZoomConfig, hexData, userLat, userLng])
@@ -307,9 +307,9 @@ export function AdaptiveHexGrid({
     return ScaleConfig.calculateAreaStats(mineCount, currentZoomConfig)
   }, [visibleHexes, currentZoomConfig])
 
-  // Count hexes by state
+  // Count territories by state
   const stateCounts = useMemo(() => {
-    const counts: Record<HexState, number> = {
+    const counts: Record<TerritoryState, number> = {
       unexplored: 0,
       mine: 0,
       enemy: 0,
@@ -406,7 +406,7 @@ export function AdaptiveHexGrid({
           </radialGradient>
         </defs>
 
-        {/* Render hexes */}
+        {/* Render territories */}
         {visibleHexes.map((hex) => {
           const { x, y } = getHexPixelPosition(hex.coord)
           const key = hexCoordToKey(hex.coord)
@@ -414,7 +414,7 @@ export function AdaptiveHexGrid({
           const isUserHex = hex.coord.q === userHexCoord.q && hex.coord.r === userHexCoord.r
           const isSelected = key === selectedHex
 
-          // Skip hexes outside viewport (with padding)
+          // Skip territories outside viewport (with padding)
           if (x < -layout.size * 2 || x > viewportWidth + layout.size * 2 ||
               y < -layout.size * 2 || y > viewportHeight + layout.size * 2) {
             return null
@@ -529,7 +529,7 @@ export function AdaptiveHexGrid({
               </span>
             </div>
             <div className="grid grid-cols-5 gap-2">
-              {(Object.keys(stateConfig) as HexState[]).map((state) => {
+              {(Object.keys(stateConfig) as TerritoryState[]).map((state) => {
                 const config = stateConfig[state]
                 const Icon = config.icon
                 return (

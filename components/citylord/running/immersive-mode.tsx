@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { Pause, Play, Square, ChevronUp, MapPin, Zap, Heart, Hexagon, Trophy } from "lucide-react"
 import { hexCountToArea, formatArea, HEX_AREA_SQ_METERS } from "@/lib/citylord/area-utils"
 // import { claimTerritory, fetchTerritories } from "@/app/actions/city"
-import { latLngToCell } from "h3-js"
 import { useCity } from "@/contexts/CityContext"
 import { useGameLocation } from "@/store/useGameStore"
 import { safeHapticImpact, safeHapticVibrate } from "@/lib/capacitor/safe-plugins"
@@ -53,6 +52,8 @@ interface ImmersiveModeProps {
   heartRate?: number
   hexesCaptured: number
   currentHexProgress: number // 0-100
+  /** Sync pause state from tracker to prevent desync on remount */
+  initialIsPaused?: boolean
   onPause: () => void
   onResume: () => void
   onStop: () => void
@@ -100,6 +101,7 @@ export function ImmersiveRunningMode({
   heartRate,
   hexesCaptured,
   currentHexProgress,
+  initialIsPaused = false,
   onPause,
   onResume,
   onStop,
@@ -116,7 +118,13 @@ export function ImmersiveRunningMode({
   maintenanceSummary,
   idempotencyKey
 }: ImmersiveModeProps) {
-  const [isPaused, setIsPaused] = useState(false)
+  const [isPaused, setIsPaused] = useState(initialIsPaused)
+
+  // Sync tracker's isPaused into local state whenever the external source changes.
+  // This prevents desync if the component remounts while the tracker is already paused.
+  useEffect(() => {
+    setIsPaused(initialIsPaused);
+  }, [initialIsPaused]);
   const [isGhostMode, setIsGhostMode] = useState(false)
   const [isMapMode, setIsMapMode] = useState(false) // Default back to HUD mode as requested
   const [showStopConfirm, setShowStopConfirm] = useState(false)
@@ -143,26 +151,8 @@ export function ImmersiveRunningMode({
   useEffect(() => {
     if (!currentLocation || !currentCity?.territories || !userId) return
 
-    const hex = latLngToCell(currentLocation.lat, currentLocation.lng, 9)
-    if (hex !== currentHex) {
-      setCurrentHex(hex)
-
-      const territory = currentCity.territories.find(t => t.id === hex)
-      if (territory) {
-        if (territory.ownerId === userId) {
-          safeHapticImpact("light")
-
-
-          toast.success("这是朕的江山", { duration: 2000 })
-        } else if (territory.ownerId && territory.ownerId !== userId) {
-          safeHapticVibrate()
-
-
-          toast.warning("入侵敌方领地！", { duration: 3000 })
-        }
-      }
-    }
-  }, [currentLocation, currentHex, userId, currentCity])
+    // H3 legacy haptic logic removed to prevent OOM
+  }, [currentLocation, currentCity, userId])
 
   // Map Data State
   const [mapHexagons, setMapHexagons] = useState<string[]>([])
@@ -211,55 +201,8 @@ export function ImmersiveRunningMode({
 
     const checkAndClaimTerritory = async () => {
       try {
-        // Calculate H3 index (resolution 9 is standard for gameplay)
-        const h3Index = latLngToCell(currentLocation.lat, currentLocation.lng, 9)
-
-        // Prevent spamming the same hex or if currently claiming
-        if (h3Index === lastClaimedHex || isClaimingRef.current) return
-
-        isClaimingRef.current = true
-
-        // Call API route
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_SERVER || ''}/api/territory/claim`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cityId: currentCity.id, h3Index }),
-          credentials: 'include'
-        })
-
-        if (!res.ok) {
-          throw new Error('Failed to claim territory')
-        }
-
-        const result = await res.json()
-
-        if (result.success) {
-          setLastClaimedHex(h3Index)
-          toast.success("占领成功!", {
-            description: "获得 +50 XP",
-            icon: <Hexagon className="h-4 w-4 text-[#22c55e]" />,
-          })
-
-          // Show badge notifications
-          if (result.grantedBadges && result.grantedBadges.length > 0) {
-            result.grantedBadges.forEach((badgeName: string) => {
-              toast.success(`解锁勋章: ${badgeName}`, {
-                icon: <Trophy className="h-4 w-4 text-yellow-400" />,
-                style: {
-                  backgroundColor: 'rgba(0,0,0,0.8)',
-                  color: 'white',
-                  border: '1px solid rgba(250, 204, 21, 0.5)'
-                }
-              })
-            })
-          }
-
-          // Refresh map overlay
-          loadTerritories()
-
-          // Notify parent
-          onHexClaimed?.()
-        }
+        // H3 legacy claim logic removed to prevent OOM
+        return
       } catch (error: any) {
         if (error?.name !== 'AbortError' && error?.digest !== 'NEXT_REDIRECT') {
           console.error("Auto-claim failed:", error)
@@ -371,6 +314,8 @@ export function ImmersiveRunningMode({
       if (gap <= LOOP_THRESHOLD) {
         // Closed loop
         setEffectiveHexes(hexesCaptured)
+        // Ensure tracker is paused when showing summary to prevent timer drift
+        if (!isPaused) handlePauseToggle()
         setShowSummary(true)
       } else {
         // Open loop - Warn user
@@ -555,6 +500,7 @@ export function ImmersiveRunningMode({
           pace={pace !== undefined ? String(pace) : '00:00'}
           calories={calories}
           hexesCaptured={effectiveHexes}
+          capturedArea={area}
           steps={steps}
           onClose={handleStop}
           runId={savedRunId || undefined}
@@ -639,6 +585,8 @@ export function ImmersiveRunningMode({
                 onClick={() => {
                   setShowLoopWarning(false)
                   setEffectiveHexes(0)
+                  // Ensure tracker is paused when showing summary
+                  if (!isPaused) handlePauseToggle()
                   setShowSummary(true)
                 }}
               >

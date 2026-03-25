@@ -24,7 +24,6 @@ import {
 import { toast } from "@/hooks/use-toast";
 import { useGameStore } from "@/store/useGameStore";
 import { calculateSmartRoute } from "@/lib/utils/routing";
-import { latLngToCell } from "h3-js";
 import MapManager from "@/lib/mapManager";
 import { isNativePlatform } from "@/lib/capacitor/safe-plugins";
 

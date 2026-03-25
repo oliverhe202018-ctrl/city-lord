@@ -221,27 +221,29 @@ export function RoomChat({ roomId, currentUser }: RoomChatProps) {
 
       {/* Input Area */}
       <div className="p-3 bg-muted/20 border-t border-border flex gap-2 items-center">
-        <EmojiPicker onEmojiSelect={(emoji) => setNewMessage(p => p + emoji)} className="mr-1 shadow-none" />
-        <form onSubmit={handleSendMessage} className="flex gap-2 flex-1">
+        <form onSubmit={handleSendMessage} className="flex gap-2 flex-1 min-w-0 items-center">
           <Input
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             placeholder="发送消息..."
-            className="bg-muted/50 border-border text-foreground placeholder:text-muted-foreground focus-visible:ring-primary/50"
+            className="flex-1 min-w-0 bg-muted/50 border-border text-foreground placeholder:text-muted-foreground focus-visible:ring-primary/50"
             disabled={isSending}
           />
-          <Button
-            type="submit"
-            size="icon"
-            className="bg-primary hover:bg-primary/90 text-primary-foreground shrink-0"
-            disabled={!newMessage.trim() || isSending}
-          >
-            {isSending ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Send className="w-4 h-4" />
-            )}
-          </Button>
+          <div className="flex items-center gap-1 shrink-0">
+            <EmojiPicker onEmojiSelect={(emoji) => setNewMessage(p => p + emoji)} className="shadow-none" />
+            <Button
+              type="submit"
+              size="icon"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground"
+              disabled={!newMessage.trim() || isSending}
+            >
+              {isSending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
+            </Button>
+          </div>
         </form>
       </div>
     </div>

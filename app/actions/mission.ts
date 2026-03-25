@@ -10,6 +10,8 @@ import { Prisma } from '@prisma/client'
 import { grantRewards } from '@/lib/game-logic/reward-service'
 import { eventBus } from '@/lib/game-logic/event-bus'
 import { MissionTemplateSchema } from '@/lib/validations/mission'
+import { calculateLevel } from '@/lib/game-logic/level-system'
+
 export interface Mission {
   id: string
   title: string
@@ -160,6 +162,18 @@ export async function claimMissionReward(missionId: string) {
             updated_at: new Date()
           }
         })
+
+        // 2.5 Insert Notification for Single Claim
+        await tx.notifications.create({
+          data: {
+            user_id: user.id,
+            title: '奖励领取成功',
+            body: `恭喜您完成任务「${missionTitle}」，基础奖励（${rewardExp} EXP, ${rewardCoins} 积分）已发放，请注意查收。`,
+            type: 'MISSION',
+            is_read: false
+          }
+        })
+
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
     )
@@ -223,3 +237,167 @@ export async function claimMissionReward(missionId: string) {
     bonus: appliedBonusPercentage > 0 ? { percentage: appliedBonusPercentage } : null
   }
 }
+
+export async function claimAllMissions(missionIds: string[]) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) return { success: false, error: 'Not authenticated' }
+
+  let totalExp = 0
+  let totalCoins = 0
+  let appliedBonusPercentage = 0
+
+  try {
+    // 1. Fetch Faction Stats for Bonus (Outside Transaction for Safety)
+    const profileBefore = await prisma.profiles.findUnique({
+      where: { id: user.id },
+      select: { faction: true }
+    })
+
+    if (profileBefore?.faction && profileBefore.faction !== 'Neutral' && profileBefore.faction !== 'Unknown') {
+      try {
+        const stats = await getFactionStats()
+        const factionKey = profileBefore.faction.toUpperCase() as 'RED' | 'BLUE'
+        const bonusPercentage = stats.bonus?.[factionKey] || 0
+        if (bonusPercentage > 0) {
+          appliedBonusPercentage = bonusPercentage
+        }
+      } catch (e) {
+        console.warn('Failed to calculate faction bonus for claimAllMissions:', e)
+      }
+    }
+
+    // 2. Prisma Serializable Transaction
+    const result = await prisma.$transaction(
+      async (tx) => {
+        // Fetch User and lock
+        const profile = await tx.profiles.findUniqueOrThrow({
+          where: { id: user.id },
+          select: { current_exp: true, level: true, coins: true }
+        })
+
+        // Fetch Claimable Missions
+        const userMissions = await tx.user_missions.findMany({
+          where: {
+            user_id: user.id,
+            mission_id: { in: missionIds },
+            status: 'completed'
+          },
+          include: { missions: true }
+        })
+
+        if (userMissions.length === 0) {
+          throw new Error('没有可领取的任务')
+        }
+
+        let baseExp = 0
+        let baseCoins = 0
+
+        for (const um of userMissions) {
+          const parseResult = MissionTemplateSchema.safeParse(um.missions)
+          if (parseResult.success) {
+            const mission = parseResult.data
+            baseExp += mission.reward_experience || 0
+            baseCoins += mission.reward_coins || 0
+          }
+        }
+
+        totalExp = baseExp
+        totalCoins = baseCoins
+
+        if (appliedBonusPercentage > 0) {
+          const multiplier = 1 + (appliedBonusPercentage / 100)
+          totalExp = Math.round(totalExp * multiplier)
+          totalCoins = Math.round(totalCoins * multiplier)
+        }
+
+        // Update Mission Statuses
+        const missionUpdateIds = userMissions.map(um => um.id)
+        await tx.user_missions.updateMany({
+          where: { id: { in: missionUpdateIds } },
+          data: {
+            status: 'claimed',
+            claimed_at: new Date(),
+            updated_at: new Date()
+          }
+        })
+
+        // Update User Assets
+        const newExp = (profile.current_exp || 0) + totalExp
+        const newCoins = Math.max(0, (profile.coins || 0) + totalCoins)
+        const newLevel = calculateLevel(newExp)
+
+        await tx.profiles.update({
+          where: { id: user.id },
+          data: {
+            current_exp: newExp,
+            level: newLevel,
+            coins: newCoins,
+            updated_at: new Date()
+          }
+        })
+
+        // Insert Reward Log
+        await tx.rewardLog.create({
+          data: {
+            userId: user.id,
+            exp: totalExp > 0 ? totalExp : null,
+            coins: totalCoins > 0 ? totalCoins : null,
+            source: 'mission_claim_all',
+            referenceId: missionIds.join(',')
+          }
+        })
+
+        // Insert Single Merged Notification
+        await tx.notifications.create({
+          data: {
+            user_id: user.id,
+            title: '一键领取成功',
+            body: `恭喜您一键领取了 ${userMissions.length} 个任务奖励。获得基础奖励及加成合计：${totalExp} EXP, ${totalCoins} 积分。`,
+            type: 'MISSION',
+            is_read: false
+          }
+        })
+
+        return {
+          claimedCount: userMissions.length,
+          levelUp: newLevel > (profile.level || 1),
+          oldLevel: profile.level || 1,
+          newLevel
+        }
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+    )
+
+    // 3. Emit Event for Level Up (Outside Transaction)
+    if (result.levelUp) {
+      try {
+        const { getTitle } = await import('@/lib/game-logic/level-system')
+        await eventBus.emit({
+          type: 'LEVEL_UP',
+          userId: user.id,
+          oldLevel: result.oldLevel,
+          newLevel: result.newLevel,
+          newTitle: getTitle(result.newLevel)
+        })
+      } catch (err) {
+        console.error('[claimAllMissions] LEVEL_UP emit failed:', err)
+      }
+    }
+
+    return {
+      success: true,
+      claimedCount: result.claimedCount,
+      rewards: {
+        coins: totalCoins,
+        experience: totalExp
+      },
+      bonus: appliedBonusPercentage > 0 ? { percentage: appliedBonusPercentage } : null
+    }
+
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to claim missions' }
+  }
+}
+

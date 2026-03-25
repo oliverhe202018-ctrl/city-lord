@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/prisma'
+﻿import { prisma } from '@/lib/prisma'
 import {
     HOT_ZONE_THRESHOLD,
     HOT_ZONE_WINDOW_DAYS,
@@ -23,7 +23,7 @@ export const HotZoneCacheService = {
             return { isHotZone: parsed.isHotZone, changeCount: parsed.changeCount }
         }
 
-        // 2. Cache miss — query DB
+        // 2. Cache miss 鈥?query DB
         const windowStart = new Date()
         windowStart.setDate(windowStart.getDate() - HOT_ZONE_WINDOW_DAYS)
 

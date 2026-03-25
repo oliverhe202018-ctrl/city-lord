@@ -5,13 +5,13 @@ import React from "react"
 import { useState, useMemo, useEffect } from "react"
 import { Crosshair, Eye, Shield, Swords } from "lucide-react"
 
-type HexState = "unexplored" | "mine" | "enemy" | "neutral" | "contested"
+type TerritoryState = "unexplored" | "mine" | "enemy" | "neutral" | "contested"
 
 interface HexCell {
   id: number
   x: number
   y: number
-  state: HexState
+  state: TerritoryState
   captureProgress?: number
 }
 
@@ -24,7 +24,7 @@ interface HexGridOverlayProps {
   onHexClick?: (hex: HexCell) => void
 }
 
-const stateConfig: Record<HexState, { 
+const stateConfig: Record<TerritoryState, { 
   fill: string
   stroke: string
   glow: string
@@ -69,13 +69,13 @@ const stateConfig: Record<HexState, {
 }
 
 function generateHexGrid(rows: number, cols: number): HexCell[] {
-  const hexes: HexCell[] = []
+  const territories: HexCell[] = []
   let id = 0
   
-  const states: HexState[] = ["mine", "enemy", "neutral", "unexplored", "contested"]
+  const states: TerritoryState[] = ["mine", "enemy", "neutral", "unexplored", "contested"]
   const weights = [0.2, 0.15, 0.25, 0.35, 0.05]
   
-  const getRandomState = (): HexState => {
+  const getRandomState = (): TerritoryState => {
     const rand = Math.random()
     let cumulative = 0
     for (let i = 0; i < weights.length; i++) {
@@ -88,7 +88,7 @@ function generateHexGrid(rows: number, cols: number): HexCell[] {
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
       const state = getRandomState()
-      hexes.push({
+      territories.push({
         id: id++,
         x: col,
         y: row,
@@ -97,7 +97,7 @@ function generateHexGrid(rows: number, cols: number): HexCell[] {
       })
     }
   }
-  return hexes
+  return territories
 }
 
 export function HexGridOverlay({
@@ -108,7 +108,7 @@ export function HexGridOverlay({
   targetHex = null,
   onHexClick,
 }: HexGridOverlayProps) {
-  const [hexes, setHexes] = useState<HexCell[]>([])
+  const [territories, setHexes] = useState<HexCell[]>([])
   const [selectedHex, setSelectedHex] = useState<number | null>(null)
   const [mounted, setMounted] = useState(false)
 
@@ -136,18 +136,18 @@ export function HexGridOverlay({
   }
 
   const stateCounts = useMemo(() => {
-    const counts: Record<HexState, number> = {
+    const counts: Record<TerritoryState, number> = {
       unexplored: 0,
       mine: 0,
       enemy: 0,
       neutral: 0,
       contested: 0,
     }
-    for (const hex of hexes) {
+    for (const hex of territories) {
       counts[hex.state]++
     }
     return counts
-  }, [hexes])
+  }, [territories])
 
   return (
     <div className="relative h-full w-full overflow-hidden">
@@ -193,7 +193,7 @@ export function HexGridOverlay({
           </radialGradient>
         </defs>
 
-        {hexes.map((hex) => {
+        {territories.map((hex) => {
           const xPos = hex.x * hexWidth * 0.75 + hexSize + 10
           const yPos = hex.y * hexHeight + (hex.x % 2 === 1 ? hexHeight / 2 : 0) + hexSize
           const config = stateConfig[hex.state]
@@ -243,7 +243,7 @@ export function HexGridOverlay({
                 className="transition-all duration-200 hover:brightness-125"
               />
 
-              {/* Capture progress indicator for contested hexes */}
+              {/* Capture progress indicator for contested territories */}
               {hex.state === "contested" && hex.captureProgress !== undefined && (
                 <text
                   x={xPos}
@@ -291,7 +291,7 @@ export function HexGridOverlay({
         <div className="absolute bottom-4 left-4 right-4 z-20">
           <div className="rounded-2xl border border-white/10 bg-black/70 p-3 backdrop-blur-xl">
             <div className="grid grid-cols-5 gap-2">
-              {(Object.keys(stateConfig) as HexState[]).map((state) => {
+              {(Object.keys(stateConfig) as TerritoryState[]).map((state) => {
                 const config = stateConfig[state]
                 const Icon = config.icon
                 return (

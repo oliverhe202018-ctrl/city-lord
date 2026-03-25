@@ -219,6 +219,7 @@ export function MissionCard({
 
 export function MissionCenter({ initialData, initialFilter = "all" }: { initialData?: any[], initialFilter?: "daily" | "weekly" | "all" }) {
   const [activeFilter, setActiveFilter] = useState<"daily" | "weekly" | "all">(initialFilter)
+  const [isClaimingAll, setIsClaimingAll] = useState(false)
   const lastInitialFilterRef = React.useRef(initialFilter)
 
   // Sync with initialFilter from props only on actual changes
@@ -342,10 +343,38 @@ export function MissionCenter({ initialData, initialFilter = "all" }: { initialD
   // Simplified Claim All
   const handleClaimAll = async () => {
     const claimable = missions.filter(m => m.status === "completed")
-    if (claimable.length === 0) return
+    if (claimable.length === 0 || isClaimingAll) return
 
-    for (const mission of claimable) {
-      handleClaimReward(mission.id, mission.reward)
+    setIsClaimingAll(true)
+    const missionIds = claimable.map(m => m.id)
+
+    try {
+      const res = await fetchWithTimeout('/api/mission/claim-all-missions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ missionIds }),
+        credentials: 'include'
+      })
+
+      if (!res.ok) throw new Error('一键领取失败')
+      const result = await res.json()
+
+      if (result.success) {
+        toast.success("一键领取成功！", {
+          description: `汇总奖励：+${result.rewards?.coins || 0} 积分, +${result.rewards?.experience || 0} EXP`
+        })
+
+        if (result.rewards?.coins) addCoins(result.rewards.coins)
+        if (result.rewards?.experience) addExperience(result.rewards.experience)
+
+        refresh()
+      } else {
+        toast.error(result.error || "一键领取失败")
+      }
+    } catch (error: any) {
+      toast.error(error.message || "请求失败，请稍后重试")
+    } finally {
+      setIsClaimingAll(false)
     }
   }
 
@@ -431,10 +460,15 @@ export function MissionCenter({ initialData, initialFilter = "all" }: { initialD
             <CyberButton
               size="sm"
               onClick={handleClaimAll}
-              className="bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 border-yellow-500/50"
+              disabled={isClaimingAll}
+              className="bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 border-yellow-500/50 disabled:opacity-50"
             >
-              <Gift className="w-4 h-4 mr-1" />
-              一键领取
+              {isClaimingAll ? (
+                <div className="h-4 w-4 animate-spin rounded-full border border-yellow-400 border-t-transparent mr-1" />
+              ) : (
+                <Gift className="w-4 h-4 mr-1" />
+              )}
+              {isClaimingAll ? "领取中..." : "一键领取"}
             </CyberButton>
           )}
         </div>

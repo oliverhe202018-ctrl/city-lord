@@ -21,6 +21,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const userLat = parseFloat(searchParams.get('lat') || '0');
     const userLng = parseFloat(searchParams.get('lng') || '0');
+    const scope = searchParams.get('scope') || 'nearby';
 
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -43,7 +44,7 @@ export async function GET(request: Request) {
         fetchProfile(userId),
         fetchBattleFeed(userId),
         fetchDailyProgress(userId),
-        fetchLeaderboard(userId),
+        fetchLeaderboard(userId, scope),
         fetchClubEvents(userId),
         fetchUnreadNotificationCount(userId),
     ]);
@@ -509,12 +510,25 @@ async function fetchDailyProgress(userId: string): Promise<ProgressItem[]> {
     ];
 }
 
-async function fetchLeaderboard(userId: string): Promise<{
+async function fetchLeaderboard(userId: string, scope: string): Promise<{
     leaderboard: RankItem[];
     myRank: RankItem | null;
 }> {
-    // Top 5 by total_area
+    // 1. Fetch user profile first with province
+    const userProfile = await prisma.profiles.findUnique({
+        where: { id: userId },
+        select: { total_area: true, nickname: true, province: true },
+    });
+
+    // 2. Condition building with boundary fallback handling
+    const whereCondition: any = {};
+    if (scope === 'city' && userProfile?.province) {
+        whereCondition.province = userProfile.province;
+    }
+
+    // 3. Top 5 by total_area
     const topUsers = await prisma.profiles.findMany({
+        where: whereCondition,
         orderBy: { total_area: 'desc' },
         take: 5,
         select: {
@@ -537,23 +551,20 @@ async function fetchLeaderboard(userId: string): Promise<{
     const isInTop5 = topUsers.some((u) => u.id === userId);
     let myRank: RankItem | null = null;
 
-    if (!isInTop5) {
-        const userProfile = await prisma.profiles.findUnique({
-            where: { id: userId },
-            select: { total_area: true, nickname: true },
+    if (!isInTop5 && userProfile) {
+        const userArea = userProfile.total_area ?? 0;
+        const rankCount = await prisma.profiles.count({
+            where: { 
+                ...whereCondition,
+                total_area: { gt: userArea } 
+            },
         });
 
-        if (userProfile) {
-            const userArea = userProfile.total_area ?? 0;
-            const rankCount = await prisma.profiles.count({
-                where: { total_area: { gt: userArea } },
-            });
-
-            const rank = rankCount + 1;
-            const fifthPlace = topUsers[4];
-            const gapToTop5 = fifthPlace
-                ? Math.round((fifthPlace.total_area ?? 0) - userArea)
-                : 0;
+        const rank = rankCount + 1;
+        const fifthPlace = topUsers[4];
+        const gapToTop5 = fifthPlace
+            ? Math.round((fifthPlace.total_area ?? 0) - userArea)
+            : 0;
 
             myRank = {
                 rank,
@@ -563,7 +574,6 @@ async function fetchLeaderboard(userId: string): Promise<{
                 gapToTarget: Math.max(0, gapToTop5),
             };
         }
-    }
 
     return { leaderboard, myRank };
 }

@@ -116,15 +116,15 @@ async function onLevelUp_SendNotification(payload: LevelUpPayload): Promise<void
  * 领地占领 → 更新任务进度
  */
 async function onTerritoryCaptured_UpdateTasks(payload: TerritoryCapturedPayload): Promise<void> {
-  console.log(`[EventListener] TERRITORY_CAPTURED → UpdateTasks for user ${payload.userId}, hex ${payload.hexId}`)
+  console.log(`[EventListener] TERRITORY_CAPTURED → UpdateTasks for user ${payload.userId}, territory ${payload.territoryId}`)
   
   try {
     await TaskService.processEvent(payload.userId, {
-      type: 'GRID_CAPTURED',
+      type: 'TERRITORY_CAPTURED',
       userId: payload.userId,
       timestamp: new Date(),
       data: {
-        gridId: payload.hexId,
+        territoryId: payload.territoryId,
         isNew: payload.isNew
       }
     }, `tc_${payload.territoryId}_${Date.now()}`)
