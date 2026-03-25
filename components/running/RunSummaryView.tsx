@@ -2,7 +2,7 @@
 
 import { Share2, X, Activity, Flame, Zap, MapPin, Footprints, Timer, Trophy, Share, MessageCircle, MoreHorizontal, Camera, Loader2, CheckCircle2, Image as ImageIcon } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
-import { HEX_AREA_SQ_METERS } from "@/lib/citylord/area-utils"
+import { HEX_AREA_SQ_METERS, formatArea } from "@/lib/citylord/area-utils"
 import dynamic from "next/dynamic"
 import { MapSkeleton } from "@/components/map/MapSkeleton"
 
@@ -51,6 +51,7 @@ interface RunSummaryViewProps {
     afterHp: number;
     level: number;
   }[]; // Phase 4: Maintenance details
+  capturedArea?: number; // m² (optional, overrides hexesCaptured calculation)
 }
 
 export function RunSummaryView({
@@ -68,7 +69,8 @@ export function RunSummaryView({
   runId,
   runNumber,
   damageSummary = [],
-  maintenanceSummary = []
+  maintenanceSummary = [],
+  capturedArea: propCapturedArea
 }: RunSummaryViewProps) {
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
@@ -86,8 +88,10 @@ export function RunSummaryView({
   // Distance in km for display
   const distanceKm = (distanceMeters / 1000).toFixed(2);
 
-  // Calculate territory area based on game constants
-  const capturedArea = hexesCaptured * HEX_AREA_SQ_METERS
+  // Calculate territory area based on game constants or use passed prop
+  const finalCapturedArea = propCapturedArea !== undefined 
+    ? propCapturedArea 
+    : hexesCaptured * HEX_AREA_SQ_METERS;
 
   // Aggregate damage by owner for UI display
   const aggregatedDamage = damageSummary.reduce((acc, curr) => {
@@ -138,8 +142,9 @@ export function RunSummaryView({
           const abortController = new AbortController();
           
           uploadResult = await Promise.race([
-            // We cast to any to inject signal as Supabase TS might not expose standard fetch options in all V2 releases.
+            // Use standard fetch options for signals in V2 client
             supabase.storage.from('run-photos').upload(filePath, file, { 
+              cacheControl: '3600',
               upsert: true,
               ...( { signal: abortController.signal } as any )
             }),
@@ -151,12 +156,27 @@ export function RunSummaryView({
             )
           ]);
           
-          if (uploadResult?.error) throw uploadResult.error;
+          if (uploadResult?.error) {
+            // Log specific Supabase error details
+            console.error(`[Upload] Supabase Error Details:`, {
+              message: uploadResult.error.message,
+              name: (uploadResult.error as any).name,
+              status: (uploadResult.error as any).status,
+              path: filePath
+            });
+            throw uploadResult.error;
+          }
           
           console.log(`[Upload] Attempt ${attempt} succeeded in ${Date.now() - attemptStart}ms`);
           break; // Success, exit retry loop
         } catch (err: any) {
-          console.error(`[Upload] Attempt ${attempt} failed:`, err);
+          console.error(`[Upload] Attempt ${attempt} failed with Error:`, err);
+          
+          // Provide hint for RLS errors which often show up as 403 or generic error
+          if (err?.message?.includes('policies') || err?.status === 403) {
+            console.error(`[Upload] This looks like a Supabase RLS Policy issue. Check 'run-photos' bucket permissions.`);
+          }
+
           if (attempt >= maxAttempts) throw err;
           
           // Exponential backoff: 2s, 4s
@@ -175,21 +195,33 @@ export function RunSummaryView({
 
       // Save photo_url to the run record if we have a runId
       if (runId) {
-        // Use untyped update since photo_url may not be in Prisma types yet
-        await (supabase
+        const { error: updateError } = await (supabase
           .from('runs') as any)
           .update({ photo_url: publicUrl })
           .eq('id', runId);
+          
+        if (updateError) {
+          console.error(`[Upload] Failed to update run record with photo URL:`, updateError);
+          // We don't throw here because the photo was uploaded successfully to storage
+        }
       }
 
       console.log(`[Upload] Fully completed in ${Date.now() - startTime}ms. URL: ${publicUrl}`);
       toast.success('照片添加成功！');
     } catch (err: any) {
-      console.error(`[Upload] Permanently failed after ${attempt} attempts. Total time: ${Date.now() - startTime}ms. Error:`, err);
-      toast.error(err?.message === 'UPLOAD_TIMEOUT' ? '上传超时，请检查网络后重试' : '照片上传失败，请重试');
-      // Ensure we clean up any partial state if needed, though state machine handles the final finally block
+      console.error(`[Upload] Permanently failed after ${attempt} attempts. Total time: ${Date.now() - startTime}ms. Final Error:`, {
+        message: err?.message,
+        stack: err?.stack,
+        details: err
+      });
+      
+      const errorMessage = err?.message === 'UPLOAD_TIMEOUT' 
+        ? '上传超时，请检查网络后重试' 
+        : `照片上传失败: ${err?.message || '请重试'}`;
+        
+      toast.error(errorMessage);
     } finally {
-      setIsUploading(false); // State Machine Guarantee: Always exit uploading state
+      setIsUploading(false); // State Machine Guarantee
     }
   };
 
@@ -205,7 +237,7 @@ export function RunSummaryView({
         `🎯 配速: ${pace}`,
         `🔥 消耗: ${calories} Kcal`,
         `👟 步数: ${steps}`,
-        hexesCaptured > 0 ? `🏰 占领领地: ${hexesCaptured * 650}㎡` : null,
+        hexesCaptured > 0 ? `🏰 占领领地: ${formatArea(finalCapturedArea).fullText}` : null,
         avgSpeed !== '--' ? `💨 平均速度: ${avgSpeed} km/h` : null,
       ].filter(Boolean).join('\n');
 
@@ -323,8 +355,8 @@ export function RunSummaryView({
             </div>
             {/* Territory Captured - RED FONT */}
             <div className="text-center">
-              <div className="text-2xl font-bold text-red-500">{hexesCaptured * 650}</div>
-              <div className="text-xs text-gray-400 mt-1">领地占领㎡</div>
+              <div className="text-2xl font-bold text-red-500">{formatArea(finalCapturedArea).fullText}</div>
+              <div className="text-xs text-gray-400 mt-1">领地占领</div>
             </div>
           </div>
 
