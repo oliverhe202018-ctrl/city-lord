@@ -44,6 +44,7 @@ export const MapService = {
         WHERE geojson IS NOT NULL
       `;
 
+
       // Parse the GeoJSON string into an object
       return rows.map((row) => ({
         ...row,

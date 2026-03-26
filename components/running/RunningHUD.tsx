@@ -326,7 +326,7 @@ export function RunningHUD({
               {/* Distance (Main) */}
               <div className="flex flex-col items-center">
                 <AnimatedCounter value={distance} className="text-[6rem] font-black text-white leading-none drop-shadow-2xl italic" decimals={2} />
-                <span className="text-white/60 font-bold tracking-widest uppercase mt-2 text-lg">Kilometers</span>
+                <span className="text-white/60 font-bold tracking-widest uppercase mt-2 text-lg">公里</span>
               </div>
 
               {/* Secondary Stats Grid */}
@@ -341,7 +341,7 @@ export function RunningHUD({
                 >
                   <div className="flex items-center gap-1.5 text-white/60 mb-1">
                     <Zap className="w-4 h-4" />
-                    <span className="text-xs font-bold uppercase tracking-wider">Pace</span>
+                    <span className="text-xs font-bold uppercase tracking-wider">配速</span>
                   </div>
                   <span className="text-2xl font-black text-white font-mono">{pace}</span>
                 </div>
@@ -349,7 +349,7 @@ export function RunningHUD({
                 <div className="flex flex-col items-center">
                   <div className="flex items-center gap-1.5 text-white/60 mb-1">
                     <Flame className="w-4 h-4" />
-                    <span className="text-xs font-bold uppercase tracking-wider">Kcal</span>
+                    <span className="text-xs font-bold uppercase tracking-wider">千卡</span>
                   </div>
                   <AnimatedCounter value={calories} className="text-2xl font-black text-white font-mono" decimals={0} />
                 </div>
@@ -357,7 +357,7 @@ export function RunningHUD({
                 <div className="flex flex-col items-center">
                   <div className="flex items-center gap-1.5 text-white/60 mb-1">
                     <Trophy className="w-4 h-4" />
-                    <span className="text-xs font-bold uppercase tracking-wider">Time</span>
+                    <span className="text-xs font-bold uppercase tracking-wider">时长</span>
                   </div>
                   <span className="text-2xl font-black text-white font-mono">{duration}</span>
                 </div>
@@ -440,7 +440,7 @@ export function RunningHUD({
               )}
 
               {isLocked && (
-                <div className="text-white/40 text-sm font-medium animate-pulse">
+                <div className="w-full text-center flex justify-center text-white/40 text-sm font-medium animate-pulse">
                   屏幕已锁定 · 点击锁图标解锁
                 </div>
               )}

@@ -87,12 +87,22 @@ export function RunningSettings({ isOpen, onClose }: RunningSettingsProps) {
             />
             <SettingItem 
               label="摇一摇语音播报" 
-              rightElement={<Switch defaultChecked />} 
+              rightElement={
+                <Switch 
+                  checked={appSettings.shakeVoiceEnabled} 
+                  onCheckedChange={(checked) => updateAppSettings({ shakeVoiceEnabled: checked })}
+                />
+              } 
             />
             <SettingItem 
               label="节拍器" 
               badge="新"
-              rightElement={<Switch />} 
+              rightElement={
+                <Switch 
+                  checked={appSettings.metronomeEnabled}
+                  onCheckedChange={(checked) => updateAppSettings({ metronomeEnabled: checked })}
+                />
+              } 
             />
           </div>
 
@@ -102,10 +112,12 @@ export function RunningSettings({ isOpen, onClose }: RunningSettingsProps) {
               label="地图设置" 
               value="默认" 
               hasArrow 
+              onClick={() => toast.info('地图设置功能正在内测开发中')}
             />
             <SettingItem 
               label="离线地图下载" 
               hasArrow 
+              onClick={() => toast.info('离线地图下载功能正在内测开发中')}
             />
           </div>
 
@@ -141,15 +153,22 @@ export function RunningSettings({ isOpen, onClose }: RunningSettingsProps) {
             />
             <SettingItem 
               label="运动时保持屏幕常亮" 
-              rightElement={<Switch />} 
+              rightElement={
+                <Switch 
+                  checked={appSettings.keepScreenOn}
+                  onCheckedChange={(checked) => updateAppSettings({ keepScreenOn: checked })}
+                />
+              } 
             />
             <SettingItem 
               label="每日跑步目标设置" 
               hasArrow 
+              onClick={() => toast.info('目标设置功能正在内测开发中')}
             />
             <SettingItem 
               label="定位异常检测" 
               hasArrow 
+              onClick={() => toast.info('定位检测功能正在内测开发中')}
             />
           </div>
 

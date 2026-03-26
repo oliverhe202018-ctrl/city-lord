@@ -48,6 +48,7 @@ interface RunningStats {
   runNumber?: number; // Phase 3: Total runs for user
   damageSummary?: any[]; // Phase 3: Damage details
   maintenanceSummary?: any[]; // Phase 4: Maintenance details
+  settledTerritoriesCount?: number;
   idempotencyKey: string;
 }
 
@@ -156,6 +157,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   const [runNumber, setRunNumber] = useState<number | undefined>(undefined);
   const [damageSummary, setDamageSummary] = useState<any[] | undefined>(undefined);
   const [maintenanceSummary, setMaintenanceSummary] = useState<any[] | undefined>(undefined);
+  const [settledTerritoriesCount, setSettledTerritoriesCount] = useState<number | undefined>(undefined);
   const [lastSavedClaimsCount, setLastSavedClaimsCount] = useState(0);
 
   // ======== CRITICAL: Use centralized global location store ========
@@ -803,6 +805,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         if (result.data?.maintenanceSummary) {
           setMaintenanceSummary(result.data.maintenanceSummary);
         }
+        if (result.data?.settledTerritoriesCount !== undefined) {
+          setSettledTerritoriesCount(result.data.settledTerritoriesCount);
+        }
         if (isFinal) {
           console.log("Run saved successfully:", result.data?.runId);
         }
@@ -829,7 +834,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     } finally {
       setIsSaving(false);
     }
-  }, [userId]); // Only depends on userId — refs handle the rest
+  }, [userId, clearRecovery]); // Only depends on userId & clearRecovery — refs handle the rest
 
   // Auto-save when new territory is claimed
   useEffect(() => {
@@ -869,6 +874,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     runNumber,
     damageSummary,
     maintenanceSummary,
+    settledTerritoriesCount,
     idempotencyKey: runIdempotencyKeyRef.current,
   };
 }

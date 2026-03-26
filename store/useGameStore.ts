@@ -1,4 +1,4 @@
-﻿import { create, StateCreator } from 'zustand';
+import { create, StateCreator } from 'zustand';
 import { persist, StateStorage, createJSONStorage } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
 import { Room } from '@/types/room';
@@ -33,6 +33,7 @@ export interface UserState {
   unreadSocialCount: number;
   clubId: string | null; // 鏂板锛氬綋鍓嶄勘涔愰儴ID
   backgroundUrl?: string | null;
+  totalRunsCount: number;
 }
 
 export interface LocationState {
@@ -97,6 +98,9 @@ export interface AppSettings {
   theme: 'light' | 'dark' | 'system';
   gpsCorrectionEnabled: boolean;
   keepAliveEnabled: boolean;
+  shakeVoiceEnabled: boolean;
+  metronomeEnabled: boolean;
+  keepScreenOn: boolean;
 }
 
 export interface MyClub {
@@ -159,6 +163,7 @@ export interface UserActions {
   resetUser: () => void;
   syncUserProfile: () => Promise<void>;
   touchActivity: () => Promise<void>;
+  setTotalRunsCount: (count: number) => void;
 }
 
 export interface LocationActions {
@@ -219,6 +224,9 @@ const initialAppSettings: AppSettings = {
   theme: 'system',
   gpsCorrectionEnabled: false,
   keepAliveEnabled: false,
+  shakeVoiceEnabled: true,
+  metronomeEnabled: false,
+  keepScreenOn: true,
 };
 
 const initialUserState: UserState = {
@@ -241,6 +249,7 @@ const initialUserState: UserState = {
   unreadSocialCount: 0,
   clubId: null,
   backgroundUrl: null,
+  totalRunsCount: 0,
 };
 
 const initialLocationState: LocationState = {
@@ -500,6 +509,7 @@ const createUserSlice: StateCreator<GameStore, [], [], UserActions> = (set, get)
           faction: profileData.faction ?? state.faction ?? null,
           role: adminData?.role ?? null,
           backgroundUrl: profileData.background_url ?? state.backgroundUrl ?? null,
+          totalRunsCount: profileData.total_runs_count || 0,
         }));
       }
     } catch (error) {
@@ -515,7 +525,9 @@ const createUserSlice: StateCreator<GameStore, [], [], UserActions> = (set, get)
       }
     }
   },
+  setTotalRunsCount: (count: number) => set({ totalRunsCount: count }),
 });
+
 
 
 const createLocationSlice: StateCreator<GameStore, [], [], LocationActions> = (set, get) => ({
@@ -734,6 +746,7 @@ export const useGameStore = create<GameStore>()(
         achievements: state.achievements,
         unreadMessageCount: state.unreadMessageCount,
         unreadSocialCount: state.unreadSocialCount,
+        totalRunsCount: state.totalRunsCount,
         // My Club
         myClub: state.myClub,
         // Current Room
