@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { logEvent } from '@/lib/native-log';
@@ -64,7 +64,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
   const [polygons, setPolygons] = useState<any[]>([]);
   const [markers, setMarkers] = useState<any[]>([]);
   const { currentCity: city } = useCity();
-  const { viewMode, selectedTerritory, setSelectedTerritory, setIsDetailSheetOpen } = useMapInteraction();
+  const { viewMode, selectedTerritory, setSelectedTerritory, setIsDetailSheetOpen, openTerritoryDetailDrawer } = useMapInteraction();
   const { user } = useAuth();
 
   // Track polygon 鈫?territory mapping for highlight updates
@@ -216,11 +216,17 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
             (marker as any).__avatarContentEl = content;
           }
 
+
           polygon.on("click", (e: any) => {
             (window as any).__amap_polygon_clicked = Date.now();
-            setSelectedTerritory?.(territory);
-            setIsDetailSheetOpen?.(true);
+            if (openTerritoryDetailDrawer && territory.id) {
+              openTerritoryDetailDrawer(territory.id);
+            } else {
+              setSelectedTerritory?.(territory);
+              setIsDetailSheetOpen?.(true);
+            }
           });
+
           polygon.on("mouseover", () => {
             if (selectedTerritoryRef.current?.id !== territory.id) {
               polygon.setOptions({ strokeWeight: 3 });
@@ -288,7 +294,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
       window.removeEventListener('citylord:refresh-territories', handleRefresh);
     };
   // 鍔犲叆 user?.id 纭繚璁よ瘉鐘舵€佸彉鍖栧悗 polygon 閲嶅缓锛屼互鑾峰緱姝ｇ‘鐨?self/enemy 鏍峰紡
-  }, [map, city, viewMode, kingdomMode, user?.id]);
+  }, [map, city, viewMode, kingdomMode, user?.id, openTerritoryDetailDrawer, setSelectedTerritory, setIsDetailSheetOpen]);
 
   // Apply selection highlight when selectedTerritory changes
   useEffect(() => {

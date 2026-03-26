@@ -81,15 +81,7 @@ import { checkHiddenBadges } from './badge'
 import { prisma } from '@/lib/prisma'
 import { calculateFactionBalance } from '@/utils/faction-balance'
 import { checkAndAwardBadges } from '@/app/actions/check-achievements'
-import {
-  H3_TILE_AREA_KM2,
-  BASE_SCORE_PER_KM2,
-  HOT_ZONE_CAPTURE_MULTIPLIER,
-  NORMAL_CAPTURE_MULTIPLIER,
-  LOSS_PENALTY_RATIO,
-  HOT_ZONE_THRESHOLD,
-  HOT_ZONE_WINDOW_DAYS,
-} from '@/lib/constants/territory'
+
 import { HotZoneCacheService } from '@/lib/services/hotzone-cache-service'
 import { redis } from '@/lib/redis'
 import { evaluatePenalty, getPenaltyConfig } from '@/lib/services/territory-penalty'

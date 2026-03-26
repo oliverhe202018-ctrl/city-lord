@@ -71,10 +71,16 @@ export async function POST(req: NextRequest) {
         });
 
         if (result.success) {
-            return NextResponse.json({ success: true, runId: result.data?.runId });
+            return NextResponse.json({ 
+                success: true, 
+                runId: result.data?.runId,
+                runNumber: result.data?.runNumber,
+                newTerritoriesCount: result.data?.settledTerritoriesCount
+            });
         } else {
             return NextResponse.json({ error: result.error || "Save failed" }, { status: 500 });
         }
+
     } catch (e: unknown) {
         const message = e instanceof Error ? e.message : "Unknown error";
         console.error("[/api/run/save-pending] Error:", message);

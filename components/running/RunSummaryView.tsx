@@ -1,6 +1,7 @@
 "use client"
 
 import { Share2, X, Activity, Flame, Zap, MapPin, Footprints, Timer, Trophy, Share, MessageCircle, MoreHorizontal, Camera, Loader2, CheckCircle2, Image as ImageIcon } from "lucide-react"
+import Image from "next/image"
 import { motion, AnimatePresence } from "framer-motion"
 import { HEX_AREA_SQ_METERS, formatArea } from "@/lib/citylord/area-utils"
 import dynamic from "next/dynamic"
@@ -318,11 +319,14 @@ export function RunSummaryView({
 
           {/* Divider / Info */}
           <div className="flex justify-center items-center gap-2 mb-8">
-            <div className="h-[1px] w-12 bg-gray-200"></div>
-            <div className="text-xs text-[#22c55e]">
-              {runNumber ? `这是第 ${runNumber} 次跑步` : '这是第 N 次跑步'}
-            </div>
-            <div className="h-[1px] w-12 bg-gray-200"></div>
+              <div className="flex flex-col">
+                <h2 className="text-xl font-bold text-gray-900">
+                  {runNumber ? `第 ${runNumber} 次跑步` : '跑步结束'}
+                </h2>
+                <p className="text-gray-500 text-xs">
+                  {new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </p>
+              </div>
           </div>
 
           {/* Stats Grid 3x2 */}
@@ -426,7 +430,7 @@ export function RunSummaryView({
           <div className="mx-4 mb-4">
             {photoUrl ? (
               <div className="relative w-full bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100">
-                <img src={photoUrl} alt="跑步照片" className="w-full h-48 object-cover" />
+                <Image src={photoUrl} alt="跑步照片" width={500} height={200} className="w-full h-48 object-cover" unoptimized />
                 <div className="absolute top-2 right-2">
                   <CheckCircle2 className="w-6 h-6 text-green-500 bg-white rounded-full" />
                 </div>

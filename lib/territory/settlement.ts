@@ -167,7 +167,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                     // Heal: Reset current HP to new Max HP
                     const afterHp = newMaxHp;
 
-                    await tx.territories.update({
+                    await tx.territory.update({
                         where: { id: existingTerr.id },
                         data: {
                             max_hp: newMaxHp,
@@ -177,7 +177,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                         }
                     });
 
-                    await tx.territory_events.create({
+                    await tx.territoryEvent.create({
                         data: {
                             territory_id: existingTerr.id,
                             event_type: 'FORTIFIED', // Unified type for Heal + Fortify in this phase
@@ -241,7 +241,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
             }
 
             // Update Target Territory
-            await tx.territories.update({
+            await tx.territory.update({
                 where: { id: existingTerr.id },
                 data: {
                     current_hp: afterHp,
@@ -251,7 +251,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
             });
 
             // Record Event
-            await tx.territory_events.create({
+            await tx.territoryEvent.create({
                 data: {
                     territory_id: existingTerr.id,
                     event_type: finalStatus === 'DESTROYED' ? 'DESTROYED' : (isCritical ? 'CRIT_ATTACKED' : 'ATTACKED'),
@@ -340,7 +340,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                 `);
 
                 // Log Genesis event
-                await tx.territory_events.create({
+                await tx.territoryEvent.create({
                     data: {
                         territory_id: newId,
                         event_type: 'CREATED',

@@ -68,6 +68,7 @@ interface ImmersiveModeProps {
   runNumber?: number
   damageSummary?: any[]
   maintenanceSummary?: any[]
+  settledTerritoriesCount?: number
   idempotencyKey?: string
 }
 
@@ -116,6 +117,7 @@ export function ImmersiveRunningMode({
   runNumber,
   damageSummary,
   maintenanceSummary,
+  settledTerritoriesCount,
   idempotencyKey
 }: ImmersiveModeProps) {
   const [isPaused, setIsPaused] = useState(initialIsPaused)
@@ -232,7 +234,7 @@ export function ImmersiveRunningMode({
       }, 50)
       return () => clearTimeout(timer)
     }
-  }, [isActive, isPaused, totalArea])
+  }, [isActive, isPaused, totalArea, displayedArea])
 
   // Flash effect when capturing new hex
   useEffect(() => {
@@ -499,7 +501,7 @@ export function ImmersiveRunningMode({
           duration={time}
           pace={pace !== undefined ? String(pace) : '00:00'}
           calories={calories}
-          hexesCaptured={effectiveHexes}
+
           capturedArea={area}
           steps={steps}
           onClose={handleStop}
@@ -507,6 +509,7 @@ export function ImmersiveRunningMode({
           runNumber={runNumber}
           damageSummary={damageSummary}
           maintenanceSummary={maintenanceSummary}
+          hexesCaptured={settledTerritoriesCount !== undefined ? settledTerritoriesCount : effectiveHexes}
           runTrajectory={path}
           onShare={() => {
             toast.success("分享图片已生成 (模拟)")
@@ -656,7 +659,7 @@ export function ImmersiveRunningMode({
       {/* New HUD Implementation */}
       <div className={isMapMode ? "opacity-0 pointer-events-none transition-opacity duration-300" : "relative z-20 opacity-100 transition-opacity duration-300"}>
         <RunningHUD
-          distance={distance ?? 0}
+          distance={distanceMeters / 1000}
           pace={typeof pace === 'number' ? String(pace) : (pace ?? '00:00')}
           duration={time}
           calories={calories}

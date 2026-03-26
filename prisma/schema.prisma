@@ -91,6 +91,8 @@ model profiles {
   userTaskProgress                                               UserTaskProgress[]
   watchActivities                                                watch_activities[]
   wallet                                                         UserWallet?
+  anti_cheat_audit_logs                                          anti_cheat_audit_logs[]
+  total_runs_count                                               Int                           @default(0)
 
   @@index([club_id], map: "idx_profiles_club_id")
   @@index([faction], map: "idx_profiles_faction")
@@ -145,6 +147,21 @@ model DailyStat {
 
   @@schema("public")
 }
+
+model anti_cheat_audit_logs {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id      String   @db.Uuid
+  run_id       String?  @db.Uuid
+  risk_score   Int      @default(0)
+  cheat_flags  Json?    @db.Json
+  raw_payload  Json?    @db.Json
+  action_taken String?
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  profiles     profiles @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@schema("public")
+}
+
 
 model route_plans {
   id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid

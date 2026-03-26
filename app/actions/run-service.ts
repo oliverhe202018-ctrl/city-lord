@@ -17,7 +17,9 @@ export interface SaveRunResult {
     totalReward?: { coins: number; xp: number };
     damageSummary?: any[];
     maintenanceSummary?: any[];
+    settledTerritoriesCount?: number;
 }
+
 
 /**
  * Saves a run and evaluates/grants task rewards atomically.
@@ -99,7 +101,7 @@ export async function saveRunActivity(
         // 5. Transaction: Save Run + Process Rewards + Audit Logs
         const result = await prisma.$transaction(async (tx: any) => {
             // A. Create Run Record (Always saved, even if flagged)
-            const run = await tx.runs.create({
+            const run = await tx.run.create({
                 data: {
                     user_id: userId,
                     distance: evaluationData.distance,
@@ -123,7 +125,7 @@ export async function saveRunActivity(
 
             // Audit logging for suspicious runs
             if (isFlagged || pathValidation.riskLevel !== 'LOW') {
-                await tx.anti_cheat_audit_logs.create({
+                await tx.antiCheatAuditLog.create({
                     data: {
                         user_id: userId,
                         run_id: run.id,
@@ -163,7 +165,7 @@ export async function saveRunActivity(
                     period_key: r.periodKey
                 }));
 
-                const existingLogs = await tx.user_task_logs.findMany({
+                const existingLogs = await tx.userTaskLog.findMany({
                     where: {
                         OR: checks
                     },
@@ -182,7 +184,7 @@ export async function saveRunActivity(
                     const key = `${res.taskId}-${res.periodKey}`;
                     if (!existingSet.has(key)) {
                         // Valid new completion
-                        await tx.user_task_logs.create({
+                        await tx.userTaskLog.create({
                             data: {
                                 user_id: userId,
                                 run_id: run.id,
@@ -238,14 +240,14 @@ export async function saveRunActivity(
             }
 
             // D. Get Run Number (Phase 3)
-            const runNumber = await tx.runs.count({
+            const runNumber = await tx.run.count({
                 where: { user_id: userId }
             });
 
             // E. Update City Progress (Phase 2)
             if (!isFlagged) {
                 const cityId = (runData as any).cityId || "default_city";
-                await tx.user_city_progress.upsert({
+                await tx.userCityProgress.upsert({
                     where: {
                         user_id_city_id: {
                             user_id: userId,
@@ -269,35 +271,34 @@ export async function saveRunActivity(
             }
 
             // E. Grant Rewards to User
-            if (totalCoins > 0 || totalXp > 0) {
-                await tx.profiles.update({
-                    where: { id: userId },
-                    data: {
-                        coins: { increment: totalCoins },
-                        xp: { increment: totalXp },
-                        total_distance_km: { increment: evaluationData.distance / 1000 },
-                        total_area: { increment: finalArea }
-                    }
-                });
-            } else if (!isFlagged) {
-                await tx.profiles.update({
-                    where: { id: userId },
-                    data: {
-                        total_distance_km: { increment: evaluationData.distance / 1000 },
-                        total_area: { increment: finalArea }
-                    }
-                });
-            }
+            // F. Grant Rewards and Update Profile Stats (Atomic)
+            const updatedProfile = await tx.profiles.update({
+                where: { id: userId },
+                data: {
+                    coins: { increment: totalCoins },
+                    xp: { increment: totalXp },
+                    total_distance_km: { increment: evaluationData.distance / 1000 },
+                    total_area: { increment: finalArea },
+                    total_runs_count: { increment: 1 },
+                    updated_at: new Date()
+                }
+            });
+
+            // Use the updated total_runs_count from the profile
+            const finalRunNumber = updatedProfile.total_runs_count || runNumber;
+
 
             return {
                 runId: run.id,
-                runNumber,
+                runNumber: finalRunNumber,
                 newTasks,
                 rewards: { coins: totalCoins, xp: totalXp },
                 damageSummary: allDamageDetails,
-                maintenanceSummary: allMaintenanceDetails
+                maintenanceSummary: allMaintenanceDetails,
+                settledTerritoriesCount: settledTerritoriesCount,
             };
         });
+
 
         revalidatePath('/dashboard');
         revalidatePath('/profile/me');
