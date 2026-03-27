@@ -326,7 +326,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                         '${finalCityId}',
                         '${userId}', 
                         ${clubId ? `'${clubId}'` : 'NULL'}, 
-                        ST_GeomFromGeoJSON('${geojsonStr}'::text), 
+                        ST_CollectionExtract(ST_MakeValid(ST_GeomFromGeoJSON('${geojsonStr}'::text)), 3), 
                         '${geojsonStr}'::jsonb,
                         '${runId}',
                         NOW(), 

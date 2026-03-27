@@ -23,6 +23,8 @@ import { GhostJoystick } from "./GhostJoystick"
 import { RunSummaryView } from "@/components/running/RunSummaryView"
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog"
 import { Location } from "@/hooks/useRunningTracker"
+import { useBattleCaster } from "@/hooks/useBattleCaster"
+import { useGameStore } from "@/store/useGameStore"
 
 // ─── Timeout utility for promises that may hang after sleep ───
 const SAVE_TIMEOUT_MS = 15_000;
@@ -147,6 +149,15 @@ export function ImmersiveRunningMode({
   const [lastClaimedHex, setLastClaimedHex] = useState<string | null>(null)
   const [currentHex, setCurrentHex] = useState<string | null>(null)
   const router = useRouter()
+  const faction = useGameStore(s => s.faction)
+
+  // ─── Module 1: Battle Caster (Native TTS) ───
+  useBattleCaster({
+    distanceMeters,
+    hexesCaptured,
+    pace: typeof pace === 'number' ? `${Math.floor(pace)}'${Math.round((pace % 1) * 60)}"` : (pace ?? '--\'--"'),
+    factionName: faction
+  })
 
 
   // Haptic Feedback Logic

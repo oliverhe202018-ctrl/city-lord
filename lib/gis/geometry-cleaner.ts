@@ -28,6 +28,7 @@ export function cleanAndSplitTrajectory(coordinates: Position[]): Feature<Polygo
 
     // 3. Noise Reduction & Cleaning (Simplify removes redundant "jitter" points)
     // Tolerance of 0.00005 is approximately 5 meters — ideal for outdoor running data.
+    poly = turf.truncate(poly, { precision: 6 });
     poly = turf.cleanCoords(poly);
     poly = turf.simplify(poly, { tolerance: 0.00005, highQuality: true });
 

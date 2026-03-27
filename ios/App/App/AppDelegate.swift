@@ -1,6 +1,7 @@
 import UIKit
 import Capacitor
 import AMapFoundationKit
+import AVFoundation
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -9,6 +10,17 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // Override point for customization after application launch.
+        
+        // --- Added for Audio Ducking ---
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playback, mode: .spokenAudio, options: [.duckOthers, .mixWithOthers])
+            try session.setActive(true)
+        } catch {
+            print("Failed to configure AVAudioSession: \(error)")
+        }
+        // -------------------------------
+
         // 高德地图 iOS Key（请将占位符替换为真实 Key）
         AMapServices.shared().apiKey = "PLEASE_REPLACE_WITH_YOUR_IOS_AMAP_KEY"
         return true

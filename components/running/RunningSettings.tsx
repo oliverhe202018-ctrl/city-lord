@@ -82,8 +82,12 @@ export function RunningSettings({ isOpen, onClose }: RunningSettingsProps) {
           <div className="mt-4 bg-white">
             <SettingItem 
               label="语音播报" 
-              value="国语女声" 
-              hasArrow 
+              rightElement={
+                <Switch 
+                  checked={appSettings.voiceReportingEnabled} 
+                  onCheckedChange={(checked) => updateAppSettings({ voiceReportingEnabled: checked })}
+                />
+              } 
             />
             <SettingItem 
               label="摇一摇语音播报" 

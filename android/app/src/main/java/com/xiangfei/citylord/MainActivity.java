@@ -26,6 +26,8 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         // 注册 AMap 定位插件（必须在 super.onCreate 之前）
         registerPlugin(AMapLocationPlugin.class);
+        // 注册音频焦点闪避插件
+        registerPlugin(AudioFocusPlugin.class);
 
         super.onCreate(savedInstanceState);
 

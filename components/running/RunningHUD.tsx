@@ -305,13 +305,18 @@ export function RunningHUD({
 
                 {activeMissions.slice(0, 2).map(um => {
                   const mission = um.missions || um;
+                  // Daily missions should use the current distance state
+                  // meters = distance * 1000
+                  const currentMeters = distance * 1000;
+                  const isDistanceMission = mission.type === 'DISTANCE_DAILY';
+                  
                   return (
                     <MissionTrackerItem
                       key={mission.id}
                       title={mission.title}
-                      current={mission.type === 'DISTANCE_DAILY' ? (mission.target < 50 ? distance : distance * 1000) : 0}
+                      current={isDistanceMission ? (mission.target < 50 ? distance : currentMeters) : 0}
                       target={mission.target}
-                      unit={mission.type === 'DISTANCE_DAILY' ? (mission.target < 50 ? 'km' : 'm') : ''}
+                      unit={isDistanceMission ? (mission.target < 50 ? 'km' : 'm') : ''}
                       isCompleted={completedMissionIds.has(mission.id)}
                     />
                   )

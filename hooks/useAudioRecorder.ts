@@ -211,7 +211,16 @@ export function useAudioRecorder() {
                 setIsRecording(false);
                 const tracks = mediaRecorderRef.current?.stream.getTracks();
                 if (tracks) {
-                    tracks.forEach(track => track.stop());
+                    tracks.forEach(track => {
+                        track.stop();
+                        console.log(`[useAudioRecorder] Track ${track.kind} stopped`);
+                    });
+                }
+                
+                // Explicitly release the stream to free the microphone focus
+                if (mediaRecorderRef.current?.stream) {
+                    const { releaseStream } = await import('@/lib/audio/AudioStreamManager');
+                    releaseStream(mediaRecorderRef.current.stream);
                 }
 
                 if (cancel) {

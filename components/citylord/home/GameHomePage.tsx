@@ -12,6 +12,7 @@ import { HomeSkeleton } from './HomeSkeleton';
 import { NearbyTargetsCarousel } from './NearbyTargetsCarousel';
 import { BattleFeedMini } from './BattleFeedMini';
 import { DailyProgressBars } from './DailyProgressBars';
+import { FactionBattleStatusCard } from './FactionBattleStatusCard';
 import type { RunMode, Target, BattleEvent } from '@/types/home';
 import { useMissions } from '@/hooks/useMissions';
 
@@ -282,6 +283,9 @@ function GameHomePageInner({ onStartRun, onNavigateToMap, onNavigateToTab, onSma
                                 isLoading={isLoading}
                             />
 
+                            {/* Faction Battle Status */}
+                            <FactionBattleStatusCard />
+
                             {/* 2) Nearby Targets */}
                             <NearbyTargetsCarousel
                                 targets={data?.nearbyTargets ?? []}
@@ -291,6 +295,9 @@ function GameHomePageInner({ onStartRun, onNavigateToMap, onNavigateToTab, onSma
                         </>
                     ) : (
                         <>
+                            {/* Faction Battle Status */}
+                            <FactionBattleStatusCard />
+
                             {/* 2) Nearby Targets */}
                             <NearbyTargetsCarousel
                                 targets={data?.nearbyTargets ?? []}

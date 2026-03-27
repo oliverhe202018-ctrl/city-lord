@@ -8,6 +8,7 @@ import { validateRunAndRebuildTerritories, AntiCheatValidationResult } from '@/l
 import { checkRunRateLimit } from '@/lib/anti-cheat/rate-limiter';
 import { processTerritorySettlement } from '@/lib/territory/settlement';
 import { validateRunData } from '@/lib/validators/run-validator';
+import { validateRunLegitimacy } from '@/lib/anti-cheat/mvp-rules';
 import * as turf from '@turf/turf';
 
 export interface SaveRunResult {
@@ -56,6 +57,35 @@ export async function saveRunActivity(
                 };
             }
         }
+
+        // --- P0 Anti-Cheat MVP Validation ---
+        const pathPoints = (runData.path as any[]) || [];
+        const legitimacyCheck = validateRunLegitimacy({
+            distanceKm: runData.distance / 1000,
+            durationSeconds: runData.duration,
+            pathPointsCount: pathPoints.length
+        });
+
+        if (!legitimacyCheck.isValid) {
+            console.warn(`[Anti-Cheat MVP] Run blocked for user ${userId}. Reason: ${legitimacyCheck.reason}`);
+            
+            // Log the cheat attempt independently of the main transaction
+            await prisma.anti_cheat_audit_logs.create({
+                data: {
+                    user_id: userId,
+                    risk_score: 100, // Blocking offense
+                    cheat_flags: { mvp_reason: legitimacyCheck.reason },
+                    raw_payload: runData as any,
+                    action_taken: 'BLOCKED_SETTLEMENT'
+                }
+            });
+
+            return {
+                success: false,
+                error: "检测到数据异常，可能使用了交通工具，本次跑步无法作为有效占领记录。"
+            };
+        }
+        // ------------------------------------
 
         // 1. Metadata-based Anti-Cheat check (Speed, Stride, Teleportation)
         const metadataValidation = validateRunData({
@@ -247,6 +277,11 @@ export async function saveRunActivity(
             // E. Update City Progress (Phase 2)
             if (!isFlagged) {
                 const cityId = (runData as any).cityId || "default_city";
+                
+                // Calculate accurate area in km2 for both progress and profile
+                const { MapService } = await import('@/lib/services/mapService');
+                const accurateAreaKm2 = await MapService.calculateAreaKm2(JSON.stringify(runData.path)); 
+
                 await tx.userCityProgress.upsert({
                     where: {
                         user_id_city_id: {
@@ -255,42 +290,47 @@ export async function saveRunActivity(
                         }
                     },
                     update: {
-                        area_controlled: { increment: finalArea },
+                        area_controlled: { increment: accurateAreaKm2 },
                         tiles_captured: { increment: settledTerritoriesCount },
                         last_active_at: new Date()
                     },
                     create: {
                         user_id: userId,
                         city_id: cityId,
-                        area_controlled: finalArea,
+                        area_controlled: accurateAreaKm2,
                         tiles_captured: settledTerritoriesCount,
                         last_active_at: new Date(),
                         joined_at: new Date()
                     }
                 });
+
+                // Update Profile Stats
+                const updatedProfile = await tx.profiles.update({
+                    where: { id: userId },
+                    data: {
+                        coins: { increment: totalCoins },
+                        xp: { increment: totalXp },
+                        total_distance_km: { increment: evaluationData.distance / 1000 },
+                        total_area: { increment: accurateAreaKm2 },
+                        total_runs_count: { increment: 1 },
+                        updated_at: new Date()
+                    }
+                });
+
+                return {
+                    runId: run.id,
+                    runNumber: updatedProfile.total_runs_count,
+                    newTasks,
+                    rewards: { coins: totalCoins, xp: totalXp },
+                    damageSummary: allDamageDetails,
+                    maintenanceSummary: allMaintenanceDetails,
+                    settledTerritoriesCount: settledTerritoriesCount,
+                };
             }
-
-            // E. Grant Rewards to User
-            // F. Grant Rewards and Update Profile Stats (Atomic)
-            const updatedProfile = await tx.profiles.update({
-                where: { id: userId },
-                data: {
-                    coins: { increment: totalCoins },
-                    xp: { increment: totalXp },
-                    total_distance_km: { increment: evaluationData.distance / 1000 },
-                    total_area: { increment: finalArea },
-                    total_runs_count: { increment: 1 },
-                    updated_at: new Date()
-                }
-            });
-
-            // Use the updated total_runs_count from the profile
-            const finalRunNumber = updatedProfile.total_runs_count || runNumber;
-
 
             return {
                 runId: run.id,
-                runNumber: finalRunNumber,
+                runNumber: 0,
                 newTasks,
                 rewards: { coins: totalCoins, xp: totalXp },
                 damageSummary: allDamageDetails,

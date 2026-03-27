@@ -1,0 +1,19 @@
+name: Ghost NPC Invasion
+
+on:
+  schedule:
+    # 每天 UTC 19:00 (北京时间凌晨 3:00)
+    - cron: '0 19 * * *'
+  workflow_dispatch: # 允许手动触发测试
+
+jobs:
+  invade:
+    name: Execute Invasion
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger NPC Invasion API
+        run: |
+          curl -X POST "${{ secrets.PRODUCTION_URL }}/api/cron/npc-invasion" \
+          -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+          -H "Content-Type: application/json" \
+          -w "\nHTTP Status: %{http_code}\n"
