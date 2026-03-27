@@ -141,5 +141,22 @@ export const MapService = {
       console.error("Error updating territory geometry:", error);
       throw error;
     }
+  },
+
+  /**
+   * Calculates the area of a GeoJSON geometry in square kilometers
+   * using PostGIS spherical calculation for high accuracy.
+   * @param geojson GeoJSON string
+   */
+  async calculateAreaKm2(geojson: string): Promise<number> {
+    try {
+      const result = await prisma.$queryRaw<any[]>`
+        SELECT ST_Area(ST_SetSRID(ST_GeomFromGeoJSON(${geojson}), 4326), true) / 1000000 as area_km2
+      `;
+      return Number(result[0]?.area_km2 || 0);
+    } catch (error) {
+      console.error("Error calculating area:", error);
+      return 0; // Fallback to 0 if calculation fails
+    }
   }
 };

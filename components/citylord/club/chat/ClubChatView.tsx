@@ -8,10 +8,11 @@ import { MessageInput } from './MessageInput'
 import { getClubChannels, getClubMessages, sendClubMessage, getMyClubMembership } from '@/app/actions/club-chat.actions'
 import type { ClubChannel, ClubMessageWithSender, MembershipInfo } from '@/lib/types/club-chat.types'
 import { ClubChatError, ChannelKey, DEFAULT_CHANNELS } from '@/lib/types/club-chat.types'
-import { Shield, ArrowLeft, AlertTriangle } from 'lucide-react'
+import { Shield, ArrowLeft, AlertTriangle, Image as ImageIcon } from 'lucide-react'
 import { ActivityList } from './ActivityList'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import { io, Socket } from 'socket.io-client'
 
 // ─── Temp ID generator (P0 #7) ────────────────────────────────
 let tempCounter = 0
@@ -142,6 +143,38 @@ export function ClubChatView({ clubId, currentUserId, embedded = false }: ClubCh
 
         loadMessages()
         return () => { cancelled = true }
+    }, [activeChannel, clubId])
+
+    // ── WebSocket: Real-time updates ──────────────────────────────
+    useEffect(() => {
+        if (!activeChannel || activeChannel.id.startsWith('fallback-')) return
+
+        const socketUrl = process.env.NEXT_PUBLIC_SOCKET_SERVER || process.env.NEXT_PUBLIC_API_SERVER || ''
+        const socket: Socket = io(socketUrl, {
+            query: { clubId, channelId: activeChannel.id },
+            transports: ['websocket']
+        })
+
+        socket.on('connect', () => {
+            console.log('[Chat] Socket connected:', socket.id)
+        })
+
+        socket.on('new_message', (message: ClubMessageWithSender) => {
+            console.log('[Chat] New message received via socket:', message.id)
+            if (message.channelId === activeChannel.id) {
+                setConfirmedMessages((prev) => {
+                    // Prevent duplicates if we already have it (e.g. from handleSend)
+                    if (prev.some(m => m.id === message.id)) return prev
+                    return [...prev, message]
+                })
+            }
+        })
+
+        return () => {
+            console.log('[Chat] Cleaning up socket for channel:', activeChannel.id)
+            socket.off('new_message')
+            socket.disconnect()
+        }
     }, [activeChannel, clubId])
 
     // ── Load more (P0 #8: prepend older messages) ────────────────
@@ -371,6 +404,7 @@ export function ClubChatView({ clubId, currentUserId, embedded = false }: ClubCh
                             <MessageInput
                                 channelKey={activeChannel.key}
                                 userRole={membership.role}
+                                currentUserId={currentUserId}
                                 onSend={handleSend}
                             />
                         )}

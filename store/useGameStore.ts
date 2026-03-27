@@ -101,6 +101,7 @@ export interface AppSettings {
   shakeVoiceEnabled: boolean;
   metronomeEnabled: boolean;
   keepScreenOn: boolean;
+  voiceReportingEnabled: boolean;
 }
 
 export interface MyClub {
@@ -227,6 +228,7 @@ const initialAppSettings: AppSettings = {
   shakeVoiceEnabled: true,
   metronomeEnabled: false,
   keepScreenOn: true,
+  voiceReportingEnabled: true,
 };
 
 const initialUserState: UserState = {

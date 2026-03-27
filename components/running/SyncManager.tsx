@@ -40,55 +40,77 @@ export function SyncManager() {
     console.log(`[SyncManager] Found ${pendingRuns.length} pending runs. Starting sync...`)
     
     const toastId = toast.loading(`正在同步 ${pendingRuns.length} 条离线跑步记录...`)
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10000)
 
-    const updatedPending = [...pendingRuns]
-    let successCount = 0
+    try {
+      const updatedPending = [...pendingRuns]
+      let successCount = 0
 
-    // Process one by one to avoid overwhelming or transaction conflicts
-    for (const run of pendingRuns) {
-      try {
-        const result = await saveRunActivity(userId, {
-          idempotencyKey: run.idempotencyKey,
-          distance: run.distance,
-          duration: run.duration,
-          path: run.path,
-          polygons: run.polygons || [],
-          timestamp: run.timestamp,
-          manualLocationCount: 0
-        })
+      // Process one by one to avoid overwhelming or transaction conflicts
+      for (const run of pendingRuns) {
+        try {
+          // Note: saveRunActivity is a server action. 
+          // AbortController on fetch inside server actions is tricky, 
+          // but we can race it here.
+          const resultPromise = saveRunActivity(userId, {
+            idempotencyKey: run.idempotencyKey,
+            distance: run.distance,
+            duration: run.duration,
+            path: run.path,
+            polygons: run.polygons || [],
+            timestamp: run.timestamp,
+            manualLocationCount: 0
+          })
 
-        if (result.success) {
-          console.log(`[SyncManager] Successfully synced run: ${run.idempotencyKey}`)
-          // Remove from local list
-          const index = updatedPending.findIndex(p => p.idempotencyKey === run.idempotencyKey)
-          if (index > -1) updatedPending.splice(index, 1)
-          successCount++
-        } else {
-          console.warn(`[SyncManager] Failed to sync run ${run.idempotencyKey}:`, result.error)
+          const timeoutPromise = new Promise((_, reject) => {
+            const id = setTimeout(() => {
+              clearTimeout(id)
+              reject(new Error('SYNC_TIMEOUT'))
+            }, 10000)
+          })
+
+          const result: any = await Promise.race([resultPromise, timeoutPromise])
+
+          if (result.success) {
+            console.log(`[SyncManager] Successfully synced run: ${run.idempotencyKey}`)
+            // Remove from local list
+            const index = updatedPending.findIndex(p => p.idempotencyKey === run.idempotencyKey)
+            if (index > -1) updatedPending.splice(index, 1)
+            successCount++
+          } else {
+            console.warn(`[SyncManager] Failed to sync run ${run.idempotencyKey}:`, result.error)
+          }
+        } catch (err: any) {
+          console.error(`[SyncManager] Error syncing run ${run.idempotencyKey}:`, err)
+          if (err.message === 'SYNC_TIMEOUT') {
+             toast.error("网络请求超时，请稍后手动重试", { id: toastId })
+             break // Stop processing further runs if timed out
+          }
         }
-      } catch (err) {
-        console.error(`[SyncManager] Error syncing run ${run.idempotencyKey}:`, err)
       }
-    }
 
-    // Update localStorage with remaining items
-    if (updatedPending.length > 0) {
-      localStorage.setItem(PENDING_KEY, JSON.stringify(updatedPending))
-    } else {
-      localStorage.removeItem(PENDING_KEY)
-    }
-
-    setPendingCount(updatedPending.length)
-    isSyncingRef.current = false
-
-    if (successCount > 0) {
-      toast.success(`成功同步 ${successCount} 条跑步记录！`, { id: toastId })
-      // Trigger refresh
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('citylord:refresh-territories'))
+      // Update localStorage with remaining items
+      if (updatedPending.length > 0) {
+        localStorage.setItem(PENDING_KEY, JSON.stringify(updatedPending))
+      } else {
+        localStorage.removeItem(PENDING_KEY)
       }
-    } else {
-      toast.dismiss(toastId)
+
+      setPendingCount(updatedPending.length)
+
+      if (successCount > 0) {
+        toast.success(`成功同步 ${successCount} 条跑步记录！`, { id: toastId })
+        // Trigger refresh
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('citylord:refresh-territories'))
+        }
+      } else {
+        toast.dismiss(toastId)
+      }
+    } finally {
+      clearTimeout(timeoutId)
+      isSyncingRef.current = false
     }
   }, [userId])
 

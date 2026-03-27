@@ -24,9 +24,13 @@
 	"packageClassList": [
 		"BackgroundGeolocation",
 		"KeepAwakePlugin",
+		"TextToSpeechPlugin",
 		"AppPlugin",
 		"CAPBrowserPlugin",
+		"CAPCameraPlugin",
+		"ClipboardPlugin",
 		"DevicePlugin",
+		"DialogPlugin",
 		"GeolocationPlugin",
 		"HapticsPlugin",
 		"KeyboardPlugin",

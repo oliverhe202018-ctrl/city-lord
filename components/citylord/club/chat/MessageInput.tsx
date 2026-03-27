@@ -2,8 +2,9 @@
 
 import { useState, useRef, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
-import { Send, Loader2, Lock } from 'lucide-react'
+import { Send, Loader2, Lock, Image as ImageIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 import { EmojiPicker } from '@/components/ui/EmojiPicker'
 import { ChannelKey } from '@/lib/types/club-chat.types'
 
@@ -13,11 +14,12 @@ const THROTTLE_MS = 2000 // P1: 2s send throttle
 interface MessageInputProps {
     channelKey: string
     userRole: 'owner' | 'admin' | 'member' | null
+    currentUserId: string
     onSend: (content: string, audioInfo?: any) => Promise<void>
     disabled?: boolean
 }
 
-export function MessageInput({ channelKey, userRole, onSend, disabled }: MessageInputProps) {
+export function MessageInput({ channelKey, userRole, currentUserId, onSend, disabled = false }: MessageInputProps) {
     const [content, setContent] = useState('')
     const [isSending, setIsSending] = useState(false)
     const lastSentRef = useRef<number>(0)
@@ -111,7 +113,66 @@ export function MessageInput({ channelKey, userRole, onSend, disabled }: Message
                 </div>
 
                 <div className="flex items-center gap-1 shrink-0">
-                    <EmojiPicker onEmojiSelect={(emoji) => setContent(p => p + emoji)} />
+                    <EmojiPicker onEmojiSelect={(emoji: string) => setContent(p => p + emoji)} />
+                    
+                    {/* Image Upload Button */}
+                    <Button
+                        variant="ghost" 
+                        size="icon"
+                        disabled={disabled || isSending || !canSendInChannel}
+                        className="h-10 w-10 rounded-xl text-white/50 hover:text-white hover:bg-white/5"
+                        onClick={async () => {
+                            try {
+                                const { Camera, CameraResultType, CameraSource } = await import('@capacitor/camera')
+                                const image = await Camera.getPhoto({
+                                    quality: 90,
+                                    allowEditing: true,
+                                    resultType: CameraResultType.Base64,
+                                    source: CameraSource.Prompt,
+                                    promptLabelHeader: '发送图片',
+                                    promptLabelPhoto: '从相册选择',
+                                    promptLabelPicture: '拍照'
+                                })
+
+                                if (image.base64String) {
+                                    setIsSending(true)
+                                    const { createClient } = await import('@/lib/supabase/client')
+                                    const supabase = createClient()
+                                    
+                                    const fileName = `${currentUserId}/${Date.now()}.jpg`
+                                    const base64Data = image.base64String
+                                    const blob = await (await fetch(`data:image/jpeg;base64,${base64Data}`)).blob()
+                                    
+                                    const { data, error } = await supabase.storage
+                                        .from('run-photos') // Use existing bucket from metadata
+                                        .upload(fileName, blob, { contentType: 'image/jpeg' })
+
+                                    if (error) throw error
+
+                                    const { data: { publicUrl } } = supabase.storage
+                                        .from('run-photos')
+                                        .getPublicUrl(fileName)
+
+                                    // Send as IMAGE type message
+                                    await onSend(`[图片]`, { 
+                                        messageType: 'image', 
+                                        imageUrl: publicUrl 
+                                    })
+                                    toast.success('图片已发送')
+                                }
+                            } catch (err: any) {
+                                if (err.message !== 'User cancelled photos app') {
+                                    console.error('[Chat] Image upload failed:', err)
+                                    toast.error('图片发送失败')
+                                }
+                            } finally {
+                                setIsSending(false)
+                            }
+                        }}
+                    >
+                        <ImageIcon className="h-4 w-4" />
+                    </Button>
+
                     <Button
                         id="send-message-btn"
                         onClick={handleSend}

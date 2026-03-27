@@ -1,6 +1,6 @@
 "use client"
 
-import { Share2, X, Activity, Flame, Zap, MapPin, Footprints, Timer, Trophy, Share, MessageCircle, MoreHorizontal, Camera, Loader2, CheckCircle2, Image as ImageIcon } from "lucide-react"
+import { Share2, X, Activity, Flame, Zap, MapPin, Footprints, Timer, Trophy, Share, MessageCircle, MoreHorizontal, Camera, Loader2, CheckCircle2, Image as ImageIcon, ChevronRight } from "lucide-react"
 import Image from "next/image"
 import { motion, AnimatePresence } from "framer-motion"
 import { HEX_AREA_SQ_METERS, formatArea } from "@/lib/citylord/area-utils"
@@ -18,6 +18,9 @@ import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 import { createPost } from "@/app/actions/social-hub"
 import { useGameStore } from "@/store/useGameStore"
+import { generateRunStory } from "@/app/actions/story-service"
+import { Clipboard } from "@capacitor/clipboard"
+import { isNativePlatform } from "@/lib/capacitor/safe-plugins"
 
 interface RunSummaryViewProps {
   distanceMeters: number // meters (raw)
@@ -80,6 +83,46 @@ export function RunSummaryView({
   const [hasShared, setHasShared] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const userId = useGameStore(state => state.userId);
+  const faction = useGameStore(state => state.faction);
+
+  // Storytelling State
+  const [story, setStory] = useState<string | null>(null);
+  const [isGeneratingStory, setIsGeneratingStory] = useState(false);
+
+  const handleGenerateStory = async () => {
+    if (isGeneratingStory) return;
+    setIsGeneratingStory(true);
+    try {
+      const result = await generateRunStory({
+        distanceMeters,
+        durationSeconds,
+        hexesCaptured,
+        steps,
+        pace
+      }, faction || '未知阵营');
+      setStory(result);
+      toast.success('史诗战报已谱写完成！');
+    } catch (err) {
+      console.error('Failed to generate story:', err);
+      toast.error('AI 灵感枯竭，请稍后再试');
+    } finally {
+      setIsGeneratingStory(false);
+    }
+  };
+
+  const handleCopyStory = async () => {
+    if (!story) return;
+    try {
+      if (await isNativePlatform()) {
+        await Clipboard.write({ string: story });
+      } else {
+        await navigator.clipboard.writeText(story);
+      }
+      toast.success('战报已复制到剪贴板');
+    } catch (err) {
+      toast.error('复制失败');
+    }
+  };
 
   // Compute average speed from raw values (no string parsing)
   const avgSpeed = durationSeconds > 0
@@ -488,6 +531,73 @@ export function RunSummaryView({
               </div>
             </div>
           )}
+
+          {/* AI Storytelling Section (NEW) */}
+          <div className="mx-4 mb-8">
+            {!story ? (
+              <button
+                onClick={handleGenerateStory}
+                disabled={isGeneratingStory}
+                className="w-full relative group overflow-hidden bg-slate-900 rounded-2xl p-6 border border-primary/20 hover:border-primary/40 transition-all active:scale-[0.98] disabled:opacity-70"
+              >
+                {isGeneratingStory ? (
+                  <div className="flex flex-col items-center gap-3">
+                    <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                    <span className="text-sm font-bold text-primary/80 animate-pulse">AI 正在吟唱史诗...</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <div className="flex flex-col items-start gap-1">
+                      <span className="text-white font-bold text-lg flex items-center gap-2">
+                        🔥 生成史诗战报
+                        <span className="bg-primary/20 text-primary text-[10px] px-1.5 py-0.5 rounded border border-primary/20">AI</span>
+                      </span>
+                      <span className="text-white/40 text-xs">让 Qwen 为您的征程谱写华章</span>
+                    </div>
+                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20 group-hover:bg-primary/20 transition-colors">
+                      <ChevronRight className="w-5 h-5 text-primary" />
+                    </div>
+                  </div>
+                )}
+                {/* Neon glow effect */}
+                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-primary/5 opacity-50 pointer-events-none" />
+              </button>
+            ) : (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-slate-900 rounded-2xl p-6 border border-primary/30 shadow-[0_0_20px_rgba(34,197,94,0.1)] relative overflow-hidden"
+              >
+                <div className="flex items-center gap-2 text-primary mb-4">
+                  <span className="h-1 w-4 bg-primary rounded-full" />
+                  <span className="text-xs font-black uppercase tracking-widest">战况记录</span>
+                </div>
+                
+                <p className="text-white/90 text-sm leading-relaxed mb-6 font-medium font-serif italic">
+                  “{story}”
+                </p>
+
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={handleCopyStory}
+                    className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-full text-xs font-bold border border-white/10 transition-colors"
+                  >
+                    <span>一键复制</span>
+                  </button>
+                  <button
+                    onClick={handleGenerateStory}
+                    className="text-primary/60 text-[10px] hover:text-primary transition-colors underline underline-offset-4"
+                  >
+                    重新生成
+                  </button>
+                </div>
+
+                {/* Cyberpunk decoration */}
+                <div className="absolute top-0 right-0 w-16 h-16 bg-primary/5 blur-3xl pointer-events-none" />
+                <div className="absolute bottom-0 left-0 w-24 h-24 bg-primary/5 blur-3xl pointer-events-none" />
+              </motion.div>
+            )}
+          </div>
         </div>
 
         {/* Bottom Actions */}
