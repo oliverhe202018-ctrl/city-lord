@@ -14,25 +14,41 @@ export async function POST(request: Request) {
         }
 
         // 2. 时间计算: 找出 7 天前的时间点
+        const now = new Date();
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
+        console.log(`[NPC Invasion] Running at ${now.toISOString()}`);
+        console.log(`[NPC Invasion] Looking for territories maintained before ${sevenDaysAgo.toISOString()}`);
+
         // 3. Prisma 查询: 查找超过 7 天未维护且不属于 NPC 的领地
-        // 注：schema 中 territories 模型使用 last_maintained_at 跟踪维护时间
+        // 同时包含 last_maintained_at 为 null 的领地（视为从未维护）
         const targets = await prisma.territories.findMany({
             where: {
-                last_maintained_at: { lt: sevenDaysAgo },
+                OR: [
+                    { last_maintained_at: { lt: sevenDaysAgo } },
+                    { last_maintained_at: null }
+                ],
                 owner_id: { not: GHOST_NPC_ID },
             },
             take: 50,
         });
 
+        console.log(`[NPC Invasion] Found ${targets.length} targets for invasion.`);
+
         if (targets.length === 0) {
-            return NextResponse.json({ message: "No territories to invade" });
+            console.log(`[NPC Invasion] No eligible territories found.`);
+            return NextResponse.json({ 
+                message: "No territories to invade",
+                timestamp: now.toISOString(),
+                criteria: { sevenDaysAgo: sevenDaysAgo.toISOString() }
+            });
         }
 
         // 4. 原子操作 (Transaction)
         const result = await prisma.$transaction(async (tx) => {
+            console.log(`[NPC Invasion] Starting transaction for ${targets.length} territories...`);
+            
             // 确保 NPC Profile 存在
             await tx.profiles.upsert({
                 where: { id: GHOST_NPC_ID },
@@ -47,15 +63,19 @@ export async function POST(request: Request) {
                 }
             });
 
+            let indexedCount = 0;
             // 批量处理更新领地和插入事件
             for (const target of targets) {
+                indexedCount++;
+                console.log(`[NPC Invasion] [${indexedCount}/50] Invading ${target.id} (Owner: ${target.owner_id || 'null'})`);
+                
                 await tx.territories.update({
                     where: { id: target.id },
                     data: {
                         owner_id: GHOST_NPC_ID,
                         owner_faction: GHOST_NPC_FACTION,
                         last_maintained_at: new Date(),
-                        // @ts-ignore - 使用枚举值
+                        // @ts-ignore
                         status: 'ACTIVE', 
                     }
                 });
@@ -63,8 +83,9 @@ export async function POST(request: Request) {
                 await tx.territory_events.create({
                     data: {
                         territory_id: target.id,
-                        // @ts-ignore - 使用枚举值
+                        // @ts-ignore
                         event_type: 'OWNER_CHANGED',
+                        event_type_old: 'OWNER_CHANGED', // 必填字段，兼容旧版本
                         new_owner_id: GHOST_NPC_ID,
                         new_faction: GHOST_NPC_FACTION,
                         old_owner_id: target.owner_id,
@@ -76,6 +97,7 @@ export async function POST(request: Request) {
                     }
                 });
             }
+            console.log(`[NPC Invasion] Transaction completed successfully.`);
             return targets.length;
         });
 
