@@ -1,60 +1,57 @@
 'use client';
 
-import { useMemo } from 'react';
-import { ChevronRight, Sword } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ChevronRight, Shield, Hexagon } from 'lucide-react';
 import { useGameStore } from '@/store/useGameStore';
 import { motion } from 'framer-motion';
-
-interface FactionData {
-    name: string;
-    color: string;
-    secondaryColor: string;
-    percentage: number;
-    count: number;
-}
-
-const MOCK_FACTIONS: FactionData[] = [
-    { name: '破晓者', color: '#f97316', secondaryColor: '#ea580c', percentage: 35, count: 12543 },
-    { name: '守望者', color: '#22c55e', secondaryColor: '#16a34a', percentage: 25, count: 8932 },
-    { name: '秘术师', color: '#a855f7', secondaryColor: '#9333ea', percentage: 40, count: 14321 },
-];
 
 export function FactionBattleStatusCard() {
     const userFaction = useGameStore(state => state.faction);
 
-    // In a real app, this would come from an API
-    const cityFactionData = MOCK_FACTIONS;
+    // Fetch faction stats from API
+    const [factionStats, setFactionStats] = useState<{
+        red_area: number;
+        blue_area: number;
+        red_user_count: number;
+        blue_user_count: number;
+    } | null>(null);
 
-    // Calculate segments for the circular chart
-    const chartSegments = useMemo(() => {
-        let cumulativePercentage = 0;
-        return cityFactionData.map((faction) => {
-            const startAngle = (cumulativePercentage / 100) * 360;
-            cumulativePercentage += faction.percentage;
-            const endAngle = (cumulativePercentage / 100) * 360;
-            
-            // Convert polar to Cartesian for SVG path
-            const polarToCartesian = (centerX: number, centerY: number, radius: number, angleInDegrees: number) => {
-                const angleInRadians = (angleInDegrees - 90) * Math.PI / 180.0;
-                return {
-                    x: centerX + (radius * Math.cos(angleInRadians)),
-                    y: centerY + (radius * Math.sin(angleInRadians))
-                };
-            };
+    const [dailyStat, setDailyStat] = useState<{
+        redCount: number;
+        blueCount: number;
+    } | null>(null);
 
-            const start = polarToCartesian(50, 50, 40, endAngle);
-            const end = polarToCartesian(50, 50, 40, startAngle);
-            const largeArcFlag = faction.percentage > 50 ? "1" : "0";
+    useEffect(() => {
+        fetch(`${process.env.NEXT_PUBLIC_API_SERVER || ''}/api/faction/stats`, { credentials: 'include' })
+            .then(res => res.ok ? res.json() : null)
+            .then(setFactionStats)
+            .catch(err => console.error('Failed to fetch faction stats:', err));
 
-            return {
-                ...faction,
-                pathData: [
-                    "M", start.x, start.y, 
-                    "A", 40, 40, 0, largeArcFlag, 0, end.x, end.y
-                ].join(" ")
-            };
-        });
-    }, [cityFactionData]);
+        fetch(`${process.env.NEXT_PUBLIC_API_SERVER || ''}/api/faction/daily-stats`, { credentials: 'include' })
+            .then(res => res.ok ? res.json() : null)
+            .then(setDailyStat)
+            .catch(err => console.error('Failed to fetch daily stats:', err));
+    }, []);
+
+    // Member counts: prioritize dailyStat (snapshot), then factionStats
+    const redMembers = dailyStat?.redCount ?? factionStats?.red_user_count ?? 0;
+    const blueMembers = dailyStat?.blueCount ?? factionStats?.blue_user_count ?? 0;
+    const totalMembers = redMembers + blueMembers;
+    const redMemberPercent = totalMembers > 0 ? (redMembers / totalMembers) * 100 : 50;
+    const blueMemberPercent = 100 - redMemberPercent;
+
+    // Area stats
+    const redArea = factionStats?.red_area ?? 0;
+    const blueArea = factionStats?.blue_area ?? 0;
+    const totalArea = redArea + blueArea;
+    const redAreaPercent = totalArea > 0 ? (redArea / totalArea) * 100 : 50;
+    const blueAreaPercent = 100 - redAreaPercent;
+
+    const redAreaFormatted = new Intl.NumberFormat('en-US').format(Math.round(redArea || 0));
+    const blueAreaFormatted = new Intl.NumberFormat('en-US').format(Math.round(blueArea || 0));
+
+    // Determine which faction the user belongs to for highlighting
+    const isRedUser = userFaction?.toLowerCase() === 'red';
 
     return (
         <div className="mx-4 overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-md shadow-lg">
@@ -70,86 +67,90 @@ export function FactionBattleStatusCard() {
                 </button>
             </div>
 
-            <div className="flex items-center gap-6">
-                {/* Left: Territory Ratio Chart */}
-                <div className="relative flex flex-col items-center flex-shrink-0">
-                    <div className="relative h-24 w-24">
-                        <svg viewBox="0 0 100 100" className="h-full w-full rotate-0 transform">
-                            {/* Background Circle */}
-                            <circle cx="50" cy="50" r="40" fill="transparent" stroke="white" strokeWidth="8" strokeOpacity="0.05" />
-                            
-                            {/* Faction Segments */}
-                            {chartSegments.map((segment, i) => (
-                                <motion.path
-                                    key={segment.name}
-                                    d={segment.pathData}
-                                    fill="transparent"
-                                    stroke={segment.color}
-                                    strokeWidth="8"
-                                    strokeLinecap="round"
-                                    initial={{ pathLength: 0, opacity: 0 }}
-                                    animate={{ pathLength: 1, opacity: 1 }}
-                                    transition={{ duration: 0.8, delay: i * 0.2 }}
-                                    style={{
-                                        filter: `drop-shadow(0 0 4px ${segment.color}40)`
-                                    }}
-                                />
-                            ))}
-                        </svg>
-                        
-                        {/* Center Icon/Text */}
-                        <div className="absolute inset-0 flex flex-col items-center justify-center">
-                            <Sword className="h-4 w-4 text-foreground/40 mb-0.5" />
-                            <span className="text-[10px] font-bold text-foreground/60 leading-tight">642k</span>
-                        </div>
-                    </div>
-                    <span className="mt-2 text-[10px] font-medium text-foreground/40">领地占领比</span>
+            {/* Section 1: Faction Battle Status (Members) */}
+            <div className="mb-4">
+                <h4 className="text-xs font-medium text-foreground/50 mb-2">阵营人数</h4>
+
+                {/* Red vs Blue Progress Bar */}
+                <div className="h-3 w-full rounded-full bg-muted overflow-hidden flex mb-2">
+                    <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${redMemberPercent}%` }}
+                        transition={{ duration: 1, ease: "easeOut" }}
+                        className="h-full bg-red-600 shadow-[0_0_10px_rgba(220,38,38,0.5)] relative"
+                    >
+                        <div className="absolute top-0 left-0 right-0 h-[40%] bg-white/20" />
+                    </motion.div>
+                    <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${blueMemberPercent}%` }}
+                        transition={{ duration: 1, ease: "easeOut", delay: 0.1 }}
+                        className="h-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)] relative"
+                    >
+                        <div className="absolute top-0 left-0 right-0 h-[40%] bg-white/20" />
+                    </motion.div>
                 </div>
 
-                {/* Right: Faction List */}
-                <div className="flex flex-1 flex-col gap-3">
-                    {cityFactionData.map((faction, i) => {
-                        const isMyFaction = faction.name === userFaction || (userFaction === 'Red' && faction.name === '破晓者') || (userFaction === 'Blue' && faction.name === '秘术师');
-                        // Handle potential translation or mapping
-                        const displayName = isMyFaction ? `${faction.name}(我的阵营)` : faction.name;
-
-                        return (
-                            <div key={faction.name} className="flex flex-col gap-0.5">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-1.5">
-                                        <div 
-                                            className="h-2 w-2 rounded-full" 
-                                            style={{ backgroundColor: faction.color, boxShadow: `0 0 6px ${faction.color}80` }} 
-                                        />
-                                        <span className={`text-xs ${isMyFaction ? 'font-bold text-foreground' : 'font-medium text-foreground/70'}`}>
-                                            {displayName}
-                                        </span>
-                                    </div>
-                                    <span className="text-xs font-bold text-foreground/90 tabular-nums">
-                                        {faction.percentage}%
-                                    </span>
-                                </div>
-                                <div className="flex items-center justify-between pl-3.5">
-                                    <span className="text-[10px] text-foreground/30">
-                                        领地数: {faction.count.toLocaleString()}
-                                    </span>
-                                    {isMyFaction && (
-                                        <div className="h-0.5 w-full mx-2 rounded-full bg-white/5 overflow-hidden">
-                                            <motion.div 
-                                                className="h-full bg-foreground/10" 
-                                                initial={{ width: 0 }}
-                                                animate={{ width: '100%' }}
-                                                transition={{ duration: 1, delay: 0.5 }}
-                                            />
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        );
-                    })}
+                {/* Stats Row */}
+                <div className="flex justify-between items-start">
+                    <div className="flex flex-col items-start">
+                        <div className="flex items-center gap-1.5 text-red-500 mb-0.5">
+                            <Shield className="w-3.5 h-3.5 fill-current" />
+                            <span className="text-lg font-bold leading-none">{redMembers}</span>
+                        </div>
+                        <span className="text-[10px] text-red-500/60 font-medium">
+                            赤红先锋 {redMemberPercent.toFixed(1)}%
+                            {isRedUser && <span className="ml-1 text-red-400">(我)</span>}
+                        </span>
+                    </div>
+                    <div className="flex flex-col items-end">
+                        <div className="flex items-center gap-1.5 text-blue-400 mb-0.5">
+                            <span className="text-lg font-bold leading-none">{blueMembers}</span>
+                            <Hexagon className="w-3.5 h-3.5 fill-current" />
+                        </div>
+                        <span className="text-[10px] text-blue-400/60 font-medium">
+                            蔚蓝联盟 {blueMemberPercent.toFixed(1)}%
+                            {!isRedUser && userFaction && <span className="ml-1 text-blue-300">(我)</span>}
+                        </span>
+                    </div>
                 </div>
             </div>
-            
+
+            <div className="h-px bg-white/5 w-full mb-4" />
+
+            {/* Section 2: Territory Power (Area) */}
+            <div>
+                <h4 className="text-xs font-medium text-foreground/50 mb-2">领地势力</h4>
+
+                {/* Area Progress Bar */}
+                <div className="h-3 w-full rounded-full bg-muted overflow-hidden flex mb-2">
+                    <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${redAreaPercent}%` }}
+                        transition={{ duration: 1, ease: "easeOut" }}
+                        className="h-full bg-gradient-to-r from-red-900 to-red-600 relative"
+                    />
+                    <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${blueAreaPercent}%` }}
+                        transition={{ duration: 1, ease: "easeOut", delay: 0.1 }}
+                        className="h-full bg-gradient-to-l from-blue-900 to-blue-600 relative"
+                    />
+                </div>
+
+                {/* Stats Row */}
+                <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-1.5 text-red-500/80">
+                        <Hexagon className="w-3 h-3" />
+                        <span className="text-xs font-medium">{redAreaFormatted}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-blue-400/80">
+                        <span className="text-xs font-medium">{blueAreaFormatted}</span>
+                        <Hexagon className="w-3 h-3" />
+                    </div>
+                </div>
+            </div>
+
             {/* Glassmorphism accent */}
             <div className="absolute -right-4 -top-4 h-16 w-16 rounded-full bg-primary/20 blur-2xl" />
         </div>
