@@ -367,6 +367,24 @@ export async function saveRunActivity(
             console.error('Task event processing failed', taskError);
         }
 
+        // [Challenge System] Update 1v1 challenge progress (fire-and-forget)
+        if (!isFlagged) {
+            try {
+                const { updateChallengeProgress } = await import('@/app/actions/challenge-service');
+                const paceSecondsPerKm = evaluationData.distance > 0
+                    ? evaluationData.duration / (evaluationData.distance / 1000)
+                    : 0;
+                await updateChallengeProgress(userId, {
+                    distance_meters: evaluationData.distance,
+                    hexes_claimed: result.settledTerritoriesCount ?? 0,
+                    pace_seconds_per_km: paceSecondsPerKm,
+                });
+                console.log(`[Challenge] Progress updated for user: ${userId}`);
+            } catch (challengeError) {
+                console.error('[Challenge] Progress update failed (non-blocking):', challengeError);
+            }
+        }
+
         return {
             success: true,
             data: {
