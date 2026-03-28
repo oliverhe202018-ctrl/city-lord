@@ -4,10 +4,19 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { Trophy, Medal, Star, Shield, ArrowUp, ArrowDown, MapPin, Zap, Loader2, ChevronDown, User } from "lucide-react"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { getSocialLeaderboard, type LeaderboardEntry } from "@/app/actions/leaderboard"
+import { getSocialScoreLeaderboard } from "@/app/actions/social-service"
 import { useAuth } from "@/hooks/useAuth"
+import { useGameStore } from "@/store/useGameStore"
 
 const ITEM_HEIGHT = 76
 const PAGE_SIZE = 50
+
+/** Resolve Supabase Storage relative paths to full URLs */
+function resolveAvatarUrl(url: string | null | undefined): string | undefined {
+    if (!url) return undefined
+    if (url.startsWith('http')) return url
+    return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1${url}`
+}
 
 type TabKey = "distance" | "territory" | "social"
 
@@ -25,6 +34,7 @@ export function Leaderboard() {
     const [hasMore, setHasMore] = useState(true)
     const parentRef = useRef<HTMLDivElement>(null)
     const { user } = useAuth()
+    const storeUserId = useGameStore((s) => s.userId)
 
     // Filter out zero-score entries
     const items = useMemo(() => entries.filter(e => e.score > 0), [entries])
@@ -39,19 +49,39 @@ export function Leaderboard() {
     const loadData = useCallback(async (pageNum: number) => {
         setIsLoading(true)
         try {
-            const data = await getSocialLeaderboard(user?.id, pageNum, PAGE_SIZE, activeTab)
+            let data: LeaderboardEntry[]
+
+            if (activeTab === 'social') {
+                // Use the new social_score_logs-based leaderboard
+                const socialData = await getSocialScoreLeaderboard('WEEKLY', PAGE_SIZE)
+                data = socialData.map((entry) => ({
+                    rank: entry.rank,
+                    id: entry.user_id,
+                    name: entry.nickname,
+                    avatar_url: resolveAvatarUrl(entry.avatar_url),
+                    score: entry.total_points,
+                    is_me: entry.user_id === (user?.id || storeUserId),
+                    change: 'same' as const,
+                }))
+                // Social leaderboard fetches all at once (top 50), no pagination
+                setHasMore(false)
+            } else {
+                // Distance / Territory tabs use existing leaderboard service
+                data = await getSocialLeaderboard(user?.id, pageNum, PAGE_SIZE, activeTab)
+                setHasMore(data.length === PAGE_SIZE)
+            }
+
             if (pageNum === 1) {
                 setEntries(data)
             } else {
                 setEntries(prev => [...prev, ...data])
             }
-            setHasMore(data.length === PAGE_SIZE)
         } catch (error) {
             console.error("Failed to load leaderboard:", error)
         } finally {
             setIsLoading(false)
         }
-    }, [user?.id, activeTab])
+    }, [user?.id, storeUserId, activeTab])
 
     useEffect(() => {
         setPage(1)

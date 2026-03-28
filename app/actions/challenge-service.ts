@@ -147,6 +147,11 @@ export async function acceptChallenge(challengeId: string) {
     console.warn('[ChallengeService] Notification insert failed:', e);
   }
 
+  // [Social Score] Award points for accepting a challenge (fire-and-forget)
+  import('@/app/actions/social-service').then(({ awardSocialPoints }) =>
+    awardSocialPoints(user.id, 'CHALLENGE_ACCEPTED', challengeId)
+  ).catch((e) => console.warn('[SocialScore] CHALLENGE_ACCEPTED award failed:', e));
+
   return { success: true };
 }
 
@@ -407,6 +412,11 @@ export async function updateChallengeProgress(
             // Fallback: direct SQL-less approach
             console.warn('[ChallengeService] RPC increment_xp not available, skipping XP grant:', xpError.message);
           }
+
+          // [Social Score] Award points for winning a challenge (fire-and-forget)
+          import('@/app/actions/social-service').then(({ awardSocialPoints }) =>
+            awardSocialPoints(userId, 'CHALLENGE_WON', challenge.id)
+          ).catch((e) => console.warn('[SocialScore] CHALLENGE_WON award failed:', e));
         } catch (e) {
           console.error('[ChallengeService] Post-victory processing error:', e);
         }
