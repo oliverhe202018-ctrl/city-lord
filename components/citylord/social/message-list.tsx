@@ -419,7 +419,7 @@ export function MessageList({ initialFriendId, mode = 'system' }: MessageListPro
           </button>
 
           {isVoiceMode ? (
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 flex">
               <VoiceRecorder receiverId={activeChat} onSend={handleSendVoice} />
             </div>
           ) : (

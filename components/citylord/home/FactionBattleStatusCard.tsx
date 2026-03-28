@@ -20,9 +20,7 @@ const MOCK_FACTIONS: FactionData[] = [
 ];
 
 export function FactionBattleStatusCard() {
-    const userStats = useGameStore(state => ({
-        faction: state.faction,
-    }));
+    const userFaction = useGameStore(state => state.faction);
 
     // In a real app, this would come from an API
     const cityFactionData = MOCK_FACTIONS;
@@ -111,7 +109,7 @@ export function FactionBattleStatusCard() {
                 {/* Right: Faction List */}
                 <div className="flex flex-1 flex-col gap-3">
                     {cityFactionData.map((faction, i) => {
-                        const isMyFaction = faction.name === userStats.faction || (userStats.faction === 'Red' && faction.name === '破晓者') || (userStats.faction === 'Blue' && faction.name === '秘术师');
+                        const isMyFaction = faction.name === userFaction || (userFaction === 'Red' && faction.name === '破晓者') || (userFaction === 'Blue' && faction.name === '秘术师');
                         // Handle potential translation or mapping
                         const displayName = isMyFaction ? `${faction.name}(我的阵营)` : faction.name;
 

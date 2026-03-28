@@ -125,7 +125,7 @@ export function VoiceRecorder({ receiverId, onSend, disabled }: VoiceRecorderPro
                 type="button" // prevent form submission
                 onContextMenu={(e)=>e.preventDefault()}
                 className={cn(
-                    "flex-1 h-10 flex items-center justify-center font-medium rounded-xl select-none touch-none transition-colors",
+                    "w-full h-10 flex items-center justify-center font-medium rounded-xl select-none touch-none transition-colors",
                     isRecording
                         ? "bg-zinc-700 text-white"
                         : "bg-muted text-muted-foreground hover:bg-muted/80",
