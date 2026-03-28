@@ -4,6 +4,7 @@ import * as Sentry from '@sentry/nextjs'
 import { prisma } from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
 import { cookies } from 'next/headers'
+import { awardSocialPoints } from '@/app/actions/social-service'
 
 export type VisibilityConfig = 'PUBLIC' | 'FRIENDS_ONLY' | 'CLUB_ONLY' | 'PRIVATE'
 export type SourceType = 'TEXT' | 'RUN' | 'ACHIEVEMENT'
@@ -105,6 +106,13 @@ export async function createPost(input: CreatePostInput): Promise<PostResponse> 
                 _count: { select: { likes: true, comments: true } }
             }
         })
+
+        // [Social Score] Award points for sharing a run (fire-and-forget)
+        if (source_type === 'RUN' && source_id) {
+            awardSocialPoints(user.id, 'SHARE_RUN', source_id).catch((e) =>
+                console.warn('[SocialScore] SHARE_RUN award failed:', e)
+            )
+        }
 
         return { success: true, post }
     } catch (error: any) {
@@ -311,6 +319,14 @@ export async function togglePostLike(postId: string): Promise<{ liked: boolean, 
         }
 
         const totalLikes = await prisma.post_likes.count({ where: { post_id: postId } })
+
+        // [Social Score] Award points for liking (only on like, not unlike) (fire-and-forget)
+        if (!existingLike) {
+            awardSocialPoints(user.id, 'LIKE_POST', postId).catch((e) =>
+                console.warn('[SocialScore] LIKE_POST award failed:', e)
+            )
+        }
+
         return { liked: !existingLike, totalLikes }
     } catch (error: any) {
         console.error(JSON.stringify({ action: 'togglePostLike', error: error.message || error }))
@@ -356,6 +372,11 @@ export async function createPostComment(input: CommentInput): Promise<{ success:
         const comment = await prisma.post_comments.create({
             data: { post_id: input.postId, user_id: user.id, content: input.content }
         })
+
+        // [Social Score] Award points for commenting (fire-and-forget)
+        awardSocialPoints(user.id, 'COMMENT').catch((e) =>
+            console.warn('[SocialScore] COMMENT award failed:', e)
+        )
 
         return { success: true, comment }
     } catch (error: any) {
