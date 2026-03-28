@@ -87,7 +87,6 @@ const nextConfig = {
 
   // 3. 图片域名配置
   images: {
-    unoptimized: true,
     formats: ['image/avif', 'image/webp'],
     minimumCacheTTL: 2592000,
     remotePatterns: [
@@ -97,7 +96,10 @@ const nextConfig = {
       },
       {
         protocol: 'https',
-        hostname: '*.supabase.co',
+        hostname: process.env.NEXT_PUBLIC_SUPABASE_URL 
+          ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname 
+          : '*.supabase.co',
+        pathname: '/storage/v1/object/public/**',
       },
     ],
     dangerouslyAllowSVG: true,

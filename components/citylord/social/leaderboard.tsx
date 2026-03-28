@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
+import Image from "next/image"
 import { Trophy, Medal, Star, Shield, ArrowUp, ArrowDown, MapPin, Zap, Loader2, ChevronDown, User } from "lucide-react"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { getSocialLeaderboard, type LeaderboardEntry } from "@/app/actions/leaderboard"
@@ -172,7 +173,7 @@ export function Leaderboard() {
 
                                             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-muted border-2 border-background shadow-inner overflow-hidden">
                                                 {entry.avatar_url ? (
-                                                    <img src={entry.avatar_url} alt="" className="w-full h-full object-cover" />
+                                                    <Image src={entry.avatar_url} alt="" width={48} height={48} className="w-full h-full object-cover" />
                                                 ) : (
                                                     <User className="w-6 h-6 text-muted-foreground" />
                                                 )}
