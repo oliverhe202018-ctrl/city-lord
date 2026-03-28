@@ -53,8 +53,7 @@ export function VoiceRecorder({ receiverId, onSend, disabled }: VoiceRecorderPro
             await startRecording();
         } catch (error: any) {
             console.log('[VoiceRecorder] Trigger modal interception. permissionStatus:', permissionStatus, 'showPermissionModal:', showPermissionModal);
-            // 临时注释掉触发“授权提示框”的 if 拦截逻辑，让代码直接去调用底层录音 API 暴露错误
-            /* // [NEW] 分级引导逻辑
+            // [NEW] 分级引导逻辑
             if (error?.message === 'PERMISSION_DENIED') {
                 const { toast } = await import('sonner');
                 toast.error('请授予麦克风权限以发送语音', {
@@ -62,7 +61,7 @@ export function VoiceRecorder({ receiverId, onSend, disabled }: VoiceRecorderPro
                 });
             } else if (error?.message === 'PERMISSION_PERMANENT_DENIED') {
                 setShowPermissionModal(true);
-            } */
+            }
         }
     };
 

@@ -3,6 +3,7 @@
 import React from "react"
 
 import { useState, useEffect } from "react"
+import { User } from "lucide-react"
 import {
   Swords,
   Timer,
@@ -244,7 +245,7 @@ export function ChallengePage({
       {/* Active Challenges Section */}
       {activeChallenges.length > 0 && (
         <div className="mb-6">
-          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-gray-900 dark:text-gray-100">
             <Timer className="h-4 w-4" />
             进行中的挑战
           </h2>
@@ -324,7 +325,7 @@ export function ChallengePage({
       {/* Pending Challenges Section */}
       {pendingChallenges.length > 0 && (
         <div>
-          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-gray-900 dark:text-gray-100">
             <Swords className="h-4 w-4" />
             待处理的挑战 ({pendingChallenges.length})
           </h2>
@@ -341,11 +342,28 @@ export function ChallengePage({
                   <div className="p-4">
                     <div className="mb-3 flex items-start justify-between">
                       <div className="flex items-center gap-3">
+                        {/* Opponent Avatar */}
+                        {(() => {
+                          const avatarUrl = challenge.from.avatar;
+                          const resolvedUrl = avatarUrl
+                            ? avatarUrl.startsWith('http')
+                              ? avatarUrl
+                              : `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1${avatarUrl}`
+                            : null;
+                          return resolvedUrl ? (
+                            <img
+                              src={resolvedUrl}
+                              alt={challenge.from.name}
+                              className="h-10 w-10 rounded-full object-cover shrink-0 border border-border"
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }}
+                            />
+                          ) : null;
+                        })()}
                         <div
-                          className="flex h-10 w-10 items-center justify-center rounded-full"
+                          className={`flex h-10 w-10 items-center justify-center rounded-full shrink-0 ${challenge.from.avatar ? 'hidden' : ''}`}
                           style={{ backgroundColor: `${option.color}20` }}
                         >
-                          <Icon className="h-5 w-5" style={{ color: option.color }} />
+                          <User className="h-5 w-5 text-muted-foreground" />
                         </div>
                         <div>
                           <p className="font-semibold text-foreground">{option.title}</p>
@@ -407,15 +425,29 @@ export function ChallengePage({
 
       {/* Send Challenge Section */}
       <div>
-        <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+        <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-gray-900 dark:text-gray-100">
           <Flame className="h-4 w-4" />
           发起挑战
         </h2>
 
         {selectedFriend ? (
           <div className="mb-4 flex items-center gap-3 rounded-xl border border-green-500/30 bg-green-500/10 p-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-500/20 text-lg font-bold text-green-500">
-              {selectedFriend.avatar || selectedFriend.name[0]}
+            {(() => {
+              const avatarUrl = selectedFriend.avatar;
+              const resolvedUrl = avatarUrl
+                ? (avatarUrl.startsWith('http') ? avatarUrl : `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1${avatarUrl}`)
+                : null;
+              return resolvedUrl ? (
+                <img
+                  src={resolvedUrl}
+                  alt={selectedFriend.name}
+                  className="h-10 w-10 rounded-full object-cover shrink-0 border border-green-500/30"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }}
+                />
+              ) : null;
+            })()}
+            <div className={`flex h-10 w-10 items-center justify-center rounded-full bg-green-500/20 text-lg font-bold text-green-500 shrink-0 ${selectedFriend.avatar ? 'hidden' : ''}`}>
+              {selectedFriend.name[0]}
             </div>
             <div>
               <p className="font-semibold text-foreground">向 {selectedFriend.name} 发起挑战</p>

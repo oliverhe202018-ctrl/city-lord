@@ -120,20 +120,26 @@ export function useAudioRecorder() {
             retryCountRef.current = 0;
             onAutoStopRef.current = onAutoStop ?? null;
 
+            // 1. 权限前置（绝对阻断）
+            const currentStatus = await checkPermissions();
+            if (currentStatus !== 'granted') {
+                const streamResult = await acquireAudioStream();
+                if (streamResult.ok) {
+                    releaseStream(streamResult.stream);
+                    await checkPermissions();
+                    toast.success('麦克风已就绪，请重新按住录音');
+                    return; // 请求完毕后立刻 return 退出函数，绝对不要初始化录音机
+                } else {
+                    const wasAlreadyRequested = hasRequestedRef.current;
+                    hasRequestedRef.current = true;
+                    throw new Error(wasAlreadyRequested ? 'PERMISSION_PERMANENT_DENIED' : 'PERMISSION_DENIED');
+                }
+            }
+
             const streamResult = await acquireAudioStream();
 
             if (!streamResult.ok) {
-                const wasAlreadyRequested = hasRequestedRef.current;
-                hasRequestedRef.current = true;
-
                 logEvent('audio_record_start_failed', { reason: streamResult.reason });
-
-                if (streamResult.reason === 'permission-denied') {
-                    throw new Error(wasAlreadyRequested ? 'PERMISSION_PERMANENT_DENIED' : 'PERMISSION_DENIED');
-                }
-                if (streamResult.reason === 'not-found') {
-                    throw new Error('DEVICE_NOT_FOUND');
-                }
                 throw new Error('STREAM_ERROR');
             }
 
@@ -207,9 +213,13 @@ export function useAudioRecorder() {
                 timerRef.current = null;
             }
 
-            mediaRecorderRef.current.onstop = async () => {
+            // 彻底销毁实例
+            const recorder = mediaRecorderRef.current;
+            mediaRecorderRef.current = null;
+
+            recorder.onstop = async () => {
                 setIsRecording(false);
-                const tracks = mediaRecorderRef.current?.stream.getTracks();
+                const tracks = recorder.stream.getTracks();
                 if (tracks) {
                     tracks.forEach(track => {
                         track.stop();
@@ -217,10 +227,9 @@ export function useAudioRecorder() {
                     });
                 }
                 
-                // Explicitly release the stream to free the microphone focus
-                if (mediaRecorderRef.current?.stream) {
+                if (recorder.stream) {
                     const { releaseStream } = await import('@/lib/audio/AudioStreamManager');
-                    releaseStream(mediaRecorderRef.current.stream);
+                    releaseStream(recorder.stream);
                 }
 
                 if (cancel) {
@@ -234,7 +243,7 @@ export function useAudioRecorder() {
                     return;
                 }
 
-                const mimeType = mediaRecorderRef.current?.mimeType || 'audio/webm';
+                const mimeType = recorder.mimeType || 'audio/webm';
                 const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
 
                 const supabase = createClient();
@@ -268,7 +277,7 @@ export function useAudioRecorder() {
                 }
             };
 
-            mediaRecorderRef.current.stop();
+            recorder.stop();
         });
     }, []);
 
