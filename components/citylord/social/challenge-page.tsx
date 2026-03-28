@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useCallback, useRef } from "react"
+import Image from "next/image"
 import { User } from "lucide-react"
 import {
   Swords,
@@ -399,9 +400,11 @@ export function ChallengePage({
                         <div className="text-xs text-muted-foreground flex items-center gap-1.5">
                           vs
                           {oppAvatarUrl ? (
-                            <img
+                            <Image
                               src={oppAvatarUrl}
                               alt={opponent.nickname}
+                              width={16}
+                              height={16}
                               className="h-4 w-4 rounded-full object-cover inline-block"
                               onError={(e) => {
                                 ;(e.target as HTMLImageElement).style.display = "none"
@@ -512,9 +515,11 @@ export function ChallengePage({
                       <div className="flex items-center gap-3">
                         {/* Challenger Avatar */}
                         {avatarUrl ? (
-                          <img
+                          <Image
                             src={avatarUrl}
                             alt={from.nickname}
+                            width={40}
+                            height={40}
                             className="h-10 w-10 rounded-full object-cover shrink-0 border border-border"
                             onError={(e) => {
                               ;(e.target as HTMLImageElement).style.display = "none"
@@ -615,9 +620,11 @@ export function ChallengePage({
             {(() => {
               const resolvedUrl = resolveAvatarUrl(selectedFriend.avatar)
               return resolvedUrl ? (
-                <img
+                <Image
                   src={resolvedUrl}
                   alt={selectedFriend.name}
+                  width={40}
+                  height={40}
                   className="h-10 w-10 rounded-full object-cover shrink-0 border border-green-500/30"
                   onError={(e) => {
                     ;(e.target as HTMLImageElement).style.display = "none"
