@@ -131,7 +131,7 @@ export async function saveRunActivity(
         // 5. Transaction: Save Run + Process Rewards + Audit Logs
         const result = await prisma.$transaction(async (tx: any) => {
             // A. Create Run Record (Always saved, even if flagged)
-            const run = await tx.run.create({
+            const run = await tx.runs.create({
                 data: {
                     user_id: userId,
                     distance: evaluationData.distance,
@@ -155,7 +155,7 @@ export async function saveRunActivity(
 
             // Audit logging for suspicious runs
             if (isFlagged || pathValidation.riskLevel !== 'LOW') {
-                await tx.antiCheatAuditLog.create({
+                await tx.anti_cheat_audit_logs.create({
                     data: {
                         user_id: userId,
                         run_id: run.id,
@@ -195,7 +195,7 @@ export async function saveRunActivity(
                     period_key: r.periodKey
                 }));
 
-                const existingLogs = await tx.userTaskLog.findMany({
+                const existingLogs = await tx.user_task_logs.findMany({
                     where: {
                         OR: checks
                     },
@@ -214,7 +214,7 @@ export async function saveRunActivity(
                     const key = `${res.taskId}-${res.periodKey}`;
                     if (!existingSet.has(key)) {
                         // Valid new completion
-                        await tx.userTaskLog.create({
+                        await tx.user_task_logs.create({
                             data: {
                                 user_id: userId,
                                 run_id: run.id,
@@ -270,7 +270,7 @@ export async function saveRunActivity(
             }
 
             // D. Get Run Number (Phase 3)
-            const runNumber = await tx.run.count({
+            const runNumber = await tx.runs.count({
                 where: { user_id: userId }
             });
 
@@ -282,7 +282,7 @@ export async function saveRunActivity(
                 const { MapService } = await import('@/lib/services/mapService');
                 const accurateAreaKm2 = await MapService.calculateAreaKm2(JSON.stringify(runData.path)); 
 
-                await tx.userCityProgress.upsert({
+                await tx.user_city_progress.upsert({
                     where: {
                         user_id_city_id: {
                             user_id: userId,

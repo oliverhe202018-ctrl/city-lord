@@ -19,14 +19,14 @@ import type { GeoPoint } from '@/hooks/useSafeGeolocation';
 
 const TAG = '[RunningFilter]';
 
-/** 跑步精度门槛（米）— 首次 fix 后收紧 */
-const RUNNING_ACCURACY_THRESHOLD = 100;
-/** 冷启动精度门槛（更宽松，允许首次 fix 快速写入） */
-const COLD_START_ACCURACY_THRESHOLD = 200;
+/** 跑步精度门槛（米）— 30m 硬门槛，与 useRunningTracker 一致 */
+const RUNNING_ACCURACY_THRESHOLD = 30;
+/** 冷启动精度门槛（略宽松，允许首次 fix 快速写入） */
+const COLD_START_ACCURACY_THRESHOLD = 50;
 /** 最小更新距离（米） */
 const MIN_UPDATE_DISTANCE_M = 2;
-/** 最大合理跑步速度（m/s）— 约 45km/h，防交通工具 */
-const MAX_RUNNING_SPEED_MS = 12.5;
+/** 最大合理跑步速度（m/s）— 约 36km/h，防交通工具及信号漂移 */
+const MAX_RUNNING_SPEED_MS = 10;
 /** 最大合理加速度（m/s²）— 人类极限约 5m/s²，留余量 */
 const MAX_ACCELERATION_MS2 = 8.0;
 /** 静止抖动半径（米）— 低于此距离视为 GPS 抖动 */

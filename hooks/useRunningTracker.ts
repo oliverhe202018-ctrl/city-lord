@@ -358,32 +358,51 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
     const now = timestamp || Date.now();
 
-    // Accuracy Check (50m threshold - aligned with useSafeGeolocation)
-    // NOTE: GPS is already filtered by useSafeGeolocation, but double-check for safety
-    if (accuracy && accuracy > 50) {
-      console.debug(`[useRunningTracker] Rejected >50m accuracy point (${accuracy}m)`);
+    // ================================================================
+    // 🛡️ THREE-LAYER GPS ANTI-JITTER INTERCEPTOR
+    // Applied BEFORE smoothing, path appending, or distance calculation
+    // ================================================================
+
+    // --- Layer 1: Accuracy Filter ---
+    // GPS accuracy >30m indicates unreliable satellite fix (indoor, urban canyon)
+    if (accuracy != null && accuracy > 30) {
+      console.debug(`[GPS-Filter] ❌ Layer 1 REJECT: accuracy ${accuracy.toFixed(0)}m > 30m threshold`);
       return;
     }
 
-    // ⚠️ ANTI-CHEAT TEMPORARILY DISABLED FOR TESTING
-    // TODO: Re-enable with more tolerant threshold (e.g., 50 km/h) or implement server-side validation
-    // Original logic was blocking legitimate GPS jumps during normal running
-    /*
-    // Speed Check (Anti-Cheat)
+    // --- Layer 2: Speed Filter ---
+    // Calculate speed between this point and last valid point
+    // If speed > 10 m/s (~36 km/h), this is signal drift, not human movement
     if (lastLocationRef.current) {
       const prevLoc = lastLocationRef.current;
       const distToPrev = getDistanceFromLatLonInMeters(prevLoc.lat, prevLoc.lng, lat, lng);
-      const timeDiff = (now - prevLoc.timestamp) / 1000; // seconds
+      const timeDiffSec = (now - prevLoc.timestamp) / 1000;
 
-      if (timeDiff > 0) {
-        const speedKmh = (distToPrev / timeDiff) * 3.6;
-        if (speedKmh > 35) {
-          toast.warning("移动速度过快，判定为交通工具，该点已忽略");
+      if (timeDiffSec > 0.5) {
+        const speedMs = distToPrev / timeDiffSec;
+        if (speedMs > 10) {
+          console.debug(
+            `[GPS-Filter] ❌ Layer 2 REJECT: speed ${(speedMs * 3.6).toFixed(1)}km/h > 36km/h | ` +
+            `dist=${distToPrev.toFixed(1)}m dt=${timeDiffSec.toFixed(1)}s`
+          );
           return;
         }
       }
+
+      // --- Layer 3: Micro-Jitter Filter ---
+      // If distance < 2m, the runner is standing still (red light, stretching)
+      // Do NOT accumulate distance or append to path (prevents "yarn ball" artifacts)
+      // But DO update lastLocationRef timestamp to keep timeDiff fresh
+      if (distToPrev < 2) {
+        // Update timestamp only so subsequent speed calculations stay valid
+        lastLocationRef.current = { ...prevLoc, timestamp: now };
+        return;
+      }
     }
-    */
+
+    // ================================================================
+    // All 3 layers passed — this is a valid GPS point
+    // ================================================================
 
     let newLoc: Location = { lat, lng, timestamp: now };
 
@@ -495,6 +514,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     }).catch(e => console.error("[useRunningTracker] Failed to enqueue point", e));
 
   }, []);
+
 
   // ======== CRITICAL: React to GPS location from global store ========
   // This is the SAME data source as TrajectoryLayer (via MapRoot.userPath)
