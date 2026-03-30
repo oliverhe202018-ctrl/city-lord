@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback, useTransition, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { ProfileHeader } from '@/components/profile/ProfileHeader'
 import { StatsGrid } from '@/components/profile/StatsGrid'
 import { RunHistoryList } from '@/components/profile/RunHistoryList'
@@ -22,8 +23,6 @@ import { sendFriendRequest } from '@/app/actions/social'
 import { toast } from 'sonner'
 import { ArrowLeft, MoreHorizontal, ShieldBan, UserPlus, Lock } from 'lucide-react'
 
-import { usePageBackNavigation } from '@/hooks/usePageBackNavigation'
-
 function UserProfileContent() {
     const searchParams = useSearchParams()
     const router = useRouter()
@@ -33,8 +32,6 @@ function UserProfileContent() {
     const [likeCount, setLikeCount] = useState(0)
     const [isLiked, setIsLiked] = useState(false)
     const [isPending, startTransition] = useTransition()
-
-    const { goBack: handleBack } = usePageBackNavigation('/social')
 
     useEffect(() => {
         if (!userId) return
@@ -125,7 +122,7 @@ function UserProfileContent() {
         return (
             <div className="flex flex-col h-full bg-background">
                 <div className="sticky top-0 z-20 flex items-center gap-2 px-4 py-2 bg-background/80 backdrop-blur-lg">
-                    <button onClick={handleBack} className="p-1 rounded-full hover:bg-muted/20 transition-colors">
+                    <button onClick={() => router.back()} className="p-1 rounded-full hover:bg-muted/20 transition-colors">
                         <ArrowLeft className="w-5 h-5 text-foreground" />
                     </button>
                     <span className="text-sm font-medium text-foreground">用户主页</span>
@@ -134,10 +131,13 @@ function UserProfileContent() {
                 <div className="flex-1 flex flex-col items-center justify-center px-8">
                     <div className="relative mb-6">
                         {profileData.user.avatarUrl ? (
-                            <img
+                            <Image
                                 src={profileData.user.avatarUrl}
                                 alt={profileData.user.nickname ?? '用户'}
+                                width={96}
+                                height={96}
                                 className="w-24 h-24 rounded-full object-cover border-4 border-border"
+                                onError={(e) => { e.currentTarget.style.display = 'none' }}
                             />
                         ) : (
                             <div className="w-24 h-24 rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center border-4 border-border">
@@ -173,7 +173,7 @@ function UserProfileContent() {
             {/* Top bar */}
             <div className="sticky top-0 z-20 flex items-center justify-between px-4 py-2 bg-background/80 backdrop-blur-lg">
                 <div className="flex items-center gap-2">
-                    <button onClick={handleBack} className="p-1 rounded-full hover:bg-muted/20 transition-colors">
+                    <button onClick={() => router.back()} className="p-1 rounded-full hover:bg-muted/20 transition-colors">
                         <ArrowLeft className="w-5 h-5 text-foreground" />
                     </button>
                     <span className="text-sm font-medium text-foreground">
@@ -204,9 +204,9 @@ function UserProfileContent() {
                         </button>
                     )}
                     {!data.isSelf && data.isFollowing && (
-                        <span className="px-3 py-1.5 rounded-full bg-muted/30 text-muted-foreground text-sm border border-border">
-                            已关注
-                        </span>
+                        <button disabled className="px-3 py-1.5 rounded-full bg-muted/30 text-muted-foreground text-sm border border-border cursor-not-allowed">
+                            已互关
+                        </button>
                     )}
 
                     {/* More menu */}

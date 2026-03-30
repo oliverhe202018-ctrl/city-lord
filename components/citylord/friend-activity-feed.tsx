@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useTransition } from "react"
+import { createPortal } from "react-dom"
 import { toast } from "sonner"
 import { handleAppError } from "@/lib/utils/app-error"
 import { getFeedTimeline, togglePostLike, createPostComment, deletePostComment, reportPost, getPostComments, markSocialAsRead, FeedTimelineResponse } from "@/app/actions/social-hub"
@@ -439,12 +440,12 @@ function ActivityCard({ post, onLike, onComment, isNew }: ActivityCardProps) {
       </div>
 
       {/* Report Dialog */}
-      {showReportDialog && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center sm:p-4 animate-in fade-in" onClick={() => setShowReportDialog(false)}>
-          <div className="w-full max-w-md rounded-t-2xl sm:rounded-2xl bg-background p-6 shadow-xl animate-in slide-in-from-bottom border border-border" onClick={e => e.stopPropagation()}>
+      {showReportDialog && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 animate-in fade-in" onClick={() => setShowReportDialog(false)}>
+          <div className="bg-background w-full max-w-md rounded-2xl p-5 relative z-[101] shadow-2xl border border-white/10 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold">举报动态</h3>
-              <button onClick={() => setShowReportDialog(false)} className="rounded-full p-2 bg-muted/50 text-muted-foreground hover:bg-muted transition-colors"><X className="h-4 w-4" /></button>
+              <h3 className="text-lg font-bold text-foreground">举报动态</h3>
+              <button onClick={() => setShowReportDialog(false)} className="rounded-full p-2 bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"><X className="h-4 w-4" /></button>
             </div>
 
             <div className="space-y-4">
@@ -455,7 +456,7 @@ function ActivityCard({ post, onLike, onComment, isNew }: ActivityCardProps) {
                     <button
                       key={reason}
                       onClick={() => setReportReason(reason)}
-                      className={`px-3 py-1.5 rounded-full text-sm transition-colors ${reportReason === reason ? "bg-red-500 text-white shadow-md shadow-red-500/20" : "bg-muted text-foreground hover:bg-muted/80"}`}
+                      className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${reportReason === reason ? "bg-red-500 text-white shadow-md shadow-red-500/20" : "bg-muted text-foreground hover:bg-muted/80"}`}
                     >
                       {reason}
                     </button>
@@ -469,37 +470,46 @@ function ActivityCard({ post, onLike, onComment, isNew }: ActivityCardProps) {
                   value={reportDetail}
                   onChange={e => setReportDetail(e.target.value)}
                   placeholder="详情描述有助于我们更快处理..."
-                  className="w-full rounded-xl border border-border bg-muted/30 p-3 text-sm focus:outline-none focus:ring-1 focus:ring-red-500 transition-all placeholder:text-muted-foreground/60 resize-none"
+                  className="w-full rounded-xl border border-white/10 bg-muted/30 p-3.5 text-sm focus:outline-none focus:ring-1 focus:ring-red-500 transition-all placeholder:text-muted-foreground/60 resize-none"
                   rows={3}
                   maxLength={200}
                 />
               </div>
 
-              <button
-                disabled={isSubmittingReport}
-                onClick={async () => {
-                  setIsSubmittingReport(true)
-                  try {
-                    const fullReason = reportDetail ? `${reportReason}: ${reportDetail}` : reportReason
-                    const res = await reportPost(post.id, fullReason)
-                    if (!res.success) throw res.error
-                    toast.success("举报已提交", { description: "我们会尽快核实处理，感谢您的反馈。" })
-                    setShowReportDialog(false)
-                    setReportDetail("")
-                    setReportReason("垃圾广告")
-                  } catch (e: any) {
-                    handleAppError(e, "举报失败", { 409: "您已举报过该动态", 429: "举报太频繁了，请稍后再试" })
-                  } finally {
-                    setIsSubmittingReport(false)
-                  }
-                }}
-                className="w-full rounded-xl bg-red-500 py-3 text-sm font-bold text-white shadow-lg shadow-red-500/20 hover:bg-red-600 active:scale-95 disabled:opacity-50 flex items-center justify-center transition-all"
-              >
-                {isSubmittingReport ? <Loader2 className="h-4 w-4 animate-spin" /> : "确认举报"}
-              </button>
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  onClick={() => setShowReportDialog(false)}
+                  className="flex-1 rounded-xl bg-muted/50 py-3 text-sm font-bold text-foreground hover:bg-muted active:scale-95 transition-all"
+                >
+                  取消
+                </button>
+                <button
+                  disabled={isSubmittingReport}
+                  onClick={async () => {
+                    setIsSubmittingReport(true)
+                    try {
+                      const fullReason = reportDetail ? `${reportReason}: ${reportDetail}` : reportReason
+                      const res = await reportPost(post.id, fullReason)
+                      if (!res.success) throw res.error
+                      toast.success("举报已提交", { description: "我们会尽快核实处理，感谢您的反馈。" })
+                      setShowReportDialog(false)
+                      setReportDetail("")
+                      setReportReason("垃圾广告")
+                    } catch (e: any) {
+                      handleAppError(e, "举报失败", { 409: "您已举报过该动态", 429: "举报太频繁了，请稍后再试" })
+                    } finally {
+                      setIsSubmittingReport(false)
+                    }
+                  }}
+                  className="flex-1 rounded-xl bg-red-500 py-3 text-sm font-bold text-white shadow-lg shadow-red-500/20 hover:bg-red-600 active:scale-95 disabled:opacity-50 flex items-center justify-center transition-all"
+                >
+                  {isSubmittingReport ? <Loader2 className="h-4 w-4 animate-spin" /> : "确认举报"}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {showPoster && <PosterModal post={post} onClose={() => setShowPoster(false)} />}

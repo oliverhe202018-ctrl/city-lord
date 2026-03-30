@@ -137,7 +137,8 @@ export function Leaderboard() {
                 ) : (
                     <div
                         ref={parentRef}
-                        className="max-h-[400px] overflow-y-auto rounded-xl"
+                        className="max-h-[400px] overflow-y-auto overscroll-contain transform-gpu rounded-xl scrollbar-hide"
+                        style={{ WebkitOverflowScrolling: 'touch' }}
                     >
                         <div
                             style={{

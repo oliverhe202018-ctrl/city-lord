@@ -10,10 +10,14 @@ export function FactionBattleStatusCard() {
 
     // Fetch faction stats from API
     const [factionStats, setFactionStats] = useState<{
-        red_area: number;
-        blue_area: number;
-        red_user_count: number;
-        blue_user_count: number;
+        red_area?: number;
+        blue_area?: number;
+        redArea?: number;
+        blueArea?: number;
+        red_user_count?: number;
+        blue_user_count?: number;
+        red_faction?: number;
+        blue_faction?: number;
     } | null>(null);
 
     const [dailyStat, setDailyStat] = useState<{
@@ -34,15 +38,15 @@ export function FactionBattleStatusCard() {
     }, []);
 
     // Member counts: prioritize dailyStat (snapshot), then factionStats
-    const redMembers = dailyStat?.redCount ?? factionStats?.red_user_count ?? 0;
-    const blueMembers = dailyStat?.blueCount ?? factionStats?.blue_user_count ?? 0;
+    const redMembers = dailyStat?.redCount ?? factionStats?.red_user_count ?? factionStats?.red_faction ?? 0;
+    const blueMembers = dailyStat?.blueCount ?? factionStats?.blue_user_count ?? factionStats?.blue_faction ?? 0;
     const totalMembers = redMembers + blueMembers;
     const redMemberPercent = totalMembers > 0 ? (redMembers / totalMembers) * 100 : 50;
     const blueMemberPercent = 100 - redMemberPercent;
 
     // Area stats
-    const redArea = factionStats?.red_area ?? 0;
-    const blueArea = factionStats?.blue_area ?? 0;
+    const redArea = factionStats?.redArea ?? factionStats?.red_area ?? 0;
+    const blueArea = factionStats?.blueArea ?? factionStats?.blue_area ?? 0;
     const totalArea = redArea + blueArea;
     const redAreaPercent = totalArea > 0 ? (redArea / totalArea) * 100 : 50;
     const blueAreaPercent = 100 - redAreaPercent;

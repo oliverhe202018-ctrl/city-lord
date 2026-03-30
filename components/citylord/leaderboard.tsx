@@ -1,9 +1,10 @@
 "use client"
 
+import Image from "next/image"
 import { Trophy, Crown, Medal, Award, Hexagon, Users } from "lucide-react"
 import { formatAreaFromHexCount } from "@/lib/citylord/area-utils"
 import { GlassCard } from "@/components/ui/GlassCard"
-import { useContext } from "react"
+import { useContext, useCallback } from "react"
 import { CityContext } from "@/contexts/CityContext"
 import type { CityLeaderboardEntry } from "@/app/actions/city"
 import useSWR from "swr"
@@ -28,6 +29,8 @@ const fetchCityLeaderboardApi = async (cityId: string): Promise<CityLeaderboardE
   return await res.json()
 }
 
+/** Default fallback for broken avatar images */
+const FALLBACK_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='1.5'%3E%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='12' cy='7' r='4'/%3E%3C/svg%3E"
 
 function PodiumItem({ entry, size }: { entry?: CityLeaderboardEntry, size: 'lg' | 'md' | 'sm' }) {
   if (!entry) return null
@@ -36,6 +39,10 @@ function PodiumItem({ entry, size }: { entry?: CityLeaderboardEntry, size: 'lg' 
   const color = isFirst ? 'text-yellow-400' : entry.rank === 2 ? 'text-gray-300' : 'text-amber-600'
   const glow = isFirst ? 'shadow-[0_0_20px_rgba(250,204,21,0.3)]' : ''
 
+  const handleImgError = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
+    e.currentTarget.src = FALLBACK_AVATAR
+  }, [])
+
   return (
     <div className="flex flex-col items-center justify-end">
       <div className="relative mb-2">
@@ -43,7 +50,14 @@ function PodiumItem({ entry, size }: { entry?: CityLeaderboardEntry, size: 'lg' 
         <div className={`rounded-full border-2 ${color.replace('text', 'border')} ${glow} p-1`}>
            <div className={`flex items-center justify-center rounded-full bg-white/10 overflow-hidden ${isFirst ? 'h-16 w-16' : 'h-12 w-12'} shrink-0`}>
              {entry.avatar ? (
-               <img src={entry.avatar} alt={entry.nickname} className="h-full w-full object-cover" />
+               <Image
+                 src={entry.avatar}
+                 alt={entry.nickname}
+                 width={isFirst ? 64 : 48}
+                 height={isFirst ? 64 : 48}
+                 className="h-full w-full object-cover"
+                 onError={handleImgError}
+               />
              ) : (
                <span className={isFirst ? 'text-3xl' : 'text-2xl'}>👤</span>
              )}
@@ -96,6 +110,10 @@ export function Leaderboard() {
     }
   )
 
+  const handleImgError = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
+    e.currentTarget.src = FALLBACK_AVATAR
+  }, [])
+
   if (!context) {
     return <div className="p-8 text-center text-white/60">Loading...</div>
   }
@@ -124,8 +142,8 @@ export function Leaderboard() {
         <Podium top3={top3} />
       </div>
 
-      {/* Leaderboard List */}
-      <div className="flex-1 overflow-y-auto px-4 pb-24 bg-black/20 rounded-t-3xl border-t border-white/10 pt-4">
+      {/* Leaderboard List — GPU-accelerated scroll container */}
+      <div className="flex-1 overflow-y-auto overscroll-contain transform-gpu px-4 pb-24 bg-black/20 rounded-t-3xl border-t border-white/10 pt-4 scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}>
         {/* Your Rank Card */}
         {currentCityProgress && (
           <GlassCard className="mb-4 p-3 bg-[#39ff14]/5 border-[#39ff14]/30">
@@ -151,7 +169,7 @@ export function Leaderboard() {
         <div className="space-y-2">
           {rest.map((entry) => (
             <div
-              key={entry.rank}
+              key={entry.userId || `rank-${entry.rank}`}
               className="flex items-center gap-3 rounded-xl border border-white/5 bg-white/5 p-3 transition-all hover:bg-white/10"
             >
               {/* Rank Badge */}
@@ -159,10 +177,17 @@ export function Leaderboard() {
                 #{entry.rank}
               </div>
 
-              {/* Avatar */}
+              {/* Avatar — Next.js Image with physical dimensions */}
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-xl overflow-hidden shrink-0">
                 {entry.avatar ? (
-                  <img src={entry.avatar} alt={entry.nickname} className="w-full h-full object-cover" />
+                  <Image
+                    src={entry.avatar}
+                    alt={entry.nickname}
+                    width={40}
+                    height={40}
+                    className="w-full h-full object-cover"
+                    onError={handleImgError}
+                  />
                 ) : (
                   <span>👤</span>
                 )}

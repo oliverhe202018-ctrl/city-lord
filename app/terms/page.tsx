@@ -1,13 +1,14 @@
 import { ChevronLeft } from "lucide-react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 export default function TermsOfServicePage() {
+    const router = useRouter();
     return (
-        <div className="min-h-[100dvh] bg-[#0f172a] text-slate-200">
+        <div className="h-[100dvh] overflow-y-auto w-full bg-[#0f172a] text-slate-200">
             <div className="sticky top-0 z-10 flex items-center h-14 px-4 bg-[#0f172a]/80 backdrop-blur-md border-b border-white/10">
-                <Link href="javascript:history.back()" className="flex h-10 w-10 items-center justify-center rounded-full bg-white/5 active:bg-white/10">
+                <button onClick={() => router.back()} className="flex h-10 w-10 items-center justify-center rounded-full bg-white/5 active:bg-white/10 relative z-20">
                     <ChevronLeft className="h-5 w-5 text-white" />
-                </Link>
+                </button>
                 <h1 className="ml-4 text-base font-semibold text-white">用户服务协议</h1>
             </div>
 

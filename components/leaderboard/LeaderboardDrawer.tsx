@@ -7,7 +7,6 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useGameStore, useGameActions } from "@/store/useGameStore";
 import { RankItem } from "./RankItem";
 import { RankData } from "./mock-data";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Trophy, AlertCircle, Map, Globe, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getLeaderboardData, LeaderboardEntry } from "@/app/actions/leaderboard";
@@ -133,7 +132,8 @@ export function LeaderboardDrawer() {
     return (
       <div
         ref={listParentRef}
-        className="max-h-[60vh] overflow-y-auto"
+        className="max-h-[60vh] overflow-y-auto overscroll-contain transform-gpu scrollbar-hide"
+        style={{ WebkitOverflowScrolling: 'touch' }}
       >
         <div
           style={{
@@ -147,7 +147,7 @@ export function LeaderboardDrawer() {
             if (!item) return null
             return (
               <div
-                key={virtualRow.key}
+                key={item.id || `lb-${item.rank}-${virtualRow.key}`}
                 style={{
                   position: 'absolute',
                   top: 0,
@@ -160,6 +160,7 @@ export function LeaderboardDrawer() {
                 <RankItem
                   data={{
                     rank: item.rank,
+                    id: item.id,
                     name: item.name,
                     avatar: item.avatar_url,
                     score: item.score,
@@ -288,8 +289,8 @@ export function LeaderboardDrawer() {
             )}
           </div>
 
-          {/* Scrollable content area with absolute height to guarantee scrolling */}
-          <div className="flex-1 overflow-y-auto px-4 pb-32 overscroll-contain">
+          {/* Scrollable content area — GPU-accelerated */}
+          <div className="flex-1 overflow-y-auto overscroll-contain transform-gpu px-4 pb-32 scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}>
             <div className="mt-2 pb-4">
               {renderList()}
 
@@ -341,6 +342,7 @@ function StickyBottom({ data, label }: { data?: LeaderboardEntry; label: string 
   // Map LeaderboardEntry to RankData for RankItem
   const rankData: RankData = {
     rank: data.rank,
+    id: data.id,
     name: data.name,
     avatar: data.avatar_url,
     score: data.score,

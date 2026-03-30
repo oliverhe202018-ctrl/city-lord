@@ -704,124 +704,87 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
         </div>
 
         {/* Quick Actions */}
-        <div className="mt-auto border-t border-border p-4">
+        <div className="mt-auto border-t border-border bg-gray-50 dark:bg-[#0a0a0a] px-4 pt-6 pb-8">
           {/* Background Settings */}
-          <Link href="/profile/backgrounds" className="mb-2 flex w-full items-center justify-between rounded-xl border border-border bg-gradient-to-r from-purple-500/10 to-indigo-500/10 p-3 transition-all active:bg-muted/10 hover:bg-card/80">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-indigo-500 shadow-lg shadow-purple-500/20">
-                <Sparkles className="h-4 w-4 text-white" />
-              </div>
-              <div className="text-left">
-                <p className="text-sm font-semibold text-foreground">个性化主页</p>
-                <p className="text-xs text-muted-foreground">挑选动态封面，装扮个人资料</p>
-              </div>
+          <Link href="/profile/backgrounds" className="flex items-center justify-between p-4 mb-3 bg-white dark:bg-gray-800/80 rounded-xl shadow-sm border border-gray-100 dark:border-white/5 active:scale-[0.98] transition-transform cursor-pointer">
+            <div className="flex items-center gap-4">
+              <Sparkles className="text-gray-800 dark:text-gray-200 w-5 h-5" />
+              <span className="text-base font-bold text-gray-900 dark:text-gray-100">个性化主页</span>
             </div>
-            <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
+            <ChevronRight className="w-5 h-5 text-gray-400" />
           </Link>
 
           {/* My Profile Entry */}
-          <Link
-            href={`/profile/user?${new URLSearchParams({ userId, returnTo: '/profile' }).toString()}`}
-            className="mb-2 flex w-full items-center justify-between rounded-xl border border-border bg-gradient-to-r from-blue-500/10 to-cyan-500/10 p-3 transition-all active:bg-muted/10 hover:bg-card/80"
-          >
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 shadow-lg shadow-blue-500/20">
-                <User className="h-4 w-4 text-white" />
-              </div>
-              <div className="text-left">
-                <p className="text-sm font-semibold text-foreground">我的主页</p>
-                <p className="text-xs text-muted-foreground">进入并查看自己的个人主页</p>
-              </div>
+          <Link href={`/profile/user?${new URLSearchParams({ userId, returnTo: '/profile' }).toString()}`} className="flex items-center justify-between p-4 mb-3 bg-white dark:bg-gray-800/80 rounded-xl shadow-sm border border-gray-100 dark:border-white/5 active:scale-[0.98] transition-transform cursor-pointer">
+            <div className="flex items-center gap-4">
+              <User className="text-gray-800 dark:text-gray-200 w-5 h-5" />
+              <span className="text-base font-bold text-gray-900 dark:text-gray-100">我的主页</span>
             </div>
-            <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
+            <ChevronRight className="w-5 h-5 text-gray-400" />
           </Link>
 
           {/* Invite Friends Entry */}
-          <Link href="/referral" className="mb-2 flex w-full items-center justify-between rounded-xl border border-border bg-gradient-to-r from-orange-500/10 to-rose-500/10 p-3 transition-all active:bg-muted/10 hover:bg-card/80">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-rose-500 shadow-lg shadow-orange-500/20">
-                <Gift className="h-4 w-4 text-white" />
-              </div>
-              <div className="text-left">
-                <p className="text-sm font-semibold text-foreground">邀请好友</p>
-                <p className="text-xs text-muted-foreground">邀请好友加入，解锁专属奖励</p>
-              </div>
+          <Link href="/referral" className="flex items-center justify-between p-4 mb-3 bg-white dark:bg-gray-800/80 rounded-xl shadow-sm border border-gray-100 dark:border-white/5 active:scale-[0.98] transition-transform cursor-pointer">
+            <div className="flex items-center gap-4">
+              <Gift className="text-gray-800 dark:text-gray-200 w-5 h-5" />
+              <span className="text-base font-bold text-gray-900 dark:text-gray-100">邀请好友</span>
             </div>
-            <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
+            <ChevronRight className="w-5 h-5 text-gray-400" />
           </Link>
 
-          <Link href="/feedback" className="flex w-full items-center justify-between rounded-xl border border-border bg-card/50 p-3 transition-all active:bg-muted/10 hover:bg-card/80">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-yellow-500/20">
-                <MessageSquareWarning className="h-4 w-4 text-yellow-500" />
-              </div>
-              <div className="text-left">
-                <p className="text-sm font-semibold text-foreground">问题反馈</p>
-                <p className="text-xs text-muted-foreground">提交Bug或改进建议</p>
-              </div>
+          <Link href="/feedback" className="flex items-center justify-between p-4 mb-3 bg-white dark:bg-gray-800/80 rounded-xl shadow-sm border border-gray-100 dark:border-white/5 active:scale-[0.98] transition-transform cursor-pointer">
+            <div className="flex items-center gap-4">
+              <MessageSquareWarning className="text-gray-800 dark:text-gray-200 w-5 h-5" />
+              <span className="text-base font-bold text-gray-900 dark:text-gray-100">问题反馈</span>
             </div>
-            <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
+            <ChevronRight className="w-5 h-5 text-gray-400" />
           </Link>
 
-          <Link
-            href="/changelog"
-            className="mt-2 flex w-full items-center justify-between rounded-xl border border-border bg-card/50 p-3 transition-all active:bg-muted/10 hover:bg-card/80"
-          >
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/20">
-                <ScrollText className="h-4 w-4 text-emerald-500" />
-              </div>
-              <div className="text-left">
-                <p className="text-sm font-semibold text-foreground">功能更新日志</p>
-                <p className="text-xs text-muted-foreground">查看最新版本功能与改动说明</p>
-              </div>
+          <Link href="/changelog" className="flex items-center justify-between p-4 mb-3 bg-white dark:bg-gray-800/80 rounded-xl shadow-sm border border-gray-100 dark:border-white/5 active:scale-[0.98] transition-transform cursor-pointer">
+            <div className="flex items-center gap-4">
+              <ScrollText className="text-gray-800 dark:text-gray-200 w-5 h-5" />
+              <span className="text-base font-bold text-gray-900 dark:text-gray-100">功能更新日志</span>
             </div>
             <div className="flex items-center gap-1.5">
                 <ChangelogUnreadBadge />
-                <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
+                <ChevronRight className="w-5 h-5 text-gray-400" />
             </div>
           </Link>
 
-          <Link href="/terms" className="mt-2 flex w-full items-center justify-between rounded-xl border border-border bg-card/50 p-3 transition-all active:bg-muted/10 hover:bg-card/80">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-500/20">
-                <FileText className="h-4 w-4 text-blue-500" />
-              </div>
-              <div className="text-left">
-                <p className="text-sm font-semibold text-foreground">用户协议</p>
-                <p className="text-xs text-muted-foreground">City Lord 用户服务协议</p>
-              </div>
+          <Link href="/terms" className="flex items-center justify-between p-4 mb-3 bg-white dark:bg-gray-800/80 rounded-xl shadow-sm border border-gray-100 dark:border-white/5 active:scale-[0.98] transition-transform cursor-pointer">
+            <div className="flex items-center gap-4">
+              <FileText className="text-gray-800 dark:text-gray-200 w-5 h-5" />
+              <span className="text-base font-bold text-gray-900 dark:text-gray-100">用户协议</span>
             </div>
-            <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
+            <ChevronRight className="w-5 h-5 text-gray-400" />
           </Link>
 
-          <Link href="/privacy" className="mt-2 flex w-full items-center justify-between rounded-xl border border-border bg-card/50 p-3 transition-all active:bg-muted/10 hover:bg-card/80">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-500/20">
-                <ShieldCheck className="h-4 w-4 text-green-500" />
-              </div>
-              <div className="text-left">
-                <p className="text-sm font-semibold text-foreground">隐私政策</p>
-                <p className="text-xs text-muted-foreground">数据保护与隐私声明</p>
-              </div>
+          <Link href="/privacy" className="flex items-center justify-between p-4 mb-3 bg-white dark:bg-gray-800/80 rounded-xl shadow-sm border border-gray-100 dark:border-white/5 active:scale-[0.98] transition-transform cursor-pointer">
+            <div className="flex items-center gap-4">
+              <ShieldCheck className="text-gray-800 dark:text-gray-200 w-5 h-5" />
+              <span className="text-base font-bold text-gray-900 dark:text-gray-100">隐私政策</span>
             </div>
-            <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
+            <ChevronRight className="w-5 h-5 text-gray-400" />
           </Link>
+
+          {userEmail ? (
+            <button
+              onClick={handleLogout}
+              className="w-full p-4 mt-8 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 font-bold rounded-xl text-center active:opacity-80 transition-opacity block"
+            >
+              退出登录
+            </button>
+          ) : (
+            <Link href="/login" className="w-full p-4 mt-8 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 font-bold rounded-xl text-center active:opacity-80 transition-opacity block">
+              登录账号
+            </Link>
+          )}
 
           {userEmail && (
             <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
               <DialogTrigger asChild>
-                <button className="mt-8 flex w-full items-center justify-between rounded-xl border border-destructive/30 bg-destructive/10 p-3 transition-all active:bg-destructive/20 hover:bg-destructive/20">
-                  <div className="flex items-center gap-2.5">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-destructive/20">
-                      <UserX className="h-4 w-4 text-destructive" />
-                    </div>
-                    <div className="text-left">
-                      <p className="text-sm font-semibold text-destructive">注销账号并删除数据</p>
-                      <p className="text-xs text-destructive/70">此操作不可恢复，将清空所有轨迹</p>
-                    </div>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-destructive/50" />
+                <button className="block w-full text-center mt-6 mb-8 text-sm font-medium text-gray-500 underline underline-offset-4 hover:text-gray-700 dark:hover:text-gray-300">
+                  注销账号并删除数据
                 </button>
               </DialogTrigger>
               <DialogContent className="bg-card border-border sm:max-w-md">
@@ -846,37 +809,6 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
                 </div>
               </DialogContent>
             </Dialog>
-          )}
-
-          {userEmail ? (
-            <button
-              onClick={handleLogout}
-              className="mt-2 flex w-full items-center justify-between rounded-xl border border-border bg-card/50 p-3 transition-all active:bg-muted/10 hover:bg-card/80"
-            >
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-500/20">
-                  <LogOut className="h-4 w-4 text-red-500" />
-                </div>
-                <div className="text-left">
-                  <p className="text-sm font-semibold text-foreground">退出登录</p>
-                  <p className="text-xs text-muted-foreground">当前账号: {userEmail}</p>
-                </div>
-              </div>
-              <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
-            </button>
-          ) : (
-            <Link href="/login" className="mt-2 flex w-full items-center justify-between rounded-xl border border-border bg-card/50 p-3 transition-all active:bg-muted/10 hover:bg-card/80">
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-cyan-400/20">
-                  <LogIn className="h-4 w-4 text-cyan-400" />
-                </div>
-                <div className="text-left">
-                  <p className="text-sm font-semibold text-foreground">登录账号</p>
-                  <p className="text-xs text-muted-foreground">同步数据并保护进度</p>
-                </div>
-              </div>
-              <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
-            </Link>
           )}
         </div>
       </div>

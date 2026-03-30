@@ -406,6 +406,21 @@ export function ImmersiveRunningMode({
       audio.play().catch(() => { });
     } catch { }
 
+    // Intercept short distance runs
+    if (distanceMeters < 10) {
+      toast.info("距离过短，记录已自动作废", { duration: 3000 });
+      localStorage.removeItem('CURRENT_RUN_RECOVERY');
+      
+      const { useGameStore } = await import('@/store/useGameStore');
+      useGameStore.getState().resetRunState();
+      
+      onStop();
+      setShowSummary(false);
+      router.replace('/');
+      setIsSubmitting(false);
+      return;
+    }
+
     if (saveRun) {
       try {
         // Wrap with timeout — prevents infinite hang after long sleep

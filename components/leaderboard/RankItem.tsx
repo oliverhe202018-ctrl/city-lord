@@ -1,12 +1,13 @@
 
 "use client";
 
+import Image from "next/image";
 import { Trophy, Medal, ChevronUp, ChevronDown, Minus, User } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { RankData } from "./mock-data";
 import { useRouter } from 'next/navigation';
 import { openUserProfile } from "@/lib/utils/nav";
+import { useCallback } from "react";
 
 interface RankItemProps {
   data: RankData;
@@ -46,6 +47,16 @@ export function RankItem({ data }: RankItemProps) {
     }
   };
 
+  const handleImgError = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
+    e.currentTarget.style.display = 'none';
+    // Show fallback by hiding broken image
+    const parent = e.currentTarget.parentElement;
+    if (parent) {
+      const fallback = parent.querySelector('[data-fallback]') as HTMLElement;
+      if (fallback) fallback.style.display = 'flex';
+    }
+  }, []);
+
   return (
     <div
       onClick={handleClick}
@@ -64,17 +75,35 @@ export function RankItem({ data }: RankItemProps) {
         </div>
       </div>
 
-      {/* Avatar */}
-      <Avatar className={cn("h-10 w-10 mr-3 border-2",
+      {/* Avatar — Next.js Image for optimized loading */}
+      <div className={cn("relative h-10 w-10 mr-3 shrink-0 rounded-full overflow-hidden border-2",
         rank === 1 ? "border-yellow-500" :
           rank === 2 ? "border-gray-400" :
             rank === 3 ? "border-amber-700" : "border-transparent"
       )}>
-        <AvatarImage src={avatar} alt={name} />
-        <AvatarFallback className="bg-muted">
-          <User className="h-5 w-5 text-muted-foreground" />
-        </AvatarFallback>
-      </Avatar>
+        {avatar ? (
+          <>
+            <Image
+              src={avatar}
+              alt={name}
+              width={40}
+              height={40}
+              className="h-full w-full object-cover"
+              onError={handleImgError}
+            />
+            <div
+              data-fallback
+              className="absolute inset-0 bg-muted items-center justify-center hidden"
+            >
+              <User className="h-5 w-5 text-muted-foreground" />
+            </div>
+          </>
+        ) : (
+          <div className="h-full w-full bg-muted flex items-center justify-center">
+            <User className="h-5 w-5 text-muted-foreground" />
+          </div>
+        )}
+      </div>
 
       {/* Info */}
       <div className="flex-1 min-w-0">

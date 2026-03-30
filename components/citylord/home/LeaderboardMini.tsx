@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
+import Image from 'next/image';
 import { Trophy, Crown, Medal, ChevronUp, TrendingUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import useSWR from 'swr';
@@ -120,7 +121,7 @@ export function LeaderboardMini({ myRank, initialLeaderboard }: LeaderboardMiniP
                                 <div className="space-y-1.5">
                                     {leaderboardData.slice(0, 5).map((item) => (
                                         <div
-                                            key={item.rank}
+                                            key={`mini-${item.name}-${item.rank}`}
                                             className={`flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors ${item.isMe ? 'bg-primary/10 border border-primary/20' : 'hover:bg-white/5'
                                                 }`}
                                         >
@@ -128,10 +129,13 @@ export function LeaderboardMini({ myRank, initialLeaderboard }: LeaderboardMiniP
                                                 {rankIcon(item.rank)}
                                             </div>
                                             {item.avatar ? (
-                                                <img
+                                                <Image
                                                     src={item.avatar}
                                                     alt=""
+                                                    width={20}
+                                                    height={20}
                                                     className="h-5 w-5 rounded-full object-cover border border-white/10"
+                                                    onError={(e) => { e.currentTarget.style.display = 'none' }}
                                                 />
                                             ) : (
                                                 <div className="h-5 w-5 rounded-full bg-white/10 flex items-center justify-center text-[9px] font-bold text-foreground/40">

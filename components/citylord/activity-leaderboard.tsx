@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react"
+import Image from "next/image"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { Trophy, Medal, Crown, User, ChevronDown, Loader2 } from "lucide-react"
 import { getActivityLeaderboard, type LeaderboardEntry } from "@/app/actions/leaderboard"
@@ -12,6 +13,16 @@ interface ActivityLeaderboardProps {
 
 const ITEM_HEIGHT = 72
 const PAGE_SIZE = 50
+
+/** Default fallback for broken avatar images */
+const handleImgError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    e.currentTarget.style.display = 'none'
+    const parent = e.currentTarget.parentElement
+    if (parent) {
+        const fallback = parent.querySelector('[data-fallback]') as HTMLElement
+        if (fallback) fallback.style.display = 'flex'
+    }
+}
 
 /**
  * Activity Leaderboard with virtual scrolling
@@ -118,9 +129,12 @@ export function ActivityLeaderboard({ activityId, activityTitle }: ActivityLeade
                     {/* 2nd place */}
                     <div className="flex flex-col items-center w-24">
                         <div className="relative">
-                            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-gray-300/30 to-gray-400/30 border-2 border-gray-300/50 flex items-center justify-center text-2xl shadow-lg">
+                            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-gray-300/30 to-gray-400/30 border-2 border-gray-300/50 flex items-center justify-center text-2xl shadow-lg overflow-hidden">
                                 {items[1]?.avatar_url ? (
-                                    <img src={items[1].avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
+                                    <>
+                                        <Image src={items[1].avatar_url} alt="" width={56} height={56} className="w-full h-full object-cover" onError={handleImgError} />
+                                        <div data-fallback className="absolute inset-0 items-center justify-center hidden"><User className="w-6 h-6 text-gray-400" /></div>
+                                    </>
                                 ) : (
                                     <User className="w-6 h-6 text-gray-400" />
                                 )}
@@ -135,9 +149,12 @@ export function ActivityLeaderboard({ activityId, activityTitle }: ActivityLeade
                     <div className="flex flex-col items-center w-28 -mt-4">
                         <Crown className="w-6 h-6 text-yellow-400 mb-1 animate-pulse" />
                         <div className="relative">
-                            <div className="w-18 h-18 rounded-full bg-gradient-to-br from-yellow-400/30 to-amber-500/30 border-2 border-yellow-400/60 flex items-center justify-center text-3xl shadow-xl ring-2 ring-yellow-400/20 ring-offset-2 ring-offset-background" style={{ width: '4.5rem', height: '4.5rem' }}>
+                            <div className="rounded-full bg-gradient-to-br from-yellow-400/30 to-amber-500/30 border-2 border-yellow-400/60 flex items-center justify-center text-3xl shadow-xl ring-2 ring-yellow-400/20 ring-offset-2 ring-offset-background overflow-hidden" style={{ width: '4.5rem', height: '4.5rem' }}>
                                 {items[0]?.avatar_url ? (
-                                    <img src={items[0].avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
+                                    <>
+                                        <Image src={items[0].avatar_url} alt="" width={72} height={72} className="w-full h-full object-cover" onError={handleImgError} />
+                                        <div data-fallback className="absolute inset-0 items-center justify-center hidden"><User className="w-7 h-7 text-yellow-400" /></div>
+                                    </>
                                 ) : (
                                     <User className="w-7 h-7 text-yellow-400" />
                                 )}
@@ -151,9 +168,12 @@ export function ActivityLeaderboard({ activityId, activityTitle }: ActivityLeade
                     {/* 3rd place */}
                     <div className="flex flex-col items-center w-24">
                         <div className="relative">
-                            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-amber-600/30 to-amber-700/30 border-2 border-amber-600/50 flex items-center justify-center text-2xl shadow-lg">
+                            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-amber-600/30 to-amber-700/30 border-2 border-amber-600/50 flex items-center justify-center text-2xl shadow-lg overflow-hidden">
                                 {items[2]?.avatar_url ? (
-                                    <img src={items[2].avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
+                                    <>
+                                        <Image src={items[2].avatar_url} alt="" width={56} height={56} className="w-full h-full object-cover" onError={handleImgError} />
+                                        <div data-fallback className="absolute inset-0 items-center justify-center hidden"><User className="w-6 h-6 text-amber-600" /></div>
+                                    </>
                                 ) : (
                                     <User className="w-6 h-6 text-amber-600" />
                                 )}
@@ -166,10 +186,11 @@ export function ActivityLeaderboard({ activityId, activityTitle }: ActivityLeade
                 </div>
             )}
 
-            {/* Virtual Scroll List */}
+            {/* Virtual Scroll List — GPU-accelerated */}
             <div
                 ref={parentRef}
-                className="max-h-[400px] overflow-y-auto rounded-xl border border-border/50 bg-card/50"
+                className="max-h-[400px] overflow-y-auto overscroll-contain transform-gpu rounded-xl border border-border/50 bg-card/50 scrollbar-hide"
+                style={{ WebkitOverflowScrolling: 'touch' }}
             >
                 <div
                     style={{
@@ -183,7 +204,7 @@ export function ActivityLeaderboard({ activityId, activityTitle }: ActivityLeade
                         if (!entry) return null
                         return (
                             <div
-                                key={virtualRow.key}
+                                key={entry.id || `activity-${entry.rank}-${virtualRow.key}`}
                                 style={{
                                     position: "absolute",
                                     top: 0,
@@ -201,9 +222,14 @@ export function ActivityLeaderboard({ activityId, activityTitle }: ActivityLeade
                                         {getRankIcon(entry.rank)}
                                     </div>
 
-                                    <div className="w-10 h-10 rounded-full bg-muted border border-border/50 flex items-center justify-center shrink-0 overflow-hidden">
+                                    <div className="w-10 h-10 rounded-full bg-muted border border-border/50 flex items-center justify-center shrink-0 overflow-hidden relative">
                                         {entry.avatar_url ? (
-                                            <img src={entry.avatar_url} alt="" className="w-full h-full object-cover" />
+                                            <>
+                                                <Image src={entry.avatar_url} alt="" width={40} height={40} className="w-full h-full object-cover" onError={handleImgError} />
+                                                <div data-fallback className="absolute inset-0 bg-muted items-center justify-center hidden">
+                                                    <User className="w-5 h-5 text-muted-foreground" />
+                                                </div>
+                                            </>
                                         ) : (
                                             <User className="w-5 h-5 text-muted-foreground" />
                                         )}
