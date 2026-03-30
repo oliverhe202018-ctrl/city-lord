@@ -223,7 +223,7 @@ interface ThemeProviderProps {
   defaultTheme?: ThemeId
 }
 
-export function ThemeProvider({ children, defaultTheme = "cyberpunk" }: ThemeProviderProps) {
+export function ThemeProvider({ children, defaultTheme = "light" }: ThemeProviderProps) {
   const [themeId, setThemeId] = useState<ThemeId>(defaultTheme)
   const [customColors, setCustomColors] = useState<Partial<ThemeColors>>({})
   const customColorsRef = useRef(customColors)

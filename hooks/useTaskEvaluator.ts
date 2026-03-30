@@ -8,10 +8,7 @@ export function useTaskEvaluator(currentRun: {
     duration: number;
     claims: any[];
 }) {
-    const [completedTasks, setCompletedTasks] = useState<Task[]>([]);
-
     // Evaluate tasks whenever run data changes
-    // Debounce could be added if performance is an issue, but standard runs update 1hz which is fine
     const completed = useMemo(() => {
         const runData: RunData = {
             distance: currentRun.distance,
@@ -21,10 +18,10 @@ export function useTaskEvaluator(currentRun: {
         };
 
         return DAILY_TASKS.filter(task => evaluateRunForTask(runData, task));
-    }, [currentRun.distance, currentRun.duration, currentRun.claims.length]);
+    }, [currentRun.distance, currentRun.duration, currentRun.claims]);
 
     return {
         completedTasks: completed,
-        hasNewCompletion: completed.length > completedTasks.length
+        hasNewCompletion: false // Reset or implement logic if needed, but for now we follow the fix
     };
 }

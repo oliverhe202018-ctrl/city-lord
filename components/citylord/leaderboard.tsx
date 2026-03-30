@@ -33,15 +33,15 @@ const fetchCityLeaderboardApi = async (cityId: string): Promise<CityLeaderboardE
 const FALLBACK_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='1.5'%3E%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='12' cy='7' r='4'/%3E%3C/svg%3E"
 
 function PodiumItem({ entry, size }: { entry?: CityLeaderboardEntry, size: 'lg' | 'md' | 'sm' }) {
+  const handleImgError = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
+    e.currentTarget.src = FALLBACK_AVATAR
+  }, [])
+
   if (!entry) return null
   const isFirst = entry.rank === 1
   const height = isFirst ? 'h-32' : entry.rank === 2 ? 'h-24' : 'h-20'
   const color = isFirst ? 'text-yellow-400' : entry.rank === 2 ? 'text-gray-300' : 'text-amber-600'
   const glow = isFirst ? 'shadow-[0_0_20px_rgba(250,204,21,0.3)]' : ''
-
-  const handleImgError = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
-    e.currentTarget.src = FALLBACK_AVATAR
-  }, [])
 
   return (
     <div className="flex flex-col items-center justify-end">
