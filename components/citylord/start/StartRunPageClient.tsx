@@ -130,14 +130,14 @@ export function StartRunOverlay({ onBack, onBeginRun }: StartRunOverlayProps) {
 
   return (
     <div className="absolute inset-0 z-40 text-slate-900 dark:text-white">
-      <div className="pointer-events-none absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
+      <div className="pointer-events-none absolute inset-0 bg-transparent" />
 
       <div className="pointer-events-auto relative inset-x-0 top-[calc(env(safe-area-inset-top)+12px)] z-50 flex items-center justify-between px-4">
         <Button
           type="button"
           variant="outline"
           size="icon"
-          className="h-11 w-11 rounded-full border-white/50 bg-white/80 shadow-xl backdrop-blur dark:border-white/15 dark:bg-slate-900/80"
+          className="h-11 w-11 rounded-full border border-slate-200/60 bg-white text-slate-900 shadow-lg"
           onClick={onBack}
         >
           <ArrowLeft className="h-5 w-5" />
@@ -148,7 +148,7 @@ export function StartRunOverlay({ onBack, onBeginRun }: StartRunOverlayProps) {
             <Button
               type="button"
               variant="outline"
-              className="h-11 rounded-full border-white/50 bg-white/85 px-4 text-sm font-semibold shadow-xl backdrop-blur dark:border-white/15 dark:bg-slate-900/80"
+              className="h-11 rounded-full border border-slate-200/60 bg-white px-4 text-sm font-semibold text-slate-900 shadow-lg"
               onClick={() => setOpenPlanner(true)}
             >
               <Route className="mr-2 h-4 w-4" />
@@ -160,7 +160,7 @@ export function StartRunOverlay({ onBack, onBeginRun }: StartRunOverlayProps) {
               type="button"
               variant="outline"
               size="icon"
-              className="h-9 w-9 rounded-full border-white/50 bg-white/85 text-lg shadow-xl backdrop-blur dark:border-white/15 dark:bg-slate-900/80"
+              className="h-9 w-9 rounded-full border border-slate-200/60 bg-white text-lg text-slate-900 shadow-lg"
               onClick={() => setGhostPath(null)}
             >
               <X className="h-4 w-4" />
