@@ -6,9 +6,8 @@ import { logEvent } from '@/lib/native-log';
 import { BottomNav, TabType } from "@/components/citylord/bottom-nav"
 import { MissionCenter } from "@/components/citylord/MissionCenter"
 import { Profile } from "@/components/citylord/profile"
-import { Trophy, Route, History, Loader2, Palette, MapPin, Crown } from "lucide-react";
+import { Trophy, Route, History, Loader2, Palette, MapPin, Crown, Flag, Users } from "lucide-react";
 import { OnboardingGuide } from "@/components/citylord/onboarding-guide"
-import { QuickEntry } from "@/components/citylord/quick-entry"
 import { TerritoryAlert } from "@/components/citylord/territory-alert"
 import { ChallengeInvite } from "@/components/citylord/challenge-invite"
 import { AchievementPopup } from "@/components/citylord/achievement-popup"
@@ -74,7 +73,6 @@ const MemoizedFactionSelector = memo(FactionSelector);
 const MemoizedReferralWelcome = memo(ReferralWelcome);
 const MemoizedMapHeader = memo(MapHeader) as React.NamedExoticComponent<MapHeaderProps>;
 const MemoizedModeSwitcher = memo(ModeSwitcher);
-const MemoizedQuickEntry = memo(QuickEntry);
 const MemoizedRunHistoryDrawer = memo(RunHistoryDrawer);
 const MemoizedTerritoryAlert = memo(TerritoryAlert);
 const MemoizedChallengeInvite = memo(ChallengeInvite);
@@ -386,6 +384,7 @@ export function GamePageContent({
     if (isSmartRunStarting) {
       setIsRunning(true);
       setShowImmersiveMode(true);
+      setActiveTab('play');
       setSmartRunStarting(false);
     }
   }, [isSmartRunStarting, setSmartRunStarting]);
@@ -674,6 +673,7 @@ export function GamePageContent({
     setIsCountingDown(false)
     setIsRunning(true)
     setShowImmersiveMode(true)
+    setActiveTab("play")
   }, []);
 
   // Complex stop handler
@@ -786,21 +786,17 @@ export function GamePageContent({
 
           {activeTab === "play" && (
             <div className="relative h-dvh w-full overflow-hidden">
-              {/* Optimize: Hide main map when in immersive mode to prevent duplicate markers and save resources */}
-              {!showImmersiveMode && (
-                <div className="absolute inset-0 z-0">
-                  {/* --- Step 3: Replace JSX with Memoized Components --- */}
-                  <MemoizedAMapView
-                    ref={mapViewRef}
-                    showTerritory={showTerritory}
-                    onMapLoad={handleMapLoad}
-                    sessionClaims={sessionClaims}
-                    onViewportKingChange={setViewportKing}
-                  />
-                  <MemoizedFactionSelector initialUser={initialUser} />
-                  <MemoizedReferralWelcome />
-                </div>
-              )}
+              <div className="absolute inset-0 z-0">
+                <MemoizedAMapView
+                  ref={mapViewRef}
+                  showTerritory={showTerritory}
+                  onMapLoad={handleMapLoad}
+                  sessionClaims={sessionClaims}
+                  onViewportKingChange={setViewportKing}
+                />
+                <MemoizedFactionSelector initialUser={initialUser} />
+                <MemoizedReferralWelcome />
+              </div>
 
               <div className="relative z-10 h-full w-full pointer-events-none">
                 <div className="pointer-events-auto">
@@ -878,12 +874,38 @@ export function GamePageContent({
                 )}
 
                 {gameMode === 'map' && !shouldHideButtons && (
-                  <div className="pointer-events-auto absolute bottom-[80px] left-4 right-4 z-20 flex justify-center">
-                    <MemoizedQuickEntry
-                      onNavigate={handleQuickNavigate}
-                      missionCount={missionCount}
-                      friendCount={friends?.length || 0}
-                    />
+                  <div className="pointer-events-auto absolute bottom-[calc(env(safe-area-inset-bottom)+5rem)] left-4 z-20 flex flex-col gap-3">
+                    <button
+                      onClick={() => handleQuickNavigate("running")}
+                      className="flex h-12 w-12 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-md text-[#22c55e] active:scale-90 active:bg-white/20 transition-all hover:bg-primary/20 hover:border-primary/50"
+                      aria-label="开始跑步"
+                    >
+                      <Route className="h-5 w-5" />
+                    </button>
+                    <button
+                      onClick={() => handleQuickNavigate("missions", { initialFilter: "all" })}
+                      className="flex h-12 w-12 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-md text-[#8b5cf6] active:scale-90 active:bg-white/20 transition-all hover:bg-primary/20 hover:border-primary/50"
+                      aria-label="任务中心"
+                    >
+                      <Flag className="h-5 w-5" />
+                    </button>
+                  </div>
+                )}
+
+                {gameMode === 'map' && !shouldHideButtons && (
+                  <div className="pointer-events-auto absolute bottom-[calc(env(safe-area-inset-bottom)+5rem)] right-4 z-20 flex flex-col gap-3">
+                    <button
+                      onClick={() => handleQuickNavigate("social")}
+                      className="relative flex h-12 w-12 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-md text-[#3b82f6] active:scale-90 active:bg-white/20 transition-all hover:bg-primary/20 hover:border-primary/50"
+                      aria-label="好友"
+                    >
+                      <Users className="h-5 w-5" />
+                      {(friends?.length || 0) > 0 && (
+                        <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                          {friends!.length > 99 ? '99+' : friends!.length}
+                        </span>
+                      )}
+                    </button>
                   </div>
                 )}
               </div>
@@ -953,6 +975,7 @@ export function GamePageContent({
       ) : (
         <MemoizedImmersiveRunningMode
           isActive={showImmersiveMode}
+          useSharedMapBase
           userId={user?.id}
           distance={distance}
           distanceMeters={distanceMeters}

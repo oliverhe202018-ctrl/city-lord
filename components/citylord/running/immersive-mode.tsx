@@ -42,6 +42,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 
 interface ImmersiveModeProps {
   isActive: boolean
+  useSharedMapBase?: boolean
   userId?: string
   // Raw data (preferred for calculations)
   distanceMeters?: number // meters
@@ -99,6 +100,7 @@ function getDistanceFromLatLonInMeters(lat1: number, lon1: number, lat2: number,
 
 export function ImmersiveRunningMode({
   isActive,
+  useSharedMapBase = false,
   userId,
   distanceMeters = 0,
   durationSeconds = 0,
@@ -602,7 +604,7 @@ export function ImmersiveRunningMode({
 
   return (
     <div
-      className="fixed inset-0 z-[9999] flex h-[100dvh] w-full flex-col bg-slate-900"
+      className={useSharedMapBase ? "absolute inset-0 z-[9999] flex h-full w-full flex-col" : "fixed inset-0 z-[9999] flex h-[100dvh] w-full flex-col bg-slate-900"}
     >
       {/* Loop Warning Dialog */}
       <AlertDialogPrimitive.Root open={showLoopWarning} onOpenChange={setShowLoopWarning}>
@@ -690,20 +692,20 @@ export function ImmersiveRunningMode({
         </AlertDialogPrimitive.Portal>
       </AlertDialogPrimitive.Root>
 
-      {/* Map Background Layer */}
-      <div className={`absolute inset-0 z-0 ${isPaused && !isMapMode ? 'pointer-events-none' : 'pointer-events-auto'}`}>
-        <RunningMap
-          userLocation={currentLocation ? [currentLocation.lng, currentLocation.lat] : undefined}
-          path={path}
-          onLocationUpdate={onManualLocation}
-          recenterTrigger={recenterTrigger}
-          showKingdom={showKingdom}
-        />
-        {/* Gradient Overlay for text readability - Only in HUD mode */}
-        {!isMapMode && (
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-none" />
-        )}
-      </div>
+      {!useSharedMapBase && (
+        <div className={`absolute inset-0 z-0 ${isPaused && !isMapMode ? 'pointer-events-none' : 'pointer-events-auto'}`}>
+          <RunningMap
+            userLocation={currentLocation ? [currentLocation.lng, currentLocation.lat] : undefined}
+            path={path}
+            onLocationUpdate={onManualLocation}
+            recenterTrigger={recenterTrigger}
+            showKingdom={showKingdom}
+          />
+          {!isMapMode && (
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-none" />
+          )}
+        </div>
+      )}
 
       {/* Safe Area Top - Hide in Map Mode as Overlay handles it */}
       {!isMapMode && <div className="relative z-10 h-[env(safe-area-inset-top)] bg-transparent" />}

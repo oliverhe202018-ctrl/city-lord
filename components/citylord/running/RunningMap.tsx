@@ -61,6 +61,7 @@ export function RunningMap({
   const [isUserInteracting, setIsUserInteracting] = useState(false);
   const isUserInteractingRef = useRef(false);
   const interactionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const resizeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const latestUserLocationRef = useRef(userLocation);
 
   // Keep track of latest user location for the timeout callback
@@ -114,6 +115,12 @@ export function RunningMap({
 
         mapInstanceRef.current = map
         amapRef.current = AMap
+        resizeTimeoutRef.current = setTimeout(() => {
+          const mapWithResize = mapInstanceRef.current as (AMap.Map & { resize?: () => void }) | null
+          if (mapWithResize && typeof mapWithResize.resize === "function") {
+            mapWithResize.resize()
+          }
+        }, 200)
 
         // Add User Marker immediately
         if (!userMarkerRef.current) {
@@ -191,6 +198,9 @@ export function RunningMap({
 
     return () => {
       destroyed = true;
+      if (resizeTimeoutRef.current) {
+        clearTimeout(resizeTimeoutRef.current);
+      }
       // Destroy this independent map instance on unmount
       if (mapInstanceRef.current && typeof mapInstanceRef.current.destroy === 'function') {
         mapInstanceRef.current.destroy()
