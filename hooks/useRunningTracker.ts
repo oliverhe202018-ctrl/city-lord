@@ -80,6 +80,10 @@ function formatPace(seconds: number, distanceKm: number): string {
   return `${m.toString().padStart(2, '0')}'${s.toString().padStart(2, '0')}"`;
 }
 
+function estimateStepsFromDistanceMeters(distanceMeters: number): number {
+  return Math.max(0, Math.floor(distanceMeters * 1.3));
+}
+
 /**
  * useRunningTracker: Running game state management
  * 
@@ -397,7 +401,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         sessionVersion: '2.0', 
         closedPolygons: closedPolygonsRef.current || [],
         eventsHistory: eventsHistoryRef.current || [],
-        totalSteps: currentStepsRef.current,
+        totalSteps: currentStepsRef.current > 0
+          ? currentStepsRef.current
+          : estimateStepsFromDistanceMeters(distanceRef.current),
         runIsValid: runIsValid ?? true,
         antiCheatLog: antiCheatLog ?? null,
         area: areaRef.current || 0,
@@ -892,6 +898,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
     try {
       setIsSaving(true);
+      const stepsForSubmit = currentStepsRef.current > 0
+        ? currentStepsRef.current
+        : estimateStepsFromDistanceMeters(liveDistance);
       const result = await saveRunActivity(userId, {
         idempotencyKey: runIdempotencyKeyRef.current,
         distance: liveDistance,         // Already in meters
@@ -899,7 +908,8 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         path: livePath,
         polygons: liveClaims,
         timestamp: Date.now(),
-        totalSteps: currentStepsRef.current,
+        totalSteps: stepsForSubmit,
+        steps: stepsForSubmit,
         manualLocationCount: 0,
         eventsHistory: eventsHistoryRef.current
       });

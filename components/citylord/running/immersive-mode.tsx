@@ -460,6 +460,8 @@ export function ImmersiveRunningMode({
             distance: distanceMeters || 0,
             duration: durationSeconds || 0,
             area: area || 0,
+            totalSteps: steps || 0,
+            steps: steps || 0,
             eventsHistory,
             timestamp: Date.now(),
             userId: userId || '',

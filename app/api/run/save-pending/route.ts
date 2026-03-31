@@ -67,6 +67,7 @@ export async function POST(req: NextRequest) {
             polygons: body.polygons || [],
             timestamp: body.timestamp || Date.now(),
             calories: body.calories,
+            totalSteps: body.totalSteps,
             steps: body.steps,
             eventsHistory: body.eventsHistory || [],
         });

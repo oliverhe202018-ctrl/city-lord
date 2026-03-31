@@ -50,6 +50,9 @@ export function SyncManager() {
       // Process one by one to avoid overwhelming or transaction conflicts
       for (const run of pendingRuns) {
         try {
+          const distanceMeters = Math.max(0, Number(run.distance ?? 0));
+          const estimatedSteps = Math.floor(distanceMeters * 1.3);
+          const stepsForSubmit = Math.max(0, Math.floor(Number(run.totalSteps ?? run.steps ?? estimatedSteps)));
           // Note: saveRunActivity is a server action. 
           // AbortController on fetch inside server actions is tricky, 
           // but we can race it here.
@@ -61,6 +64,8 @@ export function SyncManager() {
             polygons: run.polygons || [],
             timestamp: run.timestamp,
             manualLocationCount: 0,
+            totalSteps: stepsForSubmit,
+            steps: stepsForSubmit,
             eventsHistory: run.eventsHistory || []
           })
 
