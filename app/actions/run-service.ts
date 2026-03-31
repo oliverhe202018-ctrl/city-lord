@@ -19,6 +19,9 @@ export interface SaveRunResult {
     damageSummary?: any[];
     maintenanceSummary?: any[];
     settledTerritoriesCount?: number;
+    isValid?: boolean;
+    antiCheatLog?: string | null;
+    totalSteps?: number;
 }
 
 const isRunEventLog = (event: unknown): event is RunEventLog => {
@@ -38,6 +41,10 @@ const getDefaultEventReward = (eventType: RunEventLog['eventType']) => {
     return { xp: 30, stamina: 5 };
 };
 
+const PEDOMETER_STRICT_DISTANCE_METERS = 500;
+const PEDOMETER_MIN_STEPS = 100;
+const PEDOMETER_MAX_STRIDE_METERS = 1.5;
+
 
 /**
  * Saves a run and evaluates/grants task rewards atomically.
@@ -52,6 +59,7 @@ export async function saveRunActivity(
         const eventsHistory = Array.isArray(runData.eventsHistory)
             ? runData.eventsHistory.filter(isRunEventLog)
             : [];
+        const submittedTotalSteps = Math.max(0, Math.floor(Number(runData.totalSteps ?? runData.steps ?? 0)));
 
         // Rate Limiting
         const rateLimitResult = checkRunRateLimit(userId);
@@ -111,25 +119,39 @@ export async function saveRunActivity(
         const metadataValidation = validateRunData({
             distanceMeters: runData.distance,
             durationSeconds: runData.duration,
-            steps: runData.steps || 0
+            steps: submittedTotalSteps
         });
 
         // 2. Server-Side Path Analysis & Territory Rebuild (Existing Logic)
         const pathValidation: AntiCheatValidationResult = validateRunAndRebuildTerritories(runData.path as any);
 
+        let pedometerAntiCheatLog: string | null = null;
+        if (runData.distance > PEDOMETER_STRICT_DISTANCE_METERS) {
+            if (submittedTotalSteps < PEDOMETER_MIN_STEPS) {
+                pedometerAntiCheatLog = 'STEP_TOO_LOW';
+            } else {
+                const strideLength = runData.distance / submittedTotalSteps;
+                if (strideLength > PEDOMETER_MAX_STRIDE_METERS) {
+                    pedometerAntiCheatLog = 'STRIDE_TOO_LONG';
+                }
+            }
+        }
+
         // Combined risk assessment
         const isFlagged = metadataValidation.isFlagged || pathValidation.riskLevel === 'HIGH';
+        const isPedometerInvalid = pedometerAntiCheatLog !== null;
+        const isBlockedByAntiCheat = isFlagged || isPedometerInvalid;
         const flagReason = metadataValidation.flagReason || (pathValidation.riskLevel === 'HIGH' ? 'PATH_ANALYSIS_FAILED' : undefined);
 
         let finalPolygons = pathValidation.validPolygons;
         let finalArea = pathValidation.totalArea;
 
         // Settlement Gating
-        if (isFlagged) {
+        if (isBlockedByAntiCheat) {
             // Shadowban: Force zero territory and rewards later
             finalPolygons = [];
             finalArea = 0;
-            console.warn(`[Anti-Cheat] Shadowban triggered for user ${userId}. Reason: ${flagReason}`);
+            console.warn(`[Anti-Cheat] Settlement blocked for user ${userId}. Reason: ${flagReason ?? pedometerAntiCheatLog}`);
         } else if (pathValidation.riskLevel === 'MEDIUM') {
             finalPolygons = [];
             finalArea = 0;
@@ -146,7 +168,7 @@ export async function saveRunActivity(
 
         // 4. Evaluate Tasks (In-Memory)
         // If flagged, we skip rewards by setting results to empty
-        const potentialResults = (isFlagged || pathValidation.riskLevel === 'HIGH') ? [] : evaluateTasks(evaluationData);
+        const potentialResults = (isBlockedByAntiCheat || pathValidation.riskLevel === 'HIGH') ? [] : evaluateTasks(evaluationData);
 
         // 5. Transaction: Save Run + Process Rewards + Audit Logs
         const result = await prisma.$transaction(async (tx: any) => {
@@ -158,7 +180,7 @@ export async function saveRunActivity(
                     duration: evaluationData.duration,
                     path: runData.path as any,
                     polygons: evaluationData.claims as any,
-                    status: isFlagged ? 'flagged' : 'completed',
+                    status: isBlockedByAntiCheat ? 'flagged' : 'completed',
                     created_at: new Date(runData.timestamp || Date.now()),
                     updated_at: new Date(),
                     idempotency_key: runData.idempotencyKey,
@@ -171,32 +193,41 @@ export async function saveRunActivity(
                     is_flagged: isFlagged,
                     flag_reason: flagReason,
                     eventsLog: eventsHistory as any,
+                    totalSteps: submittedTotalSteps,
+                    isValid: !isPedometerInvalid,
+                    antiCheatLog: pedometerAntiCheatLog,
                 },
             });
 
             // Audit logging for suspicious runs
-            if (isFlagged || pathValidation.riskLevel !== 'LOW') {
+            if (isBlockedByAntiCheat || pathValidation.riskLevel !== 'LOW') {
                 await tx.anti_cheat_audit_logs.create({
                     data: {
                         user_id: userId,
                         run_id: run.id,
-                        risk_score: pathValidation.riskScore,
-                        cheat_flags: pathValidation.cheatFlags as any,
+                        risk_score: isPedometerInvalid ? Math.max(pathValidation.riskScore, 90) : pathValidation.riskScore,
+                        cheat_flags: {
+                            ...(pathValidation.cheatFlags as any),
+                            pedometer_reason: pedometerAntiCheatLog
+                        } as any,
                         raw_payload: runData as any,
-                        action_taken: isFlagged ? 'shadowban' : 'polygons_neutralized',
+                        action_taken: isPedometerInvalid ? 'pedometer_blocked' : (isFlagged ? 'shadowban' : 'polygons_neutralized'),
                     }
                 });
             }
 
-            // Shadowban intercept: If flagged, return success early to client without processing rewards
-            if (isFlagged) {
+            if (isBlockedByAntiCheat) {
                 return {
                     runId: run.id,
                     runNumber: 0, // Not precisely needed for shadowban
                     newTasks: [],
                     rewards: { coins: 0, xp: 0 },
                     damageSummary: [],
-                    maintenanceSummary: []
+                    maintenanceSummary: [],
+                    settledTerritoriesCount: 0,
+                    isValid: !isPedometerInvalid,
+                    antiCheatLog: pedometerAntiCheatLog,
+                    totalSteps: submittedTotalSteps
                 };
             }
 
@@ -367,6 +398,9 @@ export async function saveRunActivity(
                     damageSummary: allDamageDetails,
                     maintenanceSummary: allMaintenanceDetails,
                     settledTerritoriesCount: settledTerritoriesCount,
+                    isValid: true,
+                    antiCheatLog: null,
+                    totalSteps: submittedTotalSteps
                 };
             }
 
@@ -378,6 +412,9 @@ export async function saveRunActivity(
                 damageSummary: allDamageDetails,
                 maintenanceSummary: allMaintenanceDetails,
                 settledTerritoriesCount: settledTerritoriesCount,
+                isValid: true,
+                antiCheatLog: null,
+                totalSteps: submittedTotalSteps
             };
         });
 
@@ -391,7 +428,7 @@ export async function saveRunActivity(
         // Trigger Task Center Event (Awaiting to ensure consistency before response)
         try {
             const { TaskService } = await import('@/lib/services/task');
-            if (!isFlagged) {
+            if (!isBlockedByAntiCheat) {
                 const eventPayload = {
                     type: 'RUN_FINISHED' as const,
                     userId: userId,
@@ -410,7 +447,7 @@ export async function saveRunActivity(
         }
 
         // [Challenge System] Update 1v1 challenge progress (fire-and-forget)
-        if (!isFlagged) {
+        if (!isBlockedByAntiCheat) {
             try {
                 const { updateChallengeProgress } = await import('@/app/actions/challenge-service');
                 const paceSecondsPerKm = evaluationData.distance > 0
@@ -435,7 +472,11 @@ export async function saveRunActivity(
                 newTasks: result.newTasks,
                 totalReward: result.rewards,
                 damageSummary: result.damageSummary,
-                maintenanceSummary: result.maintenanceSummary
+                maintenanceSummary: result.maintenanceSummary,
+                settledTerritoriesCount: result.settledTerritoriesCount,
+                isValid: result.isValid,
+                antiCheatLog: result.antiCheatLog,
+                totalSteps: result.totalSteps
             }
         };
 

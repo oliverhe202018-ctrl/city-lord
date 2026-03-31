@@ -278,6 +278,8 @@ export function GamePageContent({
     runNumber,
     damageSummary,
     maintenanceSummary,
+    runIsValid,
+    antiCheatLog,
     idempotencyKey,
     eventsHistory,
     activeRandomEvent,
@@ -977,6 +979,8 @@ export function GamePageContent({
           runNumber={runNumber}
           damageSummary={damageSummary}
           maintenanceSummary={maintenanceSummary}
+          runIsValid={runIsValid}
+          antiCheatLog={antiCheatLog}
           idempotencyKey={idempotencyKey}
           eventsHistory={eventsHistory}
           activeRandomEvent={activeRandomEvent}

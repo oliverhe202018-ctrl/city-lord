@@ -13,6 +13,7 @@ import { useLocationStore } from '@/store/useLocationStore';
 import { getDistanceFromLatLonInMeters } from '@/lib/geometry-utils';
 import { ActiveRandomEvent, useRandomEvents } from '@/hooks/useRandomEvents';
 import { RunEventLog } from '@/types/run-sync';
+import type { CapacitorPedometerPlugin } from '@capgo/capacitor-pedometer';
 
 const RECOVERY_KEY = 'CURRENT_RUN_RECOVERY';
 
@@ -45,12 +46,14 @@ interface RunningStats {
   // Raw data for UI calculations (preferred)
   distanceMeters: number; // meters — use this for display/calculations
   durationSeconds: number; // seconds — use this for speed/pace calculations
-  steps: number; // estimated steps (Math.floor(distanceMeters * 1.3))
+  steps: number;
   savedRunId: string | null; // Run ID for photo upload and sharing
   runNumber?: number; // Phase 3: Total runs for user
   damageSummary?: any[]; // Phase 3: Damage details
   maintenanceSummary?: any[]; // Phase 4: Maintenance details
   settledTerritoriesCount?: number;
+  runIsValid?: boolean;
+  antiCheatLog?: string | null;
   idempotencyKey: string;
   eventsHistory: RunEventLog[];
   activeRandomEvent: ActiveRandomEvent | null;
@@ -163,9 +166,15 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   const [damageSummary, setDamageSummary] = useState<any[] | undefined>(undefined);
   const [maintenanceSummary, setMaintenanceSummary] = useState<any[] | undefined>(undefined);
   const [settledTerritoriesCount, setSettledTerritoriesCount] = useState<number | undefined>(undefined);
+  const [runIsValid, setRunIsValid] = useState<boolean | undefined>(undefined);
+  const [antiCheatLog, setAntiCheatLog] = useState<string | null | undefined>(undefined);
+  const [currentSteps, setCurrentSteps] = useState(0);
   const [lastSavedClaimsCount, setLastSavedClaimsCount] = useState(0);
   const [eventsHistory, setEventsHistory] = useState<RunEventLog[]>([]);
+  const currentStepsRef = useRef(0);
+  const pedometerBaselineRef = useRef<number | null>(null);
   const eventsHistoryRef = useRef<RunEventLog[]>([]);
+  useEffect(() => { currentStepsRef.current = currentSteps; }, [currentSteps]);
   useEffect(() => {
     eventsHistoryRef.current = eventsHistory;
   }, [eventsHistory]);
@@ -251,6 +260,69 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     };
   }, [isRunning, isSyncing]);
 
+  useEffect(() => {
+    if (!isRunning) {
+      setCurrentSteps(0);
+      pedometerBaselineRef.current = null;
+      return;
+    }
+
+    let cancelled = false;
+    let listenerHandle: { remove: () => Promise<void> | void } | null = null;
+    let pedometerInstance: CapacitorPedometerPlugin | null = null;
+
+    const setupPedometer = async () => {
+      const native = await isNativePlatform();
+      if (!native || cancelled) return;
+
+      try {
+        const { CapacitorPedometer } = await import('@capgo/capacitor-pedometer');
+        pedometerInstance = CapacitorPedometer;
+        const available = await CapacitorPedometer.isAvailable();
+        if (!available.stepCounting || cancelled) return;
+
+        const permission = await CapacitorPedometer.checkPermissions();
+        const hasPermission = permission.activityRecognition === 'granted'
+          ? permission
+          : await CapacitorPedometer.requestPermissions();
+        if (hasPermission.activityRecognition !== 'granted' || cancelled) {
+          toast.warning('未授予步数权限，已回退为估算步数');
+          return;
+        }
+
+        const initialMeasurement = await CapacitorPedometer.getMeasurement();
+        const initialSteps = Number(initialMeasurement.numberOfSteps ?? 0);
+        pedometerBaselineRef.current = initialSteps;
+        setCurrentSteps(0);
+
+        listenerHandle = await CapacitorPedometer.addListener('measurement', (event) => {
+          if (cancelled) return;
+          const rawSteps = Number(event.numberOfSteps ?? 0);
+          const baseline = pedometerBaselineRef.current ?? rawSteps;
+          if (pedometerBaselineRef.current === null) {
+            pedometerBaselineRef.current = rawSteps;
+          }
+          setCurrentSteps(Math.max(0, rawSteps - baseline));
+        });
+
+        await CapacitorPedometer.startMeasurementUpdates();
+      } catch (error) {
+        console.warn('[useRunningTracker] Failed to init pedometer', error);
+      }
+    };
+
+    setupPedometer();
+
+    return () => {
+      cancelled = true;
+      Promise.resolve(listenerHandle?.remove()).catch(() => undefined);
+      if (pedometerInstance) {
+        void pedometerInstance.stopMeasurementUpdates().catch(() => undefined);
+        void pedometerInstance.removeAllListeners().catch(() => undefined);
+      }
+    };
+  }, [isRunning]);
+
   // Timer effect — timestamp-based (immune to JS thread suspension during sleep)
   useEffect(() => {
     if (isRunning && !isPaused && !isStoppingRef.current) {
@@ -325,6 +397,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         sessionVersion: '2.0', 
         closedPolygons: closedPolygonsRef.current || [],
         eventsHistory: eventsHistoryRef.current || [],
+        totalSteps: currentStepsRef.current,
+        runIsValid: runIsValid ?? true,
+        antiCheatLog: antiCheatLog ?? null,
         area: areaRef.current || 0,
         timestamp: Date.now(),
         restoreSource: 'storage'
@@ -334,7 +409,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     } catch (e) {
       console.error("[useRunningTracker] Failed to save run state", e);
     }
-  }, [isRunning, savedRunId]);
+  }, [antiCheatLog, isRunning, runIsValid, savedRunId]);
 
   // Periodic Save (Every 10 seconds per Revised Plan)
   useEffect(() => {
@@ -648,6 +723,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
               setDuration(restoredDuration);
               setClosedPolygons(data.closedPolygons || []);
               setEventsHistory(Array.isArray(data.eventsHistory) ? data.eventsHistory : []);
+              setCurrentSteps(Number(data.totalSteps || 0));
+              setRunIsValid(data.runIsValid ?? true);
+              setAntiCheatLog(data.antiCheatLog ?? null);
               setArea(data.area || 0);
               
               const isPausedNow = data.isPaused ?? false;
@@ -716,6 +794,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           setClosedPolygons([]);
           setEventsHistory([]);
           setSessionClaims([]);
+          setCurrentSteps(0);
+          setRunIsValid(undefined);
+          setAntiCheatLog(undefined);
           setArea(0);
           setCurrentLocation(null);
           lastLocationRef.current = null;
@@ -818,6 +899,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         path: livePath,
         polygons: liveClaims,
         timestamp: Date.now(),
+        totalSteps: currentStepsRef.current,
         manualLocationCount: 0,
         eventsHistory: eventsHistoryRef.current
       });
@@ -852,6 +934,15 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         }
         if (result.data?.settledTerritoriesCount !== undefined) {
           setSettledTerritoriesCount(result.data.settledTerritoriesCount);
+        }
+        if (result.data?.isValid !== undefined) {
+          setRunIsValid(result.data.isValid);
+        }
+        if (result.data?.antiCheatLog !== undefined) {
+          setAntiCheatLog(result.data.antiCheatLog ?? null);
+        }
+        if (result.data?.totalSteps !== undefined) {
+          setCurrentSteps(Math.max(0, Number(result.data.totalSteps)));
         }
         if (isFinal) {
           console.log("Run saved successfully:", result.data?.runId);
@@ -891,6 +982,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
   // Estimated steps: 1.3 steps per meter (average walking/running cadence)
   const estimatedSteps = Math.floor(distance * 1.3); // distance is in meters here
+  const finalSteps = currentSteps > 0 ? currentSteps : estimatedSteps;
 
   return {
     distance: distanceKm,
@@ -914,12 +1006,14 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     // Raw data contract (preferred for calculations)
     distanceMeters: distance, // raw meters
     durationSeconds: duration, // raw seconds
-    steps: estimatedSteps,
+    steps: finalSteps,
     savedRunId, // Expose the run ID for photo upload and sharing
     runNumber,
     damageSummary,
     maintenanceSummary,
     settledTerritoriesCount,
+    runIsValid,
+    antiCheatLog,
     idempotencyKey: runIdempotencyKeyRef.current,
     eventsHistory,
     activeRandomEvent: activeEvent,

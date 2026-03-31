@@ -90,6 +90,7 @@ function AnimatedCounter({ value, className, decimals = 2 }: { value: number, cl
 interface RunningHUDProps {
   distance: number // km
   currentDistanceMeters?: number
+  steps?: number
   duration: string // "HH:MM:SS"
   pace: string // "MM:SS"
   calories: number
@@ -159,6 +160,7 @@ function SlideToPause({ onPause }: { onPause: () => void }) {
 export function RunningHUD({
   distance,
   currentDistanceMeters,
+  steps = 0,
   duration,
   pace,
   calories,
@@ -210,6 +212,7 @@ export function RunningHUD({
   const [completedMissionIds, setCompletedMissionIds] = useState<Set<string>>(new Set())
   const localDistanceMeters = currentDistanceMeters ?? distance * 1000
   const localDistanceKm = localDistanceMeters / 1000
+  const avgStride = steps > 0 ? (localDistanceMeters / steps) : 0
 
   const getDistanceMissionProgress = useCallback((mission: any, userMission: any) => {
     const serverProgress = Number(userMission.current || 0)
@@ -372,6 +375,20 @@ export function RunningHUD({
                     <span className="text-xs font-bold uppercase tracking-wider">时长</span>
                   </div>
                   <span className="text-2xl font-black text-white font-mono">{duration}</span>
+                </div>
+              </div>
+              <div className="mt-4 grid w-full max-w-sm grid-cols-2 gap-6">
+                <div className="flex flex-col items-center">
+                  <div className="flex items-center gap-1.5 text-white/60 mb-1">
+                    <span className="text-xs font-bold uppercase tracking-wider">步数</span>
+                  </div>
+                  <span className="text-xl font-black text-white font-mono">{steps}</span>
+                </div>
+                <div className="flex flex-col items-center">
+                  <div className="flex items-center gap-1.5 text-white/60 mb-1">
+                    <span className="text-xs font-bold uppercase tracking-wider">步幅(m)</span>
+                  </div>
+                  <span className="text-xl font-black text-white font-mono">{avgStride > 0 ? avgStride.toFixed(2) : '--'}</span>
                 </div>
               </div>
             </div>

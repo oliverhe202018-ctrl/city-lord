@@ -61,7 +61,10 @@ export interface RunRecordDTO {
     /** Estimated calories burned */
     calories?: number;
 
-    /** Estimated steps taken */
+    /** Total pedometer steps for this run */
+    totalSteps?: number;
+
+    /** Estimated steps taken (legacy fallback) */
     steps?: number;
 
     /**

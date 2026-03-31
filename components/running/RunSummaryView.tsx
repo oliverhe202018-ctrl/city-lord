@@ -11,7 +11,7 @@ const StaticTrajectoryMap = dynamic(
   () => import("./StaticTrajectoryMap").then(mod => mod.StaticTrajectoryMap),
   { ssr: false, loading: () => <MapSkeleton className="w-full h-full bg-slate-900 rounded-2xl" /> }
 )
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Portal } from "@radix-ui/react-portal"
 import { GlassCard } from "../ui/GlassCard"
 import { toast } from "sonner"
@@ -30,6 +30,8 @@ interface RunSummaryViewProps {
   calories: number
   hexesCaptured: number
   steps?: number
+  runIsValid?: boolean
+  antiCheatLog?: string | null
   onClose: () => void
   onShare?: () => void
   runTrajectory?: { lat: number, lng: number }[]
@@ -66,6 +68,8 @@ export function RunSummaryView({
   calories,
   hexesCaptured,
   steps = 0,
+  runIsValid = true,
+  antiCheatLog,
   onClose,
   onShare,
   runTrajectory = [],
@@ -81,6 +85,7 @@ export function RunSummaryView({
   const [isUploading, setIsUploading] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
   const [hasShared, setHasShared] = useState(false);
+  const [showAntiCheatModal, setShowAntiCheatModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const userId = useGameStore(state => state.userId);
   const faction = useGameStore(state => state.faction);
@@ -128,9 +133,16 @@ export function RunSummaryView({
   const avgSpeed = durationSeconds > 0
     ? ((distanceMeters / durationSeconds) * 3.6).toFixed(1)
     : '--';
+  const avgStride = steps > 0 ? (distanceMeters / steps).toFixed(2) : '--';
 
   // Distance in km for display
   const distanceKm = (distanceMeters / 1000).toFixed(2);
+
+  useEffect(() => {
+    if (!runIsValid) {
+      setShowAntiCheatModal(true);
+    }
+  }, [runIsValid]);
 
   // Calculate territory area based on game constants or use passed prop
   const finalCapturedArea = propCapturedArea !== undefined 
@@ -372,8 +384,7 @@ export function RunSummaryView({
               </div>
           </div>
 
-          {/* Stats Grid 3x2 */}
-          <div className="grid grid-cols-3 gap-y-8 px-4 mb-8">
+          <div className="grid grid-cols-4 gap-y-8 px-4 mb-8">
             {/* Avg Pace */}
             <div className="text-center">
               <div className="text-2xl font-bold text-gray-900">{pace}</div>
@@ -399,6 +410,10 @@ export function RunSummaryView({
             <div className="text-center">
               <div className="text-2xl font-bold text-gray-900">{steps}</div>
               <div className="text-xs text-gray-400 mt-1">步数</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-gray-900">{avgStride}</div>
+              <div className="text-xs text-gray-400 mt-1">平均步幅(m)</div>
             </div>
             {/* Territory Captured - RED FONT */}
             <div className="text-center">
@@ -683,6 +698,25 @@ export function RunSummaryView({
             </>
           )}
         </AnimatePresence>
+        {showAntiCheatModal && (
+          <div className="fixed inset-0 z-[10010] flex items-center justify-center bg-black/70 p-4">
+            <div className="w-full max-w-md rounded-2xl border border-red-200 bg-white p-6 shadow-2xl">
+              <h3 className="text-lg font-bold text-red-600">风控拦截</h3>
+              <p className="mt-3 text-sm leading-6 text-slate-700">
+                检测到异常的运动数据（步幅或步频与真实跑步不符）。本次运动不计入成绩，未获得任何领地和收益。请勿使用载具或虚拟定位设备。
+              </p>
+              {antiCheatLog && (
+                <p className="mt-2 text-xs text-slate-500">风控原因: {antiCheatLog}</p>
+              )}
+              <button
+                onClick={() => setShowAntiCheatModal(false)}
+                className="mt-5 h-11 w-full rounded-xl bg-red-600 font-semibold text-white hover:bg-red-500"
+              >
+                我知道了
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </Portal>
   )

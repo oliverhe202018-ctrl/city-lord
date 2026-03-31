@@ -52,6 +52,8 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
     const TERRITORY_MAX_HEALTH = 100;
     const ALLY_HEAL = 50;
     const ENEMY_DAMAGE = 20;
+    const PATROL_OVERLAP_THRESHOLD = 0.8;
+    const SHIELD_CHARGE_INCREMENT = 100;
 
     // 1. Validate Input
     if (!pathGeoJSON || !pathGeoJSON.geometry) {
@@ -76,6 +78,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
     const combinedGeometry = cleanedPolygons.length === 1
         ? cleanedPolygons[0].geometry
         : turf.multiPolygon(cleanedPolygons.map(p => p.geometry.coordinates)).geometry;
+    const combinedGeometryJson = JSON.stringify(combinedGeometry);
 
     // Initial working set for area carving
     let workingPolygons: any[] = [...cleanedPolygons];
@@ -88,6 +91,52 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
         damageDetails: [],
         maintenanceDetails: []
     };
+
+    let bestPatrolOverlap: {
+        id: string;
+        health: number | null;
+        current_hp: number | null;
+        max_hp: number | null;
+        level: number | null;
+        overlap_ratio: number;
+    } | null = null;
+    try {
+        const overlapRows = await client.$queryRaw<any[]>`
+            SELECT
+                t.id,
+                t.health,
+                t.current_hp,
+                t.max_hp,
+                t.level,
+                COALESCE(
+                    ST_Area(
+                        ST_Intersection(
+                            t.geojson::geography,
+                            ST_SetSRID(ST_GeomFromGeoJSON(${combinedGeometryJson}), 4326)::geography
+                        )
+                    ) / NULLIF(
+                        ST_Area(ST_SetSRID(ST_GeomFromGeoJSON(${combinedGeometryJson}), 4326)::geography),
+                        0
+                    ),
+                    0
+                ) AS overlap_ratio
+            FROM territories t
+            WHERE t.status = 'ACTIVE'::"TerritoryStatus"
+              AND t.owner_id = ${userId}::uuid
+              AND ST_Intersects(t.geojson, ST_SetSRID(ST_GeomFromGeoJSON(${combinedGeometryJson}), 4326))
+            ORDER BY overlap_ratio DESC
+            LIMIT 1
+        `;
+        if (overlapRows.length > 0) {
+            bestPatrolOverlap = {
+                ...overlapRows[0],
+                overlap_ratio: Number(overlapRows[0].overlap_ratio ?? 0)
+            };
+        }
+    } catch (sqlErr: any) {
+        console.error(`[Patrol Overlap SQL Error] userId: ${userId}, runId: ${runId}, error: ${sqlErr.message}`);
+        return { success: false, createdTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: `SQL Error: ${sqlErr.message}` };
+    }
 
     // 2. Fetch overlapping territories using PostGIS BBox/Intersects (Raw SQL)
     let overlappingTerritories: any[] = [];
@@ -106,11 +155,11 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                 t.level,
                 p.nickname as owner_name,
                 ST_AsGeoJSON(t.geojson)::jsonb as geometry,
-                ST_Contains(ST_GeomFromGeoJSON(${JSON.stringify(combinedGeometry)}), t.geojson) as is_contained
+                ST_Contains(ST_GeomFromGeoJSON(${combinedGeometryJson}), t.geojson) as is_contained
             FROM territories t
             LEFT JOIN profiles p ON t.owner_id = p.id
             WHERE t.status = 'ACTIVE'::"TerritoryStatus"
-            AND ST_Intersects(t.geojson, ST_GeomFromGeoJSON(${JSON.stringify(combinedGeometry)}))
+            AND ST_Intersects(t.geojson, ST_GeomFromGeoJSON(${combinedGeometryJson}))
         `;
     } catch (sqlErr: any) {
         console.error(`[Settlement SQL Error] userId: ${userId}, runId: ${runId}, error: ${sqlErr.message}`);
@@ -123,6 +172,51 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
             select: { faction: true }
         });
         const runnerFaction = runnerProfile?.faction ?? null;
+
+        if (bestPatrolOverlap && bestPatrolOverlap.overlap_ratio > PATROL_OVERLAP_THRESHOLD) {
+            const beforeHealth = Number(bestPatrolOverlap.health ?? TERRITORY_MAX_HEALTH);
+            const beforeShield = Number(bestPatrolOverlap.current_hp ?? 0);
+            const maxShield = Number(bestPatrolOverlap.max_hp ?? 1000);
+
+            if (beforeHealth < TERRITORY_MAX_HEALTH) {
+                await tx.territories.update({
+                    where: { id: bestPatrolOverlap.id },
+                    data: {
+                        health: TERRITORY_MAX_HEALTH,
+                        last_maintained_at: new Date()
+                    }
+                });
+                result.maintenanceDetails.push({
+                    territoryId: bestPatrolOverlap.id,
+                    type: 'HEAL',
+                    oldMaxHp: maxShield,
+                    newMaxHp: maxShield,
+                    beforeHp: beforeHealth,
+                    afterHp: TERRITORY_MAX_HEALTH,
+                    level: Number(bestPatrolOverlap.level ?? 1)
+                });
+                return result;
+            }
+
+            const chargedShield = Math.min(maxShield, beforeShield + SHIELD_CHARGE_INCREMENT);
+            await tx.territories.update({
+                where: { id: bestPatrolOverlap.id },
+                data: {
+                    current_hp: chargedShield,
+                    last_maintained_at: new Date()
+                }
+            });
+            result.maintenanceDetails.push({
+                territoryId: bestPatrolOverlap.id,
+                type: 'FORTIFY',
+                oldMaxHp: maxShield,
+                newMaxHp: maxShield,
+                beforeHp: beforeShield,
+                afterHp: chargedShield,
+                level: Number(bestPatrolOverlap.level ?? 1)
+            });
+            return result;
+        }
 
         for (const existingTerr of overlappingTerritories) {
             // Self-owned or friendly club overlap check logic can be added here

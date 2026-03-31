@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import { ArrowLeft, LocateFixed, Route, X, Signal } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useLocationStore } from "@/store/useLocationStore"
 import { isNativePlatform, safeOpenAppSettings } from "@/lib/capacitor/safe-plugins"
@@ -243,38 +243,45 @@ export function StartRunPageClient() {
         </DrawerContent>
       </Drawer>
 
-      <Dialog open={showBatteryModal} onOpenChange={setShowBatteryModal}>
-        <DialogContent showCloseButton={false} className="h-[100dvh] max-w-md rounded-none border-0 p-0">
-          <div className="flex h-full flex-col bg-rose-100 dark:bg-rose-950/80">
-            <div className="bg-rose-500 px-5 py-4 text-white">
-              <DialogTitle className="text-xl font-extrabold">检测到电池优化限制</DialogTitle>
+      {showBatteryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-[90%] max-w-sm bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-2xl">
+            <div className="flex items-center justify-between bg-rose-500 px-5 py-3 text-white">
+              <h2 className="text-base font-extrabold">检测到电池优化限制</h2>
+              <button
+                type="button"
+                onClick={() => setShowBatteryModal(false)}
+                className="rounded-md p-1 text-white/90 hover:bg-white/20"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
-            <div className="flex-1 px-5 py-6">
+            <div className="p-6">
               <p className="text-sm leading-7 text-rose-900 dark:text-rose-100">
                 电池优化会在锁屏时中断 GPS 轨迹记录，导致跑步距离和占领结果异常。建议立即将 City Lord 设置为“不受限制”或“允许后台运行”。
               </p>
-            </div>
-            <div className="space-y-3 px-5 pb-[calc(env(safe-area-inset-bottom)+20px)]">
-              <Button
-                className="h-12 w-full rounded-xl bg-slate-900 text-white hover:bg-slate-800"
-                onClick={async () => {
-                  const opened = await safeOpenAppSettings()
-                  if (!opened) toast.info("请手动前往系统设置关闭电池优化")
-                }}
-              >
-                打开设置 (Open settings)
-              </Button>
-              <Button
-                variant="outline"
-                className="h-12 w-full rounded-xl border-rose-300 bg-white text-rose-700 hover:bg-rose-50"
-                onClick={() => setShowGuideModal(true)}
-              >
-                阅读指南 (Read article)
-              </Button>
+              <div className="mt-5 space-y-3">
+                <Button
+                  className="h-12 w-full rounded-xl bg-slate-900 text-white hover:bg-slate-800"
+                  onClick={async () => {
+                    const opened = await safeOpenAppSettings()
+                    if (!opened) toast.info("请手动前往系统设置关闭电池优化")
+                  }}
+                >
+                  打开设置 (Open settings)
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-12 w-full rounded-xl border-rose-300 bg-white text-rose-700 hover:bg-rose-50"
+                  onClick={() => setShowGuideModal(true)}
+                >
+                  阅读指南 (Read article)
+                </Button>
+              </div>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
 
       <Dialog open={showGuideModal} onOpenChange={setShowGuideModal}>
         <DialogContent className="h-[100dvh] max-w-md rounded-none border-0 p-0" showCloseButton={false}>

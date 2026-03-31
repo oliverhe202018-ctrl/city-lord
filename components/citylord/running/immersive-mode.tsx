@@ -73,6 +73,8 @@ interface ImmersiveModeProps {
   damageSummary?: any[]
   maintenanceSummary?: any[]
   settledTerritoriesCount?: number
+  runIsValid?: boolean
+  antiCheatLog?: string | null
   idempotencyKey?: string
   eventsHistory?: RunEventLog[]
   activeRandomEvent?: ActiveRandomEvent | null
@@ -125,6 +127,8 @@ export function ImmersiveRunningMode({
   damageSummary,
   maintenanceSummary,
   settledTerritoriesCount,
+  runIsValid,
+  antiCheatLog,
   idempotencyKey,
   eventsHistory = [],
   activeRandomEvent,
@@ -539,6 +543,8 @@ export function ImmersiveRunningMode({
 
           capturedArea={area}
           steps={steps}
+          runIsValid={runIsValid}
+          antiCheatLog={antiCheatLog}
           onClose={handleStop}
           runId={savedRunId || undefined}
           runNumber={runNumber}
@@ -710,6 +716,7 @@ export function ImmersiveRunningMode({
           pace={typeof pace === 'number' ? String(pace) : (pace ?? '00:00')}
           duration={time}
           calories={calories}
+          steps={steps}
           hexesCaptured={hexesCaptured}
           isPaused={isPaused}
           onPause={() => {
