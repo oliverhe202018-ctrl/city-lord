@@ -2,6 +2,7 @@
 
 import nextDynamic from 'next/dynamic';
 import { useState, useEffect, useRef, useCallback, memo } from "react"
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
 import { logEvent } from '@/lib/native-log';
 import { BottomNav, TabType } from "@/components/citylord/bottom-nav"
 import { MissionCenter } from "@/components/citylord/MissionCenter"
@@ -43,6 +44,7 @@ import { useAuth } from "@/hooks/useAuth"
 import { toast } from "sonner"
 import { RunHistoryDrawer } from "@/components/map/RunHistoryDrawer"
 import { CountdownOverlay } from "@/components/running/CountdownOverlay"
+import { StartRunOverlay } from "@/components/citylord/start/StartRunPageClient"
 // OneSignal removed
 import { isNativePlatform, safeRequestGeolocationPermission, safeRequestLocalNotificationPermission, safeScheduleLocalNotification } from "@/lib/capacitor/safe-plugins"
 import { safeLoadAMap } from '@/lib/map/safe-amap';
@@ -90,7 +92,7 @@ interface GamePageContentProps {
   initialUser?: any
 }
 
-const VALID_TABS: TabType[] = ['home', 'play', 'missions', 'social', 'profile', 'leaderboard', 'mode'];
+const VALID_TABS: TabType[] = ['home', 'play', 'start', 'missions', 'social', 'profile', 'leaderboard', 'mode'];
 const ONBOARDING_STATUS_KEY = 'citylord_onboarding_status'
 const ONBOARDING_STEP_KEY = 'citylord_onboarding_step'
 
@@ -113,6 +115,7 @@ export function GamePageContent({
   const { achievements, totalDistance } = useGameUser()
   const { initializeLocationSystem } = useLocationContext()
   const hydrated = useHydration();
+  const prefersReducedMotion = useReducedMotion();
   const mapViewRef = useRef<AMapViewHandle>(null);
   const [showTerritory, setShowTerritory] = useState(true);
   const [viewportKing, setViewportKing] = useState<ViewportKingData | null>(null);
@@ -383,10 +386,9 @@ export function GamePageContent({
   const gpsError = useGameStore((state) => state.gpsError);
   const activeDrawer = useGameStore((state) => state.activeDrawer);
   const hasDismissedGeolocationPrompt = useGameStore((state) => state.hasDismissedGeolocationPrompt);
-  const isSmartRunStarting = useGameStore((state) => state.isSmartRunStarting);
-  const setSmartRunStarting = useGameStore((state) => state.setSmartRunStarting);
-  const isRunTakeoverActive = isSmartRunStarting || isCountingDown || isImmersiveActive
-  const shouldRenderPlaySurface = activeTab === "play" || isRunTakeoverActive
+  const isRunTakeoverActive = isCountingDown || isImmersiveActive
+  const shouldRenderPlaySurface = activeTab === "home" || activeTab === "play" || activeTab === "start" || isRunTakeoverActive
+  const shouldShowPlayChrome = activeTab === "play" && !isRunTakeoverActive
 
   // Check if first visit - 只在首次挂载时执行
   useEffect(() => {
@@ -598,22 +600,11 @@ export function GamePageContent({
     }
 
     if (tab === "running") {
-      beginRunStart()
+      setActiveTab("start")
     } else {
       setActiveTab(tab as TabType)
     }
-  }, [beginRunStart])
-
-  useEffect(() => {
-    if (!isSmartRunStarting) return
-
-    const didStart = beginRunStart()
-    setSmartRunStarting(false)
-
-    if (!didStart) {
-      setIsCountingDown(false)
-    }
-  }, [isSmartRunStarting, beginRunStart, setSmartRunStarting])
+  }, [])
 
   const handleShowDemo = useCallback((type: "territory" | "challenge" | "achievement") => {
     if (type === "territory") setShowTerritoryAlert(true)
@@ -721,6 +712,7 @@ export function GamePageContent({
     clearRecovery()
     setIsRunning(false)
     setShowImmersiveMode(false)
+    setActiveTab("home")
 
     const currentRunDistance = distance || 0
     addTotalDistance(currentRunDistance)
@@ -813,22 +805,8 @@ export function GamePageContent({
 
       {hydrated && currentCity && (
         <main className="relative flex-1 overflow-hidden">
-          {!isRunTakeoverActive && activeTab === "home" && (
-            <div className="flex-1 w-full h-full bg-[#0f172a] z-40 relative">
-              <GameHomePage
-                onStartRun={(_mode: RunMode) => handleQuickNavigate('running')}
-                onNavigateToMap={(targetId) => {
-                  setActiveTab('play');
-                  // Future: highlight target on map by targetId
-                }}
-                onNavigateToTab={(tab) => setActiveTab(tab as TabType)}
-                onSmartPlan={handlePlannerOpen}
-              />
-            </div>
-          )}
-
           {shouldRenderPlaySurface && (
-            <div className="relative h-dvh w-full overflow-hidden">
+            <div className="absolute inset-0 overflow-hidden">
               <div className="absolute inset-0 z-0">
                 <MemoizedAMapView
                   ref={mapViewRef}
@@ -837,12 +815,12 @@ export function GamePageContent({
                   sessionClaims={sessionClaims}
                   onViewportKingChange={setViewportKing}
                 />
-                <MemoizedFactionSelector initialUser={initialUser} />
-                <MemoizedReferralWelcome />
+                {shouldShowPlayChrome && <MemoizedFactionSelector initialUser={initialUser} />}
+                {shouldShowPlayChrome && <MemoizedReferralWelcome />}
               </div>
 
               <div className="relative z-10 h-full w-full pointer-events-none">
-                {!isRunTakeoverActive && (
+                {shouldShowPlayChrome && (
                   <>
                     <div className="pointer-events-auto">
                       <MemoizedMapHeader setShowThemeSwitcher={setShowThemeSwitcher} />
@@ -852,27 +830,57 @@ export function GamePageContent({
                       <MemoizedModeSwitcher onDrawerOpenChange={handleDrawerOpenChange} />
                     </div>
 
-                    {gameMode === 'map' && viewportKing && (
-                      <div className="pointer-events-auto absolute top-[138px] left-1/2 -translate-x-1/2 z-30 w-[calc(100%-2rem)] max-w-xs rounded-2xl border border-white/15 bg-black/55 px-3 py-2 backdrop-blur-xl shadow-xl">
-                        <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 shrink-0 rounded-full border border-white/20 bg-black/40 overflow-hidden flex items-center justify-center">
-                            {viewportKing.avatarUrl ? (
-                              <img src={viewportKing.avatarUrl} alt={viewportKing.nickname} className="h-full w-full object-cover" />
-                            ) : (
-                              <span className="text-xs font-bold text-white/80">{viewportKing.nickname.slice(0, 1)}</span>
-                            )}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1 text-amber-300">
-                              <Crown className="h-3.5 w-3.5" />
-                              <span className="text-[10px] font-semibold">区域霸主</span>
+                    <AnimatePresence mode="wait">
+                      {gameMode === 'map' && viewportKing && (
+                        <motion.div
+                          key={viewportKing.ownerId}
+                          initial={{ opacity: 0, y: -48, scale: 0.92 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: -32, scale: 0.97 }}
+                          transition={prefersReducedMotion ? { duration: 0.18 } : { type: 'spring', stiffness: 240, damping: 24 }}
+                          className="pointer-events-auto absolute top-[132px] left-1/2 -translate-x-1/2 z-30 w-[calc(100%-1.25rem)] max-w-md overflow-hidden rounded-[24px] border border-amber-300/35 bg-black/70 px-4 py-3 backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.35)]"
+                        >
+                          <motion.div
+                            aria-hidden
+                            className="pointer-events-none absolute inset-0 bg-[linear-gradient(120deg,transparent_0%,rgba(251,191,36,0.08)_35%,rgba(255,255,255,0.18)_50%,rgba(251,191,36,0.08)_65%,transparent_100%)]"
+                            animate={prefersReducedMotion ? { opacity: 0.45 } : { x: ['-120%', '120%'] }}
+                            transition={prefersReducedMotion ? undefined : { duration: 2.8, repeat: Infinity, ease: 'linear' }}
+                          />
+                          <div className="relative flex items-center gap-3">
+                            <motion.div
+                              className="relative h-12 w-12 shrink-0 rounded-full border border-amber-200/50 bg-black/40 overflow-hidden flex items-center justify-center"
+                              animate={prefersReducedMotion ? undefined : { boxShadow: ['0 0 0 rgba(251,191,36,0.1)', '0 0 24px rgba(251,191,36,0.45)', '0 0 0 rgba(251,191,36,0.12)'] }}
+                              transition={prefersReducedMotion ? undefined : { duration: 1.8, repeat: Infinity }}
+                            >
+                              <motion.div
+                                aria-hidden
+                                className="absolute inset-0 rounded-full border border-amber-300/35"
+                                animate={prefersReducedMotion ? undefined : { scale: [1, 1.18, 1], opacity: [0.2, 0.55, 0.2] }}
+                                transition={prefersReducedMotion ? undefined : { duration: 1.6, repeat: Infinity }}
+                              />
+                              {viewportKing.avatarUrl ? (
+                                <img src={viewportKing.avatarUrl} alt={viewportKing.nickname} className="h-full w-full object-cover" />
+                              ) : (
+                                <span className="text-sm font-bold text-white/80">{viewportKing.nickname.slice(0, 1)}</span>
+                              )}
+                            </motion.div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 text-amber-300">
+                                <motion.div
+                                  animate={prefersReducedMotion ? undefined : { rotate: [-8, 8, -6, 6, 0] }}
+                                  transition={prefersReducedMotion ? undefined : { duration: 0.9 }}
+                                >
+                                  <Crown className="h-4 w-4" />
+                                </motion.div>
+                                <span className="text-[10px] font-semibold tracking-[0.28em]">区域霸主登基</span>
+                              </div>
+                              <p className="truncate text-base font-black text-white">{viewportKing.nickname}</p>
+                              <p className="text-[11px] text-white/70">统治面积 {Math.round(viewportKing.totalArea).toLocaleString('zh-CN')} m²</p>
                             </div>
-                            <p className="truncate text-sm font-bold text-white">{viewportKing.nickname}</p>
-                            <p className="text-[11px] text-white/70">{Math.round(viewportKing.totalArea).toLocaleString('zh-CN')} m²</p>
                           </div>
-                        </div>
-                      </div>
-                    )}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
 
                     {!shouldHideButtons && (
                       <div className="pointer-events-auto absolute top-[130px] left-4 z-20 flex flex-col gap-4">
@@ -965,7 +973,29 @@ export function GamePageContent({
                     )}
                   </>
                 )}
+
+                {!isRunTakeoverActive && activeTab === "start" && (
+                  <StartRunOverlay
+                    onBack={() => setActiveTab("home")}
+                    onBeginRun={() => {
+                      beginRunStart()
+                    }}
+                  />
+                )}
               </div>
+            </div>
+          )}
+
+          {!isRunTakeoverActive && activeTab === "home" && (
+            <div className="absolute inset-0 bg-[#0f172a] z-40">
+              <GameHomePage
+                onStartRun={(_mode: RunMode) => setActiveTab('start')}
+                onNavigateToMap={(targetId) => {
+                  setActiveTab('play');
+                }}
+                onNavigateToTab={(tab) => setActiveTab(tab as TabType)}
+                onSmartPlan={handlePlannerOpen}
+              />
             </div>
           )}
 

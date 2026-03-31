@@ -24,6 +24,15 @@ export interface ChangelogDetail extends Omit<ChangelogVersion, 'item_count'> {
     nextVersion: { version: string; title: string | null } | null
 }
 
+interface ChangelogVersionWithItems {
+    id: string
+    version: string
+    title: string | null
+    is_latest: boolean
+    release_date: string
+    changelog_items?: ChangelogItem[] | null
+}
+
 export async function getChangelogs(): Promise<{
     data: ChangelogVersion[] | null
     error: string | null
@@ -83,23 +92,17 @@ export async function getChangelogDetail(version: string): Promise<{
 
         if (error || !versionData) return { data: null, error: error?.message ?? '未找到该版本' }
 
-// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
-        const sortedItems: ChangelogItem[] = (versionData.changelog_items ?? [])
-// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
-            // @ts-expect-error - FIXME: Property 'sort' does not exist on type '{ id: string; version_id: stri - [Ticket-202603-SchemaSync] baseline exemption
+        const typedVersionData = versionData as unknown as ChangelogVersionWithItems
+
+        const sortedItems: ChangelogItem[] = (typedVersionData.changelog_items ?? [])
             .sort((a: ChangelogItem, b: ChangelogItem) => a.sort_order - b.sort_order)
 
         const detail: ChangelogDetail = {
-// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
-            id:           versionData.id,
-// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
-            version:      versionData.version,
-// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
-            title:        versionData.title,
-// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
-            is_latest:    versionData.is_latest,
-// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
-            release_date: versionData.release_date,
+            id:           typedVersionData.id,
+            version:      typedVersionData.version,
+            title:        typedVersionData.title,
+            is_latest:    typedVersionData.is_latest,
+            release_date: typedVersionData.release_date,
             items:        sortedItems,
 // @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
             prevVersion:  allVersions?.[currentIndex - 1] ?? null, // 更新版本（列表中更靠前）

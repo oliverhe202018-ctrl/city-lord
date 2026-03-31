@@ -26,6 +26,7 @@ def capacitor_pods
   pod 'CapacitorLocalNotifications', :path => '../../node_modules/@capacitor/local-notifications'
   pod 'CapacitorStatusBar', :path => '../../node_modules/@capacitor/status-bar'
   pod 'CapawesomeCapacitorBackgroundTask', :path => '../../node_modules/@capawesome/capacitor-background-task'
+  pod 'CapgoCapacitorPedometer', :path => '../../node_modules/@capgo/capacitor-pedometer'
   pod 'PerfoodCapacitorHealthkit', :path => '../../node_modules/@perfood/capacitor-healthkit'
   pod 'CapacitorNativeSettings', :path => '../../node_modules/capacitor-native-settings'
 end

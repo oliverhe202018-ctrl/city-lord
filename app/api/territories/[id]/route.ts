@@ -1,14 +1,13 @@
 /**
  * GET /api/territories/:id
  *
- * 通过 territory ID（H3 Cell 索引）查询单个 territory 详情。
- * 返回与 /by-cell 一致的稳定 Envelope 结构，不再返回裸 null。
+ * 通过 territory ID 查询单个 polygon territory 详情。
+ * 返回稳定 Envelope 结构，不再返回裸 null。
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCityById } from '@/lib/city-data';
-// H3 legacy import removed
 
 export async function GET(
   request: NextRequest,
@@ -58,7 +57,7 @@ export async function GET(
     const city = getCityById(territory.city_id);
     const cityName = city?.name || '未知城市';
 
-    // 面积优先使用 area_m2_exact，或者由 postgis 计算。不再依赖 h3-js
+    // 面积优先使用 area_m2_exact，或者由 PostGIS 计算
     const areaM2 = (territory as any).area_m2_exact || 0;
 
     return NextResponse.json({

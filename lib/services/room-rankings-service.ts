@@ -1,5 +1,4 @@
 import { prisma } from '@/lib/prisma'
-import { DEFAULT_TERRITORY_AREA_KM2 } from '@/lib/constants/territory'
 
 export interface RankingItem {
   rank: number
@@ -55,12 +54,6 @@ export class RoomRankingsService {
       formattedResults = formattedResults.map(item => ({
         ...item,
         value: totalCount > 0 ? ((item.value / totalCount) * 100).toFixed(2) + '%' : '0%'
-      }))
-    } else if (filter === 'overall' || filter === 'stealers' || filter === 'gainers' || filter === 'losers') {
-      // 领地数转换为面积 (此处使用预设面积，未来应使用多边形真实面积)
-      formattedResults = formattedResults.map(item => ({
-        ...item,
-        value: (item.value * DEFAULT_TERRITORY_AREA_KM2).toFixed(4)
       }))
     }
 

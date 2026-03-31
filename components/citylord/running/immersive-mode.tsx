@@ -8,8 +8,6 @@ import { useCity } from "@/contexts/CityContext"
 import { useGameLocation } from "@/store/useGameStore"
 import { safeHapticImpact, safeHapticVibrate } from "@/lib/capacitor/safe-plugins"
 import { toast } from "sonner"
-
-import { useSearchParams, useRouter } from 'next/navigation'
 import { AchievementPopup } from "../achievement-popup"
 import { RunningHUD } from "@/components/running/RunningHUD"
 import dynamic from "next/dynamic"
@@ -236,7 +234,6 @@ export function ImmersiveRunningMode({
   const { ghostPath } = useGameLocation()
   const [lastClaimedHex, setLastClaimedHex] = useState<string | null>(null)
   const [currentHex, setCurrentHex] = useState<string | null>(null)
-  const router = useRouter()
   const faction = useGameStore(s => s.faction)
 
   // ─── Module 1: Battle Caster (Native TTS) ───
@@ -252,7 +249,7 @@ export function ImmersiveRunningMode({
   useEffect(() => {
     if (!currentLocation || !currentCity?.territories || !userId) return
 
-    // H3 legacy haptic logic removed to prevent OOM
+    // 旧自动触感逻辑已关闭，避免长时间跑步时额外占用内存
   }, [currentLocation, currentCity, userId])
 
   // Map Data State
@@ -302,7 +299,7 @@ export function ImmersiveRunningMode({
 
     const checkAndClaimTerritory = async () => {
       try {
-        // H3 legacy claim logic removed to prevent OOM
+        // 自动抢占逻辑已迁移到多边形结算链路，这里只保留安全短路
         return
       } catch (error: any) {
         if (error?.name !== 'AbortError' && error?.digest !== 'NEXT_REDIRECT') {
@@ -497,7 +494,6 @@ export function ImmersiveRunningMode({
         setShowRetryDialog(false);
         onStop();
         setShowSummary(false);
-        router.replace('/');
       } catch (saveError) {
         const errorMsg = saveError instanceof Error ? saveError.message : '网络不可用';
         toast.error(`保存失败：${errorMsg === 'SAVE_TIMEOUT' ? '请求超时' : errorMsg}，跑步记录已安全保存在本地`, { duration: 5000 });
@@ -514,7 +510,6 @@ export function ImmersiveRunningMode({
     useGameStore.getState().resetRunState(); // Reset memory state only
     onStop();
     setShowSummary(false);
-    router.replace('/');
   };
 
   const handleStop = async (e?: React.MouseEvent) => {
@@ -548,7 +543,6 @@ export function ImmersiveRunningMode({
       
       onStop();
       setShowSummary(false);
-      router.replace('/');
       setIsSubmitting(false);
       return;
     }
@@ -568,7 +562,6 @@ export function ImmersiveRunningMode({
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('citylord:refresh-territories'));
         }
-        router.replace('/');
       } catch (saveError) {
         // Persist to localStorage as offline fallback before showing retry dialog
         try {
@@ -648,7 +641,6 @@ export function ImmersiveRunningMode({
 
       onStop();
       setShowSummary(false);
-      router.replace('/');
       setIsSubmitting(false);
     }
   };

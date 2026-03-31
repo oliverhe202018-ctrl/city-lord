@@ -2,7 +2,6 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { getCityById } from '@/lib/city-data'
-// H3 legacy import removed
 import { supabaseAdmin } from '@/lib/supabase/admin'
 
 export interface TerritoryDetailResult {
@@ -36,7 +35,7 @@ export async function getTerritoryDetail(territoryId: string): Promise<Territory
     // 1. Fetch territory data
     const { data: territory, error: terrError } = await supabaseAdmin
         .from('territories')
-        .select('owner_id, city_id, captured_at, owner_club_id, current_hp, score_weight, territory_type, source_run_id')
+        .select('owner_id, city_id, captured_at, owner_club_id, current_hp, score_weight, territory_type, source_run_id, area_m2_exact')
         .eq('id', territoryId)
         .single()
 
@@ -45,8 +44,7 @@ export async function getTerritoryDetail(territoryId: string): Promise<Territory
         return null
     }
 
-    // Area calculation via H3 removed.
-    const areaKm2 = 0; // Area should be provided by DB in future or calculated via postgis
+    const areaKm2 = Number(((territory.area_m2_exact || 0) / 1_000_000).toFixed(4))
 
     // Resolve city name
     const city = getCityById(territory.city_id)
@@ -56,7 +54,7 @@ export async function getTerritoryDetail(territoryId: string): Promise<Territory
         territoryId,
         cityName,
         capturedAt: territory.captured_at,
-        area: Number(areaKm2.toFixed(2)),
+        area: areaKm2,
         owner: null,
         club: null,
         recentRun: null,

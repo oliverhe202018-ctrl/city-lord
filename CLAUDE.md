@@ -15,7 +15,7 @@
   - 禁止在 Server Component 中直接使用浏览器 API（如 `window`），必须在 `useEffect` 或 `dynamic import` 中处理。
 - **Tailwind v4**: 
   - 遵循 CSS 变量优先的配置模式，不依赖 `tailwind.config.js`。
-- **地理计算 (Turf/H3)**:
+- **地理计算 (Turf/PostGIS)**:
   - 处理 `territories` 时，必须核实多边形是否闭合。
   - 大量计算必须放在 Server Action 或后台，避免阻塞 UI 线程。
 - **状态管理**:

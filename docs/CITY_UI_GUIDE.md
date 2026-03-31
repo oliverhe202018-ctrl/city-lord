@@ -236,8 +236,8 @@ import { CityActivityBanner } from "@/components/map/CityActivityBanner"
       <DailyGoalCard />
     </div>
 
-    {/* 4. 六边形网格 */}
-    <HexGridOverlay />
+    {/* 4. 领地多边形图层 */}
+    <TerritoryLayer />
 
     {/* 5. 其他内容 */}
   </div>

@@ -54,7 +54,6 @@ export function TerritoryDetailSheet() {
                             // Render with real detail or fallback to synthetic selectedTerritory data
                             (() => {
                                 const fallbackId = selectedTerritory?.id || '未知';
-                                // H3-based area calculation removed. Area should come from database or be calculated via postgis/turf.
                                 const fallbackArea = 0; 
                                 
                                 const displayDetail = detail || {

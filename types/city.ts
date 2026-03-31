@@ -135,7 +135,7 @@ export interface Challenge {
  * 领地信息接口
  */
 export interface Territory {
-  id: string // Now this is UUID or slug, no longer H3 index
+  id: string // UUID or slug territory identifier
   cityId: string
   ownerId: string | null
   /** @deprecated 仅供旧页面兼容，新地图渲染不得再以 ownerType 作为主输入 */

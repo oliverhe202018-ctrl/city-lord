@@ -2,12 +2,10 @@
 
 import { useEffect, useRef, useState } from "react"
 import { safeLoadAMap, safeDestroyMap } from '@/lib/map/safe-amap';
-import { useTheme } from "next-themes"
-import { toast } from "sonner"
-import { createClient } from "@/lib/supabase/client"
 import { Location } from "@/hooks/useRunningTracker"
 import { generateTerritoryStyle, generateNeutralTerritoryStyle } from "@/lib/citylord/territory-renderer"
 import { ViewContext, ExtTerritory } from "@/types/city"
+import { useGameTerritoryAppearance } from "@/store/useGameStore";
 
 // Define global AMap types to avoid TS errors
 declare global {
@@ -62,36 +60,7 @@ export function GaodeMap3D({
   const polygonRefs = useRef<any[]>([])
   const reqAnimIdRef = useRef<number | null>(null)
   const destroyedRef = useRef(false)
-
-  // User Color Preferences
-  const [pathColor, setPathColor] = useState('#3B82F6')
-  const [fillColor, setFillColor] = useState('#3B82F6')
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
-
-  // Load user colors
-  useEffect(() => {
-    const loadColors = async () => {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        setCurrentUserId(user.id)
-        try {
-          const { data } = await supabase
-            .from('profiles')
-            .select('path_color, fill_color')
-            .eq('id', user.id)
-            .single()
-          if (data) {
-            if (data.path_color) setPathColor(data.path_color)
-            if (data.fill_color) setFillColor(data.fill_color)
-          }
-        } catch (e) {
-          console.warn('Failed to fetch user colors', e)
-        }
-      }
-    }
-    loadColors()
-  }, [])
+  const { territoryAppearance } = useGameTerritoryAppearance()
 
   const addLog = (msg: string) => {
     console.log(`[GaodeMap3D] ${msg}`)
@@ -181,7 +150,7 @@ export function GaodeMap3D({
         })
         locaInstanceRef.current = loca
 
-        // prismLayer is kept for future non-H3 polygon rendering or dummy layer
+        // prismLayer is kept for future polygon rendering or dummy layer
         const prismLayer = new window.Loca.PrismLayer({
           zIndex: 10,
           opacity: 1,
@@ -256,12 +225,12 @@ export function GaodeMap3D({
     if (pathCoordinates.length > 0) {
       if (polylineRef.current) {
         polylineRef.current.setPath(pathCoordinates)
-        polylineRef.current.setOptions({ strokeColor: pathColor })
+        polylineRef.current.setOptions({ strokeColor: territoryAppearance.strokeColor })
       } else {
         polylineRef.current = new window.AMap.Polyline({
 // @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
           path: pathCoordinates,
-          strokeColor: pathColor,
+          strokeColor: territoryAppearance.strokeColor,
           strokeWeight: 6,
           strokeOpacity: 0.9,
           zIndex: 100,
@@ -274,7 +243,7 @@ export function GaodeMap3D({
     if (closedPolygons && closedPolygons.length > 0) {
         // ... (Keep polygon logic similar to KingdomLayer if needed, but GaodeMap3D usually for tracking)
     }
-  }, [path, closedPolygons, pathColor, isMapReady])
+  }, [closedPolygons, isMapReady, path, territoryAppearance.strokeColor])
 
   return (
     <div className="w-full h-full relative bg-black">

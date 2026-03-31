@@ -343,14 +343,14 @@ async function fetchBattleFeed(userId: string): Promise<BattleEvent[]> {
     // 1. Territories lost (someone else took over user's territory)
     const lostTerritories = await prisma.territory_owner_change_logs.findMany({
         where: {
-            previous_owner: userId,
+            old_owner_id: userId,
         },
         orderBy: { changed_at: 'desc' },
         take: 5,
         select: {
             id: true,
             territory_id: true,
-            new_owner: true,
+            new_owner_id: true,
             changed_at: true,
         },
     });
@@ -358,9 +358,7 @@ async function fetchBattleFeed(userId: string): Promise<BattleEvent[]> {
     for (const log of lostTerritories) {
         // Find attacker name
         const attackerProfile = await prisma.profiles.findUnique({
-// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
-            // @ts-expect-error - FIXME: Type 'string | null' is not assignable to type 'string | undefined'. - [Ticket-202603-SchemaSync] baseline exemption
-            where: { id: log.new_owner },
+            where: { id: log.new_owner_id || undefined },
             select: { nickname: true },
         });
 
@@ -417,7 +415,7 @@ async function fetchBattleFeed(userId: string): Promise<BattleEvent[]> {
     // 3. Territories won (user captured something)
     const wonTerritories = await prisma.territory_owner_change_logs.findMany({
         where: {
-            new_owner: userId,
+            new_owner_id: userId,
         },
         orderBy: { changed_at: 'desc' },
         take: 3,
@@ -465,8 +463,8 @@ async function fetchDailyProgress(userId: string): Promise<ProgressItem[]> {
     // Count attacks today (territory owner changes where user is attacker)
     const attacksToday = await prisma.territory_owner_change_logs.count({
         where: {
-            new_owner: userId,
-            previous_owner: { not: null },
+            new_owner_id: userId,
+            old_owner_id: { not: null },
             changed_at: { gte: todayStart },
         },
     });

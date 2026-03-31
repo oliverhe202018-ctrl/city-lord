@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -6,7 +6,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { Database } from '@/types/supabase'
 
 type MissionConfig = Database['public']['Tables']['missions']['Row']
-type UserMission = Database['public']['Tables']['user_missions_deprecated']['Row']
+type UserMission = Database['public']['Tables']['user_missions']['Row']
 
 export type MissionWithStatus = MissionConfig & {
   isCompleted: boolean

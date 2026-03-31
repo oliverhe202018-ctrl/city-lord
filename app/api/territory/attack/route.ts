@@ -5,7 +5,7 @@
  *
  * In PRODUCTION, territory attacks are triggered automatically during
  * run settlement (POST /api/sync/run) when the backend detects the
- * runner's GPS trajectory intersects enemy territory H3 tiles.
+ * runner's GPS trajectory intersects enemy territory polygons.
  *
  * This endpoint is retained for:
  *   - Manual testing and debugging during development

@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { createClient } from "@/lib/supabase/client";
 import type { ViewportKingData } from "./AMapView";
 import * as turf from '@turf/turf';
+import { useGameTerritoryAppearance } from "@/store/useGameStore";
 
 const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
   const controller = new AbortController()
@@ -60,7 +61,7 @@ interface OwnerProfile {
 
 interface TerritoryMetric {
   ownerId: string;
-  area: number;
+  feature: any;
   minLng: number;
   maxLng: number;
   minLat: number;
@@ -77,17 +78,16 @@ interface TerritoryMetric {
  * - Selected territory gets a persistent darker border highlight
  * - Map blank click clears selection (with event conflict protection)
  */
-const DEBUG_FORCE_H3_FALLBACK = false; // 涓存椂 debug 甯搁噺锛屽凡搴熷純
-
 const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdomMode, showFactionColors = false, onViewportKingChange }) => {
   const [polygons, setPolygons] = useState<any[]>([]);
   const [markers, setMarkers] = useState<any[]>([]);
   const { currentCity: city } = useCity();
   const { viewMode, selectedTerritory, setSelectedTerritory, setIsDetailSheetOpen, openTerritoryDetailDrawer } = useMapInteraction();
   const { user } = useAuth();
+  const { territoryAppearance } = useGameTerritoryAppearance();
 
   // Track polygon 鈫?territory mapping for highlight updates
-  const polygonTerritoryMap = useRef<Map<any, { territory: ExtTerritory; defaultStrokeColor: string }>>(new Map());
+  const polygonTerritoryMap = useRef<Map<any, { territory: ExtTerritory; defaultStrokeColor: string; path: [number, number][] }>>(new Map());
 
   // 鐢ㄤ簬 hover handler 涓幏鍙栨渶鏂扮殑 selectedTerritory锛岄伩鍏?stale closure
   const selectedTerritoryRef = useRef<ExtTerritory | null | undefined>(selectedTerritory);
@@ -99,9 +99,9 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
   const activeTerritoryMap = useRef<Map<string, ExtTerritory>>(new Map());
   const ownerProfileMapRef = useRef<Map<string, { nickname: string; avatarUrl: string | null }>>(new Map());
   const territoryMetricsRef = useRef<TerritoryMetric[]>([]);
-
-  // 闃叉 map click 鍦?polygon click 涔嬪悗绔嬪嵆娓呴櫎閫夋嫨锛堟満鍒跺凡绉诲嚭鍒?AMapView Root Layer锛?
-  const territoryClickedRef = useRef(false);
+  const haloPolygonsRef = useRef<any[]>([]);
+  const haloPulseTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastViewportKingIdRef = useRef<string | null>(null);
 
   const resolveFactionColor = useCallback((ownerFaction: string | null | undefined) => {
     const key = (ownerFaction || '').toLowerCase();
@@ -128,13 +128,106 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
     return { minLng, maxLng, minLat, maxLat };
   }, []);
 
-  const estimateTerritoryArea = useCallback((path: [number, number][]) => {
-    const ring = path[0][0] === path[path.length - 1][0] && path[0][1] === path[path.length - 1][1] ? path : [...path, path[0]];
-    return turf.area(turf.polygon([ring]));
+  const clearViewportKingHalo = useCallback(() => {
+    if (haloPulseTimerRef.current) {
+      clearInterval(haloPulseTimerRef.current);
+      haloPulseTimerRef.current = null;
+    }
+    haloPolygonsRef.current.forEach((halo) => halo?.setMap?.(null));
+    haloPolygonsRef.current = [];
   }, []);
+
+  const applyViewportKingHalo = useCallback((kingOwnerId: string | null) => {
+    clearViewportKingHalo();
+    lastViewportKingIdRef.current = kingOwnerId;
+
+    if (!map || kingdomMode !== 'personal' || !kingOwnerId) {
+      return;
+    }
+
+    const haloPolygons: any[] = [];
+
+    polygonTerritoryMap.current.forEach(({ territory, path }) => {
+      if (territory.ownerId !== kingOwnerId) {
+        return;
+      }
+
+      const halo = new (window as any).AMap.Polygon({
+        path,
+        fillOpacity: 0,
+        strokeColor: '#fbbf24',
+        strokeOpacity: 0.42,
+        strokeWeight: 5,
+        zIndex: 45,
+        bubble: false,
+        cursor: 'default',
+      });
+
+      haloPolygons.push(halo);
+    });
+
+    if (haloPolygons.length === 0) {
+      return;
+    }
+
+    map.add(haloPolygons);
+    haloPolygonsRef.current = haloPolygons;
+
+    let tick = 0;
+    haloPulseTimerRef.current = setInterval(() => {
+      tick += 1;
+      const pulse = (Math.sin(tick / 2) + 1) / 2;
+      const strokeOpacity = 0.28 + pulse * 0.45;
+      const strokeWeight = 4 + pulse * 4;
+      haloPolygonsRef.current.forEach((halo) => {
+        halo?.setOptions?.({
+          strokeOpacity,
+          strokeWeight,
+        });
+      });
+    }, 180);
+  }, [clearViewportKingHalo, kingdomMode, map]);
+
+  const buildPolygonPresentation = useCallback((territory: ExtTerritory) => {
+    const ctx: ViewContext = {
+      userId: user?.id || null,
+      subject: kingdomMode === 'club' ? 'club' : (viewMode === 'faction' ? 'faction' : 'individual')
+    };
+    const style = generateTerritoryStyle(territory, ctx);
+    const isFactionColorActive = kingdomMode === 'personal' && showFactionColors;
+    const factionBaseColor = resolveFactionColor(territory.ownerFaction);
+    const factionVisuals = calculateHealthVisuals(
+      factionBaseColor,
+      territory.health ?? territory.maxHealth ?? 100,
+      territory.maxHealth ?? 100
+    );
+    const territoryHealth = territory.health ?? territory.maxHealth ?? 100;
+    const isLowHealth = territoryHealth < 50;
+    const isSelfTerritory = Boolean(user?.id && territory.ownerId === user.id);
+    const allowCustomAppearance = kingdomMode === 'personal' && !isFactionColorActive && isSelfTerritory;
+
+    const fillColor = allowCustomAppearance
+      ? territoryAppearance.fillColor
+      : (isFactionColorActive ? factionVisuals.fillColor2D : style.fillColor2D);
+    const baseStrokeColor = allowCustomAppearance
+      ? territoryAppearance.strokeColor
+      : (isFactionColorActive ? factionBaseColor : style.strokeColor2D);
+    const strokeColor = isLowHealth ? '#facc15' : baseStrokeColor;
+    const fillOpacity = allowCustomAppearance
+      ? territoryAppearance.fillOpacity
+      : (isLowHealth ? 0.2 : (kingdomMode === 'club' ? 0.15 : 0.5));
+
+    return {
+      fillColor,
+      fillOpacity,
+      strokeColor,
+      strokeWeight: isLowHealth ? 3 : 2,
+    };
+  }, [kingdomMode, resolveFactionColor, showFactionColors, territoryAppearance.fillColor, territoryAppearance.fillOpacity, territoryAppearance.strokeColor, user?.id, viewMode]);
 
   const recomputeViewportKing = useCallback(() => {
     if (!map || kingdomMode !== 'personal') {
+      applyViewportKingHalo(null);
       onViewportKingChange?.(null);
       return;
     }
@@ -154,15 +247,24 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
     const viewportMinLat = southWest.getLat();
     const viewportMaxLat = northEast.getLat();
     const totals = new Map<string, number>();
+    const viewportBbox: [number, number, number, number] = [viewportMinLng, viewportMinLat, viewportMaxLng, viewportMaxLat];
     for (const metric of territoryMetricsRef.current) {
       const intersects = metric.maxLng >= viewportMinLng &&
         metric.minLng <= viewportMaxLng &&
         metric.maxLat >= viewportMinLat &&
         metric.minLat <= viewportMaxLat;
       if (!intersects) continue;
-      totals.set(metric.ownerId, (totals.get(metric.ownerId) || 0) + metric.area);
+      try {
+        const clipped = turf.bboxClip(metric.feature, viewportBbox);
+        const clippedArea = turf.area(clipped);
+        if (clippedArea <= 0) continue;
+        totals.set(metric.ownerId, (totals.get(metric.ownerId) || 0) + clippedArea);
+      } catch {
+        continue;
+      }
     }
     if (totals.size === 0) {
+      applyViewportKingHalo(null);
       onViewportKingChange?.(null);
       return;
     }
@@ -175,17 +277,19 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
       }
     });
     if (!kingOwnerId) {
+      applyViewportKingHalo(null);
       onViewportKingChange?.(null);
       return;
     }
     const profile = ownerProfileMapRef.current.get(kingOwnerId);
+    applyViewportKingHalo(kingOwnerId);
     onViewportKingChange?.({
       ownerId: kingOwnerId,
       nickname: profile?.nickname || `领主-${kingOwnerId.slice(0, 6)}`,
       avatarUrl: profile?.avatarUrl || null,
       totalArea: kingArea,
     });
-  }, [kingdomMode, map, onViewportKingChange]);
+  }, [applyViewportKingHalo, kingdomMode, map, onViewportKingChange]);
 
   // 鍙楁帶鐨?ContextSwitch 鎷︽埅鍣細纭繚鐪熸鐨勮涔夊彉鏇存墠瑙﹀彂娓呯┖
   const prevContextRef = useRef({ cityId: city?.id, viewMode, kingdomMode });
@@ -248,7 +352,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
 
         console.log(`[Audit] Success: API returned ${data.length} items`);
 
-        const newPolygonMap = new Map<any, { territory: ExtTerritory; defaultStrokeColor: string }>();
+        const newPolygonMap = new Map<any, { territory: ExtTerritory; defaultStrokeColor: string; path: [number, number][] }>();
         const newCellMap = new Map<string, ExtTerritory>();
 
         const territoryMetrics: TerritoryMetric[] = [];
@@ -265,42 +369,23 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
           }
           if (!path || path.length < 3) return null;
 
-          const ctx: ViewContext = {
-            userId: user?.id || null,
-            subject: kingdomMode === 'club' ? 'club' : (viewMode === 'faction' ? 'faction' : 'individual')
-          };
-          const style = generateTerritoryStyle(territory, ctx);
-          const isFactionColorActive = kingdomMode === 'personal' && showFactionColors;
-          const factionBaseColor = resolveFactionColor(territory.ownerFaction);
-          const factionVisuals = calculateHealthVisuals(
-            factionBaseColor,
-            territory.health ?? territory.maxHealth ?? 100,
-            territory.maxHealth ?? 100
-          );
-          const fillColor = isFactionColorActive ? factionVisuals.fillColor2D : style.fillColor2D;
-          const baseStrokeColor = isFactionColorActive ? factionBaseColor : style.strokeColor2D;
-          const territoryHealth = territory.health ?? territory.maxHealth ?? 100;
-          const isLowHealth = territoryHealth < 50;
-          const strokeColor = isLowHealth ? '#facc15' : baseStrokeColor;
-          const polygonFillOpacity = isLowHealth
-            ? 0.2
-            : (kingdomMode === 'club' ? 0.15 : 0.5);
+          const presentation = buildPolygonPresentation(territory);
           if (territory.ownerId) {
-            const area = estimateTerritoryArea(path);
             const bounds = computePathBounds(path);
+            const ring = path[0][0] === path[path.length - 1][0] && path[0][1] === path[path.length - 1][1] ? path : [...path, path[0]];
             territoryMetrics.push({
               ownerId: territory.ownerId,
-              area,
+              feature: turf.polygon([ring]),
               ...bounds,
             });
           }
 
           const polygon = new (window as any).AMap.Polygon({
             path: path,
-            fillColor,
-            fillOpacity: polygonFillOpacity,
-            strokeColor,
-            strokeWeight: isLowHealth ? 3 : 2,
+            fillColor: presentation.fillColor,
+            fillOpacity: presentation.fillOpacity,
+            strokeColor: presentation.strokeColor,
+            strokeWeight: presentation.strokeWeight,
             zIndex: 50,
             extData: territory,
             bubble: false,
@@ -308,7 +393,8 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
 
           newPolygonMap.set(polygon, {
             territory,
-            defaultStrokeColor: strokeColor,
+            defaultStrokeColor: presentation.strokeColor,
+            path,
           });
 
           let marker = null;
@@ -362,7 +448,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
           }
 
 
-          polygon.on("click", (e: any) => {
+          polygon.on("click", () => {
             (window as any).__amap_polygon_clicked = Date.now();
             if (openTerritoryDetailDrawer && territory.id) {
               openTerritoryDetailDrawer(territory.id);
@@ -452,14 +538,15 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
     setIsDetailSheetOpen,
     showFactionColors,
     resolveFactionColor,
-    estimateTerritoryArea,
     computePathBounds,
+    buildPolygonPresentation,
     recomputeViewportKing,
   ]);
 
   useEffect(() => {
     if (!map) return;
     if (kingdomMode !== 'personal') {
+      clearViewportKingHalo();
       onViewportKingChange?.(null);
       return;
     }
@@ -468,7 +555,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
         recomputeViewportKing();
-      }, 300);
+      }, 500);
     };
     schedule();
     map.on('moveend', schedule);
@@ -477,8 +564,35 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
       if (debounceTimer) clearTimeout(debounceTimer);
       map.off('moveend', schedule);
       map.off('zoomend', schedule);
+      clearViewportKingHalo();
     };
-  }, [map, kingdomMode, recomputeViewportKing, onViewportKingChange]);
+  }, [clearViewportKingHalo, map, kingdomMode, recomputeViewportKing, onViewportKingChange]);
+
+  useEffect(() => {
+    polygonTerritoryMap.current.forEach(({ territory, path }, polygon) => {
+      const presentation = buildPolygonPresentation(territory);
+      polygon.setOptions({
+        path,
+        fillColor: presentation.fillColor,
+        fillOpacity: presentation.fillOpacity,
+        strokeColor: presentation.strokeColor,
+        strokeWeight: presentation.strokeWeight,
+      });
+      const meta = polygonTerritoryMap.current.get(polygon);
+      if (meta) {
+        polygonTerritoryMap.current.set(polygon, {
+          ...meta,
+          defaultStrokeColor: presentation.strokeColor,
+        });
+      }
+    });
+
+    if (kingdomMode === 'personal') {
+      recomputeViewportKing();
+    } else {
+      clearViewportKingHalo();
+    }
+  }, [buildPolygonPresentation, clearViewportKingHalo, kingdomMode, recomputeViewportKing]);
 
   // Apply selection highlight when selectedTerritory changes
   useEffect(() => {

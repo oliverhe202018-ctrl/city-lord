@@ -19,7 +19,7 @@
 ### 前端 (Frontend)
 - **框架**: [Next.js 14+ (App Router)](https://nextjs.org/) - 利用 Server Components 和 Server Actions 实现高效的数据交互。
 - **UI 库**: React 19, [Tailwind CSS v4](https://tailwindcss.com/), Shadcn/UI (基于 Radix UI)。
-- **地理空间算法**: [H3-js](https://github.com/uber/h3-js) - Uber 开源的六边形分层索引系统，用于处理地图网格。
+- **地理空间算法**: Turf.js + PostGIS - 基于多边形闭合轨迹、空间相交与真实面积计算的领地系统。
 - **地图渲染**: AMap (高德地图) / 自定义 SVG / Canvas 混合渲染。
 - **状态管理**: 
   - 全局: React Context (`CityContext`, `AuthContext`).
@@ -47,10 +47,9 @@
 
 #### 2. 跑步与领地系统 (核心玩法)
 - [x] **沉浸式跑步模式**: 实时追踪 GPS 位置，计算配速、距离。
-- [x] **H3 地理围栏**: 自动将 GPS 坐标转换为 H3 索引 (Resolution 9)。
-- [x] **实时领地占领**: 
-  - 后端 Action `claimTerritory` 处理占领逻辑。
-  - 前端实现防抖 (`lastClaimedHex`) 避免重复请求。
+- [x] **多边形领地结算**:
+  - 后端基于 Turf.js 与 PostGIS 处理闭环轨迹、多边形相交与面积结算。
+  - 前端通过闭环路径完成领地刷新与视觉反馈。
   - 实时反馈占领结果（XP 奖励、Toast 通知）。
 - [x] **地图刷新**: 占领成功后自动触发地图图层更新。
 
@@ -70,7 +69,7 @@
 ### 🚧 进行中 (In Progress)
 - [ ] **任务系统自动化**: 虽然数据结构已就绪，但每日/每周任务的自动重置和进度检查尚未完全闭环。
 - [ ] **排行榜**: 基础 UI 已有，需完善基于 `user_city_progress` 的实时排序逻辑。
-- [ ] **地图性能优化**: 大量六边形渲染时的性能调优。
+- [ ] **地图性能优化**: 大量多边形领地渲染时的性能调优。
 
 ### 📅 待开发 (Planned)
 - [ ] **俱乐部/工会系统**: 创建、加入、公会领地战。
@@ -86,7 +85,7 @@
 | 表名 | 描述 | 关键字段 |
 | :--- | :--- | :--- |
 | `profiles` | 用户基础信息 | `id`, `nickname`, `level`, `current_exp`, `total_area` |
-| `territories` | 领地数据 | `id` (H3 Index), `owner_id`, `city_id` |
+| `territories` | 领地数据 | `id`, `owner_id`, `city_id`, `geojson`, `area_m2_exact` |
 | `user_city_progress` | 用户在特定城市的进度 | `user_id`, `city_id`, `tiles_captured`, `area_controlled` |
 | `badges` | 勋章定义 | `code`, `condition_value`, `category`, `icon_name` |
 | `user_badges` | 用户获得的勋章 | `user_id`, `badge_id`, `earned_at` |

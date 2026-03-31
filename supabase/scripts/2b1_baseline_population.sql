@@ -5,7 +5,6 @@
 DO $$
 DECLARE
     max_event_id BIGINT;
-    h3_area_km2 NUMERIC := 0.737; -- Approximate area of a resolution 9 H3 cell in square kilometers
 BEGIN
     -- 1. Grab the current maximum event ID to use as the starting cursor
     SELECT COALESCE(MAX(id), 0) INTO max_event_id FROM public.territory_events;
@@ -19,7 +18,7 @@ BEGIN
     INSERT INTO public.club_territory_stats (club_id, total_area, total_tiles, last_synced_event_id, updated_at)
     SELECT 
         owner_club_id,
-        COUNT(*) * h3_area_km2 AS total_area,
+        COALESCE(SUM(area_m2_exact), 0) / 1000000.0 AS total_area,
         COUNT(*) AS total_tiles,
         max_event_id,
         NOW()
@@ -31,7 +30,7 @@ BEGIN
     INSERT INTO public.faction_territory_stats (faction_name, total_area, total_tiles, last_synced_event_id, updated_at)
     SELECT 
         owner_faction,
-        COUNT(*) * h3_area_km2 AS total_area,
+        COALESCE(SUM(area_m2_exact), 0) / 1000000.0 AS total_area,
         COUNT(*) AS total_tiles,
         max_event_id,
         NOW()

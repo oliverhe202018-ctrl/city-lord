@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { Slider } from "@/components/ui/slider"
 import { FactionBattleBackground } from "@/components/Faction/FactionBattleBackground"
 import { Loader2, TrendingUp } from "lucide-react"
 import { ThemeSwitcher } from "@/components/citylord/theme/ThemeSwitcher"
@@ -57,17 +58,17 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
     totalArea,
     avatar,
     backgroundUrl,
+    territoryAppearance,
     setNickname,
     setAvatar,
     resetUser,
-    syncUserProfile
+    syncUserProfile,
+    setTerritoryAppearance
   } = useGameStore()
 
   const [isEditing, setIsEditing] = React.useState(false)
   const [editName, setEditName] = React.useState("")
   const [editAvatar, setEditAvatar] = React.useState("")
-  const [pathColor, setPathColor] = React.useState("#3B82F6")
-  const [fillColor, setFillColor] = React.useState("#3B82F6")
   const [userEmail, setUserEmail] = React.useState<string | null>(null)
   const [isLoggedIn, setIsLoggedIn] = React.useState(false)
   const [loading, setLoading] = React.useState(true)
@@ -195,18 +196,21 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
         const supabase = createClient()
         const { data } = await (supabase
           .from('profiles' as any) as any)
-          .select('path_color, fill_color')
+          .select('path_color, fill_color, fill_opacity')
           .eq('id', userId)
           .single()
 
         if (data) {
-          if (data.path_color) setPathColor(data.path_color)
-          if (data.fill_color) setFillColor(data.fill_color)
+          setTerritoryAppearance({
+            strokeColor: data.path_color || territoryAppearance.strokeColor,
+            fillColor: data.fill_color || territoryAppearance.fillColor,
+            fillOpacity: typeof data.fill_opacity === 'number' ? data.fill_opacity : territoryAppearance.fillOpacity,
+          })
         }
       }
       loadColors()
     }
-  }, [isEditing, userId])
+  }, [isEditing, setTerritoryAppearance, territoryAppearance.fillColor, territoryAppearance.fillOpacity, territoryAppearance.strokeColor, userId])
 
   React.useEffect(() => {
     return () => {
@@ -279,8 +283,9 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
       const supabase = createClient()
       const updates: any = {
         nickname: editName,
-        path_color: pathColor,
-        fill_color: fillColor
+        path_color: territoryAppearance.strokeColor,
+        fill_color: territoryAppearance.fillColor,
+        fill_opacity: territoryAppearance.fillOpacity,
       }
       if (editAvatar) {
         updates.avatar_url = editAvatar
@@ -497,11 +502,11 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
                       <div className="flex items-center gap-2">
                         <Input
                           type="color"
-                          value={pathColor}
-                          onChange={(e) => setPathColor(e.target.value)}
+                          value={territoryAppearance.strokeColor}
+                          onChange={(e) => setTerritoryAppearance({ strokeColor: e.target.value })}
                           className="h-10 w-full p-1 bg-muted/20 border-border cursor-pointer"
                         />
-                        <span className="text-xs text-muted-foreground font-mono">{pathColor}</span>
+                        <span className="text-xs text-muted-foreground font-mono">{territoryAppearance.strokeColor}</span>
                       </div>
                     </div>
                     <div className="space-y-2">
@@ -509,13 +514,26 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
                       <div className="flex items-center gap-2">
                         <Input
                           type="color"
-                          value={fillColor}
-                          onChange={(e) => setFillColor(e.target.value)}
+                          value={territoryAppearance.fillColor}
+                          onChange={(e) => setTerritoryAppearance({ fillColor: e.target.value })}
                           className="h-10 w-full p-1 bg-muted/20 border-border cursor-pointer"
                         />
-                        <span className="text-xs text-muted-foreground font-mono">{fillColor}</span>
+                        <span className="text-xs text-muted-foreground font-mono">{territoryAppearance.fillColor}</span>
                       </div>
                     </div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-medium text-foreground/70">填充透明度</label>
+                      <span className="text-xs text-muted-foreground font-mono">{Math.round(territoryAppearance.fillOpacity * 100)}%</span>
+                    </div>
+                    <Slider
+                      value={[territoryAppearance.fillOpacity]}
+                      min={0.12}
+                      max={0.72}
+                      step={0.02}
+                      onValueChange={([value]) => setTerritoryAppearance({ fillOpacity: value })}
+                    />
                   </div>
                 </div>
                 <div className="flex justify-end gap-3">

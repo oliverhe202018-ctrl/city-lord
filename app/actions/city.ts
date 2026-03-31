@@ -86,14 +86,6 @@ import { HotZoneCacheService } from '@/lib/services/hotzone-cache-service'
 import { redis } from '@/lib/redis'
 import { evaluatePenalty, getPenaltyConfig } from '@/lib/services/territory-penalty'
 
-export async function claimTerritory(cityId: string, cellId: string, requestId?: string): Promise<{ success: boolean; error?: string; grantedBadges?: string[]; scoreChange?: number; isHotZone?: boolean }> {
-  console.warn('Deprecated: claimTerritory (H3-based) called. Use polygon settlement instead.');
-  return { 
-    success: false, 
-    error: 'This API is deprecated and has been disabled as part of the H3 legacy eradication.' 
-  };
-}
-
 // ⚡️ 核心优化：外置 unstable_cache，分离纯净的聚合查询，杜绝隐式使用 cookies()
 import { unstable_cache } from 'next/cache'
 
@@ -114,13 +106,16 @@ const getCachedCityStats = unstable_cache(
       }
     })
 
-    // 3. Count total tiles captured
+    // 3. Count total territories captured
     const totalTiles = await prisma.territories.count({
       where: { city_id: cityId }
     })
 
-    const ESTIMATED_AREA_PER_TILE = 0.01
-    const totalArea = totalTiles * ESTIMATED_AREA_PER_TILE
+    const totalAreaAggregate = await prisma.territories.aggregate({
+      where: { city_id: cityId },
+      _sum: { area_m2_exact: true }
+    })
+    const totalArea = (totalAreaAggregate._sum.area_m2_exact || 0) / 1_000_000
 
     return {
       totalPlayers,

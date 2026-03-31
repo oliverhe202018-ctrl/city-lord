@@ -54,7 +54,6 @@ export interface LocationState {
   runStartTime: number | null;
   currentRunPath: [number, number][];
   ghostPath: [number, number][] | null;
-  isSmartRunStarting: boolean;
   lastKnownLocation: { lat: number; lng: number } | null;
   /** [NEW] 鍏ㄥ眬鏉冮檺璇锋眰鐘舵€侀攣锛岀敤浜庨槻姝㈢櫥褰曞脊绐楀啿绐?*/
   isPermissionRequesting: boolean;
@@ -102,6 +101,14 @@ export interface AppSettings {
   metronomeEnabled: boolean;
   keepScreenOn: boolean;
   voiceReportingEnabled: boolean;
+}
+
+export interface TerritoryAppearance {
+  strokeColor: string;
+  fillColor: string;
+  fillOpacity: number;
+  ownerUserId: string | null;
+  lastSyncedAt: number | null;
 }
 
 export interface MyClub {
@@ -165,6 +172,9 @@ export interface UserActions {
   syncUserProfile: () => Promise<void>;
   touchActivity: () => Promise<void>;
   setTotalRunsCount: (count: number) => void;
+  setTerritoryAppearance: (appearance: Partial<TerritoryAppearance>) => void;
+  hydrateTerritoryAppearance: (appearance: Partial<TerritoryAppearance>) => void;
+  resetTerritoryAppearance: () => void;
 }
 
 export interface LocationActions {
@@ -185,7 +195,6 @@ export interface LocationActions {
   dismissGeolocationPrompt: () => void;
   resetRunState: () => void;
   setGhostPath: (path: [number, number][] | null) => void;
-  setSmartRunStarting: (starting: boolean) => void;
   setLastKnownLocation: (location: { lat: number; lng: number } | null) => void;
   setIsPermissionRequesting: (requesting: boolean) => void;
   setLocationInitialized: (initialized: boolean) => void;
@@ -211,6 +220,7 @@ export interface GameState extends UserState, LocationState, InventoryState, Wor
   activeDrawer: DrawerType;
   myClub: MyClub | null;
   appSettings: AppSettings;
+  territoryAppearance: TerritoryAppearance;
 }
 
 export interface GameActions extends ModeActions, UserActions, LocationActions, InventoryActions, WorldActions { }
@@ -254,6 +264,14 @@ const initialUserState: UserState = {
   totalRunsCount: 0,
 };
 
+const initialTerritoryAppearance: TerritoryAppearance = {
+  strokeColor: '#3B82F6',
+  fillColor: '#3B82F6',
+  fillOpacity: 0.35,
+  ownerUserId: null,
+  lastSyncedAt: null,
+};
+
 const initialLocationState: LocationState = {
   latitude: null,
   longitude: null,
@@ -271,7 +289,6 @@ const initialLocationState: LocationState = {
   runStartTime: null,
   currentRunPath: [],
   ghostPath: null,
-  isSmartRunStarting: false,
   lastKnownLocation: null,
   isPermissionRequesting: false,
   locationInitialized: false,
@@ -478,9 +495,28 @@ const createUserSlice: StateCreator<GameStore, [], [], UserActions> = (set, get)
     achievements: { ...state.achievements, [id]: true }
   })),
   resetUser: () => {
-    set(initialUserState);
+    set({ ...initialUserState, territoryAppearance: initialTerritoryAppearance });
     resetGlobalHydration();
   },
+  setTerritoryAppearance: (appearance) =>
+    set((state) => ({
+      territoryAppearance: {
+        ...state.territoryAppearance,
+        ...appearance,
+      },
+    })),
+  hydrateTerritoryAppearance: (appearance) =>
+    set((state) => ({
+      territoryAppearance: {
+        ...state.territoryAppearance,
+        ...appearance,
+        fillOpacity: typeof appearance.fillOpacity === 'number'
+          ? appearance.fillOpacity
+          : state.territoryAppearance.fillOpacity,
+        lastSyncedAt: Date.now(),
+      },
+    })),
+  resetTerritoryAppearance: () => set({ territoryAppearance: initialTerritoryAppearance }),
   syncUserProfile: async () => {
     try {
       const supabase = createClient();
@@ -512,6 +548,16 @@ const createUserSlice: StateCreator<GameStore, [], [], UserActions> = (set, get)
           role: adminData?.role ?? null,
           backgroundUrl: profileData.background_url ?? state.backgroundUrl ?? null,
           totalRunsCount: profileData.total_runs_count || 0,
+          territoryAppearance: {
+            ...state.territoryAppearance,
+            strokeColor: profileData.path_color || state.territoryAppearance.strokeColor,
+            fillColor: profileData.fill_color || state.territoryAppearance.fillColor,
+            fillOpacity: typeof profileData.fill_opacity === 'number'
+              ? profileData.fill_opacity
+              : state.territoryAppearance.fillOpacity,
+            ownerUserId: user.id,
+            lastSyncedAt: Date.now(),
+          },
         }));
       }
     } catch (error) {
@@ -578,7 +624,6 @@ const createLocationSlice: StateCreator<GameStore, [], [], LocationActions> = (s
     speed: 0,
   }),
   setGhostPath: (path) => set({ ghostPath: path }),
-  setSmartRunStarting: (starting) => set({ isSmartRunStarting: starting }),
   setLastKnownLocation: (location) => set({ lastKnownLocation: location }),
   setIsPermissionRequesting: (requesting) => set({ isPermissionRequesting: requesting }),
   setLocationInitialized: (initialized: boolean) => set({ locationInitialized: initialized }),
@@ -701,6 +746,7 @@ export const useGameStore = create<GameStore>()(
       currentRoom: null,
       joinedRooms: [],
       appSettings: initialAppSettings,
+      territoryAppearance: initialTerritoryAppearance,
       ...initialUserState,
       ...initialLocationState,
       ...initialInventoryState,
@@ -756,6 +802,7 @@ export const useGameStore = create<GameStore>()(
         joinedRooms: state.joinedRooms,
         // App Settings
         appSettings: state.appSettings,
+        territoryAppearance: state.territoryAppearance,
         // Running Session Recovery
         isRunning: state.isRunning,
         runStartTime: state.runStartTime,
@@ -804,6 +851,9 @@ export const useGameActions = () => {
       claimAchievement: state.claimAchievement,
       syncUserProfile: state.syncUserProfile,
       resetUser: state.resetUser,
+      setTerritoryAppearance: state.setTerritoryAppearance,
+      hydrateTerritoryAppearance: state.hydrateTerritoryAppearance,
+      resetTerritoryAppearance: state.resetTerritoryAppearance,
 
       // Location Actions
       updateLocation: state.updateLocation,
@@ -819,7 +869,6 @@ export const useGameActions = () => {
       dismissGeolocationPrompt: state.dismissGeolocationPrompt,
       resetRunState: state.resetRunState,
       setGhostPath: state.setGhostPath,
-      setSmartRunStarting: state.setSmartRunStarting,
       setStreetName: state.setStreetName,
       setIsPermissionRequesting: state.setIsPermissionRequesting,
 
@@ -890,9 +939,14 @@ export const useGameLocation = () =>
       gpsError: state.gpsError,
       hasDismissedGeolocationPrompt: state.hasDismissedGeolocationPrompt,
       ghostPath: state.ghostPath,
-      isSmartRunStarting: state.isSmartRunStarting,
       lastKnownLocation: state.lastKnownLocation,
     })),
   );
 export const useGameInventory = () => useGameStore(useShallow((state) => ({ items: state.items, totalItems: state.totalItems })));
 export const useGameWorld = () => useGameStore(useShallow((state) => ({ territories: state.territories })));
+export const useGameTerritoryAppearance = () =>
+  useGameStore(
+    useShallow((state) => ({
+      territoryAppearance: state.territoryAppearance,
+    })),
+  );

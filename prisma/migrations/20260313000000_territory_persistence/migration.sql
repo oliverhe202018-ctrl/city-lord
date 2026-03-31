@@ -22,24 +22,13 @@ END $$;
 
 -- 2. 为 territories 表新增列
 ALTER TABLE "public"."territories"
-  ADD COLUMN IF NOT EXISTS "h3_resolution"    INTEGER DEFAULT 9,
   ADD COLUMN IF NOT EXISTS "area_m2_exact"    DOUBLE PRECISION NOT NULL DEFAULT 0,
   ADD COLUMN IF NOT EXISTS "source_type"      "public"."TerritorySource" NOT NULL DEFAULT 'RUN',
   ADD COLUMN IF NOT EXISTS "source_run_id"    UUID,
   ADD COLUMN IF NOT EXISTS "first_claimed_at" TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS "last_claimed_at"  TIMESTAMPTZ;
 
--- 3. 为 territories 添加联合唯一键 (city_id, h3_index)
--- 先清理可能的 null h3_index 冲突行（如果存在两行相同 city_id + h3_index 为 null）
--- 注意：如果有大量历史数据需要手动处理冲突
-DO $$ BEGIN
-  ALTER TABLE "public"."territories"
-    ADD CONSTRAINT "territories_city_id_h3_index_key" UNIQUE ("city_id", "h3_index");
-EXCEPTION
-  WHEN duplicate_table THEN NULL;
-END $$;
-
--- 4. 为 territory_events 表新增列
+-- 3. 为 territory_events 表新增列
 ALTER TABLE "public"."territory_events"
   ADD COLUMN IF NOT EXISTS "payload_json"  JSON,
   ADD COLUMN IF NOT EXISTS "source_run_id" UUID,

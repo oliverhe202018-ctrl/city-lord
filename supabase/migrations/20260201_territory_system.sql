@@ -1,6 +1,6 @@
 -- Create territories table
 CREATE TABLE IF NOT EXISTS public.territories (
-    id TEXT PRIMARY KEY, -- H3 index
+    id TEXT PRIMARY KEY, -- territory identifier
     city_id TEXT NOT NULL,
     owner_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     captured_at TIMESTAMPTZ DEFAULT NOW(),

@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -52,7 +52,6 @@ export type Database = {
           captured_at: string | null
           city_id: string | null
           geojson: unknown
-          h3_index: string | null
           health: number | null
           id: string | null
           last_maintained_at: string | null
@@ -64,7 +63,6 @@ export type Database = {
           captured_at?: string | null
           city_id?: string | null
           geojson?: unknown
-          h3_index?: string | null
           health?: number | null
           id?: string | null
           last_maintained_at?: string | null
@@ -76,7 +74,6 @@ export type Database = {
           captured_at?: string | null
           city_id?: string | null
           geojson?: unknown
-          h3_index?: string | null
           health?: number | null
           id?: string | null
           last_maintained_at?: string | null
@@ -1341,6 +1338,7 @@ export type Database = {
           current_exp: number | null
           faction: string | null
           fill_color: string | null
+          fill_opacity: number | null
           id: string
           invited_by: string | null
           is_profile_public: boolean
@@ -1374,6 +1372,7 @@ export type Database = {
           current_exp?: number | null
           faction?: string | null
           fill_color?: string | null
+          fill_opacity?: number | null
           id?: string
           invited_by?: string | null
           is_profile_public?: boolean
@@ -1407,6 +1406,7 @@ export type Database = {
           current_exp?: number | null
           faction?: string | null
           fill_color?: string | null
+          fill_opacity?: number | null
           id?: string
           invited_by?: string | null
           is_profile_public?: boolean
@@ -1940,7 +1940,6 @@ export type Database = {
           captured_at: string | null
           city_id: string
           geojson: unknown
-          h3_index: string | null
           health: number | null
           id: string
           last_maintained_at: string | null
@@ -1956,7 +1955,6 @@ export type Database = {
           captured_at?: string | null
           city_id: string
           geojson?: unknown
-          h3_index?: string | null
           health?: number | null
           id: string
           last_maintained_at?: string | null
@@ -1972,7 +1970,6 @@ export type Database = {
           captured_at?: string | null
           city_id?: string
           geojson?: unknown
-          h3_index?: string | null
           health?: number | null
           id?: string
           last_maintained_at?: string | null

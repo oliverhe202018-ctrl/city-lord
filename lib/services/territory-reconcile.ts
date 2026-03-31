@@ -1,5 +1,4 @@
 import { prisma } from '@/lib/prisma'
-import { DEFAULT_TERRITORY_AREA_KM2 } from '@/lib/constants/territory'
 
 export class TerritoryReconcileService {
     /**
@@ -26,7 +25,7 @@ export class TerritoryReconcileService {
         SELECT 
           owner_club_id as club_id,
           COUNT(*)::int as total_tiles,
-          (COUNT(*) * ${DEFAULT_TERRITORY_AREA_KM2})::numeric as total_area
+          (COALESCE(SUM(area_m2_exact), 0) / 1000000.0)::numeric as total_area
         FROM public.territories
         WHERE owner_club_id IS NOT NULL
         GROUP BY owner_club_id

@@ -35,7 +35,7 @@ async function main() {
   console.log(' - ✅ 将受保护: profiles, runs, 以及与核心领地系统无关的所有业务表\n');
 
   if (!isDryRun && !autoConfirm) {
-      const answer = await prompt('是否已完成数据库 Snapshot 备份并且确认要清空旧 H3 领地数据？(yes/no): ');
+      const answer = await prompt('是否已完成数据库 Snapshot 备份并且确认要清空旧版领地数据？(yes/no): ');
       if (answer.toLowerCase() !== 'yes') {
           console.log('已取消执行。');
           process.exit(0);
@@ -63,9 +63,12 @@ async function main() {
     // 3. 删除归属变更记录
     try {
       console.log('\n[3/4] 正在统计 territory_owner_change_logs...');
-      const ownerCount = await prisma.territory_owner_change_logs.count();
+      const ownerCountRows = await prisma.$queryRaw<Array<{ count: bigint }>>`SELECT COUNT(*)::bigint as count FROM public.territory_owner_change_logs`;
+      const ownerCount = Number(ownerCountRows[0]?.count || 0);
       console.log(`将删除 ${ownerCount} 条 territory_owner_change_logs 记录。`);
-      if (!isDryRun) await prisma.territory_owner_change_logs.deleteMany({});
+      if (!isDryRun) {
+        await prisma.$executeRaw`DELETE FROM public.territory_owner_change_logs`;
+      }
     } catch(e: any) {
       if (e.code === 'P2021') console.log(`[Skip] territory_owner_change_logs table does not exist.`);
       else throw e;

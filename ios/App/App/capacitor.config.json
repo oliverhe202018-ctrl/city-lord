@@ -37,6 +37,7 @@
 		"LocalNotificationsPlugin",
 		"StatusBarPlugin",
 		"BackgroundTaskPlugin",
+		"CapacitorPedometerPlugin",
 		"CapacitorHealthkitPlugin",
 		"NativeSettingsPlugin"
 	]

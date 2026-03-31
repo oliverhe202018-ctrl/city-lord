@@ -5,19 +5,30 @@ import { cn } from "@/lib/utils"
 import { useGameStore, useGameActions } from "@/store/useGameStore"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { Slider } from "@/components/ui/slider"
 import { toast } from "sonner"
 import { isNativePlatform, safeOpenAppSettings } from "@/lib/capacitor/safe-plugins"
+import { createClient } from "@/lib/supabase/client"
 
 interface RunningSettingsProps {
   isOpen: boolean
   onClose: () => void
 }
 
+const TERRITORY_PALETTE = [
+  "#22C55E", "#16A34A", "#10B981", "#14B8A6", "#06B6D4", "#0EA5E9",
+  "#3B82F6", "#2563EB", "#4F46E5", "#6366F1", "#8B5CF6", "#A855F7",
+  "#D946EF", "#EC4899", "#F43F5E", "#EF4444", "#F97316", "#F59E0B",
+  "#EAB308", "#84CC16", "#65A30D", "#F43F5E", "#38BDF8", "#F87171",
+]
+
 export function RunningSettings({ isOpen, onClose }: RunningSettingsProps) {
-  const { appSettings } = useGameStore()
-  const { updateAppSettings } = useGameActions()
+  const { appSettings, territoryAppearance } = useGameStore()
+  const { updateAppSettings, setTerritoryAppearance } = useGameActions()
   const [showBgDisclosure, setShowBgDisclosure] = useState(false)
   const [isPendingEnable, setIsPendingEnable] = useState(false)
+  const [showTerritoryPanel, setShowTerritoryPanel] = useState(false)
+  const [isSavingTerritory, setIsSavingTerritory] = useState(false)
 
   const handleToggleKeepAlive = async (checked: boolean) => {
     if (checked) {
@@ -58,6 +69,41 @@ export function RunningSettings({ isOpen, onClose }: RunningSettingsProps) {
        setTimeout(() => {
          safeOpenAppSettings();
        }, 1500);
+    }
+  }
+
+  const saveTerritoryAppearance = async () => {
+    setIsSavingTerritory(true)
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+
+      if (!user) {
+        toast.error('请先登录后再保存领地配色')
+        return
+      }
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          path_color: territoryAppearance.strokeColor,
+          fill_color: territoryAppearance.fillColor,
+          fill_opacity: territoryAppearance.fillOpacity,
+        })
+        .eq('id', user.id)
+
+      if (error) {
+        throw error
+      }
+
+      toast.success('领地调色盘已同步')
+      setShowTerritoryPanel(false)
+      window.dispatchEvent(new CustomEvent('citylord:refresh-territories'))
+    } catch (error) {
+      console.error('Failed to save territory appearance', error)
+      toast.error('领地配色保存失败')
+    } finally {
+      setIsSavingTerritory(false)
     }
   }
 
@@ -127,12 +173,27 @@ export function RunningSettings({ isOpen, onClose }: RunningSettingsProps) {
 
           {/* Section 3: Special (My Territory) */}
           <div className="mt-4 bg-white">
-            <div className="flex items-center justify-between px-4 py-4 active:bg-gray-50 transition-colors cursor-pointer">
+            <div
+              onClick={() => setShowTerritoryPanel(true)}
+              className="flex items-center justify-between px-4 py-4 active:bg-gray-50 transition-colors cursor-pointer"
+            >
               <span className="text-base font-medium text-[#22c55e] flex items-center gap-2">
                 <Hexagon className="h-5 w-5 fill-[#22c55e]/10" />
                 我的领地
               </span>
-              <ChevronRight size={20} className="text-gray-300" />
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1">
+                  <span
+                    className="h-5 w-5 rounded-full border border-white shadow-sm"
+                    style={{ backgroundColor: territoryAppearance.strokeColor }}
+                  />
+                  <span
+                    className="h-5 w-5 rounded-full border border-white shadow-sm"
+                    style={{ backgroundColor: territoryAppearance.fillColor, opacity: territoryAppearance.fillOpacity }}
+                  />
+                </div>
+                <ChevronRight size={20} className="text-gray-300" />
+              </div>
             </div>
           </div>
 
@@ -208,6 +269,118 @@ export function RunningSettings({ isOpen, onClose }: RunningSettingsProps) {
               className="w-full text-gray-400 hover:text-black hover:bg-transparent"
             >
               以后再说
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showTerritoryPanel} onOpenChange={setShowTerritoryPanel}>
+        <DialogContent className="bg-white text-black border-none sm:max-w-lg p-0 rounded-3xl overflow-hidden">
+          <div className="px-6 py-5 border-b border-gray-100">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-xl font-bold">
+                <Hexagon className="h-5 w-5 text-emerald-500" />
+                领地调色盘
+              </DialogTitle>
+              <DialogDescription className="text-sm text-gray-500 pt-2">
+                修改后地图中的本人领地会立即同步更新。
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+
+          <div className="px-6 py-5 space-y-6">
+            <div className="rounded-2xl border border-gray-100 bg-gray-50/80 p-4">
+              <p className="text-sm font-semibold text-gray-900">实时预览</p>
+              <div className="mt-4 flex items-center justify-center">
+                <div
+                  className="relative h-28 w-36 rounded-[28px] border-4 shadow-[0_0_24px_rgba(15,23,42,0.08)] transition-all"
+                  style={{
+                    borderColor: territoryAppearance.strokeColor,
+                    backgroundColor: territoryAppearance.fillColor,
+                    opacity: territoryAppearance.fillOpacity,
+                  }}
+                >
+                  <div
+                    className="absolute inset-0 rounded-[24px]"
+                    style={{
+                      boxShadow: `0 0 28px ${territoryAppearance.strokeColor}66`,
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-gray-900">边界线颜色</p>
+                <span className="text-xs font-mono text-gray-500">{territoryAppearance.strokeColor}</span>
+              </div>
+              <div className="grid grid-cols-6 gap-3">
+                {TERRITORY_PALETTE.map((color) => (
+                  <button
+                    key={`stroke-${color}`}
+                    type="button"
+                    onClick={() => setTerritoryAppearance({ strokeColor: color })}
+                    className={cn(
+                      "h-10 w-10 rounded-full border-2 transition-transform active:scale-90",
+                      territoryAppearance.strokeColor === color ? "border-slate-900 scale-105" : "border-white"
+                    )}
+                    style={{ backgroundColor: color }}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-gray-900">填充颜色</p>
+                <span className="text-xs font-mono text-gray-500">{territoryAppearance.fillColor}</span>
+              </div>
+              <div className="grid grid-cols-6 gap-3">
+                {TERRITORY_PALETTE.map((color) => (
+                  <button
+                    key={`fill-${color}`}
+                    type="button"
+                    onClick={() => setTerritoryAppearance({ fillColor: color })}
+                    className={cn(
+                      "h-10 w-10 rounded-full border-2 transition-transform active:scale-90",
+                      territoryAppearance.fillColor === color ? "border-slate-900 scale-105" : "border-white"
+                    )}
+                    style={{ backgroundColor: color }}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-gray-900">填充透明度</p>
+                <span className="text-xs font-mono text-gray-500">{Math.round(territoryAppearance.fillOpacity * 100)}%</span>
+              </div>
+              <Slider
+                value={[territoryAppearance.fillOpacity]}
+                min={0.12}
+                max={0.72}
+                step={0.02}
+                onValueChange={([value]) => setTerritoryAppearance({ fillOpacity: value })}
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-3 border-t border-gray-100 px-6 py-4">
+            <Button
+              variant="outline"
+              className="flex-1 rounded-xl"
+              onClick={() => setShowTerritoryPanel(false)}
+            >
+              取消
+            </Button>
+            <Button
+              className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white"
+              onClick={saveTerritoryAppearance}
+              disabled={isSavingTerritory}
+            >
+              {isSavingTerritory ? '保存中...' : '保存配色'}
             </Button>
           </div>
         </DialogContent>

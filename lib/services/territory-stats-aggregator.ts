@@ -1,5 +1,4 @@
 import { prisma } from '@/lib/prisma'
-import { DEFAULT_TERRITORY_AREA_KM2 } from '@/lib/constants/territory'
 
 const CONSUMER_NAME = 'stats_aggregator'
 const BATCH_SIZE_LIMIT = 500
@@ -43,6 +42,17 @@ export class TerritoryStatsAggregatorService {
                 return { processed: 0, lastEventId: Number(startingEventId) }
             }
 
+            const territoryIds = Array.from(new Set(events.map((event) => event.territory_id).filter(Boolean)))
+            const territoryAreas = territoryIds.length > 0
+                ? await tx.territories.findMany({
+                    where: { id: { in: territoryIds } },
+                    select: { id: true, area_m2_exact: true }
+                })
+                : []
+            const areaByTerritoryId = new Map(
+                territoryAreas.map((territory) => [territory.id, (territory.area_m2_exact || 0) / 1_000_000])
+            )
+
             // Memory Delta Accumulators
             const clubDeltas: Record<string, { tiles: number; area: number }> = {}
             const factionDeltas: Record<string, { tiles: number; area: number }> = {}
@@ -57,29 +67,30 @@ export class TerritoryStatsAggregatorService {
                 const newClub = event.new_club_id
                 const oldFaction = event.old_faction
                 const newFaction = event.new_faction
+                const territoryAreaKm2 = areaByTerritoryId.get(event.territory_id) || 0
 
                 // Club Math
                 if (oldClub && oldClub !== newClub) {
                     if (!clubDeltas[oldClub]) clubDeltas[oldClub] = { tiles: 0, area: 0 }
                     clubDeltas[oldClub].tiles -= 1
-                    clubDeltas[oldClub].area -= DEFAULT_TERRITORY_AREA_KM2
+                    clubDeltas[oldClub].area -= territoryAreaKm2
                 }
                 if (newClub && newClub !== oldClub) {
                     if (!clubDeltas[newClub]) clubDeltas[newClub] = { tiles: 0, area: 0 }
                     clubDeltas[newClub].tiles += 1
-                    clubDeltas[newClub].area += DEFAULT_TERRITORY_AREA_KM2
+                    clubDeltas[newClub].area += territoryAreaKm2
                 }
 
                 // Faction Math
                 if (oldFaction && oldFaction !== newFaction) {
                     if (!factionDeltas[oldFaction]) factionDeltas[oldFaction] = { tiles: 0, area: 0 }
                     factionDeltas[oldFaction].tiles -= 1
-                    factionDeltas[oldFaction].area -= DEFAULT_TERRITORY_AREA_KM2
+                    factionDeltas[oldFaction].area -= territoryAreaKm2
                 }
                 if (newFaction && newFaction !== oldFaction) {
                     if (!factionDeltas[newFaction]) factionDeltas[newFaction] = { tiles: 0, area: 0 }
                     factionDeltas[newFaction].tiles += 1
-                    factionDeltas[newFaction].area += DEFAULT_TERRITORY_AREA_KM2
+                    factionDeltas[newFaction].area += territoryAreaKm2
                 }
             }
 

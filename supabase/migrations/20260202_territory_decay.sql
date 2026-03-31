@@ -50,7 +50,7 @@ BEGIN
   -- Check current owner
   SELECT owner_id INTO v_current_owner
   FROM public.territories
-  WHERE id = p_cell_id; -- id is the PK (H3 index)
+  WHERE id = p_cell_id; -- id is the territory primary key
 
   IF v_current_owner = v_user_id THEN
     -- Repair/Reinforce

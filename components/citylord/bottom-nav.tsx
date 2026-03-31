@@ -6,12 +6,11 @@ import { useEffect } from "react"
 import { motion } from "framer-motion"
 import { getUnreadSocialCount } from "@/app/actions/social-hub"
 import { getUnreadMessageCount } from "@/app/actions/message"
-import { useRouter } from "next/navigation"
 
 
 
 
-export type TabType = "home" | "play" | "missions" | "social" | "profile" | "leaderboard" | "mode"
+export type TabType = "home" | "play" | "start" | "missions" | "social" | "profile" | "leaderboard" | "mode"
 
 interface BottomNavProps {
   activeTab: TabType
@@ -19,7 +18,6 @@ interface BottomNavProps {
 }
 
 export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
-  const router = useRouter()
   const unreadMessageCount = useGameStore((state) => state.unreadMessageCount)
   const setUnreadMessageCount = useGameStore((state) => state.setUnreadMessageCount)
   const unreadSocialCount = useGameStore((state) => state.unreadSocialCount)
@@ -55,7 +53,7 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
   const tabs = [
     { id: "home" as const, icon: Home, label: "首页" },
     { id: "play" as const, icon: Map, label: "地图" },
-    { id: "start", icon: Play, label: "开始", action: () => router.push('/start') },
+    { id: "start" as const, icon: Play, label: "开始" },
     { id: "social" as const, icon: Users, label: "社交", badge: unreadMessageCount + unreadSocialCount },
     { id: "profile" as const, icon: User, label: "个人" },
   ]
@@ -72,11 +70,7 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
               key={tab.id}
               onClick={() => {
                 closeDrawer()
-                if (tab.action) {
-                  tab.action()
-                  return
-                }
-                onTabChange(tab.id as TabType)
+                onTabChange(tab.id)
               }}
               className="group relative flex flex-col items-center gap-0.5 px-3 py-1 transition-all outline-none rounded-xl focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 active:scale-95"
             >

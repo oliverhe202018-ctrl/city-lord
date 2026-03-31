@@ -1467,13 +1467,7 @@ export default function PlannerClientView() {
   const handleStartRun = (route: Route) => {
     const points = route.waypoints as RoutePoint[];
     useGameStore.getState().setGhostPath(points.map(p => [p.lat, p.lng]));
-    useGameStore.getState().setSmartRunStarting(true);
-
-    if (window.history.length > 2) {
-      router.back();
-    } else {
-      router.push('/');
-    }
+    router.replace('/?tab=start');
   };
 
   useEffect(() => {

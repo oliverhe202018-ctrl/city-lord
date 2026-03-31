@@ -38,9 +38,6 @@ export async function GET(request: Request) {
                 },
                 data: {
                     status: 'expired',
-// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
-                    // @ts-expect-error - FIXME: Object literal may only specify known properties, and 'expired_cleaned - [Ticket-202603-SchemaSync] baseline exemption
-                    expired_cleaned_at: now,
                 },
             });
 

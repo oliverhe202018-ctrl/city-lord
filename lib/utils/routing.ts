@@ -11,11 +11,10 @@ export interface SmartRouteResult {
 }
 
 /**
- * [DEPRECATED] Calculate a smart running route connecting selected H3 hexes
- * H3 logic removed. This function should be refactored to use generic points.
+ * Calculate a smart running route connecting selected territory waypoints.
  */
 export async function calculateSmartRoute(
-  points: RoutePoint[], // Changed from h3Indices: string[]
+  points: RoutePoint[],
   startPoint: RoutePoint,
   AMap: any
 ): Promise<SmartRouteResult> {

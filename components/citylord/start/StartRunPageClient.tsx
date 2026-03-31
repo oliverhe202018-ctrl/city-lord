@@ -1,9 +1,7 @@
 "use client"
 
-import nextDynamic from "next/dynamic"
-import { useEffect, useMemo, useState } from "react"
-import { useRouter } from "next/navigation"
-import { ArrowLeft, LocateFixed, Route, X, Signal } from "lucide-react"
+import { useEffect, useState } from "react"
+import { ArrowLeft, Route, X, Signal } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
@@ -12,11 +10,6 @@ import { useLocationStore } from "@/store/useLocationStore"
 import { useGameStore } from "@/store/useGameStore"
 import { isNativePlatform, safeOpenAppSettings } from "@/lib/capacitor/safe-plugins"
 import { toast } from "sonner"
-
-const StartRunMap = nextDynamic(
-  () => import("@/components/citylord/start/StartRunMap").then(mod => mod.StartRunMap),
-  { ssr: false }
-)
 
 interface RouteItem {
   id: string
@@ -63,23 +56,21 @@ function normalizeWaypoints(input: unknown[]): [number, number][] {
     .filter((point): point is [number, number] => point !== null)
 }
 
-export function StartRunPageClient() {
-  const router = useRouter()
+interface StartRunOverlayProps {
+  onBack: () => void
+  onBeginRun: () => void
+}
+
+export function StartRunOverlay({ onBack, onBeginRun }: StartRunOverlayProps) {
   const location = useLocationStore((s) => s.location)
   const gpsSignalStrength = useLocationStore((s) => s.gpsSignalStrength)
-  const setSmartRunStarting = useGameStore((s) => s.setSmartRunStarting)
+  const ghostPath = useGameStore((s) => s.ghostPath)
+  const setGhostPath = useGameStore((s) => s.setGhostPath)
   const [openPlanner, setOpenPlanner] = useState(false)
   const [routes, setRoutes] = useState<RouteItem[]>([])
-  const [selectedPath, setSelectedPath] = useState<[number, number][]>([])
   const [loadingRoutes, setLoadingRoutes] = useState(false)
-  const [recenterTrigger, setRecenterTrigger] = useState(0)
   const [showBatteryModal, setShowBatteryModal] = useState(false)
   const [showGuideModal, setShowGuideModal] = useState(false)
-
-  const currentLocation = useMemo<[number, number] | undefined>(() => {
-    if (!location) return undefined
-    return [location.lng, location.lat]
-  }, [location])
 
   useEffect(() => {
     if (!openPlanner) return
@@ -135,17 +126,18 @@ export function StartRunPageClient() {
   }, [])
 
   const gpsLabel = gpsSignalStrength === "good" ? "强" : gpsSignalStrength === "weak" ? "弱" : "无"
+  const plannedPointCount = ghostPath?.length ?? 0
 
   return (
-    <div className="relative mx-auto h-[100dvh] w-full max-w-md overflow-hidden bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-white">
-      <StartRunMap currentLocation={currentLocation} plannedPath={selectedPath} recenterTrigger={recenterTrigger} />
+    <div className="absolute inset-0 z-40 text-slate-900 dark:text-white">
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
 
       <div className="absolute inset-x-0 top-[calc(env(safe-area-inset-top)+12px)] z-20 flex items-center justify-between px-4">
         <Button
           variant="outline"
           size="icon"
           className="h-11 w-11 rounded-full border-white/50 bg-white/80 shadow-xl backdrop-blur dark:border-white/15 dark:bg-slate-900/80"
-          onClick={() => router.push("/?tab=home")}
+          onClick={onBack}
         >
           <ArrowLeft className="h-5 w-5" />
         </Button>
@@ -155,26 +147,18 @@ export function StartRunPageClient() {
             <Button
               variant="outline"
               className="h-11 rounded-full border-white/50 bg-white/85 px-4 text-sm font-semibold shadow-xl backdrop-blur dark:border-white/15 dark:bg-slate-900/80"
-              onClick={() => setRecenterTrigger(v => v + 1)}
-            >
-              <LocateFixed className="mr-2 h-4 w-4" />
-              定位
-            </Button>
-            <Button
-              variant="outline"
-              className="h-11 rounded-full border-white/50 bg-white/85 px-4 text-sm font-semibold shadow-xl backdrop-blur dark:border-white/15 dark:bg-slate-900/80"
               onClick={() => setOpenPlanner(true)}
             >
               <Route className="mr-2 h-4 w-4" />
               智能规划
             </Button>
           </div>
-          {selectedPath.length > 0 && (
+          {plannedPointCount > 0 && (
             <Button
               variant="outline"
               size="icon"
               className="h-9 w-9 rounded-full border-white/50 bg-white/85 text-lg shadow-xl backdrop-blur dark:border-white/15 dark:bg-slate-900/80"
-              onClick={() => setSelectedPath([])}
+              onClick={() => setGhostPath(null)}
             >
               <X className="h-4 w-4" />
             </Button>
@@ -195,6 +179,21 @@ export function StartRunPageClient() {
           </div>
         </div>
 
+        {location && (
+          <div className="mb-4 rounded-2xl border border-white/50 bg-white/70 px-4 py-3 text-xs text-slate-600 shadow-sm dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-300">
+            <div className="font-semibold text-slate-900 dark:text-white">当前位置已就绪</div>
+            <div className="mt-1 truncate">
+              {location.lat.toFixed(6)}, {location.lng.toFixed(6)}
+            </div>
+          </div>
+        )}
+
+        {plannedPointCount > 0 && (
+          <div className="mb-4 rounded-2xl border border-emerald-300/50 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-400/20 dark:text-emerald-300">
+            已载入规划路径 · {plannedPointCount} 个轨迹点
+          </div>
+        )}
+
         <div className="mb-5 grid grid-cols-3 gap-2 text-center">
           <div>
             <p className="text-2xl font-black leading-none">0.00 km</p>
@@ -212,10 +211,7 @@ export function StartRunPageClient() {
 
         <Button
           className="h-14 w-full rounded-2xl bg-slate-900 text-xl font-extrabold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
-          onClick={() => {
-            setSmartRunStarting(true)
-            router.push("/")
-          }}
+          onClick={onBeginRun}
         >
           开始跑步
         </Button>
@@ -235,7 +231,8 @@ export function StartRunPageClient() {
                   key={route.id}
                   className="w-full rounded-xl border border-border bg-card p-4 text-left transition-colors active:bg-accent"
                   onClick={() => {
-                    setSelectedPath(normalizeWaypoints(Array.isArray(route.waypoints) ? route.waypoints : []))
+                    const normalizedPath = normalizeWaypoints(Array.isArray(route.waypoints) ? route.waypoints : [])
+                    setGhostPath(normalizedPath.map(([lng, lat]) => [lat, lng]))
                     setOpenPlanner(false)
                   }}
                 >
@@ -315,3 +312,5 @@ export function StartRunPageClient() {
     </div>
   )
 }
+
+export { StartRunOverlay as StartRunPageClient }

@@ -31,7 +31,7 @@
  *   that the runner's GPS trajectory intersects enemy territories.
  *   NOT triggered by manual button press or real-time location.
  *   The run settlement API (POST /api/sync/run) should call
- *   attackTerritory for each intersected enemy territory tile.
+ *   attackTerritory for each intersected enemy territory polygon.
  *
  * CRITICAL: All attack operations run inside a Prisma $transaction
  * with row-level locking on the target territory.
@@ -43,7 +43,6 @@ import {
     MAX_DAMAGE,
     DAMAGE_PER_KM2,
     MAX_TERRITORY_HP,
-    DEFAULT_TERRITORY_AREA_KM2,
     NEUTRAL_COOLDOWN_MINUTES,
 } from '@/lib/constants/territory'
 import { redis } from '@/lib/redis'
@@ -113,9 +112,10 @@ export const TerritoryHPService = {
                             city_id: string
                             owner_change_count: number
                             neutral_until: Date | null
+                            area_m2_exact: number | null
                         }>
                     >`
-            SELECT id, owner_id, health, city_id, owner_change_count, neutral_until
+            SELECT id, owner_id, health, city_id, owner_change_count, neutral_until, area_m2_exact
             FROM public.territories
             WHERE id = ${territoryId}
             FOR UPDATE
@@ -143,7 +143,7 @@ export const TerritoryHPService = {
                     // ── Step 3: Calculate damage ──
                     const areaKm2 = intersectionAreaM2
                         ? intersectionAreaM2 / 1_000_000
-                        : DEFAULT_TERRITORY_AREA_KM2
+                        : Math.max((territory.area_m2_exact || 0) / 1_000_000, 0.00001)
 
                     const damage = Math.round(
                         Math.max(MIN_DAMAGE, Math.min(MAX_DAMAGE, areaKm2 * DAMAGE_PER_KM2))
@@ -275,7 +275,6 @@ export const TerritoryHPService = {
         MAX_DAMAGE,
         DAMAGE_PER_KM2,
         MAX_TERRITORY_HP,
-        DEFAULT_TERRITORY_AREA_KM2,
         NEUTRAL_COOLDOWN_MINUTES,
     },
 }

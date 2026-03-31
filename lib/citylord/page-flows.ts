@@ -164,7 +164,7 @@ export const territoryBattleFlow: FlowDiagram = {
       nameEn: "Running State",
       type: "screen",
       description: "用户正在跑步，显示实时数据",
-      component: "RunningStatusBar + HexGridOverlay",
+      component: "RunningStatusBar + TerritoryPolygonLayer",
     },
     {
       id: "territory-alert",
@@ -180,7 +180,7 @@ export const territoryBattleFlow: FlowDiagram = {
       nameEn: "Counter Attack Screen",
       type: "screen",
       description: "显示被抢占的领地位置，引导用户前往",
-      component: "HexGridOverlay (with target highlight)",
+      component: "TerritoryPolygonLayer (with target highlight)",
     },
     {
       id: "battle-progress",
@@ -679,7 +679,7 @@ export const allFlows = {
 // Page relationship summary
 export const pageRelationships = {
   mainScreens: [
-    { id: "map", name: "地图", component: "HexGridOverlay" },
+    { id: "map", name: "地图", component: "TerritoryPolygonLayer" },
     { id: "missions", name: "任务", component: "MissionList" },
     { id: "leaderboard", name: "排行榜", component: "Leaderboard" },
     { id: "social", name: "社交", component: "FriendsList + FriendActivityFeed" },

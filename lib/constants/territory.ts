@@ -2,22 +2,8 @@
  * Territory System Constants
  *
  * Shared constants for the territory HP / hot zone system.
- * Imported by territory-hp-service, hotzone-service, and claimTerritory.
- *
- * H3 Resolution is defined in hex-utils.ts as H3_RESOLUTION = 9.
- * The tile area below corresponds to H3 resolution 9 (~0.0001053 km²).
+ * Imported by territory services and map settlement flows.
  */
-
-// ============================================================
-// H3 Grid
-// ============================================================
-
-/** Approximate area of a single territory polygon in km² (Fallback for transition) */
-export const DEFAULT_TERRITORY_AREA_KM2 = 0.0001053
-
-/** H3 resolution used across the entire territory system.
- *  [DEPRECATED] No longer used for indexing. */
-export const TERRITORY_H3_RESOLUTION = 9
 
 // ============================================================
 // Territory HP

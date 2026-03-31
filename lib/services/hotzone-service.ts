@@ -1,4 +1,4 @@
-﻿/**
+/**
  * HotZoneService
  *
  * Determines whether a territory is a "hot zone" (棰戠箒鏄撲富鐨勭儹闂ㄥ尯鍩?
@@ -150,8 +150,8 @@ export const HotZoneService = {
 
         
         return logs.map((l) => ({
-            previousOwner: l.previous_owner,
-            newOwner: l.new_owner as string,
+            previousOwner: l.old_owner_id,
+            newOwner: l.new_owner_id as string,
             changedAt: l.changed_at ?? new Date(),
         }))
     },

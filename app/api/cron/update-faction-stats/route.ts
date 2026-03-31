@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { HEX_AREA_SQ_METERS } from '@/lib/citylord/area-utils';
 
 export async function GET(request: Request) {
   try {
@@ -28,8 +27,19 @@ export async function GET(request: Request) {
       },
     });
 
-    const redArea = redCount * HEX_AREA_SQ_METERS;
-    const blueArea = blueCount * HEX_AREA_SQ_METERS;
+    const [redAreaAggregate, blueAreaAggregate] = await Promise.all([
+      prisma.territories.aggregate({
+        where: { profiles: { faction: 'Red' } },
+        _sum: { area_m2_exact: true },
+      }),
+      prisma.territories.aggregate({
+        where: { profiles: { faction: 'Blue' } },
+        _sum: { area_m2_exact: true },
+      }),
+    ]);
+
+    const redArea = redAreaAggregate._sum.area_m2_exact || 0;
+    const blueArea = blueAreaAggregate._sum.area_m2_exact || 0;
 
     // Upsert Cache (ID 'latest' for singleton)
     const stats = await prisma.faction_stats_snapshot.upsert({

@@ -1,5 +1,5 @@
-import { StartRunPageClient } from "@/components/citylord/start/StartRunPageClient"
+import { redirect } from "next/navigation"
 
 export default function StartPage() {
-  return <StartRunPageClient />
+  redirect("/?tab=start")
 }

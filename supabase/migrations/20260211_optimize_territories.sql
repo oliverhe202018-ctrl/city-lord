@@ -3,12 +3,10 @@
 CREATE EXTENSION IF NOT EXISTS postgis;
 
 -- 2. Modify territories table to support spatial optimization
--- 添加 geojson 字段用于存储几何数据（如果是 H3 索引，通常也会存储对应的多边形用于空间查询）
--- 添加 h3_index 字段（如果 id 已经是 h3_index，这里可能是为了显式索引或兼容性，或者 id 是 UUID）
+-- 添加 geojson 字段用于存储多边形几何数据
 -- 添加 status 字段用于部分索引
 ALTER TABLE territories 
 ADD COLUMN IF NOT EXISTS geojson GEOMETRY(Polygon, 4326),
-ADD COLUMN IF NOT EXISTS h3_index TEXT,
 ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
 
 -- 3. Create GiST Index on territories.geojson
@@ -30,10 +28,10 @@ CREATE INDEX IF NOT EXISTS idx_user_locations_location
 ON user_locations USING GIST (location);
 
 -- 5. Create Partial Index on territories
--- 仅针对 status = 'active' 的记录索引 owner_id 和 h3_index
+-- 仅针对 status = 'active' 的记录索引 owner_id
 -- 优化查询活跃领地的性能
-CREATE INDEX IF NOT EXISTS idx_territories_active_owner_h3 
-ON territories (owner_id, h3_index) 
+CREATE INDEX IF NOT EXISTS idx_territories_active_owner 
+ON territories (owner_id) 
 WHERE status = 'active';
 
 -- 6. Create Materialized View for Territory Stats
