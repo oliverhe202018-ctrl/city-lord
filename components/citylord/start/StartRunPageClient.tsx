@@ -130,9 +130,9 @@ export function StartRunOverlay({ onBack, onBeginRun }: StartRunOverlayProps) {
 
   return (
     <div className="absolute inset-0 z-40 text-slate-900 dark:text-white">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
+      <div className="pointer-events-none absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
 
-      <div className="absolute inset-x-0 top-[calc(env(safe-area-inset-top)+12px)] z-20 flex items-center justify-between px-4">
+      <div className="pointer-events-auto relative inset-x-0 top-[calc(env(safe-area-inset-top)+12px)] z-50 flex items-center justify-between px-4">
         <Button
           type="button"
           variant="outline"

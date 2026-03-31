@@ -917,7 +917,7 @@ export function GamePageContent({
                     )}
 
                     {gameMode === 'map' && !shouldHideButtons && (
-                      <div className="pointer-events-auto absolute bottom-[calc(env(safe-area-inset-bottom)+7.5rem)] left-4 z-50 flex flex-col gap-3">
+                      <div className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+7rem)] left-4 z-[60] flex flex-col gap-3">
                         <button
                           onClick={() => setActiveTab("missions")}
                           className="flex h-12 w-12 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-md text-[#8b5cf6] active:scale-90 active:bg-white/20 transition-all hover:bg-primary/20 hover:border-primary/50"
@@ -929,7 +929,7 @@ export function GamePageContent({
                     )}
 
                     {gameMode === 'map' && !shouldHideButtons && (
-                      <div className="pointer-events-auto absolute bottom-[calc(env(safe-area-inset-bottom)+7.5rem)] right-4 z-50 flex flex-col gap-3">
+                      <div className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+7rem)] right-4 z-[60] flex flex-col gap-3">
                         <button
                           onClick={() => setActiveTab("social")}
                           className="relative flex h-12 w-12 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-md text-[#3b82f6] active:scale-90 active:bg-white/20 transition-all hover:bg-primary/20 hover:border-primary/50"
@@ -1071,7 +1071,7 @@ export function GamePageContent({
         />
       )}
 
-      {hydrated && currentCity && !isRunTakeoverActive && <MemoizedBottomNav activeTab={activeTab} onTabChange={setActiveTab} />}
+      {hydrated && currentCity && !isRunTakeoverActive && activeTab !== "start" && <MemoizedBottomNav activeTab={activeTab} onTabChange={setActiveTab} />}
 
       <MemoizedTerritoryAlert
         isOpen={showTerritoryAlert}
