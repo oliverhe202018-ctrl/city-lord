@@ -7,7 +7,7 @@ import { logEvent } from '@/lib/native-log';
 import { BottomNav, TabType } from "@/components/citylord/bottom-nav"
 import { MissionCenter } from "@/components/citylord/MissionCenter"
 import { Profile } from "@/components/citylord/profile"
-import { Trophy, Route, History, Loader2, Palette, MapPin, Crown, Flag, Users } from "lucide-react";
+import { Trophy, Route, History, Loader2, Palette, MapPin, Crown, ClipboardList, Users } from "lucide-react";
 import { OnboardingGuide, ONBOARDING_GUIDE_STEP_COUNT } from "@/components/citylord/onboarding-guide"
 import { TerritoryAlert } from "@/components/citylord/territory-alert"
 import { ChallengeInvite } from "@/components/citylord/challenge-invite"
@@ -929,18 +929,11 @@ export function GamePageContent({
                     {gameMode === 'map' && !shouldHideButtons && (
                       <div className="pointer-events-auto absolute bottom-[calc(env(safe-area-inset-bottom)+7rem)] left-4 z-20 flex flex-col gap-3">
                         <button
-                          onClick={() => handleQuickNavigate("running")}
-                          className="flex h-12 w-12 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-md text-[#22c55e] active:scale-90 active:bg-white/20 transition-all hover:bg-primary/20 hover:border-primary/50"
-                          aria-label="开始跑步"
-                        >
-                          <Route className="h-5 w-5" />
-                        </button>
-                        <button
-                          onClick={() => handleQuickNavigate("missions", { initialFilter: "all" })}
+                          onClick={() => setActiveTab("missions")}
                           className="flex h-12 w-12 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-md text-[#8b5cf6] active:scale-90 active:bg-white/20 transition-all hover:bg-primary/20 hover:border-primary/50"
                           aria-label="任务中心"
                         >
-                          <Flag className="h-5 w-5" />
+                          <ClipboardList className="h-5 w-5" />
                         </button>
                       </div>
                     )}
@@ -948,7 +941,7 @@ export function GamePageContent({
                     {gameMode === 'map' && !shouldHideButtons && (
                       <div className="pointer-events-auto absolute bottom-[calc(env(safe-area-inset-bottom)+7rem)] right-4 z-20 flex flex-col gap-3">
                         <button
-                          onClick={() => handleQuickNavigate("social")}
+                          onClick={() => setActiveTab("social")}
                           className="relative flex h-12 w-12 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-md text-[#3b82f6] active:scale-90 active:bg-white/20 transition-all hover:bg-primary/20 hover:border-primary/50"
                           aria-label="好友"
                         >

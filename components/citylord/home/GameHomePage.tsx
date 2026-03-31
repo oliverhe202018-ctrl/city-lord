@@ -286,24 +286,26 @@ function GameHomePageInner({ onStartRun, onNavigateToMap, onNavigateToTab, onSma
                             {/* Faction Battle Status */}
                             <FactionBattleStatusCard />
 
-                            {/* 2) Nearby Targets */}
-                            <NearbyTargetsCarousel
-                                targets={data?.nearbyTargets ?? []}
-                                onGoToTarget={handleGoToTarget}
-                                isLoading={isLoading}
-                            />
+                            {false && (
+                                <NearbyTargetsCarousel
+                                    targets={data?.nearbyTargets ?? []}
+                                    onGoToTarget={handleGoToTarget}
+                                    isLoading={isLoading}
+                                />
+                            )}
                         </>
                     ) : (
                         <>
                             {/* Faction Battle Status */}
                             <FactionBattleStatusCard />
 
-                            {/* 2) Nearby Targets */}
-                            <NearbyTargetsCarousel
-                                targets={data?.nearbyTargets ?? []}
-                                onGoToTarget={handleGoToTarget}
-                                isLoading={isLoading}
-                            />
+                            {false && (
+                                <NearbyTargetsCarousel
+                                    targets={data?.nearbyTargets ?? []}
+                                    onGoToTarget={handleGoToTarget}
+                                    isLoading={isLoading}
+                                />
+                            )}
 
                             {/* 3) Battle Feed */}
                             <BattleFeedMini

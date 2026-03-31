@@ -134,6 +134,7 @@ export function StartRunOverlay({ onBack, onBeginRun }: StartRunOverlayProps) {
 
       <div className="absolute inset-x-0 top-[calc(env(safe-area-inset-top)+12px)] z-20 flex items-center justify-between px-4">
         <Button
+          type="button"
           variant="outline"
           size="icon"
           className="h-11 w-11 rounded-full border-white/50 bg-white/80 shadow-xl backdrop-blur dark:border-white/15 dark:bg-slate-900/80"
@@ -145,6 +146,7 @@ export function StartRunOverlay({ onBack, onBeginRun }: StartRunOverlayProps) {
         <div className="flex flex-col items-end gap-2">
           <div className="flex items-center gap-2">
             <Button
+              type="button"
               variant="outline"
               className="h-11 rounded-full border-white/50 bg-white/85 px-4 text-sm font-semibold shadow-xl backdrop-blur dark:border-white/15 dark:bg-slate-900/80"
               onClick={() => setOpenPlanner(true)}
@@ -155,6 +157,7 @@ export function StartRunOverlay({ onBack, onBeginRun }: StartRunOverlayProps) {
           </div>
           {plannedPointCount > 0 && (
             <Button
+              type="button"
               variant="outline"
               size="icon"
               className="h-9 w-9 rounded-full border-white/50 bg-white/85 text-lg shadow-xl backdrop-blur dark:border-white/15 dark:bg-slate-900/80"
@@ -210,6 +213,7 @@ export function StartRunOverlay({ onBack, onBeginRun }: StartRunOverlayProps) {
         </div>
 
         <Button
+          type="button"
           className="h-14 w-full rounded-2xl bg-slate-900 text-xl font-extrabold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
           onClick={onBeginRun}
         >
@@ -228,6 +232,7 @@ export function StartRunOverlay({ onBack, onBeginRun }: StartRunOverlayProps) {
               {!loadingRoutes && routes.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">暂无可用路线</p>}
               {!loadingRoutes && routes.map((route) => (
                 <button
+                  type="button"
                   key={route.id}
                   className="w-full rounded-xl border border-border bg-card p-4 text-left transition-colors active:bg-accent"
                   onClick={() => {
@@ -264,6 +269,7 @@ export function StartRunOverlay({ onBack, onBeginRun }: StartRunOverlayProps) {
               </p>
               <div className="mt-5 space-y-3">
                 <Button
+                  type="button"
                   className="h-12 w-full rounded-xl bg-slate-900 text-white hover:bg-slate-800"
                   onClick={async () => {
                     const opened = await safeOpenAppSettings()
@@ -273,6 +279,7 @@ export function StartRunOverlay({ onBack, onBeginRun }: StartRunOverlayProps) {
                   打开设置 (Open settings)
                 </Button>
                 <Button
+                  type="button"
                   variant="outline"
                   className="h-12 w-full rounded-xl border-rose-300 bg-white text-rose-700 hover:bg-rose-50"
                   onClick={() => setShowGuideModal(true)}
@@ -290,7 +297,7 @@ export function StartRunOverlay({ onBack, onBeginRun }: StartRunOverlayProps) {
           <div className="flex h-full flex-col bg-background">
             <div className="flex items-center justify-between border-b px-4 py-3">
               <h2 className="text-base font-bold">电池优化关闭指南</h2>
-              <Button variant="ghost" size="icon" onClick={() => setShowGuideModal(false)}>
+              <Button type="button" variant="ghost" size="icon" onClick={() => setShowGuideModal(false)}>
                 <X className="h-5 w-5" />
               </Button>
             </div>
