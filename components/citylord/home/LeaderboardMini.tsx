@@ -64,7 +64,7 @@ export function LeaderboardMini({ myRank, initialLeaderboard }: LeaderboardMiniP
                 {/* 标题 */}
                 <div className="flex items-center gap-2">
                     <Trophy className="w-5 h-5 text-purple-500" />
-                    <span className="text-white font-medium">查看排行</span>
+                    <span className="font-medium text-slate-900 dark:text-white">查看排行</span>
                 </div>
 
                 {/* Tab 切换器 (药丸风格) - [Tech Lead] 动力学交互 */}
