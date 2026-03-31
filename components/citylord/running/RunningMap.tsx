@@ -58,7 +58,8 @@ export function RunningMap({
   }, [startLocation]);
 
   // Map Interaction State
-  const isFollowingUserRef = useRef(true);
+  const [isUserInteracting, setIsUserInteracting] = useState(false);
+  const isUserInteractingRef = useRef(false);
   const interactionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const latestUserLocationRef = useRef(userLocation);
 
@@ -66,6 +67,10 @@ export function RunningMap({
   useEffect(() => {
     latestUserLocationRef.current = userLocation;
   }, [userLocation]);
+
+  useEffect(() => {
+    isUserInteractingRef.current = isUserInteracting;
+  }, [isUserInteracting]);
 
   // 1. Initialize Map (ONCE only — no location dependencies to prevent flickering!)
   useEffect(() => {
@@ -142,7 +147,7 @@ export function RunningMap({
 
         // Map Interaction Listeners for Auto-Center Recovery
         const handleInteractionStart = () => {
-          isFollowingUserRef.current = false;
+          setIsUserInteracting(true);
           if (interactionTimeoutRef.current) {
             clearTimeout(interactionTimeoutRef.current);
           }
@@ -153,10 +158,18 @@ export function RunningMap({
             clearTimeout(interactionTimeoutRef.current);
           }
           interactionTimeoutRef.current = setTimeout(() => {
-            isFollowingUserRef.current = true;
-            // Smoothly pan back to user immediately after timeout
+            setIsUserInteracting(false);
             if (latestUserLocationRef.current && mapInstanceRef.current) {
-              mapInstanceRef.current.panTo(latestUserLocationRef.current);
+              const map = mapInstanceRef.current as AMap.Map & { flyTo?: (opts: { center: [number, number]; zoom: number; duration: number }) => void };
+              if (typeof map.flyTo === 'function') {
+                map.flyTo({
+                  center: latestUserLocationRef.current,
+                  zoom: map.getZoom(),
+                  duration: 600
+                });
+              } else {
+                map.panTo(latestUserLocationRef.current);
+              }
             }
           }, 3000);
         };
@@ -198,7 +211,7 @@ export function RunningMap({
       userMarkerRef.current.setPosition(pos);
       userMarkerRef.current.show();
 
-      if (isFollowingUserRef.current) {
+      if (!isUserInteractingRef.current) {
         smoothPanTo(pos);
       }
 
@@ -218,7 +231,7 @@ export function RunningMap({
     userMarkerRef.current.show()
 
     // Smooth Pan to user using the new hook (only if not interacting)
-    if (isFollowingUserRef.current) {
+    if (!isUserInteractingRef.current) {
       smoothPanTo(userLocation)
     }
 
@@ -254,10 +267,19 @@ export function RunningMap({
   // Recenter Trigger Effect
   useEffect(() => {
     if (!mapInstanceRef.current || !userLocation) return
-    isFollowingUserRef.current = true;
+    const map = mapInstanceRef.current as AMap.Map & { flyTo?: (opts: { center: [number, number]; zoom: number; duration: number }) => void };
+    setIsUserInteracting(false);
     if (interactionTimeoutRef.current) clearTimeout(interactionTimeoutRef.current);
-    mapInstanceRef.current.panTo(userLocation);
-    mapInstanceRef.current.setZoom(17); // Reset zoom too
+    if (typeof map.flyTo === 'function') {
+      map.flyTo({
+        center: userLocation,
+        zoom: 17,
+        duration: 600
+      });
+    } else {
+      map.panTo(userLocation);
+      map.setZoom(17);
+    }
   }, [recenterTrigger])
 
   // 3. Render Polygons (Territories)

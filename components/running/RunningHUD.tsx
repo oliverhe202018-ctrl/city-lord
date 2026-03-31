@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { motion, AnimatePresence, useSpring, useTransform } from "framer-motion"
 import { Play, Pause, Square, Lock, Unlock, Zap, Flame, Map as MapIcon, Trophy, CheckCircle2, Settings, Cloud, CloudOff, RefreshCw } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -89,6 +89,7 @@ function AnimatedCounter({ value, className, decimals = 2 }: { value: number, cl
 
 interface RunningHUDProps {
   distance: number // km
+  currentDistanceMeters?: number
   duration: string // "HH:MM:SS"
   pace: string // "MM:SS"
   calories: number
@@ -111,11 +112,16 @@ function SlideToPause({ onPause }: { onPause: () => void }) {
   const [dragX, setDragX] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
   const SLIDE_THRESHOLD = 150 // Reduced threshold for easier trigger
+  const textOpacity = Math.max(0.12, 1 - (dragX / SLIDE_THRESHOLD) * 0.85)
+  const textScale = Math.max(0.9, 1 - (dragX / SLIDE_THRESHOLD) * 0.08)
 
   return (
     <div className="relative w-full max-w-[280px] h-16 bg-[#22c55e] rounded-full overflow-hidden shadow-lg shadow-[#22c55e]/20 touch-none select-none z-[100]" ref={containerRef} style={{ WebkitTouchCallout: 'none' }}>
       {/* Background Text — z-10 ensures it's above track, pointer-events-none so it doesn't block the knob drag */}
-      <div className="absolute inset-0 flex items-center justify-center text-black/60 text-sm font-bold pointer-events-none tracking-widest pl-12 animate-pulse z-10">
+      <div
+        className="absolute inset-0 flex items-center justify-center pointer-events-none text-black/60 text-sm font-bold tracking-widest z-10"
+        style={{ opacity: textOpacity, transform: `scale(${textScale})` }}
+      >
         {"> 滑动暂停"}
       </div>
 
@@ -152,6 +158,7 @@ function SlideToPause({ onPause }: { onPause: () => void }) {
 
 export function RunningHUD({
   distance,
+  currentDistanceMeters,
   duration,
   pace,
   calories,
@@ -201,6 +208,21 @@ export function RunningHUD({
   // --------------------------------------------------------------------------
   const [activeMissions, setActiveMissions] = useState<any[]>([])
   const [completedMissionIds, setCompletedMissionIds] = useState<Set<string>>(new Set())
+  const localDistanceMeters = currentDistanceMeters ?? distance * 1000
+  const localDistanceKm = localDistanceMeters / 1000
+
+  const getDistanceMissionProgress = useCallback((mission: any, userMission: any) => {
+    const serverProgress = Number(userMission.current || 0)
+    const isKmTarget = mission.target < 50
+    const optimisticCurrent = serverProgress + (isKmTarget ? localDistanceKm : localDistanceMeters)
+    const target = Number(mission.target || 0)
+    return {
+      current: optimisticCurrent,
+      target,
+      isCompleted: optimisticCurrent >= target && target > 0,
+      unit: isKmTarget ? 'km' : 'm'
+    }
+  }, [localDistanceKm, localDistanceMeters])
 
   // 1. Fetch Missions on Mount
   useEffect(() => {
@@ -233,24 +255,11 @@ export function RunningHUD({
       const mission = um.missions || um;
       if (!mission || completedMissionIds.has(mission.id)) return
 
-      let currentProgress = um.current || 0 // Use user_mission progress if available
       let isHit = false
 
       if (mission.type === 'DISTANCE_DAILY') {
-        // Server usually stores meters. HUD distance is KM.
-        // Check if target is likely meters (e.g. 1000, 5000) or km (1, 5)
-        // Based on seed: 'Run 1km' -> target 1 (if code assumes km) or 1000 (if meters).
-        // Let's assume target is KM for simplicity if small, or meters if large.
-        // Or safer: use mission definition.
-        // For now, simple heuristic:
-        const target = mission.target
-        const current = distance * 1000 // meters
-        if (target < 50) { // likely KM
-          if (distance >= target) isHit = true
-        } else {
-          if (current >= target) isHit = true
-        }
-        currentProgress = distance
+        const progress = getDistanceMissionProgress(mission, um)
+        isHit = progress.isCompleted
       }
 
       if (isHit) {
@@ -261,7 +270,7 @@ export function RunningHUD({
         setCompletedMissionIds(prev => new Set(prev).add(mission.id))
       }
     })
-  }, [distance, activeMissions, completedMissionIds])
+  }, [activeMissions, completedMissionIds, getDistanceMissionProgress])
 
   return (
     <>
@@ -305,18 +314,16 @@ export function RunningHUD({
 
                 {activeMissions.slice(0, 2).map(um => {
                   const mission = um.missions || um;
-                  // Daily missions should use the current distance state
-                  // meters = distance * 1000
-                  const currentMeters = distance * 1000;
                   const isDistanceMission = mission.type === 'DISTANCE_DAILY';
+                  const distanceProgress = isDistanceMission ? getDistanceMissionProgress(mission, um) : null
                   
                   return (
                     <MissionTrackerItem
                       key={mission.id}
                       title={mission.title}
-                      current={isDistanceMission ? (mission.target < 50 ? distance : currentMeters) : 0}
-                      target={mission.target}
-                      unit={isDistanceMission ? (mission.target < 50 ? 'km' : 'm') : ''}
+                      current={distanceProgress?.current || 0}
+                      target={distanceProgress?.target || mission.target}
+                      unit={distanceProgress?.unit || ''}
                       isCompleted={completedMissionIds.has(mission.id)}
                     />
                   )

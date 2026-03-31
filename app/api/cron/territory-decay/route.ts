@@ -1,70 +1,75 @@
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+
+const DECAY_AMOUNT = 20
 
 export async function GET(request: Request) {
     try {
-        // 1. Security Check
-        const authHeader = request.headers.get('Authorization');
-        if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-            return new NextResponse('Unauthorized', { status: 401 });
+        const authHeader = request.headers.get('authorization')
+        if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
-        const now = Date.now();
-        const hotCutoffDate = new Date(now - 72 * 60 * 60 * 1000);
-        const normalCutoffDate = new Date(now - 48 * 60 * 60 * 1000);
-        let cleanedCount = 0;
+        const result = await prisma.$transaction(async (tx) => {
+            const decayedRows = await tx.$queryRaw<Array<{ id: string; owner_id: string | null; old_health: number; new_health: number }>>`
+                WITH candidates AS (
+                    SELECT
+                        id,
+                        owner_id,
+                        COALESCE(health, 0)::int AS old_health
+                    FROM public.territories
+                    WHERE COALESCE(health, 0) > 0
+                )
+                UPDATE public.territories
+                SET
+                    health = GREATEST(0, candidates.old_health - ${DECAY_AMOUNT}),
+                    last_maintained_at = NOW()
+                FROM candidates
+                WHERE territories.id = candidates.id
+                RETURNING territories.id, candidates.owner_id, candidates.old_health, COALESCE(territories.health, 0)::int AS new_health
+            `
 
-        // 2. Fetch all hot territories
-        const hotTerritories = await prisma.territories.findMany({
-            where: {
-                owner_change_count: { gte: 2 }
-            },
-            select: { id: true },
-        });
-        const hotIds = hotTerritories.map(t => t.id);
+            const lowHealthNotifications = decayedRows
+                .filter((row) => row.owner_id && row.old_health >= 50 && row.new_health < 50 && row.new_health > 0)
+                .map((row) => ({
+                    user_id: row.owner_id,
+                    sender_id: null,
+                    type: 'system',
+                    content: `你的领地 ${row.id} 生命值已降至 ${row.new_health}/100，请尽快前往巡逻修复。`,
+                    is_read: false
+                }))
 
-        // 3. Batch delete expired logs for Hot Zones (> 72h)
-        if (hotIds.length > 0) {
-            // Prisma "in" can handle thousands of IDs.
-            // If it exceeds limits, we chunk it.
-            const CHUNK_SIZE = 500;
-            for (let i = 0; i < hotIds.length; i += CHUNK_SIZE) {
-                const chunk = hotIds.slice(i, i + CHUNK_SIZE);
-                const hotResult = await prisma.territory_hp_logs.deleteMany({
-                    where: {
-                        territory_id: { in: chunk },
-                        // @ts-expect-error - FIXME: Object literal may only specify known properties, and 'created_at' doe - [Ticket-202603-SchemaSync] baseline exemption
-                        created_at: { lt: hotCutoffDate },
-                    },
-                });
-                cleanedCount += hotResult.count;
-                if (hotResult.count > 0) {
-                    console.log(`Cleaned ${hotResult.count} expired logs for hot zones (chunk ${i / CHUNK_SIZE + 1}).`);
-                }
+            if (lowHealthNotifications.length > 0) {
+                await tx.messages.createMany({
+                    data: lowHealthNotifications
+                })
             }
-        }
 
-        // 4. Batch delete expired logs for Normal Zones (> 48h)
-        // Since we chunked hotIds, for normal zones we can delete by NOT IN hotIds.
-        // Or safely, just do a raw SQL to avoid massive NOT IN array if needed.
-        // However, Prisma deleteMany with NOT IN should be reasonably safe for typically sized DBs.
-        // We can just rely on Prisma for now.
-        const normalResult = await prisma.territory_hp_logs.deleteMany({
-            where: {
-                ...(hotIds.length > 0 ? { territory_id: { notIn: hotIds } } : {}),
-                // @ts-expect-error - FIXME: Object literal may only specify known properties, and 'created_at' doe - [Ticket-202603-SchemaSync] baseline exemption
-                created_at: { lt: normalCutoffDate },
+            const neutralizedRows = await tx.$queryRaw<Array<{ id: string }>>`
+                UPDATE public.territories
+                SET
+                    owner_id = NULL,
+                    owner_faction = NULL,
+                    owner_club_id = NULL
+                WHERE COALESCE(health, 0) <= 0
+                  AND (owner_id IS NOT NULL OR owner_faction IS NOT NULL OR owner_club_id IS NOT NULL)
+                RETURNING id
+            `
+
+            return {
+                decayedCount: decayedRows.length,
+                neutralizedCount: neutralizedRows.length
             }
-        });
+        })
 
-        cleanedCount += normalResult.count;
-        if (normalResult.count > 0) {
-            console.log(`Cleaned ${normalResult.count} expired logs for normal zones.`);
-        }
-
-        return NextResponse.json({ success: true, message: `Cleaned ${cleanedCount} expired hp logs.` });
-    } catch (error) {
-        console.error('Territory Decay Cron Error:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+        return NextResponse.json({
+            success: true,
+            decayedCount: result.decayedCount,
+            neutralizedCount: result.neutralizedCount,
+            decayPerRun: DECAY_AMOUNT
+        })
+    } catch (error: any) {
+        console.error('[territory-decay cron] failed:', error)
+        return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 })
     }
 }

@@ -60,7 +60,8 @@ export function SyncManager() {
             path: run.path,
             polygons: run.polygons || [],
             timestamp: run.timestamp,
-            manualLocationCount: 0
+            manualLocationCount: 0,
+            eventsHistory: run.eventsHistory || []
           })
 
           const timeoutPromise = new Promise((_, reject) => {

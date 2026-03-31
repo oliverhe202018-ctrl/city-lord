@@ -5,7 +5,7 @@ import { useMap } from '@/components/map/AMapContext';
 import { Button } from '@/components/ui/button';
 import {
     LocateFixedIcon, Plus, Minus, Loader2,
-    Layers, Cloud, CloudOff, User, Shield
+    Layers, User, Shield, Swords
 } from 'lucide-react';
 
 export const MapControls = () => {
@@ -17,8 +17,8 @@ export const MapControls = () => {
         isTracking,
         showKingdom,
         toggleKingdom,
-        showFog,
-        toggleFog,
+        showFactionColors,
+        toggleFactionColors,
         kingdomMode,
         setKingdomMode,
     } = useMap();
@@ -51,20 +51,21 @@ export const MapControls = () => {
 
     return (
         <div className="absolute bottom-60 right-4 z-10 flex flex-col gap-3 items-center pointer-events-auto">
-            {/* Fog (Mask) Toggle */}
-            <Button
-                variant="outline"
-                size="icon"
-                onClick={toggleFog}
-                className={`h-9 w-9 rounded-full shadow-md transition-all border ${showFog
-                    ? 'bg-slate-600/70 text-white hover:bg-slate-500 border-white/15'
-                    : 'bg-white/80 text-zinc-400 hover:bg-white/90 border-zinc-200/40 dark:bg-zinc-800/80 dark:text-white/40 dark:border-white/10 dark:hover:bg-zinc-700'
-                    }`}
-                title={showFog ? "关闭迷雾" : "开启迷雾"}
-            >
-                {showFog ? <Cloud className="h-4 w-4" /> : <CloudOff className="h-4 w-4" />}
-                <span className="sr-only">迷雾控制</span>
-            </Button>
+            {showKingdom && isPersonal && (
+                <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={toggleFactionColors}
+                    className={`h-9 w-9 rounded-full shadow-md transition-all border ${showFactionColors
+                        ? 'bg-blue-500/70 text-white hover:bg-blue-500/85 border-blue-300/50'
+                        : 'bg-white/85 text-zinc-500 hover:bg-white border-zinc-200/50 dark:bg-zinc-800/85 dark:text-white/60 dark:border-white/10 dark:hover:bg-zinc-700'
+                        }`}
+                    title={showFactionColors ? "关闭阵营色彩" : "开启阵营色彩"}
+                >
+                    <Swords className="h-4 w-4" />
+                    <span className="sr-only">阵营色彩</span>
+                </Button>
+            )}
 
             {/* Kingdom Mode Switch — 领地图层开启时可切换个人/俱乐部视角 */}
             {showKingdom && (

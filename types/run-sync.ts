@@ -10,6 +10,23 @@ export interface ActionResponse<T = any> {
     error?: string;
 }
 
+export type RunEventType = 'CHASE' | 'ENERGY_SURGE';
+export type RunEventStatus = 'SUCCESS' | 'FAILED';
+
+export interface RunEventLog {
+    eventId: string;
+    eventType: RunEventType;
+    status: RunEventStatus;
+    triggeredAt: number;
+    resolvedAt: number;
+    reward?: {
+        xp?: number;
+        stamina?: number;
+        coins?: number;
+    };
+    penaltyMultiplier?: number;
+}
+
 /**
  * Data Transfer Object for strictly typed run submissions.
  * Front-end strictly sends this payload; back-end strictly validates it.
@@ -51,4 +68,6 @@ export interface RunRecordDTO {
      * Optional manual interactions map (number of paused/resumed, etc)
      */
     manualLocationCount?: number;
+
+    eventsHistory?: RunEventLog[];
 }

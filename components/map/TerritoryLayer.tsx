@@ -5,9 +5,11 @@ import { logEvent } from '@/lib/native-log';
 import type { ExtTerritory } from "@/types/city";
 import { useCity } from "@/contexts/CityContext";
 import { useMapInteraction } from "./MapInteractionContext";
-import { generateTerritoryStyle } from "@/lib/citylord/territory-renderer";
+import { calculateHealthVisuals, generateTerritoryStyle } from "@/lib/citylord/territory-renderer";
 import { ViewContext } from "@/types/city";
 import { useAuth } from "@/hooks/useAuth";
+import { createClient } from "@/lib/supabase/client";
+import type { ViewportKingData } from "./AMapView";
 import * as turf from '@turf/turf';
 
 const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
@@ -46,6 +48,23 @@ interface TerritoryLayerProps {
   map: any | null;
   isVisible: boolean;
   kingdomMode?: 'personal' | 'club';
+  showFactionColors?: boolean;
+  onViewportKingChange?: (king: ViewportKingData | null) => void;
+}
+
+interface OwnerProfile {
+  id: string;
+  nickname: string | null;
+  avatar_url: string | null;
+}
+
+interface TerritoryMetric {
+  ownerId: string;
+  area: number;
+  minLng: number;
+  maxLng: number;
+  minLat: number;
+  maxLat: number;
 }
 
 /**
@@ -60,7 +79,7 @@ interface TerritoryLayerProps {
  */
 const DEBUG_FORCE_H3_FALLBACK = false; // 涓存椂 debug 甯搁噺锛屽凡搴熷純
 
-const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdomMode }) => {
+const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdomMode, showFactionColors = false, onViewportKingChange }) => {
   const [polygons, setPolygons] = useState<any[]>([]);
   const [markers, setMarkers] = useState<any[]>([]);
   const { currentCity: city } = useCity();
@@ -78,9 +97,95 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
 
   // Fallback Map
   const activeTerritoryMap = useRef<Map<string, ExtTerritory>>(new Map());
+  const ownerProfileMapRef = useRef<Map<string, { nickname: string; avatarUrl: string | null }>>(new Map());
+  const territoryMetricsRef = useRef<TerritoryMetric[]>([]);
 
   // 闃叉 map click 鍦?polygon click 涔嬪悗绔嬪嵆娓呴櫎閫夋嫨锛堟満鍒跺凡绉诲嚭鍒?AMapView Root Layer锛?
   const territoryClickedRef = useRef(false);
+
+  const resolveFactionColor = useCallback((ownerFaction: string | null | undefined) => {
+    const key = (ownerFaction || '').toLowerCase();
+    if (key.includes('blue') || key.includes('azure') || key.includes('蔚蓝') || key.includes('cyan')) {
+      return '#3b82f6';
+    }
+    if (key.includes('red') || key.includes('crimson') || key.includes('赤红')) {
+      return '#ef4444';
+    }
+    return '#64748b';
+  }, []);
+
+  const computePathBounds = useCallback((path: [number, number][]) => {
+    let minLng = Infinity;
+    let maxLng = -Infinity;
+    let minLat = Infinity;
+    let maxLat = -Infinity;
+    for (const [lng, lat] of path) {
+      if (lng < minLng) minLng = lng;
+      if (lng > maxLng) maxLng = lng;
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
+    }
+    return { minLng, maxLng, minLat, maxLat };
+  }, []);
+
+  const estimateTerritoryArea = useCallback((path: [number, number][]) => {
+    const ring = path[0][0] === path[path.length - 1][0] && path[0][1] === path[path.length - 1][1] ? path : [...path, path[0]];
+    return turf.area(turf.polygon([ring]));
+  }, []);
+
+  const recomputeViewportKing = useCallback(() => {
+    if (!map || kingdomMode !== 'personal') {
+      onViewportKingChange?.(null);
+      return;
+    }
+    const bounds = map.getBounds?.();
+    if (!bounds) {
+      onViewportKingChange?.(null);
+      return;
+    }
+    const northEast = bounds.getNorthEast?.();
+    const southWest = bounds.getSouthWest?.();
+    if (!northEast || !southWest) {
+      onViewportKingChange?.(null);
+      return;
+    }
+    const viewportMinLng = southWest.getLng();
+    const viewportMaxLng = northEast.getLng();
+    const viewportMinLat = southWest.getLat();
+    const viewportMaxLat = northEast.getLat();
+    const totals = new Map<string, number>();
+    for (const metric of territoryMetricsRef.current) {
+      const intersects = metric.maxLng >= viewportMinLng &&
+        metric.minLng <= viewportMaxLng &&
+        metric.maxLat >= viewportMinLat &&
+        metric.minLat <= viewportMaxLat;
+      if (!intersects) continue;
+      totals.set(metric.ownerId, (totals.get(metric.ownerId) || 0) + metric.area);
+    }
+    if (totals.size === 0) {
+      onViewportKingChange?.(null);
+      return;
+    }
+    let kingOwnerId = '';
+    let kingArea = 0;
+    totals.forEach((area, ownerId) => {
+      if (area > kingArea) {
+        kingArea = area;
+        kingOwnerId = ownerId;
+      }
+    });
+    if (!kingOwnerId) {
+      onViewportKingChange?.(null);
+      return;
+    }
+    const profile = ownerProfileMapRef.current.get(kingOwnerId);
+    onViewportKingChange?.({
+      ownerId: kingOwnerId,
+      nickname: profile?.nickname || `领主-${kingOwnerId.slice(0, 6)}`,
+      avatarUrl: profile?.avatarUrl || null,
+      totalArea: kingArea,
+    });
+  }, [kingdomMode, map, onViewportKingChange]);
 
   // 鍙楁帶鐨?ContextSwitch 鎷︽埅鍣細纭繚鐪熸鐨勮涔夊彉鏇存墠瑙﹀彂娓呯┖
   const prevContextRef = useRef({ cityId: city?.id, viewMode, kingdomMode });
@@ -124,12 +229,29 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
         } else {
           logEvent('territory_render_empty', { cityId: city.id });
         }
+        const ownerIds = Array.from(new Set(data.map(item => item.ownerId).filter((id): id is string => Boolean(id))));
+        const profileMap = new Map<string, { nickname: string; avatarUrl: string | null }>();
+        if (ownerIds.length > 0) {
+          const supabase = createClient();
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id,nickname,avatar_url')
+            .in('id', ownerIds);
+          (profiles || []).forEach((profile: OwnerProfile) => {
+            profileMap.set(profile.id, {
+              nickname: profile.nickname || `领主-${profile.id.slice(0, 6)}`,
+              avatarUrl: profile.avatar_url || null,
+            });
+          });
+        }
+        ownerProfileMapRef.current = profileMap;
 
         console.log(`[Audit] Success: API returned ${data.length} items`);
 
         const newPolygonMap = new Map<any, { territory: ExtTerritory; defaultStrokeColor: string }>();
         const newCellMap = new Map<string, ExtTerritory>();
 
+        const territoryMetrics: TerritoryMetric[] = [];
         const createdPolygons = data.map((territory) => {
           newCellMap.set(territory.id, territory);
           let path: [number, number][] = [];
@@ -148,14 +270,37 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
             subject: kingdomMode === 'club' ? 'club' : (viewMode === 'faction' ? 'faction' : 'individual')
           };
           const style = generateTerritoryStyle(territory, ctx);
-          const polygonFillOpacity = kingdomMode === 'club' ? 0.15 : 0.5;
+          const isFactionColorActive = kingdomMode === 'personal' && showFactionColors;
+          const factionBaseColor = resolveFactionColor(territory.ownerFaction);
+          const factionVisuals = calculateHealthVisuals(
+            factionBaseColor,
+            territory.health ?? territory.maxHealth ?? 100,
+            territory.maxHealth ?? 100
+          );
+          const fillColor = isFactionColorActive ? factionVisuals.fillColor2D : style.fillColor2D;
+          const baseStrokeColor = isFactionColorActive ? factionBaseColor : style.strokeColor2D;
+          const territoryHealth = territory.health ?? territory.maxHealth ?? 100;
+          const isLowHealth = territoryHealth < 50;
+          const strokeColor = isLowHealth ? '#facc15' : baseStrokeColor;
+          const polygonFillOpacity = isLowHealth
+            ? 0.2
+            : (kingdomMode === 'club' ? 0.15 : 0.5);
+          if (territory.ownerId) {
+            const area = estimateTerritoryArea(path);
+            const bounds = computePathBounds(path);
+            territoryMetrics.push({
+              ownerId: territory.ownerId,
+              area,
+              ...bounds,
+            });
+          }
 
           const polygon = new (window as any).AMap.Polygon({
             path: path,
-            fillColor: style.fillColor2D,
+            fillColor,
             fillOpacity: polygonFillOpacity,
-            strokeColor: style.strokeColor2D,
-            strokeWeight: 2,
+            strokeColor,
+            strokeWeight: isLowHealth ? 3 : 2,
             zIndex: 50,
             extData: territory,
             bubble: false,
@@ -163,7 +308,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
 
           newPolygonMap.set(polygon, {
             territory,
-            defaultStrokeColor: style.strokeColor2D,
+            defaultStrokeColor: strokeColor,
           });
 
           let marker = null;
@@ -243,6 +388,8 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
 
         polygonTerritoryMap.current = newPolygonMap;
         activeTerritoryMap.current = newCellMap;
+        territoryMetricsRef.current = territoryMetrics;
+        recomputeViewportKing();
 
         // Atomic update on map
         if (map) {
@@ -294,7 +441,44 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
       window.removeEventListener('citylord:refresh-territories', handleRefresh);
     };
   // 鍔犲叆 user?.id 纭繚璁よ瘉鐘舵€佸彉鍖栧悗 polygon 閲嶅缓锛屼互鑾峰緱姝ｇ‘鐨?self/enemy 鏍峰紡
-  }, [map, city, viewMode, kingdomMode, user?.id, openTerritoryDetailDrawer, setSelectedTerritory, setIsDetailSheetOpen]);
+  }, [
+    map,
+    city,
+    viewMode,
+    kingdomMode,
+    user?.id,
+    openTerritoryDetailDrawer,
+    setSelectedTerritory,
+    setIsDetailSheetOpen,
+    showFactionColors,
+    resolveFactionColor,
+    estimateTerritoryArea,
+    computePathBounds,
+    recomputeViewportKing,
+  ]);
+
+  useEffect(() => {
+    if (!map) return;
+    if (kingdomMode !== 'personal') {
+      onViewportKingChange?.(null);
+      return;
+    }
+    let debounceTimer: NodeJS.Timeout | null = null;
+    const schedule = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        recomputeViewportKing();
+      }, 300);
+    };
+    schedule();
+    map.on('moveend', schedule);
+    map.on('zoomend', schedule);
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      map.off('moveend', schedule);
+      map.off('zoomend', schedule);
+    };
+  }, [map, kingdomMode, recomputeViewportKing, onViewportKingChange]);
 
   // Apply selection highlight when selectedTerritory changes
   useEffect(() => {

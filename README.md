@@ -122,6 +122,12 @@ npm run dev
 
 ## 📅 近期更新日志 (Changelog)
 
+### 2026-03-31: 🏰 领地生命值、风化与低血量告警
+*   **领地生命值系统**: 将 `territories.health` 统一收敛为 100 上限语义；跑步结算中新增“领主回满 / 同阵营巡逻 +50 / 敌对入侵 -20”的关系判定矩阵。
+*   **每日风化 Cron**: 新增 `GET /api/cron/territory-decay`，按 Vercel Cron + `CRON_SECRET` 执行地块生命值衰减，并在生命值归零后自动清空归属。
+*   **社交通知告警**: 当领地生命值首次跌破 50 时，自动写入系统通知，展示在社交页「系统通知」栏目，引导同阵营玩家及时巡逻修复。
+*   **地图视觉反馈**: 低血量领地在地图上切换为黄色警示描边并降低填充透明度，便于快速识别待维护区域。
+
 ### 2026-03-16: 🛡️ 核心故障修复与系统加固 (v4 灰度版)
 *   **Android 前台服务 (P0)**: 深度适配 Android 14+；实现 `FOREGROUND_SERVICE_TYPE_LOCATION` 强制声明；重构 `onStartCommand` 为“先恢复状态、后启动通知”的严谨时序，支持 `START_STICKY` 后的 `null intent` 状态自愈。
 *   **Session 崩溃恢复 (P0)**: 升级至 Recovery 2.0 机制；补全 `isRunning`、`status`、`sessionVersion` 等 7 项快照字段；引入版本硬分叉校验与 24h 失效强制清理逻辑，杜绝误恢复与循环弹窗。

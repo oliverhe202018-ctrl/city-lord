@@ -66,6 +66,8 @@ export interface AMapContextProps {
   // Fog (mask) layer control
   showFog?: boolean;
   toggleFog?: () => void;
+  showFactionColors?: boolean;
+  toggleFactionColors?: () => void;
 
   // Territory selection (individual view detail interaction)
   selectedTerritory?: ExtTerritory | null;

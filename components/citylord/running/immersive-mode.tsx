@@ -25,6 +25,8 @@ import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog"
 import { Location } from "@/hooks/useRunningTracker"
 import { useBattleCaster } from "@/hooks/useBattleCaster"
 import { useGameStore } from "@/store/useGameStore"
+import { ActiveRandomEvent } from "@/hooks/useRandomEvents"
+import { RunEventLog } from "@/types/run-sync"
 
 // ─── Timeout utility for promises that may hang after sleep ───
 const SAVE_TIMEOUT_MS = 15_000;
@@ -72,6 +74,9 @@ interface ImmersiveModeProps {
   maintenanceSummary?: any[]
   settledTerritoriesCount?: number
   idempotencyKey?: string
+  eventsHistory?: RunEventLog[]
+  activeRandomEvent?: ActiveRandomEvent | null
+  randomEventCountdownSeconds?: number
 }
 
 // Helper: Calculate distance between two points in meters
@@ -120,7 +125,10 @@ export function ImmersiveRunningMode({
   damageSummary,
   maintenanceSummary,
   settledTerritoriesCount,
-  idempotencyKey
+  idempotencyKey,
+  eventsHistory = [],
+  activeRandomEvent,
+  randomEventCountdownSeconds = 0
 }: ImmersiveModeProps) {
   const [isPaused, setIsPaused] = useState(initialIsPaused)
 
@@ -446,6 +454,7 @@ export function ImmersiveRunningMode({
             distance: distanceMeters || 0,
             duration: durationSeconds || 0,
             area: area || 0,
+            eventsHistory,
             timestamp: Date.now(),
             userId: userId || '',
           };
@@ -626,6 +635,17 @@ export function ImmersiveRunningMode({
         </AlertDialogPrimitive.Portal>
       </AlertDialogPrimitive.Root>
 
+      {activeRandomEvent && (
+        <div className="pointer-events-none fixed inset-0 z-[100002] flex items-center justify-center px-6">
+          <div className="w-full max-w-sm rounded-2xl border border-yellow-400/40 bg-black/80 p-5 text-center text-white shadow-2xl backdrop-blur">
+            <div className="text-xs tracking-[0.2em] text-yellow-300">突发事件</div>
+            <div className="mt-2 text-lg font-semibold">{activeRandomEvent.eventType === 'CHASE' ? '追击挑战' : '能量冲刺'}</div>
+            <div className="mt-2 text-sm text-white/80">{activeRandomEvent.targetText}</div>
+            <div className="mt-4 text-3xl font-bold text-yellow-300">{randomEventCountdownSeconds}s</div>
+          </div>
+        </div>
+      )}
+
       {/* Save Retry Dialog */}
       <AlertDialogPrimitive.Root open={showRetryDialog} onOpenChange={setShowRetryDialog}>
         <AlertDialogPrimitive.Portal>
@@ -686,6 +706,7 @@ export function ImmersiveRunningMode({
       <div className={isMapMode ? "opacity-0 pointer-events-none transition-opacity duration-300" : "relative z-20 opacity-100 transition-opacity duration-300"}>
         <RunningHUD
           distance={distanceMeters / 1000}
+          currentDistanceMeters={distanceMeters}
           pace={typeof pace === 'number' ? String(pace) : (pace ?? '00:00')}
           duration={time}
           calories={calories}

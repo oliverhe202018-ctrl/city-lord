@@ -11,6 +11,8 @@ import { isNativePlatform, safeGetBatteryInfo } from "@/lib/capacitor/safe-plugi
 import type { GeoPoint } from '@/hooks/useSafeGeolocation';
 import { useLocationStore } from '@/store/useLocationStore';
 import { getDistanceFromLatLonInMeters } from '@/lib/geometry-utils';
+import { ActiveRandomEvent, useRandomEvents } from '@/hooks/useRandomEvents';
+import { RunEventLog } from '@/types/run-sync';
 
 const RECOVERY_KEY = 'CURRENT_RUN_RECOVERY';
 
@@ -50,6 +52,9 @@ interface RunningStats {
   maintenanceSummary?: any[]; // Phase 4: Maintenance details
   settledTerritoriesCount?: number;
   idempotencyKey: string;
+  eventsHistory: RunEventLog[];
+  activeRandomEvent: ActiveRandomEvent | null;
+  randomEventCountdownSeconds: number;
 }
 
 // Haversine formula — now imported from @/lib/geometry-utils
@@ -159,6 +164,21 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   const [maintenanceSummary, setMaintenanceSummary] = useState<any[] | undefined>(undefined);
   const [settledTerritoriesCount, setSettledTerritoriesCount] = useState<number | undefined>(undefined);
   const [lastSavedClaimsCount, setLastSavedClaimsCount] = useState(0);
+  const [eventsHistory, setEventsHistory] = useState<RunEventLog[]>([]);
+  const eventsHistoryRef = useRef<RunEventLog[]>([]);
+  useEffect(() => {
+    eventsHistoryRef.current = eventsHistory;
+  }, [eventsHistory]);
+
+  const { activeEvent, countdownSeconds } = useRandomEvents({
+    isRunning,
+    isPaused,
+    durationSeconds: duration,
+    distanceMeters: distance,
+    onEventResolved: (eventLog) => {
+      setEventsHistory(prev => [...prev, eventLog]);
+    }
+  });
 
   // ======== CRITICAL: Use centralized global location store ========
   // REMOVED: Direct useSafeGeolocation call — now consumed from useLocationStore
@@ -304,6 +324,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         lastLocationAt: lastLocationRef.current?.timestamp || Date.now(),
         sessionVersion: '2.0', 
         closedPolygons: closedPolygonsRef.current || [],
+        eventsHistory: eventsHistoryRef.current || [],
         area: areaRef.current || 0,
         timestamp: Date.now(),
         restoreSource: 'storage'
@@ -626,6 +647,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
               const restoredDuration = data.duration || 0;
               setDuration(restoredDuration);
               setClosedPolygons(data.closedPolygons || []);
+              setEventsHistory(Array.isArray(data.eventsHistory) ? data.eventsHistory : []);
               setArea(data.area || 0);
               
               const isPausedNow = data.isPaused ?? false;
@@ -692,6 +714,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           setDistance(0);
           setDuration(0);
           setClosedPolygons([]);
+          setEventsHistory([]);
           setSessionClaims([]);
           setArea(0);
           setCurrentLocation(null);
@@ -795,7 +818,8 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         path: livePath,
         polygons: liveClaims,
         timestamp: Date.now(),
-        manualLocationCount: 0
+        manualLocationCount: 0,
+        eventsHistory: eventsHistoryRef.current
       });
 
       if (result.success) {
@@ -806,6 +830,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           clearRecovery();
           setSessionClaims([]);
           sessionClaimsRef.current = [];
+          setEventsHistory([]);
           
           // Explicitly mutate SWR keys for Home and Task page
           mutate('/api/home/summary');
@@ -896,5 +921,8 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     maintenanceSummary,
     settledTerritoriesCount,
     idempotencyKey: runIdempotencyKeyRef.current,
+    eventsHistory,
+    activeRandomEvent: activeEvent,
+    randomEventCountdownSeconds: countdownSeconds,
   };
 }

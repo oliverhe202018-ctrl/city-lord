@@ -1,11 +1,12 @@
 "use client"
 
-import { Map, Trophy, User, Target, Users, Gamepad2, Home } from "lucide-react"
+import { Map, User, Users, Home, Play } from "lucide-react"
 import { useGameStore, useGameActions } from "@/store/useGameStore"
 import { useEffect } from "react"
 import { motion } from "framer-motion"
 import { getUnreadSocialCount } from "@/app/actions/social-hub"
 import { getUnreadMessageCount } from "@/app/actions/message"
+import { useRouter } from "next/navigation"
 
 
 
@@ -18,6 +19,7 @@ interface BottomNavProps {
 }
 
 export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
+  const router = useRouter()
   const unreadMessageCount = useGameStore((state) => state.unreadMessageCount)
   const setUnreadMessageCount = useGameStore((state) => state.setUnreadMessageCount)
   const unreadSocialCount = useGameStore((state) => state.unreadSocialCount)
@@ -53,7 +55,7 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
   const tabs = [
     { id: "home" as const, icon: Home, label: "首页" },
     { id: "play" as const, icon: Map, label: "地图" },
-    { id: "missions" as const, icon: Target, label: "任务" },
+    { id: "start", icon: Play, label: "开始", action: () => router.push('/start') },
     { id: "social" as const, icon: Users, label: "社交", badge: unreadMessageCount + unreadSocialCount },
     { id: "profile" as const, icon: User, label: "个人" },
   ]
@@ -70,7 +72,11 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
               key={tab.id}
               onClick={() => {
                 closeDrawer()
-                onTabChange(tab.id)
+                if (tab.action) {
+                  tab.action()
+                  return
+                }
+                onTabChange(tab.id as TabType)
               }}
               className="group relative flex flex-col items-center gap-0.5 px-3 py-1 transition-all outline-none rounded-xl focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 active:scale-95"
             >

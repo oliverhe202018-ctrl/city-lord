@@ -68,6 +68,7 @@ export async function POST(req: NextRequest) {
             timestamp: body.timestamp || Date.now(),
             calories: body.calories,
             steps: body.steps,
+            eventsHistory: body.eventsHistory || [],
         });
 
         if (result.success) {

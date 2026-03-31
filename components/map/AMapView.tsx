@@ -24,6 +24,14 @@ export interface AMapViewProps {
   onMapLoad?: () => void;
   viewMode?: 'user' | 'club';
   sessionClaims?: { lat: number; lng: number; timestamp: number }[][]; // Claimed polygons during run
+  onViewportKingChange?: (king: ViewportKingData | null) => void;
+}
+
+export interface ViewportKingData {
+  ownerId: string;
+  nickname: string;
+  avatarUrl: string | null;
+  totalArea: number;
 }
 
 /**
@@ -38,7 +46,7 @@ export interface AMapViewProps {
  * State flows from MapRoot downward via context.
  */
 const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
-  ({ showTerritory, onMapLoad, viewMode, sessionClaims = [] }, ref) => {
+  ({ showTerritory, onMapLoad, viewMode, sessionClaims = [], onViewportKingChange }, ref) => {
     const {
       map, // Added map instance
       currentLocation, // User GPS position
@@ -52,6 +60,7 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
       showKingdom, // Kingdom layer visibility
       kingdomMode, // 'personal' | 'club'
       showFog, // Fog layer visibility
+      showFactionColors,
       viewMode: mapViewMode, // 'individual' | 'faction'
     } = useMap();
 
@@ -106,6 +115,8 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
               map={mapLayerRef?.current?.map}
               isVisible={true}
               kingdomMode={kingdomMode}
+              showFactionColors={showFactionColors}
+              onViewportKingChange={onViewportKingChange}
             />
           )}
 

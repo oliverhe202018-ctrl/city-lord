@@ -6,7 +6,7 @@ import { logEvent } from '@/lib/native-log';
 import { BottomNav, TabType } from "@/components/citylord/bottom-nav"
 import { MissionCenter } from "@/components/citylord/MissionCenter"
 import { Profile } from "@/components/citylord/profile"
-import { Trophy, Route, History, Loader2, Palette, MapPin } from "lucide-react";
+import { Trophy, Route, History, Loader2, Palette, MapPin, Crown } from "lucide-react";
 import { OnboardingGuide } from "@/components/citylord/onboarding-guide"
 import { QuickEntry } from "@/components/citylord/quick-entry"
 import { TerritoryAlert } from "@/components/citylord/territory-alert"
@@ -34,7 +34,7 @@ import { ModeSwitcher } from '@/components/mode/ModeSwitcher';
 import { SinglePlayer } from '@/components/mode/SinglePlayer';
 import { PrivateLobby } from '@/components/mode/PrivateLobby';
 import { MyClub } from '@/components/mode/MyClub';
-import { AMapViewHandle } from "@/components/map/AMapView";
+import { AMapViewHandle, ViewportKingData } from "@/components/map/AMapView";
 import { FactionSelector } from "@/components/social/FactionSelector"
 import { ReferralWelcome } from "@/components/social/ReferralWelcome"
 import { useSearchParams, useRouter } from 'next/navigation'
@@ -113,6 +113,7 @@ export function GamePageContent({
   const hydrated = useHydration();
   const mapViewRef = useRef<AMapViewHandle>(null);
   const [showTerritory, setShowTerritory] = useState(true);
+  const [viewportKing, setViewportKing] = useState<ViewportKingData | null>(null);
   const hasAttemptedFirstInit = useRef(false);
 
   // 全屏加载状态 - 必须在所有 hooks 之后 return
@@ -278,6 +279,9 @@ export function GamePageContent({
     damageSummary,
     maintenanceSummary,
     idempotencyKey,
+    eventsHistory,
+    activeRandomEvent,
+    randomEventCountdownSeconds,
   } = useRunningTracker(isRunning, user?.id)
 
   // Crash Recovery Check
@@ -523,6 +527,7 @@ export function GamePageContent({
 
   // Countdown Audio Ref
   const countdownAudioRef = useRef<HTMLAudioElement | null>(null);
+  const hasHandledStartQueryRef = useRef(false);
 
   // --- Step 2: Stable Handlers ---
 
@@ -557,6 +562,18 @@ export function GamePageContent({
       setActiveTab(tab as TabType)
     }
   }, [isAuthenticated])
+
+  useEffect(() => {
+    const shouldStartRun = searchParams.get('run') === '1'
+    if (!hydrated || !shouldStartRun || hasHandledStartQueryRef.current) return
+
+    hasHandledStartQueryRef.current = true
+    handleQuickNavigate('running')
+
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete('run')
+    router.replace(params.toString() ? `/?${params.toString()}` : '/')
+  }, [hydrated, searchParams, router, handleQuickNavigate])
 
   const handleShowDemo = useCallback((type: "territory" | "challenge" | "achievement") => {
     if (type === "territory") setShowTerritoryAlert(true)
@@ -776,6 +793,7 @@ export function GamePageContent({
                     showTerritory={showTerritory}
                     onMapLoad={handleMapLoad}
                     sessionClaims={sessionClaims}
+                    onViewportKingChange={setViewportKing}
                   />
                   <MemoizedFactionSelector initialUser={initialUser} />
                   <MemoizedReferralWelcome />
@@ -790,6 +808,28 @@ export function GamePageContent({
                 <div className="pointer-events-auto">
                   <MemoizedModeSwitcher onDrawerOpenChange={handleDrawerOpenChange} />
                 </div>
+
+                {gameMode === 'map' && viewportKing && (
+                  <div className="pointer-events-auto absolute top-[138px] left-1/2 -translate-x-1/2 z-30 w-[calc(100%-2rem)] max-w-xs rounded-2xl border border-white/15 bg-black/55 px-3 py-2 backdrop-blur-xl shadow-xl">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 shrink-0 rounded-full border border-white/20 bg-black/40 overflow-hidden flex items-center justify-center">
+                        {viewportKing.avatarUrl ? (
+                          <img src={viewportKing.avatarUrl} alt={viewportKing.nickname} className="h-full w-full object-cover" />
+                        ) : (
+                          <span className="text-xs font-bold text-white/80">{viewportKing.nickname.slice(0, 1)}</span>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1 text-amber-300">
+                          <Crown className="h-3.5 w-3.5" />
+                          <span className="text-[10px] font-semibold">区域霸主</span>
+                        </div>
+                        <p className="truncate text-sm font-bold text-white">{viewportKing.nickname}</p>
+                        <p className="text-[11px] text-white/70">{Math.round(viewportKing.totalArea).toLocaleString('zh-CN')} m²</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {!shouldHideButtons && (
                   <div className="pointer-events-auto absolute top-[130px] left-4 z-20 flex flex-col gap-4">
@@ -938,6 +978,9 @@ export function GamePageContent({
           damageSummary={damageSummary}
           maintenanceSummary={maintenanceSummary}
           idempotencyKey={idempotencyKey}
+          eventsHistory={eventsHistory}
+          activeRandomEvent={activeRandomEvent}
+          randomEventCountdownSeconds={randomEventCountdownSeconds}
         />
       )}
 

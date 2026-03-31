@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/update-province",
       "schedule": "55 15 * * *"
+    },
+    {
+      "path": "/api/cron/territory-decay",
+      "schedule": "0 3 * * *"
     }
   ],
   "regions": [

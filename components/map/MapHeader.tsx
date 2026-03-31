@@ -375,7 +375,7 @@ export function MapHeader({
             >
               <span className="text-xl">{currentCity.icon}</span>
               <div className="flex flex-col items-start">
-                <span className="text-xs font-bold text-slate-900 dark:text-white">
+                <span className="text-xs font-bold text-foreground">
                   {/* Show cached district immediately; only show "定位中..." if locating AND no cached value */}
                   {(gpsStatus === 'locating' && !currentDistrict) ? '定位中...' : (currentDistrict || '未知位置')}
                 </span>

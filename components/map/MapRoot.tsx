@@ -73,6 +73,7 @@ export function MapRoot({ children }: { children: ReactNode }) {
   const [showKingdom, setShowKingdom] = useState<boolean>(true); // Kingdom layer visible by default
   const [kingdomMode, setKingdomMode] = useState<'personal' | 'club'>('personal');
   const [showFog, setShowFog] = useState<boolean>(false); // Fog layer off by default
+  const [showFactionColors, setShowFactionColors] = useState<boolean>(false);
   const [selectedTerritory, setSelectedTerritory] = useState<ExtTerritory | null>(null);
   const [isDetailSheetOpen, setIsDetailSheetOpen] = useState<boolean>(false);
 
@@ -82,6 +83,10 @@ export function MapRoot({ children }: { children: ReactNode }) {
 
   const toggleFog = useCallback(() => {
     setShowFog(prev => !prev);
+  }, []);
+
+  const toggleFactionColors = useCallback(() => {
+    setShowFactionColors(prev => !prev);
   }, []);
 
   const mapLayerRef = useRef<any>(null);
@@ -524,10 +529,12 @@ export function MapRoot({ children }: { children: ReactNode }) {
       toggleKingdom,
       showFog,
       toggleFog,
+      showFactionColors,
+      toggleFactionColors,
       openTerritoryDetailDrawer,
     }), [
       selectedTerritory, isDetailSheetOpen, viewMode, kingdomMode,
-      showKingdom, toggleKingdom, showFog, toggleFog, openTerritoryDetailDrawer
+      showKingdom, toggleKingdom, showFog, toggleFog, showFactionColors, toggleFactionColors, openTerritoryDetailDrawer
     ]);
 
     // 高频位置状态 + 兼容旧 useMap()（仍包含交互字段以保持向后兼容）
@@ -556,6 +563,8 @@ export function MapRoot({ children }: { children: ReactNode }) {
       setKingdomMode,
       showFog,
       toggleFog,
+      showFactionColors,
+      toggleFactionColors,
       selectedTerritory,
       setSelectedTerritory,
     }), [
@@ -564,7 +573,7 @@ export function MapRoot({ children }: { children: ReactNode }) {
       userPath, mapCenter, isTracking,
       handleMapMoveEnd, gpsSignalStrength, status,
       showKingdom, toggleKingdom, kingdomMode,
-      showFog, toggleFog, selectedTerritory,
+      showFog, toggleFog, showFactionColors, toggleFactionColors, selectedTerritory,
     ]);
 
     return (

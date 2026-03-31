@@ -3,7 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { evaluateTasks, RunData, TaskResult } from '@/lib/game/task-engine';
 import { revalidatePath, revalidateTag } from 'next/cache';
-import { RunRecordDTO, ActionResponse } from '@/types/run-sync';
+import { RunRecordDTO, ActionResponse, RunEventLog } from '@/types/run-sync';
 import { validateRunAndRebuildTerritories, AntiCheatValidationResult } from '@/lib/anti-cheat/territory-builder';
 import { checkRunRateLimit } from '@/lib/anti-cheat/rate-limiter';
 import { processTerritorySettlement } from '@/lib/territory/settlement';
@@ -21,6 +21,23 @@ export interface SaveRunResult {
     settledTerritoriesCount?: number;
 }
 
+const isRunEventLog = (event: unknown): event is RunEventLog => {
+    if (!event || typeof event !== 'object') return false;
+    const value = event as Partial<RunEventLog>;
+    return Boolean(
+        typeof value.eventId === 'string' &&
+        (value.eventType === 'CHASE' || value.eventType === 'ENERGY_SURGE') &&
+        (value.status === 'SUCCESS' || value.status === 'FAILED') &&
+        typeof value.triggeredAt === 'number' &&
+        typeof value.resolvedAt === 'number'
+    );
+};
+
+const getDefaultEventReward = (eventType: RunEventLog['eventType']) => {
+    if (eventType === 'CHASE') return { xp: 50, stamina: 0 };
+    return { xp: 30, stamina: 5 };
+};
+
 
 /**
  * Saves a run and evaluates/grants task rewards atomically.
@@ -32,6 +49,9 @@ export async function saveRunActivity(
 ): Promise<ActionResponse<SaveRunResult>> {
     try {
         if (!userId) throw new Error('User ID is required');
+        const eventsHistory = Array.isArray(runData.eventsHistory)
+            ? runData.eventsHistory.filter(isRunEventLog)
+            : [];
 
         // Rate Limiting
         const rateLimitResult = checkRunRateLimit(userId);
@@ -150,6 +170,7 @@ export async function saveRunActivity(
                     // New Validator Fields
                     is_flagged: isFlagged,
                     flag_reason: flagReason,
+                    eventsLog: eventsHistory as any,
                 },
             });
 
@@ -234,6 +255,26 @@ export async function saveRunActivity(
                 }
             }
 
+            const successfulEvents = eventsHistory.filter(event => event.status === 'SUCCESS');
+            const failedEvents = eventsHistory.filter(event => event.status === 'FAILED');
+            const hasFailureEvent = failedEvents.length > 0;
+            const penaltyMultiplier = hasFailureEvent
+                ? Math.min(...failedEvents.map(event => event.penaltyMultiplier ?? 0.5))
+                : 1;
+
+            const eventReward = successfulEvents.reduce(
+                (acc, event) => {
+                    const defaults = getDefaultEventReward(event.eventType);
+                    acc.xp += event.reward?.xp ?? defaults.xp;
+                    acc.stamina += event.reward?.stamina ?? defaults.stamina;
+                    return acc;
+                },
+                { xp: 0, stamina: 0 }
+            );
+
+            totalCoins = Math.floor(totalCoins * penaltyMultiplier);
+            totalXp = Math.floor(totalXp * penaltyMultiplier) + eventReward.xp;
+
             // C. Territory Settlement (Phase 2 & 4)
             let settledTerritoriesCount = 0;
             const allDamageDetails: any[] = [];
@@ -310,6 +351,7 @@ export async function saveRunActivity(
                     data: {
                         coins: { increment: totalCoins },
                         xp: { increment: totalXp },
+                        stamina: { increment: eventReward.stamina },
                         total_distance_km: { increment: evaluationData.distance / 1000 },
                         total_area: { increment: accurateAreaKm2 },
                         total_runs_count: { increment: 1 },

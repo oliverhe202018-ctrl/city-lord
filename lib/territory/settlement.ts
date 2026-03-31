@@ -1,7 +1,6 @@
 import * as turf from '@turf/turf';
 import { cleanAndSplitTrajectory } from '../gis/geometry-cleaner';
-import { supabaseAdmin } from '@/lib/supabase/admin';
-import { PrismaClient, Prisma, TerritoryStatus } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -50,6 +49,9 @@ export interface SettlementResult {
 export async function processTerritorySettlement(input: SettlementInput): Promise<SettlementResult> {
     const { runId, userId, cityId, clubId, pathGeoJSON, db } = input;
     const client = db || prisma;
+    const TERRITORY_MAX_HEALTH = 100;
+    const ALLY_HEAL = 50;
+    const ENEMY_DAMAGE = 20;
 
     // 1. Validate Input
     if (!pathGeoJSON || !pathGeoJSON.geometry) {
@@ -70,14 +72,10 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
         return { success: false, createdTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'Invalid geometry after cleaning' };
     }
 
-    // Recalculate total area and combined geometry for PostGIS intersection check
-    const totalArea = cleanedPolygons.reduce((acc, p) => acc + turf.area(p), 0);
+    // Recalculate combined geometry for PostGIS intersection check
     const combinedGeometry = cleanedPolygons.length === 1
         ? cleanedPolygons[0].geometry
         : turf.multiPolygon(cleanedPolygons.map(p => p.geometry.coordinates)).geometry;
-
-    // Wrap in Feature for Turf compatibility in subsequent logic
-    const cleanedPathFeature = turf.feature(combinedGeometry);
 
     // Initial working set for area carving
     let workingPolygons: any[] = [...cleanedPolygons];
@@ -91,17 +89,6 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
         maintenanceDetails: []
     };
 
-    // Tracks territories already fortified in THIS run settlement to prevent multi-lap abuse
-    const seenFortifiedTerritories = new Set<string>();
-
-    // Damage Multipliers for Phase 3
-    const DAMAGE_MULTIPLIERS: Record<string, number> = {
-        'NORMAL': 1.0,
-        'HOT': 2.0,
-        'COLD': 0.5
-    };
-    const BASE_DAMAGE = 100;
-
     // 2. Fetch overlapping territories using PostGIS BBox/Intersects (Raw SQL)
     let overlappingTerritories: any[] = [];
     try {
@@ -109,7 +96,9 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
             SELECT 
                 t.id, 
                 t.owner_id,
+                t.owner_faction,
                 t.owner_club_id,
+                t.health,
                 t.current_hp,
                 t.max_hp,
                 t.score_weight,
@@ -129,6 +118,11 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
     }
 
     const processLogic = async (tx: Prisma.TransactionClient) => {
+        const runnerProfile = await tx.profiles.findUnique({
+            where: { id: userId },
+            select: { faction: true }
+        });
+        const runnerFaction = runnerProfile?.faction ?? null;
 
         for (const existingTerr of overlappingTerritories) {
             // Self-owned or friendly club overlap check logic can be added here
@@ -136,142 +130,81 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
             // MVP: Assume any overlap causes damage unless owned by self.
             const existingFeature = turf.feature(existingTerr.geometry);
 
+            const territoryFaction = existingTerr.owner_faction ?? null;
+            const beforeHealth = Number(existingTerr.health ?? existingTerr.current_hp ?? TERRITORY_MAX_HEALTH);
+
             if (existingTerr.owner_id === userId) {
-                // Phase 4: Self-owned Territory Maintenance (Heal & Fortify)
-                // 1. Double 90% Overlap Check
-                const existingArea = turf.area(existingFeature);
-                const intersection = turf.intersect(turf.featureCollection([cleanedPathFeature as any, existingFeature as any]));
-
-                if (!intersection) continue;
-
-                const overlapArea = turf.area(intersection);
-                const isDouble90 = (overlapArea / existingArea > 0.9) && (overlapArea / totalArea > 0.9);
-
-                if (isDouble90 && !seenFortifiedTerritories.has(existingTerr.id)) {
-                    seenFortifiedTerritories.add(existingTerr.id);
-
-                    const level = existingTerr.level || 1;
-                    const oldMaxHp = existingTerr.max_hp;
-                    const beforeHp = existingTerr.current_hp;
-
-                    let newMaxHp = oldMaxHp;
-                    let newLevel = level;
-
-                    // Fortify: Increase Max HP with diminishing returns if level < 10
-                    if (level < 10) {
-                        const delta = Math.round(200 * Math.pow(0.8, level - 1));
-                        newMaxHp = oldMaxHp + delta;
-                        newLevel = level + 1;
+                await tx.territories.update({
+                    where: { id: existingTerr.id },
+                    data: {
+                        health: TERRITORY_MAX_HEALTH,
+                        last_maintained_at: new Date()
                     }
-
-                    // Heal: Reset current HP to new Max HP
-                    const afterHp = newMaxHp;
-
-                    await tx.territory.update({
-                        where: { id: existingTerr.id },
-                        data: {
-                            max_hp: newMaxHp,
-                            current_hp: afterHp,
-                            level: newLevel,
-                            last_claimed_at: new Date()
-                        }
-                    });
-
-                    await tx.territoryEvent.create({
-                        data: {
-                            territory_id: existingTerr.id,
-                            event_type: 'FORTIFIED', // Unified type for Heal + Fortify in this phase
-                            before_hp: beforeHp,
-                            after_hp: afterHp,
-                            damage_value: newMaxHp - oldMaxHp, // HP Gain
-                            user_id: userId,
-                            run_id: runId
-                        } as any
-                    });
-
-                    result.maintenanceDetails.push({
-                        territoryId: existingTerr.id,
-                        type: newMaxHp > oldMaxHp ? 'FORTIFY' : 'HEAL',
-                        oldMaxHp,
-                        newMaxHp,
-                        beforeHp,
-                        afterHp,
-                        level: newLevel
-                    });
-                }
+                });
                 continue;
             }
 
-            // Phase 3: Simplified Damage Model
-            // Rules: If path intersects, deal BASE_DAMAGE * Multiplier.
-            // No area overlap ratio considered in this phase.
-
-            const territoryType = (existingTerr.territory_type || 'NORMAL') as string;
-            const multiplier = DAMAGE_MULTIPLIERS[territoryType] || 1.0;
-
-            // Crit Check: If fully contained and not self-owned, deal 3x damage
-            const isCritical = existingTerr.is_contained === true;
-            const damage = Math.ceil(BASE_DAMAGE * multiplier * (isCritical ? 3.0 : 1.0));
-
-            /* 
-            // OLD LOGIC (Phase 4 Foundation): Area-based accurate damage
-            let overlapArea = 0;
-            const intersection = turf.intersect(turf.featureCollection([pathGeoJSON as any, existingFeature as any]));
-            if (intersection) {
-                overlapArea = turf.area(intersection);
+            if (runnerFaction && territoryFaction && runnerFaction === territoryFaction) {
+                const healedHealth = Math.min(TERRITORY_MAX_HEALTH, beforeHealth + ALLY_HEAL);
+                await tx.territories.update({
+                    where: { id: existingTerr.id },
+                    data: {
+                        health: healedHealth,
+                        last_maintained_at: new Date()
+                    }
+                });
+                continue;
             }
-            if (overlapArea < 10) continue; 
-            const existingArea = turf.area(existingFeature);
-            const overlapRatio = overlapArea / existingArea;
-            const accurateDamage = Math.ceil(existingTerr.max_hp * overlapRatio * (input.score_weight ?? 1.0));
-            */
 
-            const beforeHp = existingTerr.current_hp;
-            const afterHp = Math.max(0, beforeHp - damage);
+            const afterHealth = Math.max(0, beforeHealth - ENEMY_DAMAGE);
+            const shouldNeutralize = afterHealth <= 0;
+            const shouldNotifyLowHealth = Boolean(
+                existingTerr.owner_id &&
+                !shouldNeutralize &&
+                beforeHealth >= 50 &&
+                afterHealth < 50
+            );
 
-            let finalStatus = 'ACTIVE';
-            let destroyedAt = null;
+            await tx.territories.update({
+                where: { id: existingTerr.id },
+                data: shouldNeutralize ? {
+                    health: 0,
+                    owner_id: null,
+                    owner_faction: null,
+                    owner_club_id: null,
+                    last_maintained_at: new Date()
+                } : {
+                    health: afterHealth,
+                    last_maintained_at: new Date()
+                }
+            });
 
-            if (afterHp <= 0) {
-                finalStatus = 'DESTROYED';
-                destroyedAt = new Date();
+            if (shouldNotifyLowHealth) {
+                await tx.messages.create({
+                    data: {
+                        user_id: existingTerr.owner_id,
+                        sender_id: null,
+                        type: 'system',
+                        content: `你的领地 ${existingTerr.id} 生命值已降至 ${afterHealth}/${TERRITORY_MAX_HEALTH}，请尽快前往巡逻修复。`,
+                        is_read: false
+                    }
+                });
+            }
+
+            result.damageDetails.push({
+                territoryId: existingTerr.id,
+                ownerName: existingTerr.owner_name || '未知领主',
+                damage: ENEMY_DAMAGE,
+                territoryType: 'RELATIONAL',
+                isDestroyed: shouldNeutralize,
+                isCritical: false
+            });
+
+            if (shouldNeutralize) {
                 result.destroyedTerritories++;
             } else {
                 result.damagedTerritories++;
             }
-
-            // Update Target Territory
-            await tx.territory.update({
-                where: { id: existingTerr.id },
-                data: {
-                    current_hp: afterHp,
-                    status: finalStatus as TerritoryStatus,
-                    destroyed_at: destroyedAt
-                }
-            });
-
-            // Record Event
-            await tx.territoryEvent.create({
-                data: {
-                    territory_id: existingTerr.id,
-                    event_type: finalStatus === 'DESTROYED' ? 'DESTROYED' : (isCritical ? 'CRIT_ATTACKED' : 'ATTACKED'),
-                    damage_value: damage,
-                    before_hp: beforeHp,
-                    after_hp: afterHp,
-                    user_id: userId,
-                    run_id: runId
-                } as any // Bypass strict TS errors for now if schema isn't fully synced
-            });
-
-            // Add to Damage Details for UI
-            result.damageDetails.push({
-                territoryId: existingTerr.id,
-                ownerName: existingTerr.owner_name || '未知领主',
-                damage: damage,
-                territoryType: territoryType,
-                isDestroyed: finalStatus === 'DESTROYED',
-                isCritical: isCritical
-            });
 
             // Perform turf.difference to carve out the claimed shapes so they don't overlap existing active territories
             const newWorkingPolygons: any[] = [];
@@ -318,6 +251,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                         last_claimed_at,
                         max_hp,
                         current_hp,
+                        health,
                         territory_type,
                         score_weight,
                         status
@@ -333,6 +267,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                         NOW(),
                         1000,
                         1000,
+                        100,
                         'NORMAL'::"TerritoryType",
                         1.0,
                         'ACTIVE'::"TerritoryStatus"
@@ -340,7 +275,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                 `);
 
                 // Log Genesis event
-                await tx.territoryEvent.create({
+                await tx.territory_events.create({
                     data: {
                         territory_id: newId,
                         event_type: 'CREATED',
