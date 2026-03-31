@@ -57,13 +57,16 @@ const steps: OnboardingStep[] = [
   },
 ]
 
+export const ONBOARDING_GUIDE_STEP_COUNT = steps.length
+
 interface OnboardingGuideProps {
   onComplete: () => void
+  onStepChange: (step: number) => void
+  currentStep: number
   isVisible: boolean
 }
 
-export function OnboardingGuide({ onComplete, isVisible }: OnboardingGuideProps) {
-  const [currentStep, setCurrentStep] = useState(0)
+export function OnboardingGuide({ onComplete, onStepChange, currentStep, isVisible }: OnboardingGuideProps) {
   const [isAnimating, setIsAnimating] = useState(false)
 
   useEffect(() => {
@@ -82,7 +85,7 @@ export function OnboardingGuide({ onComplete, isVisible }: OnboardingGuideProps)
     if (isLastStep) {
       onComplete()
     } else {
-      setCurrentStep((prev) => prev + 1)
+      onStepChange(currentStep + 1)
     }
   }
 

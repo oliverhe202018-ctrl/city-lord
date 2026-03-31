@@ -9,6 +9,7 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/u
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useLocationStore } from "@/store/useLocationStore"
+import { useGameStore } from "@/store/useGameStore"
 import { isNativePlatform, safeOpenAppSettings } from "@/lib/capacitor/safe-plugins"
 import { toast } from "sonner"
 
@@ -66,6 +67,7 @@ export function StartRunPageClient() {
   const router = useRouter()
   const location = useLocationStore((s) => s.location)
   const gpsSignalStrength = useLocationStore((s) => s.gpsSignalStrength)
+  const setSmartRunStarting = useGameStore((s) => s.setSmartRunStarting)
   const [openPlanner, setOpenPlanner] = useState(false)
   const [routes, setRoutes] = useState<RouteItem[]>([])
   const [selectedPath, setSelectedPath] = useState<[number, number][]>([])
@@ -210,7 +212,10 @@ export function StartRunPageClient() {
 
         <Button
           className="h-14 w-full rounded-2xl bg-slate-900 text-xl font-extrabold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
-          onClick={() => router.push("/?tab=home&run=1")}
+          onClick={() => {
+            setSmartRunStarting(true)
+            router.push("/")
+          }}
         >
           开始跑步
         </Button>

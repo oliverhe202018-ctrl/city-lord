@@ -7,7 +7,7 @@ import { BottomNav, TabType } from "@/components/citylord/bottom-nav"
 import { MissionCenter } from "@/components/citylord/MissionCenter"
 import { Profile } from "@/components/citylord/profile"
 import { Trophy, Route, History, Loader2, Palette, MapPin, Crown, Flag, Users } from "lucide-react";
-import { OnboardingGuide } from "@/components/citylord/onboarding-guide"
+import { OnboardingGuide, ONBOARDING_GUIDE_STEP_COUNT } from "@/components/citylord/onboarding-guide"
 import { TerritoryAlert } from "@/components/citylord/territory-alert"
 import { ChallengeInvite } from "@/components/citylord/challenge-invite"
 import { AchievementPopup } from "@/components/citylord/achievement-popup"
@@ -91,6 +91,10 @@ interface GamePageContentProps {
 }
 
 const VALID_TABS: TabType[] = ['home', 'play', 'missions', 'social', 'profile', 'leaderboard', 'mode'];
+const ONBOARDING_STATUS_KEY = 'citylord_onboarding_status'
+const ONBOARDING_STEP_KEY = 'citylord_onboarding_step'
+
+type OnboardingStatus = 'pending_welcome' | 'pending_guide' | 'completed'
 
 export function GamePageContent({
   initialMissions = [],
@@ -103,7 +107,7 @@ export function GamePageContent({
 }: GamePageContentProps) {
   const searchParams = useSearchParams()
   const router = useRouter()
-  const { user, isAuthenticated } = useAuth(initialUser)
+  const { user, isAuthenticated, loading: isAuthLoading } = useAuth(initialUser)
   const { isLoading: isCityLoading, currentCity } = useCity()
   const { checkStaminaRecovery, dismissGeolocationPrompt, claimAchievement, addTotalDistance, openDrawer, closeDrawer } = useGameActions()
   const { achievements, totalDistance } = useGameUser()
@@ -251,6 +255,7 @@ export function GamePageContent({
   const [isRunning, setIsRunning] = useState(false)
   const [showImmersiveMode, setShowImmersiveMode] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [onboardingStep, setOnboardingStep] = useState(0)
   const isImmersiveActive = showImmersiveMode || isRunning
 
   // Running Tracker
@@ -354,10 +359,9 @@ export function GamePageContent({
   const [showQuickNav, setShowQuickNav] = useState(false)
   const [showMapGuide, setShowMapGuide] = useState(false)
   const [showThemeSwitcher, setShowThemeSwitcher] = useState(false)
+  const [hasResolvedOnboarding, setHasResolvedOnboarding] = useState(false)
   const [shouldHideButtons, setShouldHideButtons] = useState(false);
   const [isCountingDown, setIsCountingDown] = useState(false);
-  const isRunTakeoverActive = isCountingDown || isImmersiveActive
-  const shouldRenderPlaySurface = activeTab === "play" || isRunTakeoverActive
 
   // Animation demo states
   const [showCaptureEffect, setShowCaptureEffect] = useState(false)
@@ -381,16 +385,8 @@ export function GamePageContent({
   const hasDismissedGeolocationPrompt = useGameStore((state) => state.hasDismissedGeolocationPrompt);
   const isSmartRunStarting = useGameStore((state) => state.isSmartRunStarting);
   const setSmartRunStarting = useGameStore((state) => state.setSmartRunStarting);
-
-  // Smart Run Start Listener
-  useEffect(() => {
-    if (isSmartRunStarting) {
-      setIsRunning(true);
-      setShowImmersiveMode(true);
-      setActiveTab('play');
-      setSmartRunStarting(false);
-    }
-  }, [isSmartRunStarting, setSmartRunStarting]);
+  const isRunTakeoverActive = isSmartRunStarting || isCountingDown || isImmersiveActive
+  const shouldRenderPlaySurface = activeTab === "play" || isRunTakeoverActive
 
   // Check if first visit - 只在首次挂载时执行
   useEffect(() => {
@@ -401,7 +397,6 @@ export function GamePageContent({
     async function checkSession() {
       // If we have initialUser from server, we can skip some checks or just verify
       if (initialUser) {
-        // Logged in
         return
       }
 
@@ -423,11 +418,8 @@ export function GamePageContent({
       const hasAccessToken = hash.includes('access_token')
 
       if (hasAccessToken) {
-        if (isMounted) setShowWelcome(false)
-
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
           if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
-            if (isMounted) setShowWelcome(false)
             if (window.history.replaceState) {
               window.history.replaceState(null, '', window.location.pathname);
             }
@@ -438,15 +430,8 @@ export function GamePageContent({
           if (isMounted) {
             supabase.auth.getSession().then(({ data: { session } }) => {
               if (session) {
-                setShowWelcome(false)
                 if (window.history.replaceState && window.location.hash.includes('access_token')) {
                   window.history.replaceState(null, '', window.location.pathname);
-                }
-              } else {
-                const hasVisited = localStorage.getItem('hasVisited')
-                if (!hasVisited) {
-                  setShowWelcome(true)
-                  localStorage.setItem('hasVisited', 'true')
                 }
               }
             })
@@ -466,24 +451,53 @@ export function GamePageContent({
       if (error) {
         console.warn("Session check returned error:", error.message);
       }
-
-      if (session) {
-        setShowWelcome(false)
-        return
-      }
-
-      const hasVisited = localStorage.getItem('hasVisited')
-
-      if (!hasVisited) {
-        setShowWelcome(true)
-        localStorage.setItem('hasVisited', 'true')
-      }
     }
 
     checkSession()
 
     return () => { isMounted = false }
   }, [initialUser])
+
+  useEffect(() => {
+    if (!hydrated) return
+
+    setHasResolvedOnboarding(false)
+    if (isAuthLoading) return
+
+    const debounceTimer = window.setTimeout(() => {
+      const storedStatus = localStorage.getItem(ONBOARDING_STATUS_KEY)
+      const hasVisited = localStorage.getItem('hasVisited') === 'true'
+
+      let nextStatus: OnboardingStatus
+      if (storedStatus === 'pending_welcome' || storedStatus === 'pending_guide' || storedStatus === 'completed') {
+        nextStatus = storedStatus
+      } else {
+        nextStatus = hasVisited ? 'pending_guide' : 'pending_welcome'
+      }
+
+      const rawStep = Number.parseInt(localStorage.getItem(ONBOARDING_STEP_KEY) ?? '0', 10)
+      const maxStepIndex = ONBOARDING_GUIDE_STEP_COUNT - 1
+      const nextStep = Number.isFinite(rawStep) && rawStep >= 0 && rawStep <= maxStepIndex ? rawStep : 0
+
+      if (!hasVisited) {
+        localStorage.setItem('hasVisited', 'true')
+      }
+
+      localStorage.setItem(ONBOARDING_STATUS_KEY, nextStatus)
+      if (nextStatus === 'pending_guide') {
+        localStorage.setItem(ONBOARDING_STEP_KEY, String(nextStep))
+      } else {
+        localStorage.removeItem(ONBOARDING_STEP_KEY)
+      }
+
+      setShowWelcome(nextStatus === 'pending_welcome')
+      setShowOnboarding(nextStatus === 'pending_guide')
+      setOnboardingStep(nextStatus === 'pending_guide' ? nextStep : 0)
+      setHasResolvedOnboarding(true)
+    }, 180)
+
+    return () => window.clearTimeout(debounceTimer)
+  }, [hydrated, isAuthenticated, isAuthLoading])
 
   useEffect(() => {
     const refId = searchParams.get('ref')
@@ -521,21 +535,39 @@ export function GamePageContent({
   })
 
   const handleWelcomeComplete = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(ONBOARDING_STATUS_KEY, 'pending_guide')
+      localStorage.setItem(ONBOARDING_STEP_KEY, '0')
+    }
     setShowWelcome(false)
     setShowOnboarding(true)
+    setOnboardingStep(0)
   }, [])
 
   const handleOnboardingComplete = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(ONBOARDING_STATUS_KEY, 'completed')
+      localStorage.removeItem(ONBOARDING_STEP_KEY)
+    }
+    setShowWelcome(false)
     setShowOnboarding(false)
+    setOnboardingStep(0)
+  }, [])
+
+  const handleOnboardingStepChange = useCallback((step: number) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(ONBOARDING_STATUS_KEY, 'pending_guide')
+      localStorage.setItem(ONBOARDING_STEP_KEY, String(step))
+    }
+    setOnboardingStep(step)
   }, [])
 
   // Countdown Audio Ref
   const countdownAudioRef = useRef<HTMLAudioElement | null>(null);
-  const hasHandledStartQueryRef = useRef(false);
 
   // --- Step 2: Stable Handlers ---
 
-  const startCountdown = () => {
+  const startCountdown = useCallback(() => {
     // Force Play Audio immediately on user interaction
     console.log('Attempting to play: countdown.mp3');
     try {
@@ -547,7 +579,18 @@ export function GamePageContent({
 
     // Show overlay
     setIsCountingDown(true)
-  }
+  }, [])
+
+  const beginRunStart = useCallback(() => {
+    if (!isAuthenticated) {
+      toast.warning('请先登录才能开始占领领地！')
+      return false
+    }
+
+    setActiveTab("play")
+    startCountdown()
+    return true
+  }, [isAuthenticated, startCountdown])
 
   const handleQuickNavigate = useCallback((tab: string, options?: { initialFilter?: 'all' | 'daily' | 'weekly' }) => {
     if (options?.initialFilter) {
@@ -555,30 +598,22 @@ export function GamePageContent({
     }
 
     if (tab === "running") {
-      if (!isAuthenticated) {
-        toast.warning('请先登录才能开始占领领地！')
-        return
-      }
-
-      setActiveTab("play")
-      startCountdown();
-
+      beginRunStart()
     } else {
       setActiveTab(tab as TabType)
     }
-  }, [isAuthenticated])
+  }, [beginRunStart])
 
   useEffect(() => {
-    const shouldStartRun = searchParams.get('run') === '1'
-    if (!hydrated || !shouldStartRun || hasHandledStartQueryRef.current) return
+    if (!isSmartRunStarting) return
 
-    hasHandledStartQueryRef.current = true
-    handleQuickNavigate('running')
+    const didStart = beginRunStart()
+    setSmartRunStarting(false)
 
-    const params = new URLSearchParams(searchParams.toString())
-    params.delete('run')
-    router.replace(params.toString() ? `/?${params.toString()}` : '/')
-  }, [hydrated, searchParams, router, handleQuickNavigate])
+    if (!didStart) {
+      setIsCountingDown(false)
+    }
+  }, [isSmartRunStarting, beginRunStart, setSmartRunStarting])
 
   const handleShowDemo = useCallback((type: "territory" | "challenge" | "achievement") => {
     if (type === "territory") setShowTerritoryAlert(true)
@@ -653,7 +688,7 @@ export function GamePageContent({
     setShowChallengeInvite(false)
     setActiveTab("play")
     startCountdown()
-  }, []);
+  }, [startCountdown]);
 
   const handleClaimAchievement = useCallback(() => {
     if (currentUnlockedAchievement) {
@@ -754,10 +789,14 @@ export function GamePageContent({
         onClose={handleCloseThemeSwitcher}
       />
 
-      <OnboardingGuide
-        isVisible={showOnboarding}
-        onComplete={handleOnboardingComplete}
-      />
+      {hasResolvedOnboarding && (
+        <OnboardingGuide
+          isVisible={showOnboarding}
+          currentStep={onboardingStep}
+          onStepChange={handleOnboardingStepChange}
+          onComplete={handleOnboardingComplete}
+        />
+      )}
 
       {isCountingDown && (
         <CountdownOverlay
