@@ -9,7 +9,6 @@ import { useHomeData } from '@/hooks/useHomeData';
 import { HomeTopBar } from './HomeTopBar';
 import { HeroStartRunCard } from './HeroStartRunCard';
 import { HomeSkeleton } from './HomeSkeleton';
-import { NearbyTargetsCarousel } from './NearbyTargetsCarousel';
 import { BattleFeedMini } from './BattleFeedMini';
 import { DailyProgressBars } from './DailyProgressBars';
 import { FactionBattleStatusCard } from './FactionBattleStatusCard';
@@ -200,13 +199,6 @@ function GameHomePageInner({ onStartRun, onNavigateToMap, onNavigateToTab, onSma
         [data?.battleFeed]
     );
 
-    const handleGoToTarget = useCallback(
-        (target: Target) => {
-            onNavigateToMap(target.id);
-        },
-        [onNavigateToMap]
-    );
-
     const handleCounterAttack = useCallback(
         (event: BattleEvent) => {
             onNavigateToMap(event.relatedTargetId);
@@ -286,26 +278,14 @@ function GameHomePageInner({ onStartRun, onNavigateToMap, onNavigateToTab, onSma
                             {/* Faction Battle Status */}
                             <FactionBattleStatusCard />
 
-                            {false && (
-                                <NearbyTargetsCarousel
-                                    targets={data?.nearbyTargets ?? []}
-                                    onGoToTarget={handleGoToTarget}
-                                    isLoading={isLoading}
-                                />
-                            )}
+                            {null}
                         </>
                     ) : (
                         <>
                             {/* Faction Battle Status */}
                             <FactionBattleStatusCard />
 
-                            {false && (
-                                <NearbyTargetsCarousel
-                                    targets={data?.nearbyTargets ?? []}
-                                    onGoToTarget={handleGoToTarget}
-                                    isLoading={isLoading}
-                                />
-                            )}
+                            {null}
 
                             {/* 3) Battle Feed */}
                             <BattleFeedMini

@@ -7,7 +7,7 @@ import { logEvent } from '@/lib/native-log';
 import { BottomNav, TabType } from "@/components/citylord/bottom-nav"
 import { MissionCenter } from "@/components/citylord/MissionCenter"
 import { Profile } from "@/components/citylord/profile"
-import { Trophy, Route, History, Loader2, Palette, MapPin, Crown, ClipboardList, Users } from "lucide-react";
+import { Trophy, History, Loader2, Palette, MapPin, Crown, ClipboardList, Users } from "lucide-react";
 import { OnboardingGuide, ONBOARDING_GUIDE_STEP_COUNT } from "@/components/citylord/onboarding-guide"
 import { TerritoryAlert } from "@/components/citylord/territory-alert"
 import { ChallengeInvite } from "@/components/citylord/challenge-invite"
@@ -896,16 +896,6 @@ export function GamePageContent({
 
                         <div className="group relative flex items-center">
                           <button
-                            onClick={handlePlannerOpen}
-                            className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg text-white active:scale-90 active:bg-white/20 transition-all hover:bg-primary/20 hover:border-primary/50 hover:text-primary-foreground"
-                          >
-                            <Route className="h-5 w-5" />
-                          </button>
-                          <span className="absolute left-12 pointer-events-none opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity whitespace-nowrap bg-black/80 text-white text-[10px] sm:text-xs px-2 py-1 rounded border border-white/10">智能规划</span>
-                        </div>
-
-                        <div className="group relative flex items-center">
-                          <button
                             onClick={handleRunHistoryOpen}
                             className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg text-white active:scale-90 active:bg-white/20 transition-all hover:bg-primary/20 hover:border-primary/50 hover:text-primary-foreground"
                           >
@@ -927,7 +917,7 @@ export function GamePageContent({
                     )}
 
                     {gameMode === 'map' && !shouldHideButtons && (
-                      <div className="pointer-events-auto absolute bottom-[calc(env(safe-area-inset-bottom)+7rem)] left-4 z-20 flex flex-col gap-3">
+                      <div className="pointer-events-auto absolute bottom-[calc(env(safe-area-inset-bottom)+7.5rem)] left-4 z-50 flex flex-col gap-3">
                         <button
                           onClick={() => setActiveTab("missions")}
                           className="flex h-12 w-12 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-md text-[#8b5cf6] active:scale-90 active:bg-white/20 transition-all hover:bg-primary/20 hover:border-primary/50"
@@ -939,7 +929,7 @@ export function GamePageContent({
                     )}
 
                     {gameMode === 'map' && !shouldHideButtons && (
-                      <div className="pointer-events-auto absolute bottom-[calc(env(safe-area-inset-bottom)+7rem)] right-4 z-20 flex flex-col gap-3">
+                      <div className="pointer-events-auto absolute bottom-[calc(env(safe-area-inset-bottom)+7.5rem)] right-4 z-50 flex flex-col gap-3">
                         <button
                           onClick={() => setActiveTab("social")}
                           className="relative flex h-12 w-12 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-md text-[#3b82f6] active:scale-90 active:bg-white/20 transition-all hover:bg-primary/20 hover:border-primary/50"

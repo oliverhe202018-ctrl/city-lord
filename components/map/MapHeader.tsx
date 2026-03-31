@@ -379,7 +379,7 @@ export function MapHeader({
                   {/* Show cached district immediately; only show "定位中..." if locating AND no cached value */}
                   {(gpsStatus === 'locating' && !currentDistrict) ? '定位中...' : (currentDistrict || '未知位置')}
                 </span>
-                <ChevronDown className="w-3 h-3 text-slate-900 dark:text-white opacity-70" />
+                <ChevronDown className="w-3 h-3 text-slate-900 dark:text-white" />
               </div>
             </button>
 
