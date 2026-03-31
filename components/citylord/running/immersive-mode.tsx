@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback, useRef, type ReactNode } from "react"
 import { Pause, Play, Square, ChevronUp, MapPin, Zap, Heart, Hexagon, Trophy } from "lucide-react"
 import { hexCountToArea, formatArea, HEX_AREA_SQ_METERS } from "@/lib/citylord/area-utils"
 // import { claimTerritory, fetchTerritories } from "@/app/actions/city"
@@ -14,6 +14,7 @@ import { AchievementPopup } from "../achievement-popup"
 import { RunningHUD } from "@/components/running/RunningHUD"
 import dynamic from "next/dynamic"
 import { RunningMapOverlay } from "./RunningMapOverlay"
+import { AnimatePresence, motion } from "framer-motion"
 
 const RunningMap = dynamic(() => import("./RunningMap").then(mod => mod.RunningMap), {
   ssr: false,
@@ -80,6 +81,74 @@ interface ImmersiveModeProps {
   eventsHistory?: RunEventLog[]
   activeRandomEvent?: ActiveRandomEvent | null
   randomEventCountdownSeconds?: number
+}
+
+const springTransition = { type: "spring", stiffness: 300, damping: 30 } as const
+
+type MotionVariantType = "hudTop" | "hudBottom" | "eventCard" | "banner"
+
+function MotionWrapper({
+  variant,
+  children,
+  className
+}: {
+  variant: MotionVariantType
+  children: ReactNode
+  className?: string
+}) {
+  if (variant === "hudTop") {
+    return (
+      <motion.div
+        className={className}
+        initial={{ opacity: 0, y: -14 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -10 }}
+        transition={springTransition}
+      >
+        {children}
+      </motion.div>
+    )
+  }
+
+  if (variant === "eventCard") {
+    return (
+      <motion.div
+        className={className}
+        initial={{ opacity: 0, scale: 0.8, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.92, y: -18 }}
+        transition={springTransition}
+      >
+        {children}
+      </motion.div>
+    )
+  }
+
+  if (variant === "banner") {
+    return (
+      <motion.div
+        className={className}
+        initial={{ opacity: 0, y: -22 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -26 }}
+        transition={springTransition}
+      >
+        {children}
+      </motion.div>
+    )
+  }
+
+  return (
+    <motion.div
+      className={className}
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 12 }}
+      transition={springTransition}
+    >
+      {children}
+    </motion.div>
+  )
 }
 
 // Helper: Calculate distance between two points in meters
@@ -155,8 +224,13 @@ export function ImmersiveRunningMode({
   const [isSubmitting, setIsSubmitting] = useState(false)
   // Local kingdom toggle — independent of MapRoot context (avoids useMap crash)
   const [showKingdom, setShowKingdom] = useState(false)
+  const [floatingBanner, setFloatingBanner] = useState<{ id: number; text: string; tone: "capture" | "shield" } | null>(null)
+  const [showEventResolveFx, setShowEventResolveFx] = useState(false)
   // Debounce ref for stop button
   const lastStopAttemptRef = useRef(0)
+  const bannerTimerRef = useRef<number | null>(null)
+  const prevHexesCapturedRef = useRef(hexesCaptured)
+  const prevSuccessfulEventsRef = useRef(0)
 
   const { currentCity } = useCity()
   const { ghostPath } = useGameLocation()
@@ -269,6 +343,50 @@ export function ImmersiveRunningMode({
       return () => clearTimeout(timer)
     }
   }, [hexesCaptured])
+
+  const showTopBanner = useCallback((text: string, tone: "capture" | "shield") => {
+    if (bannerTimerRef.current !== null) {
+      window.clearTimeout(bannerTimerRef.current)
+      bannerTimerRef.current = null
+    }
+    setFloatingBanner({ id: Date.now(), text, tone })
+    bannerTimerRef.current = window.setTimeout(() => {
+      setFloatingBanner(null)
+      bannerTimerRef.current = null
+    }, 2000)
+  }, [])
+
+  useEffect(() => {
+    const prev = prevHexesCapturedRef.current
+    if (hexesCaptured > prev && isActive) {
+      showTopBanner("⚔️ 成功占领新领地！", "capture")
+    }
+    prevHexesCapturedRef.current = hexesCaptured
+  }, [hexesCaptured, isActive, showTopBanner])
+
+  useEffect(() => {
+    const successfulEvents = eventsHistory.filter(event => event.status === 'SUCCESS')
+    const prevSuccess = prevSuccessfulEventsRef.current
+    if (successfulEvents.length > prevSuccess && isActive) {
+      const latestSuccess = successfulEvents[successfulEvents.length - 1]
+      if (latestSuccess?.eventType === 'ENERGY_SURGE') {
+        showTopBanner("🛡️ 领地护盾已加固", "shield")
+      }
+      setShowEventResolveFx(true)
+      const timer = window.setTimeout(() => setShowEventResolveFx(false), 650)
+      prevSuccessfulEventsRef.current = successfulEvents.length
+      return () => window.clearTimeout(timer)
+    }
+    prevSuccessfulEventsRef.current = successfulEvents.length
+  }, [eventsHistory, isActive, showTopBanner])
+
+  useEffect(() => {
+    return () => {
+      if (bannerTimerRef.current !== null) {
+        window.clearTimeout(bannerTimerRef.current)
+      }
+    }
+  }, [])
 
   const handleGhostMove = useCallback((vector: { x: number, y: number }) => {
     if (!currentLocation || !onManualLocation) return
@@ -606,7 +724,7 @@ export function ImmersiveRunningMode({
 
   return (
     <div
-      className={useSharedMapBase ? "absolute inset-0 z-[9999] flex h-full w-full flex-col" : "fixed inset-0 z-[9999] flex h-[100dvh] w-full flex-col bg-slate-900"}
+      className={useSharedMapBase ? "fixed inset-0 z-[9999] flex h-[100dvh] w-full flex-col justify-between" : "fixed inset-0 z-[9999] flex h-[100dvh] w-full flex-col justify-between bg-slate-900"}
     >
       {/* Loop Warning Dialog */}
       <AlertDialogPrimitive.Root open={showLoopWarning} onOpenChange={setShowLoopWarning}>
@@ -645,16 +763,44 @@ export function ImmersiveRunningMode({
         </AlertDialogPrimitive.Portal>
       </AlertDialogPrimitive.Root>
 
-      {activeRandomEvent && (
-        <div className="pointer-events-none fixed inset-0 z-[100002] flex items-center justify-center px-6">
-          <div className="w-full max-w-sm rounded-2xl border border-yellow-400/40 bg-black/80 p-5 text-center text-white shadow-2xl backdrop-blur">
-            <div className="text-xs tracking-[0.2em] text-yellow-300">突发事件</div>
-            <div className="mt-2 text-lg font-semibold">{activeRandomEvent.eventType === 'CHASE' ? '追击挑战' : '能量冲刺'}</div>
-            <div className="mt-2 text-sm text-white/80">{activeRandomEvent.targetText}</div>
-            <div className="mt-4 text-3xl font-bold text-yellow-300">{randomEventCountdownSeconds}s</div>
+      <AnimatePresence initial={false}>
+        {floatingBanner && (
+          <MotionWrapper variant="banner" className="pointer-events-none fixed left-1/2 top-[calc(env(safe-area-inset-top)+16px)] z-[100003] w-[min(92vw,360px)] -translate-x-1/2">
+            <div className={`rounded-2xl border px-4 py-2.5 text-center text-sm font-semibold text-white shadow-2xl backdrop-blur-xl ${floatingBanner.tone === "capture" ? "border-emerald-300/45 bg-emerald-500/75" : "border-sky-300/45 bg-sky-500/75"}`}>
+              {floatingBanner.text}
+            </div>
+          </MotionWrapper>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence initial={false}>
+        {activeRandomEvent && (
+          <div className="pointer-events-none fixed inset-0 z-[100002] flex items-center justify-center px-6">
+            <MotionWrapper variant="eventCard" className="w-full max-w-sm rounded-2xl border border-yellow-400/40 bg-black/80 p-5 text-center text-white shadow-2xl backdrop-blur">
+              <div className="text-xs tracking-[0.2em] text-yellow-300">突发事件</div>
+              <div className="mt-2 text-lg font-semibold">{activeRandomEvent.eventType === 'CHASE' ? '追击挑战' : '能量冲刺'}</div>
+              <div className="mt-2 text-sm text-white/80">{activeRandomEvent.targetText}</div>
+              <div className="mt-4 text-3xl font-bold text-yellow-300">{randomEventCountdownSeconds}s</div>
+            </MotionWrapper>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence initial={false}>
+        {showEventResolveFx && (
+          <motion.div
+            className="pointer-events-none fixed inset-0 z-[100002] flex items-center justify-center"
+            initial={{ opacity: 0, y: 0, scale: 0.92 }}
+            animate={{ opacity: [0, 1, 0], y: [6, -18, -30], scale: [0.92, 1, 0.96] }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.62, ease: "easeOut" }}
+          >
+            <div className="rounded-full border border-yellow-300/45 bg-yellow-400/20 px-4 py-1.5 text-xs font-semibold tracking-wide text-yellow-100 shadow-xl backdrop-blur">
+              事件结算成功
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Save Retry Dialog */}
       <AlertDialogPrimitive.Root open={showRetryDialog} onOpenChange={setShowRetryDialog}>
@@ -710,42 +856,51 @@ export function ImmersiveRunningMode({
       )}
 
       {/* Safe Area Top - Hide in Map Mode as Overlay handles it */}
-      {!isMapMode && <div className="relative z-10 h-[env(safe-area-inset-top)] bg-transparent" />}
+      <AnimatePresence initial={false}>
+        {!isMapMode && (
+          <MotionWrapper variant="hudTop">
+            <div className="relative z-10 h-[env(safe-area-inset-top)] bg-transparent" />
+          </MotionWrapper>
+        )}
+      </AnimatePresence>
 
       {/* New HUD Implementation */}
-      <div className={isMapMode ? "opacity-0 pointer-events-none transition-opacity duration-300" : "relative z-20 opacity-100 transition-opacity duration-300"}>
-        <RunningHUD
-          distance={distanceMeters / 1000}
-          currentDistanceMeters={distanceMeters}
-          pace={typeof pace === 'number' ? String(pace) : (pace ?? '00:00')}
-          duration={time}
-          calories={calories}
-          steps={steps}
-          hexesCaptured={hexesCaptured}
-          isPaused={isPaused}
-          onPause={() => {
-            setIsPaused(true)
-            onPause()
-          }}
-          onResume={() => {
-            setIsPaused(false)
-            onResume()
-          }}
-          onStop={handleAttemptStop}
-          onGhostModeTrigger={() => {
-            setIsGhostMode(true)
-            toast.success("幽灵模式已开启", {
-              description: "使用右下角摇杆控制移动",
-              icon: <Zap className="h-4 w-4 text-purple-400" />
-            })
-          }}
-          // Pass map toggle handler to HUD
-          onToggleMap={() => {
-            setIsMapMode(true)
-            setRecenterTrigger(prev => prev + 1)
-          }}
-        />
-      </div>
+      <AnimatePresence initial={false}>
+        {!isMapMode && (
+          <MotionWrapper variant="hudBottom" className="relative z-20">
+            <RunningHUD
+              distance={distanceMeters / 1000}
+              currentDistanceMeters={distanceMeters}
+              pace={typeof pace === 'number' ? String(pace) : (pace ?? '00:00')}
+              duration={time}
+              calories={calories}
+              steps={steps}
+              hexesCaptured={hexesCaptured}
+              isPaused={isPaused}
+              onPause={() => {
+                setIsPaused(true)
+                onPause()
+              }}
+              onResume={() => {
+                setIsPaused(false)
+                onResume()
+              }}
+              onStop={handleAttemptStop}
+              onGhostModeTrigger={() => {
+                setIsGhostMode(true)
+                toast.success("幽灵模式已开启", {
+                  description: "使用右下角摇杆控制移动",
+                  icon: <Zap className="h-4 w-4 text-purple-400" />
+                })
+              }}
+              onToggleMap={() => {
+                setIsMapMode(true)
+                setRecenterTrigger(prev => prev + 1)
+              }}
+            />
+          </MotionWrapper>
+        )}
+      </AnimatePresence>
 
       {/* Map Overlay Mode (New Design) */}
       {isMapMode && (

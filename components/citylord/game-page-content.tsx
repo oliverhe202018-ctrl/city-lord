@@ -251,6 +251,7 @@ export function GamePageContent({
   const [isRunning, setIsRunning] = useState(false)
   const [showImmersiveMode, setShowImmersiveMode] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const isImmersiveActive = showImmersiveMode || isRunning
 
   // Running Tracker
   const {
@@ -557,6 +558,7 @@ export function GamePageContent({
         return
       }
 
+      setActiveTab("play")
       startCountdown();
 
     } else {
@@ -799,126 +801,130 @@ export function GamePageContent({
               </div>
 
               <div className="relative z-10 h-full w-full pointer-events-none">
-                <div className="pointer-events-auto">
-                  <MemoizedMapHeader setShowThemeSwitcher={setShowThemeSwitcher} />
-                </div>
+                {!isImmersiveActive && (
+                  <>
+                    <div className="pointer-events-auto">
+                      <MemoizedMapHeader setShowThemeSwitcher={setShowThemeSwitcher} />
+                    </div>
 
-                <div className="pointer-events-auto">
-                  <MemoizedModeSwitcher onDrawerOpenChange={handleDrawerOpenChange} />
-                </div>
+                    <div className="pointer-events-auto">
+                      <MemoizedModeSwitcher onDrawerOpenChange={handleDrawerOpenChange} />
+                    </div>
 
-                {gameMode === 'map' && viewportKing && (
-                  <div className="pointer-events-auto absolute top-[138px] left-1/2 -translate-x-1/2 z-30 w-[calc(100%-2rem)] max-w-xs rounded-2xl border border-white/15 bg-black/55 px-3 py-2 backdrop-blur-xl shadow-xl">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 shrink-0 rounded-full border border-white/20 bg-black/40 overflow-hidden flex items-center justify-center">
-                        {viewportKing.avatarUrl ? (
-                          <img src={viewportKing.avatarUrl} alt={viewportKing.nickname} className="h-full w-full object-cover" />
-                        ) : (
-                          <span className="text-xs font-bold text-white/80">{viewportKing.nickname.slice(0, 1)}</span>
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1 text-amber-300">
-                          <Crown className="h-3.5 w-3.5" />
-                          <span className="text-[10px] font-semibold">区域霸主</span>
+                    {gameMode === 'map' && viewportKing && (
+                      <div className="pointer-events-auto absolute top-[138px] left-1/2 -translate-x-1/2 z-30 w-[calc(100%-2rem)] max-w-xs rounded-2xl border border-white/15 bg-black/55 px-3 py-2 backdrop-blur-xl shadow-xl">
+                        <div className="flex items-center gap-3">
+                          <div className="h-10 w-10 shrink-0 rounded-full border border-white/20 bg-black/40 overflow-hidden flex items-center justify-center">
+                            {viewportKing.avatarUrl ? (
+                              <img src={viewportKing.avatarUrl} alt={viewportKing.nickname} className="h-full w-full object-cover" />
+                            ) : (
+                              <span className="text-xs font-bold text-white/80">{viewportKing.nickname.slice(0, 1)}</span>
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1 text-amber-300">
+                              <Crown className="h-3.5 w-3.5" />
+                              <span className="text-[10px] font-semibold">区域霸主</span>
+                            </div>
+                            <p className="truncate text-sm font-bold text-white">{viewportKing.nickname}</p>
+                            <p className="text-[11px] text-white/70">{Math.round(viewportKing.totalArea).toLocaleString('zh-CN')} m²</p>
+                          </div>
                         </div>
-                        <p className="truncate text-sm font-bold text-white">{viewportKing.nickname}</p>
-                        <p className="text-[11px] text-white/70">{Math.round(viewportKing.totalArea).toLocaleString('zh-CN')} m²</p>
                       </div>
-                    </div>
-                  </div>
-                )}
+                    )}
 
-                {!shouldHideButtons && (
-                  <div className="pointer-events-auto absolute top-[130px] left-4 z-20 flex flex-col gap-4">
-                    <div className="group relative flex items-center">
-                      <button
-                        onClick={handleOpenThemeSettings}
-                        className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg text-white active:scale-90 active:bg-white/20 transition-all hover:bg-primary/20 hover:border-primary/50 hover:text-primary-foreground"
-                      >
-                        <Palette className="h-5 w-5" />
-                      </button>
-                      <span className="absolute left-12 pointer-events-none opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity whitespace-nowrap bg-black/80 text-white text-[10px] sm:text-xs px-2 py-1 rounded border border-white/10">切换主题</span>
-                    </div>
+                    {!shouldHideButtons && (
+                      <div className="pointer-events-auto absolute top-[130px] left-4 z-20 flex flex-col gap-4">
+                        <div className="group relative flex items-center">
+                          <button
+                            onClick={handleOpenThemeSettings}
+                            className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg text-white active:scale-90 active:bg-white/20 transition-all hover:bg-primary/20 hover:border-primary/50 hover:text-primary-foreground"
+                          >
+                            <Palette className="h-5 w-5" />
+                          </button>
+                          <span className="absolute left-12 pointer-events-none opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity whitespace-nowrap bg-black/80 text-white text-[10px] sm:text-xs px-2 py-1 rounded border border-white/10">切换主题</span>
+                        </div>
 
-                    <div className="group relative flex items-center">
-                      <button
-                        onClick={handlePlannerOpen}
-                        className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg text-white active:scale-90 active:bg-white/20 transition-all hover:bg-primary/20 hover:border-primary/50 hover:text-primary-foreground"
-                      >
-                        <Route className="h-5 w-5" />
-                      </button>
-                      <span className="absolute left-12 pointer-events-none opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity whitespace-nowrap bg-black/80 text-white text-[10px] sm:text-xs px-2 py-1 rounded border border-white/10">智能规划</span>
-                    </div>
+                        <div className="group relative flex items-center">
+                          <button
+                            onClick={handlePlannerOpen}
+                            className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg text-white active:scale-90 active:bg-white/20 transition-all hover:bg-primary/20 hover:border-primary/50 hover:text-primary-foreground"
+                          >
+                            <Route className="h-5 w-5" />
+                          </button>
+                          <span className="absolute left-12 pointer-events-none opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity whitespace-nowrap bg-black/80 text-white text-[10px] sm:text-xs px-2 py-1 rounded border border-white/10">智能规划</span>
+                        </div>
 
-                    <div className="group relative flex items-center">
-                      <button
-                        onClick={handleRunHistoryOpen}
-                        className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg text-white active:scale-90 active:bg-white/20 transition-all hover:bg-primary/20 hover:border-primary/50 hover:text-primary-foreground"
-                      >
-                        <History className="h-5 w-5" />
-                      </button>
-                      <span className="absolute left-12 pointer-events-none opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity whitespace-nowrap bg-black/80 text-white text-[10px] sm:text-xs px-2 py-1 rounded border border-white/10">跑步历史</span>
-                    </div>
+                        <div className="group relative flex items-center">
+                          <button
+                            onClick={handleRunHistoryOpen}
+                            className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg text-white active:scale-90 active:bg-white/20 transition-all hover:bg-primary/20 hover:border-primary/50 hover:text-primary-foreground"
+                          >
+                            <History className="h-5 w-5" />
+                          </button>
+                          <span className="absolute left-12 pointer-events-none opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity whitespace-nowrap bg-black/80 text-white text-[10px] sm:text-xs px-2 py-1 rounded border border-white/10">跑步历史</span>
+                        </div>
 
-                    <div className="group relative flex items-center">
-                      <button
-                        onClick={handleLeaderboardOpen}
-                        className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg text-white active:scale-90 active:bg-white/20 transition-all hover:bg-primary/20 hover:border-primary/50 hover:text-primary-foreground"
-                      >
-                        <Trophy className="h-5 w-5" />
-                      </button>
-                      <span className="absolute left-12 pointer-events-none opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity whitespace-nowrap bg-black/80 text-white text-[10px] sm:text-xs px-2 py-1 rounded border border-white/10">查看排行榜</span>
-                    </div>
-                  </div>
-                )}
+                        <div className="group relative flex items-center">
+                          <button
+                            onClick={handleLeaderboardOpen}
+                            className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg text-white active:scale-90 active:bg-white/20 transition-all hover:bg-primary/20 hover:border-primary/50 hover:text-primary-foreground"
+                          >
+                            <Trophy className="h-5 w-5" />
+                          </button>
+                          <span className="absolute left-12 pointer-events-none opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity whitespace-nowrap bg-black/80 text-white text-[10px] sm:text-xs px-2 py-1 rounded border border-white/10">查看排行榜</span>
+                        </div>
+                      </div>
+                    )}
 
-                {gameMode === 'map' && !shouldHideButtons && (
-                  <div className="pointer-events-auto absolute bottom-[calc(env(safe-area-inset-bottom)+5rem)] left-4 z-20 flex flex-col gap-3">
-                    <button
-                      onClick={() => handleQuickNavigate("running")}
-                      className="flex h-12 w-12 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-md text-[#22c55e] active:scale-90 active:bg-white/20 transition-all hover:bg-primary/20 hover:border-primary/50"
-                      aria-label="开始跑步"
-                    >
-                      <Route className="h-5 w-5" />
-                    </button>
-                    <button
-                      onClick={() => handleQuickNavigate("missions", { initialFilter: "all" })}
-                      className="flex h-12 w-12 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-md text-[#8b5cf6] active:scale-90 active:bg-white/20 transition-all hover:bg-primary/20 hover:border-primary/50"
-                      aria-label="任务中心"
-                    >
-                      <Flag className="h-5 w-5" />
-                    </button>
-                  </div>
-                )}
+                    {gameMode === 'map' && !shouldHideButtons && (
+                      <div className="pointer-events-auto absolute bottom-[calc(env(safe-area-inset-bottom)+7rem)] left-4 z-20 flex flex-col gap-3">
+                        <button
+                          onClick={() => handleQuickNavigate("running")}
+                          className="flex h-12 w-12 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-md text-[#22c55e] active:scale-90 active:bg-white/20 transition-all hover:bg-primary/20 hover:border-primary/50"
+                          aria-label="开始跑步"
+                        >
+                          <Route className="h-5 w-5" />
+                        </button>
+                        <button
+                          onClick={() => handleQuickNavigate("missions", { initialFilter: "all" })}
+                          className="flex h-12 w-12 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-md text-[#8b5cf6] active:scale-90 active:bg-white/20 transition-all hover:bg-primary/20 hover:border-primary/50"
+                          aria-label="任务中心"
+                        >
+                          <Flag className="h-5 w-5" />
+                        </button>
+                      </div>
+                    )}
 
-                {gameMode === 'map' && !shouldHideButtons && (
-                  <div className="pointer-events-auto absolute bottom-[calc(env(safe-area-inset-bottom)+5rem)] right-4 z-20 flex flex-col gap-3">
-                    <button
-                      onClick={() => handleQuickNavigate("social")}
-                      className="relative flex h-12 w-12 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-md text-[#3b82f6] active:scale-90 active:bg-white/20 transition-all hover:bg-primary/20 hover:border-primary/50"
-                      aria-label="好友"
-                    >
-                      <Users className="h-5 w-5" />
-                      {(friends?.length || 0) > 0 && (
-                        <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-                          {friends!.length > 99 ? '99+' : friends!.length}
-                        </span>
-                      )}
-                    </button>
-                  </div>
+                    {gameMode === 'map' && !shouldHideButtons && (
+                      <div className="pointer-events-auto absolute bottom-[calc(env(safe-area-inset-bottom)+7rem)] right-4 z-20 flex flex-col gap-3">
+                        <button
+                          onClick={() => handleQuickNavigate("social")}
+                          className="relative flex h-12 w-12 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-md text-[#3b82f6] active:scale-90 active:bg-white/20 transition-all hover:bg-primary/20 hover:border-primary/50"
+                          aria-label="好友"
+                        >
+                          <Users className="h-5 w-5" />
+                          {(friends?.length || 0) > 0 && (
+                            <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                              {friends!.length > 99 ? '99+' : friends!.length}
+                            </span>
+                          )}
+                        </button>
+                      </div>
+                    )}
+
+                    {gameMode !== 'map' && !shouldHideButtons && (
+                      <div className="pointer-events-auto absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 w-[calc(100%-2rem)] max-w-md">
+                        <div className="mx-auto max-h-[70vh] overflow-y-auto rounded-3xl border border-white/10 bg-black/60 backdrop-blur-xl shadow-2xl p-6">
+                          {gameMode === 'single' && <MemoizedSinglePlayer />}
+                          {gameMode === 'private' && <MemoizedPrivateLobby />}
+                          {gameMode === 'club' && <MemoizedMyClub hasClub={true} />}
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
-
-              {gameMode !== 'map' && !shouldHideButtons && (
-                <div className="pointer-events-auto absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 w-[calc(100%-2rem)] max-w-md">
-                  <div className="mx-auto max-h-[70vh] overflow-y-auto rounded-3xl border border-white/10 bg-black/60 backdrop-blur-xl shadow-2xl p-6">
-                    {gameMode === 'single' && <MemoizedSinglePlayer />}
-                    {gameMode === 'private' && <MemoizedPrivateLobby />}
-                    {gameMode === 'club' && <MemoizedMyClub hasClub={true} />}
-                  </div>
-                </div>
-              )}
             </div>
           )}
 

@@ -698,25 +698,38 @@ export function RunSummaryView({
             </>
           )}
         </AnimatePresence>
-        {showAntiCheatModal && (
-          <div className="fixed inset-0 z-[10010] flex items-center justify-center bg-black/70 p-4">
-            <div className="w-full max-w-md rounded-2xl border border-red-200 bg-white p-6 shadow-2xl">
-              <h3 className="text-lg font-bold text-red-600">风控拦截</h3>
-              <p className="mt-3 text-sm leading-6 text-slate-700">
-                检测到异常的运动数据（步幅或步频与真实跑步不符）。本次运动不计入成绩，未获得任何领地和收益。请勿使用载具或虚拟定位设备。
-              </p>
-              {antiCheatLog && (
-                <p className="mt-2 text-xs text-slate-500">风控原因: {antiCheatLog}</p>
-              )}
-              <button
-                onClick={() => setShowAntiCheatModal(false)}
-                className="mt-5 h-11 w-full rounded-xl bg-red-600 font-semibold text-white hover:bg-red-500"
+        <AnimatePresence initial={false}>
+          {showAntiCheatModal && (
+            <motion.div
+              className="fixed inset-0 z-[10010] flex items-center justify-center bg-black/70 p-4"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <motion.div
+                className="w-full max-w-md rounded-2xl border border-red-200 bg-white p-6 shadow-2xl"
+                initial={{ opacity: 0, scale: 0.96 }}
+                animate={{ opacity: 1, scale: 1, x: [-6, 6, -5, 5, -4, 4, 0] }}
+                exit={{ opacity: 0, scale: 0.96 }}
+                transition={{ type: "spring", stiffness: 300, damping: 30 }}
               >
-                我知道了
-              </button>
-            </div>
-          </div>
-        )}
+                <h3 className="text-lg font-bold text-red-600">风控拦截</h3>
+                <p className="mt-3 text-sm leading-6 text-slate-700">
+                  检测到异常的运动数据（步幅或步频与真实跑步不符）。本次运动不计入成绩，未获得任何领地和收益。请勿使用载具或虚拟定位设备。
+                </p>
+                {antiCheatLog && (
+                  <p className="mt-2 text-xs text-slate-500">风控原因: {antiCheatLog}</p>
+                )}
+                <button
+                  onClick={() => setShowAntiCheatModal(false)}
+                  className="mt-5 h-11 w-full rounded-xl bg-red-600 font-semibold text-white hover:bg-red-500"
+                >
+                  我知道了
+                </button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </Portal>
   )
