@@ -724,7 +724,7 @@ export function ImmersiveRunningMode({
 
   return (
     <div
-      className={useSharedMapBase ? "fixed inset-0 z-[9999] flex h-[100dvh] w-full flex-col justify-between" : "fixed inset-0 z-[9999] flex h-[100dvh] w-full flex-col justify-between bg-slate-900"}
+      className={useSharedMapBase ? "fixed inset-0 z-[9999] h-[100dvh] w-full flex flex-col justify-between bg-transparent" : "fixed inset-0 z-[9999] h-[100dvh] w-full flex flex-col justify-between bg-slate-900"}
     >
       {/* Loop Warning Dialog */}
       <AlertDialogPrimitive.Root open={showLoopWarning} onOpenChange={setShowLoopWarning}>

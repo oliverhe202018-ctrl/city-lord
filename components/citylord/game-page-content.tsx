@@ -356,6 +356,8 @@ export function GamePageContent({
   const [showThemeSwitcher, setShowThemeSwitcher] = useState(false)
   const [shouldHideButtons, setShouldHideButtons] = useState(false);
   const [isCountingDown, setIsCountingDown] = useState(false);
+  const isRunTakeoverActive = isCountingDown || isImmersiveActive
+  const shouldRenderPlaySurface = activeTab === "play" || isRunTakeoverActive
 
   // Animation demo states
   const [showCaptureEffect, setShowCaptureEffect] = useState(false)
@@ -649,8 +651,8 @@ export function GamePageContent({
 
   const handleAcceptChallenge = useCallback(() => {
     setShowChallengeInvite(false)
-    setIsCountingDown(true)
     setActiveTab("play")
+    startCountdown()
   }, []);
 
   const handleClaimAchievement = useCallback(() => {
@@ -772,7 +774,7 @@ export function GamePageContent({
 
       {hydrated && currentCity && (
         <main className="relative flex-1 overflow-hidden">
-          {activeTab === "home" && (
+          {!isRunTakeoverActive && activeTab === "home" && (
             <div className="flex-1 w-full h-full bg-[#0f172a] z-40 relative">
               <GameHomePage
                 onStartRun={(_mode: RunMode) => handleQuickNavigate('running')}
@@ -786,7 +788,7 @@ export function GamePageContent({
             </div>
           )}
 
-          {activeTab === "play" && (
+          {shouldRenderPlaySurface && (
             <div className="relative h-dvh w-full overflow-hidden">
               <div className="absolute inset-0 z-0">
                 <MemoizedAMapView
@@ -801,7 +803,7 @@ export function GamePageContent({
               </div>
 
               <div className="relative z-10 h-full w-full pointer-events-none">
-                {!isImmersiveActive && (
+                {!isRunTakeoverActive && (
                   <>
                     <div className="pointer-events-auto">
                       <MemoizedMapHeader setShowThemeSwitcher={setShowThemeSwitcher} />
@@ -928,7 +930,7 @@ export function GamePageContent({
             </div>
           )}
 
-          {activeTab === "mode" && (
+          {!isRunTakeoverActive && activeTab === "mode" && (
             <div className="relative h-dvh w-full overflow-hidden">
               <MemoizedAMapView ref={mapViewRef} showTerritory={showTerritory} viewMode={mapViewMode} sessionClaims={sessionClaims} />
               <div className="relative z-10 h-full w-full pointer-events-none">
@@ -946,7 +948,7 @@ export function GamePageContent({
             </div>
           )}
 
-          {activeTab === "missions" && (
+          {!isRunTakeoverActive && activeTab === "missions" && (
             <div className="flex-1 w-full h-full bg-[#0f172a] z-40 relative">
               <MemoizedMissionCenter initialData={initialMissions} initialFilter={missionsInitialFilter} />
             </div>
@@ -954,7 +956,7 @@ export function GamePageContent({
 
           {/* Leaderboard replaced by Drawer */}
 
-          {activeTab === "social" && (
+          {!isRunTakeoverActive && activeTab === "social" && (
             <div id="nav-social" className="flex-1 w-full h-full bg-[#0f172a] z-40 relative">
               <MemoizedSocialPage
                 onShowDemo={handleShowDemo}
@@ -964,7 +966,7 @@ export function GamePageContent({
             </div>
           )}
 
-          {activeTab === "profile" && (
+          {!isRunTakeoverActive && activeTab === "profile" && (
             <div className="flex-1 w-full h-full bg-[#0f172a] z-40 relative overflow-hidden">
               <MemoizedProfile
                 onOpenSettings={handleOpenThemeSettings}
@@ -980,7 +982,7 @@ export function GamePageContent({
         <ImmersiveSkeleton />
       ) : (
         <MemoizedImmersiveRunningMode
-          isActive={showImmersiveMode}
+          isActive={isImmersiveActive}
           useSharedMapBase
           userId={user?.id}
           distance={distance}
@@ -1017,7 +1019,7 @@ export function GamePageContent({
         />
       )}
 
-      {hydrated && currentCity && <MemoizedBottomNav activeTab={activeTab} onTabChange={setActiveTab} />}
+      {hydrated && currentCity && !isRunTakeoverActive && <MemoizedBottomNav activeTab={activeTab} onTabChange={setActiveTab} />}
 
       <MemoizedTerritoryAlert
         isOpen={showTerritoryAlert}
