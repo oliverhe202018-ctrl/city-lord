@@ -86,9 +86,11 @@ export function RunSummaryView({
   const [isSharing, setIsSharing] = useState(false);
   const [hasShared, setHasShared] = useState(false);
   const [showAntiCheatModal, setShowAntiCheatModal] = useState(false);
+  const [showClubContributionFx, setShowClubContributionFx] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const userId = useGameStore(state => state.userId);
   const faction = useGameStore(state => state.faction);
+  const clubId = useGameStore(state => state.clubId);
 
   // Storytelling State
   const [story, setStory] = useState<string | null>(null);
@@ -148,6 +150,7 @@ export function RunSummaryView({
   const finalCapturedArea = propCapturedArea !== undefined 
     ? propCapturedArea 
     : hexesCaptured * HEX_AREA_SQ_METERS;
+  const contributedArea = Math.max(0, Math.round(finalCapturedArea));
 
   // Aggregate damage by owner for UI display
   const aggregatedDamage = damageSummary.reduce((acc, curr) => {
@@ -331,6 +334,23 @@ export function RunSummaryView({
     }
   };
 
+  useEffect(() => {
+    if (!runIsValid || !clubId || contributedArea <= 0) {
+      setShowClubContributionFx(false);
+      return;
+    }
+    const triggerTimer = setTimeout(() => {
+      setShowClubContributionFx(true);
+    }, 300);
+    const dismissTimer = setTimeout(() => {
+      setShowClubContributionFx(false);
+    }, 1900);
+    return () => {
+      clearTimeout(triggerTimer);
+      clearTimeout(dismissTimer);
+    };
+  }, [clubId, contributedArea, runIsValid]);
+
   return (
     <Portal>
       <div className="fixed inset-0 z-[100000] flex flex-col bg-white text-black animate-in slide-in-from-bottom duration-300">
@@ -417,7 +437,23 @@ export function RunSummaryView({
             </div>
             {/* Territory Captured - RED FONT */}
             <div className="text-center">
-              <div className="text-2xl font-bold text-red-500">{formatArea(finalCapturedArea).fullText}</div>
+              <div className="relative inline-flex flex-col items-center">
+                <div className="text-2xl font-bold text-red-500">{formatArea(finalCapturedArea).fullText}</div>
+                <AnimatePresence>
+                  {showClubContributionFx && (
+                    <motion.div
+                      key={`club-contribution-${runId || 'current'}`}
+                      initial={{ opacity: 0, y: 12, scale: 0.95 }}
+                      animate={{ opacity: [0, 1, 1, 0], y: [12, 0, -10, -22], scale: [0.95, 1, 1, 0.98] }}
+                      exit={{ opacity: 0, y: -26 }}
+                      transition={{ duration: 1.2, ease: "easeOut" }}
+                      className="pointer-events-none absolute -top-7 whitespace-nowrap text-xs font-black text-amber-400 animate-bounce"
+                    >
+                      {`Club Area +${contributedArea}m²`}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
               <div className="text-xs text-gray-400 mt-1">领地占领</div>
             </div>
           </div>
