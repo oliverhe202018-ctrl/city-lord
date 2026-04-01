@@ -386,6 +386,7 @@ export function GamePageContent({
   const gpsError = useGameStore((state) => state.gpsError);
   const activeDrawer = useGameStore((state) => state.activeDrawer);
   const hasDismissedGeolocationPrompt = useGameStore((state) => state.hasDismissedGeolocationPrompt);
+  const ghostPath = useGameStore((state) => state.ghostPath);
   const isRunTakeoverActive = isCountingDown || isImmersiveActive
   const shouldRenderPlaySurface = activeTab === "home" || activeTab === "play" || activeTab === "start" || isRunTakeoverActive
   const shouldShowPlayChrome = activeTab === "play" && !isRunTakeoverActive
@@ -814,6 +815,7 @@ export function GamePageContent({
                   showControls={shouldShowPlayChrome}
                   onMapLoad={handleMapLoad}
                   sessionClaims={sessionClaims}
+                  ghostPath={ghostPath}
                   onViewportKingChange={setViewportKing}
                 />
                 {shouldShowPlayChrome && <MemoizedFactionSelector initialUser={initialUser} />}
@@ -985,7 +987,7 @@ export function GamePageContent({
 
           {!isRunTakeoverActive && activeTab === "mode" && (
             <div className="relative h-dvh w-full overflow-hidden">
-              <MemoizedAMapView ref={mapViewRef} showTerritory={showTerritory} showControls={shouldShowPlayChrome} viewMode={mapViewMode} sessionClaims={sessionClaims} />
+              <MemoizedAMapView ref={mapViewRef} showTerritory={showTerritory} showControls={shouldShowPlayChrome} viewMode={mapViewMode} sessionClaims={sessionClaims} ghostPath={ghostPath} />
               <div className="relative z-10 h-full w-full pointer-events-none">
                 <div className="pointer-events-auto">
                   <MemoizedMapHeader

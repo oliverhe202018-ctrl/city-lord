@@ -1,13 +1,15 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { ArrowLeft, Route, X, Signal } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { ArrowLeft, LocateFixed, Route, X, Signal } from "lucide-react"
+import * as turf from "@turf/turf"
 import { Button } from "@/components/ui/button"
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useLocationStore } from "@/store/useLocationStore"
 import { useGameStore } from "@/store/useGameStore"
+import { useLocationContext } from "@/components/GlobalLocationProvider"
 import { isNativePlatform, safeOpenAppSettings } from "@/lib/capacitor/safe-plugins"
 import { toast } from "sonner"
 
@@ -62,10 +64,10 @@ interface StartRunOverlayProps {
 }
 
 export function StartRunOverlay({ onBack, onBeginRun }: StartRunOverlayProps) {
-  const location = useLocationStore((s) => s.location)
   const gpsSignalStrength = useLocationStore((s) => s.gpsSignalStrength)
   const ghostPath = useGameStore((s) => s.ghostPath)
   const setGhostPath = useGameStore((s) => s.setGhostPath)
+  const { retry } = useLocationContext()
   const [openPlanner, setOpenPlanner] = useState(false)
   const [routes, setRoutes] = useState<RouteItem[]>([])
   const [loadingRoutes, setLoadingRoutes] = useState(false)
@@ -127,6 +129,21 @@ export function StartRunOverlay({ onBack, onBeginRun }: StartRunOverlayProps) {
 
   const gpsLabel = gpsSignalStrength === "good" ? "强" : gpsSignalStrength === "weak" ? "弱" : "无"
   const plannedPointCount = ghostPath?.length ?? 0
+  const estimatedAreaLabel = useMemo(() => {
+    if (!ghostPath || ghostPath.length < 3) return "0 m²"
+    const ring = ghostPath.map(([lat, lng]) => [lng, lat] as [number, number])
+    const [firstLng, firstLat] = ring[0]
+    const [lastLng, lastLat] = ring[ring.length - 1]
+    const closedRing = firstLng === lastLng && firstLat === lastLat ? ring : [...ring, [firstLng, firstLat] as [number, number]]
+    try {
+      const polygon = turf.polygon([closedRing])
+      const area = turf.area(polygon)
+      const safeArea = Number.isFinite(area) ? Math.max(0, area) : 0
+      return `${Math.round(safeArea).toLocaleString("zh-CN")} m²`
+    } catch {
+      return "0 m²"
+    }
+  }, [ghostPath])
 
   return (
     <div className="absolute inset-0 z-40 text-slate-900 dark:text-white">
@@ -145,6 +162,15 @@ export function StartRunOverlay({ onBack, onBeginRun }: StartRunOverlayProps) {
 
         <div className="flex flex-col items-end gap-2">
           <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-11 w-11 rounded-full border border-slate-200/60 bg-white text-slate-900 shadow-lg"
+              onClick={() => retry()}
+            >
+              <LocateFixed className="h-5 w-5" />
+            </Button>
             <Button
               type="button"
               variant="outline"
@@ -173,7 +199,7 @@ export function StartRunOverlay({ onBack, onBeginRun }: StartRunOverlayProps) {
         <div className="mx-auto mb-4 h-1.5 w-16 rounded-full bg-slate-300 dark:bg-slate-600" />
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <p className="text-3xl font-extrabold leading-none">0 m²</p>
+            <p className="text-3xl font-extrabold leading-none">{estimatedAreaLabel}</p>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">预计占领</p>
           </div>
           <div className="flex items-center gap-1.5 text-rose-500 dark:text-rose-300">
@@ -181,15 +207,6 @@ export function StartRunOverlay({ onBack, onBeginRun }: StartRunOverlayProps) {
             <Signal className="h-4 w-4" />
           </div>
         </div>
-
-        {location && (
-          <div className="mb-4 rounded-2xl border border-white/50 bg-white/70 px-4 py-3 text-xs text-slate-600 shadow-sm dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-300">
-            <div className="font-semibold text-slate-900 dark:text-white">当前位置已就绪</div>
-            <div className="mt-1 truncate">
-              {location.lat.toFixed(6)}, {location.lng.toFixed(6)}
-            </div>
-          </div>
-        )}
 
         {plannedPointCount > 0 && (
           <div className="mb-4 rounded-2xl border border-emerald-300/50 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-400/20 dark:text-emerald-300">

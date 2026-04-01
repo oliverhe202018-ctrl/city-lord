@@ -1,10 +1,9 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Route } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ModeTogglePills } from './ModeTogglePills';
-import { modeThemeMap, getAttackHint, useReducedMotion, getStoredMode, setStoredMode } from '@/lib/modeTheme';
+import { modeThemeMap, getAttackHint, useReducedMotion, getStoredMode } from '@/lib/modeTheme';
 import type { RunMode, HomeHero } from '@/types/home';
 
 interface HeroStartRunCardProps {
@@ -26,12 +25,6 @@ export function HeroStartRunCard({ hero, isLoading, onStartRun, nearbyTargetCoun
     });
     const [isStarting, setIsStarting] = useState(false);
     const reducedMotion = useReducedMotion();
-
-    // Sync to localStorage on mode change
-    const handleModeChange = useCallback((mode: RunMode) => {
-        setActiveMode(mode);
-        setStoredMode(mode);
-    }, []);
 
     // If hero loads with a default mode and user hasn't changed yet, apply it
     useEffect(() => {
@@ -66,7 +59,16 @@ export function HeroStartRunCard({ hero, isLoading, onStartRun, nearbyTargetCoun
         : theme.hintText;
 
     return (
-        <div className="mx-4 rounded-2xl border border-white/10 bg-gradient-to-br from-primary/20 via-primary/10 to-transparent p-5 backdrop-blur-xl shadow-[0_4px_32px_hsl(var(--primary)/0.15)]">
+        <div className="relative mx-4 rounded-2xl border border-white/10 bg-gradient-to-br from-primary/20 via-primary/10 to-transparent p-5 backdrop-blur-xl shadow-[0_4px_32px_hsl(var(--primary)/0.15)]">
+            <button
+                type="button"
+                onClick={onSmartPlan}
+                className="absolute right-4 top-4 inline-flex h-8 items-center gap-1.5 rounded-full border border-white/30 bg-white/90 px-2.5 text-[11px] font-semibold text-slate-900 shadow-md transition-all active:scale-95 dark:border-white/20 dark:bg-slate-900/85 dark:text-white"
+            >
+                <Route className="h-3.5 w-3.5" />
+                智能规划
+            </button>
+
             {/* Main CTA Button */}
             <motion.button
                 disabled={isStarting}
@@ -121,10 +123,9 @@ export function HeroStartRunCard({ hero, isLoading, onStartRun, nearbyTargetCoun
                 )}
             </p>
 
-            {/* Mode toggle pills */}
-            <div className="mt-3 flex justify-center">
-                <ModeTogglePills activeMode={activeMode} onModeChange={handleModeChange} attackTargetCount={nearbyTargetCount} onSmartPlan={onSmartPlan} />
-            </div>
+            {false && (
+                <div className="mt-3 flex justify-center" />
+            )}
 
             {/* Mode hint text — consumed from theme config */}
             <p className="mt-2 text-center text-[10px] text-foreground/30">

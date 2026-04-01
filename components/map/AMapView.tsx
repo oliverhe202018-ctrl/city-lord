@@ -3,6 +3,7 @@ import { useMap } from './AMapContext';
 import { MapLayer } from './layers/MapLayer';
 import { ClaimedPolygonLayer } from './layers/ClaimedPolygonLayer';
 import { TrajectoryLayer } from './layers/TrajectoryLayer';
+import { GhostPathLayer } from './layers/GhostPathLayer';
 import { UserMarkerLayer } from './layers/UserMarkerLayer';
 import { LoadingSkeleton } from './LoadingSkeleton';
 import { LocationIndicator } from './LocationIndicator';
@@ -25,6 +26,7 @@ export interface AMapViewProps {
   onMapLoad?: () => void;
   viewMode?: 'user' | 'club';
   sessionClaims?: { lat: number; lng: number; timestamp: number }[][]; // Claimed polygons during run
+  ghostPath?: [number, number][] | null;
   onViewportKingChange?: (king: ViewportKingData | null) => void;
 }
 
@@ -47,7 +49,7 @@ export interface ViewportKingData {
  * State flows from MapRoot downward via context.
  */
 const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
-  ({ showTerritory, showControls = true, onMapLoad, viewMode, sessionClaims = [], onViewportKingChange }, ref) => {
+  ({ showTerritory, showControls = true, onMapLoad, viewMode, sessionClaims = [], ghostPath = null, onViewportKingChange }, ref) => {
     const {
       map, // Added map instance
       currentLocation, // User GPS position
@@ -140,6 +142,15 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
               path={userPath}
               strokeColor="#3B82F6"
               strokeWeight={6}
+            />
+          )}
+
+          {ghostPath && ghostPath.length > 1 && (
+            <GhostPathLayer
+              map={mapLayerRef?.current?.map as any}
+              ghostPath={ghostPath}
+              strokeColor="#22C55E"
+              strokeWeight={7}
             />
           )}
 

@@ -252,7 +252,7 @@ export function MapHeader({
     }
 
     switch (gpsStatus) {
-      case 'locating': return { icon: Navigation, color: 'text-yellow-400', bg: 'bg-yellow-500/20', border: 'border-yellow-500/30', text: '定位中' }
+      case 'locating': return { icon: Navigation, color: 'text-slate-900 dark:text-white', bg: 'bg-yellow-500/20', border: 'border-yellow-500/30', text: '定位中' }
       case 'error': return { icon: Navigation, color: 'text-red-400', bg: 'bg-red-500/20', border: 'border-red-500/30', text: 'GPS异常' }
       default: return { icon: Navigation, color: 'text-slate-400', bg: 'bg-slate-500/20', border: 'border-slate-500/30', text: '无信号' }
     }

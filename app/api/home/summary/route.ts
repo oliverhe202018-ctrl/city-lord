@@ -422,18 +422,22 @@ async function fetchBattleFeed(userId: string): Promise<BattleEvent[]> {
         select: {
             id: true,
             territory_id: true,
+            old_owner_id: true,
             changed_at: true,
         },
     });
 
     for (const log of wonTerritories) {
+        const attackedOthers = Boolean(log.old_owner_id && log.old_owner_id !== userId);
         events.push({
             id: `win-${log.id}`,
-            type: 'win',
-            text: `你占领了 ${log.territory_id.slice(0, 8)}`,
+            type: attackedOthers ? 'share' : 'win',
+            text: attackedOthers
+                ? `你攻击并夺取了 ${log.territory_id.slice(0, 8)}`
+                : `你扩张并占领了 ${log.territory_id.slice(0, 8)}`,
             createdAt: log.changed_at?.toISOString() ?? new Date().toISOString(),
-            ctaType: 'share',
-            ctaLabel: '炫耀',
+            ctaType: 'see',
+            ctaLabel: attackedOthers ? '战报' : '查看',
             severity: 'info',
         });
     }

@@ -17,6 +17,8 @@ interface BattleFeedMiniProps {
 const COLLAPSED_COUNT = 3;
 const MAX_EXPANDED = 20;
 
+type FeedCategory = 'claimed' | 'under_attack' | 'attacked_others' | 'other';
+
 const eventIcons: Record<string, React.ReactNode> = {
     lost: <AlertTriangle className="h-3.5 w-3.5" />,
     defend: <Shield className="h-3.5 w-3.5" />,
@@ -24,12 +26,57 @@ const eventIcons: Record<string, React.ReactNode> = {
     share: <Share2 className="h-3.5 w-3.5" />,
 };
 
-const eventColors: Record<string, string> = {
-    lost: 'text-red-400 bg-red-400/10 border-red-400/20',
-    defend: 'text-blue-400 bg-blue-400/10 border-blue-400/20',
-    win: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20',
-    share: 'text-purple-400 bg-purple-400/10 border-purple-400/20',
-};
+const fallbackMockEvents: BattleEvent[] = [
+    {
+        id: 'mock-claimed',
+        type: 'win',
+        text: '你成功扩张并获取了 2 块新领地',
+        createdAt: new Date(Date.now() - 12 * 60 * 1000).toISOString(),
+        ctaType: 'see',
+        ctaLabel: '查看',
+        severity: 'info',
+    },
+    {
+        id: 'mock-under-attack',
+        type: 'lost',
+        text: '你的东侧领地遭到攻击并失守 1 块',
+        createdAt: new Date(Date.now() - 38 * 60 * 1000).toISOString(),
+        relatedTargetId: 'mock-target-1',
+        ctaType: 'counter',
+        ctaLabel: '反击',
+        severity: 'warn',
+    },
+    {
+        id: 'mock-attacked-others',
+        type: 'share',
+        text: '你发起突袭并夺取了对手领地',
+        createdAt: new Date(Date.now() - 65 * 60 * 1000).toISOString(),
+        ctaType: 'see',
+        ctaLabel: '战报',
+        severity: 'info',
+    },
+];
+
+function resolveFeedCategory(event: BattleEvent): FeedCategory {
+    const text = event.text.toLowerCase();
+    if (event.type === 'lost' || text.includes('被攻击') || text.includes('失守') || text.includes('偷走')) {
+        return 'under_attack';
+    }
+    if (text.includes('攻击') || text.includes('突袭') || text.includes('进攻')) {
+        return 'attacked_others';
+    }
+    if (event.type === 'win' || text.includes('占领') || text.includes('扩张') || text.includes('获取领地') || text.includes('夺取')) {
+        return 'claimed';
+    }
+    return 'other';
+}
+
+function getCategoryClasses(category: FeedCategory): string {
+    if (category === 'claimed') return 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20';
+    if (category === 'under_attack') return 'text-red-400 bg-red-400/10 border-red-400/20';
+    if (category === 'attacked_others') return 'text-orange-400 bg-orange-400/10 border-orange-400/20';
+    return 'text-blue-400 bg-blue-400/10 border-blue-400/20';
+}
 
 function timeAgo(iso: string): string {
     const diff = Date.now() - new Date(iso).getTime();
@@ -46,7 +93,8 @@ function EventRow({ event, onCounterAttack, onViewEvent }: {
     onCounterAttack: (e: BattleEvent) => void;
     onViewEvent: (e: BattleEvent) => void;
 }) {
-    const colorClass = eventColors[event.type] || eventColors.win;
+    const category = resolveFeedCategory(event);
+    const colorClass = getCategoryClasses(category);
     const isWarning = event.severity === 'warn';
 
     return (
@@ -105,16 +153,20 @@ export function BattleFeedMini({ events, onCounterAttack, onViewEvent, onTargetU
     const [toastMsg, setToastMsg] = useState<string | null>(null);
 
     // Sort: warn first, then by createdAt desc
+    const mergedEvents = useMemo(() => {
+        if (events.length > 0) return events;
+        return fallbackMockEvents;
+    }, [events]);
+
     const sortedEvents = useMemo(() => {
-        return [...events].sort((a, b) => {
+        return [...mergedEvents].sort((a, b) => {
             if (a.severity === 'warn' && b.severity !== 'warn') return -1;
             if (a.severity !== 'warn' && b.severity === 'warn') return 1;
             return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
         });
-    }, [events]);
+    }, [mergedEvents]);
 
     const hasWarning = sortedEvents.some((e) => e.severity === 'warn');
-    const isEmpty = !isLoading && sortedEvents.length === 0;
     const hasMore = sortedEvents.length > COLLAPSED_COUNT;
 
     const warnCount = useMemo(() => sortedEvents.filter(e => e.severity === 'warn').length, [sortedEvents]);
@@ -180,12 +232,7 @@ export function BattleFeedMini({ events, onCounterAttack, onViewEvent, onTargetU
                 </motion.div>
             )}
 
-            {isEmpty ? (
-                <div className="rounded-xl border border-dashed border-white/10 bg-white/3 py-6 text-center">
-                    <Shield className="mx-auto h-5 w-5 text-foreground/20 mb-1.5" />
-                    <p className="text-xs text-foreground/40">一切平静，暂无战况</p>
-                </div>
-            ) : isLoading ? (
+            {isLoading ? (
                 <div className="space-y-2">
                     {Array.from({ length: 3 }).map((_, i) => (
                         <div key={i} className="flex items-center gap-2.5 rounded-xl bg-white/3 p-2.5 animate-pulse">
@@ -200,6 +247,11 @@ export function BattleFeedMini({ events, onCounterAttack, onViewEvent, onTargetU
                 </div>
             ) : (
                 <>
+                    {events.length === 0 && (
+                        <div className="mb-2 rounded-lg border border-amber-400/20 bg-amber-400/10 px-3 py-2 text-[11px] text-amber-200/90">
+                            当前为演示动态：已预置“获取领地 / 领地被攻击 / 攻击他人领地”三类渲染分支
+                        </div>
+                    )}
                     <AnimatePresence mode="popLayout">
                         <div className="space-y-2">
                             {visibleEvents.map((event) => (
