@@ -28,6 +28,7 @@ export interface AMapViewProps {
   sessionClaims?: { lat: number; lng: number; timestamp: number }[][]; // Claimed polygons during run
   ghostPath?: [number, number][] | null;
   onViewportKingChange?: (king: ViewportKingData | null) => void;
+  isRunTakeoverActive?: boolean;
 }
 
 export interface ViewportKingData {
@@ -49,7 +50,7 @@ export interface ViewportKingData {
  * State flows from MapRoot downward via context.
  */
 const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
-  ({ showTerritory, showControls = true, onMapLoad, viewMode, sessionClaims = [], ghostPath = null, onViewportKingChange }, ref) => {
+  ({ showTerritory, showControls = true, onMapLoad, viewMode, sessionClaims = [], ghostPath = null, onViewportKingChange, isRunTakeoverActive = false }, ref) => {
     const {
       map, // Added map instance
       currentLocation, // User GPS position
@@ -95,7 +96,7 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
     return (
       <div className="relative w-full h-full">
         {/* New Non-blocking Location Indicator */}
-        <LocationIndicator status={locationStatus || 'initializing'} />
+        <LocationIndicator status={locationStatus || 'initializing'} isRunTakeoverActive={isRunTakeoverActive} />
 
         {/* Layer 1: Pure Map */}
         <div className="w-full h-full">

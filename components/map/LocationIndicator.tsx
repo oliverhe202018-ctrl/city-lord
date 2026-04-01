@@ -4,7 +4,7 @@ import { Loader2, Check } from 'lucide-react';
 import { LocationStatus } from '@/hooks/useSafeGeolocation';
 import { useEffect, useState } from 'react';
 
-export function LocationIndicator({ status }: { status: LocationStatus }) {
+export function LocationIndicator({ status, isRunTakeoverActive = false }: { status: LocationStatus; isRunTakeoverActive?: boolean }) {
     const [visible, setVisible] = useState(true);
 
     useEffect(() => {
@@ -18,7 +18,7 @@ export function LocationIndicator({ status }: { status: LocationStatus }) {
         }
     }, [status]);
 
-    if (!visible) return null;
+    if (isRunTakeoverActive || !visible) return null;
 
     return (
         <div className="absolute top-4 left-4 z-50 animate-in slide-in-from-top-2 fade-in duration-300">

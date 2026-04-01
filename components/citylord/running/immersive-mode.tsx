@@ -915,7 +915,7 @@ export function ImmersiveRunningMode({
                 </button>
                 <button
                   type="button"
-                  className="flex h-14 w-14 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white active:scale-95"
+                  className="pointer-events-auto relative z-[10020] flex h-14 w-14 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white active:scale-95"
                   onClick={() => {
                     setViewMode('map')
                     setRecenterTrigger((prev) => prev + 1)
@@ -949,7 +949,7 @@ export function ImmersiveRunningMode({
           <div className="pointer-events-auto absolute left-4 right-4 top-[calc(env(safe-area-inset-top)+12px)] z-50 flex items-center justify-between">
             <button
               type="button"
-              className="flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-black/70 text-white shadow-lg active:scale-95"
+              className="pointer-events-auto relative z-[10020] flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-black/70 text-white shadow-lg active:scale-95"
               onClick={() => setViewMode('dashboard')}
             >
               <ArrowLeft className="h-5 w-5" />

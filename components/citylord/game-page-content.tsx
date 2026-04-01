@@ -820,6 +820,7 @@ export function GamePageContent({
                   sessionClaims={sessionClaims}
                   ghostPath={ghostPath}
                   onViewportKingChange={setViewportKing}
+                  isRunTakeoverActive={isRunTakeoverActive}
                 />
                 {shouldShowPlayChrome && <MemoizedFactionSelector initialUser={initialUser} />}
                 {shouldShowPlayChrome && <MemoizedReferralWelcome />}
@@ -990,7 +991,7 @@ export function GamePageContent({
 
           {!isRunTakeoverActive && activeTab === "mode" && (
             <div className="relative h-dvh w-full overflow-hidden">
-              <MemoizedAMapView ref={mapViewRef} showTerritory={showTerritory} showControls={shouldShowPlayChrome} viewMode={mapViewMode} sessionClaims={sessionClaims} ghostPath={ghostPath} />
+              <MemoizedAMapView ref={mapViewRef} showTerritory={showTerritory} showControls={shouldShowPlayChrome} viewMode={mapViewMode} sessionClaims={sessionClaims} ghostPath={ghostPath} isRunTakeoverActive={isRunTakeoverActive} />
               <div className="relative z-10 h-full w-full pointer-events-none">
                 <div className="pointer-events-auto">
                   <MemoizedMapHeader
@@ -1040,7 +1041,7 @@ export function GamePageContent({
       {!hydrated ? (
         <ImmersiveSkeleton />
       ) : isRunTakeoverActive ? (
-        <div className="fixed inset-0 z-[95] pointer-events-auto">
+        <div className="absolute inset-0 z-[9999] pointer-events-none">
           <MemoizedImmersiveRunningMode
             isActive={isImmersiveActive}
             useSharedMapBase

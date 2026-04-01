@@ -239,10 +239,6 @@ export function MapHeader({
   }, [latitude, longitude, setStoreRegion]);
 
   const [requestingLocation, setRequestingLocation] = useState(false);
-  const location = latitude && longitude ? { lat: latitude, lng: longitude } : null;
-  const showLocating = gpsStatus === 'locating' && (!location || !location.lat);
-
-  if (isRunTakeoverActive) return null;
 
   // GPS Status Config
   const getGpsStatusConfig = () => {
@@ -351,6 +347,10 @@ export function MapHeader({
     return () => observer.disconnect();
   }, []);
 
+  if (isRunTakeoverActive) {
+    return null
+  }
+
   if (!currentCity || isLoading || !hydrated) {
     return (
       <div className="fixed top-0 left-0 right-0 z-[100] px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
@@ -382,8 +382,7 @@ export function MapHeader({
               <span className="text-xl">{currentCity.icon}</span>
               <div className="flex flex-col items-start">
                 <span className="text-xs font-bold text-slate-900 dark:text-white">
-                  {/* Show cached district immediately; only show "定位中..." if locating AND no cached value */}
-                  {(showLocating && !currentDistrict) ? '定位中...' : (currentDistrict || '未知位置')}
+                  {currentDistrict || '未知位置'}
                 </span>
                 <ChevronDown className="w-3 h-3 text-slate-900 dark:text-white" />
               </div>
