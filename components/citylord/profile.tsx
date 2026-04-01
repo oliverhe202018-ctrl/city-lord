@@ -29,7 +29,6 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Slider } from "@/components/ui/slider"
 import { FactionBattleBackground } from "@/components/Faction/FactionBattleBackground"
 import { Loader2, TrendingUp } from "lucide-react"
 import { ThemeSwitcher } from "@/components/citylord/theme/ThemeSwitcher"
@@ -58,12 +57,10 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
     totalArea,
     avatar,
     backgroundUrl,
-    territoryAppearance,
     setNickname,
     setAvatar,
     resetUser,
-    syncUserProfile,
-    setTerritoryAppearance
+    syncUserProfile
   } = useGameStore()
 
   const [isEditing, setIsEditing] = React.useState(false)
@@ -191,28 +188,6 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
 
   // Load colors when editing starts
   React.useEffect(() => {
-    if (isEditing && userId) {
-      const loadColors = async () => {
-        const supabase = createClient()
-        const { data } = await (supabase
-          .from('profiles' as any) as any)
-          .select('path_color, fill_color, fill_opacity')
-          .eq('id', userId)
-          .single()
-
-        if (data) {
-          setTerritoryAppearance({
-            strokeColor: data.path_color || territoryAppearance.strokeColor,
-            fillColor: data.fill_color || territoryAppearance.fillColor,
-            fillOpacity: typeof data.fill_opacity === 'number' ? data.fill_opacity : territoryAppearance.fillOpacity,
-          })
-        }
-      }
-      loadColors()
-    }
-  }, [isEditing, setTerritoryAppearance, territoryAppearance.fillColor, territoryAppearance.fillOpacity, territoryAppearance.strokeColor, userId])
-
-  React.useEffect(() => {
     return () => {
       // Cleanup logic if needed
       // Ensure we don't crash on unmount
@@ -283,9 +258,6 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
       const supabase = createClient()
       const updates: any = {
         nickname: editName,
-        path_color: territoryAppearance.strokeColor,
-        fill_color: territoryAppearance.fillColor,
-        fill_opacity: territoryAppearance.fillOpacity,
       }
       if (editAvatar) {
         updates.avatar_url = editAvatar
@@ -495,45 +467,6 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-foreground/70">主题风格</label>
                     <ThemeSwitcher />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-foreground/70">路径颜色</label>
-                      <div className="flex items-center gap-2">
-                        <Input
-                          type="color"
-                          value={territoryAppearance.strokeColor}
-                          onChange={(e) => setTerritoryAppearance({ strokeColor: e.target.value })}
-                          className="h-10 w-full p-1 bg-muted/20 border-border cursor-pointer"
-                        />
-                        <span className="text-xs text-muted-foreground font-mono">{territoryAppearance.strokeColor}</span>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-foreground/70">领地填充</label>
-                      <div className="flex items-center gap-2">
-                        <Input
-                          type="color"
-                          value={territoryAppearance.fillColor}
-                          onChange={(e) => setTerritoryAppearance({ fillColor: e.target.value })}
-                          className="h-10 w-full p-1 bg-muted/20 border-border cursor-pointer"
-                        />
-                        <span className="text-xs text-muted-foreground font-mono">{territoryAppearance.fillColor}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <label className="text-sm font-medium text-foreground/70">填充透明度</label>
-                      <span className="text-xs text-muted-foreground font-mono">{Math.round(territoryAppearance.fillOpacity * 100)}%</span>
-                    </div>
-                    <Slider
-                      value={[territoryAppearance.fillOpacity]}
-                      min={0.12}
-                      max={0.72}
-                      step={0.02}
-                      onValueChange={([value]) => setTerritoryAppearance({ fillOpacity: value })}
-                    />
                   </div>
                 </div>
                 <div className="flex justify-end gap-3">

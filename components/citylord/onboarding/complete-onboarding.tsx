@@ -13,7 +13,8 @@ import {
   Zap,
   Play,
   Check,
-  Sparkles
+  Sparkles,
+  Route
 } from "lucide-react"
 
 // ============================================================
@@ -428,6 +429,14 @@ export function QuickNavPopup({ isOpen, onClose, onNavigate, missionCount }: Qui
   if (!isOpen) return null
 
   const navOptions = [
+    {
+      id: "planner",
+      title: "智能规划",
+      description: "先选路线再开跑",
+      icon: Route,
+      color: "#06b6d4",
+      badge: undefined,
+    },
     {
       id: "missions",
       title: "查看任务",

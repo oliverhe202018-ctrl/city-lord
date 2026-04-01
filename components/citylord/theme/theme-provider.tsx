@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react"
 import { isNativePlatform, safeGetPlatform, safeStatusBarSetBackgroundColor, safeStatusBarSetOverlaysWebView, safeStatusBarSetStyle } from "@/lib/capacitor/safe-plugins";
+import { useGameStore } from "@/store/useGameStore";
 
 
 // ============================================================
@@ -344,6 +345,9 @@ interface ThemeSwitcherProps {
 
 export function ThemeSwitcher({ isOpen, onClose }: ThemeSwitcherProps) {
   const { themeId, setTheme, customColors, setCustomColor, theme } = useTheme()
+  const territoryAppearance = useGameStore((state) => state.territoryAppearance)
+  const setTerritoryAppearance = useGameStore((state) => state.setTerritoryAppearance)
+  const resetTerritoryAppearance = useGameStore((state) => state.resetTerritoryAppearance)
   const [showCustomizer, setShowCustomizer] = useState(false)
 
   if (!isOpen) return null
@@ -351,6 +355,10 @@ export function ThemeSwitcher({ isOpen, onClose }: ThemeSwitcherProps) {
   const presetColors = [
     "#22c55e", "#059669", "#06b6d4", "#3b82f6", 
     "#8b5cf6", "#ec4899", "#f59e0b", "#ef4444"
+  ]
+  const territoryPresetColors = [
+    "#3B82F6", "#22C55E", "#EF4444", "#A855F7",
+    "#EC4899", "#F59E0B", "#14B8A6", "#334155"
   ]
 
   return (
@@ -542,6 +550,80 @@ export function ThemeSwitcher({ isOpen, onClose }: ThemeSwitcherProps) {
             </div>
           </>
         )}
+
+        <div
+          className="mt-4 rounded-2xl border p-4"
+          style={{
+            borderColor: theme.colors.border,
+            backgroundColor: theme.colors.card,
+          }}
+        >
+          <h3
+            className="mb-3 text-sm font-semibold"
+            style={{ color: theme.colors.foreground }}
+          >
+            领地外观
+          </h3>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <p className="text-xs" style={{ color: theme.colors.foregroundMuted }}>边界线颜色</p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={territoryAppearance.strokeColor}
+                  onChange={(e) => setTerritoryAppearance({ strokeColor: e.target.value })}
+                  className="h-9 w-12 cursor-pointer rounded border p-1"
+                  style={{ borderColor: theme.colors.border, backgroundColor: "transparent" }}
+                />
+                <span className="text-xs font-mono" style={{ color: theme.colors.foreground }}>
+                  {territoryAppearance.strokeColor.toUpperCase()}
+                </span>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <p className="text-xs" style={{ color: theme.colors.foregroundMuted }}>填充颜色</p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={territoryAppearance.fillColor}
+                  onChange={(e) => setTerritoryAppearance({ fillColor: e.target.value })}
+                  className="h-9 w-12 cursor-pointer rounded border p-1"
+                  style={{ borderColor: theme.colors.border, backgroundColor: "transparent" }}
+                />
+                <span className="text-xs font-mono" style={{ color: theme.colors.foreground }}>
+                  {territoryAppearance.fillColor.toUpperCase()}
+                </span>
+              </div>
+            </div>
+          </div>
+          <div className="mt-3">
+            <p className="mb-2 text-xs" style={{ color: theme.colors.foregroundMuted }}>预设色板</p>
+            <div className="flex flex-wrap gap-2">
+              {territoryPresetColors.map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  onClick={() => setTerritoryAppearance({ strokeColor: color, fillColor: color })}
+                  className="h-7 w-7 rounded-full border transition-transform active:scale-95"
+                  style={{ backgroundColor: color, borderColor: theme.colors.border }}
+                  aria-label={`使用预设颜色 ${color}`}
+                />
+              ))}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={resetTerritoryAppearance}
+            className="mt-3 w-full rounded-xl border py-2 text-xs font-medium transition-all"
+            style={{
+              borderColor: theme.colors.border,
+              color: theme.colors.foregroundMuted,
+              backgroundColor: theme.colors.backgroundSecondary,
+            }}
+          >
+            恢复默认蓝色
+          </button>
+        </div>
 
         <button
           onClick={onClose}

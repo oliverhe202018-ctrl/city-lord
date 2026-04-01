@@ -28,6 +28,7 @@ import {
 } from "@/components/citylord/feedback/error-feedback"
 import { useLocationContext } from "@/components/GlobalLocationProvider";
 import { useGameStore, useGameActions, useGameUser } from "@/store/useGameStore";
+import { useLocationStore } from "@/store/useLocationStore";
 import { useHydration } from "@/hooks/useHydration";
 import { ThemeSwitcher } from "@/components/citylord/theme/theme-provider";
 import { ModeSwitcher } from '@/components/mode/ModeSwitcher';
@@ -37,7 +38,7 @@ import { MyClub } from '@/components/mode/MyClub';
 import { AMapViewHandle, ViewportKingData } from "@/components/map/AMapView";
 import { FactionSelector } from "@/components/social/FactionSelector"
 import { ReferralWelcome } from "@/components/social/ReferralWelcome"
-import { useSearchParams, useRouter } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { ACHIEVEMENT_DEFINITIONS } from "@/lib/achievements"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/useAuth"
@@ -139,7 +140,6 @@ export function GamePageContent({
   initialUser
 }: GamePageContentProps) {
   const searchParams = useSearchParams()
-  const router = useRouter()
   const { user, isAuthenticated, loading: isAuthLoading } = useAuth(initialUser)
   const { isLoading: isCityLoading, currentCity } = useCity()
   const { checkStaminaRecovery, dismissGeolocationPrompt, claimAchievement, addTotalDistance, openDrawer, closeDrawer } = useGameActions()
@@ -392,6 +392,7 @@ export function GamePageContent({
   const [tutorialStep, setTutorialStep] = useState(0)
   const [showQuickNav, setShowQuickNav] = useState(false)
   const [showMapGuide, setShowMapGuide] = useState(false)
+  const [openPlannerOnStart, setOpenPlannerOnStart] = useState(false);
   const [showThemeSwitcher, setShowThemeSwitcher] = useState(false)
   const [hasResolvedOnboarding, setHasResolvedOnboarding] = useState(false)
   const [shouldHideButtons, setShouldHideButtons] = useState(false);
@@ -411,11 +412,14 @@ export function GamePageContent({
   const userLat = useGameStore((state) => state.latitude)
   const userLng = useGameStore((state) => state.longitude)
   const gameMode = useGameStore((state) => state.gameMode);
+  const gpsStatus = useGameStore((state) => state.gpsStatus);
   const gpsError = useGameStore((state) => state.gpsError);
   const activeDrawer = useGameStore((state) => state.activeDrawer);
   const hasDismissedGeolocationPrompt = useGameStore((state) => state.hasDismissedGeolocationPrompt);
   const ghostPath = useGameStore((state) => state.ghostPath);
   const setGhostPath = useGameStore((state) => state.setGhostPath);
+  const liveLocation = useLocationStore((state) => state.location);
+  const locationSignalStrength = useLocationStore((state) => state.gpsSignalStrength);
   const isRunTakeoverActive = isCountingDown || isImmersiveActive
   const shouldRenderPlaySurface = activeTab === "home" || activeTab === "play" || activeTab === "start" || isRunTakeoverActive
   const shouldShowPlayChrome = activeTab === "play" && !isRunTakeoverActive
@@ -623,10 +627,23 @@ export function GamePageContent({
       return false
     }
 
+    const nextLat = liveLocation?.lat ?? immersiveCurrentLocation?.lat
+    const nextLng = liveLocation?.lng ?? immersiveCurrentLocation?.lng
+    const locationAccuracy = liveLocation?.accuracy
+    const isGpsFailed = gpsStatus === 'error' || gpsError === 'PERMISSION_DENIED'
+    const isMissingLocation = !Number.isFinite(nextLat) || !Number.isFinite(nextLng)
+    const isAccuracyTooPoor = typeof locationAccuracy === 'number' && locationAccuracy > 80
+    const isSignalUnavailable = locationSignalStrength === 'none'
+
+    if (isGpsFailed || isMissingLocation || isAccuracyTooPoor || isSignalUnavailable) {
+      toast.error('定位不准或定位失败，请检查设备定位设置或移动到开阔地带')
+      return false
+    }
+
     setActiveTab("play")
     startCountdown()
     return true
-  }, [isAuthenticated, startCountdown])
+  }, [gpsError, gpsStatus, immersiveCurrentLocation, isAuthenticated, liveLocation, locationSignalStrength, startCountdown])
 
   const handleQuickNavigate = useCallback((tab: string, options?: { initialFilter?: 'all' | 'daily' | 'weekly' }) => {
     if (options?.initialFilter) {
@@ -634,6 +651,9 @@ export function GamePageContent({
     }
 
     if (tab === "running") {
+      setActiveTab("start")
+    } else if (tab === "planner") {
+      setOpenPlannerOnStart(true)
       setActiveTab("start")
     } else {
       setActiveTab(tab as TabType)
@@ -676,8 +696,13 @@ export function GamePageContent({
   }, []);
 
   const handlePlannerOpen = useCallback(() => {
-    router.push('/game/planner');
-  }, [router]);
+    setOpenPlannerOnStart(true)
+    setActiveTab("start")
+  }, []);
+
+  const handlePlannerAutoOpened = useCallback(() => {
+    setOpenPlannerOnStart(false)
+  }, [])
 
   const handleRunHistoryOpen = useCallback(() => {
     openDrawer('runHistory');
@@ -1018,6 +1043,8 @@ export function GamePageContent({
                     onBeginRun={() => {
                       beginRunStart()
                     }}
+                    autoOpenPlanner={openPlannerOnStart}
+                    onPlannerAutoOpened={handlePlannerAutoOpened}
                   />
                 )}
               </div>

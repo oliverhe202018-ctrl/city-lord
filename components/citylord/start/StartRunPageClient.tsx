@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { ArrowLeft, LocateFixed, Route, X, Signal } from "lucide-react"
 import * as turf from "@turf/turf"
 import { Button } from "@/components/ui/button"
@@ -61,9 +61,11 @@ function normalizeWaypoints(input: unknown[]): [number, number][] {
 interface StartRunOverlayProps {
   onBack: () => void
   onBeginRun: () => void
+  autoOpenPlanner?: boolean
+  onPlannerAutoOpened?: () => void
 }
 
-export function StartRunOverlay({ onBack, onBeginRun }: StartRunOverlayProps) {
+export function StartRunOverlay({ onBack, onBeginRun, autoOpenPlanner = false, onPlannerAutoOpened }: StartRunOverlayProps) {
   const gpsSignalStrength = useLocationStore((s) => s.gpsSignalStrength)
   const ghostPath = useGameStore((s) => s.ghostPath)
   const setGhostPath = useGameStore((s) => s.setGhostPath)
@@ -95,6 +97,16 @@ export function StartRunOverlay({ onBack, onBeginRun }: StartRunOverlayProps) {
       alive = false
     }
   }, [openPlanner])
+
+  useEffect(() => {
+    if (!autoOpenPlanner) return
+    setOpenPlanner(true)
+    onPlannerAutoOpened?.()
+  }, [autoOpenPlanner, onPlannerAutoOpened])
+
+  const handleSmartPlan = useCallback(() => {
+    setOpenPlanner(true)
+  }, [])
 
   useEffect(() => {
     let mounted = true
@@ -175,7 +187,7 @@ export function StartRunOverlay({ onBack, onBeginRun }: StartRunOverlayProps) {
               type="button"
               variant="outline"
               className="h-11 rounded-full border border-slate-200/60 bg-white px-4 text-sm font-semibold text-slate-900 shadow-lg"
-              onClick={() => setOpenPlanner(true)}
+              onClick={handleSmartPlan}
             >
               <Route className="mr-2 h-4 w-4" />
               智能规划

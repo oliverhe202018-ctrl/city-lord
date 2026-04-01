@@ -74,7 +74,7 @@ export function HeroStartRunCard({ hero, isLoading, onStartRun, nearbyTargetCoun
                 disabled={isStarting}
                 onClick={handleStart}
                 whileTap={!isStarting && !reducedMotion ? { scale: 0.96 } : {}}
-                className={`group relative w-full rounded-2xl py-4 text-center font-black text-lg shadow-[0_6px_24px_hsl(var(--primary)/0.5)] transition-all outline-none focus-visible:ring-4 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${isStarting
+                className={`group relative w-full rounded-2xl py-4 text-center font-black text-lg shadow-[0_6px_24px_hsl(var(--primary)/0.5)] transition-all outline-none focus-visible:ring-4 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${onSmartPlan ? 'mt-9' : ''} ${isStarting
                     ? 'bg-primary/50 cursor-not-allowed'
                     : 'bg-gradient-to-r from-primary to-primary/80 hover:brightness-110 active:brightness-90'
                     }`}

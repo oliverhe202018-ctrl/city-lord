@@ -64,15 +64,9 @@ function TerritoryMessageRow({ message, onViewEvent }: {
 }
 
 export function BattleFeedMini({ events, onCounterAttack, onViewEvent, onTargetUnavailable, isLoading }: BattleFeedMiniProps) {
-    const {
-        systemMessages,
-        isLoading: isSystemLoading,
-        fetchSystemMessages
-    } = useMessageStore((s) => ({
-        systemMessages: s.systemMessages,
-        isLoading: s.isLoading,
-        fetchSystemMessages: s.fetchSystemMessages
-    }));
+    const systemMessages = useMessageStore((s) => s.systemMessages);
+    const isSystemLoading = useMessageStore((s) => s.isLoading);
+    const fetchSystemMessages = useMessageStore((s) => s.fetchSystemMessages);
 
     useEffect(() => {
         fetchSystemMessages();
