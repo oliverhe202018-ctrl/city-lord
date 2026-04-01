@@ -818,6 +818,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
         if (!recovered) {
           // Force-reset ALL state for a clean start
+          setIsPaused(false);
           setPath([]);
           setDistance(0);
           setDuration(0);

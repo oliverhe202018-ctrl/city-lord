@@ -303,6 +303,7 @@ export function GamePageContent({
     path,
     closedPolygons,
     sessionClaims, // NEW: Claimed polygons for rendering
+    isPaused: trackerIsPaused,
     togglePause: toggleTrackerPause,
     stop: stopTracker,
     clearRecovery,
@@ -1142,6 +1143,7 @@ export function GamePageContent({
             heartRate={0}
             hexesCaptured={sessionHexes}
             currentHexProgress={0}
+            initialIsPaused={trackerIsPaused}
             onPause={handleTrackerPause}
             onResume={handleTrackerPause}
             onStop={handleStopRun}

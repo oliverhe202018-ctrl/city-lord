@@ -281,6 +281,32 @@ function getDistanceFromLatLonInMeters(lat1: number, lon1: number, lat2: number,
   return d;
 }
 
+interface SummarySnapshot {
+  distanceMeters: number
+  durationSeconds: number
+  duration: string
+  pace: string
+  calories: number
+  capturedArea: number
+  steps: number
+  runIsValid?: boolean
+  antiCheatLog?: string | null
+  runId?: string
+  runNumber?: number
+  damageSummary?: any[]
+  maintenanceSummary?: any[]
+  hexesCaptured: number
+  runTrajectory: Location[]
+}
+
+function cloneSnapshotValue<T>(value: T): T {
+  if (value == null) return value
+  if (typeof structuredClone === "function") {
+    return structuredClone(value)
+  }
+  return JSON.parse(JSON.stringify(value)) as T
+}
+
 export function ImmersiveRunningMode({
   isActive,
   useSharedMapBase = false,
@@ -331,10 +357,10 @@ export function ImmersiveRunningMode({
   const [showStopConfirm, setShowStopConfirm] = useState(false)
   const [recenterTrigger, setRecenterTrigger] = useState(0)
   const [showSummary, setShowSummary] = useState(false)
+  const [summarySnapshot, setSummarySnapshot] = useState<SummarySnapshot | null>(null)
   const [displayedArea, setDisplayedArea] = useState(0)
   const [areaFlash, setAreaFlash] = useState(false)
   const [showLoopWarning, setShowLoopWarning] = useState(false)
-  const [effectiveHexes, setEffectiveHexes] = useState(0)
   const [isSubmitting, setIsSubmitting] = useState(false)
   // Local kingdom toggle — independent of MapRoot context (avoids useMap crash)
   const [showKingdom, setShowKingdom] = useState(false)
@@ -530,6 +556,32 @@ export function ImmersiveRunningMode({
     }
   }, [isPaused, onPause, onResume])
 
+  const freezeTrackerForSummary = useCallback(() => {
+    if (isPaused) return
+    setIsPaused(true)
+    onPause()
+  }, [isPaused, onPause])
+
+  const buildSummarySnapshot = useCallback((snapshotHexes: number): SummarySnapshot => {
+    return {
+      distanceMeters,
+      durationSeconds,
+      duration: time,
+      pace: pace !== undefined ? String(pace) : "00:00",
+      calories,
+      capturedArea: area,
+      steps,
+      runIsValid,
+      antiCheatLog,
+      runId: savedRunId || undefined,
+      runNumber,
+      damageSummary: cloneSnapshotValue(damageSummary),
+      maintenanceSummary: cloneSnapshotValue(maintenanceSummary),
+      hexesCaptured: settledTerritoriesCount !== undefined ? settledTerritoriesCount : snapshotHexes,
+      runTrajectory: cloneSnapshotValue(path || []),
+    }
+  }, [distanceMeters, durationSeconds, time, pace, calories, area, steps, runIsValid, antiCheatLog, savedRunId, runNumber, damageSummary, maintenanceSummary, settledTerritoriesCount, path])
+
   const handleLockScreen = useCallback(() => {
     setIsScreenLocked(true)
   }, [])
@@ -605,7 +657,8 @@ export function ImmersiveRunningMode({
       // If no path data or very short path, just proceed
       const safePath = path || [];
       if (safePath.length < 2) {
-        setEffectiveHexes(hexesCaptured)
+        freezeTrackerForSummary()
+        setSummarySnapshot(buildSummarySnapshot(hexesCaptured))
         setShowSummary(true)
         return
       }
@@ -623,9 +676,8 @@ export function ImmersiveRunningMode({
 
       if (gap <= LOOP_THRESHOLD) {
         // Closed loop
-        setEffectiveHexes(hexesCaptured)
-        // Ensure tracker is paused when showing summary to prevent timer drift
-        if (!isPaused) handlePauseToggle()
+        freezeTrackerForSummary()
+        setSummarySnapshot(buildSummarySnapshot(hexesCaptured))
         setShowSummary(true)
       } else {
         // Open loop - Warn user
@@ -634,7 +686,8 @@ export function ImmersiveRunningMode({
     } catch (err) {
       // Fallback: always allow user to end run even if path analysis fails
       console.error("handleAttemptStop error, falling back to summary:", err)
-      setEffectiveHexes(hexesCaptured)
+      freezeTrackerForSummary()
+      setSummarySnapshot(buildSummarySnapshot(hexesCaptured))
       setShowSummary(true)
     }
   }
@@ -661,6 +714,7 @@ export function ImmersiveRunningMode({
         const { useGameStore } = await import('@/store/useGameStore');
         useGameStore.getState().resetRunState();
         setShowRetryDialog(false);
+        setSummarySnapshot(null);
         onStop();
         setShowSummary(false);
       } catch (saveError) {
@@ -677,6 +731,7 @@ export function ImmersiveRunningMode({
     // Explicitly retain localStorage 'CURRENT_RUN_RECOVERY'
     const { useGameStore } = await import('@/store/useGameStore');
     useGameStore.getState().resetRunState(); // Reset memory state only
+    setSummarySnapshot(null);
     onStop();
     setShowSummary(false);
   };
@@ -710,6 +765,7 @@ export function ImmersiveRunningMode({
       const { useGameStore } = await import('@/store/useGameStore');
       useGameStore.getState().resetRunState();
       
+      setSummarySnapshot(null);
       onStop();
       setShowSummary(false);
       setIsSubmitting(false);
@@ -726,6 +782,7 @@ export function ImmersiveRunningMode({
         useGameStore.getState().resetRunState();
 
         onStop();
+        setSummarySnapshot(null);
         setShowSummary(false);
         // Trigger map refresh (Phase 2)
         if (typeof window !== 'undefined') {
@@ -809,32 +866,32 @@ export function ImmersiveRunningMode({
       useGameStore.getState().resetRunState();
 
       onStop();
+      setSummarySnapshot(null);
       setShowSummary(false);
       setIsSubmitting(false);
     }
   };
 
-  if (showSummary) {
+  if (showSummary && summarySnapshot) {
     return (
       <>
         <RunSummaryView
-          distanceMeters={distanceMeters}
-          durationSeconds={durationSeconds}
-          duration={time}
-          pace={pace !== undefined ? String(pace) : '00:00'}
-          calories={calories}
-
-          capturedArea={area}
-          steps={steps}
-          runIsValid={runIsValid}
-          antiCheatLog={antiCheatLog}
+          distanceMeters={summarySnapshot.distanceMeters}
+          durationSeconds={summarySnapshot.durationSeconds}
+          duration={summarySnapshot.duration}
+          pace={summarySnapshot.pace}
+          calories={summarySnapshot.calories}
+          capturedArea={summarySnapshot.capturedArea}
+          steps={summarySnapshot.steps}
+          runIsValid={summarySnapshot.runIsValid}
+          antiCheatLog={summarySnapshot.antiCheatLog}
           onClose={handleStop}
-          runId={savedRunId || undefined}
-          runNumber={runNumber}
-          damageSummary={damageSummary}
-          maintenanceSummary={maintenanceSummary}
-          hexesCaptured={settledTerritoriesCount !== undefined ? settledTerritoriesCount : effectiveHexes}
-          runTrajectory={path}
+          runId={summarySnapshot.runId}
+          runNumber={summarySnapshot.runNumber}
+          damageSummary={summarySnapshot.damageSummary}
+          maintenanceSummary={summarySnapshot.maintenanceSummary}
+          hexesCaptured={summarySnapshot.hexesCaptured}
+          runTrajectory={summarySnapshot.runTrajectory}
           onShare={() => {
             toast.success("分享图片已生成 (模拟)")
           }}
@@ -911,9 +968,8 @@ export function ImmersiveRunningMode({
                 className="flex-1 bg-red-500 text-white hover:bg-red-600 h-12 rounded-full border-0 font-medium transition-colors"
                 onClick={() => {
                   setShowLoopWarning(false)
-                  setEffectiveHexes(0)
-                  // Ensure tracker is paused when showing summary
-                  if (!isPaused) handlePauseToggle()
+                  freezeTrackerForSummary()
+                  setSummarySnapshot(buildSummarySnapshot(0))
                   setShowSummary(true)
                 }}
               >
