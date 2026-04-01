@@ -26,6 +26,7 @@ export interface AMapViewProps {
   onMapLoad?: () => void;
   viewMode?: 'user' | 'club';
   sessionClaims?: { lat: number; lng: number; timestamp: number }[][]; // Claimed polygons during run
+  runPath?: { lat: number; lng: number; timestamp: number }[];
   ghostPath?: [number, number][] | null;
   onViewportKingChange?: (king: ViewportKingData | null) => void;
   isRunTakeoverActive?: boolean;
@@ -52,7 +53,7 @@ const DEFAULT_CENTER: [number, number] = [116.397428, 39.90923];
  * State flows from MapRoot downward via context.
  */
 const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
-  ({ showTerritory, showControls = true, onMapLoad, viewMode, sessionClaims = [], ghostPath = null, onViewportKingChange, isRunTakeoverActive = false }, ref) => {
+  ({ showTerritory, showControls = true, onMapLoad, viewMode, sessionClaims = [], runPath = [], ghostPath = null, onViewportKingChange, isRunTakeoverActive = false }, ref) => {
     const {
       map, // Added map instance
       currentLocation, // User GPS position
@@ -69,6 +70,7 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
       showFactionColors,
       viewMode: mapViewMode, // 'individual' | 'faction'
       setIsTracking,
+      centerMap,
     } = useMap();
 
     const { setSelectedTerritory, setIsDetailSheetOpen } = useMapInteraction();
@@ -160,10 +162,21 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
       };
     }, [map, isRunTakeoverActive, setIsTracking]);
 
+    const activeTrajectoryPath = (isRunTakeoverActive && runPath.length > 0) ? runPath : userPath;
+
+    useEffect(() => {
+      if (!isRunTakeoverActive || !centerMap) return;
+      centerMap();
+    }, [isRunTakeoverActive, centerMap]);
+
     useEffect(() => {
       if (!isRunTakeoverActive) return;
 
       const handleImmersiveRecenter = () => {
+        if (centerMap) {
+          centerMap();
+          return;
+        }
         if (!map) return;
         const loc = currentLocationRef.current;
         if (!loc) return;
@@ -185,7 +198,7 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
       return () => {
         window.removeEventListener('immersive-recenter-request', handleImmersiveRecenter);
       };
-    }, [map, isRunTakeoverActive, setIsTracking]);
+    }, [map, isRunTakeoverActive, setIsTracking, centerMap]);
 
     return (
       <div className="relative w-full h-full">
@@ -231,10 +244,10 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
           )}
 
           {/* Layer 2b: GPS Trajectory (Real-time Polyline - z-index 50) */}
-          {userPath && userPath.length > 0 && (
+          {activeTrajectoryPath && activeTrajectoryPath.length > 0 && (
             <TrajectoryLayer
               map={mapLayerRef?.current?.map as any}
-              path={userPath}
+              path={activeTrajectoryPath}
               strokeColor="#3B82F6"
               strokeWeight={6}
             />

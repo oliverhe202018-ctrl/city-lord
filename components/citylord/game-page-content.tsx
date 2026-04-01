@@ -143,7 +143,7 @@ export function GamePageContent({
   const searchParams = useSearchParams()
   const { user, isAuthenticated, loading: isAuthLoading } = useAuth(initialUser)
   const { isLoading: isCityLoading, currentCity } = useCity()
-  const { checkStaminaRecovery, dismissGeolocationPrompt, claimAchievement, addTotalDistance, openDrawer, closeDrawer } = useGameActions()
+  const { checkStaminaRecovery, dismissGeolocationPrompt, claimAchievement, addTotalDistance, openDrawer, closeDrawer, startRunning, stopRunning } = useGameActions()
   const { achievements, totalDistance } = useGameUser()
   const { initializeLocationSystem } = useLocationContext()
   const hydrated = useHydration();
@@ -350,6 +350,7 @@ export function GamePageContent({
           logEvent('run_session_found', { runId: data.runId });
 
           setIsRunning(true);
+          startRunning();
           setShowImmersiveMode(true);
           setActiveTab('play'); 
           
@@ -364,7 +365,7 @@ export function GamePageContent({
         localStorage.removeItem(RECOVERY_KEY);
       }
     }
-  }, [hasCheckedRecovery]);
+  }, [hasCheckedRecovery, startRunning]);
 
   // Reset missionsInitialFilter when leaving missions tab
   useEffect(() => {
@@ -765,13 +766,15 @@ export function GamePageContent({
   const handleCountdownComplete = useCallback(() => {
     setIsCountingDown(false)
     setIsRunning(true)
+    startRunning()
     setShowImmersiveMode(true)
     setActiveTab("play")
-  }, []);
+  }, [startRunning]);
 
   // Complex stop handler
   const handleStopRun = useCallback(() => {
     stopTracker()
+    stopRunning()
     clearRecovery()
     setIsCountingDown(false)
     setIsRunning(false)
@@ -805,7 +808,7 @@ export function GamePageContent({
         setShowAchievement(true);
       }
     }
-  }, [distance, totalDistance, achievements, stopTracker, clearRecovery, addTotalDistance, setGhostPath]);
+  }, [distance, totalDistance, achievements, stopTracker, stopRunning, clearRecovery, addTotalDistance, setGhostPath]);
 
   const handleMapLoad = useCallback(() => { }, []);
 
@@ -899,6 +902,7 @@ export function GamePageContent({
                   showControls={shouldShowPlayChrome}
                   onMapLoad={handleMapLoad}
                   sessionClaims={sessionClaims}
+                  runPath={isRunTakeoverActive ? path : undefined}
                   ghostPath={ghostPath}
                   onViewportKingChange={setViewportKing}
                   isRunTakeoverActive={isRunTakeoverActive}
