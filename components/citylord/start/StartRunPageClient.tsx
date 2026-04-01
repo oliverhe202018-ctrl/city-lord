@@ -169,7 +169,7 @@ export function StartRunOverlay({ onBack, onBeginRun }: StartRunOverlayProps) {
         </div>
       </div>
 
-      <div className="absolute inset-x-0 bottom-0 z-20 rounded-t-[30px] border-t border-white/60 bg-white/75 px-5 pb-[calc(env(safe-area-inset-bottom)+16px)] pt-4 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-900/78">
+      <div className="pointer-events-auto absolute inset-x-0 bottom-0 z-20 rounded-t-[30px] border-t border-white/60 bg-white/75 px-5 pb-[calc(env(safe-area-inset-bottom)+16px)] pt-4 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-900/78">
         <div className="mx-auto mb-4 h-1.5 w-16 rounded-full bg-slate-300 dark:bg-slate-600" />
         <div className="mb-4 flex items-center justify-between">
           <div>
@@ -222,7 +222,7 @@ export function StartRunOverlay({ onBack, onBeginRun }: StartRunOverlayProps) {
       </div>
 
       <Drawer open={openPlanner} onOpenChange={setOpenPlanner}>
-        <DrawerContent className="max-h-[78vh] rounded-t-3xl">
+        <DrawerContent className="pointer-events-auto max-h-[78vh] rounded-t-3xl">
           <DrawerHeader>
             <DrawerTitle>选择规划路径</DrawerTitle>
           </DrawerHeader>
@@ -251,8 +251,14 @@ export function StartRunOverlay({ onBack, onBeginRun }: StartRunOverlayProps) {
       </Drawer>
 
       {showBatteryModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="w-[90%] max-w-sm bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-2xl">
+        <div
+          className="pointer-events-auto fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          onClick={() => setShowBatteryModal(false)}
+        >
+          <div
+            className="pointer-events-auto w-[90%] max-w-sm overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900"
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className="flex items-center justify-between bg-rose-500 px-5 py-3 text-white">
               <h2 className="text-base font-extrabold">检测到电池优化限制</h2>
               <button
@@ -293,7 +299,7 @@ export function StartRunOverlay({ onBack, onBeginRun }: StartRunOverlayProps) {
       )}
 
       <Dialog open={showGuideModal} onOpenChange={setShowGuideModal}>
-        <DialogContent className="h-[100dvh] max-w-md rounded-none border-0 p-0" showCloseButton={false}>
+        <DialogContent className="pointer-events-auto h-[100dvh] max-w-md rounded-none border-0 p-0" showCloseButton={false}>
           <div className="flex h-full flex-col bg-background">
             <div className="flex items-center justify-between border-b px-4 py-3">
               <h2 className="text-base font-bold">电池优化关闭指南</h2>
