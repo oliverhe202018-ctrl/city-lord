@@ -13,6 +13,7 @@ import { registerPlugin, Capacitor } from '@capacitor/core';
 import type { PluginListenerHandle } from '@capacitor/core';
 import type { AMapPosition, AMapLocationError } from '@/plugins/amap-location/definitions';
 import type { GeoPoint } from '@/hooks/useSafeGeolocation';
+import { toast } from 'sonner';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -185,6 +186,7 @@ export class AMapLocationBridge {
     // Lazy-loaded modules
     private _AMapLocation: typeof import('@/plugins/amap-location/definitions').AMapLocation | null = null;
     private _gcoord: typeof import('gcoord').default | null = null;
+    private lastDevFallbackToastAt = 0;
 
     constructor(callbacks: BridgeCallbacks) {
         this.callbacks = callbacks;
@@ -471,16 +473,39 @@ export class AMapLocationBridge {
     }
 
     private async getWebPosition(requestId: string, timeout: number): Promise<GeoPoint | null> {
+        const isLocalDev = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || process.env.NODE_ENV !== 'production');
+        const resolveDevFallback = (reason: string): GeoPoint | null => {
+            if (!isLocalDev) return null;
+            const now = Date.now();
+            if (now - this.lastDevFallbackToastAt > 5000) {
+                this.lastDevFallbackToastAt = now;
+                toast.error('本地定位超时，已使用默认兜底坐标');
+            }
+            const point: GeoPoint = {
+                lat: 39.90923,
+                lng: 116.397428,
+                accuracy: 500,
+                heading: null,
+                speed: null,
+                timestamp: now,
+                source: 'web-fallback',
+                coordSystem: 'gcj02',
+            };
+            logWarn({ requestId, phase: 'web-fallback-mock', reason, lat: point.lat, lng: point.lng, accuracy: point.accuracy });
+            this.acceptPoint(point);
+            return point;
+        };
+
         return new Promise<GeoPoint | null>((resolve) => {
             if (typeof navigator === 'undefined' || !navigator.geolocation) {
                 logWarn({ requestId, phase: 'web-fallback-unavailable', reason: 'navigator.geolocation not available' });
-                resolve(null);
+                resolve(resolveDevFallback('geolocation unavailable'));
                 return;
             }
 
             const timer = setTimeout(() => {
                 logWarn({ requestId, phase: 'web-fallback-timeout', reason: `Timeout after ${timeout}ms` });
-                resolve(null);
+                resolve(resolveDevFallback(`timeout ${timeout}ms`));
             }, timeout);
 
             navigator.geolocation.getCurrentPosition(
@@ -519,7 +544,7 @@ export class AMapLocationBridge {
                             accuracy: pos.coords.accuracy,
                             reason: `Exceeds threshold ${DEFAULT_ACCURACY_THRESHOLD}m`,
                         });
-                        resolve(null);
+                        resolve(resolveDevFallback(`accuracy reject ${pos.coords.accuracy}`));
                         return;
                     }
 
@@ -539,7 +564,7 @@ export class AMapLocationBridge {
                 (err) => {
                     clearTimeout(timer);
                     logError({ requestId, phase: 'web-fallback-error', reason: err.message });
-                    resolve(null);
+                    resolve(resolveDevFallback(err.message || 'web-fallback-error'));
                 },
                 { enableHighAccuracy: true, timeout, maximumAge: 5000 },
             );

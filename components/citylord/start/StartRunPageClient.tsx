@@ -61,11 +61,10 @@ function normalizeWaypoints(input: unknown[]): [number, number][] {
 interface StartRunOverlayProps {
   onBack: () => void
   onBeginRun: () => void
-  autoOpenPlanner?: boolean
-  onPlannerAutoOpened?: () => void
+  onOpenSmartPlan?: () => void
 }
 
-export function StartRunOverlay({ onBack, onBeginRun, autoOpenPlanner = false, onPlannerAutoOpened }: StartRunOverlayProps) {
+export function StartRunOverlay({ onBack, onBeginRun, onOpenSmartPlan }: StartRunOverlayProps) {
   const gpsSignalStrength = useLocationStore((s) => s.gpsSignalStrength)
   const ghostPath = useGameStore((s) => s.ghostPath)
   const setGhostPath = useGameStore((s) => s.setGhostPath)
@@ -98,15 +97,13 @@ export function StartRunOverlay({ onBack, onBeginRun, autoOpenPlanner = false, o
     }
   }, [openPlanner])
 
-  useEffect(() => {
-    if (!autoOpenPlanner) return
-    setOpenPlanner(true)
-    onPlannerAutoOpened?.()
-  }, [autoOpenPlanner, onPlannerAutoOpened])
-
   const handleSmartPlan = useCallback(() => {
+    if (onOpenSmartPlan) {
+      onOpenSmartPlan()
+      return
+    }
     setOpenPlanner(true)
-  }, [])
+  }, [onOpenSmartPlan])
 
   useEffect(() => {
     let mounted = true

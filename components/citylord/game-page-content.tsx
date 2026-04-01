@@ -81,6 +81,7 @@ const MemoizedTerritoryAlert = memo(TerritoryAlert);
 const MemoizedChallengeInvite = memo(ChallengeInvite);
 const MemoizedAchievementPopup = memo(AchievementPopup);
 const MemoizedNetworkBanner = memo(NetworkBanner);
+const MemoizedPlannerClientView = memo(nextDynamic(() => import("@/components/citylord/map/PlannerClientView"), { ssr: false }));
 // Removed GpsWeakPopup per user request
 
 interface GamePageContentProps {
@@ -392,7 +393,8 @@ export function GamePageContent({
   const [tutorialStep, setTutorialStep] = useState(0)
   const [showQuickNav, setShowQuickNav] = useState(false)
   const [showMapGuide, setShowMapGuide] = useState(false)
-  const [openPlannerOnStart, setOpenPlannerOnStart] = useState(false);
+  const [isPlannerOpen, setIsPlannerOpen] = useState(false);
+  const [plannerReturnTab, setPlannerReturnTab] = useState<TabType>('home');
   const [showThemeSwitcher, setShowThemeSwitcher] = useState(false)
   const [hasResolvedOnboarding, setHasResolvedOnboarding] = useState(false)
   const [shouldHideButtons, setShouldHideButtons] = useState(false);
@@ -653,12 +655,12 @@ export function GamePageContent({
     if (tab === "running") {
       setActiveTab("start")
     } else if (tab === "planner") {
-      setOpenPlannerOnStart(true)
-      setActiveTab("start")
+      setPlannerReturnTab(activeTab)
+      setIsPlannerOpen(true)
     } else {
       setActiveTab(tab as TabType)
     }
-  }, [])
+  }, [activeTab])
 
   const handleShowDemo = useCallback((type: "territory" | "challenge" | "achievement") => {
     if (type === "territory") setShowTerritoryAlert(true)
@@ -696,13 +698,14 @@ export function GamePageContent({
   }, []);
 
   const handlePlannerOpen = useCallback(() => {
-    setOpenPlannerOnStart(true)
-    setActiveTab("start")
-  }, []);
+    setPlannerReturnTab(activeTab)
+    setIsPlannerOpen(true)
+  }, [activeTab]);
 
-  const handlePlannerAutoOpened = useCallback(() => {
-    setOpenPlannerOnStart(false)
-  }, [])
+  const handlePlannerClose = useCallback(() => {
+    setIsPlannerOpen(false)
+    setActiveTab(plannerReturnTab)
+  }, [plannerReturnTab])
 
   const handleRunHistoryOpen = useCallback(() => {
     openDrawer('runHistory');
@@ -855,6 +858,12 @@ export function GamePageContent({
         isOpen={showThemeSwitcher}
         onClose={handleCloseThemeSwitcher}
       />
+
+      {isPlannerOpen && (
+        <div className="absolute inset-0 z-[9999]">
+          <MemoizedPlannerClientView onClose={handlePlannerClose} />
+        </div>
+      )}
 
       {hasResolvedOnboarding && (
         <OnboardingGuide
@@ -1043,8 +1052,10 @@ export function GamePageContent({
                     onBeginRun={() => {
                       beginRunStart()
                     }}
-                    autoOpenPlanner={openPlannerOnStart}
-                    onPlannerAutoOpened={handlePlannerAutoOpened}
+                    onOpenSmartPlan={() => {
+                      setPlannerReturnTab("start")
+                      setIsPlannerOpen(true)
+                    }}
                   />
                 )}
               </div>

@@ -41,7 +41,11 @@ interface PlannerState {
   waypoints: RoutePoint[];
 }
 
-export default function PlannerClientView() {
+interface PlannerClientViewProps {
+  onClose?: () => void;
+}
+
+export default function PlannerClientView({ onClose }: PlannerClientViewProps) {
   const router = useRouter();
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
@@ -1597,6 +1601,10 @@ export default function PlannerClientView() {
             <List className="w-5 h-5" />
           </button>
           <button onClick={() => {
+            if (onClose) {
+              onClose();
+              return;
+            }
             if (window.history.length > 2) {
               router.back();
             } else {
