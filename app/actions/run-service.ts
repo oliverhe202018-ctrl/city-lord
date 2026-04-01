@@ -52,7 +52,8 @@ const PEDOMETER_MAX_STRIDE_METERS = 1.5;
  */
 export async function saveRunActivity(
     userId: string,
-    runData: RunRecordDTO
+    runData: RunRecordDTO,
+    clubId?: string | null
 ): Promise<ActionResponse<SaveRunResult>> {
     try {
         if (!userId) throw new Error('User ID is required');
@@ -60,6 +61,7 @@ export async function saveRunActivity(
             ? runData.eventsHistory.filter(isRunEventLog)
             : [];
         const submittedTotalSteps = Math.max(0, Math.floor(Number(runData.totalSteps ?? runData.steps ?? 0)));
+        const runnerClubId = clubId ?? runData.clubId ?? null;
 
         // Rate Limiting
         const rateLimitResult = checkRunRateLimit(userId);
@@ -326,6 +328,7 @@ export async function saveRunActivity(
                         runId: run.id,
                         userId: userId,
                         cityId: cityId,
+                        clubId: runnerClubId,
                         pathGeoJSON: polyFeature,
                         db: tx
                     });

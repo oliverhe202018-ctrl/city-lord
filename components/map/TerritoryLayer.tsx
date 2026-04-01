@@ -68,6 +68,8 @@ interface TerritoryMetric {
   maxLat: number;
 }
 
+type DisplayLevel = 'club' | 'individual';
+
 /**
  * TerritoryLayer: Renders ALL territories from API as colored polygons.
  *
@@ -112,6 +114,10 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
       return '#ef4444';
     }
     return '#64748b';
+  }, []);
+
+  const getDisplayLevelByZoom = useCallback((zoom: number): DisplayLevel => {
+    return zoom < 14 ? 'club' : 'individual';
   }, []);
 
   const computePathBounds = useCallback((path: [number, number][]) => {
@@ -398,7 +404,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
           });
 
           let marker = null;
-          if (kingdomMode === 'club' && territory.ownerClub) {
+          if (territory.ownerId) {
             let markerPosition: [number, number];
             try {
               const coords = path.map((p: any) => [p[0], p[1]]);
@@ -413,7 +419,9 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
               markerPosition = [center.getLng(), center.getLat()];
             }
             
-            const baseSize = 24;
+            const ownerProfile = profileMap.get(territory.ownerId);
+            const displayLevel = getDisplayLevelByZoom(map.getZoom());
+            const baseSize = displayLevel === 'club' ? 24 : 32;
             const content = document.createElement('div');
             content.className = 'pointer-events-none';
             content.style.width = `${baseSize}px`;
@@ -423,18 +431,42 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
 
             const inner = document.createElement('div');
             inner.className = 'w-full h-full rounded-full overflow-hidden border border-white bg-black/60 shadow flex items-center justify-center';
-            
-            if (territory.ownerClub.logoUrl) {
+
+            const clubContainer = document.createElement('div');
+            clubContainer.className = 'w-full h-full flex items-center justify-center';
+            if (territory.ownerClub?.logoUrl) {
               const img = document.createElement('img');
               img.src = territory.ownerClub.logoUrl;
               img.className = 'w-full h-full object-cover';
-              inner.appendChild(img);
+              clubContainer.appendChild(img);
             } else {
               const span = document.createElement('span');
               span.className = 'text-[10px] text-white font-bold leading-none';
-              span.innerText = territory.ownerClub.name.substring(0, 1);
-              inner.appendChild(span);
+              span.innerText = (territory.ownerClub?.name || ownerProfile?.nickname || '').substring(0, 1) || '领';
+              clubContainer.appendChild(span);
             }
+
+            const individualContainer = document.createElement('div');
+            individualContainer.className = 'w-full h-full flex items-center justify-center';
+            if (ownerProfile?.avatarUrl) {
+              const img = document.createElement('img');
+              img.src = ownerProfile.avatarUrl;
+              img.className = 'w-full h-full object-cover';
+              individualContainer.appendChild(img);
+            } else {
+              const span = document.createElement('span');
+              span.className = 'text-[10px] text-white font-bold leading-none';
+              span.innerText = (ownerProfile?.nickname || '').substring(0, 1) || '领';
+              individualContainer.appendChild(span);
+            }
+
+            if (displayLevel === 'club') {
+              individualContainer.style.display = 'none';
+            } else {
+              clubContainer.style.display = 'none';
+            }
+            inner.appendChild(clubContainer);
+            inner.appendChild(individualContainer);
             content.appendChild(inner);
 
             marker = new (window as any).AMap.Marker({
@@ -442,9 +474,12 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
               content: content,
               zIndex: 60,
               bubble: true,
-              zooms: [12, 20],
+              zooms: [10, 20],
             });
             (marker as any).__avatarContentEl = content;
+            (marker as any).__clubContentEl = clubContainer;
+            (marker as any).__individualContentEl = individualContainer;
+            (marker as any).__displayLevel = displayLevel;
           }
 
 
@@ -617,7 +652,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
 
   // 淇变箰閮?Marker 澶村儚闅?zoom 绾у埆鍔ㄦ€佺缉鏀?
   useEffect(() => {
-    if (!map || kingdomMode !== 'club' || markers.length === 0) return;
+    if (!map || markers.length === 0) return;
 
     const MIN_ZOOM = 12;
     const MAX_ZOOM = 18;
@@ -626,17 +661,30 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
 
     const updateMarkerSizes = () => {
       const zoom = map.getZoom();
+      const nextDisplayLevel = getDisplayLevelByZoom(zoom);
       // 绾挎€ф槧灏?[MIN_ZOOM, MAX_ZOOM] 鈫?[MIN_SIZE, MAX_SIZE]
       const t = Math.max(0, Math.min(1, (zoom - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM)));
       const size = Math.round(MIN_SIZE + t * (MAX_SIZE - MIN_SIZE));
 
       markers.forEach((m: any) => {
         const el = m.__avatarContentEl;
+        const clubEl = m.__clubContentEl;
+        const individualEl = m.__individualContentEl;
         if (el) {
           el.style.width = `${size}px`;
           el.style.height = `${size}px`;
           el.style.marginLeft = `-${size / 2}px`;
           el.style.marginTop = `-${size / 2}px`;
+        }
+        if (clubEl && individualEl && m.__displayLevel !== nextDisplayLevel) {
+          if (nextDisplayLevel === 'club') {
+            clubEl.style.display = '';
+            individualEl.style.display = 'none';
+          } else {
+            clubEl.style.display = 'none';
+            individualEl.style.display = '';
+          }
+          m.__displayLevel = nextDisplayLevel;
         }
       });
     };
@@ -645,7 +693,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
     updateMarkerSizes();
     map.on('zoomchange', updateMarkerSizes);
     return () => { map.off('zoomchange', updateMarkerSizes); };
-  }, [map, markers, kingdomMode]);
+  }, [map, markers, getDisplayLevelByZoom]);
   
   useEffect(() => {
     return () => {

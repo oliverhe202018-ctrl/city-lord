@@ -67,10 +67,11 @@ export async function POST(req: NextRequest) {
             polygons: body.polygons || [],
             timestamp: body.timestamp || Date.now(),
             calories: body.calories,
+            clubId: body.clubId ?? null,
             totalSteps: body.totalSteps,
             steps: body.steps,
             eventsHistory: body.eventsHistory || [],
-        });
+        }, body.clubId ?? null);
 
         if (result.success) {
             return NextResponse.json({ 

@@ -1,6 +1,7 @@
 import * as turf from '@turf/turf';
 import { cleanAndSplitTrajectory } from '../gis/geometry-cleaner';
 import { PrismaClient, Prisma } from '@prisma/client';
+import { TerritoryStatsAggregatorService } from '@/lib/services/territory-stats-aggregator';
 
 const prisma = new PrismaClient();
 
@@ -173,7 +174,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
         });
         const runnerFaction = runnerProfile?.faction ?? null;
 
-        if (bestPatrolOverlap && bestPatrolOverlap.overlap_ratio > PATROL_OVERLAP_THRESHOLD) {
+        if (bestPatrolOverlap && bestPatrolOverlap.overlap_ratio >= PATROL_OVERLAP_THRESHOLD) {
             const beforeHealth = Number(bestPatrolOverlap.health ?? TERRITORY_MAX_HEALTH);
             const beforeShield = Number(bestPatrolOverlap.current_hp ?? 0);
             const maxShield = Number(bestPatrolOverlap.max_hp ?? 1000);
@@ -283,6 +284,27 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                         is_read: false
                     }
                 });
+                await tx.notifications.create({
+                    data: {
+                        user_id: existingTerr.owner_id,
+                        type: 'battle',
+                        title: '领地遭受攻击',
+                        body: `你的领地 ${existingTerr.id} 生命值已降至 ${afterHealth}/${TERRITORY_MAX_HEALTH}，请尽快巡逻修复。`,
+                        is_read: false,
+                        data: {
+                            territoryId: existingTerr.id,
+                            territoryName: existingTerr.id,
+                            eventType: 'LOW_HEALTH',
+                            clubId: existingTerr.owner_club_id ?? null,
+                            attackerClubId: clubId ?? null,
+                            area: runAreaSqMeters,
+                            health: {
+                                current: afterHealth,
+                                max: TERRITORY_MAX_HEALTH
+                            }
+                        }
+                    }
+                });
             }
 
             result.damageDetails.push({
@@ -374,20 +396,74 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                         territory_id: newId,
                         event_type: 'CREATED',
                         user_id: userId,
-                        run_id: runId
+                        run_id: runId,
+                        old_owner_id: null,
+                        new_owner_id: userId,
+                        old_club_id: null,
+                        new_club_id: clubId ?? null,
+                        old_faction: null,
+                        new_faction: runnerFaction,
+                        source_run_id: runId
                     } as any
                 });
 
                 result.createdTerritories++;
             }
         }
+        if (clubId) {
+            await tx.$executeRaw`
+                INSERT INTO public.club_territory_stats (club_id, total_area, total_tiles, last_synced_event_id, updated_at)
+                VALUES (
+                    ${clubId}::uuid,
+                    COALESCE((
+                        SELECT SUM(t.area_m2_exact) / 1000000.0
+                        FROM public.territories t
+                        WHERE t.owner_club_id = ${clubId}::uuid
+                          AND t.status = 'ACTIVE'::"TerritoryStatus"
+                    ), 0),
+                    COALESCE((
+                        SELECT COUNT(1)
+                        FROM public.territories t
+                        WHERE t.owner_club_id = ${clubId}::uuid
+                          AND t.status = 'ACTIVE'::"TerritoryStatus"
+                    ), 0),
+                    COALESCE((SELECT MAX(id) FROM public.territory_events), 0),
+                    NOW()
+                )
+                ON CONFLICT (club_id) DO UPDATE SET
+                    total_area = EXCLUDED.total_area,
+                    total_tiles = EXCLUDED.total_tiles,
+                    last_synced_event_id = EXCLUDED.last_synced_event_id,
+                    updated_at = NOW()
+            `;
+
+            await tx.$executeRaw`
+                UPDATE public.clubs
+                SET total_area = COALESCE((
+                    SELECT SUM(t.area_m2_exact) / 1000000.0
+                    FROM public.territories t
+                    WHERE t.owner_club_id = ${clubId}::uuid
+                      AND t.status = 'ACTIVE'::"TerritoryStatus"
+                ), 0),
+                updated_at = NOW()
+                WHERE id = ${clubId}::uuid
+            `;
+        }
         return result; // Add return
     };
 
     if (db) {
-        return await processLogic(db);
+        const settled = await processLogic(db);
+        if (clubId) {
+            await TerritoryStatsAggregatorService.processNextBatch();
+        }
+        return settled;
     } else {
-        return await prisma.$transaction(processLogic);
+        const settled = await prisma.$transaction(processLogic);
+        if (clubId) {
+            await TerritoryStatsAggregatorService.processNextBatch();
+        }
+        return settled;
     }
 }
 

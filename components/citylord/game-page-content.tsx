@@ -387,6 +387,7 @@ export function GamePageContent({
   const activeDrawer = useGameStore((state) => state.activeDrawer);
   const hasDismissedGeolocationPrompt = useGameStore((state) => state.hasDismissedGeolocationPrompt);
   const ghostPath = useGameStore((state) => state.ghostPath);
+  const setGhostPath = useGameStore((state) => state.setGhostPath);
   const isRunTakeoverActive = isCountingDown || isImmersiveActive
   const shouldRenderPlaySurface = activeTab === "home" || activeTab === "play" || activeTab === "start" || isRunTakeoverActive
   const shouldShowPlayChrome = activeTab === "play" && !isRunTakeoverActive
@@ -711,8 +712,10 @@ export function GamePageContent({
   const handleStopRun = useCallback(() => {
     stopTracker()
     clearRecovery()
+    setIsCountingDown(false)
     setIsRunning(false)
     setShowImmersiveMode(false)
+    setGhostPath(null)
     setActiveTab("home")
 
     const currentRunDistance = distance || 0
@@ -741,7 +744,7 @@ export function GamePageContent({
         setShowAchievement(true);
       }
     }
-  }, [distance, totalDistance, achievements, stopTracker, clearRecovery, addTotalDistance]);
+  }, [distance, totalDistance, achievements, stopTracker, clearRecovery, addTotalDistance, setGhostPath]);
 
   const handleMapLoad = useCallback(() => { }, []);
 
@@ -826,7 +829,7 @@ export function GamePageContent({
                 {shouldShowPlayChrome && (
                   <>
                     <div className="pointer-events-auto">
-                      <MemoizedMapHeader setShowThemeSwitcher={setShowThemeSwitcher} />
+                      <MemoizedMapHeader setShowThemeSwitcher={setShowThemeSwitcher} isRunTakeoverActive={isRunTakeoverActive} />
                     </div>
 
                     <div className="pointer-events-auto">
@@ -994,6 +997,7 @@ export function GamePageContent({
                     setShowThemeSwitcher={setShowThemeSwitcher}
                     viewMode={mapViewMode}
                     onViewModeChange={setMapViewMode}
+                    isRunTakeoverActive={isRunTakeoverActive}
                   />
                 </div>
                 <div className="pointer-events-auto">
@@ -1035,44 +1039,46 @@ export function GamePageContent({
 
       {!hydrated ? (
         <ImmersiveSkeleton />
-      ) : (
-        <MemoizedImmersiveRunningMode
-          isActive={isImmersiveActive}
-          useSharedMapBase
-          userId={user?.id}
-          distance={distance}
-          distanceMeters={distanceMeters}
-          durationSeconds={durationSeconds}
-          steps={steps}
-          area={area}
-          pace={pace}
-          time={duration}
-          calories={calories}
-          heartRate={0}
-          hexesCaptured={sessionHexes}
-          currentHexProgress={0}
-          onPause={toggleTrackerPause}
-          onResume={toggleTrackerPause}
-          onStop={handleStopRun}
-          onManualLocation={addManualLocation}
-          onExpand={handleExpand}
-          currentLocation={currentLocation || (userLat && userLng ? { lat: userLat, lng: userLng } : undefined)}
-          path={path}
-          closedPolygons={closedPolygons}
-          onHexClaimed={handleHexClaimed}
-          saveRun={saveRun}
-          savedRunId={savedRunId}
-          runNumber={runNumber}
-          damageSummary={damageSummary}
-          maintenanceSummary={maintenanceSummary}
-          runIsValid={runIsValid}
-          antiCheatLog={antiCheatLog}
-          idempotencyKey={idempotencyKey}
-          eventsHistory={eventsHistory}
-          activeRandomEvent={activeRandomEvent}
-          randomEventCountdownSeconds={randomEventCountdownSeconds}
-        />
-      )}
+      ) : isRunTakeoverActive ? (
+        <div className="fixed inset-0 z-[95] pointer-events-auto">
+          <MemoizedImmersiveRunningMode
+            isActive={isImmersiveActive}
+            useSharedMapBase
+            userId={user?.id}
+            distance={distance}
+            distanceMeters={distanceMeters}
+            durationSeconds={durationSeconds}
+            steps={steps}
+            area={area}
+            pace={pace}
+            time={duration}
+            calories={calories}
+            heartRate={0}
+            hexesCaptured={sessionHexes}
+            currentHexProgress={0}
+            onPause={toggleTrackerPause}
+            onResume={toggleTrackerPause}
+            onStop={handleStopRun}
+            onManualLocation={addManualLocation}
+            onExpand={handleExpand}
+            currentLocation={currentLocation || (userLat && userLng ? { lat: userLat, lng: userLng } : undefined)}
+            path={path}
+            closedPolygons={closedPolygons}
+            onHexClaimed={handleHexClaimed}
+            saveRun={saveRun}
+            savedRunId={savedRunId}
+            runNumber={runNumber}
+            damageSummary={damageSummary}
+            maintenanceSummary={maintenanceSummary}
+            runIsValid={runIsValid}
+            antiCheatLog={antiCheatLog}
+            idempotencyKey={idempotencyKey}
+            eventsHistory={eventsHistory}
+            activeRandomEvent={activeRandomEvent}
+            randomEventCountdownSeconds={randomEventCountdownSeconds}
+          />
+        </div>
+      ) : null}
 
       {hydrated && currentCity && !isRunTakeoverActive && activeTab !== "start" && <MemoizedBottomNav activeTab={activeTab} onTabChange={setActiveTab} />}
 

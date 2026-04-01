@@ -63,11 +63,12 @@ export function SyncManager() {
             path: run.path,
             polygons: run.polygons || [],
             timestamp: run.timestamp,
+            clubId: run.clubId ?? null,
             manualLocationCount: 0,
             totalSteps: stepsForSubmit,
             steps: stepsForSubmit,
             eventsHistory: run.eventsHistory || []
-          })
+          }, run.clubId ?? null)
 
           const timeoutPromise = new Promise((_, reject) => {
             const id = setTimeout(() => {

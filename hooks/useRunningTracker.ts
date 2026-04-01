@@ -11,9 +11,11 @@ import { isNativePlatform, safeGetBatteryInfo } from "@/lib/capacitor/safe-plugi
 import type { GeoPoint } from '@/hooks/useSafeGeolocation';
 import { useLocationStore } from '@/store/useLocationStore';
 import { getDistanceFromLatLonInMeters } from '@/lib/geometry-utils';
+import { shouldAcceptPointByDistance } from '@/lib/location/gps-spatial-filter';
 import { ActiveRandomEvent, useRandomEvents } from '@/hooks/useRandomEvents';
 import { RunEventLog } from '@/types/run-sync';
 import type { CapacitorPedometerPlugin } from '@capgo/capacitor-pedometer';
+import { useGameStore } from '@/store/useGameStore';
 
 const RECOVERY_KEY = 'CURRENT_RUN_RECOVERY';
 
@@ -134,6 +136,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   // Sync State
   const [isSyncing, setIsSyncing] = useState(false);
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+  const clubId = useGameStore((s) => s.clubId);
 
   const isStoppingRef = useRef(false);
   const lastLocationRef = useRef<Location | null>(null);
@@ -491,19 +494,10 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         }
       }
 
-      // --- Layer 3: Micro-Jitter Filter ---
-      // If distance < 2m, the runner is standing still (red light, stretching)
-      // Do NOT accumulate distance or append to path (prevents "yarn ball" artifacts)
-      // But DO update lastLocationRef timestamp to keep timeDiff fresh
-      if (distToPrev < 2) {
-        // Update timestamp only so subsequent speed calculations stay valid
-        lastLocationRef.current = { ...prevLoc, timestamp: now };
-        return;
-      }
     }
 
     // ================================================================
-    // All 3 layers passed — this is a valid GPS point
+    // Filters passed — this is a valid GPS point candidate
     // ================================================================
 
     let newLoc: Location = { lat, lng, timestamp: now };
@@ -511,6 +505,19 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     // Apply Smoothing
     if (lastLocationRef.current) {
       newLoc = smoothLocation(newLoc, lastLocationRef.current);
+    }
+
+    const finalLoc = newLoc;
+    const spatialFilterResult = shouldAcceptPointByDistance(
+      lastLocationRef.current
+        ? { lat: lastLocationRef.current.lat, lng: lastLocationRef.current.lng }
+        : null,
+      { lat: finalLoc.lat, lng: finalLoc.lng }
+    );
+
+    if (!spatialFilterResult.accept) {
+      console.debug('[GPS Filter] Dropped point:', spatialFilterResult.reason);
+      return;
     }
 
     // ========================================================================
@@ -552,10 +559,6 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         console.log(`[Smart Snap] 🎯 Snapped to start! Distance: ${Math.round(distToStart)}m`);
       }
     }
-
-    // ⚠️ CRITICAL: Always use ACTUAL GPS point (newLoc) for path continuation
-    // This prevents the trajectory from "teleporting" to the start point
-    const finalLoc = newLoc; // NOT snappedLoc!
 
     // Loop Closure Detection (Polygon) - Calculate claim using snapped point
     if (shouldSnapToStart && pathRef.current.length > MIN_LOOP_SIZE) {
@@ -902,6 +905,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         ? currentStepsRef.current
         : estimateStepsFromDistanceMeters(liveDistance);
       const result = await saveRunActivity(userId, {
+        clubId: clubId ?? null,
         idempotencyKey: runIdempotencyKeyRef.current,
         distance: liveDistance,         // Already in meters
         duration: liveDuration,
@@ -980,7 +984,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     } finally {
       setIsSaving(false);
     }
-  }, [userId, clearRecovery]); // Only depends on userId & clearRecovery — refs handle the rest
+  }, [userId, clearRecovery, clubId]); // Only depends on userId/clubId & clearRecovery — refs handle the rest
 
   // Auto-save when new territory is claimed
   useEffect(() => {
