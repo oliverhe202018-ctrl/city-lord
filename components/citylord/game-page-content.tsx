@@ -811,6 +811,7 @@ export function GamePageContent({
                 <MemoizedAMapView
                   ref={mapViewRef}
                   showTerritory={showTerritory}
+                  showControls={shouldShowPlayChrome}
                   onMapLoad={handleMapLoad}
                   sessionClaims={sessionClaims}
                   onViewportKingChange={setViewportKing}
@@ -984,7 +985,7 @@ export function GamePageContent({
 
           {!isRunTakeoverActive && activeTab === "mode" && (
             <div className="relative h-dvh w-full overflow-hidden">
-              <MemoizedAMapView ref={mapViewRef} showTerritory={showTerritory} viewMode={mapViewMode} sessionClaims={sessionClaims} />
+              <MemoizedAMapView ref={mapViewRef} showTerritory={showTerritory} showControls={shouldShowPlayChrome} viewMode={mapViewMode} sessionClaims={sessionClaims} />
               <div className="relative z-10 h-full w-full pointer-events-none">
                 <div className="pointer-events-auto">
                   <MemoizedMapHeader

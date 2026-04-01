@@ -21,6 +21,7 @@ export type AMapViewHandle = {
 
 export interface AMapViewProps {
   showTerritory: boolean;
+  showControls?: boolean;
   onMapLoad?: () => void;
   viewMode?: 'user' | 'club';
   sessionClaims?: { lat: number; lng: number; timestamp: number }[][]; // Claimed polygons during run
@@ -46,7 +47,7 @@ export interface ViewportKingData {
  * State flows from MapRoot downward via context.
  */
 const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
-  ({ showTerritory, onMapLoad, viewMode, sessionClaims = [], onViewportKingChange }, ref) => {
+  ({ showTerritory, showControls = true, onMapLoad, viewMode, sessionClaims = [], onViewportKingChange }, ref) => {
     const {
       map, // Added map instance
       currentLocation, // User GPS position
@@ -150,7 +151,7 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
           />
 
           {/* Map Controls (includes fog toggle, mode switch, zoom, locate) */}
-          <MapControls />
+          {showControls && <MapControls />}
 
           {/* Fog Layer — only when fog toggle is ON */}
           {showFog && (
