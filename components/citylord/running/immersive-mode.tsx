@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef, type ReactNode } from "react"
-import { Pause, Play, Square, ChevronUp, MapPin, Zap, Heart, Hexagon, Trophy } from "lucide-react"
+import { ArrowLeft, Lock, Map, Settings2 } from "lucide-react"
 import { hexCountToArea, formatArea, HEX_AREA_SQ_METERS } from "@/lib/citylord/area-utils"
 // import { claimTerritory, fetchTerritories } from "@/app/actions/city"
 import { useCity } from "@/contexts/CityContext"
@@ -9,9 +9,7 @@ import { useGameLocation } from "@/store/useGameStore"
 import { safeHapticImpact, safeHapticVibrate } from "@/lib/capacitor/safe-plugins"
 import { toast } from "sonner"
 import { AchievementPopup } from "../achievement-popup"
-import { RunningHUD } from "@/components/running/RunningHUD"
 import dynamic from "next/dynamic"
-import { RunningMapOverlay } from "./RunningMapOverlay"
 import { AnimatePresence, motion } from "framer-motion"
 
 const RunningMap = dynamic(() => import("./RunningMap").then(mod => mod.RunningMap), {
@@ -211,7 +209,7 @@ export function ImmersiveRunningMode({
     setIsPaused(initialIsPaused);
   }, [initialIsPaused]);
   const [isGhostMode, setIsGhostMode] = useState(false)
-  const [isMapMode, setIsMapMode] = useState(false) // Default back to HUD mode as requested
+  const [viewMode, setViewMode] = useState<'dashboard' | 'map'>('dashboard')
   const [showStopConfirm, setShowStopConfirm] = useState(false)
   const [recenterTrigger, setRecenterTrigger] = useState(0)
   const [showSummary, setShowSummary] = useState(false)
@@ -226,6 +224,9 @@ export function ImmersiveRunningMode({
   const [showEventResolveFx, setShowEventResolveFx] = useState(false)
   // Debounce ref for stop button
   const lastStopAttemptRef = useRef(0)
+  const attemptStopRef = useRef<() => void>(() => {})
+  const pauseTapRef = useRef(0)
+  const pauseIntentTimerRef = useRef<number | null>(null)
   const bannerTimerRef = useRef<number | null>(null)
   const prevHexesCapturedRef = useRef(hexesCaptured)
   const prevSuccessfulEventsRef = useRef(0)
@@ -379,6 +380,9 @@ export function ImmersiveRunningMode({
 
   useEffect(() => {
     return () => {
+      if (pauseIntentTimerRef.current) {
+        window.clearTimeout(pauseIntentTimerRef.current)
+      }
       if (bannerTimerRef.current !== null) {
         window.clearTimeout(bannerTimerRef.current)
       }
@@ -428,6 +432,36 @@ export function ImmersiveRunningMode({
     }
   }, [isPaused, onPause, onResume])
 
+  const handlePauseOrAttemptStop = useCallback(() => {
+    if (isPaused) {
+      handlePauseToggle()
+      return
+    }
+
+    const now = Date.now()
+    if (now - pauseTapRef.current < 320) {
+      pauseTapRef.current = 0
+      if (pauseIntentTimerRef.current) {
+        window.clearTimeout(pauseIntentTimerRef.current)
+        pauseIntentTimerRef.current = null
+      }
+      attemptStopRef.current()
+      return
+    }
+
+    pauseTapRef.current = now
+    if (pauseIntentTimerRef.current) {
+      window.clearTimeout(pauseIntentTimerRef.current)
+    }
+    pauseIntentTimerRef.current = window.setTimeout(() => {
+      if (pauseTapRef.current === now) {
+        pauseTapRef.current = 0
+        handlePauseToggle()
+      }
+      pauseIntentTimerRef.current = null
+    }, 320)
+  }, [isPaused, handlePauseToggle])
+
   // const handleStop = useCallback(() => {
   //   // Logic moved to handleAttemptStop
   // }, [])
@@ -470,6 +504,7 @@ export function ImmersiveRunningMode({
       setShowSummary(true)
     }
   }
+  attemptStopRef.current = handleAttemptStop
 
   // Reset stop confirm after 3s
   useEffect(() => {
@@ -716,7 +751,7 @@ export function ImmersiveRunningMode({
 
   return (
     <div
-      className={useSharedMapBase ? "fixed inset-0 z-[9999] h-[100dvh] w-full flex flex-col justify-between bg-transparent" : "fixed inset-0 z-[9999] h-[100dvh] w-full flex flex-col justify-between bg-slate-900"}
+      className="absolute inset-0 z-[100] pointer-events-none"
     >
       {/* Loop Warning Dialog */}
       <AlertDialogPrimitive.Root open={showLoopWarning} onOpenChange={setShowLoopWarning}>
@@ -833,7 +868,7 @@ export function ImmersiveRunningMode({
       </AlertDialogPrimitive.Root>
 
       {!useSharedMapBase && (
-        <div className={`absolute inset-0 z-0 ${isPaused && !isMapMode ? 'pointer-events-none' : 'pointer-events-auto'}`}>
+        <div className={`absolute inset-0 z-0 ${isPaused && viewMode === 'dashboard' ? 'pointer-events-none' : 'pointer-events-auto'}`}>
           <RunningMap
             userLocation={currentLocation ? [currentLocation.lng, currentLocation.lat] : undefined}
             path={path}
@@ -841,74 +876,123 @@ export function ImmersiveRunningMode({
             recenterTrigger={recenterTrigger}
             showKingdom={showKingdom}
           />
-          {!isMapMode && (
+          {viewMode === 'dashboard' && (
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-none" />
           )}
         </div>
       )}
 
-      {/* Safe Area Top - Hide in Map Mode as Overlay handles it */}
-      <AnimatePresence initial={false}>
-        {!isMapMode && (
-          <MotionWrapper variant="hudTop">
-            <div className="relative z-10 h-[env(safe-area-inset-top)] bg-transparent" />
-          </MotionWrapper>
-        )}
-      </AnimatePresence>
+      {viewMode === 'dashboard' && (
+        <div className="absolute inset-0 z-50 pointer-events-auto bg-slate-900/95 px-5 pb-[calc(env(safe-area-inset-bottom)+20px)] pt-[calc(env(safe-area-inset-top)+20px)]">
+          <div className="flex h-full flex-col">
+            <div className="grid grid-cols-2 gap-3 rounded-3xl border border-white/10 bg-black/30 p-4">
+              <div className="rounded-2xl bg-white/5 p-4 text-center">
+                <p className="text-[11px] text-white/60">公里数</p>
+                <p className="mt-1 text-3xl font-black text-white">{(distanceMeters / 1000).toFixed(2)}</p>
+              </div>
+              <div className="rounded-2xl bg-white/5 p-4 text-center">
+                <p className="text-[11px] text-white/60">配速</p>
+                <p className="mt-1 text-3xl font-black text-white">{pace ? String(pace) : "00:00"}</p>
+              </div>
+              <div className="rounded-2xl bg-white/5 p-4 text-center">
+                <p className="text-[11px] text-white/60">千卡</p>
+                <p className="mt-1 text-3xl font-black text-white">{Math.round(calories)}</p>
+              </div>
+              <div className="rounded-2xl bg-white/5 p-4 text-center">
+                <p className="text-[11px] text-white/60">时长</p>
+                <p className="mt-1 text-3xl font-black text-white">{time}</p>
+              </div>
+            </div>
 
-      {/* New HUD Implementation */}
-      <AnimatePresence initial={false}>
-        {!isMapMode && (
-          <MotionWrapper variant="hudBottom" className="relative z-20">
-            <RunningHUD
-              distance={distanceMeters / 1000}
-              currentDistanceMeters={distanceMeters}
-              pace={typeof pace === 'number' ? String(pace) : (pace ?? '00:00')}
-              duration={time}
-              calories={calories}
-              steps={steps}
-              hexesCaptured={hexesCaptured}
-              isPaused={isPaused}
-              onPause={() => {
-                setIsPaused(true)
-                onPause()
-              }}
-              onResume={() => {
-                setIsPaused(false)
-                onResume()
-              }}
-              onStop={handleAttemptStop}
-              onGhostModeTrigger={() => {
-                setIsGhostMode(true)
-                toast.success("幽灵模式已开启", {
-                  description: "使用右下角摇杆控制移动",
-                  icon: <Zap className="h-4 w-4 text-purple-400" />
-                })
-              }}
-              onToggleMap={() => {
-                setIsMapMode(true)
-                setRecenterTrigger(prev => prev + 1)
-              }}
-            />
-          </MotionWrapper>
-        )}
-      </AnimatePresence>
+            <div className="mt-auto space-y-4">
+              <div className="flex items-center justify-center gap-6">
+                <button
+                  type="button"
+                  className="flex h-14 w-14 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white active:scale-95"
+                  onClick={() => setIsGhostMode((v) => !v)}
+                >
+                  <Lock className="h-5 w-5" />
+                </button>
+                <button
+                  type="button"
+                  className="flex h-14 w-14 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white active:scale-95"
+                  onClick={() => {
+                    setViewMode('map')
+                    setRecenterTrigger((prev) => prev + 1)
+                  }}
+                >
+                  <Map className="h-5 w-5" />
+                </button>
+                <button
+                  type="button"
+                  className="flex h-14 w-14 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white active:scale-95"
+                  onClick={() => setShowKingdom((v) => !v)}
+                >
+                  <Settings2 className="h-5 w-5" />
+                </button>
+              </div>
+              <button
+                type="button"
+                className="h-14 w-full rounded-2xl bg-emerald-500 text-lg font-black text-white shadow-xl active:scale-[0.99]"
+                onClick={handlePauseOrAttemptStop}
+                onDoubleClick={handleAttemptStop}
+              >
+                {isPaused ? "继续跑步" : "暂停跑步"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
-      {/* Map Overlay Mode (New Design) */}
-      {isMapMode && (
-        <RunningMapOverlay
-          distanceMeters={distanceMeters}
-          duration={time}
-          pace={pace ? String(pace) : "00:00"}
-          area={area}
-          isPaused={isPaused}
-          onPauseToggle={handlePauseToggle}
-          onStop={handleAttemptStop}
-          onBack={() => setIsMapMode(false)}
-          onRecenter={() => setRecenterTrigger(prev => prev + 1)}
-          showKingdom={showKingdom}
-          onToggleKingdom={() => setShowKingdom(v => !v)}
-        />
+      {viewMode === 'map' && (
+        <div className="absolute inset-0 z-50 flex flex-col pointer-events-none">
+          <div className="pointer-events-auto absolute left-4 right-4 top-[calc(env(safe-area-inset-top)+12px)] z-50 flex items-center justify-between">
+            <button
+              type="button"
+              className="flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-black/70 text-white shadow-lg active:scale-95"
+              onClick={() => setViewMode('dashboard')}
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              className="rounded-full border border-white/20 bg-black/70 px-4 py-2 text-sm font-semibold text-white active:scale-95"
+              onClick={() => setRecenterTrigger((prev) => prev + 1)}
+            >
+              回到定位
+            </button>
+          </div>
+
+          <div className="pointer-events-auto z-50 mt-auto rounded-t-3xl border border-white/10 bg-slate-900/92 px-5 pb-[calc(env(safe-area-inset-bottom)+16px)] pt-4">
+            <div className="mx-auto mb-4 h-1.5 w-14 rounded-full bg-white/25" />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-2xl bg-white/5 p-3">
+                <p className="text-[11px] text-white/60">公里数</p>
+                <p className="mt-1 text-2xl font-black text-white">{(distanceMeters / 1000).toFixed(2)}</p>
+              </div>
+              <div className="rounded-2xl bg-white/5 p-3">
+                <p className="text-[11px] text-white/60">预计面积</p>
+                <p className="mt-1 text-2xl font-black text-emerald-300">{formatArea(area).fullText}</p>
+              </div>
+              <div className="rounded-2xl bg-white/5 p-3">
+                <p className="text-[11px] text-white/60">配速</p>
+                <p className="mt-1 text-2xl font-black text-white">{pace ? String(pace) : "00:00"}</p>
+              </div>
+              <div className="rounded-2xl bg-white/5 p-3">
+                <p className="text-[11px] text-white/60">时长</p>
+                <p className="mt-1 text-2xl font-black text-white">{time}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="mt-4 h-12 w-full rounded-2xl bg-emerald-500 text-base font-black text-white active:scale-[0.99]"
+              onClick={handlePauseOrAttemptStop}
+              onDoubleClick={handleAttemptStop}
+            >
+              {isPaused ? "继续跑步" : "暂停跑步"}
+            </button>
+          </div>
+        </div>
       )}
 
       {isGhostMode && <GhostJoystick onMove={handleGhostMove} />}

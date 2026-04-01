@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { Send, User, Bell, AlertCircle, Check, X, Swords, Clock, MapPin, Mic, Keyboard } from "lucide-react"
+import { Send, User, Bell, Swords, Clock, MapPin, Mic, Keyboard, Coins, AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
 import useSWR from 'swr'
 import { VoiceRecorder } from "@/components/chat/voice/VoiceRecorder"
@@ -41,6 +41,8 @@ const sendMessage = async (receiverId: string, content: string, type: 'text' | '
 import { GlassCard } from "@/components/ui/GlassCard"
 import { formatDistanceToNow, isToday, isYesterday, isThisWeek, format } from "date-fns"
 import { zhCN } from "date-fns/locale"
+import { useMessageStore } from "@/store/useMessageStore"
+import type { SystemMessage } from "@/types/system-message"
 
 function formatWeChatTime(dateStr: string) {
   const date = new Date(dateStr)
@@ -81,6 +83,17 @@ export function MessageList({ initialFriendId, mode = 'system' }: MessageListPro
   const { data: messages = [], mutate, isLoading } = useSWR<Message[]>('/api/message/get-messages', fetcher, {
     revalidateOnFocus: true,
   })
+  const {
+    systemMessages,
+    isLoading: isSystemLoading,
+    fetchSystemMessages,
+    markSystemMessageRead
+  } = useMessageStore((s) => ({
+    systemMessages: s.systemMessages,
+    isLoading: s.isLoading,
+    fetchSystemMessages: s.fetchSystemMessages,
+    markSystemMessageRead: s.markSystemMessageRead
+  }))
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const router = useRouter()
@@ -125,6 +138,12 @@ export function MessageList({ initialFriendId, mode = 'system' }: MessageListPro
       if (sentChannel) supabase.removeChannel(sentChannel);
     };
   }, [mutate]);
+
+  useEffect(() => {
+    if (mode === 'system') {
+      fetchSystemMessages()
+    }
+  }, [mode, fetchSystemMessages])
 
   const [input, setInput] = useState("")
   const [isVoiceMode, setIsVoiceMode] = useState(false)
@@ -245,6 +264,10 @@ export function MessageList({ initialFriendId, mode = 'system' }: MessageListPro
 
   const displayMessages = mode === 'friend' ? sortedMessages : filteredMessages
 
+  const systemDisplayMessages = useMemo(() => {
+    return [...systemMessages].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  }, [systemMessages])
+
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const bottomAnchorRef = useRef<HTMLDivElement>(null)
   const prevMessagesLengthRef = useRef(0)
@@ -298,7 +321,8 @@ export function MessageList({ initialFriendId, mode = 'system' }: MessageListPro
     }
   }, [displayMessagesLength, lastMessageId, lastMessageSenderId, activeChat, mode, currentUserId, isLoading])
 
-  if (isLoading && (!messages || messages.length === 0)) return <div className="text-center text-muted-foreground py-10">加载消息中...</div>
+  if (mode === 'system' && isSystemLoading && systemDisplayMessages.length === 0) return <div className="text-center text-muted-foreground py-10">加载消息中...</div>
+  if (mode === 'friend' && isLoading && (!messages || messages.length === 0)) return <div className="text-center text-muted-foreground py-10">加载消息中...</div>
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -308,61 +332,62 @@ export function MessageList({ initialFriendId, mode = 'system' }: MessageListPro
         onScroll={handleScroll}
         className={`flex-1 overflow-y-auto ${mode === 'friend' ? 'px-4 py-2 space-y-0 relative' : 'space-y-3 p-1'}`}
       >
-        {displayMessages.length === 0 ? (
+        {(mode === 'system' ? systemDisplayMessages.length === 0 : displayMessages.length === 0) ? (
           <div className="text-center text-muted-foreground py-10">暂无消息</div>
         ) : (
-          displayMessages.map((msg, index) => {
-            const isMe = msg.sender_id === currentUserId;
-
+          (mode === 'system' ? systemDisplayMessages : displayMessages).map((msg: Message | SystemMessage, index) => {
             if (mode === 'system') {
+              const systemMsg = msg as SystemMessage
+              const isCombat = systemMsg.type === 'combat_alert'
+              const isRevenue = systemMsg.type === 'revenue'
+              const styleClass = isRevenue
+                ? 'border-l-4 border-l-emerald-500 bg-emerald-50/50 dark:bg-emerald-500/5'
+                : isCombat
+                  ? 'border-l-4 border-l-red-500 bg-red-50/50 dark:bg-red-500/5'
+                  : 'border-l-4 border-l-blue-500 bg-slate-50/50 dark:bg-slate-500/5'
+              const Icon = isRevenue ? Coins : isCombat ? AlertTriangle : Bell
+              const iconClass = isRevenue
+                ? 'w-4 h-4 text-emerald-500'
+                : isCombat
+                  ? 'w-4 h-4 text-red-500 animate-pulse'
+                  : 'w-4 h-4 text-blue-500'
+
               return (
-                <GlassCard key={msg.id} className={`p-3 border-l-4 ${msg.type === 'system' ? 'border-l-blue-500' :
-                  msg.type === 'challenge' ? 'border-l-orange-500' :
-                    'border-l-green-500'
-                  }`}>
+                <GlassCard
+                  key={systemMsg.id}
+                  className={`p-3 cursor-pointer transition-colors ${styleClass}`}
+                  onClick={() => markSystemMessageRead(systemMsg.id)}
+                >
                   <div className="flex justify-between items-start mb-1">
                     <div className="flex items-center gap-2">
-                      {msg.type === 'system' ? (
-                        <Bell className="w-4 h-4 text-blue-500" />
-                      ) : (
-                        <div
-                          className="w-5 h-5 rounded-full bg-muted flex items-center justify-center overflow-hidden cursor-pointer hover:ring-2 ring-primary/50 transition-all"
-                          onClick={() => openUserProfile(router, msg.sender_id, window.location.pathname + window.location.search)}
-                        >
-                          {msg.sender?.avatar_url ? (
-                            <img src={msg.sender.avatar_url} className="w-full h-full object-cover" />
-                          ) : (
-                            <User className="w-3 h-3 text-muted-foreground" />
-                          )}
-                        </div>
-                      )}
-                      <span
-                        className="font-bold text-sm text-foreground cursor-pointer hover:underline"
-                        onClick={() => openUserProfile(router, msg.sender_id, window.location.pathname + window.location.search)}
-                      >
-                        {msg.sender?.nickname || '系统通知'}
+                      <Icon className={iconClass} />
+                      <span className="font-bold text-sm text-foreground">{systemMsg.title}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {!systemMsg.isRead && <span className="w-2 h-2 rounded-full bg-red-500" />}
+                      <span className="text-[10px] text-muted-foreground">
+                        {formatDistanceToNow(new Date(systemMsg.createdAt), { addSuffix: true, locale: zhCN })}
                       </span>
                     </div>
-                    <span className="text-[10px] text-muted-foreground">
-                      {formatDistanceToNow(new Date(msg.created_at), { addSuffix: true, locale: zhCN })}
-                    </span>
                   </div>
-                  {renderMessageContent(msg, isMe)}
+                  <p className="text-sm text-muted-foreground pl-6">{systemMsg.content}</p>
                 </GlassCard>
               )
             }
 
-            // Friend mode map
-            const currentMsgTime = new Date(msg.created_at).getTime();
+            const friendMsg = msg as Message
+            const isMe = friendMsg.sender_id === currentUserId;
+            const currentMsgTime = new Date(friendMsg.created_at).getTime();
             const prevMsgTime = index > 0 ? new Date(displayMessages[index - 1].created_at).getTime() : 0;
             const showTimeLabel = index === 0 || (currentMsgTime - prevMsgTime) >= 5 * 60 * 1000;
 
+
             return (
-              <div key={msg.id} className="flex flex-col w-full mb-4">
+              <div key={friendMsg.id} className="flex flex-col w-full mb-4">
                 {showTimeLabel && (
                   <div className="flex justify-center mb-4 mt-2">
                     <span className="text-[11px] text-muted-foreground bg-muted/40 px-2 py-0.5 rounded-md">
-                      {formatWeChatTime(msg.created_at)}
+                      {formatWeChatTime(friendMsg.created_at)}
                     </span>
                   </div>
                 )}
@@ -370,10 +395,10 @@ export function MessageList({ initialFriendId, mode = 'system' }: MessageListPro
                   {/* Avatar */}
                   <div
                     className="w-10 h-10 rounded-full bg-muted flex items-center justify-center overflow-hidden shrink-0 cursor-pointer shadow-sm border border-border/10"
-                    onClick={() => openUserProfile(router, msg.sender_id, window.location.pathname + window.location.search)}
+                    onClick={() => openUserProfile(router, friendMsg.sender_id, window.location.pathname + window.location.search)}
                   >
-                    {msg.sender?.avatar_url ? (
-                      <img src={msg.sender.avatar_url} className="w-full h-full object-cover" />
+                    {friendMsg.sender?.avatar_url ? (
+                      <img src={friendMsg.sender.avatar_url} className="w-full h-full object-cover" />
                     ) : (
                       <User className="w-6 h-6 text-muted-foreground" />
                     )}
@@ -381,21 +406,21 @@ export function MessageList({ initialFriendId, mode = 'system' }: MessageListPro
 
                   {/* Bubble Content */}
                   <div className={`flex flex-col max-w-[70%] justify-center ${isMe ? 'items-end' : 'items-start'}`}>
-                    {msg.type === 'voice' ? (
+                    {friendMsg.type === 'voice' ? (
                       <VoiceBubble
-                        messageId={msg.id}
-                        audioUrl={msg.audio_url || null}
-                        durationMs={msg.duration_ms || null}
+                        messageId={friendMsg.id}
+                        audioUrl={friendMsg.audio_url || null}
+                        durationMs={friendMsg.duration_ms || null}
                         isOwn={isMe}
                       />
-                    ) : msg.type === 'challenge' ? (
-                      renderMessageContent(msg, isMe)
+                    ) : friendMsg.type === 'challenge' ? (
+                      renderMessageContent(friendMsg, isMe)
                     ) : (
                       <div className={`px-3 py-2 text-[15px] leading-relaxed whitespace-pre-wrap break-words ${isMe
                         ? 'bg-green-500 text-white rounded-2xl rounded-tr-sm shadow-sm'
                         : 'bg-muted/80 text-foreground rounded-2xl rounded-tl-sm border border-border/50 shadow-sm'
                         }`}>
-                        {msg.content}
+                        {friendMsg.content}
                       </div>
                     )}
                   </div>
