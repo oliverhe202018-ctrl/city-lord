@@ -1,5 +1,5 @@
 /// <reference types="@amap/amap-jsapi-types" />
-import { useEffect, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef } from 'react';
 
 interface GhostPathLayerProps {
   map: AMap.Map | null;
@@ -8,7 +8,7 @@ interface GhostPathLayerProps {
   strokeWeight?: number;
 }
 
-export function GhostPathLayer({
+function GhostPathLayerComponent({
   map,
   ghostPath,
   strokeColor = '#22C55E',
@@ -18,51 +18,50 @@ export function GhostPathLayer({
 
   useEffect(() => {
     if (!map || !window.AMap) return;
-
-    if (!ghostPath || ghostPath.length < 2) {
-      if (polylineRef.current) {
-        map.remove?.(polylineRef.current);
-        polylineRef.current = null;
-      }
-      return;
-    }
-
-    const mapInstance = map;
-    const amapPath = ghostPath
-      .map(([lat, lng]) => [lng, lat] as [number, number])
-      .filter(([lng, lat]) => Number.isFinite(lng) && Number.isFinite(lat));
-
-    if (amapPath.length < 2) {
-      if (polylineRef.current) {
-        mapInstance.remove?.(polylineRef.current);
-        polylineRef.current = null;
-      }
-      return;
-    }
-
-    if (!polylineRef.current) {
-      polylineRef.current = new window.AMap.Polyline({
-        path: amapPath,
-        strokeColor,
-        strokeWeight,
-        strokeOpacity: 0.95,
-        strokeStyle: 'dashed',
-        zIndex: 58,
-        lineJoin: 'round',
-        lineCap: 'round',
-      });
-      mapInstance.add?.(polylineRef.current);
-    } else {
-      polylineRef.current.setPath(amapPath);
-    }
-
+    const polyline = new window.AMap.Polyline({
+      path: [],
+      strokeColor,
+      strokeWeight,
+      strokeOpacity: 0.95,
+      strokeStyle: 'dashed',
+      zIndex: 58,
+      lineJoin: 'round',
+      lineCap: 'round',
+    });
+    polylineRef.current = polyline;
+    map.add?.(polyline);
     return () => {
-      if (polylineRef.current) {
-        mapInstance.remove?.(polylineRef.current);
+      map.remove?.(polyline);
+      if (polylineRef.current === polyline) {
         polylineRef.current = null;
       }
     };
-  }, [map, ghostPath, strokeColor, strokeWeight]);
+  }, [map]);
+
+  const amapPath = useMemo(
+    () =>
+      ghostPath
+        .map(([lat, lng]) => [lng, lat] as [number, number])
+        .filter(([lng, lat]) => Number.isFinite(lng) && Number.isFinite(lat)),
+    [ghostPath]
+  );
+
+  useEffect(() => {
+    const polyline = polylineRef.current;
+    if (!polyline) return;
+    polyline.setOptions({
+        strokeColor,
+        strokeWeight,
+    });
+    if (amapPath.length < 2) {
+      polyline.setPath([]);
+      return;
+    }
+    polyline.setPath(amapPath);
+  }, [amapPath, strokeColor, strokeWeight]);
 
   return null;
 }
+
+export const GhostPathLayer = memo(GhostPathLayerComponent);
+GhostPathLayer.displayName = 'GhostPathLayer';

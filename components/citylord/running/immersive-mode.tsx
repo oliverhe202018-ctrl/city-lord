@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef, type ReactNode } from "react"
+import { memo, useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from "react"
 import { ArrowLeft, Lock, Map, Settings2 } from "lucide-react"
 import { hexCountToArea, formatArea, HEX_AREA_SQ_METERS } from "@/lib/citylord/area-utils"
 // import { claimTerritory, fetchTerritories } from "@/app/actions/city"
@@ -16,7 +16,6 @@ const RunningMap = dynamic(() => import("./RunningMap").then(mod => mod.RunningM
   ssr: false,
   loading: () => <div className="w-full h-full bg-slate-900 border border-white/5 flex items-center justify-center text-white/50 font-medium">正在加载地图...</div>
 })
-import { GhostJoystick } from "./GhostJoystick"
 import { RunSummaryView } from "@/components/running/RunSummaryView"
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog"
 import { Location } from "@/hooks/useRunningTracker"
@@ -147,6 +146,125 @@ function MotionWrapper({
   )
 }
 
+const DashboardActionRow = memo(function DashboardActionRow({
+  onLock,
+  onOpenMap,
+  onToggleKingdom,
+}: {
+  onLock: () => void
+  onOpenMap: () => void
+  onToggleKingdom: () => void
+}) {
+  return (
+    <div className="flex items-center justify-center gap-6">
+      <button
+        type="button"
+        className="flex h-14 w-14 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white active:scale-95"
+        onClick={onLock}
+      >
+        <Lock className="h-5 w-5" />
+      </button>
+      <button
+        type="button"
+        className="pointer-events-auto relative z-[10020] flex h-14 w-14 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white active:scale-95"
+        onClick={onOpenMap}
+      >
+        <Map className="h-5 w-5" />
+      </button>
+      <button
+        type="button"
+        className="flex h-14 w-14 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white active:scale-95"
+        onClick={onToggleKingdom}
+      >
+        <Settings2 className="h-5 w-5" />
+      </button>
+    </div>
+  )
+})
+
+const RunControlButtons = memo(function RunControlButtons({
+  isPaused,
+  isEndPressing,
+  onPauseToggle,
+  onEndPressStart,
+  onEndPressEnd,
+  singleButtonClassName,
+  pairButtonClassName,
+  pairWrapperClassName,
+  singleLabelClassName,
+}: {
+  isPaused: boolean
+  isEndPressing: boolean
+  onPauseToggle: () => void
+  onEndPressStart: () => void
+  onEndPressEnd: () => void
+  singleButtonClassName: string
+  pairButtonClassName: string
+  pairWrapperClassName: string
+  singleLabelClassName?: string
+}) {
+  if (!isPaused) {
+    return (
+      <button
+        type="button"
+        className={singleButtonClassName}
+        onClick={onPauseToggle}
+      >
+        暂停跑步
+      </button>
+    )
+  }
+
+  return (
+    <div className={pairWrapperClassName}>
+      <button
+        type="button"
+        className={`${pairButtonClassName} ${isEndPressing ? "bg-red-700" : "bg-red-500"}`}
+        onPointerDown={onEndPressStart}
+        onPointerUp={onEndPressEnd}
+        onPointerLeave={onEndPressEnd}
+        onPointerCancel={onEndPressEnd}
+      >
+        {isEndPressing ? "按住以结束..." : "结束跑步"}
+      </button>
+      <button
+        type="button"
+        className={singleLabelClassName || singleButtonClassName}
+        onClick={onPauseToggle}
+      >
+        继续跑步
+      </button>
+    </div>
+  )
+})
+
+const MapTopBar = memo(function MapTopBar({
+  onBack,
+  onRecenter,
+}: {
+  onBack: () => void
+  onRecenter: () => void
+}) {
+  return (
+    <div className="pointer-events-auto absolute left-4 right-4 top-[calc(env(safe-area-inset-top)+12px)] z-50 flex items-center justify-between">
+      <button
+        type="button"
+        className="pointer-events-auto relative z-[10020] flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-black/70 text-white shadow-lg active:scale-95"
+        onClick={onBack}
+      >
+        <ArrowLeft className="h-5 w-5" />
+      </button>
+      <button
+        type="button"
+        className="rounded-full border border-white/20 bg-black/70 px-4 py-2 text-sm font-semibold text-white active:scale-95"
+        onClick={onRecenter}
+      >
+        回到定位
+      </button>
+    </div>
+  )
+})
+
 // Helper: Calculate distance between two points in meters
 
 
@@ -208,7 +326,7 @@ export function ImmersiveRunningMode({
   useEffect(() => {
     setIsPaused(initialIsPaused);
   }, [initialIsPaused]);
-  const [isGhostMode, setIsGhostMode] = useState(false)
+  const [isScreenLocked, setIsScreenLocked] = useState(false)
   const [viewMode, setViewMode] = useState<'dashboard' | 'map'>('dashboard')
   const [showStopConfirm, setShowStopConfirm] = useState(false)
   const [recenterTrigger, setRecenterTrigger] = useState(0)
@@ -222,14 +340,15 @@ export function ImmersiveRunningMode({
   const [showKingdom, setShowKingdom] = useState(false)
   const [floatingBanner, setFloatingBanner] = useState<{ id: number; text: string; tone: "capture" | "shield" } | null>(null)
   const [showEventResolveFx, setShowEventResolveFx] = useState(false)
-  // Debounce ref for stop button
   const lastStopAttemptRef = useRef(0)
   const attemptStopRef = useRef<() => void>(() => {})
-  const pauseTapRef = useRef(0)
-  const pauseIntentTimerRef = useRef<number | null>(null)
   const bannerTimerRef = useRef<number | null>(null)
+  const unlockPressTimerRef = useRef<number | null>(null)
+  const endPressTimerRef = useRef<number | null>(null)
   const prevHexesCapturedRef = useRef(hexesCaptured)
   const prevSuccessfulEventsRef = useRef(0)
+  const [isUnlockPressing, setIsUnlockPressing] = useState(false)
+  const [isEndPressing, setIsEndPressing] = useState(false)
 
   const { currentCity } = useCity()
   const { ghostPath } = useGameLocation()
@@ -380,38 +499,17 @@ export function ImmersiveRunningMode({
 
   useEffect(() => {
     return () => {
-      if (pauseIntentTimerRef.current) {
-        window.clearTimeout(pauseIntentTimerRef.current)
-      }
       if (bannerTimerRef.current !== null) {
         window.clearTimeout(bannerTimerRef.current)
       }
+      if (unlockPressTimerRef.current !== null) {
+        window.clearTimeout(unlockPressTimerRef.current)
+      }
+      if (endPressTimerRef.current !== null) {
+        window.clearTimeout(endPressTimerRef.current)
+      }
     }
   }, [])
-
-  const handleGhostMove = useCallback((vector: { x: number, y: number }) => {
-    if (!currentLocation || !onManualLocation) return
-
-    // Max speed 15km/h ~= 4.16 m/s
-    // Update rate 50ms => 0.05s
-    // Max dist per update = 4.16 * 0.05 = 0.208 meters
-
-    const speedMps = 15 / 3.6 // ~4.16
-    const timeStep = 0.05 // 50ms
-    const dist = speedMps * timeStep
-
-    // North/South distance (dLat)
-    // 1 degree lat ~= 111,320 meters
-    // Joystick Y+ is down (South), so Lat decreases.
-    const dLat = -(dist * vector.y) / 111320
-
-    // East/West distance (dLng)
-    // 1 degree lng ~= 111320 * cos(lat)
-    const latRad = currentLocation.lat * (Math.PI / 180)
-    const dLng = (dist * vector.x) / (111320 * Math.cos(latRad))
-
-    onManualLocation(currentLocation.lat + dLat, currentLocation.lng + dLng)
-  }, [currentLocation, onManualLocation])
 
   const handlePauseToggle = useCallback(() => {
     if (isPaused) {
@@ -432,35 +530,71 @@ export function ImmersiveRunningMode({
     }
   }, [isPaused, onPause, onResume])
 
-  const handlePauseOrAttemptStop = useCallback(() => {
-    if (isPaused) {
-      handlePauseToggle()
-      return
-    }
+  const handleLockScreen = useCallback(() => {
+    setIsScreenLocked(true)
+  }, [])
 
-    const now = Date.now()
-    if (now - pauseTapRef.current < 320) {
-      pauseTapRef.current = 0
-      if (pauseIntentTimerRef.current) {
-        window.clearTimeout(pauseIntentTimerRef.current)
-        pauseIntentTimerRef.current = null
-      }
+  const handleUnlockPressStart = useCallback(() => {
+    setIsUnlockPressing(true)
+    if (unlockPressTimerRef.current !== null) {
+      window.clearTimeout(unlockPressTimerRef.current)
+    }
+    unlockPressTimerRef.current = window.setTimeout(() => {
+      setIsScreenLocked(false)
+      setIsUnlockPressing(false)
+      unlockPressTimerRef.current = null
+    }, 1000)
+  }, [])
+
+  const handleUnlockPressEnd = useCallback(() => {
+    setIsUnlockPressing(false)
+    if (unlockPressTimerRef.current !== null) {
+      window.clearTimeout(unlockPressTimerRef.current)
+      unlockPressTimerRef.current = null
+    }
+  }, [])
+
+  const handleEndPressStart = useCallback(() => {
+    setIsEndPressing(true)
+    if (endPressTimerRef.current !== null) {
+      window.clearTimeout(endPressTimerRef.current)
+    }
+    endPressTimerRef.current = window.setTimeout(() => {
+      setIsEndPressing(false)
+      endPressTimerRef.current = null
       attemptStopRef.current()
+    }, 1000)
+  }, [])
+
+  const handleEndPressEnd = useCallback(() => {
+    setIsEndPressing(false)
+    if (endPressTimerRef.current !== null) {
+      window.clearTimeout(endPressTimerRef.current)
+      endPressTimerRef.current = null
+    }
+  }, [])
+
+  const handleRecenter = useCallback(() => {
+    if (useSharedMapBase) {
+      window.dispatchEvent(new CustomEvent('immersive-recenter-request'))
       return
     }
-
-    pauseTapRef.current = now
-    if (pauseIntentTimerRef.current) {
-      window.clearTimeout(pauseIntentTimerRef.current)
-    }
-    pauseIntentTimerRef.current = window.setTimeout(() => {
-      if (pauseTapRef.current === now) {
-        pauseTapRef.current = 0
-        handlePauseToggle()
-      }
-      pauseIntentTimerRef.current = null
-    }, 320)
-  }, [isPaused, handlePauseToggle])
+    setRecenterTrigger((prev) => prev + 1)
+  }, [useSharedMapBase])
+  const handleOpenMapView = useCallback(() => {
+    setViewMode('map')
+    handleRecenter()
+  }, [handleRecenter])
+  const handleBackToDashboard = useCallback(() => {
+    setViewMode('dashboard')
+  }, [])
+  const handleToggleKingdom = useCallback(() => {
+    setShowKingdom((v) => !v)
+  }, [])
+  const runningMapUserLocation = useMemo(
+    () => (currentLocation ? [currentLocation.lng, currentLocation.lat] as [number, number] : undefined),
+    [currentLocation]
+  )
 
   // const handleStop = useCallback(() => {
   //   // Logic moved to handleAttemptStop
@@ -870,7 +1004,7 @@ export function ImmersiveRunningMode({
       {!useSharedMapBase && (
         <div className={`absolute inset-0 z-0 ${isPaused && viewMode === 'dashboard' ? 'pointer-events-none' : 'pointer-events-auto'}`}>
           <RunningMap
-            userLocation={currentLocation ? [currentLocation.lng, currentLocation.lat] : undefined}
+            userLocation={runningMapUserLocation}
             path={path}
             onLocationUpdate={onManualLocation}
             recenterTrigger={recenterTrigger}
@@ -905,40 +1039,22 @@ export function ImmersiveRunningMode({
             </div>
 
             <div className="mt-auto space-y-4">
-              <div className="flex items-center justify-center gap-6">
-                <button
-                  type="button"
-                  className="flex h-14 w-14 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white active:scale-95"
-                  onClick={() => setIsGhostMode((v) => !v)}
-                >
-                  <Lock className="h-5 w-5" />
-                </button>
-                <button
-                  type="button"
-                  className="pointer-events-auto relative z-[10020] flex h-14 w-14 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white active:scale-95"
-                  onClick={() => {
-                    setViewMode('map')
-                    setRecenterTrigger((prev) => prev + 1)
-                  }}
-                >
-                  <Map className="h-5 w-5" />
-                </button>
-                <button
-                  type="button"
-                  className="flex h-14 w-14 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white active:scale-95"
-                  onClick={() => setShowKingdom((v) => !v)}
-                >
-                  <Settings2 className="h-5 w-5" />
-                </button>
-              </div>
-              <button
-                type="button"
-                className="h-14 w-full rounded-2xl bg-emerald-500 text-lg font-black text-white shadow-xl active:scale-[0.99]"
-                onClick={handlePauseOrAttemptStop}
-                onDoubleClick={handleAttemptStop}
-              >
-                {isPaused ? "继续跑步" : "暂停跑步"}
-              </button>
+              <DashboardActionRow
+                onLock={handleLockScreen}
+                onOpenMap={handleOpenMapView}
+                onToggleKingdom={handleToggleKingdom}
+              />
+              <RunControlButtons
+                isPaused={isPaused}
+                isEndPressing={isEndPressing}
+                onPauseToggle={handlePauseToggle}
+                onEndPressStart={handleEndPressStart}
+                onEndPressEnd={handleEndPressEnd}
+                singleButtonClassName="h-14 w-full rounded-2xl bg-emerald-500 text-lg font-black text-white shadow-xl active:scale-[0.99]"
+                pairButtonClassName="h-14 w-full rounded-2xl text-lg font-black text-white shadow-xl transition active:scale-[0.99]"
+                pairWrapperClassName="grid grid-cols-2 gap-3"
+                singleLabelClassName="h-14 w-full rounded-2xl bg-emerald-500 text-lg font-black text-white shadow-xl active:scale-[0.99]"
+              />
             </div>
           </div>
         </div>
@@ -946,22 +1062,7 @@ export function ImmersiveRunningMode({
 
       {viewMode === 'map' && (
         <div className="absolute inset-0 z-50 flex flex-col pointer-events-none">
-          <div className="pointer-events-auto absolute left-4 right-4 top-[calc(env(safe-area-inset-top)+12px)] z-50 flex items-center justify-between">
-            <button
-              type="button"
-              className="pointer-events-auto relative z-[10020] flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-black/70 text-white shadow-lg active:scale-95"
-              onClick={() => setViewMode('dashboard')}
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </button>
-            <button
-              type="button"
-              className="rounded-full border border-white/20 bg-black/70 px-4 py-2 text-sm font-semibold text-white active:scale-95"
-              onClick={() => setRecenterTrigger((prev) => prev + 1)}
-            >
-              回到定位
-            </button>
-          </div>
+          <MapTopBar onBack={handleBackToDashboard} onRecenter={handleRecenter} />
 
           <div className="pointer-events-auto z-50 mt-auto rounded-t-3xl border border-white/10 bg-slate-900/92 px-5 pb-[calc(env(safe-area-inset-bottom)+16px)] pt-4">
             <div className="mx-auto mb-4 h-1.5 w-14 rounded-full bg-white/25" />
@@ -983,19 +1084,37 @@ export function ImmersiveRunningMode({
                 <p className="mt-1 text-2xl font-black text-white">{time}</p>
               </div>
             </div>
-            <button
-              type="button"
-              className="mt-4 h-12 w-full rounded-2xl bg-emerald-500 text-base font-black text-white active:scale-[0.99]"
-              onClick={handlePauseOrAttemptStop}
-              onDoubleClick={handleAttemptStop}
-            >
-              {isPaused ? "继续跑步" : "暂停跑步"}
-            </button>
+            <RunControlButtons
+              isPaused={isPaused}
+              isEndPressing={isEndPressing}
+              onPauseToggle={handlePauseToggle}
+              onEndPressStart={handleEndPressStart}
+              onEndPressEnd={handleEndPressEnd}
+              singleButtonClassName="mt-4 h-12 w-full rounded-2xl bg-emerald-500 text-base font-black text-white active:scale-[0.99]"
+              pairButtonClassName="h-12 w-full rounded-2xl text-base font-black text-white shadow-xl transition active:scale-[0.99]"
+              pairWrapperClassName="mt-4 grid grid-cols-2 gap-3"
+              singleLabelClassName="h-12 w-full rounded-2xl bg-emerald-500 text-base font-black text-white active:scale-[0.99]"
+            />
           </div>
         </div>
       )}
 
-      {isGhostMode && <GhostJoystick onMove={handleGhostMove} />}
+      {isScreenLocked && (
+        <div className="fixed inset-0 z-[99999] pointer-events-auto bg-black/60 backdrop-blur-sm">
+          <div className="flex h-full w-full items-center justify-center px-6">
+            <button
+              type="button"
+              className={`h-28 w-28 rounded-full border-2 border-white/40 bg-white/10 text-sm font-black text-white transition ${isUnlockPressing ? "scale-95 bg-white/20" : "scale-100"}`}
+              onPointerDown={handleUnlockPressStart}
+              onPointerUp={handleUnlockPressEnd}
+              onPointerLeave={handleUnlockPressEnd}
+              onPointerCancel={handleUnlockPressEnd}
+            >
+              {isUnlockPressing ? "继续按住..." : "按住解锁"}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

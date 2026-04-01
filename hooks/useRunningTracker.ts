@@ -10,7 +10,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { isNativePlatform, safeGetBatteryInfo } from "@/lib/capacitor/safe-plugins";
 import type { GeoPoint } from '@/hooks/useSafeGeolocation';
 import { useLocationStore } from '@/store/useLocationStore';
-import { getDistanceFromLatLonInMeters } from '@/lib/geometry-utils';
+import { getDistanceFromLatLonInMeters, LOOP_CLOSURE_THRESHOLD_M } from '@/lib/geometry-utils';
 import { shouldAcceptPointByDistance } from '@/lib/location/gps-spatial-filter';
 import { ActiveRandomEvent, useRandomEvents } from '@/hooks/useRandomEvents';
 import { RunEventLog } from '@/types/run-sync';
@@ -142,6 +142,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   const lastLocationRef = useRef<Location | null>(null);
   const pathRef = useRef<Location[]>([]);
   const isPausedRef = useRef(isPaused);
+  const lastClaimAtRef = useRef(0);
 
   // ─── Live-snapshot refs (always current, immune to stale closures) ───
   const distanceRef = useRef(distance);
@@ -537,50 +538,70 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     // during a continuous run, not the end of the run.
     // ========================================================================
 
-    const MIN_LOOP_SIZE = 10; // Minimum points before allowing snap
-    const SNAP_THRESHOLD = 20; // meters - snap distance (tunable)
+    const MIN_LOOP_SIZE = 10;
+    const SNAP_THRESHOLD = LOOP_CLOSURE_THRESHOLD_M;
+    const P_SHAPE_MIN_POINT_GAP = 15;
+    const MIN_CLAIM_INTERVAL_MS = 12000;
 
-    let shouldSnapToStart = false;
-    let snappedLoc = newLoc; // Used ONLY for polygon calc
+    let loopForCalc: Location[] | null = null;
+    const currentPath = pathRef.current;
 
-    if (pathRef.current.length >= MIN_LOOP_SIZE) {
-      const startPoint = pathRef.current[0];
-      const distToStart = getDistanceFromLatLonInMeters(newLoc.lat, newLoc.lng, startPoint.lat, startPoint.lng);
+    if (currentPath.length >= MIN_LOOP_SIZE) {
+      const latestPoint = turf.point([newLoc.lng, newLoc.lat]);
+      let pShapeAnchorIndex = -1;
 
-      if (distToStart <= SNAP_THRESHOLD) {
-        // 🎯 SNAP! Create snapped point for polygon calculation
-        snappedLoc = {
-          lat: startPoint.lat,
-          lng: startPoint.lng,
+      for (let i = 0; i < currentPath.length; i++) {
+        if (currentPath.length - i <= P_SHAPE_MIN_POINT_GAP) {
+          continue;
+        }
+        const historical = currentPath[i];
+        const historicalPoint = turf.point([historical.lng, historical.lat]);
+        const gapMeters = turf.distance(latestPoint, historicalPoint, { units: 'kilometers' }) * 1000;
+        if (gapMeters <= SNAP_THRESHOLD) {
+          pShapeAnchorIndex = i;
+          break;
+        }
+      }
+
+      if (pShapeAnchorIndex >= 0) {
+        const anchor = currentPath[pShapeAnchorIndex];
+        const closingPoint: Location = {
+          lat: anchor.lat,
+          lng: anchor.lng,
           timestamp: now
         };
-        shouldSnapToStart = true;
-
-        console.log(`[Smart Snap] 🎯 Snapped to start! Distance: ${Math.round(distToStart)}m`);
+        loopForCalc = [...currentPath.slice(pShapeAnchorIndex), newLoc, closingPoint];
+      } else {
+        const startPoint = currentPath[0];
+        const distToStart = getDistanceFromLatLonInMeters(newLoc.lat, newLoc.lng, startPoint.lat, startPoint.lng);
+        if (distToStart <= SNAP_THRESHOLD) {
+          const snappedLoc: Location = {
+            lat: startPoint.lat,
+            lng: startPoint.lng,
+            timestamp: now
+          };
+          loopForCalc = [...currentPath, snappedLoc];
+          console.log(`[Smart Snap] 🎯 Snapped to start! Distance: ${Math.round(distToStart)}m`);
+        }
       }
     }
 
-    // Loop Closure Detection (Polygon) - Calculate claim using snapped point
-    if (shouldSnapToStart && pathRef.current.length > MIN_LOOP_SIZE) {
-      // Create closed loop for area calculation using snapped point
-      const loopForCalc = [...pathRef.current, snappedLoc];
+    if (loopForCalc && loopForCalc.length > MIN_LOOP_SIZE && now - lastClaimAtRef.current >= MIN_CLAIM_INTERVAL_MS) {
 
       try {
         const coords = loopForCalc.map(pt => [pt.lng, pt.lat]);
-        // Ensure closed ring for turf
         if (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1]) {
           coords.push(coords[0]);
         }
         const poly = turf.polygon([coords]);
         const loopArea = turf.area(poly);
 
-        if (loopArea > 100) { // Min 100 m²
-          // Store claimed polygon
+        if (loopArea > 100) {
           setSessionClaims(prev => [...prev, loopForCalc]);
           setClosedPolygons(prevPolys => [...prevPolys, loopForCalc]);
           setArea(prevArea => prevArea + loopArea);
+          lastClaimAtRef.current = now;
 
-          // 🎉 NEW TOAST: Emphasize that tracking continues!
           toast.success(`🎉 领地已捕获！面积: ${Math.round(loopArea)}m²`, {
             description: '跑步记录中... 继续前进占领更多领地！',
             duration: 3000

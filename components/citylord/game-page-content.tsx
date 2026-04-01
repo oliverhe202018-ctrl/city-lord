@@ -1,7 +1,7 @@
 "use client"
 
 import nextDynamic from 'next/dynamic';
-import { useState, useEffect, useRef, useCallback, memo } from "react"
+import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
 import { logEvent } from '@/lib/native-log';
 import { BottomNav, TabType } from "@/components/citylord/bottom-nav"
@@ -97,6 +97,37 @@ const ONBOARDING_STATUS_KEY = 'citylord_onboarding_status'
 const ONBOARDING_STEP_KEY = 'citylord_onboarding_step'
 
 type OnboardingStatus = 'pending_welcome' | 'pending_guide' | 'completed'
+const TERRITORY_ALERT_ATTACKER = {
+  name: "NightHunter",
+  level: 12,
+  clan: "暗影军团",
+}
+const TERRITORY_ALERT_TERRITORY = {
+  id: "hex-123",
+  name: "中央广场",
+  coordinates: "H7-K3",
+}
+const CHALLENGE_INVITE_CHALLENGER = {
+  name: "SpeedRunner",
+  level: 15,
+  wins: 28,
+  clan: "闪电战队",
+}
+const CHALLENGE_INVITE_DETAIL: {
+  type: "distance" | "capture" | "race"
+  title: string
+  description: string
+  duration: string
+  reward: number
+  location?: string
+} = {
+  type: "race",
+  title: "3公里竞速赛",
+  description: "比拼谁能更快完成3公里跑步",
+  duration: "30分钟",
+  reward: 200,
+  location: "中央公园",
+}
 
 export function GamePageContent({
   initialMissions = [],
@@ -376,9 +407,6 @@ export function GamePageContent({
   const [isOffline, setIsOffline] = useState(false)
   const [gpsStrength, setGpsStrength] = useState(5)
 
-  // Map View Mode (User vs Club)
-  const [mapViewMode, setMapViewMode] = useState<'user' | 'club'>('user');
-
   // Get user location from store - use stable selectors to avoid unnecessary re-renders
   const userLat = useGameStore((state) => state.latitude)
   const userLng = useGameStore((state) => state.longitude)
@@ -391,6 +419,10 @@ export function GamePageContent({
   const isRunTakeoverActive = isCountingDown || isImmersiveActive
   const shouldRenderPlaySurface = activeTab === "home" || activeTab === "play" || activeTab === "start" || isRunTakeoverActive
   const shouldShowPlayChrome = activeTab === "play" && !isRunTakeoverActive
+  const immersiveCurrentLocation = useMemo(
+    () => currentLocation || (userLat && userLng ? { lat: userLat, lng: userLng } : undefined),
+    [currentLocation, userLat, userLng]
+  )
 
   // Check if first visit - 只在首次挂载时执行
   useEffect(() => {
@@ -749,6 +781,20 @@ export function GamePageContent({
   const handleMapLoad = useCallback(() => { }, []);
 
   const handleExpand = useCallback(() => { }, []);
+  const handleTrackerPause = useCallback(() => {
+    toggleTrackerPause()
+  }, [toggleTrackerPause])
+  const handleManualLocationUpdate = useCallback((lat: number, lng: number) => {
+    addManualLocation(lat, lng)
+  }, [addManualLocation])
+  const fallbackAchievement = useMemo(() => ({
+    id: "marathon-hero",
+    title: "马拉松英雄",
+    description: "累计跑步距离达到42.195公里，你已成为真正的长跑者！",
+    icon: "🏅",
+    rarity: "epic",
+    unlockedAt: new Date().toLocaleDateString('zh-CN'),
+  }), [])
 
   return (
     <div className="relative w-full h-[100dvh] max-w-md mx-auto bg-[#0f172a] overflow-hidden flex flex-col">
@@ -821,7 +867,13 @@ export function GamePageContent({
                   ghostPath={ghostPath}
                   onViewportKingChange={setViewportKing}
                   isRunTakeoverActive={isRunTakeoverActive}
-                />
+                >
+                  {shouldShowPlayChrome && (
+                    <div className="pointer-events-auto">
+                      <MemoizedMapHeader setShowThemeSwitcher={setShowThemeSwitcher} isRunTakeoverActive={isRunTakeoverActive} />
+                    </div>
+                  )}
+                </MemoizedAMapView>
                 {shouldShowPlayChrome && <MemoizedFactionSelector initialUser={initialUser} />}
                 {shouldShowPlayChrome && <MemoizedReferralWelcome />}
               </div>
@@ -829,10 +881,6 @@ export function GamePageContent({
               <div className="relative z-10 h-full w-full pointer-events-none">
                 {shouldShowPlayChrome && (
                   <>
-                    <div className="pointer-events-auto">
-                      <MemoizedMapHeader setShowThemeSwitcher={setShowThemeSwitcher} isRunTakeoverActive={isRunTakeoverActive} />
-                    </div>
-
                     <div className="pointer-events-auto">
                       <MemoizedModeSwitcher onDrawerOpenChange={handleDrawerOpenChange} />
                     </div>
@@ -991,16 +1039,15 @@ export function GamePageContent({
 
           {!isRunTakeoverActive && activeTab === "mode" && (
             <div className="relative h-dvh w-full overflow-hidden">
-              <MemoizedAMapView ref={mapViewRef} showTerritory={showTerritory} showControls={shouldShowPlayChrome} viewMode={mapViewMode} sessionClaims={sessionClaims} ghostPath={ghostPath} isRunTakeoverActive={isRunTakeoverActive} />
-              <div className="relative z-10 h-full w-full pointer-events-none">
+              <MemoizedAMapView ref={mapViewRef} showTerritory={showTerritory} showControls={shouldShowPlayChrome} sessionClaims={sessionClaims} ghostPath={ghostPath} isRunTakeoverActive={isRunTakeoverActive}>
                 <div className="pointer-events-auto">
                   <MemoizedMapHeader
                     setShowThemeSwitcher={setShowThemeSwitcher}
-                    viewMode={mapViewMode}
-                    onViewModeChange={setMapViewMode}
                     isRunTakeoverActive={isRunTakeoverActive}
                   />
                 </div>
+              </MemoizedAMapView>
+              <div className="relative z-10 h-full w-full pointer-events-none">
                 <div className="pointer-events-auto">
                   <MemoizedModeSwitcher onDrawerOpenChange={handleDrawerOpenChange} />
                 </div>
@@ -1057,12 +1104,12 @@ export function GamePageContent({
             heartRate={0}
             hexesCaptured={sessionHexes}
             currentHexProgress={0}
-            onPause={toggleTrackerPause}
-            onResume={toggleTrackerPause}
+            onPause={handleTrackerPause}
+            onResume={handleTrackerPause}
             onStop={handleStopRun}
-            onManualLocation={addManualLocation}
+            onManualLocation={handleManualLocationUpdate}
             onExpand={handleExpand}
-            currentLocation={currentLocation || (userLat && userLng ? { lat: userLat, lng: userLng } : undefined)}
+            currentLocation={immersiveCurrentLocation}
             path={path}
             closedPolygons={closedPolygons}
             onHexClaimed={handleHexClaimed}
@@ -1086,16 +1133,8 @@ export function GamePageContent({
       <MemoizedTerritoryAlert
         isOpen={showTerritoryAlert}
         onClose={() => setShowTerritoryAlert(false)}
-        attacker={{
-          name: "NightHunter",
-          level: 12,
-          clan: "暗影军团",
-        }}
-        territory={{
-          id: "hex-123",
-          name: "中央广场",
-          coordinates: "H7-K3",
-        }}
+        attacker={TERRITORY_ALERT_ATTACKER}
+        territory={TERRITORY_ALERT_TERRITORY}
         timeAgo="2分钟前"
         onCounterAttack={handleCounterAttack}
         onViewMap={handleViewMap}
@@ -1104,34 +1143,15 @@ export function GamePageContent({
       <MemoizedChallengeInvite
         isOpen={showChallengeInvite}
         onClose={() => setShowChallengeInvite(false)}
-        challenger={{
-          name: "SpeedRunner",
-          level: 15,
-          wins: 28,
-          clan: "闪电战队",
-        }}
-        challenge={{
-          type: "race",
-          title: "3公里竞速赛",
-          description: "比拼谁能更快完成3公里跑步",
-          duration: "30分钟",
-          reward: 200,
-          location: "中央公园",
-        }}
+        challenger={CHALLENGE_INVITE_CHALLENGER}
+        challenge={CHALLENGE_INVITE_DETAIL}
         onAccept={handleAcceptChallenge}
       />
 
       <MemoizedAchievementPopup
         isOpen={showAchievement}
         onClose={() => setShowAchievement(false)}
-        achievement={currentUnlockedAchievement || {
-          id: "marathon-hero",
-          title: "马拉松英雄",
-          description: "累计跑步距离达到42.195公里，你已成为真正的长跑者！",
-          icon: "🏅",
-          rarity: "epic",
-          unlockedAt: new Date().toLocaleDateString('zh-CN'),
-        }}
+        achievement={currentUnlockedAchievement || fallbackAchievement}
         rewards={currentUnlockedAchievement ? [
           currentUnlockedAchievement.rewards.xp && { type: "xp", amount: currentUnlockedAchievement.rewards.xp, label: "经验值" },
           currentUnlockedAchievement.rewards.coins && { type: "coins", amount: currentUnlockedAchievement.rewards.coins, label: "金币" },

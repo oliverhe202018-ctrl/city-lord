@@ -1,4 +1,4 @@
-import React, { forwardRef } from 'react';
+import React, { forwardRef, useMemo, useRef } from 'react';
 import { useMap } from './AMapContext';
 import { MapLayer } from './layers/MapLayer';
 import { ClaimedPolygonLayer } from './layers/ClaimedPolygonLayer';
@@ -38,6 +38,8 @@ export interface ViewportKingData {
   totalArea: number;
 }
 
+const DEFAULT_CENTER: [number, number] = [116.397428, 39.90923];
+
 /**
  * AMapView: Layered map architecture for running game
  * 
@@ -66,10 +68,19 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
       showFog, // Fog layer visibility
       showFactionColors,
       viewMode: mapViewMode, // 'individual' | 'faction'
+      setIsTracking,
     } = useMap();
 
     const { setSelectedTerritory, setIsDetailSheetOpen } = useMapInteraction();
     const { user } = useAuth();
+    const recenterTimerRef = useRef<number | null>(null);
+    const isUserInteractingRef = useRef(false);
+    const currentLocationRef = useRef(currentLocation);
+    const initialCenter = useMemo<[number, number]>(() => mapCenter || DEFAULT_CENTER, [mapCenter]);
+
+    useEffect(() => {
+      currentLocationRef.current = currentLocation;
+    }, [currentLocation]);
 
     // Map Click Root Handler: uniform empty space click to clear selection
     useEffect(() => {
@@ -93,6 +104,89 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
       };
     }, [map, setSelectedTerritory, setIsDetailSheetOpen]);
 
+    useEffect(() => {
+      if (!map || !isRunTakeoverActive) return;
+      map.setZoom(18);
+    }, [map, isRunTakeoverActive]);
+
+    useEffect(() => {
+      if (!map || !isRunTakeoverActive) return;
+
+      const clearRecenterTimer = () => {
+        if (recenterTimerRef.current !== null) {
+          window.clearTimeout(recenterTimerRef.current);
+          recenterTimerRef.current = null;
+        }
+      };
+
+      const handleInteractionStart = () => {
+        isUserInteractingRef.current = true;
+        setIsTracking?.(false);
+        clearRecenterTimer();
+      };
+
+      const handleInteractionEnd = () => {
+        clearRecenterTimer();
+        recenterTimerRef.current = window.setTimeout(() => {
+          if (!isUserInteractingRef.current) return;
+          const loc = currentLocationRef.current;
+          if (!loc) return;
+          isUserInteractingRef.current = false;
+          setIsTracking?.(true);
+          if (map.setZoomAndCenter) {
+            map.setZoomAndCenter(18, [loc.lng, loc.lat], false, 600);
+            return;
+          }
+          map.setCenter([loc.lng, loc.lat]);
+          map.setZoom(18);
+        }, 3000);
+      };
+
+      map.on('dragstart', handleInteractionStart);
+      map.on('touchstart', handleInteractionStart);
+      map.on('zoomstart', handleInteractionStart);
+      map.on('dragend', handleInteractionEnd);
+      map.on('touchend', handleInteractionEnd);
+      map.on('zoomend', handleInteractionEnd);
+
+      return () => {
+        clearRecenterTimer();
+        map.off('dragstart', handleInteractionStart);
+        map.off('touchstart', handleInteractionStart);
+        map.off('zoomstart', handleInteractionStart);
+        map.off('dragend', handleInteractionEnd);
+        map.off('touchend', handleInteractionEnd);
+        map.off('zoomend', handleInteractionEnd);
+      };
+    }, [map, isRunTakeoverActive, setIsTracking]);
+
+    useEffect(() => {
+      if (!isRunTakeoverActive) return;
+
+      const handleImmersiveRecenter = () => {
+        if (!map) return;
+        const loc = currentLocationRef.current;
+        if (!loc) return;
+        if (recenterTimerRef.current !== null) {
+          window.clearTimeout(recenterTimerRef.current);
+          recenterTimerRef.current = null;
+        }
+        isUserInteractingRef.current = false;
+        setIsTracking?.(true);
+        if (map.setZoomAndCenter) {
+          map.setZoomAndCenter(18, [loc.lng, loc.lat], false, 600);
+          return;
+        }
+        map.setCenter([loc.lng, loc.lat]);
+        map.setZoom(18);
+      };
+
+      window.addEventListener('immersive-recenter-request', handleImmersiveRecenter);
+      return () => {
+        window.removeEventListener('immersive-recenter-request', handleImmersiveRecenter);
+      };
+    }, [map, isRunTakeoverActive, setIsTracking]);
+
     return (
       <div className="relative w-full h-full">
         {/* New Non-blocking Location Indicator */}
@@ -102,8 +196,8 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
         <div className="w-full h-full">
           <MapLayer
             ref={mapLayerRef}
-            initialCenter={mapCenter || [116.397428, 39.90923]}
-            initialZoom={13}
+            initialCenter={initialCenter}
+            initialZoom={isRunTakeoverActive ? 18 : 13}
             onMoveEnd={handleMapMoveEnd}
             onMapLoad={onMapLoad}
             onMapReady={setMap}

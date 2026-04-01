@@ -11,7 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { createClient } from "@/lib/supabase/client";
 import type { ViewportKingData } from "./AMapView";
 import * as turf from '@turf/turf';
-import { useGameTerritoryAppearance } from "@/store/useGameStore";
+import { useGameStore, useGameTerritoryAppearance } from "@/store/useGameStore";
 
 const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
   const controller = new AbortController()
@@ -87,6 +87,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
   const { viewMode, selectedTerritory, setSelectedTerritory, setIsDetailSheetOpen, openTerritoryDetailDrawer } = useMapInteraction();
   const { user } = useAuth();
   const { territoryAppearance } = useGameTerritoryAppearance();
+  const clubId = useGameStore((state) => state.clubId);
 
   // Track polygon 鈫?territory mapping for highlight updates
   const polygonTerritoryMap = useRef<Map<any, { territory: ExtTerritory; defaultStrokeColor: string; path: [number, number][] }>>(new Map());
@@ -117,8 +118,11 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
   }, []);
 
   const getDisplayLevelByZoom = useCallback((zoom: number): DisplayLevel => {
-    return zoom < 14 ? 'club' : 'individual';
-  }, []);
+    if (kingdomMode === 'club' && zoom < 14) {
+      return 'club';
+    }
+    return 'individual';
+  }, [kingdomMode]);
 
   const computePathBounds = useCallback((path: [number, number][]) => {
     let minLng = Infinity;
@@ -197,6 +201,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
   const buildPolygonPresentation = useCallback((territory: ExtTerritory) => {
     const ctx: ViewContext = {
       userId: user?.id || null,
+      clubId: clubId || null,
       subject: kingdomMode === 'club' ? 'club' : (viewMode === 'faction' ? 'faction' : 'individual')
     };
     const style = generateTerritoryStyle(territory, ctx);
@@ -229,7 +234,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
       strokeColor,
       strokeWeight: isLowHealth ? 3 : 2,
     };
-  }, [kingdomMode, resolveFactionColor, showFactionColors, territoryAppearance.fillColor, territoryAppearance.fillOpacity, territoryAppearance.strokeColor, user?.id, viewMode]);
+  }, [clubId, kingdomMode, resolveFactionColor, showFactionColors, territoryAppearance.fillColor, territoryAppearance.fillOpacity, territoryAppearance.strokeColor, user?.id, viewMode]);
 
   const recomputeViewportKing = useCallback(() => {
     if (!map || kingdomMode !== 'personal') {

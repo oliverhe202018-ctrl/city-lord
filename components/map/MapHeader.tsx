@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useRef } from "react"
+import React, { useState, useEffect, useRef, useContext } from "react"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { useCity } from "@/contexts/CityContext";
@@ -11,12 +11,10 @@ import { ChevronDown, Calendar, Activity, MapPin, Navigation, User, Zap, Trophy,
 import { CityDrawer } from "./CityDrawer"
 import { RoomSelector } from '@/components/room/RoomSelector'
 import { LoadingSpinner } from "@/components/citylord/loading-screen"
+import { MapInteractionCtx } from "./MapInteractionContext"
 
 export interface MapHeaderProps {
-  // Toggle for theme switcher
   setShowThemeSwitcher: (show: boolean) => void
-  viewMode?: 'user' | 'club'
-  onViewModeChange?: (mode: 'user' | 'club') => void
   isRunTakeoverActive?: boolean
 }
 
@@ -120,8 +118,6 @@ import { isNativePlatform, safeRequestGeolocationPermission } from "@/lib/capaci
  */
 export function MapHeader({
   setShowThemeSwitcher,
-  viewMode = 'user',
-  onViewModeChange,
   isRunTakeoverActive = false
 }: MapHeaderProps) {
   const { region } = useRegion();
@@ -131,6 +127,9 @@ export function MapHeader({
   const { gpsStatus, level, currentExp, maxExp, stamina, maxStamina, lastStaminaUpdate, activeDrawer, latitude, longitude, lastKnownLocation } = useGameStore();
   const { openDrawer, closeDrawer } = useGameActions();
   const hydrated = useHydration();
+  const interactionContext = useContext(MapInteractionCtx);
+  const kingdomMode = interactionContext?.kingdomMode ?? 'personal';
+  const setKingdomMode = interactionContext?.setKingdomMode;
 
   const [isLoggedIn, setIsLoggedIn] = useState(true)
   const [showLoginModal, setShowLoginModal] = useState(false)
@@ -478,14 +477,13 @@ export function MapHeader({
         </GlassCard>
       </div>
 
-      {/* Floating Action Buttons — only shown when view mode toggle is needed */}
-      {onViewModeChange && (
+      {setKingdomMode && (
         <div className="absolute right-4 top-[calc(env(safe-area-inset-top)+6rem)] flex flex-col gap-3 pointer-events-auto">
           <button
-            onClick={() => onViewModeChange(viewMode === 'user' ? 'club' : 'user')}
+            onClick={() => setKingdomMode(kingdomMode === 'personal' ? 'club' : 'personal')}
             className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white shadow-lg transition-all active:scale-90 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-black"
           >
-            {viewMode === 'user' ? (
+            {kingdomMode === 'personal' ? (
               <User className="w-5 h-5" />
             ) : (
               <Users className="w-5 h-5 text-primary" />
