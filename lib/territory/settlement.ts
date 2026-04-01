@@ -2,6 +2,7 @@ import * as turf from '@turf/turf';
 import { cleanAndSplitTrajectory } from '../gis/geometry-cleaner';
 import { PrismaClient, Prisma } from '@prisma/client';
 import { TerritoryStatsAggregatorService } from '@/lib/services/territory-stats-aggregator';
+import { extractValidLoops, LOOP_CLOSURE_THRESHOLD_M } from '@/lib/geometry-utils';
 
 const prisma = new PrismaClient();
 
@@ -61,18 +62,33 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
         return { success: false, createdTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'Invalid path geometry' };
     }
 
-    const runAreaSqMeters = turf.area(pathGeoJSON);
-    if (runAreaSqMeters < 50) {
-        return { success: false, createdTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'Run area too small' };
+    const rawCoords = pathGeoJSON.geometry.coordinates?.[0];
+    if (!Array.isArray(rawCoords) || rawCoords.length < 3) {
+        return { success: false, createdTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'Invalid path coordinates' };
+    }
+    const extractedLoops = extractValidLoops(
+        rawCoords.map((coord: [number, number], index: number) => ({
+            lng: coord[0],
+            lat: coord[1],
+            timestamp: index
+        })),
+        LOOP_CLOSURE_THRESHOLD_M
+    );
+    if (extractedLoops.length === 0) {
+        return { success: false, createdTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'No valid closed loops' };
     }
 
-    // 2. GIS Cleaning Pass (Fix self-intersections, redundant points, etc.)
-    // Coordinates usually in geometry.coordinates[0] for Polygons
-    const rawCoords = pathGeoJSON.geometry.coordinates[0];
-    const cleanedPolygons = cleanAndSplitTrajectory(rawCoords);
+    const cleanedPolygons = extractedLoops.flatMap((loop) => {
+        const loopCoords = loop.map((point) => [point.lng, point.lat] as [number, number]);
+        return cleanAndSplitTrajectory(loopCoords);
+    });
 
     if (cleanedPolygons.length === 0) {
         return { success: false, createdTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'Invalid geometry after cleaning' };
+    }
+    const runAreaSqMeters = cleanedPolygons.reduce((sum, polygon) => sum + turf.area(polygon), 0);
+    if (runAreaSqMeters < 50) {
+        return { success: false, createdTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'Run area too small' };
     }
 
     // Recalculate combined geometry for PostGIS intersection check

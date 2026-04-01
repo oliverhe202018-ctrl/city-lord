@@ -107,7 +107,23 @@ export function RunSummaryView({
         steps,
         pace
       }, faction || '未知阵营');
-      setStory(result);
+      if (!result.ok) {
+        if (result.code === 'TIMEOUT') {
+          toast.error('生成超时，请稍后重试');
+        } else if (result.code === 'RATE_LIMIT') {
+          toast.error('接口限流，请稍后重试');
+        } else if (result.code === 'AUTH_MISSING') {
+          toast.error('战报服务未配置 API Key');
+        } else if (result.code === 'UPSTREAM_5XX') {
+          toast.error('战报服务繁忙，请稍后重试');
+        } else if (result.code === 'NETWORK_ERROR') {
+          toast.error('网络异常，请稍后重试');
+        } else {
+          toast.error(result.message || '战报生成失败');
+        }
+        return;
+      }
+      setStory(result.story || '');
       toast.success('史诗战报已谱写完成！');
     } catch (err) {
       console.error('Failed to generate story:', err);

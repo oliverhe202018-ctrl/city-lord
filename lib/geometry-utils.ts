@@ -19,6 +19,12 @@ export interface GeoPoint {
     timestamp: number;
 }
 
+export interface Coord {
+    lat: number;
+    lng: number;
+    timestamp?: number;
+}
+
 export interface LoopCheckResult {
     isClosed: boolean;
     /** Distance between start and end points in meters */
@@ -141,6 +147,51 @@ export function isLoopClosed(
         isClosed: gapDistance <= thresholdMeters,
         gapDistance,
     };
+}
+
+export function extractValidLoops(
+    path: Coord[],
+    threshold: number = LOOP_CLOSURE_THRESHOLD_M
+): Coord[][] {
+    if (!Array.isArray(path) || path.length < MIN_LOOP_POINTS) {
+        return [];
+    }
+    const minGap = Math.max(6, Math.floor(MIN_LOOP_POINTS / 2));
+    const loops: Coord[][] = [];
+    const seen = new Set<string>();
+    for (let anchorIndex = 0; anchorIndex < path.length; anchorIndex++) {
+        for (let currentIndex = anchorIndex + minGap; currentIndex < path.length; currentIndex++) {
+            const anchor = path[anchorIndex];
+            const current = path[currentIndex];
+            const gapMeters = haversineDistance(anchor.lat, anchor.lng, current.lat, current.lng);
+            if (gapMeters > threshold) continue;
+            const segment = path.slice(anchorIndex, currentIndex + 1);
+            if (segment.length < MIN_LOOP_POINTS) continue;
+            const loop: Coord[] = [...segment];
+            const last = loop[loop.length - 1];
+            if (last.lat !== anchor.lat || last.lng !== anchor.lng) {
+                loop.push({
+                    lat: anchor.lat,
+                    lng: anchor.lng,
+                    timestamp: current.timestamp ?? anchor.timestamp
+                });
+            }
+            const loopCheck = isLoopClosed(
+                loop.map((point, index) => ({
+                    lat: point.lat,
+                    lng: point.lng,
+                    timestamp: point.timestamp ?? index
+                })),
+                threshold
+            );
+            if (!loopCheck.isClosed) continue;
+            const key = `${anchorIndex}-${currentIndex}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            loops.push(loop);
+        }
+    }
+    return loops;
 }
 
 // ============================================================

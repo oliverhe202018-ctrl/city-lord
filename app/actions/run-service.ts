@@ -10,6 +10,7 @@ import { processTerritorySettlement } from '@/lib/territory/settlement';
 import { validateRunData } from '@/lib/validators/run-validator';
 import { validateRunLegitimacy } from '@/lib/anti-cheat/mvp-rules';
 import * as turf from '@turf/turf';
+import { isLoopClosed, LOOP_CLOSURE_THRESHOLD_M, extractValidLoops, type Coord } from '@/lib/geometry-utils';
 
 export interface SaveRunResult {
     runId?: string;
@@ -145,8 +146,17 @@ export async function saveRunActivity(
         const isBlockedByAntiCheat = isFlagged || isPedometerInvalid;
         const flagReason = metadataValidation.flagReason || (pathValidation.riskLevel === 'HIGH' ? 'PATH_ANALYSIS_FAILED' : undefined);
 
-        let finalPolygons = pathValidation.validPolygons;
-        let finalArea = pathValidation.totalArea;
+        const extractedLoops = extractValidLoops((runData.path as any[]) || [], LOOP_CLOSURE_THRESHOLD_M);
+        let finalPolygons: Coord[][] = extractedLoops;
+        let finalArea = extractedLoops.reduce((sum, loop) => {
+            try {
+                const coords = loop.map((point: any) => [point.lng, point.lat] as [number, number]);
+                const polygon = turf.polygon([coords]);
+                return sum + turf.area(polygon);
+            } catch {
+                return sum;
+            }
+        }, 0);
 
         // Settlement Gating
         if (isBlockedByAntiCheat) {
@@ -314,10 +324,14 @@ export async function saveRunActivity(
             const allMaintenanceDetails: any[] = [];
             if (finalPolygons.length > 0 && !isFlagged && pathValidation.riskLevel === 'LOW') {
                 for (const polyPoints of finalPolygons) {
-                    const coords = polyPoints.map(p => [p.lng, p.lat]);
-                    if (coords[0][0] !== coords[coords.length-1][0] || coords[0][1] !== coords[coords.length-1][1]) {
-                        coords.push(coords[0]);
+                    const loopCheck = isLoopClosed(
+                        polyPoints.map((point: Coord, index: number) => ({ lat: point.lat, lng: point.lng, timestamp: point.timestamp ?? index })),
+                        LOOP_CLOSURE_THRESHOLD_M
+                    );
+                    if (!loopCheck.isClosed) {
+                        continue;
                     }
+                    const coords = polyPoints.map((p: Coord) => [p.lng, p.lat]);
                     const polyFeature = turf.polygon([coords]);
                     
                     // TODO: Extract actual cityId from points if needed, 

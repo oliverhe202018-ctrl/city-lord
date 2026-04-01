@@ -28,7 +28,7 @@ const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, ti
 }
 
 const fetchTerritories = async (cityId: string): Promise<ExtTerritory[]> => {
-  const res = await fetchWithTimeout(`/api/city/fetch-territories?cityId=${cityId}`, { credentials: 'include' })
+  const res = await fetchWithTimeout(`/api/city/fetch-territories?cityId=${cityId}`, { credentials: 'include', cache: 'no-store' })
   if (!res.ok) throw new Error('Failed to fetch territories')
   return await res.json()
 }
@@ -369,50 +369,88 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
         const territoryMetrics: TerritoryMetric[] = [];
         const createdPolygons = data.map((territory) => {
           newCellMap.set(territory.id, territory);
-          let path: [number, number][] = [];
-          
+          const paths: [number, number][][] = [];
+
           if (territory.geojson_json && territory.geojson_json.coordinates) {
              if (territory.geojson_json.type === 'Polygon') {
-               path = territory.geojson_json.coordinates[0];
+               const polygonRing = territory.geojson_json.coordinates[0];
+               if (Array.isArray(polygonRing)) {
+                 paths.push(polygonRing as [number, number][]);
+               }
+             } else if (territory.geojson_json.type === 'MultiPolygon') {
+               for (const polygon of territory.geojson_json.coordinates) {
+                 const polygonRing = polygon?.[0];
+                 if (Array.isArray(polygonRing)) {
+                   paths.push(polygonRing as [number, number][]);
+                 }
+               }
              } else {
                return null;
              }
           }
-          if (!path || path.length < 3) return null;
+
+          const validPaths = paths.filter((path) => Array.isArray(path) && path.length >= 3);
+          if (validPaths.length === 0) return null;
+          const primaryPath = validPaths[0];
 
           const presentation = buildPolygonPresentation(territory);
-          if (territory.ownerId) {
-            const bounds = computePathBounds(path);
-            const ring = path[0][0] === path[path.length - 1][0] && path[0][1] === path[path.length - 1][1] ? path : [...path, path[0]];
-            territoryMetrics.push({
-              ownerId: territory.ownerId,
-              feature: turf.polygon([ring]),
-              ...bounds,
+          const territoryPolygons = validPaths.map((path) => {
+            if (territory.ownerId) {
+              const bounds = computePathBounds(path);
+              const ring = path[0][0] === path[path.length - 1][0] && path[0][1] === path[path.length - 1][1] ? path : [...path, path[0]];
+              territoryMetrics.push({
+                ownerId: territory.ownerId,
+                feature: turf.polygon([ring]),
+                ...bounds,
+              });
+            }
+
+            const polygon = new (window as any).AMap.Polygon({
+              path: path,
+              fillColor: presentation.fillColor,
+              fillOpacity: presentation.fillOpacity,
+              strokeColor: presentation.strokeColor,
+              strokeWeight: presentation.strokeWeight,
+              zIndex: 50,
+              extData: territory,
+              bubble: false,
             });
-          }
 
-          const polygon = new (window as any).AMap.Polygon({
-            path: path,
-            fillColor: presentation.fillColor,
-            fillOpacity: presentation.fillOpacity,
-            strokeColor: presentation.strokeColor,
-            strokeWeight: presentation.strokeWeight,
-            zIndex: 50,
-            extData: territory,
-            bubble: false,
-          });
+            newPolygonMap.set(polygon, {
+              territory,
+              defaultStrokeColor: presentation.strokeColor,
+              path,
+            });
 
-          newPolygonMap.set(polygon, {
-            territory,
-            defaultStrokeColor: presentation.strokeColor,
-            path,
+            polygon.on("click", () => {
+              (window as any).__amap_polygon_clicked = Date.now();
+              if (openTerritoryDetailDrawer && territory.id) {
+                openTerritoryDetailDrawer(territory.id);
+              } else {
+                setSelectedTerritory?.(territory);
+                setIsDetailSheetOpen?.(true);
+              }
+            });
+
+            polygon.on("mouseover", () => {
+              if (selectedTerritoryRef.current?.id !== territory.id) {
+                polygon.setOptions({ strokeWeight: 3 });
+              }
+            });
+            polygon.on("mouseout", () => {
+              if (selectedTerritoryRef.current?.id !== territory.id) {
+                polygon.setOptions({ strokeWeight: 2 });
+              }
+            });
+
+            return polygon;
           });
 
           let marker = null;
           if (territory.ownerId) {
             let markerPosition: [number, number];
             try {
-              const coords = path.map((p: any) => [p[0], p[1]]);
+              const coords = primaryPath.map((p: any) => [p[0], p[1]]);
               if (coords.length > 0 && (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1])) {
                 coords.push(coords[0]);
               }
@@ -420,7 +458,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
               const pt = turf.pointOnFeature(poly);
               markerPosition = pt.geometry.coordinates as [number, number];
             } catch {
-              const center = polygon.getBounds().getCenter();
+              const center = territoryPolygons[0].getBounds().getCenter();
               markerPosition = [center.getLng(), center.getLat()];
             }
             
@@ -487,29 +525,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
             (marker as any).__displayLevel = displayLevel;
           }
 
-
-          polygon.on("click", () => {
-            (window as any).__amap_polygon_clicked = Date.now();
-            if (openTerritoryDetailDrawer && territory.id) {
-              openTerritoryDetailDrawer(territory.id);
-            } else {
-              setSelectedTerritory?.(territory);
-              setIsDetailSheetOpen?.(true);
-            }
-          });
-
-          polygon.on("mouseover", () => {
-            if (selectedTerritoryRef.current?.id !== territory.id) {
-              polygon.setOptions({ strokeWeight: 3 });
-            }
-          });
-          polygon.on("mouseout", () => {
-            if (selectedTerritoryRef.current?.id !== territory.id) {
-              polygon.setOptions({ strokeWeight: 2 });
-            }
-          });
-
-          return { polygon, marker };
+          return { polygons: territoryPolygons, marker };
         });
 
         polygonTerritoryMap.current = newPolygonMap;
@@ -521,7 +537,10 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
         if (map) {
           setPolygons(prev => {
             prev.forEach(p => p && p.setMap && p.setMap(null));
-            const validPolygons = createdPolygons.filter(item => item !== null).map(item => item!.polygon).filter(p => !!p);
+            const validPolygons = createdPolygons
+              .filter(item => item !== null)
+              .flatMap(item => item!.polygons)
+              .filter(p => !!p);
             map.add(validPolygons);
             return validPolygons;
           });

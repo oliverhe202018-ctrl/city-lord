@@ -1,5 +1,5 @@
 import * as turf from '@turf/turf';
-import { getDistanceFromLatLonInMeters } from '@/lib/geometry-utils';
+import { getDistanceFromLatLonInMeters, extractValidLoops, LOOP_CLOSURE_THRESHOLD_M, MIN_TERRITORY_AREA_M2 } from '@/lib/geometry-utils';
 import { 
     ANTI_CHEAT_MAX_SPEED_KMH, 
     ANTI_CHEAT_MAX_GAP_SECONDS, 
@@ -51,9 +51,6 @@ export function validateRunAndRebuildTerritories(path: Point[]): AntiCheatValida
     const endTimestamp = path[path.length - 1].timestamp;
     const serverDuration = Math.max(0, Math.floor((endTimestamp - startTimestamp) / 1000));
 
-    const MIN_LOOP_SIZE = 10;
-    const SNAP_THRESHOLD = 20;
-
     for (let i = 1; i < path.length; i++) {
         const prev = path[i - 1];
         const curr = path[i];
@@ -75,38 +72,22 @@ export function validateRunAndRebuildTerritories(path: Point[]): AntiCheatValida
         if (timeDiff > ANTI_CHEAT_MAX_GAP_SECONDS && dist > 500) {
             if (!cheatFlags.includes('TELEPORTATION_OR_GAP')) cheatFlags.push('TELEPORTATION_OR_GAP');
         }
-
-        // Polygon Rebuilding (Mirrors useRunningTracker logic server-side)
-        const currentPathLength = i; 
-        if (currentPathLength >= MIN_LOOP_SIZE) {
-            const startPoint = path[0];
-            const distToStart = getDistanceFromLatLonInMeters(curr.lat, curr.lng, startPoint.lat, startPoint.lng);
-
-            if (distToStart <= SNAP_THRESHOLD) {
-                // Snap to start
-                const snappedLoc = { lat: startPoint.lat, lng: startPoint.lng, timestamp: curr.timestamp, isMock: curr.isMock };
-                
-                // Reconstruct the loop
-                const loopForCalc = path.slice(0, i).concat([snappedLoc]); 
-                
-                try {
-                    const coords = loopForCalc.map(pt => [pt.lng, pt.lat]);
-                    if (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1]) {
-                        coords.push(coords[0]);
-                    }
-                    const poly = turf.polygon([coords]);
-                    const loopArea = turf.area(poly);
-
-                    if (loopArea > 100) {
-                        validPolygons.push(loopForCalc);
-                        totalArea += loopArea;
-                    }
-                } catch (e) {
-                    // Ignore invalid polygon
-                }
-            }
-        }
     }
+
+    const extractedLoops = extractValidLoops(path, LOOP_CLOSURE_THRESHOLD_M) as Point[][];
+    extractedLoops.forEach((loop) => {
+        try {
+            const coords = loop.map((point) => [point.lng, point.lat] as [number, number]);
+            const poly = turf.polygon([coords]);
+            const loopArea = turf.area(poly);
+            if (loopArea >= MIN_TERRITORY_AREA_M2) {
+                validPolygons.push(loop);
+                totalArea += loopArea;
+            }
+        } catch (e) {
+            return;
+        }
+    });
 
     // Risk Scoring
     let riskScore = 0;

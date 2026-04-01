@@ -162,7 +162,7 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
       };
     }, [map, isRunTakeoverActive, setIsTracking]);
 
-    const activeTrajectoryPath = (isRunTakeoverActive && runPath.length > 0) ? runPath : userPath;
+    const activeTrajectoryPath = ((isRunTakeoverActive && runPath.length > 0) ? runPath : (userPath || []));
 
     useEffect(() => {
       if (!isRunTakeoverActive || !centerMap) return;
@@ -199,6 +199,10 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
         window.removeEventListener('immersive-recenter-request', handleImmersiveRecenter);
       };
     }, [map, isRunTakeoverActive, setIsTracking, centerMap]);
+
+    const markerPosition = (isRunTakeoverActive && activeTrajectoryPath.length > 0)
+      ? activeTrajectoryPath[activeTrajectoryPath.length - 1]
+      : currentLocation;
 
     return (
       <div className="relative w-full h-full">
@@ -265,7 +269,7 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
           {/* Layer 4: User Marker (Blue GPS Dot - z-index 60) */}
           <UserMarkerLayer
             map={mapLayerRef?.current?.map}
-            position={currentLocation}
+            position={markerPosition}
             isTracking={isTracking}
           />
 

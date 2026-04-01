@@ -9,18 +9,25 @@ interface RunStatsLite {
   pace: string;
 }
 
+export interface RunStoryResult {
+  ok: boolean;
+  code: string;
+  message: string;
+  story?: string;
+}
+
 /**
  * generateRunStory: AI-powered storytelling for run summary
  * Uses Aliyun Qwen (OpenAI compatible) via standard fetch
  */
-export async function generateRunStory(stats: RunStatsLite, faction: string) {
+export async function generateRunStory(stats: RunStatsLite, faction: string): Promise<RunStoryResult> {
   const apiKey = process.env.LLM_API_KEY;
   const baseUrl = process.env.LLM_BASE_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1';
   const model = process.env.LLM_MODEL || 'qwen-plus';
 
   if (!apiKey) {
     console.warn('[StoryService] LLM_API_KEY is missing');
-    return "由于通讯信号受到强烈干扰，战地记者未能传回完整战报。但整个城市都见证了您的英勇行动。";
+    return { ok: false, code: 'AUTH_MISSING', message: '服务端未配置 LLM API Key' };
   }
 
   const distanceKm = (stats.distanceMeters / 1000).toFixed(2);
@@ -47,6 +54,9 @@ export async function generateRunStory(stats: RunStatsLite, faction: string) {
 4. 严禁废话，直接输出正文。
   `.trim();
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20000);
+
   try {
     const response = await fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
@@ -54,6 +64,7 @@ export async function generateRunStory(stats: RunStatsLite, faction: string) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`,
       },
+      signal: controller.signal,
       body: JSON.stringify({
         model,
         messages: [
@@ -66,15 +77,36 @@ export async function generateRunStory(stats: RunStatsLite, faction: string) {
     });
 
     if (!response.ok) {
-      const errData = await response.json();
+      let errData: any = null;
+      try {
+        errData = await response.json();
+      } catch {
+        errData = null;
+      }
       console.error('[StoryService] LLM API Error:', errData);
-      throw new Error(`LLM_API_ERROR: ${response.status}`);
+      if (response.status === 429) {
+        return { ok: false, code: 'RATE_LIMIT', message: '接口限流，请稍后再试' };
+      }
+      if (response.status >= 500) {
+        return { ok: false, code: 'UPSTREAM_5XX', message: '上游服务繁忙，请稍后重试' };
+      }
+      return { ok: false, code: 'UPSTREAM_4XX', message: `上游请求失败（${response.status}）` };
     }
 
     const data = await response.json();
-    return data.choices[0].message.content.trim();
+    const story = data?.choices?.[0]?.message?.content?.trim?.();
+    if (!story) {
+      return { ok: false, code: 'INVALID_RESPONSE', message: '战报服务返回异常内容' };
+    }
+    return { ok: true, code: 'OK', message: '生成成功', story };
   } catch (err) {
     console.error('[StoryService] Failed to generate story:', err);
-    return "数据核心正在解析本次战役的波谱... 虽然史诗战报生成失败，但你的每一声喘息都已刻进这座城市的基石。";
+    const errorName = err instanceof Error ? err.name : '';
+    if (errorName === 'AbortError') {
+      return { ok: false, code: 'TIMEOUT', message: '生成超时，请稍后重试' };
+    }
+    return { ok: false, code: 'NETWORK_ERROR', message: '网络异常，请稍后重试' };
+  } finally {
+    clearTimeout(timeoutId);
   }
 }

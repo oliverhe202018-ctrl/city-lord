@@ -10,7 +10,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { isNativePlatform, safeGetBatteryInfo } from "@/lib/capacitor/safe-plugins";
 import type { GeoPoint } from '@/hooks/useSafeGeolocation';
 import { useLocationStore } from '@/store/useLocationStore';
-import { getDistanceFromLatLonInMeters, LOOP_CLOSURE_THRESHOLD_M } from '@/lib/geometry-utils';
+import { getDistanceFromLatLonInMeters, LOOP_CLOSURE_THRESHOLD_M, isLoopClosed } from '@/lib/geometry-utils';
 import { shouldAcceptPointByDistance } from '@/lib/location/gps-spatial-filter';
 import { ActiveRandomEvent, useRandomEvents } from '@/hooks/useRandomEvents';
 import { RunEventLog } from '@/types/run-sync';
@@ -446,10 +446,12 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     polygons.forEach(poly => {
       if (poly.length < 3) return;
       try {
+        const loopCheck = isLoopClosed(
+          poly.map((point, index) => ({ lat: point.lat, lng: point.lng, timestamp: point.timestamp ?? index })),
+          LOOP_CLOSURE_THRESHOLD_M
+        );
+        if (!loopCheck.isClosed) return;
         const points = poly.map(p => [p.lng, p.lat]);
-        if (points[0][0] !== points[points.length - 1][0] || points[0][1] !== points[points.length - 1][1]) {
-          points.push(points[0]);
-        }
         const polygon = turf.polygon([points]);
         total += turf.area(polygon);
       } catch (e) {
@@ -589,10 +591,14 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     if (loopForCalc && loopForCalc.length > MIN_LOOP_SIZE && now - lastClaimAtRef.current >= MIN_CLAIM_INTERVAL_MS) {
 
       try {
-        const coords = loopForCalc.map(pt => [pt.lng, pt.lat]);
-        if (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1]) {
-          coords.push(coords[0]);
+        const loopCheck = isLoopClosed(
+          loopForCalc.map((point, index) => ({ lat: point.lat, lng: point.lng, timestamp: point.timestamp ?? index })),
+          LOOP_CLOSURE_THRESHOLD_M
+        );
+        if (!loopCheck.isClosed) {
+          return;
         }
+        const coords = loopForCalc.map(pt => [pt.lng, pt.lat]);
         const poly = turf.polygon([coords]);
         const loopArea = turf.area(poly);
 
@@ -953,6 +959,14 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           // Explicitly mutate SWR keys for Home and Task page
           mutate('/api/home/summary');
           mutate('/api/mission/fetch-user-missions');
+          mutate(
+            (key) => typeof key === 'string' && key.startsWith('/api/city/fetch-territories?cityId='),
+            undefined,
+            { revalidate: true }
+          );
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('citylord:refresh-territories'));
+          }
           console.log('[useRunningTracker] Triggered SWR mutation for sync');
         }
         
