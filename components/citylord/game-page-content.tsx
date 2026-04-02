@@ -148,7 +148,7 @@ export function GamePageContent({
   const { isLoading: isCityLoading, currentCity } = useCity()
   const { checkStaminaRecovery, dismissGeolocationPrompt, claimAchievement, addTotalDistance, openDrawer, closeDrawer, startRunning, stopRunning } = useGameActions()
   const { achievements, totalDistance } = useGameUser()
-  const { initializeLocationSystem } = useLocationContext()
+  const { initializeLocationSystem, setStartWarmupActive, clearWarmupState } = useLocationContext()
   const hydrated = useHydration();
   const prefersReducedMotion = useReducedMotion();
   const mapViewRef = useRef<AMapViewHandle>(null);
@@ -405,6 +405,20 @@ export function GamePageContent({
   const [shouldHideButtons, setShouldHideButtons] = useState(false);
   const [isCountingDown, setIsCountingDown] = useState(false);
 
+  useEffect(() => {
+    const shouldUseWarmupMode = activeTab === "start" || isCountingDown || isRunning
+
+    const syncWarmupMode = async () => {
+      try {
+        await setStartWarmupActive(shouldUseWarmupMode)
+      } catch (err) {
+        console.warn('[GamePageContent] Failed to sync warmup mode:', err)
+      }
+    }
+
+    syncWarmupMode()
+  }, [activeTab, isCountingDown, isRunning, setStartWarmupActive])
+
   // Animation demo states
   const [showCaptureEffect, setShowCaptureEffect] = useState(false)
   const [capturePosition, setCapturePosition] = useState({ x: 200, y: 300 })
@@ -640,13 +654,10 @@ export function GamePageContent({
 
     const nextLat = liveLocation?.lat ?? immersiveCurrentLocation?.lat
     const nextLng = liveLocation?.lng ?? immersiveCurrentLocation?.lng
-    const locationAccuracy = liveLocation?.accuracy
     const isGpsFailed = gpsStatus === 'error' || gpsError === 'PERMISSION_DENIED'
     const isMissingLocation = !Number.isFinite(nextLat) || !Number.isFinite(nextLng)
-    const isAccuracyTooPoor = typeof locationAccuracy === 'number' && locationAccuracy > 80
-    const isSignalUnavailable = locationSignalStrength === 'none'
 
-    if (isGpsFailed || isMissingLocation || isAccuracyTooPoor || isSignalUnavailable) {
+    if (isGpsFailed || isMissingLocation) {
       toast.error('定位不准或定位失败，请检查设备定位设置或移动到开阔地带')
       return false
     }
@@ -654,7 +665,7 @@ export function GamePageContent({
     setActiveTab("play")
     startCountdown()
     return true
-  }, [gpsError, gpsStatus, immersiveCurrentLocation, isAuthenticated, liveLocation, locationSignalStrength, startCountdown])
+  }, [gpsError, gpsStatus, immersiveCurrentLocation, isAuthenticated, liveLocation, startCountdown])
 
   const handleQuickNavigate = useCallback((tab: string, options?: { initialFilter?: 'all' | 'daily' | 'weekly' }) => {
     if (options?.initialFilter) {
@@ -797,11 +808,12 @@ export function GamePageContent({
 
   const handleCountdownComplete = useCallback(() => {
     setIsCountingDown(false)
+    clearWarmupState()
     setIsRunning(true)
     startRunning()
     setShowImmersiveMode(true)
     setActiveTab("play")
-  }, [startRunning]);
+  }, [clearWarmupState, startRunning]);
 
   // Complex stop handler
   const handleStopRun = useCallback(() => {

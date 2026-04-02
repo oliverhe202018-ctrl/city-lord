@@ -3,6 +3,12 @@
 import { create } from 'zustand';
 import type { GeoPoint, LocationStatus } from '@/hooks/useSafeGeolocation';
 
+export const GPS_START_ANCHOR_ACCURACY_METERS = 20;
+export const GPS_TRACKING_ACCURACY_METERS = 30;
+export const GPS_START_WARMUP_INTERVAL_MS = 1500;
+export const GPS_START_WARMUP_DISTANCE_FILTER_METERS = 3;
+const WARMUP_BUFFER_LIMIT = 12;
+
 // ---------------------------------------------------------------------------
 // useLocationStore — Global GPS state (runtime-only, NOT persisted)
 // ---------------------------------------------------------------------------
@@ -40,12 +46,16 @@ export interface LocationStoreState {
 
     gpsSignalStrength: 'good' | 'weak' | 'none';
 
+    warmupSamples: GeoPoint[];
+
     /** 位置元数据（首次缓存接受标记等，来自 bridge） */
     locationMeta: {
         acceptedAsInitial?: boolean;
         source?: string;
         reason?: string;
     } | null;
+    appendWarmupSample: (point: GeoPoint) => void;
+    clearWarmupState: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -106,7 +116,17 @@ export const useLocationStore = create<LocationStoreState>()(() => ({
     error: null,
     status: initial.status,
     gpsSignalStrength: 'none',
+    warmupSamples: [],
     locationMeta: null,
+    appendWarmupSample: (point) => useLocationStore.setState((state) => ({
+        warmupSamples: [...state.warmupSamples.slice(-(WARMUP_BUFFER_LIMIT - 1)), point],
+    })),
+    clearWarmupState: () => useLocationStore.setState({
+        location: null,
+        locationSource: null,
+        locationMeta: null,
+        warmupSamples: [],
+    }),
 }));
 
 // ---------------------------------------------------------------------------

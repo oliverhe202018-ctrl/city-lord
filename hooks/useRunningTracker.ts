@@ -9,7 +9,11 @@ import { saveRunActivity } from '@/app/actions/run-service';
 import { v4 as uuidv4 } from 'uuid';
 import { isNativePlatform, safeGetBatteryInfo } from "@/lib/capacitor/safe-plugins";
 import type { GeoPoint } from '@/hooks/useSafeGeolocation';
-import { useLocationStore } from '@/store/useLocationStore';
+import {
+  useLocationStore,
+  GPS_START_ANCHOR_ACCURACY_METERS,
+  GPS_TRACKING_ACCURACY_METERS,
+} from '@/store/useLocationStore';
 import { getDistanceFromLatLonInMeters, LOOP_CLOSURE_THRESHOLD_M, isLoopClosed } from '@/lib/geometry-utils';
 import { shouldAcceptPointByDistance } from '@/lib/location/gps-spatial-filter';
 import { ActiveRandomEvent, useRandomEvents } from '@/hooks/useRandomEvents';
@@ -465,16 +469,22 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     if (isPausedRef.current || isStoppingRef.current) return;
 
     const now = timestamp || Date.now();
+    const isAwaitingAnchor = pathRef.current.length === 0;
 
     // ================================================================
     // 🛡️ THREE-LAYER GPS ANTI-JITTER INTERCEPTOR
     // Applied BEFORE smoothing, path appending, or distance calculation
     // ================================================================
 
-    // --- Layer 1: Accuracy Filter ---
-    // GPS accuracy >30m indicates unreliable satellite fix (indoor, urban canyon)
-    if (accuracy != null && accuracy > 30) {
-      console.debug(`[GPS-Filter] ❌ Layer 1 REJECT: accuracy ${accuracy.toFixed(0)}m > 30m threshold`);
+    if (isAwaitingAnchor) {
+      if (typeof accuracy !== 'number' || accuracy > GPS_START_ANCHOR_ACCURACY_METERS) {
+        console.debug(
+          `[GPS-Filter] ❌ Anchor REJECT: accuracy ${typeof accuracy === 'number' ? accuracy.toFixed(0) : 'unknown'}m > ${GPS_START_ANCHOR_ACCURACY_METERS}m threshold`
+        );
+        return;
+      }
+    } else if (accuracy != null && accuracy > GPS_TRACKING_ACCURACY_METERS) {
+      console.debug(`[GPS-Filter] ❌ Layer 1 REJECT: accuracy ${accuracy.toFixed(0)}m > ${GPS_TRACKING_ACCURACY_METERS}m threshold`);
       return;
     }
 
@@ -653,7 +663,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   useEffect(() => {
     if (!isRunning || !gpsLocation || isStoppingRef.current) return;
     // Only process actual fixes for path tracking, not cache
-    if (locationSource === 'cache') return;
+    if (locationSource === 'cache' || locationSource === 'amap-native-cache') return;
 
     // GPS location already filtered by useSafeGeolocation:
     // - 50m accuracy threshold

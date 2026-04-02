@@ -1,7 +1,14 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
-import { useLocationStore, saveLocationToCache } from '@/store/useLocationStore';
+import {
+    useLocationStore,
+    saveLocationToCache,
+    GPS_START_ANCHOR_ACCURACY_METERS,
+    GPS_TRACKING_ACCURACY_METERS,
+    GPS_START_WARMUP_DISTANCE_FILTER_METERS,
+    GPS_START_WARMUP_INTERVAL_MS,
+} from '@/store/useLocationStore';
 import { AMapLocationBridge, type LocationMeta } from '@/lib/amap-location-bridge';
 import { safeRequestGeolocationPermission } from '@/lib/capacitor/safe-plugins';
 import { useGameStore } from '@/store/useGameStore';
@@ -23,6 +30,8 @@ interface LocationContextValue {
     getBridge: () => AMapLocationBridge | null;
     /** [NEW] Manually trigger permission check and bridge startup */
     initializeLocationSystem: (options?: { onlyIfGranted?: boolean }) => Promise<void>;
+    setStartWarmupActive: (active: boolean) => Promise<void>;
+    clearWarmupState: () => void;
 }
 
 const LocationContext = createContext<LocationContextValue | null>(null);
@@ -41,6 +50,8 @@ export function useLocationContext(): LocationContextValue {
             downgradeToBrowse: async () => console.warn('[useLocationContext] downgradeToBrowse called outside provider'),
             getBridge: () => null,
             initializeLocationSystem: async (options?: { onlyIfGranted?: boolean }) => console.warn('[useLocationContext] initializeLocationSystem called outside provider'),
+            setStartWarmupActive: async (active: boolean) => console.warn('[useLocationContext] setStartWarmupActive called outside provider', active),
+            clearWarmupState: () => console.warn('[useLocationContext] clearWarmupState called outside provider'),
         };
     }
     return ctx;
@@ -73,6 +84,7 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
     const [pendingStartLocation, setPendingStartLocation] = React.useState(false);
     const [isAppActive, setIsAppActive] = React.useState(true);
     const [pageVisible, setPageVisible] = React.useState(true);
+    const [isStartWarmupActive, setIsStartWarmupActiveState] = React.useState(false);
 
     // Startup sequence (async)
     /**
@@ -192,9 +204,9 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
                     // 2. 正式启动监控 (FGS)
                     console.log(`${TAG} Conditions verified. Executing bridge.startWatch...`);
                     await bridgeRef.current!.startWatch({
-                        mode: 'browse',
-                        interval: 5000,
-                        distanceFilter: 10,
+                        mode: isStartWarmupActive ? 'running' : 'browse',
+                        interval: isStartWarmupActive ? GPS_START_WARMUP_INTERVAL_MS : 5000,
+                        distanceFilter: isStartWarmupActive ? GPS_START_WARMUP_DISTANCE_FILTER_METERS : 10,
                     });
                     
                     // 启动成功后清除等待标记，防止并发重复触发
@@ -206,7 +218,7 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
                 }
             })();
         }
-    }, [hydrated, isAppActive, pageVisible, permissionGranted, pendingStartLocation, bridgeRef.current?.watching]);
+    }, [hydrated, isAppActive, pageVisible, permissionGranted, pendingStartLocation, isStartWarmupActive, bridgeRef.current?.watching]);
 
     // --- Startup sequence ---
     useEffect(() => {
@@ -221,7 +233,7 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
                 // Map bridge source → store locationSource
                 const locationSource: 'gps' | 'amap-native' | 'amap-native-cache' | 'web-fallback' | 'cache' =
                     rawSource === 'amap-native' ? 'amap-native'
-                        : rawSource === 'amap-native-cache' ? 'amap-native'
+                        : rawSource === 'amap-native-cache' ? 'amap-native-cache'
                             : rawSource === 'web-fallback' ? 'web-fallback'
                                 : rawSource === 'cache' ? 'cache'
                                     : rawSource === 'gps-precise' || rawSource === 'network-coarse' ? 'gps'
@@ -234,10 +246,11 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
                     locationMeta: meta ?? null,
                     loading: false,
                     error: null,
-                    gpsSignalStrength: point.accuracy != null && point.accuracy <= 50 ? 'good'
-                        : point.accuracy != null && point.accuracy <= 200 ? 'weak'
+                    gpsSignalStrength: point.accuracy != null && point.accuracy <= GPS_START_ANCHOR_ACCURACY_METERS ? 'good'
+                        : point.accuracy != null && point.accuracy <= GPS_TRACKING_ACCURACY_METERS ? 'weak'
                             : 'none',
                 });
+                useLocationStore.getState().appendWarmupSample(point);
 
                 // Persist to localStorage for next cold start
                 saveLocationToCache(point);
@@ -385,7 +398,45 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
         },
         getBridge: () => bridgeRef.current,
         initializeLocationSystem,
-    }), []);
+        setStartWarmupActive: async (active: boolean) => {
+            setIsStartWarmupActiveState(active);
+
+            const bridge = bridgeRef.current;
+            if (!bridge || !permissionGranted) {
+                if (active) {
+                    setPendingStartLocation(true);
+                }
+                return;
+            }
+
+            if (!bridge.watching) {
+                if (active) {
+                    setPendingStartLocation(true);
+                }
+                return;
+            }
+
+            const nextMode = active ? 'running' : 'browse';
+            const nextInterval = active ? GPS_START_WARMUP_INTERVAL_MS : 5000;
+            const nextDistanceFilter = active ? GPS_START_WARMUP_DISTANCE_FILTER_METERS : 10;
+
+            if (bridge.currentWatchMode === nextMode) {
+                return;
+            }
+
+            try {
+                await bridge.switchWatchMode(nextMode, {
+                    interval: nextInterval,
+                    distanceFilter: nextDistanceFilter,
+                });
+            } catch (err) {
+                console.warn(`${TAG} Failed to switch start warmup mode:`, err);
+            }
+        },
+        clearWarmupState: () => {
+            useLocationStore.getState().clearWarmupState();
+        },
+    }), [initializeLocationSystem, permissionGranted]);
 
     return (
         <LocationContext.Provider value={contextValue}>
