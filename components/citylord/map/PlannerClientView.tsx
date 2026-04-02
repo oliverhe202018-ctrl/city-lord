@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { PlannerTutorial } from "@/components/citylord/map/PlannerTutorial";
 import SaveRouteModal from "@/components/citylord/map/SaveRouteModal";
 import { SaveSuccessDialog } from "@/components/citylord/map/SaveSuccessDialog";
-import { MyRoutesSheet, Route } from "@/components/citylord/map/MyRoutesSheet";
 import { Button } from "@/components/ui/button";
 import {
   Undo,
@@ -23,19 +22,15 @@ import {
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useGameStore } from "@/store/useGameStore";
+import { useRouteListStore } from "@/store/useRouteListStore";
 import { calculateSmartRoute } from "@/lib/utils/routing";
 import MapManager from "@/lib/mapManager";
 import { isNativePlatform } from "@/lib/capacitor/safe-plugins";
+import type { PlannerRoute as Route, RoutePoint } from "@/types/route-list";
 
 
 // Security Config
 const AMAP_KEY = process.env.NEXT_PUBLIC_AMAP_KEY || "";
-
-interface RoutePoint {
-  lat: number;
-  lng: number;
-  isKey?: boolean; // Whether this point is a key node (draggable marker)
-}
 
 interface PlannerState {
   waypoints: RoutePoint[];
@@ -100,7 +95,6 @@ export default function PlannerClientView({ onClose }: PlannerClientViewProps) {
   // Save/Manage Workflow State
   const [showSaveDrawer, setShowSaveDrawer] = useState(false);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
-  const [showMyRoutes, setShowMyRoutes] = useState(false);
   const [loadingSave, setLoadingSave] = useState(false);
 
   const [isEditing, setIsEditing] = useState(false);
@@ -111,6 +105,10 @@ export default function PlannerClientView({ onClose }: PlannerClientViewProps) {
 
   const searchParams = useSearchParams();
   const editId = searchParams?.get('editId');
+  const openRouteList = useRouteListStore((state) => state.openRouteList);
+  const closeRouteList = useRouteListStore((state) => state.closeRouteList);
+  const selectedRoute = useRouteListStore((state) => state.selectedRoute);
+  const setSelectedRoute = useRouteListStore((state) => state.setSelectedRoute);
 
   // --- Map Initialization ---
   useEffect(() => {
@@ -1456,8 +1454,7 @@ export default function PlannerClientView({ onClose }: PlannerClientViewProps) {
     setIsEditing(true);
     setEditingRoute(route);
 
-    // Close sheet
-    setShowMyRoutes(false);
+    closeRouteList();
 
     // Center map on route
     if (mapInstanceRef.current && routePoints.length > 0) {
@@ -1468,11 +1465,11 @@ export default function PlannerClientView({ onClose }: PlannerClientViewProps) {
     toast({ title: "编辑模式", description: `正在编辑 "${route.name}"` });
   };
 
-  const handleStartRun = (route: Route) => {
-    const points = route.waypoints as RoutePoint[];
-    useGameStore.getState().setGhostPath(points.map(p => [p.lat, p.lng]));
-    router.replace('/?tab=start');
-  };
+  useEffect(() => {
+    if (!isMapReady || !selectedRoute) return;
+    handleEditRoute(selectedRoute);
+    setSelectedRoute(null);
+  }, [isMapReady, selectedRoute, setSelectedRoute]);
 
   useEffect(() => {
     if (isMapReady && editId && !isEditing) {
@@ -1540,16 +1537,8 @@ export default function PlannerClientView({ onClose }: PlannerClientViewProps) {
         onContinue={() => setShowSuccessDialog(false)}
         onViewList={() => {
           setShowSuccessDialog(false);
-          setShowMyRoutes(true);
+          openRouteList('planner');
         }}
-      />
-
-      <MyRoutesSheet
-        open={showMyRoutes}
-        onOpenChange={setShowMyRoutes}
-        onEdit={handleEditRoute}
-        onDelete={() => { }} // State updates in component
-        onStartRun={handleStartRun}
       />
 
       {/* Calculating Indicator */}
@@ -1595,7 +1584,7 @@ export default function PlannerClientView({ onClose }: PlannerClientViewProps) {
             <HelpCircle className="w-5 h-5" />
           </button>
           <button
-            onClick={() => setShowMyRoutes(true)}
+            onClick={() => openRouteList('planner')}
             className="bg-slate-800/90 backdrop-blur p-2 rounded-full text-white/60 hover:text-white transition-all shadow-lg"
           >
             <List className="w-5 h-5" />

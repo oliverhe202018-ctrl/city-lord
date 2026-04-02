@@ -12,21 +12,15 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { MapPin, Calendar, Trash2, Edit2, Play, Loader2 } from "lucide-react";
 import { format } from 'date-fns';
 import { useToast } from "@/hooks/use-toast";
+import type { PlannerRoute } from "@/types/route-list";
 
-export interface Route {
-  id: string;
-  name: string;
-  distance: number;
-  capture_area: number;
-  created_at: string;
-  waypoints: any[];
-}
+export type Route = PlannerRoute;
 
 interface MyRoutesSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onEdit: (route: Route) => void;
-  onDelete: (id: string) => void;
+  onDelete?: (id: string) => void;
   onStartRun: (route: Route) => void;
   trigger?: React.ReactNode;
 }
@@ -78,7 +72,7 @@ export function MyRoutesSheet({
       });
       if (!res.ok) throw new Error('删除失败');
       setRoutes(routes.filter(r => r.id !== id));
-      onDelete(id);
+      onDelete?.(id);
       toast({
         title: "成功",
         description: "路线已删除",
@@ -95,7 +89,7 @@ export function MyRoutesSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       {trigger && <SheetTrigger asChild>{trigger}</SheetTrigger>}
-      <SheetContent side="right" className="w-full sm:max-w-md bg-black/95 border-l border-white/10 text-white z-[1200] p-0">
+      <SheetContent side="right" className="w-full sm:max-w-md bg-black/95 border-l border-white/10 text-white z-[12000] p-0">
         <div className="flex flex-col h-full">
           <div className="p-6 border-b border-white/10">
             <SheetHeader>

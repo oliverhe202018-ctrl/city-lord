@@ -2,10 +2,15 @@
 
 import dynamic from 'next/dynamic';
 import { Suspense } from 'react';
+import { useRouter } from 'next/navigation';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle } from "lucide-react";
+import { MyRoutesSheet } from "@/components/citylord/map/MyRoutesSheet";
+import { useRouteListStore } from "@/store/useRouteListStore";
+import { useGameStore } from "@/store/useGameStore";
+import type { PlannerRoute } from "@/types/route-list";
 
 // Loading Component
 const MapLoading = () => (
@@ -66,11 +71,34 @@ const PlannerClientView = dynamic(
 );
 
 export default function RoutePlannerPage() {
+  const router = useRouter()
+  const isRouteListOpen = useRouteListStore((state) => state.isOpen)
+  const closeRouteList = useRouteListStore((state) => state.closeRouteList)
+  const setSelectedRoute = useRouteListStore((state) => state.setSelectedRoute)
+  const setGhostPath = useGameStore((state) => state.setGhostPath)
+
   return (
     <div className="h-screen w-screen overflow-hidden bg-slate-950">
-        <Suspense fallback={<MapLoading />}>
-            <PlannerClientView />
-        </Suspense>
+      <MyRoutesSheet
+        open={isRouteListOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeRouteList()
+          }
+        }}
+        onEdit={(route: PlannerRoute) => {
+          setSelectedRoute(route)
+          closeRouteList()
+        }}
+        onStartRun={(route: PlannerRoute) => {
+          setGhostPath(route.waypoints.map((point) => [point.lat, point.lng] as [number, number]))
+          closeRouteList()
+          router.replace('/?tab=start')
+        }}
+      />
+      <Suspense fallback={<MapLoading />}>
+        <PlannerClientView />
+      </Suspense>
     </div>
   );
 }
