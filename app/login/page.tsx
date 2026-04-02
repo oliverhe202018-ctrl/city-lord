@@ -361,10 +361,10 @@ function LoginPageContent() {
                 </div>
 
                 {loginMethod === "password" && (
-                  <form onSubmit={handlePasswordLogin} className="space-y-4">
+                  <form onSubmit={handlePasswordLogin} className="space-y-4" autoComplete="off">
                     <div className="space-y-2">
-                       <div className="relative"><Mail className="absolute left-3 top-3 h-4 w-4 text-white/40" /><Input type="email" placeholder="邮箱" value={email} onChange={e => setEmail(e.target.value)} className="pl-10 bg-white/5 border-white/10 text-white" required /></div>
-                       <div className="relative"><Lock className="absolute left-3 top-3 h-4 w-4 text-white/40" /><Input type="password" placeholder="密码" value={password} onChange={e => setPassword(e.target.value)} className="pl-10 bg-white/5 border-white/10 text-white" required /></div>
+                       <div className="relative"><Mail className="absolute left-3 top-3 h-4 w-4 text-white/40" /><Input type="email" name="account_id" autoComplete="off" placeholder="邮箱" value={email} onChange={e => setEmail(e.target.value)} className="pl-10 bg-white/5 border-white/10 text-white" required /></div>
+                       <div className="relative"><Lock className="absolute left-3 top-3 h-4 w-4 text-white/40" /><Input type="password" name="account_secret" autoComplete="new-password" placeholder="密码" value={password} onChange={e => setPassword(e.target.value)} className="pl-10 bg-white/5 border-white/10 text-white" required /></div>
                     </div>
                     <Button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white" disabled={loading}>{loading ? <Loader2 className="animate-spin" /> : "登录"}</Button>
                     <AgreementBox id="terms-pass" />
@@ -373,9 +373,9 @@ function LoginPageContent() {
                 )}
 
                 {loginMethod === "code" && (
-                  <form onSubmit={handleLoginVerify} className="space-y-4">
+                  <form onSubmit={handleLoginVerify} className="space-y-4" autoComplete="off">
                     <div className="space-y-2">
-                      <div className="relative"><Mail className="absolute left-3 top-3 h-4 w-4 text-white/40" /><Input type="email" placeholder="邮箱" value={email} onChange={e => setEmail(e.target.value)} className="pl-10 bg-white/5 border-white/10 text-white" required /></div>
+                      <div className="relative"><Mail className="absolute left-3 top-3 h-4 w-4 text-white/40" /><Input type="email" name="account_id" autoComplete="off" placeholder="邮箱" value={email} onChange={e => setEmail(e.target.value)} className="pl-10 bg-white/5 border-white/10 text-white" required /></div>
                       <div className="flex gap-2">
                         <div className="relative flex-1"><KeyRound className="absolute left-3 top-3 h-4 w-4 text-white/40" /><Input type="text" placeholder="码" value={verificationCode} onChange={e => setVerificationCode(e.target.value)} className="pl-10 bg-white/5 border-white/10 text-white" required maxLength={6} /></div>
                         <Button type="button" variant="outline" className="w-24 bg-white/5 border-white/10 text-white" disabled={loading || getRemaining('email', email, 'login') > 0} onClick={() => handleSendCode('login')}>
@@ -389,9 +389,9 @@ function LoginPageContent() {
                 )}
 
                 {loginMethod === "sms" && (
-                  <form onSubmit={handleSmsLoginVerify} className="space-y-4">
+                  <form onSubmit={handleSmsLoginVerify} className="space-y-4" autoComplete="off">
                     <div className="space-y-2">
-                      <div className="relative"><Phone className="absolute left-3 top-3 h-4 w-4 text-white/40" /><Input type="tel" placeholder="手机号" value={phone} onChange={e => setPhone(e.target.value)} className="pl-10 bg-white/5 border-white/10 text-white" required maxLength={11} /></div>
+                      <div className="relative"><Phone className="absolute left-3 top-3 h-4 w-4 text-white/40" /><Input type="tel" name="account_id" autoComplete="off" placeholder="手机号" value={phone} onChange={e => setPhone(e.target.value)} className="pl-10 bg-white/5 border-white/10 text-white" required maxLength={11} /></div>
                       <div className="flex gap-2">
                         <div className="relative flex-1"><KeyRound className="absolute left-3 top-3 h-4 w-4 text-white/40" /><Input type="text" placeholder="码" value={verificationCode} onChange={e => setVerificationCode(e.target.value)} className="pl-10 bg-white/5 border-white/10 text-white" required maxLength={6} /></div>
                         <Button type="button" variant="outline" className="w-24 bg-white/5 border-white/10 text-white" disabled={loading || getRemaining('sms', phone, 'login') > 0} onClick={() => handleSendSmsCode('login')}>
@@ -411,16 +411,16 @@ function LoginPageContent() {
             <Card className="border-white/10 bg-black/40 backdrop-blur-xl shadow-2xl">
               <CardHeader><CardTitle className="text-xl text-white">邮箱注册</CardTitle></CardHeader>
               <CardContent>
-                <form onSubmit={handleRegisterVerify} className="space-y-4">
+                <form onSubmit={handleRegisterVerify} className="space-y-4" autoComplete="off">
                   <div className="space-y-2">
-                    <div className="relative"><Mail className="absolute left-3 top-3 h-4 w-4 text-white/40" /><Input type="email" placeholder="邮箱" value={email} onChange={e => setEmail(e.target.value)} className="pl-10 bg-white/5 border-white/10 text-white" required /></div>
+                    <div className="relative"><Mail className="absolute left-3 top-3 h-4 w-4 text-white/40" /><Input type="email" name="account_id" autoComplete="off" placeholder="邮箱" value={email} onChange={e => setEmail(e.target.value)} className="pl-10 bg-white/5 border-white/10 text-white" required /></div>
                     <div className="flex gap-2">
                       <div className="relative flex-1"><KeyRound className="absolute left-3 top-3 h-4 w-4 text-white/40" /><Input type="text" placeholder="码" value={verificationCode} onChange={e => setVerificationCode(e.target.value)} className="pl-10 bg-white/5 border-white/10 text-white" required maxLength={6} /></div>
                       <Button type="button" variant="outline" onClick={() => handleSendCode('register')} disabled={loading || getRemaining('email', email, 'register') > 0 || !email} className="w-24 bg-white/5 border-white/10 text-white">
                         {getRemaining('email', email, 'register') > 0 ? `${getRemaining('email', email, 'register')}s` : "获取"}
                       </Button>
                     </div>
-                    <div className="relative"><Lock className="absolute left-3 top-3 h-4 w-4 text-white/40" /><Input type="password" placeholder="设置密码" value={password} onChange={e => setPassword(e.target.value)} className="pl-10 bg-white/5 border-white/10 text-white" required minLength={6} /></div>
+                    <div className="relative"><Lock className="absolute left-3 top-3 h-4 w-4 text-white/40" /><Input type="password" name="account_secret" autoComplete="new-password" placeholder="设置密码" value={password} onChange={e => setPassword(e.target.value)} className="pl-10 bg-white/5 border-white/10 text-white" required minLength={6} /></div>
                   </div>
                   <Button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white" disabled={loading}>注册并登录</Button>
                   <AgreementBox id="terms-reg" />
@@ -433,16 +433,16 @@ function LoginPageContent() {
             <Card className="border-white/10 bg-black/40 backdrop-blur-xl shadow-2xl">
               <CardHeader><CardTitle className="text-xl text-white">手机注册</CardTitle></CardHeader>
               <CardContent>
-                <form onSubmit={handleSmsRegisterVerify} className="space-y-4">
+                <form onSubmit={handleSmsRegisterVerify} className="space-y-4" autoComplete="off">
                   <div className="space-y-2">
-                    <div className="relative"><Phone className="absolute left-3 top-3 h-4 w-4 text-white/40" /><Input type="tel" placeholder="手机号" value={phone} onChange={e => setPhone(e.target.value)} className="pl-10 bg-white/5 border-white/10 text-white" required maxLength={11} /></div>
+                    <div className="relative"><Phone className="absolute left-3 top-3 h-4 w-4 text-white/40" /><Input type="tel" name="account_id" autoComplete="off" placeholder="手机号" value={phone} onChange={e => setPhone(e.target.value)} className="pl-10 bg-white/5 border-white/10 text-white" required maxLength={11} /></div>
                     <div className="flex gap-2">
                       <div className="relative flex-1"><KeyRound className="absolute left-3 top-3 h-4 w-4 text-white/40" /><Input type="text" placeholder="码" value={verificationCode} onChange={e => setVerificationCode(e.target.value)} className="pl-10 bg-white/5 border-white/10 text-white" required maxLength={6} /></div>
                       <Button type="button" variant="outline" onClick={() => handleSendSmsCode('register')} disabled={loading || getRemaining('sms', phone, 'register') > 0 || !phone} className="w-24 bg-white/5 border-white/10 text-white">
                         {getRemaining('sms', phone, 'register') > 0 ? `${getRemaining('sms', phone, 'register')}s` : "获取"}
                       </Button>
                     </div>
-                    <div className="relative"><Lock className="absolute left-3 top-3 h-4 w-4 text-white/40" /><Input type="password" placeholder="设置密码" value={password} onChange={e => setPassword(e.target.value)} className="pl-10 bg-white/5 border-white/10 text-white" required minLength={6} /></div>
+                    <div className="relative"><Lock className="absolute left-3 top-3 h-4 w-4 text-white/40" /><Input type="password" name="account_secret" autoComplete="new-password" placeholder="设置密码" value={password} onChange={e => setPassword(e.target.value)} className="pl-10 bg-white/5 border-white/10 text-white" required minLength={6} /></div>
                   </div>
                   <Button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white" disabled={loading}>注册并登录</Button>
                   <AgreementBox id="terms-sms-reg" />

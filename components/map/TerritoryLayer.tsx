@@ -105,6 +105,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
   const haloPolygonsRef = useRef<any[]>([]);
   const haloPulseTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastViewportKingIdRef = useRef<string | null>(null);
+  const lastAuthUserIdRef = useRef<string | null>(user?.id ?? null);
 
   const resolveFactionColor = useCallback((ownerFaction: string | null | undefined) => {
     const key = (ownerFaction || '').toLowerCase();
@@ -146,6 +147,24 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
     haloPolygonsRef.current.forEach((halo) => halo?.setMap?.(null));
     haloPolygonsRef.current = [];
   }, []);
+
+  const clearRenderedLayers = useCallback(() => {
+    setPolygons((prev) => {
+      prev.forEach((polygon) => polygon?.setMap?.(null));
+      return [];
+    });
+    setMarkers((prev) => {
+      prev.forEach((marker) => marker?.setMap?.(null));
+      return [];
+    });
+    polygonTerritoryMap.current.clear();
+    activeTerritoryMap.current.clear();
+    ownerProfileMapRef.current.clear();
+    territoryMetricsRef.current = [];
+    clearViewportKingHalo();
+    onViewportKingChange?.(null);
+    setSelectedTerritory?.(null);
+  }, [clearViewportKingHalo, onViewportKingChange, setSelectedTerritory]);
 
   const applyViewportKingHalo = useCallback((kingOwnerId: string | null) => {
     clearViewportKingHalo();
@@ -601,6 +620,16 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
     buildPolygonPresentation,
     recomputeViewportKing,
   ]);
+
+  useEffect(() => {
+    const currentUserId = user?.id ?? null;
+    if (lastAuthUserIdRef.current === currentUserId) {
+      return;
+    }
+    lastAuthUserIdRef.current = currentUserId;
+    clearRenderedLayers();
+    window.dispatchEvent(new Event('citylord:refresh-territories'));
+  }, [clearRenderedLayers, user?.id]);
 
   useEffect(() => {
     if (!map) return;

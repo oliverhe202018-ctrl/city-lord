@@ -162,6 +162,8 @@ export default function ResetPasswordPage() {
                                     <Mail className="absolute left-3 top-3 h-4 w-4 text-white/40" />
                                     <Input
                                         type="email"
+                                        name="account_id"
+                                        autoComplete="off"
                                         placeholder="注册邮箱地址"
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
@@ -183,7 +185,7 @@ export default function ResetPasswordPage() {
 
                         {/* Step 2: Verify Code + New Password */}
                         {step === "verify" && (
-                            <form onSubmit={handleResetPassword} className="space-y-4">
+                            <form onSubmit={handleResetPassword} className="space-y-4" autoComplete="off">
                                 <div className="space-y-3">
                                     {/* Verification Code */}
                                     <div className="flex gap-2">
@@ -215,6 +217,8 @@ export default function ResetPasswordPage() {
                                         <Lock className="absolute left-3 top-3 h-4 w-4 text-white/40" />
                                         <Input
                                             type="password"
+                                            name="account_secret"
+                                            autoComplete="new-password"
                                             placeholder="新密码 (至少6位)"
                                             value={newPassword}
                                             onChange={(e) => setNewPassword(e.target.value)}
@@ -229,6 +233,8 @@ export default function ResetPasswordPage() {
                                         <Lock className="absolute left-3 top-3 h-4 w-4 text-white/40" />
                                         <Input
                                             type="password"
+                                            name="account_secret"
+                                            autoComplete="new-password"
                                             placeholder="确认新密码"
                                             value={confirmPassword}
                                             onChange={(e) => setConfirmPassword(e.target.value)}

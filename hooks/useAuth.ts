@@ -12,6 +12,14 @@ export function useAuth(initialUser?: User | null) {
   const router = useRouter()
 
   useEffect(() => {
+    const broadcastAuthChanged = (event: string, nextUserId: string | null) => {
+      if (typeof window === 'undefined') return
+      window.dispatchEvent(new CustomEvent('citylord:auth-changed', {
+        detail: { event, userId: nextUserId }
+      }))
+      window.dispatchEvent(new Event('citylord:refresh-territories'))
+    }
+
     const checkAuth = async () => {
       try {
         const { data: { session }, error } = await supabase.auth.getSession()
@@ -19,7 +27,9 @@ export function useAuth(initialUser?: User | null) {
             // Only log non-network errors or if debugging
             // console.warn("Auth check warning:", error.message)
         }
-        setUser(session?.user ?? null)
+        const nextUser = session?.user ?? null
+        setUser(nextUser)
+        broadcastAuthChanged('SESSION_SYNC', nextUser?.id ?? null)
       } catch (e) {
         console.error("Auth check failed (network or config):", e)
         // Fallback or retry logic could go here
@@ -30,9 +40,11 @@ export function useAuth(initialUser?: User | null) {
 
     checkAuth()
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      const nextUser = session?.user ?? null
+      setUser(nextUser)
       setLoading(false)
+      broadcastAuthChanged(event, nextUser?.id ?? null)
     })
 
     return () => subscription.unsubscribe()

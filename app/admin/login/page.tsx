@@ -106,7 +106,7 @@ export default function AdminLoginPage() {
                         </div>
                     )}
 
-                    <form onSubmit={handleSubmit} className="space-y-4">
+                    <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
                         {/* Username */}
                         <div className="space-y-1.5">
                             <label className="text-xs font-medium text-white/50 uppercase tracking-wider">
@@ -115,9 +115,10 @@ export default function AdminLoginPage() {
                             <div className="relative group">
                                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30 group-focus-within:text-blue-400 transition-colors" />
                                 <Input
-                                    id="admin-username"
+                                    id="admin-account-id"
                                     type="text"
-                                    autoComplete="username"
+                                    name="account_id"
+                                    autoComplete="off"
                                     placeholder="输入账号"
                                     value={username}
                                     onChange={(e) => {
@@ -139,9 +140,10 @@ export default function AdminLoginPage() {
                             <div className="relative group">
                                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30 group-focus-within:text-blue-400 transition-colors" />
                                 <Input
-                                    id="admin-password"
+                                    id="admin-account-secret"
                                     type={showPassword ? "text" : "password"}
-                                    autoComplete="current-password"
+                                    name="account_secret"
+                                    autoComplete="new-password"
                                     placeholder="••••••••"
                                     value={password}
                                     onChange={(e) => {

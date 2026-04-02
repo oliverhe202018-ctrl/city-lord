@@ -19,7 +19,7 @@ import { WelcomeScreen, InteractiveTutorial, QuickNavPopup, MapInteractionGuide 
 import { MapHeader, MapHeaderProps } from "@/components/map/MapHeader"
 import { LoadingScreen } from "@/components/citylord/loading-screen"
 import { useRunningTracker } from "@/hooks/useRunningTracker"
-import useSWR from 'swr'
+import useSWR, { mutate as mutateSWR } from 'swr'
 import { LeaderboardDrawer } from "@/components/leaderboard/LeaderboardDrawer"
 import { useCity } from "@/contexts/CityContext"
 import {
@@ -56,6 +56,7 @@ import { GameHomePage } from "@/components/citylord/home/GameHomePage";
 import type { RunMode } from "@/types/home";
 import type { PlannerRoute } from "@/types/route-list";
 import { useRouteListStore } from "@/store/useRouteListStore";
+import { useQueryClient } from "@tanstack/react-query";
 
 // --- Step 1: Memoize Heavy Components ---
 
@@ -155,6 +156,8 @@ export function GamePageContent({
   const [showTerritory, setShowTerritory] = useState(true);
   const [viewportKing, setViewportKing] = useState<ViewportKingData | null>(null);
   const hasAttemptedFirstInit = useRef(false);
+  const queryClient = useQueryClient()
+  const lastAuthUserIdRef = useRef<string | null>(user?.id ?? null)
 
   // 全屏加载状态 - 必须在所有 hooks 之后 return
   // Feature: 页面缓存 — 优先 URL 参数(深度链接) > localStorage 缓存 > 默认 "play"
@@ -599,6 +602,26 @@ export function GamePageContent({
     return res.json()
   })
 
+  useEffect(() => {
+    if (isAuthLoading) return
+    const nextUserId = user?.id ?? null
+    if (lastAuthUserIdRef.current === nextUserId) return
+    lastAuthUserIdRef.current = nextUserId
+    queryClient.removeQueries({ queryKey: ['territory-detail'] })
+    queryClient.invalidateQueries({ queryKey: ['cityStats'] })
+    queryClient.invalidateQueries({ queryKey: ['cityLeaderboard'] })
+    queryClient.invalidateQueries({ queryKey: ['userCityProgress'] })
+    mutateSWR(
+      (key: unknown) => {
+        if (typeof key !== 'string') return false
+        return key.includes('/api/city/fetch-territories') || key.includes('/api/territory/list') || key === 'friends'
+      },
+      undefined,
+      { revalidate: true }
+    ).catch(() => {})
+    window.dispatchEvent(new Event('citylord:refresh-territories'))
+  }, [isAuthLoading, queryClient, user?.id])
+
   const handleWelcomeComplete = useCallback(() => {
     if (typeof window !== 'undefined') {
       localStorage.setItem(ONBOARDING_STATUS_KEY, 'pending_guide')
@@ -951,25 +974,31 @@ export function GamePageContent({
           {shouldRenderPlaySurface && (
             <div className="absolute inset-0 overflow-hidden">
               <div className="absolute inset-0 z-0">
-                <MemoizedAMapView
-                  ref={mapViewRef}
-                  showTerritory={showTerritory && activeTab !== "start" && !isRunTakeoverActive}
-                  showControls={shouldShowPlayChrome}
-                  onMapLoad={handleMapLoad}
-                  sessionClaims={sessionClaims}
-                  runPath={isRunTakeoverActive ? path : undefined}
-                  ghostPath={ghostPath}
-                  onViewportKingChange={setViewportKing}
-                  isRunTakeoverActive={isRunTakeoverActive}
-                >
-                  {shouldShowPlayChrome && (
-                    <div className="pointer-events-auto">
-                      <MemoizedMapHeader setShowThemeSwitcher={setShowThemeSwitcher} isRunTakeoverActive={isRunTakeoverActive} />
-                    </div>
-                  )}
-                </MemoizedAMapView>
-                {shouldShowPlayChrome && <MemoizedFactionSelector initialUser={initialUser} />}
-                {shouldShowPlayChrome && <MemoizedReferralWelcome />}
+                {isAuthenticated ? (
+                  <>
+                    <MemoizedAMapView
+                      ref={mapViewRef}
+                      showTerritory={showTerritory && activeTab !== "start" && !isRunTakeoverActive}
+                      showControls={shouldShowPlayChrome}
+                      onMapLoad={handleMapLoad}
+                      sessionClaims={sessionClaims}
+                      runPath={isRunTakeoverActive ? path : undefined}
+                      ghostPath={ghostPath}
+                      onViewportKingChange={setViewportKing}
+                      isRunTakeoverActive={isRunTakeoverActive}
+                    >
+                      {shouldShowPlayChrome && (
+                        <div className="pointer-events-auto">
+                          <MemoizedMapHeader setShowThemeSwitcher={setShowThemeSwitcher} isRunTakeoverActive={isRunTakeoverActive} />
+                        </div>
+                      )}
+                    </MemoizedAMapView>
+                    {shouldShowPlayChrome && <MemoizedFactionSelector initialUser={initialUser} />}
+                    {shouldShowPlayChrome && <MemoizedReferralWelcome />}
+                  </>
+                ) : (
+                  <div className="absolute inset-0 z-50 bg-[#020617] pointer-events-auto" />
+                )}
               </div>
 
               <div className="relative z-10 h-full w-full pointer-events-none">
@@ -1155,14 +1184,18 @@ export function GamePageContent({
 
           {!isRunTakeoverActive && activeTab === "mode" && (
             <div className="relative h-dvh w-full overflow-hidden">
-              <MemoizedAMapView ref={mapViewRef} showTerritory={showTerritory} showControls={shouldShowPlayChrome} sessionClaims={sessionClaims} ghostPath={ghostPath} isRunTakeoverActive={isRunTakeoverActive}>
-                <div className="pointer-events-auto">
-                  <MemoizedMapHeader
-                    setShowThemeSwitcher={setShowThemeSwitcher}
-                    isRunTakeoverActive={isRunTakeoverActive}
-                  />
-                </div>
-              </MemoizedAMapView>
+              {isAuthenticated ? (
+                <MemoizedAMapView ref={mapViewRef} showTerritory={showTerritory} showControls={shouldShowPlayChrome} sessionClaims={sessionClaims} ghostPath={ghostPath} isRunTakeoverActive={isRunTakeoverActive}>
+                  <div className="pointer-events-auto">
+                    <MemoizedMapHeader
+                      setShowThemeSwitcher={setShowThemeSwitcher}
+                      isRunTakeoverActive={isRunTakeoverActive}
+                    />
+                  </div>
+                </MemoizedAMapView>
+              ) : (
+                <div className="absolute inset-0 z-50 bg-[#020617] pointer-events-auto" />
+              )}
               <div className="relative z-10 h-full w-full pointer-events-none">
                 <div className="pointer-events-auto">
                   <MemoizedModeSwitcher onDrawerOpenChange={handleDrawerOpenChange} />
