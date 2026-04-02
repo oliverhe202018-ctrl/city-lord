@@ -729,6 +729,11 @@ export function GamePageContent({
   }, [openRouteList])
 
   const handleRouteEdit = useCallback((route: PlannerRoute) => {
+    if (activeTab === "start") {
+      setSelectedRoute(route)
+      closeRouteList()
+      return
+    }
     setSelectedRoute(route)
     setGhostPath(route.waypoints.map((point) => [point.lat, point.lng] as [number, number]))
     if (!isPlannerOpen) {
@@ -936,7 +941,7 @@ export function GamePageContent({
               <div className="absolute inset-0 z-0">
                 <MemoizedAMapView
                   ref={mapViewRef}
-                  showTerritory={showTerritory}
+                  showTerritory={showTerritory && activeTab !== "start" && !isRunTakeoverActive}
                   showControls={shouldShowPlayChrome}
                   onMapLoad={handleMapLoad}
                   sessionClaims={sessionClaims}
@@ -1116,10 +1121,6 @@ export function GamePageContent({
                     onBack={() => setActiveTab("home")}
                     onBeginRun={() => {
                       beginRunStart()
-                    }}
-                    onOpenSmartPlan={() => {
-                      setPlannerReturnTab("start")
-                      setIsPlannerOpen(true)
                     }}
                   />
                 )}

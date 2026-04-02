@@ -11,7 +11,7 @@ export const HEX_RADIUS_METERS = 10 // 六边形半径（米）
 export const HEX_AREA_SQ_METERS = 260 // 每个六边形的面积（平方米）
 
 // 换算阈值
-export const SQ_METERS_TO_KM_THRESHOLD = 1000 // 大于此值时转换为 k㎡ 或 km²
+export const SQ_METERS_TO_KM_THRESHOLD = 1000000 // 大于此值时转换为 km²
 
 /**
  * 将格子数量转换为面积（平方米）
@@ -29,15 +29,17 @@ export function areaToHexCount(areaSqMeters: number): number {
 
 /**
  * 格式化面积显示
- * 小于 1,000 m² 显示 ㎡，1,000 - 1,000,000 显示 k㎡，大于 1,000,000 显示 km²
+ * 小于 1,000,000 m² 显示 m²，大于等于 1,000,000 显示 km²
  */
 export function formatArea(areaSqMeters: number): {
   value: string
   unit: string
   fullText: string
 } {
-  if (areaSqMeters >= 1000000) {
-    const sqKm = areaSqMeters / 1000000
+  const safeAreaSqMeters = Math.max(0, Number.isFinite(areaSqMeters) ? areaSqMeters : 0)
+
+  if (safeAreaSqMeters >= SQ_METERS_TO_KM_THRESHOLD) {
+    const sqKm = safeAreaSqMeters / 1000000
     const value = sqKm.toFixed(2)
     return {
       value,
@@ -45,22 +47,12 @@ export function formatArea(areaSqMeters: number): {
       fullText: `${value} km²`,
     }
   }
-  
-  if (areaSqMeters >= 1000) {
-    const kSqM = areaSqMeters / 1000
-    const value = kSqM.toFixed(1)
-    return {
-      value,
-      unit: "k㎡",
-      fullText: `${value} k㎡`,
-    }
-  }
-  
-  const value = Math.round(areaSqMeters).toLocaleString()
+
+  const value = new Intl.NumberFormat('en-US').format(Math.round(safeAreaSqMeters))
   return {
     value,
-    unit: "㎡",
-    fullText: `${value} ㎡`,
+    unit: "m²",
+    fullText: `${value} m²`,
   }
 }
 

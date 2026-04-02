@@ -8,6 +8,7 @@ interface RouteListStoreState {
   openRouteList: (source?: RouteListSource) => void
   closeRouteList: () => void
   setSelectedRoute: (route: PlannerRoute | null) => void
+  clearSelectedRoute: () => void
 }
 
 export const useRouteListStore = create<RouteListStoreState>((set) => ({
@@ -16,5 +17,6 @@ export const useRouteListStore = create<RouteListStoreState>((set) => ({
   selectedRoute: null,
   openRouteList: (source = 'unknown') => set({ isOpen: true, source }),
   closeRouteList: () => set({ isOpen: false }),
-  setSelectedRoute: (route) => set({ selectedRoute: route })
+  setSelectedRoute: (route) => set({ selectedRoute: route }),
+  clearSelectedRoute: () => set({ selectedRoute: null })
 }))

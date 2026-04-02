@@ -203,6 +203,7 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
     const markerPosition = (isRunTakeoverActive && activeTrajectoryPath.length > 0)
       ? activeTrajectoryPath[activeTrajectoryPath.length - 1]
       : currentLocation;
+    const shouldShowTerritoryLayers = showTerritory && !isRunTakeoverActive;
 
     return (
       <div className="relative w-full h-full">
@@ -221,11 +222,11 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
           />
 
           {/* Layer 0: Kingdom (Historical Territories) - Lowest z-index */}
-          {showKingdom && kingdomMode === 'personal' && (
+          {shouldShowTerritoryLayers && showKingdom && kingdomMode === 'personal' && (
             <KingdomLayer map={mapLayerRef?.current?.map} userId={user?.id || null} />
           )}
           {/* Layer 0b: All Territories (all kingdom modes) */}
-          {showKingdom && (
+          {shouldShowTerritoryLayers && showKingdom && (
             <TerritoryLayer
               map={mapLayerRef?.current?.map}
               isVisible={true}
@@ -271,6 +272,7 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
             map={mapLayerRef?.current?.map}
             position={markerPosition}
             isTracking={isTracking}
+            instantSync={isRunTakeoverActive}
           />
 
           {/* Map Controls (includes fog toggle, mode switch, zoom, locate) */}

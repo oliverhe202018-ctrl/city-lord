@@ -23,7 +23,7 @@ import { useBattleCaster } from "@/hooks/useBattleCaster"
 import { useGameStore } from "@/store/useGameStore"
 import { ActiveRandomEvent } from "@/hooks/useRandomEvents"
 import { RunEventLog } from "@/types/run-sync"
-import { LOOP_CLOSURE_THRESHOLD_M, extractValidLoops } from "@/lib/geometry-utils"
+import { LOOP_CLOSURE_THRESHOLD_M } from "@/lib/geometry-utils"
 
 // ─── Timeout utility for promises that may hang after sleep ───
 const SAVE_TIMEOUT_MS = 15_000;
@@ -354,7 +354,7 @@ export function ImmersiveRunningMode({
     setIsPaused(initialIsPaused);
   }, [initialIsPaused]);
   const [isScreenLocked, setIsScreenLocked] = useState(false)
-  const [viewMode, setViewMode] = useState<'dashboard' | 'map'>('dashboard')
+  const [viewMode, setViewMode] = useState<'dashboard' | 'map'>('map')
   const [showStopConfirm, setShowStopConfirm] = useState(false)
   const [recenterTrigger, setRecenterTrigger] = useState(0)
   const [showSummary, setShowSummary] = useState(false)
@@ -564,15 +564,7 @@ export function ImmersiveRunningMode({
   }, [isPaused, onPause])
 
   const buildSummarySnapshot = useCallback((snapshotHexes: number): SummarySnapshot => {
-    const loopsFromPath = extractValidLoops(
-      (path || []).map((point, index) => ({ lat: point.lat, lng: point.lng, timestamp: point.timestamp ?? index })),
-      LOOP_CLOSURE_THRESHOLD_M
-    )
-    const loopsFromClaims = (closedPolygons || []).flatMap((poly) => extractValidLoops(
-      poly.map((point, index) => ({ lat: point.lat, lng: point.lng, timestamp: point.timestamp ?? index })),
-      LOOP_CLOSURE_THRESHOLD_M
-    ))
-    const safeCapturedArea = (loopsFromPath.length > 0 || loopsFromClaims.length > 0) ? area : 0
+    const safeCapturedArea = Math.max(0, Number.isFinite(area) ? area : 0)
     return {
       distanceMeters,
       durationSeconds,
@@ -590,7 +582,7 @@ export function ImmersiveRunningMode({
       hexesCaptured: settledTerritoriesCount !== undefined ? settledTerritoriesCount : snapshotHexes,
       runTrajectory: cloneSnapshotValue(path || []),
     }
-  }, [distanceMeters, durationSeconds, time, pace, calories, area, steps, runIsValid, antiCheatLog, savedRunId, runNumber, damageSummary, maintenanceSummary, settledTerritoriesCount, path, closedPolygons])
+  }, [distanceMeters, durationSeconds, time, pace, calories, area, steps, runIsValid, antiCheatLog, savedRunId, runNumber, damageSummary, maintenanceSummary, settledTerritoriesCount, path])
 
   const handleLockScreen = useCallback(() => {
     setIsScreenLocked(true)

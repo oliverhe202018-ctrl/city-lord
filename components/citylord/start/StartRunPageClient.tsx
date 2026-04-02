@@ -1,25 +1,18 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { ArrowLeft, LocateFixed, Route, X, Signal } from "lucide-react"
+import { ArrowLeft, LocateFixed, List, X, Signal } from "lucide-react"
 import * as turf from "@turf/turf"
 import { Button } from "@/components/ui/button"
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useLocationStore } from "@/store/useLocationStore"
 import { useGameStore } from "@/store/useGameStore"
+import { useRouteListStore } from "@/store/useRouteListStore"
 import { useLocationContext } from "@/components/GlobalLocationProvider"
 import { isNativePlatform, safeOpenAppSettings } from "@/lib/capacitor/safe-plugins"
 import { toast } from "sonner"
-
-interface RouteItem {
-  id: string
-  name: string
-  distance: number
-  capture_area: number
-  waypoints: unknown[]
-}
+import type { PlannerRoute } from "@/types/route-list"
 
 type BatteryOptimizationResult = {
   ignoring?: boolean
@@ -39,71 +32,54 @@ const BATTERY_GUIDE: Array<{ brand: string; steps: string[] }> = [
   { brand: "小米 Xiaomi", steps: ["设置 > 应用设置 > 应用管理 > City Lord", "省电策略选择无限制", "开启自启动并锁定任务卡片"] },
 ]
 
-function normalizeWaypoints(input: unknown[]): [number, number][] {
-  return input
-    .map((point) => {
-      if (Array.isArray(point) && point.length >= 2) {
-        const lng = Number(point[0])
-        const lat = Number(point[1])
-        if (Number.isFinite(lng) && Number.isFinite(lat)) return [lng, lat] as [number, number]
-      }
-      if (point && typeof point === "object") {
-        const candidate = point as { lng?: number; lat?: number; longitude?: number; latitude?: number }
-        const lng = Number(candidate.lng ?? candidate.longitude)
-        const lat = Number(candidate.lat ?? candidate.latitude)
-        if (Number.isFinite(lng) && Number.isFinite(lat)) return [lng, lat] as [number, number]
-      }
-      return null
-    })
-    .filter((point): point is [number, number] => point !== null)
-}
-
 interface StartRunOverlayProps {
   onBack: () => void
   onBeginRun: () => void
-  onOpenSmartPlan?: () => void
 }
 
-export function StartRunOverlay({ onBack, onBeginRun, onOpenSmartPlan }: StartRunOverlayProps) {
+export function StartRunOverlay({ onBack, onBeginRun }: StartRunOverlayProps) {
   const gpsSignalStrength = useLocationStore((s) => s.gpsSignalStrength)
   const ghostPath = useGameStore((s) => s.ghostPath)
   const setGhostPath = useGameStore((s) => s.setGhostPath)
+  const selectedRoute = useRouteListStore((state) => state.selectedRoute)
+  const openRouteList = useRouteListStore((state) => state.openRouteList)
+  const closeRouteList = useRouteListStore((state) => state.closeRouteList)
+  const clearSelectedRoute = useRouteListStore((state) => state.clearSelectedRoute)
   const { retry } = useLocationContext()
-  const [openPlanner, setOpenPlanner] = useState(false)
-  const [routes, setRoutes] = useState<RouteItem[]>([])
-  const [loadingRoutes, setLoadingRoutes] = useState(false)
+  const [previewRoute, setPreviewRoute] = useState<PlannerRoute | null>(null)
   const [showBatteryModal, setShowBatteryModal] = useState(false)
   const [showGuideModal, setShowGuideModal] = useState(false)
 
   useEffect(() => {
-    if (!openPlanner) return
-    let alive = true
-    const loadRoutes = async () => {
-      setLoadingRoutes(true)
-      try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_SERVER || ""}/api/routes`, { credentials: "include" })
-        if (!res.ok) throw new Error("加载失败")
-        const data = await res.json()
-        if (alive) setRoutes(Array.isArray(data) ? data : [])
-      } catch {
-        toast.error("加载规划路线失败")
-      } finally {
-        if (alive) setLoadingRoutes(false)
-      }
-    }
-    loadRoutes()
-    return () => {
-      alive = false
-    }
-  }, [openPlanner])
-
-  const handleSmartPlan = useCallback(() => {
-    if (onOpenSmartPlan) {
-      onOpenSmartPlan()
+    if (!selectedRoute) return
+    const normalizedPath = selectedRoute.waypoints
+      .map((point) => {
+        const lat = Number(point.lat)
+        const lng = Number(point.lng)
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+        return [lat, lng] as [number, number]
+      })
+      .filter((point): point is [number, number] => point !== null)
+    if (normalizedPath.length > 0) {
+      setPreviewRoute(selectedRoute)
+      setGhostPath(normalizedPath)
+      closeRouteList()
+      clearSelectedRoute()
       return
     }
-    setOpenPlanner(true)
-  }, [onOpenSmartPlan])
+    toast.error("该路线缺少有效坐标，无法预览")
+    closeRouteList()
+    clearSelectedRoute()
+  }, [clearSelectedRoute, closeRouteList, selectedRoute, setGhostPath])
+
+  const handleOpenRouteList = useCallback(() => {
+    openRouteList('start')
+  }, [openRouteList])
+
+  const handleClearPreview = useCallback(() => {
+    setPreviewRoute(null)
+    setGhostPath(null)
+  }, [setGhostPath])
 
   useEffect(() => {
     let mounted = true
@@ -138,6 +114,8 @@ export function StartRunOverlay({ onBack, onBeginRun, onOpenSmartPlan }: StartRu
 
   const gpsLabel = gpsSignalStrength === "good" ? "强" : gpsSignalStrength === "weak" ? "弱" : "无"
   const plannedPointCount = ghostPath?.length ?? 0
+  const previewDistanceKm = previewRoute?.distance ?? 0
+  const estimatedMinutes = Math.max(0, Math.round(previewDistanceKm * 6))
   const estimatedAreaLabel = useMemo(() => {
     if (!ghostPath || ghostPath.length < 3) return "0 m²"
     const ring = ghostPath.map(([lat, lng]) => [lng, lat] as [number, number])
@@ -184,19 +162,19 @@ export function StartRunOverlay({ onBack, onBeginRun, onOpenSmartPlan }: StartRu
               type="button"
               variant="outline"
               className="h-11 rounded-full border border-slate-200/60 bg-white px-4 text-sm font-semibold text-slate-900 shadow-lg"
-              onClick={handleSmartPlan}
+              onClick={handleOpenRouteList}
             >
-              <Route className="mr-2 h-4 w-4" />
-              智能规划
+              <List className="mr-2 h-4 w-4" />
+              我的规划路线
             </Button>
           </div>
-          {plannedPointCount > 0 && (
+          {(previewRoute || plannedPointCount > 0) && (
             <Button
               type="button"
               variant="outline"
               size="icon"
               className="h-9 w-9 rounded-full border border-slate-200/60 bg-white text-lg text-slate-900 shadow-lg"
-              onClick={() => setGhostPath(null)}
+              onClick={handleClearPreview}
             >
               <X className="h-4 w-4" />
             </Button>
@@ -217,23 +195,25 @@ export function StartRunOverlay({ onBack, onBeginRun, onOpenSmartPlan }: StartRu
           </div>
         </div>
 
-        {plannedPointCount > 0 && (
+        {(previewRoute || plannedPointCount > 0) && (
           <div className="mb-4 rounded-2xl border border-emerald-300/50 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-400/20 dark:text-emerald-300">
-            已载入规划路径 · {plannedPointCount} 个轨迹点
+            {previewRoute
+              ? `已选择路线 · ${previewRoute.name || "未命名路线"} · ${previewDistanceKm.toFixed(2)} km · 预计 ${estimatedMinutes} 分钟`
+              : `已载入规划路径 · ${plannedPointCount} 个轨迹点`}
           </div>
         )}
 
         <div className="mb-5 grid grid-cols-3 gap-2 text-center">
           <div>
-            <p className="text-2xl font-black leading-none">0.00 km</p>
+            <p className="text-2xl font-black leading-none">{previewDistanceKm.toFixed(2)} km</p>
             <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">距离</p>
           </div>
           <div>
-            <p className="text-2xl font-black leading-none">00:00</p>
-            <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">时长</p>
+            <p className="text-2xl font-black leading-none">{estimatedMinutes} 分钟</p>
+            <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">预计时间</p>
           </div>
           <div>
-            <p className="text-2xl font-black leading-none">0:00</p>
+            <p className="text-2xl font-black leading-none">6:00</p>
             <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">平均配速</p>
           </div>
         </div>
@@ -246,35 +226,6 @@ export function StartRunOverlay({ onBack, onBeginRun, onOpenSmartPlan }: StartRu
           开始跑步
         </Button>
       </div>
-
-      <Drawer open={openPlanner} onOpenChange={setOpenPlanner}>
-        <DrawerContent className="pointer-events-auto max-h-[78vh] rounded-t-3xl">
-          <DrawerHeader>
-            <DrawerTitle>选择规划路径</DrawerTitle>
-          </DrawerHeader>
-          <ScrollArea className="px-4 pb-6">
-            <div className="space-y-3">
-              {loadingRoutes && <p className="py-8 text-center text-sm text-muted-foreground">正在加载...</p>}
-              {!loadingRoutes && routes.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">暂无可用路线</p>}
-              {!loadingRoutes && routes.map((route) => (
-                <button
-                  type="button"
-                  key={route.id}
-                  className="w-full rounded-xl border border-border bg-card p-4 text-left transition-colors active:bg-accent"
-                  onClick={() => {
-                    const normalizedPath = normalizeWaypoints(Array.isArray(route.waypoints) ? route.waypoints : [])
-                    setGhostPath(normalizedPath.map(([lng, lat]) => [lat, lng]))
-                    setOpenPlanner(false)
-                  }}
-                >
-                  <p className="font-semibold text-foreground">{route.name || "未命名路线"}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{(route.distance || 0).toFixed(2)} km · {(route.capture_area || 0).toFixed(2)} km²</p>
-                </button>
-              ))}
-            </div>
-          </ScrollArea>
-        </DrawerContent>
-      </Drawer>
 
       {showBatteryModal && (
         <div

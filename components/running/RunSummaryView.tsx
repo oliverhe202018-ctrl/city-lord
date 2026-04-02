@@ -162,10 +162,7 @@ export function RunSummaryView({
     }
   }, [runIsValid]);
 
-  // Calculate territory area based on game constants or use passed prop
-  const finalCapturedArea = propCapturedArea !== undefined 
-    ? propCapturedArea 
-    : hexesCaptured * HEX_AREA_SQ_METERS;
+  const finalCapturedArea = Math.max(0, Number.isFinite(propCapturedArea ?? 0) ? (propCapturedArea ?? 0) : 0);
   const contributedArea = Math.max(0, Math.round(finalCapturedArea));
 
   // Aggregate damage by owner for UI display

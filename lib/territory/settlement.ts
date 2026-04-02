@@ -411,6 +411,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                     data: {
                         territory_id: newId,
                         event_type: 'CREATED',
+                        event_type_old: 'CREATED',
                         user_id: userId,
                         run_id: runId,
                         old_owner_id: null,

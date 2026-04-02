@@ -13,4 +13,4 @@ export interface PlannerRoute {
   waypoints: RoutePoint[]
 }
 
-export type RouteListSource = 'planner' | 'game' | 'route-planner' | 'game-planner' | 'unknown'
+export type RouteListSource = 'planner' | 'game' | 'start' | 'route-planner' | 'game-planner' | 'unknown'

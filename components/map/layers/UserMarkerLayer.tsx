@@ -7,6 +7,7 @@ interface UserMarkerLayerProps {
   map: any | null;
   position: GeoPoint | null;
   isTracking?: boolean;
+  instantSync?: boolean;
 }
 
 /**
@@ -15,7 +16,7 @@ interface UserMarkerLayerProps {
  * Renders smooth-animated blue dot that represents user GPS position.
  * Separate from TrajectoryLayer (which shows the path).
  */
-export function UserMarkerLayer({ map, position, isTracking }: UserMarkerLayerProps) {
+export function UserMarkerLayer({ map, position, isTracking, instantSync = false }: UserMarkerLayerProps) {
   const markerRef = useRef<any>(null);
   const styleInjectedRef = useRef(false);
 
@@ -95,7 +96,6 @@ export function UserMarkerLayer({ map, position, isTracking }: UserMarkerLayerPr
 // @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
       position: initialPosition,
       content: el,
-      offset: new AMap.Pixel(-10, -10),
       zIndex: 100,
       anchor: 'center'
     });
@@ -116,6 +116,10 @@ export function UserMarkerLayer({ map, position, isTracking }: UserMarkerLayerPr
   useEffect(() => {
     if (!markerRef.current || !position) return;
     const newPos: [number, number] = [position.lng, position.lat];
+    if (instantSync) {
+      markerRef.current.setPosition(newPos);
+      return;
+    }
     if (markerRef.current.moveTo) {
       markerRef.current.moveTo(newPos, {
         duration: 800,
@@ -124,7 +128,7 @@ export function UserMarkerLayer({ map, position, isTracking }: UserMarkerLayerPr
       return;
     }
     markerRef.current.setPosition(newPos);
-  }, [position]);
+  }, [instantSync, position]);
 
   return null;
 }
