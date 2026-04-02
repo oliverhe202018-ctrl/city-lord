@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { TaskDto, claimReward } from '@/app/actions/task';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -17,6 +18,7 @@ interface TaskListProps {
 type TabType = 'ALL' | 'DAILY' | 'WEEKLY';
 
 export default function TaskList({ initialTasks, userId }: TaskListProps) {
+    const router = useRouter();
     const [tasks, setTasks] = useState<(TaskDto & { originalIndex: number })[]>(() =>
         initialTasks.map((t, i) => ({ ...t, originalIndex: i }))
     );
@@ -85,7 +87,7 @@ export default function TaskList({ initialTasks, userId }: TaskListProps) {
                     </div>
                     <h3 className="font-bold text-zinc-900 dark:text-zinc-100 mb-1">今日跑量已达标！</h3>
                     <p className="text-xs text-zinc-500 mb-4 max-w-[200px]">您的坚持令人赞叹！快去地图上留下更多专属足迹，解锁隐藏彩蛋吧~</p>
-                    <Button variant="outline" size="sm" onClick={goToRunPage}>
+                    <Button variant="outline" size="sm" onClick={() => goToRunPage(router)}>
                         继续探索领地
                     </Button>
                 </div>
@@ -100,7 +102,7 @@ export default function TaskList({ initialTasks, userId }: TaskListProps) {
                     </div>
                     <h3 className="font-bold text-zinc-900 dark:text-zinc-100 mb-1">本周挑战已全部征服</h3>
                     <p className="text-xs text-zinc-500 mb-4 max-w-[200px]">您已展现出非凡的实力！不妨随意跑跑保持状态，下周将刷新全新挑战。</p>
-                    <Button variant="outline" size="sm" onClick={goToMapPage}>
+                    <Button variant="outline" size="sm" onClick={() => goToMapPage(router)}>
                         进入地图发现
                     </Button>
                 </div>

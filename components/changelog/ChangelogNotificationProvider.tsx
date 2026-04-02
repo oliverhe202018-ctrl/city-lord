@@ -4,6 +4,7 @@ import {
     createContext, useCallback, useContext, useEffect, useRef, useState,
 } from 'react'
 import type { ReactNode } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { ChangelogNewVersionSheet } from './ChangelogNewVersionSheet'
@@ -41,6 +42,7 @@ export function useChangelogNotification() {
 
 // ── Provider ──
 export function ChangelogNotificationProvider({ children }: { children: ReactNode }) {
+    const router = useRouter()
     const supabase = createClient()
 
     const [unreadVersions, setUnreadVersions] = useState<UnreadVersion[]>([])
@@ -104,7 +106,7 @@ export function ChangelogNotificationProvider({ children }: { children: ReactNod
                             action: {
                                 label: '查看更新',
                                 onClick: () => {
-                                    window.location.href = `/changelog/${newRow.version}`
+                                    router.push(`/changelog/${newRow.version}`)
                                 },
                             },
                         })
@@ -116,7 +118,7 @@ export function ChangelogNotificationProvider({ children }: { children: ReactNod
             .subscribe()
 
         return () => { supabase.removeChannel(channel) }
-    }, [fetchUnread])
+    }, [fetchUnread, router])
 
     // ── Sheet 操作 ──
     const handleDismiss = useCallback(() => {

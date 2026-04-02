@@ -181,11 +181,7 @@ export function RunSummaryView({
       e.preventDefault();
       e.stopPropagation();
     }
-    if (onClose) {
-      onClose();
-    } else {
-      window.location.replace('/');
-    }
+    onClose();
   };
 
   // Photo upload handler

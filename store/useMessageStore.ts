@@ -119,7 +119,7 @@ export const useMessageStore = create<MessageStoreState>((set) => ({
   fetchSystemMessages: async () => {
     set({ isLoading: true, error: null })
     try {
-      const response = await fetch('/api/messages/notifications', {
+      const response = await fetch('/api/message/get-messages', {
         method: 'GET',
         credentials: 'include'
       })
@@ -139,7 +139,12 @@ export const useMessageStore = create<MessageStoreState>((set) => ({
             : Array.isArray(payloadRecord.items)
               ? payloadRecord.items
               : []
-      const mapped = rawList.map(mapRawToSystemMessage)
+      const filtered = rawList.filter((raw) => {
+        const record = toRecord(raw)
+        const type = toStringValue(record.type).toLowerCase()
+        return type === 'system' || type === 'challenge'
+      })
+      const mapped = filtered.map(mapRawToSystemMessage)
       set({ systemMessages: mapped, isLoading: false, error: null })
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : '加载系统消息失败'
@@ -162,21 +167,12 @@ export const useMessageStore = create<MessageStoreState>((set) => ({
     }
 
     try {
-      let response = await fetch('/api/messages/mark-read', {
-        method: 'PUT',
+      const response = await fetch('/api/message/mark-as-read', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messageId: id }),
         credentials: 'include'
       })
-
-      if (!response.ok && (response.status === 404 || response.status === 405)) {
-        response = await fetch('/api/message/mark-as-read', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messageId: id }),
-          credentials: 'include'
-        })
-      }
 
       if (!response.ok) {
         throw new Error(`标记已读失败: ${response.status}`)

@@ -37,24 +37,27 @@ const MapLoading = () => (
 );
 
 // Error Component (Simple inline version for dynamic import fallback)
-const MapLoadError = () => (
-    <div className="flex h-screen w-full flex-col items-center justify-center bg-slate-950 text-slate-200 gap-6 p-6">
-        <div className="h-20 w-20 rounded-full bg-red-500/10 flex items-center justify-center">
-            <AlertTriangle className="h-10 w-10 text-red-500" />
+function MapLoadError() {
+    const router = useRouter()
+    return (
+        <div className="flex h-screen w-full flex-col items-center justify-center bg-slate-950 text-slate-200 gap-6 p-6">
+            <div className="h-20 w-20 rounded-full bg-red-500/10 flex items-center justify-center">
+                <AlertTriangle className="h-10 w-10 text-red-500" />
+            </div>
+            <div className="text-center space-y-2">
+                <h2 className="text-xl font-bold">地图组件加载失败</h2>
+                <p className="text-slate-400 max-w-xs">可能是由于网络连接问题导致资源无法下载。</p>
+            </div>
+            <Button
+                onClick={() => router.refresh()}
+                variant="secondary"
+                className="px-8"
+            >
+                刷新重试
+            </Button>
         </div>
-        <div className="text-center space-y-2">
-            <h2 className="text-xl font-bold">地图组件加载失败</h2>
-            <p className="text-slate-400 max-w-xs">可能是由于网络连接问题导致资源无法下载。</p>
-        </div>
-        <Button 
-            onClick={() => window.location.reload()}
-            variant="secondary"
-            className="px-8"
-        >
-            刷新重试
-        </Button>
-    </div>
-);
+    )
+}
 
 const PlannerClientView = dynamic(
   () => import('@/components/citylord/map/PlannerClientView').catch((err) => {

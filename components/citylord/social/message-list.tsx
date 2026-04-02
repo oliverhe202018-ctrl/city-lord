@@ -80,23 +80,19 @@ const fetcher = (url: string) => fetch(url).then(res => {
 })
 
 export function MessageList({ initialFriendId, mode = 'system' }: MessageListProps) {
-  const { data: messages = [], mutate, isLoading } = useSWR<Message[]>('/api/message/get-messages', fetcher, {
+  const { data: messages = [], mutate, isLoading, error: messagesError } = useSWR<Message[]>('/api/message/get-messages', fetcher, {
     revalidateOnFocus: true,
   })
-  const {
-    systemMessages,
-    isLoading: isSystemLoading,
-    fetchSystemMessages,
-    markSystemMessageRead
-  } = useMessageStore((s) => ({
-    systemMessages: s.systemMessages,
-    isLoading: s.isLoading,
-    fetchSystemMessages: s.fetchSystemMessages,
-    markSystemMessageRead: s.markSystemMessageRead
-  }))
+  const systemMessages = useMessageStore((s) => s.systemMessages)
+  const isSystemLoading = useMessageStore((s) => s.isLoading)
+  const systemError = useMessageStore((s) => s.error)
+  const fetchSystemMessages = useMessageStore((s) => s.fetchSystemMessages)
+  const markSystemMessageRead = useMessageStore((s) => s.markSystemMessageRead)
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const router = useRouter()
+  const lastSystemErrorRef = useRef<string | null>(null)
+  const lastMessagesErrorRef = useRef<string | null>(null)
 
   useEffect(() => {
     let isMounted = true;
@@ -144,6 +140,27 @@ export function MessageList({ initialFriendId, mode = 'system' }: MessageListPro
       fetchSystemMessages()
     }
   }, [mode, fetchSystemMessages])
+
+  useEffect(() => {
+    if (!systemError) {
+      lastSystemErrorRef.current = null
+      return
+    }
+    if (lastSystemErrorRef.current === systemError) return
+    lastSystemErrorRef.current = systemError
+    toast.error("系统消息加载失败", { description: systemError })
+  }, [systemError])
+
+  useEffect(() => {
+    const msg = messagesError instanceof Error ? messagesError.message : (messagesError ? String(messagesError) : '')
+    if (!msg) {
+      lastMessagesErrorRef.current = null
+      return
+    }
+    if (lastMessagesErrorRef.current === msg) return
+    lastMessagesErrorRef.current = msg
+    toast.error("消息加载失败", { description: msg })
+  }, [messagesError])
 
   const [input, setInput] = useState("")
   const [isVoiceMode, setIsVoiceMode] = useState(false)
@@ -321,7 +338,38 @@ export function MessageList({ initialFriendId, mode = 'system' }: MessageListPro
     }
   }, [displayMessagesLength, lastMessageId, lastMessageSenderId, activeChat, mode, currentUserId, isLoading])
 
+  if (mode === 'system' && systemError && systemDisplayMessages.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-10 gap-3">
+        <div className="text-sm font-semibold text-destructive">系统消息加载失败</div>
+        <div className="text-xs text-muted-foreground px-6 text-center">{systemError}</div>
+        <button
+          type="button"
+          onClick={() => { fetchSystemMessages().catch(() => {}) }}
+          className="rounded-lg border border-border bg-background px-4 py-2 text-xs font-semibold text-foreground"
+        >
+          重试
+        </button>
+      </div>
+    )
+  }
   if (mode === 'system' && isSystemLoading && systemDisplayMessages.length === 0) return <div className="text-center text-muted-foreground py-10">加载消息中...</div>
+  if (mode === 'friend' && messagesError && (!messages || messages.length === 0)) {
+    const msg = messagesError instanceof Error ? messagesError.message : '加载失败'
+    return (
+      <div className="flex flex-col items-center justify-center py-10 gap-3">
+        <div className="text-sm font-semibold text-destructive">私聊消息加载失败</div>
+        <div className="text-xs text-muted-foreground px-6 text-center">{msg}</div>
+        <button
+          type="button"
+          onClick={() => { mutate().catch(() => {}) }}
+          className="rounded-lg border border-border bg-background px-4 py-2 text-xs font-semibold text-foreground"
+        >
+          重试
+        </button>
+      </div>
+    )
+  }
   if (mode === 'friend' && isLoading && (!messages || messages.length === 0)) return <div className="text-center text-muted-foreground py-10">加载消息中...</div>
 
   return (
@@ -395,7 +443,13 @@ export function MessageList({ initialFriendId, mode = 'system' }: MessageListPro
                   {/* Avatar */}
                   <div
                     className="w-10 h-10 rounded-full bg-muted flex items-center justify-center overflow-hidden shrink-0 cursor-pointer shadow-sm border border-border/10"
-                    onClick={() => openUserProfile(router, friendMsg.sender_id, window.location.pathname + window.location.search)}
+                    onClick={() => {
+                      if (!friendMsg.sender_id) {
+                        toast.warning('用户信息缺失，无法打开主页')
+                        return
+                      }
+                      openUserProfile(router, friendMsg.sender_id, window.location.pathname + window.location.search)
+                    }}
                   >
                     {friendMsg.sender?.avatar_url ? (
                       <img src={friendMsg.sender.avatar_url} className="w-full h-full object-cover" />

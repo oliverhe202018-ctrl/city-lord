@@ -1,19 +1,25 @@
 'use client'
 
+import { useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
 import { useGameStore } from '@/store/useGameStore'
 
-// Unified fetcher for API routes
-const fetcher = (url: string) => fetch(url, { credentials: 'include' }).then((r) => {
-  if (r.status === 401) {
-    if (typeof window !== 'undefined') window.location.href = '/login'
-    throw new Error('Unauthorized')
-  }
-  return r.json()
-})
+function useAuthorizedFetcher() {
+  const router = useRouter()
+  return useCallback((url: string) => fetch(url, { credentials: 'include' }).then((r) => {
+    if (r.status === 401) {
+      router.replace('/login')
+      router.refresh()
+      throw new Error('Unauthorized')
+    }
+    return r.json()
+  }), [router])
+}
 
 // Hook 1: Faction Stats
 export function useFactionStats() {
+  const fetcher = useAuthorizedFetcher()
   return useSWR('/api/faction/stats', fetcher, {
     revalidateOnFocus: false, // Homepage doesn't need frequent updates
     dedupingInterval: 60000,   // 1 minute deduping
@@ -22,6 +28,7 @@ export function useFactionStats() {
 
 // Hook 2: User Badges (Medal Wall)
 export function useUserBadges() {
+  const fetcher = useAuthorizedFetcher()
   return useSWR('/api/user/badges', fetcher, {
     revalidateOnFocus: false,
     dedupingInterval: 300000, // 5 minutes deduping, badges don't change often
@@ -30,6 +37,7 @@ export function useUserBadges() {
 
 // Hook 3: User Missions
 export function useUserMissions() {
+  const fetcher = useAuthorizedFetcher()
   return useSWR('/api/missions', fetcher, {
     revalidateOnFocus: true, // Mission status might change
     dedupingInterval: 10000, // 10 seconds deduping
@@ -38,6 +46,7 @@ export function useUserMissions() {
 
 // Hook 4: User Room Data (Legacy - fetches "current" room from DB perspective)
 export function useMyRoomData() {
+  const fetcher = useAuthorizedFetcher()
   return useSWR('/api/user/room', fetcher, { 
     revalidateOnFocus: false, 
     dedupingInterval: 300000, 
@@ -46,6 +55,7 @@ export function useMyRoomData() {
 
 // Hook 6: Specific Room Details (For UI selection)
 export function useRoomDetails(roomId?: string) {
+  const fetcher = useAuthorizedFetcher()
   return useSWR(roomId ? `/api/room/${roomId}` : null, fetcher, {
     revalidateOnFocus: true, // Need live participants updates
     dedupingInterval: 5000,  // Short cache for active room
@@ -56,6 +66,7 @@ export function useRoomDetails(roomId?: string) {
 // Hook 5: Club Data
 export function useClubData() {
   const userId = useGameStore((state) => state.userId)
+  const fetcher = useAuthorizedFetcher()
   
   return useSWR(userId ? '/api/club/info' : null, fetcher, { 
     revalidateOnFocus: true,  // Club messages/members might update

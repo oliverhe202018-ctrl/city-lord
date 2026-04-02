@@ -56,7 +56,8 @@ function LoginPageContent() {
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (session) {
-        window.location.href = "/"
+        router.replace("/")
+        router.refresh()
       }
     }
     checkSession()
@@ -65,14 +66,15 @@ function LoginPageContent() {
       if (event === "SIGNED_IN" && session) {
         logEvent('login_success', { method: loginMethod });
         await processAutoJoin()
-        window.location.href = "/"
+        router.replace("/")
+        router.refresh()
       }
     })
 
     return () => {
       subscription.unsubscribe()
     }
-  }, [supabase, loginMethod])
+  }, [supabase, loginMethod, router])
 
   useEffect(() => {
     try {

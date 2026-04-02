@@ -138,7 +138,7 @@ export default function Error({
           <Button onClick={reset} variant="secondary">
             Retry Render
           </Button>
-          <Button onClick={() => window.location.reload()} variant="outline">
+          <Button onClick={reset} variant="outline">
             Reload Page
           </Button>
         </div>
@@ -173,7 +173,7 @@ export default function Error({
           </Button>
           <Button
             variant="outline"
-            onClick={() => window.location.reload()}
+            onClick={reset}
             className="w-full"
           >
             刷新页面

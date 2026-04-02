@@ -65,7 +65,7 @@ function PlatformButton({ label, deepLink, fallbackUrl, icon }: PlatformButtonPr
         };
         window.addEventListener('blur', onBlur);
 
-        window.location.href = deepLink;
+        window.open(deepLink, '_self');
     };
 
     return (

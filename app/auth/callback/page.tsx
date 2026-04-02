@@ -21,8 +21,8 @@ function AuthCallbackContent() {
       if (!mounted) return
       setStatus("登录成功，正在跳转...")
       toast.success("登录成功")
-      // Force reload to ensure all server components update
-      window.location.href = "/"
+      router.replace("/")
+      router.refresh()
     }
 
     const handleCallback = async () => {

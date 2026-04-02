@@ -368,7 +368,7 @@ export function ClubDetailView({
       <div className="w-full h-[300px] flex flex-col items-center justify-center gap-4">
         <div className="text-destructive font-semibold">网络异常，无法加载俱乐部信息</div>
         <div className="text-sm text-muted-foreground">{clubError.message || '请检查网络连接或稍后重试'}</div>
-        <Button variant="outline" size="sm" onClick={() => window.location.reload()}>重试</Button>
+        <Button variant="outline" size="sm" onClick={() => router.refresh()}>重试</Button>
       </div>
     )
   }

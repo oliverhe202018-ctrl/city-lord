@@ -1,7 +1,9 @@
-export function goToRunPage() {
-    window.location.href = '/'; // Map tab represents running
+import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime'
+
+export function goToRunPage(router: AppRouterInstance) {
+    router.push('/')
 }
 
-export function goToMapPage() {
-    window.location.href = '/'; // Defaults to same
-} 
+export function goToMapPage(router: AppRouterInstance) {
+    router.push('/')
+}

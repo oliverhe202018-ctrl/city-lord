@@ -145,6 +145,36 @@ function GlobalBackButtonHandler() {
     return null
 }
 
+function RouterEventBridge() {
+  const router = useRouter()
+
+  useEffect(() => {
+    const handleRefresh = () => {
+      router.refresh()
+    }
+
+    const handleNavigate = (event: Event) => {
+      const e = event as CustomEvent<{ to?: string; replace?: boolean }>
+      const to = e.detail?.to
+      if (!to) return
+      if (e.detail?.replace) {
+        router.replace(to)
+      } else {
+        router.push(to)
+      }
+    }
+
+    window.addEventListener('citylord:router-refresh', handleRefresh)
+    window.addEventListener('citylord:navigate', handleNavigate as EventListener)
+    return () => {
+      window.removeEventListener('citylord:router-refresh', handleRefresh)
+      window.removeEventListener('citylord:navigate', handleNavigate as EventListener)
+    }
+  }, [router])
+
+  return null
+}
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -156,6 +186,7 @@ export default function RootLayout({
         <BackNavigationProvider>
           <StatusBarConfig />
           <GlobalBackButtonHandler />
+          <RouterEventBridge />
           {/* 已彻底切除高危启动项 PushNotificationBootstrapper */}
           <Script id="amap-security" strategy="beforeInteractive">
             {amapSecurityScript}

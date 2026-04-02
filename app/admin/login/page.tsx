@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useCallback } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { adminLogin } from "@/app/actions/admin-auth"
 import { Input } from "@/components/ui/input"
@@ -44,8 +45,8 @@ export default function AdminLoginPage() {
             }
 
             toast.success("登录成功，正在进入后台...")
-            // Force a full refresh to allow middleware to redirect to /admin
-            window.location.href = "/admin"
+            router.replace("/admin")
+            router.refresh()
         } catch (err) {
             console.error("[AdminLogin] Error:", err)
             setErrorMsg("系统异常，请稍后重试")
@@ -199,12 +200,12 @@ export default function AdminLoginPage() {
                 {/* Bottom hint */}
                 <p className="mt-6 text-center text-xs text-white/20">
                     普通用户请前往{" "}
-                    <a
+                    <Link
                         href="/login"
                         className="text-white/40 hover:text-white/60 underline underline-offset-2 transition-colors"
                     >
                         用户登录
-                    </a>
+                    </Link>
                 </p>
             </div>
         </div>

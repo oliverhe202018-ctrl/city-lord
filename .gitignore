@@ -36,6 +36,7 @@ yarn-error.log*
 # mobile
 *.apk
 *.ipa
+/artifacts/
 /android/build
 /ios/build
-/capacitor.config.json.tmp
+/capacitor.config.json.tmp

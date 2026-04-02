@@ -60,7 +60,7 @@ class ApiClient {
       // Handle 401 Unauthorized
       if (response.status === 401) {
         if (typeof window !== 'undefined') {
-          window.location.href = '/login';
+          window.dispatchEvent(new CustomEvent('citylord:navigate', { detail: { to: '/login', replace: true } }));
         }
         throw new Error('Unauthorized');
       }

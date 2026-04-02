@@ -29,6 +29,7 @@ function UserProfileContent() {
     const userId = searchParams.get('userId') as string
     const [profileData, setProfileData] = useState<ProfileDataResult | null>(null)
     const [loading, setLoading] = useState(true)
+    const [errorMsg, setErrorMsg] = useState<string | null>(null)
     const [likeCount, setLikeCount] = useState(0)
     const [isLiked, setIsLiked] = useState(false)
     const [isPending, startTransition] = useTransition()
@@ -41,6 +42,7 @@ function UserProfileContent() {
 
     const loadProfile = async () => {
         setLoading(true)
+        setErrorMsg(null)
         try {
             const data = await getProfileData(userId)
             setProfileData(data)
@@ -50,6 +52,9 @@ function UserProfileContent() {
             }
         } catch (e) {
             console.error('Failed to load user profile:', e)
+            const message = e instanceof Error ? e.message : '加载用户主页失败'
+            setErrorMsg(message)
+            toast.error('加载失败', { description: message })
         } finally {
             setLoading(false)
         }
@@ -115,7 +120,46 @@ function UserProfileContent() {
         )
     }
 
-    if (!profileData) return null
+    if (!userId) {
+        return (
+            <div className="flex flex-col h-full bg-background">
+                <div className="sticky top-0 z-20 flex items-center gap-2 px-4 py-2 bg-background/80 backdrop-blur-lg">
+                    <button onClick={() => router.back()} className="p-1 rounded-full hover:bg-muted/20 transition-colors">
+                        <ArrowLeft className="w-5 h-5 text-foreground" />
+                    </button>
+                    <span className="text-sm font-medium text-foreground">用户主页</span>
+                </div>
+                <div className="flex-1 flex flex-col items-center justify-center px-8 gap-3">
+                    <div className="text-sm font-semibold text-destructive">参数缺失</div>
+                    <div className="text-xs text-muted-foreground text-center">未提供 userId，无法打开用户主页</div>
+                </div>
+            </div>
+        )
+    }
+
+    if (!profileData) {
+        return (
+            <div className="flex flex-col h-full bg-background">
+                <div className="sticky top-0 z-20 flex items-center gap-2 px-4 py-2 bg-background/80 backdrop-blur-lg">
+                    <button onClick={() => router.back()} className="p-1 rounded-full hover:bg-muted/20 transition-colors">
+                        <ArrowLeft className="w-5 h-5 text-foreground" />
+                    </button>
+                    <span className="text-sm font-medium text-foreground">用户主页</span>
+                </div>
+                <div className="flex-1 flex flex-col items-center justify-center px-8 gap-3">
+                    <div className="text-sm font-semibold text-destructive">加载失败</div>
+                    <div className="text-xs text-muted-foreground text-center">{errorMsg || '用户信息不可用，请稍后重试'}</div>
+                    <button
+                        type="button"
+                        onClick={() => { loadProfile().catch(() => {}) }}
+                        className="rounded-lg border border-border bg-background px-4 py-2 text-xs font-semibold text-foreground"
+                    >
+                        重试
+                    </button>
+                </div>
+            </div>
+        )
+    }
 
     // ─── Private profile ────────
     if (profileData.isPrivate) {

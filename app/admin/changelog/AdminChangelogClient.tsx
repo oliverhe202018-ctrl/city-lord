@@ -80,8 +80,7 @@ export function AdminChangelogClient({ initialVersions }: { initialVersions: Cha
     const [deletingItemId, setDeletingItemId] = useState<string | null>(null)
     const [iForm, setIForm] = useState({ tag: 'new_feature', content: '', sort_order: '0' })
 
-    // ── Reload helper ──
-    function reloadPage() { window.location.reload() }
+    function reloadPage() { router.refresh() }
 
     // ── Version CRUD ──
     function openCreateVersion() {

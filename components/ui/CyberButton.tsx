@@ -26,7 +26,7 @@ export function CyberButton({
       "bg-cyan-500 text-black hover:bg-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.4)] hover:shadow-[0_0_25px_rgba(6,182,212,0.6)] border border-cyan-400/50 clip-path-cyber",
     secondary:
       "bg-white/5 text-white border border-white/20 hover:bg-white/10 hover:border-white/40 backdrop-blur-sm",
-    ghost: "bg-transparent text-white/60 hover:text-white hover:bg-white/5",
+    ghost: "bg-transparent text-slate-900/70 hover:text-slate-900 hover:bg-slate-900/5 dark:text-white/80 dark:hover:text-white dark:hover:bg-white/5",
     danger:
       "bg-red-500 text-white hover:bg-red-600 shadow-[0_0_15px_rgba(239,68,68,0.4)] border border-red-400/50",
     hexagon:

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useContext } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { useCity } from "@/contexts/CityContext";
 import { useRegion } from "@/contexts/RegionContext";
@@ -12,6 +13,7 @@ import { CityDrawer } from "./CityDrawer"
 import { RoomSelector } from '@/components/room/RoomSelector'
 import { LoadingSpinner } from "@/components/citylord/loading-screen"
 import { MapInteractionCtx } from "./MapInteractionContext"
+import { useLocationContext } from "@/components/GlobalLocationProvider"
 
 export interface MapHeaderProps {
   setShowThemeSwitcher: (show: boolean) => void
@@ -120,6 +122,8 @@ export function MapHeader({
   setShowThemeSwitcher,
   isRunTakeoverActive = false
 }: MapHeaderProps) {
+  const router = useRouter()
+  const { initializeLocationSystem } = useLocationContext()
   const { region } = useRegion();
   const { currentCity, isLoading, leaderboard, currentCityProgress, totalPlayers } = useCity();
 
@@ -270,7 +274,8 @@ export function MapHeader({
       const isNative = await isNativePlatform();
       if (!isNative) {
         toast.info("网页端请允许浏览器定位权限");
-        window.location.reload();
+        await initializeLocationSystem({ onlyIfGranted: false })
+        router.refresh()
         return;
       }
 
@@ -283,8 +288,8 @@ export function MapHeader({
         });
       } else if (status === 'granted') {
         toast.success("授权成功，正在定位...");
-        // 重载页面以触发 useGeolocation 的初始化
-        window.location.reload();
+        await initializeLocationSystem({ onlyIfGranted: true })
+        router.refresh()
       } else {
         toast.warning("请允许定位权限以继续");
       }

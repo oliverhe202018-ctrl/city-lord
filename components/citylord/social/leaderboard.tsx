@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import Image from "next/image"
+import { useRouter } from "next/navigation"
 import { Trophy, Medal, Star, Shield, ArrowUp, ArrowDown, MapPin, Zap, Loader2, ChevronDown, User } from "lucide-react"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { getSocialLeaderboard, type LeaderboardEntry } from "@/app/actions/leaderboard"
@@ -28,6 +29,7 @@ const TAB_CONFIG: { key: TabKey; label: string; activeClass: string; icon: typeo
 ]
 
 export function Leaderboard() {
+    const router = useRouter()
     const [activeTab, setActiveTab] = useState<TabKey>("distance")
     const [isLoading, setIsLoading] = useState(true)
     const [entries, setEntries] = useState<LeaderboardEntry[]>([])
@@ -130,7 +132,7 @@ export function Leaderboard() {
                         </div>
                         <p className="font-semibold text-foreground/80">虚位以待</p>
                         <p className="text-sm text-muted-foreground mt-1 mb-5">快去完成挑战，成为榜单第一人！</p>
-                        <button className="px-5 py-2 rounded-full bg-primary text-primary-foreground text-sm font-bold active:scale-95 transition-transform" onClick={() => window.location.href = '/'}>
+                        <button className="px-5 py-2 rounded-full bg-primary text-primary-foreground text-sm font-bold active:scale-95 transition-transform" onClick={() => router.push('/')}>
                             即刻出发
                         </button>
                     </div>
