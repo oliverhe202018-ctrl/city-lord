@@ -526,6 +526,11 @@ public class LocationForegroundService extends Service implements AMapLocationLi
 
             locationClient.setLocationOption(option);
             locationClient.setLocationListener(this);
+            
+            // 启用后台保活 (高德 SDK 要求)
+            Notification notification = buildNotification(notificationTitle, notificationBody);
+            locationClient.enableBackgroundLocation(NOTIFICATION_ID, notification);
+
             locationClient.startLocation();
 
             Log.i(TAG, "AMap location tracking started: Hight_Accuracy, interval=" + locationInterval + "ms");
