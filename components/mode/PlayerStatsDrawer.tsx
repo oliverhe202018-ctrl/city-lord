@@ -1,6 +1,7 @@
 "use client"
 
 import React from 'react';
+import Image from 'next/image';
 import { 
   Trophy, 
   MapPin, 
@@ -63,7 +64,7 @@ export function PlayerStatsDrawer({ isOpen, onClose, player }: PlayerStatsDrawer
               <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 p-[2px]">
                 <div className="w-full h-full rounded-full bg-zinc-900 flex items-center justify-center overflow-hidden">
                   {player.avatar ? (
-                    <img src={player.avatar} alt={player.nickname} className="w-full h-full object-cover" />
+                    <Image src={player.avatar} alt={player.nickname} width={96} height={96} className="w-full h-full object-cover" />
                   ) : (
                     <span className="text-3xl font-bold text-white">{player.nickname[0]}</span>
                   )}

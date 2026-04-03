@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react';
 import { useRegion } from '@/contexts/RegionContext';
 import { Crown, Users, MapPin, Trophy, LineChart, TrendingUp, CheckCircle2, Loader2 } from 'lucide-react';
+import Image from 'next/image';
 
 const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
   const controller = new AbortController()
@@ -45,7 +46,7 @@ function MemberCard({ member }: { member: ClubMember }) {
   return (
     <div className="flex items-center gap-3 p-2 rounded-lg bg-zinc-800/50">
       <div className="relative">
-        <img src={member.avatarUrl} alt={member.name} className="w-12 h-12 rounded-full object-cover bg-zinc-700" />
+        <Image src={member.avatarUrl} alt={member.name} width={48} height={48} className="w-12 h-12 rounded-full object-cover bg-zinc-700" />
         {member.isOnline && (
           <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-zinc-800 rounded-full"></span>
         )}
@@ -126,7 +127,7 @@ function ClubList() {
             onClick={() => handleViewClub(club.id, club.name)}
             className="flex items-center gap-3 p-3 rounded-lg bg-zinc-800/50 hover:bg-zinc-700/50 cursor-pointer transition-colors"
           >
-            <img src={club.avatar} alt={club.name} className="w-12 h-12 rounded-full flex-shrink-0 object-cover bg-zinc-700" />
+            <Image src={club.avatar} alt={club.name} width={48} height={48} className="w-12 h-12 rounded-full flex-shrink-0 object-cover bg-zinc-700" />
             <div className="flex-1 min-w-0">
               <div className="font-semibold flex items-center gap-2 truncate">
                 {club.name}

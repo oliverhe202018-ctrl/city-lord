@@ -65,7 +65,7 @@ export function RunHistoryList({ userId, initialRuns, initialCursor }: RunHistor
             setLoading(false)
             setLoadingMore(false)
         }
-    }, [userId])
+    }, [userId, runs])
 
     // Infinite scroll observer
     useEffect(() => {

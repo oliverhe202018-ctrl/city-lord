@@ -78,7 +78,8 @@ export function ClubDrawer({ isOpen, onClose, onOpenCreate }: ClubDrawerProps) {
 
   // Derived Data
   const joinedClub = clubData?.joinedClub;
-  const allClubs = clubData?.allClubs || [];
+  const rawAllClubs = clubData?.allClubs;
+  const allClubs = React.useMemo(() => rawAllClubs || [], [rawAllClubs]);
   const isLoading = isSwrLoading;
   const supabase = React.useMemo(() => createClient(), []);
 
