@@ -314,6 +314,11 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
                         setIsAppActive(true);
                         console.log(`${TAG} App resumed (isActive: true)`);
 
+                        // [P2] 触发 AMap Context 自检事件，交由 MapRoot 执行防崩保护
+                        if (typeof window !== 'undefined') {
+                            window.dispatchEvent(new Event('amap-context-check'));
+                        }
+
                         // If already initialized and permission granted but watch stopped, 
                         // re-mark for pending start to trigger the stable Effect
                         if (initPromiseRef.current && bridgeRef.current && !bridgeRef.current.watching) {

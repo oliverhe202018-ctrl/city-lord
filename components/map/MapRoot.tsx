@@ -92,6 +92,7 @@ export function MapRoot({ children }: { children: ReactNode }) {
   const mapLayerRef = useRef<any>(null);
   const positionStage = useRef<'cache' | 'network-coarse' | 'gps-precise' | null>(null);
   const initRendered = useRef<boolean>(false); // C.3: Stage initialization deduplication (prevent double fly)
+  const hasDoneFirstFlyRef = useRef<boolean>(false);
   const lastFlyTime = useRef<number>(0);
   const flyReason = useRef<string>('none');
 
@@ -105,6 +106,7 @@ export function MapRoot({ children }: { children: ReactNode }) {
   } | null>(null);
 
   const throttleTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const autoRecoverTimerRef = useRef<NodeJS.Timeout | null>(null);
   const userInteracted = useRef(false); // Track manual map drag to prevent auto-jump
 
   // B.1: Cleanup throttle timer on unmount
@@ -112,6 +114,9 @@ export function MapRoot({ children }: { children: ReactNode }) {
     return () => {
       if (throttleTimerRef.current) {
         clearTimeout(throttleTimerRef.current);
+      }
+      if (autoRecoverTimerRef.current) {
+        clearTimeout(autoRecoverTimerRef.current);
       }
     };
   }, []);
@@ -249,6 +254,24 @@ export function MapRoot({ children }: { children: ReactNode }) {
     };
   }, [map, isTracking, setIsTracking]);
 
+  // [P2] 锁屏苏醒时 AMap Context 容错自检防崩补丁
+  useEffect(() => {
+    const handleContextCheck = () => {
+      if (map) {
+        try {
+          map.getCenter();
+        } catch (err) {
+          console.error("[MapRoot] AMap WebGL Context lost detected on resume. Reinitializing MapLayer.", err);
+          setMap(null); // 强制释放无效的 map 实例，引发 MapLayer 卸载并重新触发加载逻辑
+        }
+      }
+    };
+    window.addEventListener('amap-context-check', handleContextCheck);
+    return () => {
+      window.removeEventListener('amap-context-check', handleContextCheck);
+    };
+  }, [map]);
+
   // Sync Map Style
   useEffect(() => {
     if (map && map.setMapStyle) {
@@ -294,6 +317,14 @@ export function MapRoot({ children }: { children: ReactNode }) {
     if (!mapInstance) return;
 
     const source = userPosition.source || 'cache';
+    // [FIX] 将新架构的 source 归一到旧 Stage 系统
+    const normalizedSource =
+        source === 'amap-native' || source === 'web-fallback'
+            ? 'gps-precise'
+            : source === 'amap-native-cache'
+                ? 'network-coarse'
+                : source;
+
     const accuracy = userPosition.accuracy || 9999;
     const now = Date.now();
 
@@ -371,7 +402,7 @@ export function MapRoot({ children }: { children: ReactNode }) {
     };
 
     // Stage Upgrade & Action Logic
-    if (source === 'cache') {
+    if (normalizedSource === 'cache') {
       if (positionStage.current === null) {
         positionStage.current = 'cache';
         // C.3: Guarantee initialization executes only once
@@ -381,7 +412,7 @@ export function MapRoot({ children }: { children: ReactNode }) {
         }
       }
     }
-    else if (source === 'network-coarse') {
+    else if (normalizedSource === 'network-coarse') {
       if (positionStage.current !== 'gps-precise') {
         positionStage.current = 'network-coarse';
         const dist = getDistance();
@@ -397,9 +428,21 @@ export function MapRoot({ children }: { children: ReactNode }) {
         }
       }
     }
-    else if (source === 'gps-precise') {
+    else if (normalizedSource === 'gps-precise') {
       positionStage.current = 'gps-precise';
       const dist = getDistance();
+
+      // [P0+] first-fix 无条件起动飞跃与弱信号兜底降级处理
+      if (!hasDoneFirstFlyRef.current) {
+        hasDoneFirstFlyRef.current = true;
+        if (accuracy > 200) {
+          executeFly(userPosition.lng, userPosition.lat, 1000, 'first-gps-fix-weak');
+          try { mapInstance.setZoom(14); } catch {} // 使用偏弱 14 级宏观比例
+        } else {
+          doFlyTo(1000, true, 'first-gps-fix');
+        }
+        return;
+      }
 
       // Dual Threshold FlyTo Rule + Accuracy Fallback
       if (Number.isNaN(accuracy) || accuracy === undefined || accuracy === null || accuracy === 9999) {
@@ -431,18 +474,32 @@ export function MapRoot({ children }: { children: ReactNode }) {
   const handleMapMoveEnd = useCallback((center: [number, number]) => {
     setMapCenter(center);
     // User manual drag disables tracking (but only if it's a significant move)
-    if (isTracking && userPosition) {
-      const dist = Math.sqrt(
-        Math.pow((center[1] - userPosition.lat) * 111000, 2) +
-        Math.pow((center[0] - userPosition.lng) * 111000 * Math.cos(userPosition.lat * Math.PI / 180), 2)
-      );
-      // Disable tracking if user dragged more than 20m away
-      if (dist > 20) {
-        setIsTracking(false);
-        userInteracted.current = true; // Prevent auto-jump after manual drag
+    if (userPosition) {
+      if (isTracking) {
+        const dist = Math.sqrt(
+          Math.pow((center[1] - userPosition.lat) * 111000, 2) +
+          Math.pow((center[0] - userPosition.lng) * 111000 * Math.cos(userPosition.lat * Math.PI / 180), 2)
+        );
+        // Disable tracking if user dragged more than 20m away
+        if (dist > 20) {
+          setIsTracking(false);
+          userInteracted.current = true; // Prevent auto-jump after manual drag
+        }
+      } else {
+        userInteracted.current = true;
+      }
+
+      // [P2] 跑步态 5s 自动恢复跟踪逻辑
+      if (isRunning) {
+        if (autoRecoverTimerRef.current) clearTimeout(autoRecoverTimerRef.current);
+        autoRecoverTimerRef.current = setTimeout(() => {
+          userInteracted.current = false;
+          setIsTracking(true);
+          autoRecoverTimerRef.current = null;
+        }, 5000);
       }
     }
-  }, [isTracking, userPosition]);
+  }, [isTracking, userPosition, isRunning]);
 
   // Center map with flyTo (Locate Me)
   const centerMap = useCallback(() => {
