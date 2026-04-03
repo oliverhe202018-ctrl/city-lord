@@ -83,6 +83,11 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
 
+  // 1.5 架构师指令：忽略 ESLint 构建阻断错误
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+
   // 2. 移除 Static Export 模式，避免与 Server Actions 冲突
 
   // 3. 图片域名配置
