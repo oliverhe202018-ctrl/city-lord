@@ -23,6 +23,7 @@ import com.amap.api.location.AMapLocation;
 import com.amap.api.location.AMapLocationClient;
 import com.amap.api.location.AMapLocationClientOption;
 import com.amap.api.location.AMapLocationListener;
+import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -103,6 +104,29 @@ public class AMapLocationPlugin extends Plugin {
         } catch (Exception e) {
             Log.e(TAG, "updatePrivacyAgree failed: " + e.getMessage(), e);
             call.reject("updatePrivacyAgree failed: " + e.getMessage());
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // flushBufferedLocations — 提取黑匣子追帧点
+    // -----------------------------------------------------------------------
+    @PluginMethod()
+    public void flushBufferedLocations(PluginCall call) {
+        Log.i(TAG, "flushBufferedLocations called by JS layer");
+        try {
+            java.util.ArrayList<JSObject> buffer = LocationForegroundService.flushLocationBuffer();
+            JSArray jsArray = new JSArray();
+            for (JSObject obj : buffer) {
+                jsArray.put(obj);
+            }
+            
+            JSObject ret = new JSObject();
+            ret.put("locations", jsArray);
+            call.resolve(ret);
+            Log.i(TAG, "flushBufferedLocations returned " + buffer.size() + " points.");
+        } catch (Exception e) {
+            Log.e(TAG, "flushBufferedLocations failed: " + e.getMessage(), e);
+            call.reject("flushBufferedLocations error: " + e.getMessage());
         }
     }
 
