@@ -6,6 +6,7 @@ import { Location } from "@/hooks/useRunningTracker"
 import { generateTerritoryStyle, generateNeutralTerritoryStyle } from "@/lib/citylord/territory-renderer"
 import { ViewContext, ExtTerritory } from "@/types/city"
 import { useGameTerritoryAppearance } from "@/store/useGameStore";
+import { createClient } from "@/lib/supabase/client";
 
 // Define global AMap types to avoid TS errors
 declare global {
