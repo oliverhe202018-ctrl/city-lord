@@ -1,4 +1,3 @@
-import { isTester } from "../constants/anti-cheat";
 
 interface RateLimitConfig {
     maxRequests: number;
