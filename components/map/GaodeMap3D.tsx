@@ -60,9 +60,7 @@ export function GaodeMap3D({
   const polygonRefs = useRef<any[]>([])
   const reqAnimIdRef = useRef<number | null>(null)
   const destroyedRef = useRef(false)
-<<<<<<< HEAD
   const { territoryAppearance } = useGameTerritoryAppearance()
-=======
 
   // User Color Preferences
   const [pathColor, setPathColor] = useState('#3B82F6')
@@ -93,7 +91,6 @@ export function GaodeMap3D({
     }
     loadColors()
   }, [])
->>>>>>> 8c67c67 (fix(UAT): resolve Android keep-alive, theme switcher UI overflow, and pace state leakage)
 
   const addLog = (msg: string) => {
     console.log(`[GaodeMap3D] ${msg}`)
@@ -238,10 +235,7 @@ export function GaodeMap3D({
     return () => {
       destroyedRef.current = true;
       if (mapInstanceRef.current) {
-<<<<<<< HEAD
-=======
         // Explicitly destroy the map instance to prevent WebView crashes
->>>>>>> 8c67c67 (fix(UAT): resolve Android keep-alive, theme switcher UI overflow, and pace state leakage)
         try {
           if (polylineRef.current) {
             mapInstanceRef.current.remove(polylineRef.current);
@@ -267,23 +261,7 @@ export function GaodeMap3D({
 
           mapInstanceRef.current.destroy?.();
         } catch (e) {
-<<<<<<< HEAD
           console.warn('Failed to clean up map overlays:', e);
-=======
-          console.warn('Failed to destroy map instance:', e);
-<<<<<<< HEAD
-=======
-        }
-
-        // Safe Cleanup using optional chaining
-        ghostPolylineRef.current?.remove?.()
-        polylineRef.current?.remove?.()
-
-        // Handle array cleanup
-        if (Array.isArray(polygonRefs.current)) {
-          polygonRefs.current.forEach((p: any) => p?.remove?.())
->>>>>>> 8c67c67 (fix(UAT): resolve Android keep-alive, theme switcher UI overflow, and pace state leakage)
->>>>>>> b75abf72a1fcd21ecee74c77b76a8389b226bdff
         }
         safeDestroyMap(mapInstanceRef.current);
         mapInstanceRef.current = null;
