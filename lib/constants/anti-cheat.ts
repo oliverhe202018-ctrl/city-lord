@@ -19,41 +19,22 @@ export const ANTI_CHEAT_RISK_THRESHOLDS = {
   HIGH: 60,
 } as const;
 
-/**
- * Gets the static whitelist of user UUIDs that bypass all anti-cheat rules.
- * Values are read from TESTER_WHITELIST_UUIDS environment variable, 
- * expected as a comma-separated string.
- */
-export const getTesterWhitelist = (): string[] => {
-  const envValue = process.env.TESTER_WHITELIST_UUIDS || '';
-  if (!envValue) return [];
-  
-  return envValue
-    .split(',')
-    .map(uuid => uuid.trim())
-    .filter(uuid => uuid.length > 0);
-};
+let _testerWhitelist: Set<string> | null = null;
 
 /**
- * Checks if a user is in the tester whitelist.
+ * Checks if a user is in the tester whitelist using an O(1) Set lookup.
+ * Caches the parsed UUIDs from the TESTER_WHITELIST_UUIDS environment variable.
  * 
  * @param userId - The UUID of the user to check.
  * @returns True if the user is a whitelisted tester.
  */
-export const isTester = (userId: string): boolean => {
-  if (!userId) return false;
-  const whitelist = getTesterWhitelist();
-  return whitelist.includes(userId);
-};
-
-let _testerWhitelist: Set<string> | null = null;
-
 export function isTester(userId: string): boolean {
     if (!userId) return false;
     if (_testerWhitelist === null) {
         const envStr = process.env.TESTER_WHITELIST_UUIDS || "";
-        _testerWhitelist = new Set(envStr.split(',').map(id => id.trim()).filter(Boolean));
+        _testerWhitelist = new Set(
+            envStr.split(',').map(id => id.trim()).filter(Boolean)
+        );
     }
     return _testerWhitelist.has(userId);
 }
-
