@@ -225,7 +225,7 @@ export function StartRunOverlay({ onBack, onBeginRun }: StartRunOverlayProps) {
             <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">预计时间</p>
           </div>
           <div>
-            <p className="text-2xl font-black leading-none">6:00</p>
+            <p className="text-2xl font-black leading-none">--&apos;--&quot;</p>
             <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">平均配速</p>
           </div>
         </div>
@@ -283,7 +283,7 @@ export function StartRunOverlay({ onBack, onBeginRun }: StartRunOverlayProps) {
                     toast.success("已设置不再提醒")
                   }}
                 >
-                  不再提醒 (Don't remind again)
+                  不再提醒 (Don&apos;t remind again)
                 </Button>
                 <Button
                   type="button"

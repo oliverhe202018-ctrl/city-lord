@@ -228,6 +228,16 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
             onLocationUpdate: (point: GeoPoint, meta?: LocationMeta) => {
                 if (!mountedRef.current) return;
 
+                // [NEW] 核心熔断器：如果坐标精度超过 100米，强制丢弃，防止地图蓝点和全局状态漂移
+                if (point.accuracy != null && point.accuracy > 100) {
+                    console.warn(`${TAG} Dropped location due to low accuracy: ${point.accuracy}m > 100m`);
+                    // 虽然丢弃坐标，但更新信号状态为 weak 或 none
+                    useLocationStore.setState({
+                        gpsSignalStrength: 'none',
+                    });
+                    return;
+                }
+
                 const rawSource = (point.source ?? 'amap-native') as string;
 
                 // Map bridge source → store locationSource

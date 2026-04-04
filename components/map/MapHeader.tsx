@@ -14,6 +14,7 @@ import { RoomSelector } from '@/components/room/RoomSelector'
 import { LoadingSpinner } from "@/components/citylord/loading-screen"
 import { MapInteractionCtx } from "./MapInteractionContext"
 import { useLocationContext } from "@/components/GlobalLocationProvider"
+import { useLocationStore } from "@/store/useLocationStore"
 
 export interface MapHeaderProps {
   setShowThemeSwitcher: (show: boolean) => void
@@ -134,6 +135,7 @@ export function MapHeader({
   const interactionContext = useContext(MapInteractionCtx);
   const kingdomMode = interactionContext?.kingdomMode ?? 'personal';
   const setKingdomMode = interactionContext?.setKingdomMode;
+  const gpsSignalStrength = useLocationStore((s) => s.gpsSignalStrength);
 
   const [isLoggedIn, setIsLoggedIn] = useState(true)
   const [showLoginModal, setShowLoginModal] = useState(false)
@@ -247,12 +249,10 @@ export function MapHeader({
   const getGpsStatusConfig = () => {
     if (requestingLocation) return { icon: Navigation, color: 'text-blue-400', bg: 'bg-blue-500/20', border: 'border-blue-500/30', text: '请求中' };
 
-    // 只要有坐标，就视为定位成功 (As long as we have coordinates, show success)
-    const hasLocation = (latitude !== null && longitude !== null && latitude !== 0 && longitude !== 0) ||
-      (lastKnownLocation && lastKnownLocation.lat !== 0 && lastKnownLocation.lng !== 0) ||
-      (gpsStatus === 'success'); // Allow gpsStatus to override if needed
+    const hasCachedOrRealLocation = (latitude !== null && longitude !== null && latitude !== 0 && longitude !== 0) ||
+      (lastKnownLocation && lastKnownLocation.lat !== 0 && lastKnownLocation.lng !== 0);
 
-    if (hasLocation) {
+    if (gpsStatus === 'success' && gpsSignalStrength !== 'none' && hasCachedOrRealLocation) {
       return { icon: Signal, color: 'text-[#22c55e]', bg: 'bg-[#22c55e]/20', border: 'border-[#22c55e]/50', text: '已定位' }
     }
 
