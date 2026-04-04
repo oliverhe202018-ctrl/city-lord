@@ -3,6 +3,8 @@ interface RateLimitConfig {
     windowMs: number;
 }
 
+import { isTester } from '@/lib/constants/anti-cheat';
+
 interface RateLimitRecord {
     count: number;
     resetAt: number;
@@ -18,6 +20,11 @@ const MAX_MAP_SIZE = 10000;
  * per cold-start instance, which is enough to thwart naive tight loops.
  */
 export function checkRunRateLimit(userId: string): { allowed: boolean; retryAfter?: number } {
+    // [God Mode] Tester Whitelist Bypass
+    if (isTester(userId)) {
+        return { allowed: true };
+    }
+
     const config: RateLimitConfig = { maxRequests: 2, windowMs: 10000 }; // Max 2 runs every 10 seconds
     const now = Date.now();
 

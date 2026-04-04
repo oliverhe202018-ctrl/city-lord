@@ -20,3 +20,15 @@ export const ANTI_CHEAT_RISK_THRESHOLDS = {
     MEDIUM: 31,
     HIGH: 71
 };
+
+let _testerWhitelist: Set<string> | null = null;
+
+export function isTester(userId: string): boolean {
+    if (!userId) return false;
+    if (_testerWhitelist === null) {
+        const envStr = process.env.TESTER_WHITELIST_UUIDS || "";
+        _testerWhitelist = new Set(envStr.split(',').map(id => id.trim()).filter(Boolean));
+    }
+    return _testerWhitelist.has(userId);
+}
+

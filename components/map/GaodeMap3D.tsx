@@ -196,9 +196,31 @@ export function GaodeMap3D({
       destroyedRef.current = true;
       if (mapInstanceRef.current) {
         try {
+          if (polylineRef.current) {
+            mapInstanceRef.current.remove(polylineRef.current);
+            polylineRef.current = null;
+          }
+          if (ghostPolylineRef.current) {
+            mapInstanceRef.current.remove(ghostPolylineRef.current);
+            ghostPolylineRef.current = null;
+          }
+          if (markerRef.current) {
+             mapInstanceRef.current.remove(markerRef.current);
+             markerRef.current = null;
+          }
+          if (polygonRefs.current && polygonRefs.current.length > 0) {
+             mapInstanceRef.current.remove(polygonRefs.current);
+             polygonRefs.current = [];
+          }
+          
+          if (locaInstanceRef.current) {
+             locaInstanceRef.current.destroy();
+             locaInstanceRef.current = null;
+          }
+
           mapInstanceRef.current.destroy?.();
         } catch (e) {
-          console.warn('Failed to destroy map instance:', e);
+          console.warn('Failed to clean up map overlays:', e);
         }
         safeDestroyMap(mapInstanceRef.current);
         mapInstanceRef.current = null;

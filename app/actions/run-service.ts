@@ -11,6 +11,7 @@ import { validateRunData } from '@/lib/validators/run-validator';
 import { validateRunLegitimacy } from '@/lib/anti-cheat/mvp-rules';
 import * as turf from '@turf/turf';
 import { isLoopClosed, LOOP_CLOSURE_THRESHOLD_M, extractValidLoops, type Coord } from '@/lib/geometry-utils';
+import { isTester } from '@/lib/constants/anti-cheat';
 
 export interface SaveRunResult {
     runId?: string;
@@ -97,6 +98,13 @@ export async function saveRunActivity(
             pathPointsCount: pathPoints.length
         });
 
+        // [God Mode] Bypass P0 legit check for white-listed testers
+        const isUserTester = isTester(userId);
+        if (isUserTester) {
+            (legitimacyCheck as any).isValid = true;
+            console.log(`[God Mode] P0 Legitimacy check bypassed for tester: ${userId}`);
+        }
+
         if (!legitimacyCheck.isValid) {
             console.warn(`[Anti-Cheat MVP] Run blocked for user ${userId}. Reason: ${legitimacyCheck.reason}`);
             
@@ -141,8 +149,15 @@ export async function saveRunActivity(
         }
 
         // Combined risk assessment
-        const isFlagged = metadataValidation.isFlagged || pathValidation.riskLevel === 'HIGH';
-        const isPedometerInvalid = pedometerAntiCheatLog !== null;
+        let isFlagged = metadataValidation.isFlagged || pathValidation.riskLevel === 'HIGH';
+        let isPedometerInvalid = pedometerAntiCheatLog !== null;
+
+        if (isUserTester) {
+            isFlagged = false;
+            isPedometerInvalid = false;
+            pedometerAntiCheatLog = null;
+        }
+
         const isBlockedByAntiCheat = isFlagged || isPedometerInvalid;
         const flagReason = metadataValidation.flagReason || (pathValidation.riskLevel === 'HIGH' ? 'PATH_ANALYSIS_FAILED' : undefined);
 
@@ -197,9 +212,12 @@ export async function saveRunActivity(
                     updated_at: new Date(),
                     idempotency_key: runData.idempotencyKey,
                     // Anti-Cheat Fields
-                    risk_score: pathValidation.riskScore,
-                    risk_level: pathValidation.riskLevel,
-                    cheat_flags: pathValidation.cheatFlags as any,
+                    risk_score: isUserTester ? 0 : pathValidation.riskScore,
+                    risk_level: isUserTester ? 'LOW' : pathValidation.riskLevel,
+                    cheat_flags: {
+                        ...(pathValidation.cheatFlags as any),
+                        ...(isUserTester ? { tester_bypass: true } : {})
+                    } as any,
                     client_distance: runData.distance,
                     // New Validator Fields
                     is_flagged: isFlagged,
