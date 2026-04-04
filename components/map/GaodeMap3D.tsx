@@ -70,6 +70,7 @@ export function GaodeMap3D({
   // Load user colors
   useEffect(() => {
     const loadColors = async () => {
+      const { createClient } = await import('@/lib/supabase/client')
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {

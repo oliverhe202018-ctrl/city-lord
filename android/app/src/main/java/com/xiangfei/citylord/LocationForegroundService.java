@@ -31,6 +31,13 @@ import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 
+import com.xiangfei.citylord.db.AppDatabase;
+import com.xiangfei.citylord.db.LocationDao;
+import com.xiangfei.citylord.db.LocationEntity;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
 /**
  * LocationForegroundService — Android 前台定位服务
  *
@@ -129,6 +136,12 @@ public class LocationForegroundService extends Service implements AMapLocationLi
     private long locationInterval = 60000;
     private String currentRunId = null;
     private long runStartedAt = 0;
+
+    // ---- Room 离线数据库 ----
+    private AppDatabase appDatabase = null;
+    private LocationDao locationDao = null;
+    /** 单线程写入池：保证插入顺序性，不阻塞定位回调主线程 */
+    private ExecutorService dbExecutor = null;
 
     // ---- Daily motivational quotes (60 条，每天不重样) ----
     private static final String[] DAILY_QUOTES = {
@@ -230,6 +243,37 @@ public class LocationForegroundService extends Service implements AMapLocationLi
 
         // 5. Calculate today's midnight timestamp
         recalcTodayMidnight();
+
+        // 6. 初始化 Room 离线数据库 + 写入线程池
+        initDatabase();
+    }
+
+    /**
+     * 初始化 Room 数据库单例和写入 Executor。
+     * 同时在后台清理 3 天前已确认的旧数据，防止数据库无限膨胀。
+     */
+    private void initDatabase() {
+        try {
+            appDatabase = AppDatabase.getInstance(getApplicationContext());
+            locationDao = appDatabase.locationDao();
+            dbExecutor = Executors.newSingleThreadExecutor();
+            Log.i(TAG, "Room 数据库初始化完成");
+
+            // 异步清理 3 天前已确认的旧数据
+            final long threeDaysAgo = System.currentTimeMillis() - 3L * 24 * 60 * 60 * 1000;
+            dbExecutor.execute(() -> {
+                try {
+                    int purged = locationDao.purgeAckedOlderThan(threeDaysAgo);
+                    if (purged > 0) {
+                        Log.i(TAG, "清理已确认的旧记录: " + purged + " 条");
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "清理旧数据失败: " + e.getMessage());
+                }
+            });
+        } catch (Exception e) {
+            Log.e(TAG, "Room 数据库初始化失败: " + e.getMessage(), e);
+        }
     }
 
     @Override
@@ -365,11 +409,34 @@ public class LocationForegroundService extends Service implements AMapLocationLi
         // 4. Unregister step counter sensor
         unregisterStepCounterSensor();
 
-        // 5. Stop foreground & remove notification
+        // 5. 关闭数据库写入线程池（等待当前排队任务完成）
+        shutdownDbExecutor();
+
+        // 6. Stop foreground & remove notification
         stopForeground(true);
 
         super.onDestroy();
         Log.i(TAG, "onDestroy — cleanup complete");
+    }
+
+    /**
+     * 优雅关闭数据库写入线程池。
+     * 先尝试正常 shutdown，如 2 秒内未完成则强制 shutdownNow。
+     */
+    private void shutdownDbExecutor() {
+        if (dbExecutor != null && !dbExecutor.isShutdown()) {
+            dbExecutor.shutdown();
+            try {
+                if (!dbExecutor.awaitTermination(2, java.util.concurrent.TimeUnit.SECONDS)) {
+                    dbExecutor.shutdownNow();
+                    Log.w(TAG, "dbExecutor 强制关闭");
+                }
+            } catch (InterruptedException e) {
+                dbExecutor.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
+            Log.i(TAG, "dbExecutor 已关闭");
+        }
     }
 
     /**
@@ -589,8 +656,11 @@ public class LocationForegroundService extends Service implements AMapLocationLi
             return;
         }
 
-        // 1. 持久化缓存位置 (Native Persistence)
+        // 1a. 持久化缓存位置到 SharedPreferences (兼容旧逻辑)
         saveLocationToCache(location);
+
+        // 1b. 异步写入 Room 数据库（黑匣子核心：即便 JS 挂起也确保每个点落盘）
+        persistToRoom(location);
 
         // ------------- 新增：塞入黑匣子 Buffer -------------
         synchronized (bufferLock) {
@@ -664,7 +734,7 @@ public class LocationForegroundService extends Service implements AMapLocationLi
     }
 
     /**
-     * 将位置持久化到 SharedPreferences
+     * 将位置持久化到 SharedPreferences（轻量快照，用于最后已知位置恢复）
      */
     private void saveLocationToCache(AMapLocation location) {
         SharedPreferences sp = getApplicationContext().getSharedPreferences("citylord_location_cache", android.content.Context.MODE_PRIVATE);
@@ -674,6 +744,45 @@ public class LocationForegroundService extends Service implements AMapLocationLi
             .putLong("last_timestamp", location.getTime())
             .apply();
         Log.d(TAG, "Location persisted to cache: " + location.getLatitude() + ", " + location.getLongitude());
+    }
+
+    /**
+     * 异步将定位点写入 Room 数据库。
+     * 关键设计：即使 JS/WebView 进程完全挂起，此方法仍在 Native Service 线程中执行，
+     * 确保每一个 GPS 采样点都完成 dao.insert()。
+     */
+    private void persistToRoom(AMapLocation location) {
+        if (locationDao == null || dbExecutor == null) {
+            Log.w(TAG, "Room 数据库未初始化，跳过持久化");
+            return;
+        }
+
+        // 使用当前 runId 作为 sessionId；如果没有 runId 则使用 "idle" 标记
+        final String sessionId = (currentRunId != null && !currentRunId.isEmpty())
+                ? currentRunId : "idle";
+
+        final LocationEntity entity = new LocationEntity();
+        entity.sessionId = sessionId;
+        entity.latitude = location.getLatitude();
+        entity.longitude = location.getLongitude();
+        entity.timestamp = location.getTime();
+        entity.isAcked = false;
+        entity.accuracy = location.getAccuracy();
+        entity.speed = location.getSpeed();
+        entity.bearing = location.getBearing();
+        entity.isMock = location.isMock();
+
+        dbExecutor.execute(() -> {
+            try {
+                long rowId = locationDao.insert(entity);
+                // 降低日志噪音：每 50 条打印一次
+                if (rowId % 50 == 0) {
+                    Log.d(TAG, "Room 持久化 #" + rowId + " session=" + sessionId);
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Room insert 失败: " + e.getMessage());
+            }
+        });
     }
 
     // -------------------------------------------------------------------

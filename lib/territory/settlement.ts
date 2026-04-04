@@ -413,7 +413,6 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                         event_type: 'CREATED',
                         event_type_old: 'CREATED',
                         user_id: userId,
-                        run_id: runId,
                         old_owner_id: null,
                         new_owner_id: userId,
                         old_club_id: null,
@@ -421,7 +420,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                         old_faction: null,
                         new_faction: runnerFaction,
                         source_run_id: runId
-                    } as any
+                    }
                 });
 
                 result.createdTerritories++;

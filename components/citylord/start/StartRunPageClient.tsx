@@ -11,6 +11,7 @@ import { useGameStore } from "@/store/useGameStore"
 import { useRouteListStore } from "@/store/useRouteListStore"
 import { useLocationContext } from "@/components/GlobalLocationProvider"
 import { isNativePlatform, safeOpenAppSettings } from "@/lib/capacitor/safe-plugins"
+import { App } from "@capacitor/app"
 import { toast } from "sonner"
 import type { PlannerRoute } from "@/types/route-list"
 
@@ -81,36 +82,47 @@ export function StartRunOverlay({ onBack, onBeginRun }: StartRunOverlayProps) {
     setGhostPath(null)
   }, [setGhostPath])
 
-  useEffect(() => {
-    let mounted = true
-    const checkBatteryOptimization = async () => {
-      const native = await isNativePlatform()
-      if (!native || !mounted) return
+  const checkBatteryOptimization = useCallback(async () => {
+    const skipWarning = localStorage.getItem("city-lord-skip-battery-warning") === "true"
+    if (skipWarning) return
 
-      const { Capacitor, registerPlugin } = await import("@capacitor/core")
-      if (Capacitor.getPlatform() !== "android") return
+    const native = await isNativePlatform()
+    if (!native) return
 
-      let restricted = true
-      try {
-        const AMapLocation = registerPlugin<BatteryOptimizationPlugin>("AMapLocation")
-        if (typeof AMapLocation.isIgnoringBatteryOptimizations === "function") {
-          const result = await AMapLocation.isIgnoringBatteryOptimizations()
-          const ignoring = typeof result === "boolean"
-            ? result
-            : Boolean(result.ignoring ?? result.isIgnoring ?? result.value)
-          restricted = !ignoring
-        }
-      } catch {
-        restricted = true
+    const { Capacitor, registerPlugin } = await import("@capacitor/core")
+    if (Capacitor.getPlatform() !== "android") return
+
+    let restricted = true
+    try {
+      const AMapLocation = registerPlugin<BatteryOptimizationPlugin>("AMapLocation")
+      if (typeof AMapLocation.isIgnoringBatteryOptimizations === "function") {
+        const result = await AMapLocation.isIgnoringBatteryOptimizations()
+        const ignoring = typeof result === "boolean"
+          ? result
+          : Boolean(result.ignoring ?? result.isIgnoring ?? result.value)
+        restricted = !ignoring
       }
+    } catch {
+      // 容错处理：如果 API 失败，保守起见在某些 ROM 上不反复弹窗干扰，此处若 API 异常可考虑放行
+      restricted = false
+    }
 
-      if (restricted && mounted) setShowBatteryModal(true)
-    }
-    checkBatteryOptimization()
-    return () => {
-      mounted = false
-    }
+    setShowBatteryModal(restricted)
   }, [])
+
+  useEffect(() => {
+    checkBatteryOptimization()
+
+    const listenerPromise = App.addListener('appStateChange', ({ isActive }) => {
+      if (isActive) {
+        checkBatteryOptimization()
+      }
+    })
+
+    return () => {
+      listenerPromise.then(l => l.remove())
+    }
+  }, [checkBatteryOptimization])
 
   const gpsLabel = gpsSignalStrength === "good" ? "强" : gpsSignalStrength === "weak" ? "弱" : "无"
   const plannedPointCount = ghostPath?.length ?? 0
@@ -265,9 +277,21 @@ export function StartRunOverlay({ onBack, onBeginRun }: StartRunOverlayProps) {
                   type="button"
                   variant="outline"
                   className="h-12 w-full rounded-xl border-rose-300 bg-white text-rose-700 hover:bg-rose-50"
+                  onClick={() => {
+                    localStorage.setItem("city-lord-skip-battery-warning", "true")
+                    setShowBatteryModal(false)
+                    toast.success("已设置不再提醒")
+                  }}
+                >
+                  不再提醒 (Don't remind again)
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="h-10 w-full text-xs text-muted-foreground underline-offset-4 hover:underline"
                   onClick={() => setShowGuideModal(true)}
                 >
-                  阅读指南 (Read article)
+                  阅读关闭指南 (Read guide article)
                 </Button>
               </div>
             </div>

@@ -19,6 +19,7 @@ import { createClient } from "@/lib/supabase/client"
 import { createPost } from "@/app/actions/social-hub"
 import { useGameStore } from "@/store/useGameStore"
 import { generateRunStory } from "@/app/actions/story-service"
+import { updateRunSummary } from "@/app/actions/run-service"
 import { Clipboard } from "@capacitor/clipboard"
 import { isNativePlatform } from "@/lib/capacitor/safe-plugins"
 
@@ -124,6 +125,14 @@ export function RunSummaryView({
         return;
       }
       setStory(result.story || '');
+      
+      // Auto-persist to DB if runId is available
+      if (runId && result.story) {
+        updateRunSummary(runId, result.story).catch(e => 
+          console.error('[RunSummary] Persistence failed:', e)
+        );
+      }
+      
       toast.success('史诗战报已谱写完成！');
     } catch (err) {
       console.error('Failed to generate story:', err);

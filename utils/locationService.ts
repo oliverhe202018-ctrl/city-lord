@@ -2,7 +2,7 @@ import { isCapacitorAvailable, safeAMapStartTracking, safeAMapStopTracking } fro
 
 export const LocationService = {
   // 启动跑步记录
-  startTracking: async (userId?: string) => {
+  startTracking: async (userId?: string, runId?: string) => {
     try {
       // Capacitor logic skipped in Web View to prevent console spam
       // We only use this in native app context
@@ -17,7 +17,8 @@ export const LocationService = {
           notificationTitle: "City Lord 跑步中",
           notificationBody: "正在记录您的领地征程...",
           interval: 2000,
-          startedAt: Date.now()
+          startedAt: Date.now(),
+          runId: runId || undefined,
       });
 
       if (!result.success) {

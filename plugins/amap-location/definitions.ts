@@ -94,6 +94,31 @@ export interface PrivacyOptions {
 }
 
 // ---------------------------------------------------------------------------
+// 离线定位记录 (Room 黑匣子返回的数据结构)
+// ---------------------------------------------------------------------------
+
+export interface OfflineLocationRecord {
+    /** Room 数据库自增主键 — ACK 时需要回传此 ID */
+    id: number;
+    /** 纬度 (GCJ-02) */
+    lat: number;
+    /** 经度 (GCJ-02) */
+    lng: number;
+    /** 定位精度（米） */
+    accuracy: number;
+    /** 速度（m/s） */
+    speed: number;
+    /** 方向角 */
+    bearing: number;
+    /** 定位时间戳（ms since epoch） */
+    timestamp: number;
+    /** 是否为模拟定位 */
+    isMock: boolean;
+    /** 坐标系（固定为 'gcj02'） */
+    coordSystem: 'gcj02';
+}
+
+// ---------------------------------------------------------------------------
 // Plugin 接口
 // ---------------------------------------------------------------------------
 
@@ -163,6 +188,39 @@ export interface AMapLocationPlugin {
         opened: boolean;
         route: 'manufacturer' | 'app_details' | 'system_settings';
         component: string;
+    }>;
+
+    // ---- Room 黑匣子持久化 (SQLite) ----
+
+    /**
+     * 从 Room 数据库拉取指定 sessionId 下所有未同步的离线定位记录。
+     * JS 层苏醒后调用此方法，从原生黑匣子中恢复断失的坐标流。
+     *
+     * @param options.sessionId 跑步会话 ID（对应 runId）
+     * @returns 包含 locations 数组和 count 计数的对象
+     */
+    getOfflineLocations(options: { sessionId: string }): Promise<{
+        locations: OfflineLocationRecord[];
+        count: number;
+    }>;
+
+    /**
+     * 将指定 ID 的离线定位记录标记为已同步 (isAcked = true)。
+     * JS 层确认处理完毕后调用，完成 ACK 闭环，防止下次苏醒时重复拉取。
+     *
+     * @param options.ids 需要标记的记录 ID 数组
+     * @returns 成功 ACK 的记录数
+     */
+    acknowledgeLocations(options: { ids: number[] }): Promise<{
+        acknowledged: number;
+    }>;
+
+    /**
+     * @deprecated 已废弃。请使用 getOfflineLocations + acknowledgeLocations 替代。
+     * 旧版内存 Buffer 冲洗接口，数据不持久化，存在丢失风险。
+     */
+    flushBufferedLocations(): Promise<{
+        locations: AMapPosition[];
     }>;
 }
 

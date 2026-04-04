@@ -220,12 +220,12 @@ export async function saveRunActivity(
                     } as any,
                     client_distance: runData.distance,
                     // New Validator Fields
-                    is_flagged: isFlagged,
-                    flag_reason: flagReason,
+                    is_flagged: isUserTester ? false : isFlagged,
+                    flag_reason: isUserTester ? null : flagReason,
                     eventsLog: eventsHistory as any,
                     totalSteps: submittedTotalSteps,
-                    isValid: !isPedometerInvalid,
-                    antiCheatLog: pedometerAntiCheatLog,
+                    isValid: isUserTester ? true : !isPedometerInvalid,
+                    antiCheatLog: isUserTester ? null : pedometerAntiCheatLog,
                 },
             });
 
@@ -521,5 +521,24 @@ export async function saveRunActivity(
             success: false,
             error: error.message
         };
+    }
+}
+/**
+ * Updates the AI summary for a specific run record.
+ */
+export async function updateRunSummary(runId: string, summary: string): Promise<ActionResponse<void>> {
+    try {
+        if (!runId || !summary) throw new Error('Run ID and summary are required');
+        
+        await prisma.runs.update({
+            where: { id: runId },
+            data: { aiSummary: summary }
+        });
+
+        console.log(`[RunService] AI Summary updated for run: ${runId}`);
+        return { success: true };
+    } catch (error: any) {
+        console.error('Failed to update run summary:', error);
+        return { success: false, error: error.message };
     }
 }

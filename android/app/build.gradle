@@ -52,6 +52,12 @@ android {
             signingConfig signingConfigs.release
         }
     }
+
+    // Room 2.6+ 要求 Java 8 兼容
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
 }
 
 repositories {
@@ -74,6 +80,11 @@ dependencies {
     implementation 'com.amap.api:location:6.4.9'
     // LocalBroadcastManager — Service ↔ Plugin 通信
     implementation 'androidx.localbroadcastmanager:localbroadcastmanager:1.1.0'
+
+    // ---- Room 离线持久化 (Black Box) ----
+    def room_version = '2.6.1'
+    implementation "androidx.room:room-runtime:$room_version"
+    annotationProcessor "androidx.room:room-compiler:$room_version"
 }
 
 configurations.all {

@@ -15,6 +15,8 @@ import android.util.Log;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import androidx.core.content.ContextCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
@@ -29,6 +31,10 @@ import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+
+import com.xiangfei.citylord.db.AppDatabase;
+import com.xiangfei.citylord.db.LocationDao;
+import com.xiangfei.citylord.db.LocationEntity;
 
 /**
  * AMapLocationPlugin — Capacitor 插件：Android 高德定位 SDK
@@ -53,6 +59,9 @@ public class AMapLocationPlugin extends Plugin {
     private BroadcastReceiver trackingLogReceiver = null;
     private boolean isTracking = false;
 
+    // Room 数据库异步执行器
+    private ExecutorService dbQueryExecutor = null;
+
     // -----------------------------------------------------------------------
     // Plugin lifecycle
     // -----------------------------------------------------------------------
@@ -72,6 +81,9 @@ public class AMapLocationPlugin extends Plugin {
         } catch (Exception e) {
             Log.e(TAG, "Privacy compliance failed in load(): " + e.getMessage(), e);
         }
+
+        // 初始化 Room 查询线程池
+        dbQueryExecutor = Executors.newSingleThreadExecutor();
     }
 
     // -----------------------------------------------------------------------
@@ -128,6 +140,127 @@ public class AMapLocationPlugin extends Plugin {
             Log.e(TAG, "flushBufferedLocations failed: " + e.getMessage(), e);
             call.reject("flushBufferedLocations error: " + e.getMessage());
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // getOfflineLocations — 从 Room 拉取未同步的离线定位记录
+    // -----------------------------------------------------------------------
+
+    /**
+     * 根据 sessionId 从 Room 数据库查询所有未同步 (isAcked=false) 的定位记录。
+     * JS 层在苏醒后调用此方法，拉取黑匣子中断失的坐标流。
+     *
+     * 参数:
+     *  - sessionId (String, 必须): 跑步会话 ID
+     *
+     * 返回:
+     *  - locations: JSArray，每个元素包含 id, lat, lng, accuracy, speed, bearing, timestamp, isMock
+     */
+    @PluginMethod()
+    public void getOfflineLocations(PluginCall call) {
+        String sessionId = call.getString("sessionId");
+        if (sessionId == null || sessionId.isEmpty()) {
+            call.reject("sessionId 参数不能为空");
+            return;
+        }
+
+        Log.i(TAG, "getOfflineLocations: sessionId=" + sessionId);
+
+        if (dbQueryExecutor == null) {
+            call.reject("数据库查询执行器未初始化");
+            return;
+        }
+
+        // 异步查询，避免阻塞 Plugin 主线程
+        dbQueryExecutor.execute(() -> {
+            try {
+                LocationDao dao = AppDatabase.getInstance(getContext()).locationDao();
+                List<LocationEntity> records = dao.getUnsyncedPoints(sessionId);
+
+                JSArray jsArray = new JSArray();
+                for (LocationEntity record : records) {
+                    JSObject obj = new JSObject();
+                    obj.put("id", record.id);
+                    obj.put("lat", record.latitude);
+                    obj.put("lng", record.longitude);
+                    obj.put("accuracy", record.accuracy);
+                    obj.put("speed", record.speed);
+                    obj.put("bearing", record.bearing);
+                    obj.put("timestamp", record.timestamp);
+                    obj.put("isMock", record.isMock);
+                    obj.put("coordSystem", "gcj02");
+                    jsArray.put(obj);
+                }
+
+                JSObject ret = new JSObject();
+                ret.put("locations", jsArray);
+                ret.put("count", records.size());
+                call.resolve(ret);
+
+                Log.i(TAG, "getOfflineLocations 返回 " + records.size() + " 条记录, sessionId=" + sessionId);
+            } catch (Exception e) {
+                Log.e(TAG, "getOfflineLocations 查询失败: " + e.getMessage(), e);
+                call.reject("getOfflineLocations error: " + e.getMessage());
+            }
+        });
+    }
+
+    // -----------------------------------------------------------------------
+    // acknowledgeLocations — 标记定位记录为已同步
+    // -----------------------------------------------------------------------
+
+    /**
+     * 接收 ID 数组，将 Room 数据库中对应记录标记为已同步 (isAcked=true)。
+     * JS 层确认处理完毕后调用。
+     *
+     * 参数:
+     *  - ids (number[], 必须): 需要标记的记录 ID 数组
+     *
+     * 返回:
+     *  - acknowledged: 成功标记的记录数
+     */
+    @PluginMethod()
+    public void acknowledgeLocations(PluginCall call) {
+        JSArray idsArray = call.getArray("ids");
+        if (idsArray == null || idsArray.length() == 0) {
+            call.reject("ids 参数不能为空");
+            return;
+        }
+
+        Log.i(TAG, "acknowledgeLocations: 收到 " + idsArray.length() + " 个 ID");
+
+        if (dbQueryExecutor == null) {
+            call.reject("数据库查询执行器未初始化");
+            return;
+        }
+
+        // 解析 ID 列表
+        final List<Long> ids = new ArrayList<>();
+        try {
+            for (int i = 0; i < idsArray.length(); i++) {
+                ids.add(Long.valueOf(idsArray.get(i).toString()));
+            }
+        } catch (Exception e) {
+            call.reject("ids 参数解析失败: " + e.getMessage());
+            return;
+        }
+
+        // 异步更新
+        dbQueryExecutor.execute(() -> {
+            try {
+                LocationDao dao = AppDatabase.getInstance(getContext()).locationDao();
+                dao.setPointsAcked(ids);
+
+                JSObject ret = new JSObject();
+                ret.put("acknowledged", ids.size());
+                call.resolve(ret);
+
+                Log.i(TAG, "acknowledgeLocations 完成: " + ids.size() + " 条记录已标记");
+            } catch (Exception e) {
+                Log.e(TAG, "acknowledgeLocations 失败: " + e.getMessage(), e);
+                call.reject("acknowledgeLocations error: " + e.getMessage());
+            }
+        });
     }
 
     // -----------------------------------------------------------------------
@@ -332,6 +465,13 @@ public class AMapLocationPlugin extends Plugin {
             }
             onceClient = null;
         }
+
+        // 关闭数据库查询线程池
+        if (dbQueryExecutor != null && !dbQueryExecutor.isShutdown()) {
+            dbQueryExecutor.shutdown();
+            dbQueryExecutor = null;
+        }
+
         super.handleOnDestroy();
     }
 

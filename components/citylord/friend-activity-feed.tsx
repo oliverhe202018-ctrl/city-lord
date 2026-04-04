@@ -7,6 +7,7 @@ import { useGameStore } from "@/store/useGameStore"
 import useSWRInfinite from 'swr/infinite'
 import { useRouter } from 'next/navigation'
 import { openUserProfile } from '@/lib/utils/nav'
+import { motion, AnimatePresence } from "framer-motion"
 
 import {
   Loader2,
@@ -103,6 +104,7 @@ function ActivityCard({ post, onLike, onComment, isNew }: ActivityCardProps) {
 
   // Share/Poster State
   const [showPoster, setShowPoster] = useState(false)
+  const [showAiSummary, setShowAiSummary] = useState(false)
 
   useEffect(() => {
     if (isNew) {
@@ -323,6 +325,47 @@ function ActivityCard({ post, onLike, onComment, isNew }: ActivityCardProps) {
             <MoreHorizontal className="h-4 w-4" />
           </button>
         </div>
+
+        {/* AI summary button & content (Bug 4) */}
+        {post.source_type === 'RUN' && post.run?.aiSummary && (
+          <div className="mt-3">
+            {!showAiSummary ? (
+              <button
+                onClick={() => setShowAiSummary(true)}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900 border border-primary/30 hover:border-primary/60 transition-all active:scale-95"
+              >
+                <div className="flex -space-x-1">
+                  <Sparkles className="h-3 w-3 text-primary animate-pulse" />
+                </div>
+                <span className="text-[10px] font-bold text-primary uppercase tracking-wider">查看 AI 史诗战报</span>
+              </button>
+            ) : (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                className="relative overflow-hidden rounded-xl bg-slate-900 p-4 border border-primary/20 shadow-inner"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles className="h-3 w-3 text-primary" />
+                    <span className="text-[10px] font-black text-primary/80 uppercase tracking-widest">史诗战报</span>
+                  </div>
+                  <button
+                    onClick={() => setShowAiSummary(false)}
+                    className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    收起
+                  </button>
+                </div>
+                <p className="text-xs text-white/90 leading-relaxed italic font-serif">
+                  “{post.run.aiSummary}”
+                </p>
+                {/* Decorative glow */}
+                <div className="absolute -bottom-4 -right-4 w-12 h-12 bg-primary/10 blur-2xl pointer-events-none" />
+              </motion.div>
+            )}
+          </div>
+        )}
 
         <div className="mt-3">
           <ExpandableText text={post.content} maxLines={4} className="mt-0.5 text-sm whitespace-pre-wrap leading-relaxed text-foreground" />

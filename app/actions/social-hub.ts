@@ -215,6 +215,7 @@ export async function getFeedTimeline(input: FeedQueryInput): Promise<FeedTimeli
                 orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
                 include: {
                     user: { select: { id: true, nickname: true, avatar_url: true, level: true } },
+                    run: { select: { aiSummary: true } },
                     comments: {
                         where: { status: 'ACTIVE' },
                         take: 3,

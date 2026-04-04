@@ -136,6 +136,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   const [sessionClaims, setSessionClaims] = useState<Location[][]>([]); // NEW: Claimed territories
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [area, setArea] = useState(0); // m²
+  const [isWarmingUp, setIsWarmingUp] = useState(true);
 
   // Sync State
   const [isSyncing, setIsSyncing] = useState(false);
@@ -147,6 +148,8 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   const pathRef = useRef<Location[]>([]);
   const isPausedRef = useRef(isPaused);
   const lastClaimAtRef = useRef(0);
+  const validPointsCountRef = useRef(0);
+  const firstPointAtRef = useRef<number | null>(null);
 
   // ─── Live-snapshot refs (always current, immune to stale closures) ───
   const distanceRef = useRef(distance);
@@ -154,6 +157,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   const sessionClaimsRef = useRef(sessionClaims);
   const closedPolygonsRef = useRef(closedPolygons);
   const areaRef = useRef(area);
+  const isWarmingUpRef = useRef(true);
 
   // ─── Timestamp-based timer refs ───
   const startTimeRef = useRef<number | null>(null);
@@ -167,6 +171,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   useEffect(() => { sessionClaimsRef.current = sessionClaims; }, [sessionClaims]);
   useEffect(() => { closedPolygonsRef.current = closedPolygons; }, [closedPolygons]);
   useEffect(() => { areaRef.current = area; }, [area]);
+  useEffect(() => { isWarmingUpRef.current = isWarmingUp; }, [isWarmingUp]);
 
   // Idempotency key for the current run
   const runIdempotencyKeyRef = useRef<string>(uuidv4());
@@ -497,6 +502,40 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     }
 
     const finalLoc = newLoc;
+
+    // --- Phase 2: Warm-up & Jitter Filter ---
+    if (isWarmingUpRef.current) {
+      if (firstPointAtRef.current === null) {
+        firstPointAtRef.current = now;
+      }
+      validPointsCountRef.current++;
+
+      // Stop warming up after 8 seconds OR 3 continuous high-accuracy points
+      if (now - firstPointAtRef.current > 8000 || validPointsCountRef.current >= 3) {
+        setIsWarmingUp(false);
+        console.log('[GPS-Filter] ✅ Warm-up complete. Starting track.');
+      } else {
+        // Still warming up: update current location for UI but don't record to path
+        lastLocationRef.current = finalLoc;
+        setCurrentLocation(finalLoc);
+        return;
+      }
+    }
+
+    // --- Phase 3: Spatial Debounce (3m threshold) ---
+    if (lastLocationRef.current) {
+      const distFromLast = getDistanceFromLatLonInMeters(
+        lastLocationRef.current.lat,
+        lastLocationRef.current.lng,
+        finalLoc.lat,
+        finalLoc.lng
+      );
+      if (distFromLast < 3.0) {
+        // Point is too close to last point, probably jitter while stationary
+        return;
+      }
+    }
+
     const spatialFilterResult = shouldAcceptPointByDistance(
       lastLocationRef.current
         ? { lat: lastLocationRef.current.lat, lng: lastLocationRef.current.lng }
@@ -648,34 +687,53 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           setDuration(pausedAccumulatorRef.current + elapsed);
           console.log('[useRunningTracker] Foreground resume — timer reconciled');
 
-          // --- BEGIN: 原生黑匣子追帧 (苏醒填补) ---
+          // --- BEGIN: Room 黑匣子追帧 (SQLite 持久化) ---
+          // 核心逻辑：从原生 Room 数据库拉取 JS 挂起期间遗失的坐标，
+          // 合入后立即 ACK，确保每批数据只被消费一次，杜绝重复。
           try {
-            const { registerPlugin } = await import('@capacitor/core');
-            const AMapLocation = registerPlugin<any>('AMapLocation');
-            const res = await AMapLocation.flushBufferedLocations();
-            const missedLocations = res?.locations || [];
+            const { AMapLocation } = await import('@/plugins/amap-location/definitions');
+            const sessionId = runIdempotencyKeyRef.current;
             
-            if (missedLocations.length > 0) {
-              console.log(`[useRunningTracker] 追帧发现 ${missedLocations.length} 个遗失坐标！正执行平滑灌入...`);
+            const res = await AMapLocation.getOfflineLocations({ sessionId });
+            const offlinePoints = res?.locations || [];
+            
+            if (offlinePoints.length > 0) {
+              console.log(`[BlackBox] 🔄 拉取到 ${offlinePoints.length} 条离线定位记录, sessionId=${sessionId}`);
               
-              // 基于时间戳严格去重，仅提取那些还未进入状态机的新数据点！
+              // 基于时间戳严格去重：仅提取还未进入路径状态机的新数据点
               const currentPath = pathRef.current;
-              // 取当前的最后一个点的时间戳进行去重比对：
-              const lastPathTime = currentPath.length > 0 ? currentPath[currentPath.length - 1].timestamp : 0;
+              const lastPathTime = currentPath.length > 0 
+                ? currentPath[currentPath.length - 1].timestamp 
+                : 0;
               
-              const validPoints = missedLocations.filter((pt: any) => pt.timestamp > lastPathTime);
+              // 按时间戳升序排列（Room 已排序，但再做一次安全保证）
+              const sortedPoints = offlinePoints
+                .filter(pt => pt.timestamp > lastPathTime)
+                .sort((a, b) => a.timestamp - b.timestamp);
               
-              // 逐帧安全喂补给状态机以触发循环闭合或计步算法
-              validPoints.forEach((pt: any) => {
-                 handleLocationUpdate(pt.lat, pt.lng, pt.accuracy, pt.timestamp);
-              });
+              // 逐帧喂入状态机，触发空间防抖（3m 过滤）、循环闭合等完整逻辑
+              for (const pt of sortedPoints) {
+                handleLocationUpdate(pt.lat, pt.lng, pt.accuracy, pt.timestamp);
+              }
               
-              console.log(`[useRunningTracker] 已成功软追加 ${validPoints.length} 个有效缓存轨迹点.`);
+              console.log(`[BlackBox] ✅ 已合入 ${sortedPoints.length}/${offlinePoints.length} 个有效离线轨迹点`);
+              
+              // ACK 闭环：标记这批记录为已同步，防止下次苏醒时重复拉取
+              const idsToAck = offlinePoints.map(pt => pt.id);
+              try {
+                const ackResult = await AMapLocation.acknowledgeLocations({ ids: idsToAck });
+                console.log(`[BlackBox] 🔒 ACK 完成: ${ackResult.acknowledged} 条记录已确认`);
+              } catch (ackErr) {
+                // ACK 失败不阻断主流程 — 下次苏醒会重新拉取（幂等安全）
+                console.warn('[BlackBox] ⚠️ ACK 失败（数据不会丢失，下次苏醒自动重试）:', ackErr);
+              }
+            } else {
+              console.log('[BlackBox] 无离线记录需要追帧');
             }
           } catch (e) {
-            console.warn('[useRunningTracker] 尝试从原生黑匣子追帧失败:', e);
+            console.warn('[BlackBox] 从 Room 黑匣子追帧失败（可能在 Web 环境）:', e);
           }
-          // --- END: 原生黑匣子追帧 ---
+          // --- END: Room 黑匣子追帧 ---
         }
 
         // 关键事件：切后台时立即强制落盘一次
@@ -751,7 +809,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       if (isRunning && !isPaused && !isStoppingRef.current) {
         // Start Background Service
         console.log('[useRunningTracker] Starting Background Service...');
-        activeWatcherId = await LocationService.startTracking(userId);
+        activeWatcherId = await LocationService.startTracking(userId, runIdempotencyKeyRef.current);
         watcherIdRef.current = activeWatcherId;
       } else {
         // Stop Background Service
