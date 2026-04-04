@@ -367,7 +367,7 @@ export function ThemeSwitcher({ isOpen, onClose }: ThemeSwitcherProps) {
       onClick={onClose}
     >
       <div 
-        className="w-full max-w-md rounded-t-3xl border-t p-6"
+        className="w-full max-w-md rounded-t-3xl border-t p-6 max-h-[90vh] flex flex-col"
         style={{ 
           backgroundColor: theme.colors.backgroundSecondary,
           borderColor: theme.colors.border,
@@ -376,17 +376,29 @@ export function ThemeSwitcher({ isOpen, onClose }: ThemeSwitcherProps) {
       >
         {/* Handle */}
         <div 
-          className="mx-auto mb-4 h-1 w-12 rounded-full"
+          className="mx-auto mb-4 h-1 w-12 rounded-full shrink-0"
           style={{ backgroundColor: theme.colors.foregroundMuted }}
         />
 
-        <h2 
-          className="mb-4 text-center text-lg font-bold"
-          style={{ color: theme.colors.foreground }}
-        >
-          主题设置
-        </h2>
+        <div className="relative mb-4 flex items-center justify-center shrink-0">
+          <h2 
+            className="text-lg font-bold"
+            style={{ color: theme.colors.foreground }}
+          >
+            主题设置
+          </h2>
+          <button 
+            onClick={onClose}
+            className="absolute right-0 flex h-8 w-8 items-center justify-center rounded-full bg-black/10 text-white/50 hover:bg-black/20 hover:text-white transition-all"
+            style={{ color: theme.colors.foregroundMuted }}
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
 
+        <div className="flex-1 overflow-y-auto no-scrollbar pb-2">
         {!showCustomizer ? (
           <>
             {/* Theme Grid */}
@@ -550,6 +562,7 @@ export function ThemeSwitcher({ isOpen, onClose }: ThemeSwitcherProps) {
             </div>
           </>
         )}
+        </div>
 
         <div
           className="mt-4 rounded-2xl border p-4"
@@ -627,7 +640,7 @@ export function ThemeSwitcher({ isOpen, onClose }: ThemeSwitcherProps) {
 
         <button
           onClick={onClose}
-          className="mt-4 w-full rounded-xl py-3 text-sm font-medium transition-all"
+          className="mt-4 w-full shrink-0 rounded-xl py-3 text-sm font-medium transition-all"
           style={{ 
             backgroundColor: theme.colors.primaryMuted,
             color: theme.colors.primary 

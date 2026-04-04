@@ -75,7 +75,7 @@ export function PlanCenter() {
                   </div>
                   <div className="bg-black/20 rounded-lg p-3">
                       <div className="text-xs text-white/60 mb-1">建议配速</div>
-                      <div className="text-xl font-mono font-bold">6:00 <span className="text-sm">/km</span></div>
+                      <div className="text-xl font-mono font-bold">--:-- <span className="text-sm">/km</span></div>
                   </div>
               </div>
               

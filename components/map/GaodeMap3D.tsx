@@ -60,7 +60,40 @@ export function GaodeMap3D({
   const polygonRefs = useRef<any[]>([])
   const reqAnimIdRef = useRef<number | null>(null)
   const destroyedRef = useRef(false)
+<<<<<<< HEAD
   const { territoryAppearance } = useGameTerritoryAppearance()
+=======
+
+  // User Color Preferences
+  const [pathColor, setPathColor] = useState('#3B82F6')
+  const [fillColor, setFillColor] = useState('#3B82F6')
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+
+  // Load user colors
+  useEffect(() => {
+    const loadColors = async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        setCurrentUserId(user.id)
+        try {
+          const { data } = await supabase
+            .from('profiles')
+            .select('path_color, fill_color')
+            .eq('id', user.id)
+            .single()
+          if (data) {
+            if (data.path_color) setPathColor(data.path_color)
+            if (data.fill_color) setFillColor(data.fill_color)
+          }
+        } catch (e) {
+          console.warn('Failed to fetch user colors', e)
+        }
+      }
+    }
+    loadColors()
+  }, [])
+>>>>>>> 8c67c67 (fix(UAT): resolve Android keep-alive, theme switcher UI overflow, and pace state leakage)
 
   const addLog = (msg: string) => {
     console.log(`[GaodeMap3D] ${msg}`)
@@ -189,12 +222,26 @@ export function GaodeMap3D({
       } catch (e: any) {
         console.error("AMap Load Failed:", e)
         addLog(`Load Error: ${e.message}`)
+        
+        // Fallback for style or initialization failure
+        if (mapInstanceRef.current && !destroyedRef.current) {
+          try {
+            console.warn('[AMap] 样式设置失败，已降级:', e)
+            mapInstanceRef.current.setMapStyle("amap://styles/normal")
+          } catch (styleErr) {
+            console.warn('[AMap] 降级样式设置亦失败:', styleErr)
+          }
+        }
       }
     })();
 
     return () => {
       destroyedRef.current = true;
       if (mapInstanceRef.current) {
+<<<<<<< HEAD
+=======
+        // Explicitly destroy the map instance to prevent WebView crashes
+>>>>>>> 8c67c67 (fix(UAT): resolve Android keep-alive, theme switcher UI overflow, and pace state leakage)
         try {
           if (polylineRef.current) {
             mapInstanceRef.current.remove(polylineRef.current);
@@ -220,7 +267,23 @@ export function GaodeMap3D({
 
           mapInstanceRef.current.destroy?.();
         } catch (e) {
+<<<<<<< HEAD
           console.warn('Failed to clean up map overlays:', e);
+=======
+          console.warn('Failed to destroy map instance:', e);
+<<<<<<< HEAD
+=======
+        }
+
+        // Safe Cleanup using optional chaining
+        ghostPolylineRef.current?.remove?.()
+        polylineRef.current?.remove?.()
+
+        // Handle array cleanup
+        if (Array.isArray(polygonRefs.current)) {
+          polygonRefs.current.forEach((p: any) => p?.remove?.())
+>>>>>>> 8c67c67 (fix(UAT): resolve Android keep-alive, theme switcher UI overflow, and pace state leakage)
+>>>>>>> b75abf72a1fcd21ecee74c77b76a8389b226bdff
         }
         safeDestroyMap(mapInstanceRef.current);
         mapInstanceRef.current = null;

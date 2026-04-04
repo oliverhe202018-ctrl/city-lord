@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import Image from 'next/image';
 import { Send, User, Wifi, WifiOff } from 'lucide-react';
 import { useGameStore } from '@/store/useGameStore';
 import { RealtimeChannel } from '@supabase/supabase-js';
@@ -264,7 +265,7 @@ export function RoomChat({ roomId, participants = [], currentUser }: RoomChatPro
               {/* 头像 */}
               <div className="flex-shrink-0 w-8 h-8 rounded-full bg-white/10 overflow-hidden border border-white/10 flex items-center justify-center">
                 {avatar ? (
-                  <img src={avatar} alt={name} className="w-full h-full object-cover" />
+                  <Image src={avatar} alt={name} width={32} height={32} className="w-full h-full object-cover" />
                 ) : (
                   <User className="w-4 h-4 text-white/50" />
                 )}

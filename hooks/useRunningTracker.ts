@@ -365,31 +365,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     return undefined;
   }, [isRunning, isPaused]);
 
-  // Capacitor appStateChange — reconcile timer on foreground resume & log state
-  useEffect(() => {
-    let cleanup: (() => void) | undefined;
-    import('@capacitor/app').then(({ App }) => {
-      const listenerHandle = App.addListener('appStateChange', ({ isActive }) => {
-        console.log(`[Lifecycle] appStateChange: ${isActive ? 'active' : 'background'} | time: ${new Date().toISOString()}`);
-        
-        if (isActive && isRunning && !isPausedRef.current && startTimeRef.current !== null) {
-          // Force re-calculate duration from absolute timestamp
-          const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
-          setDuration(pausedAccumulatorRef.current + elapsed);
-          console.log('[useRunningTracker] Foreground resume — timer reconciled');
-        }
 
-        // 关键事件：切后台时立即强制落盘一次
-        if (!isActive && isRunning) {
-          saveState();
-        }
-      });
-      cleanup = () => { listenerHandle.then(h => h.remove()); };
-    }).catch(() => {
-      // Not in Capacitor environment — no-op
-    });
-    return () => { cleanup?.(); };
-  }, [isRunning]);
 
   // --- Persistence & Auto-Save Function ---
   const saveState = useCallback(() => {
@@ -659,6 +635,61 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
 
   // ======== CRITICAL: React to GPS location from global store ========
+  // Capacitor appStateChange — reconcile timer on foreground resume & log state
+  useEffect(() => {
+    let cleanup: (() => void) | undefined;
+    import('@capacitor/app').then(({ App }) => {
+      const listenerHandle = App.addListener('appStateChange', async ({ isActive }) => {
+        console.log(`[Lifecycle] appStateChange: ${isActive ? 'active' : 'background'} | time: ${new Date().toISOString()}`);
+        
+        if (isActive && isRunning && !isPausedRef.current && startTimeRef.current !== null) {
+          // Force re-calculate duration from absolute timestamp
+          const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+          setDuration(pausedAccumulatorRef.current + elapsed);
+          console.log('[useRunningTracker] Foreground resume — timer reconciled');
+
+          // --- BEGIN: 原生黑匣子追帧 (苏醒填补) ---
+          try {
+            const { registerPlugin } = await import('@capacitor/core');
+            const AMapLocation = registerPlugin<any>('AMapLocation');
+            const res = await AMapLocation.flushBufferedLocations();
+            const missedLocations = res?.locations || [];
+            
+            if (missedLocations.length > 0) {
+              console.log(`[useRunningTracker] 追帧发现 ${missedLocations.length} 个遗失坐标！正执行平滑灌入...`);
+              
+              // 基于时间戳严格去重，仅提取那些还未进入状态机的新数据点！
+              const currentPath = pathRef.current;
+              // 取当前的最后一个点的时间戳进行去重比对：
+              const lastPathTime = currentPath.length > 0 ? currentPath[currentPath.length - 1].timestamp : 0;
+              
+              const validPoints = missedLocations.filter((pt: any) => pt.timestamp > lastPathTime);
+              
+              // 逐帧安全喂补给状态机以触发循环闭合或计步算法
+              validPoints.forEach((pt: any) => {
+                 handleLocationUpdate(pt.lat, pt.lng, pt.accuracy, pt.timestamp);
+              });
+              
+              console.log(`[useRunningTracker] 已成功软追加 ${validPoints.length} 个有效缓存轨迹点.`);
+            }
+          } catch (e) {
+            console.warn('[useRunningTracker] 尝试从原生黑匣子追帧失败:', e);
+          }
+          // --- END: 原生黑匣子追帧 ---
+        }
+
+        // 关键事件：切后台时立即强制落盘一次
+        if (!isActive && isRunning) {
+          saveState();
+        }
+      });
+      cleanup = () => { listenerHandle.then(h => h.remove()); };
+    }).catch(() => {
+      // Not in Capacitor environment — no-op
+    });
+    return () => { cleanup?.(); };
+  }, [isRunning, handleLocationUpdate]);
+
   // This is the SAME data source as TrajectoryLayer (via MapRoot.userPath)
   useEffect(() => {
     if (!isRunning || !gpsLocation || isStoppingRef.current) return;
