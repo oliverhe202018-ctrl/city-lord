@@ -552,6 +552,12 @@ export async function safeAMapStartTracking(options: {
             const { Geolocation } = await import('@capacitor/geolocation');
             let geoStatus = await Geolocation.checkPermissions();
             if (geoStatus.location === 'prompt' || geoStatus.location === 'prompt-with-rationale') {
+                const { Dialog } = await import('@capacitor/dialog');
+                await Dialog.alert({
+                    title: '后台定位权限',
+                    message: '为了保证息屏后轨迹不丢失，请在接下来的权限请求中选择【始终允许】(Always Allow)。\n\n如果在选项中只看到"仅在使用中允许"，请在授权后前往系统设置中手动修改为"始终允许"以防断流。',
+                    buttonTitle: '去授权'
+                });
                 geoStatus = await Geolocation.requestPermissions({ permissions: ['location'] });
             }
             if (geoStatus.location !== 'granted') {
@@ -566,11 +572,15 @@ export async function safeAMapStartTracking(options: {
         if (!hasNotification || !hasLocation) {
             try {
                 const { Dialog } = await import('@capacitor/dialog');
-                await Dialog.alert({
+                const { value } = await Dialog.confirm({
                     title: '权限受限',
-                    message: `后台持续轨迹需要"始终允许定位"${!hasNotification ? '和"通知"' : ''}权限。请前往系统设置开启以确保记录不被挂断。`,
-                    buttonTitle: '我知道了'
+                    message: `后台持续轨迹需要"始终允许定位"${!hasNotification ? '和"通知"' : ''}权限。\n\n为了保证息屏后轨迹不丢失，请前往设置将定位权限改为【始终允许】。`,
+                    okButtonTitle: '去设置',
+                    cancelButtonTitle: '稍后再说'
                 });
+                if (value) {
+                    await safeOpenAppSettings();
+                }
                 console.log('[Tracking] Event: tracking_start_denied_reason', { reason: missingReason });
             } catch (e) {}
             return { success: false, error: 'Permissions not granted', reason: missingReason };

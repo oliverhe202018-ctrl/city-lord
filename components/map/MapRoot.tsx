@@ -73,7 +73,8 @@ export function MapRoot({ children }: { children: ReactNode }) {
   const [showKingdom, setShowKingdom] = useState<boolean>(true); // Kingdom layer visible by default
   const [kingdomMode, setKingdomMode] = useState<'personal' | 'club'>('personal');
   const [showFog, setShowFog] = useState<boolean>(false); // Fog layer off by default
-  const [showFactionColors, setShowFactionColors] = useState<boolean>(false);
+  const showFactionColors = useGameStore(s => s.showFaction);
+  const setShowFactionColors = useGameStore(s => s.setShowFaction);
   const [selectedTerritory, setSelectedTerritory] = useState<ExtTerritory | null>(null);
   const [isDetailSheetOpen, setIsDetailSheetOpen] = useState<boolean>(false);
 
@@ -86,8 +87,8 @@ export function MapRoot({ children }: { children: ReactNode }) {
   }, []);
 
   const toggleFactionColors = useCallback(() => {
-    setShowFactionColors(prev => !prev);
-  }, []);
+    setShowFactionColors(!showFactionColors);
+  }, [showFactionColors, setShowFactionColors]);
 
   const mapLayerRef = useRef<any>(null);
   const positionStage = useRef<'cache' | 'network-coarse' | 'gps-precise' | null>(null);

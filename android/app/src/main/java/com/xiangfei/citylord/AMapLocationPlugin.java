@@ -382,6 +382,7 @@ public class AMapLocationPlugin extends Plugin {
             // and running used Device_Sensors (GPS-only, fails indoors).
             // Hight_Accuracy gives the best of both: accurate like GPS, reliable like network.
             option.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);
+            option.setSensorEnable(true);
             if ("running".equals(mode)) {
                 option.setGpsFirst(true);
                 option.setGpsFirstTimeout(5000);

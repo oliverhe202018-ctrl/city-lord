@@ -604,6 +604,7 @@ public class LocationForegroundService extends Service implements AMapLocationLi
             option.setInterval(locationInterval);
             
             option.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);
+            option.setSensorEnable(true);
             option.setNeedAddress(false);
             option.setLocationCacheEnable(true);
             option.setGpsFirst(true);

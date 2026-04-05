@@ -145,6 +145,7 @@ export interface ModeActions {
   setHapticEnabled: (enabled: boolean) => void;
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
   setGpsCorrectionEnabled: (enabled: boolean) => void;
+  setShowFaction: (show: boolean) => void;
 
   // Room Actions
   setCurrentRoom: (room: Room | null) => void;
@@ -224,6 +225,8 @@ export interface GameState extends UserState, LocationState, InventoryState, Wor
   territoryAppearance: TerritoryAppearance;
   /** Ephemeral: currently selected territory ID on the map (not persisted) */
   selectedTerritoryId: string | null;
+  /** Whether to show faction colors instead of custom ones in personal mode */
+  showFaction: boolean;
 }
 
 export interface GameActions extends ModeActions, UserActions, LocationActions, InventoryActions, WorldActions { }
@@ -297,6 +300,8 @@ const initialLocationState: LocationState = {
   locationInitialized: false,
 };
 
+const initialShowFaction = true;
+
 const initialInventoryState: InventoryState = {
   items: new Map(),
   totalItems: 0,
@@ -326,6 +331,7 @@ const createModeSlice: StateCreator<GameStore, [], [], ModeActions> = (set, get)
   setHapticEnabled: (enabled) => set((state) => ({ appSettings: { ...state.appSettings, hapticEnabled: enabled } })),
   setTheme: (theme) => set((state) => ({ appSettings: { ...state.appSettings, theme } })),
   setGpsCorrectionEnabled: (enabled) => set((state) => ({ appSettings: { ...state.appSettings, gpsCorrectionEnabled: enabled } })),
+  setShowFaction: (show) => set({ showFaction: show }),
 
   // Room Actions Implementation
   setCurrentRoom: (room) => set({ currentRoom: room }),
@@ -752,6 +758,7 @@ export const useGameStore = create<GameStore>()(
       appSettings: initialAppSettings,
       selectedTerritoryId: null,
       territoryAppearance: initialTerritoryAppearance,
+      showFaction: initialShowFaction,
       ...initialUserState,
       ...initialLocationState,
       ...initialInventoryState,
@@ -802,6 +809,8 @@ export const useGameStore = create<GameStore>()(
         totalRunsCount: state.totalRunsCount,
         // My Club
         myClub: state.myClub,
+        
+        showFaction: state.showFaction,
         // Current Room
         currentRoom: state.currentRoom,
         joinedRooms: state.joinedRooms,
