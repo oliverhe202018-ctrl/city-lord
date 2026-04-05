@@ -15,6 +15,21 @@ import { cleanAndSplitTrajectory } from '@/lib/gis/geometry-cleaner';
 import { isLoopClosed, LOOP_CLOSURE_THRESHOLD_M, extractValidLoops, type Coord } from '@/lib/geometry-utils';
 import { isTester } from '@/lib/constants/anti-cheat';
 
+// 用 Ramer-Douglas-Peucker 保留关键几何节点，不破坏环路
+function rdpSamplePath(points: any[], maxPoints: number): any[] {
+    if (points.length <= maxPoints) return points;
+    const line = turf.lineString(points.map((p: any) => [p.lng, p.lat]));
+    // 容差从小到大自动收敛，直到点数满足要求
+    let tolerance = 0.00001;
+    let simplified = points;
+    while (simplified.length > maxPoints && tolerance < 0.01) {
+        const result = turf.simplify(line, { tolerance, highQuality: false });
+        simplified = result.geometry.coordinates.map(([lng, lat]: number[]) => ({ lat, lng }));
+        tolerance *= 2;
+    }
+    return simplified;
+}
+
 export interface SaveRunResult {
     runId?: string;
     runNumber?: number;
@@ -166,9 +181,7 @@ export async function saveRunActivity(
         // 2. 轨迹采样降维 (防 O(N²) 爆算)
         const MAX_SERVER_PATH_POINTS = 600;
         const rawPathPoints = (runData.path as any[]) || [];
-        const sampledPath = rawPathPoints.length > MAX_SERVER_PATH_POINTS
-            ? rawPathPoints.filter((_: any, i: number) => i % Math.ceil(rawPathPoints.length / MAX_SERVER_PATH_POINTS) === 0)
-            : rawPathPoints;
+        const sampledPath = rdpSamplePath(rawPathPoints, MAX_SERVER_PATH_POINTS);
 
         // 3. 提取闭环
         const extractedLoops = extractValidLoops(sampledPath, LOOP_CLOSURE_THRESHOLD_M);

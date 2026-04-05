@@ -1,11 +1,10 @@
 import * as turf from '@turf/turf';
 import { Feature, Polygon } from 'geojson';
 import { cleanAndSplitTrajectory } from '../gis/geometry-cleaner';
-import { PrismaClient, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { TerritoryStatsAggregatorService } from '@/lib/services/territory-stats-aggregator';
 import { extractValidLoops, LOOP_CLOSURE_THRESHOLD_M } from '@/lib/geometry-utils';
-
-const prisma = new PrismaClient();
 
 export interface SettlementInput {
     runId: string;
@@ -360,6 +359,24 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
             workingPolygons = newWorkingPolygons;
         }
 
+        // 清理被完全吞噬的历史废块
+        const destroyedAndContainedIds = overlappingTerritories
+            .filter((t: any) => {
+                const beforeHp = Number(t.health ?? t.current_hp ?? 100);
+                const afterHp = Math.max(0, beforeHp - ENEMY_DAMAGE);
+                return afterHp <= 0 && Boolean(t.is_contained);
+            })
+            .map((t: any) => t.id);
+
+        if (destroyedAndContainedIds.length > 0) {
+            await tx.territories.updateMany({
+                where: { id: { in: destroyedAndContainedIds } },
+                data: {
+                    status: 'SUPERSEDED' as any
+                }
+            });
+        }
+
         // 4. Generate New Territories
         // After carving out existing alive territories, we have 1 or more polygons representing empty space + destroyed territories space
 
@@ -381,41 +398,25 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                 // Dual Write: raw SQL required for the standard PostGIS geometry column
                 const geojsonStr = JSON.stringify(shape.geometry);
 
-                await tx.$executeRawUnsafe(`
+                await tx.$executeRaw`
                     INSERT INTO territories (
-                        id, 
-                        city_id,
-                        owner_id, 
-                        owner_club_id, 
-                        geojson, 
-                        geojson_json,
-                        source_run_id,
-                        first_claimed_at, 
-                        last_claimed_at,
-                        max_hp,
-                        current_hp,
-                        health,
-                        territory_type,
-                        score_weight,
-                        status
+                        id, city_id, owner_id, owner_club_id, geojson, geojson_json,
+                        source_run_id, first_claimed_at, last_claimed_at,
+                        max_hp, current_hp, health, territory_type, score_weight, status
                     ) VALUES (
-                        '${newId}', 
-                        '${finalCityId}',
-                        '${userId}', 
-                        ${clubId ? `'${clubId}'` : 'NULL'}, 
-                        ST_CollectionExtract(ST_MakeValid(ST_GeomFromGeoJSON('${geojsonStr}'::text)), 3), 
-                        '${geojsonStr}'::jsonb,
-                        '${runId}',
-                        NOW(), 
-                        NOW(),
-                        1000,
-                        1000,
-                        100,
+                        ${newId},
+                        ${finalCityId},
+                        ${userId}::uuid,
+                        ${clubId ?? null}::uuid,
+                        ST_CollectionExtract(ST_MakeValid(ST_GeomFromGeoJSON(${geojsonStr}::text)), 3),
+                        ${geojsonStr}::jsonb,
+                        ${runId},
+                        NOW(), NOW(), 1000, 1000, 100,
                         'NORMAL'::"TerritoryType",
                         1.0,
                         'ACTIVE'::"TerritoryStatus"
                     )
-                `);
+                `;
 
                 // Log Genesis event
                 await tx.territory_events.create({
