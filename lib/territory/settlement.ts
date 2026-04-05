@@ -117,16 +117,17 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
         maintenanceDetails: []
     };
 
-    let bestPatrolOverlap: {
-        id: string;
-        health: number | null;
-        current_hp: number | null;
-        max_hp: number | null;
-        level: number | null;
-        overlap_ratio: number;
-    } | null = null;
-    try {
-        const overlapRows = await prisma.$queryRaw<any[]>`
+    const settled = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        let bestPatrolOverlap: {
+            id: string;
+            health: number | null;
+            current_hp: number | null;
+            max_hp: number | null;
+            level: number | null;
+            overlap_ratio: number;
+        } | null = null;
+        try {
+            const overlapRows = await tx.$queryRaw<any[]>`
             SELECT
                 t.id,
                 t.health,
@@ -166,7 +167,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
     // 2. Fetch overlapping territories using PostGIS BBox/Intersects (Raw SQL)
     let overlappingTerritories: any[] = [];
     try {
-        overlappingTerritories = await prisma.$queryRaw<any[]>`
+        overlappingTerritories = await tx.$queryRaw<any[]>`
             SELECT 
                 t.id, 
                 t.owner_id,
@@ -191,8 +192,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
         return { success: false, createdTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: `SQL Error: ${sqlErr.message}` };
     }
 
-    const processLogic = async (tx: Prisma.TransactionClient) => {
-        const runnerProfile = await tx.profiles.findUnique({
+    const runnerProfile = await tx.profiles.findUnique({
             where: { id: userId },
             select: { faction: true }
         });
@@ -476,9 +476,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
             `;
         }
         return result; // Add return
-    };
-
-    const settled = await prisma.$transaction(processLogic);
+    }, { timeout: 30000, maxWait: 10000 });
     if (clubId) {
         await TerritoryStatsAggregatorService.processNextBatch();
     }
