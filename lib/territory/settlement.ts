@@ -15,7 +15,6 @@ export interface SettlementInput {
     score_weight?: number;
     /** Pre-processed cleaned polygons — if provided, skip extractValidLoops + cleanAndSplitTrajectory */
     preProcessedPolygons?: Feature<Polygon>[];
-    db?: Prisma.TransactionClient;
 }
 
 export interface DamageDetail {
@@ -51,8 +50,7 @@ export interface SettlementResult {
  * Handles the calculation and database persistence of territory overlaps, damage, and acquisition.
  */
 export async function processTerritorySettlement(input: SettlementInput): Promise<SettlementResult> {
-    const { runId, userId, cityId, clubId, pathGeoJSON, db } = input;
-    const client = db || prisma;
+    const { runId, userId, cityId, clubId, pathGeoJSON } = input;
     const TERRITORY_MAX_HEALTH = 100;
     const ALLY_HEAL = 50;
     const ENEMY_DAMAGE = 20;
@@ -128,7 +126,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
         overlap_ratio: number;
     } | null = null;
     try {
-        const overlapRows = await client.$queryRaw<any[]>`
+        const overlapRows = await prisma.$queryRaw<any[]>`
             SELECT
                 t.id,
                 t.health,
@@ -168,7 +166,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
     // 2. Fetch overlapping territories using PostGIS BBox/Intersects (Raw SQL)
     let overlappingTerritories: any[] = [];
     try {
-        overlappingTerritories = await client.$queryRaw<any[]>`
+        overlappingTerritories = await prisma.$queryRaw<any[]>`
             SELECT 
                 t.id, 
                 t.owner_id,
@@ -480,19 +478,11 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
         return result; // Add return
     };
 
-    if (db) {
-        const settled = await processLogic(db);
-        if (clubId) {
-            await TerritoryStatsAggregatorService.processNextBatch();
-        }
-        return settled;
-    } else {
-        const settled = await prisma.$transaction(processLogic);
-        if (clubId) {
-            await TerritoryStatsAggregatorService.processNextBatch();
-        }
-        return settled;
+    const settled = await prisma.$transaction(processLogic);
+    if (clubId) {
+        await TerritoryStatsAggregatorService.processNextBatch();
     }
+    return settled;
 }
 
 // Utility to flatten GeoJSON objects into Polygons

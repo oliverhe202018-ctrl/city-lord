@@ -222,9 +222,14 @@ export async function saveRunActivity(
                         candidate.bbox[2] <= big.bbox[2] && candidate.bbox[3] <= big.bbox[3]
                     ) {
                         // 优化3：只对极大概率包含的图形进行昂贵的 Turf 运算
-                        if (turf.booleanContains(big.f, candidate.f)) {
-                            isContained = true;
-                            break;
+                        const intersection = turf.intersect(turf.featureCollection([big.f, candidate.f]));
+                        if (intersection) {
+                            const overlapRatio = turf.area(intersection) / candidate.area;
+                            // 只要重叠面积超过 90%，就认为被大圈吞噬，容忍 GPS 边缘漂移
+                            if (overlapRatio > 0.90) {
+                                isContained = true;
+                                break;
+                            }
                         }
                     }
                 }
@@ -500,8 +505,9 @@ export async function saveRunActivity(
                         allDamageDetails.push(...(settlement.damageDetails ?? []));
                         allMaintenanceDetails.push(...(settlement.maintenanceDetails ?? []));
                     }
-                } catch (e) {
-                    console.error('[Settlement] Failed loop settlement:', e);
+                } catch (error) {
+                    // 记录单块领地结算异常，但不中断循环，继续处理下一块地
+                    console.error(`[Territory Settlement Failed] runId: ${result.runId}`, error);
                 }
             }
 
