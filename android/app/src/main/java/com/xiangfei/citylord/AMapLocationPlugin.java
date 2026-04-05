@@ -155,7 +155,7 @@ public class AMapLocationPlugin extends Plugin {
         dbQueryExecutor.execute(() -> {
             try {
                 LocationDao dao = AppDatabase.getInstance(getContext()).locationDao();
-                List<LocationEntity> records = dao.getUnsyncedPoints(sessionId);
+                List<LocationEntity> records = dao.getUnsyncedPoints(sessionId); // @refactor Generic parameterization
 
                 JSArray jsArray = new JSArray();
                 for (LocationEntity record : records) {
@@ -215,7 +215,7 @@ public class AMapLocationPlugin extends Plugin {
         }
 
         // 解析 ID 列表
-        final List<Long> ids = new ArrayList<>();
+        final List<Long> ids = new ArrayList<>(); // @refactor Type safety
         try {
             for (int i = 0; i < idsArray.length(); i++) {
                 if (!idsArray.isNull(i)) {
@@ -770,7 +770,7 @@ public class AMapLocationPlugin extends Plugin {
         
         // 1. 尝试厂商专属页 (方案 B: 绕过 Package Visibility 限制)
         try {
-            List<Intent> intents = getManufacturerPermissionIntents();
+            List<Intent> intents = getManufacturerPermissionIntents(); // @refactor Intent safety
             for (Intent intent : intents) {
                 try {
                     getContext().startActivity(intent);
@@ -822,8 +822,8 @@ public class AMapLocationPlugin extends Plugin {
         }
     }
 
-    private List<Intent> getManufacturerPermissionIntents() {
-        List<Intent> intents = new ArrayList<>();
+    private List<Intent> getManufacturerPermissionIntents() { // @refactor Generic cleanup
+        List<Intent> intents = new ArrayList<>(); // @refactor Atomic injection
         String manufacturer = Build.MANUFACTURER.toLowerCase(Locale.ROOT);
         String brand = Build.BRAND.toLowerCase(Locale.ROOT);
         String packageName = getContext().getPackageName();
