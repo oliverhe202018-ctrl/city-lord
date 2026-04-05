@@ -28,50 +28,6 @@ export interface FriendChallengeCardProps {
   compact?: boolean
 }
 
-const mockFriends: FriendChallenge[] = [
-  {
-    id: "challenge-1",
-    userId: "friend1",
-    userName: "跑步达人",
-    userAvatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=runner1",
-    userLevel: 25,
-    totalTiles: 1250,
-    winRate: 78,
-    challengeType: "conquest",
-    challengeText: "挑战你争夺奥林匹克公园的控制权",
-    difficulty: "medium",
-    timeRemaining: "23:59",
-    isOnline: true,
-  },
-  {
-    id: "challenge-2",
-    userId: "friend2",
-    userName: "夜跑之王",
-    userAvatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=nightrunner2",
-    userLevel: 32,
-    totalTiles: 1890,
-    winRate: 85,
-    challengeType: "defense",
-    challengeText: "发起防守挑战，保护你的领土",
-    difficulty: "hard",
-    timeRemaining: "45:30",
-    isOnline: true,
-  },
-  {
-    id: "challenge-3",
-    userId: "friend3",
-    userName: "城市探险家",
-    userAvatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=explorer3",
-    userLevel: 18,
-    totalTiles: 780,
-    winRate: 65,
-    challengeType: "speed",
-    challengeText: "竞速挑战：谁先占领10个六边形",
-    difficulty: "easy",
-    timeRemaining: "10:00",
-    isOnline: false,
-  },
-]
 
 export function FriendChallengeCard({
   challenge,
@@ -249,7 +205,7 @@ export function FriendChallengeCard({
 }
 
 export function FriendChallengeList({
-  challenges = mockFriends,
+  challenges = [],
   onAccept,
   onReject,
   onViewProfile,

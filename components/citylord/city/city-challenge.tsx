@@ -553,17 +553,8 @@ export function CityLeaderboard({
 
   if (!theme) return null
 
-  // Mock leaderboard data
-  const leaderboardData = [
-    { rank: 1, name: "SpeedRunner", area: 156780, level: 25, isYou: false },
-    { rank: 2, name: "CityHunter", area: 142350, level: 23, isYou: false },
-    { rank: 3, name: "NightOwl", area: 128900, level: 21, isYou: false },
-    { rank: 4, name: "GridMaster", area: 115600, level: 20, isYou: false },
-    { rank: 5, name: "Runner_01", area: 100620, level: 18, isYou: true },
-    { rank: 6, name: "FlashStep", area: 98500, level: 17, isYou: false },
-    { rank: 7, name: "TerritoryKing", area: 87200, level: 16, isYou: false },
-    { rank: 8, name: "UrbanExplorer", area: 76500, level: 15, isYou: false },
-  ]
+  // TODO: Fetch real leaderboard data from API
+  const leaderboardData: { rank: number; name: string; area: number; level: number; isYou: boolean }[] = []
 
   const formatArea = (area: number) => {
     if (area >= 10000) {
@@ -619,32 +610,42 @@ export function CityLeaderboard({
       </div>
 
       {/* Your Rank Card */}
-      <div className="mx-4 -mt-4 mb-4 rounded-2xl border border-cyan-400/30 bg-cyan-400/10 p-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-cyan-400/20 text-lg font-bold text-cyan-400">
-            #5
+      {leaderboardData.length > 0 && (() => {
+        const myData = leaderboardData.find(p => p.isYou)
+        if (!myData) return null
+        return (
+          <div className="mx-4 -mt-4 mb-4 rounded-2xl border border-cyan-400/30 bg-cyan-400/10 p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-cyan-400/20 text-lg font-bold text-cyan-400">
+                #{myData.rank}
+              </div>
+              <div className="flex-1">
+                <p className="font-bold text-white">{language === "zh" ? "你的排名" : "Your Rank"}</p>
+                <p className="text-sm text-white/60">
+                  {formatArea(myData.area)} {language === "zh" ? "占领面积" : "captured"}
+                </p>
+              </div>
+            </div>
           </div>
-          <div className="flex-1">
-            <p className="font-bold text-white">{language === "zh" ? "你的排名" : "Your Rank"}</p>
-            <p className="text-sm text-white/60">
-              {formatArea(100620)} {language === "zh" ? "占领面积" : "captured"}
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="text-sm text-cyan-400">{language === "zh" ? "距上一名" : "To next rank"}</p>
-            <p className="font-bold text-white">{formatArea(15000)}</p>
-          </div>
-        </div>
-      </div>
+        )
+      })()}
 
       {/* Leaderboard List */}
       <div className="px-4 pb-8">
+        {leaderboardData.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-white/40">
+            <Trophy className="mb-3 h-12 w-12 opacity-30" />
+            <p className="text-sm">{language === "zh" ? "暂无排行数据" : "No leaderboard data yet"}</p>
+          </div>
+        ) : (
+        <>
         {/* Top 3 */}
         <div className="mb-6 flex justify-center gap-4">
           {leaderboardData.slice(0, 3).map((player, i) => {
             const positions = [1, 0, 2] // Silver, Gold, Bronze order
             const pos = positions[i]
             const actualPlayer = leaderboardData[pos]
+            if (!actualPlayer) return null
             const sizes = ["h-24 w-24", "h-28 w-28 -mt-4", "h-24 w-24"]
             const colors = ["bg-gray-400", "bg-yellow-400", "bg-orange-400"]
             const icons = ["🥈", "🥇", "🥉"]
@@ -702,6 +703,8 @@ export function CityLeaderboard({
             </div>
           ))}
         </div>
+        </>
+        )}
       </div>
     </div>
   )

@@ -4,11 +4,8 @@ import { Map, User, Users, Home, Play } from "lucide-react"
 import { useGameStore, useGameActions } from "@/store/useGameStore"
 import { useEffect } from "react"
 import { motion } from "framer-motion"
-import { getUnreadSocialCount } from "@/app/actions/social-hub"
+import { getUnreadNotificationCount } from "@/app/actions/notification"
 import { getUnreadMessageCount } from "@/app/actions/message"
-
-
-
 
 export type TabType = "home" | "play" | "start" | "missions" | "social" | "profile" | "leaderboard" | "mode"
 
@@ -20,8 +17,8 @@ interface BottomNavProps {
 export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
   const unreadMessageCount = useGameStore((state) => state.unreadMessageCount)
   const setUnreadMessageCount = useGameStore((state) => state.setUnreadMessageCount)
-  const unreadSocialCount = useGameStore((state) => state.unreadSocialCount)
-  const setUnreadSocialCount = useGameStore((state) => state.setUnreadSocialCount)
+  const unreadNotificationCount = useGameStore((state) => state.unreadNotificationCount)
+  const setUnreadNotificationCount = useGameStore((state) => state.setUnreadNotificationCount)
   const { closeDrawer } = useGameActions()
 
   useEffect(() => {
@@ -30,8 +27,8 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
         const msgRes = await getUnreadMessageCount()
         setUnreadMessageCount(msgRes)
 
-        const socialRes = await getUnreadSocialCount()
-        if (socialRes.success) setUnreadSocialCount(socialRes.count || 0)
+        const notifCount = await getUnreadNotificationCount()
+        setUnreadNotificationCount(notifCount)
       } catch (e) {
         console.error("Polling error:", e)
       }
@@ -48,13 +45,13 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
     }, 45000)
 
     return () => clearInterval(interval)
-  }, [setUnreadMessageCount, setUnreadSocialCount])
+  }, [setUnreadMessageCount, setUnreadNotificationCount])
 
   const tabs = [
     { id: "home" as const, icon: Home, label: "首页" },
     { id: "play" as const, icon: Map, label: "地图" },
     { id: "start" as const, icon: Play, label: "开始" },
-    { id: "social" as const, icon: Users, label: "社交", badge: unreadMessageCount + unreadSocialCount },
+    { id: "social" as const, icon: Users, label: "社交", badge: unreadMessageCount + unreadNotificationCount },
     { id: "profile" as const, icon: User, label: "个人" },
   ]
 

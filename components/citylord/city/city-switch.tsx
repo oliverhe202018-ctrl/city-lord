@@ -227,12 +227,12 @@ export function CityHomePage({
 
   if (!theme) return null
 
-  // Mock data
+  // TODO: Fetch real city stats from API
   const cityStats = {
-    totalArea: 156780,
-    occupationRate: 23.5,
-    activePlayers: 1247,
-    yourRank: 42,
+    totalArea: 0,
+    occupationRate: 0,
+    activePlayers: 0,
+    yourRank: 0,
   }
 
   return (
@@ -501,22 +501,10 @@ export function CityHomePage({
             {language === "zh" ? "城市好友" : "City Friends"}
           </h3>
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex -space-x-2">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <div
-                    key={i}
-                    className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-[#0a0f1a] bg-white/20 text-xs font-bold text-white"
-                  >
-                    {String.fromCharCode(64 + i)}
-                  </div>
-                ))}
-              </div>
-              <div className="text-right">
-                <p className="text-lg font-bold text-white">12</p>
-                <p className="text-xs text-white/50">
-                  {language === "zh" ? "位好友在此城市" : "friends in this city"}
-                </p>
+            <div className="flex items-center justify-center py-4 text-white/40">
+              <div className="text-center">
+                <Users className="mx-auto mb-2 h-8 w-8 opacity-30" />
+                <p className="text-sm">{language === "zh" ? "暂无城市好友数据" : "No friends data yet"}</p>
               </div>
             </div>
             <button className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 py-3 text-sm font-medium text-white transition-all hover:bg-white/10">

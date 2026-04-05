@@ -5,6 +5,7 @@ import React from "react"
 import { useState, useEffect, createContext, useContext } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/useAuth"
+import { useGameStore } from "@/store/useGameStore"
 import { formatDistanceToNow } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
 
@@ -443,27 +444,36 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   }
 
   const markAsRead = async (id: string) => {
+    const wasUnread = notifications.find(n => n.id === id && !n.read)
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n))
     )
     if (user?.id) {
       await supabase.from('notifications').update({ is_read: true }).eq('id', id)
+      if (wasUnread) {
+        const { unreadNotificationCount, setUnreadNotificationCount } = useGameStore.getState()
+        setUnreadNotificationCount(Math.max(0, unreadNotificationCount - 1))
+      }
     }
   }
 
   const markAllAsRead = async () => {
+    const unreadIds = notifications.filter(n => !n.read).map(n => n.id)
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
-    if (user?.id) {
+    if (user?.id && unreadIds.length > 0) {
       await supabase.from('notifications').update({ is_read: true }).eq('user_id', user.id)
+      const { unreadNotificationCount, setUnreadNotificationCount } = useGameStore.getState()
+      setUnreadNotificationCount(Math.max(0, unreadNotificationCount - unreadIds.length))
     }
   }
 
   const clearAll = async () => {
+    const unreadCount = notifications.filter(n => !n.read).length
     setNotifications([])
     if (user?.id) {
-      // Soft delete or just clear local? Let's just clear local for UI
-      // Or actually delete from DB?
       await supabase.from('notifications').delete().eq('user_id', user.id)
+      const { unreadNotificationCount, setUnreadNotificationCount } = useGameStore.getState()
+      setUnreadNotificationCount(Math.max(0, unreadNotificationCount - unreadCount))
     }
   }
 
@@ -501,43 +511,3 @@ export function useNotifications() {
   }
   return context
 }
-
-// Sample notifications for demo
-export const sampleNotifications: Notification[] = Array.from({ length: 5 }, (_, i) => {
-  const types: NotificationType[] = ["battle", "achievement", "challenge", "friend", "reward", "system", "activity"]
-  const type = types[i % types.length]
-  const timeAgo = i === 0 ? "刚刚" : `${i * 5 + Math.floor(Math.random() * 5)}分钟前`
-
-  const titles: Record<NotificationType, string> = {
-    battle: "领地争夺战报",
-    achievement: "解锁新成就",
-    challenge: "收到挑战邀请",
-    friend: "好友动态",
-    reward: "系统奖励",
-    system: "系统公告",
-    activity: "活动提醒",
-  }
-
-  const messages: Record<NotificationType, string> = {
-    battle: `你在 ${["中央广场", "科技园", "滨海公园", "体育中心"][i % 4]} 的领地遭遇攻击`,
-    achievement: `恭喜达成里程碑：累计跑步 ${10 + i * 5} 公里`,
-    challenge: `跑者 Player_${1000 + i} 向你发起了竞速挑战`,
-    friend: `你的好友 Runner_${200 + i} 刚刚完成了一次 5km 跑`,
-    reward: `完成每日任务，获得 ${50 + i * 10} 金币`,
-    system: "服务器将于今晚进行例行维护",
-    activity: "你报名的活动即将开始，请做好准备！",
-  }
-
-  return {
-    id: `${i + 1}`,
-    type,
-    title: titles[type],
-    message: messages[type],
-    timestamp: timeAgo,
-    read: i > 4, // 前5条未读
-    action: type === "challenge" || type === "battle" ? {
-      label: type === "challenge" ? "查看" : "反击",
-      handler: () => { }
-    } : undefined,
-  }
-})

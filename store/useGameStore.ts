@@ -30,7 +30,7 @@ export interface UserState {
   avatar: string;
   achievements: Record<string, boolean>; // id -> claimed
   unreadMessageCount: number;
-  unreadSocialCount: number;
+  unreadNotificationCount: number;
   clubId: string | null; // 鏂板锛氬綋鍓嶄勘涔愰儴ID
   backgroundUrl?: string | null;
   totalRunsCount: number;
@@ -157,7 +157,7 @@ export interface UserActions {
   setNickname: (nickname: string) => void;
   updateClubId: (clubId: string | null) => void;
   setUnreadMessageCount: (count: number) => void;
-  setUnreadSocialCount: (count: number) => void;
+  setUnreadNotificationCount: (count: number) => void;
   addExperience: (amount: number) => void;
   addCoins: (amount: number) => void;
   levelUp: () => void;
@@ -258,7 +258,7 @@ const initialUserState: UserState = {
   avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=default',
   achievements: {},
   unreadMessageCount: 0,
-  unreadSocialCount: 0,
+  unreadNotificationCount: 0,
   clubId: null,
   backgroundUrl: null,
   totalRunsCount: 0,
@@ -434,7 +434,7 @@ const createUserSlice: StateCreator<GameStore, [], [], UserActions> = (set, get)
   setNickname: (nickname) => set({ nickname }),
   updateClubId: (clubId) => set({ clubId }),
   setUnreadMessageCount: (count) => set({ unreadMessageCount: count }),
-  setUnreadSocialCount: (count) => set({ unreadSocialCount: count }),
+  setUnreadNotificationCount: (count) => set({ unreadNotificationCount: count }),
   addExperience: (amount) => set((state) => {
     const newExp = state.currentExp + amount;
     const newLevel = Math.floor(newExp / 1000) + 1; // Simplified leveling
@@ -793,7 +793,7 @@ export const useGameStore = create<GameStore>()(
         avatar: state.avatar,
         achievements: state.achievements,
         unreadMessageCount: state.unreadMessageCount,
-        unreadSocialCount: state.unreadSocialCount,
+        unreadNotificationCount: state.unreadNotificationCount,
         totalRunsCount: state.totalRunsCount,
         // My Club
         myClub: state.myClub,
@@ -838,7 +838,7 @@ export const useGameActions = () => {
       setNickname: state.setNickname,
       updateClubId: state.updateClubId,
       setUnreadMessageCount: state.setUnreadMessageCount,
-      setUnreadSocialCount: state.setUnreadSocialCount,
+      setUnreadNotificationCount: state.setUnreadNotificationCount,
       addExperience: state.addExperience,
       addCoins: state.addCoins,
       levelUp: state.levelUp,

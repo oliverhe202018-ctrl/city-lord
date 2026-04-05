@@ -5,40 +5,15 @@ import { Database } from '@/types/supabase'
 
 type Message = Database['public']['Tables']['messages']['Row']
 
+/**
+ * @deprecated System messages have been migrated to the `notifications` table.
+ * Use `sendSystemNotification()` from `@/app/actions/notification` instead.
+ * The `messages` table is now strictly reserved for real Private Chat only.
+ */
 export async function createSystemMessage(receiverId: string, content: string) {
-  const supabase = await createClient()
-
-  // System messages don't need a sender_id (null)
-  // We skip the user check because this might be called by server actions where the context is already validated
-  // However, we still need a client.
-  // Note: To insert with sender_id = null, the RLS policy must allow it. 
-  // If the user inserts it, RLS might enforce sender_id = auth.uid().
-  // If we are strictly client-side calling this, we can't set sender_id to null easily if RLS forbids.
-  // BUT this is a server action. If we use a service role key we can bypass RLS, but here we use the user's client.
-  // Let's assume the "messages" table allows authenticated users to insert records where sender_id IS NULL if type is 'system'?
-  // Or more likely, the system messages are created by triggers or admin functions.
-  // If this action is called by the USER context, the user is technically the "sender" or the "triggerer".
-  // But for "Reward Claim", the system is the sender.
-  // Ideally we should use a Service Role client here, but we don't have `SUPABASE_SERVICE_ROLE_KEY` in env vars typically available to client actions easily (unless configured).
-  // FOR NOW: We will try to insert with the current user's client. If RLS blocks sender_id=NULL, we might need to adjust RLS.
-  // User asked to fix RLS for user_missions, maybe messages RLS is also strict.
-  // Let's assume the user wants us to try to insert it.
-
-  const { error } = await (supabase
-    .from('messages' as any) as any)
-    .insert({
-      user_id: receiverId,
-      sender_id: null,
-      type: 'system',
-      content,
-      is_read: false
-    })
-
-  if (error) {
-    console.error('Failed to create system message:', error)
-    return { success: false, error }
-  }
-  return { success: true }
+  // Route all system messages to the notifications table
+  const { sendSystemNotification } = await import('./notification')
+  return sendSystemNotification(receiverId, '系统消息', content, 'system')
 }
 
 interface AudioInfo {
@@ -162,6 +137,7 @@ export async function getUnreadMessageCount() {
     .select('*', { count: 'exact', head: true })
     .eq('user_id', user.id)
     .eq('is_read', false)
+    .neq('type', 'system')
 
   if (error) {
     return 0

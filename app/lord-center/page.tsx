@@ -48,30 +48,18 @@ export default function LordCenterPage() {
       return null
    }
 
-   // Mock Photos for the top grid (Step 2 photos)
-   const photos = [
-      "/placeholder-photo-1.jpg",
-      "/placeholder-photo-2.jpg",
-      "/placeholder-photo-3.jpg",
-   ]
+   // Photos will be loaded from user gallery in the future
+   const photos: string[] = []
 
    const level = calculateLevel(userStats?.xp || 0)
 
-   // Mock Weekly Data
-   const weeklyData = [
-      { day: 'Dec', val: 85.1 },
-      { day: '15.5', val: 35.5 },
-      { day: '39.2', val: 39.2 },
-      { day: '36.2', val: 36.2 },
-      { day: '38.9', val: 38.9 },
-      { day: '28.8', val: 28.8 },
-      { day: 'Jan', val: 97.9 },
-      { day: '105.1', val: 105.1 },
-      { day: '67.6', val: 67.6 },
-      { day: '114.2', val: 114.2 },
-      { day: 'Feb', val: 47.4 },
-      { day: '44.3', val: 44.3 },
-   ]
+   // Weekly Data from real activities
+   const weeklyData = activities.length > 0
+     ? activities.slice(0, 12).map((a: any) => ({
+         day: new Date(a.created_at).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }),
+         val: a.distance_km || 0
+       }))
+     : []
 
    const handleBgChange = (url: string) => {
       setBgImage(url)
@@ -140,7 +128,7 @@ export default function LordCenterPage() {
                   {/* Likes */}
                   <div className="absolute bottom-4 right-4 z-10 flex items-center gap-1.5 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full">
                      <Heart className="w-4 h-4 text-red-500 fill-red-500" />
-                     <span className="text-sm font-bold">1,024</span>
+                     <span className="text-sm font-bold">--</span>
                   </div>
                </div>
 
@@ -162,11 +150,11 @@ export default function LordCenterPage() {
             <div className="mt-20 px-6">
                <div className="flex items-center justify-between">
                   <div className="text-center">
-                     <div className="text-lg font-bold">23</div>
+                     <div className="text-lg font-bold">--</div>
                      <div className="text-xs text-white/50">Following</div>
                   </div>
                   <div className="text-center">
-                     <div className="text-lg font-bold">25</div>
+                     <div className="text-lg font-bold">--</div>
                      <div className="text-xs text-white/50">Followers</div>
                   </div>
 
@@ -192,15 +180,15 @@ export default function LordCenterPage() {
                {/* Pace Stats */}
                <div className="grid grid-cols-3 gap-4 mt-8 text-center">
                   <div>
-                     <div className="text-xl font-bold">5:47</div>
+                     <div className="text-xl font-bold">--</div>
                      <div className="text-xs text-white/50">1km PB</div>
                   </div>
                   <div>
-                     <div className="text-xl font-bold">29:30</div>
+                     <div className="text-xl font-bold">--</div>
                      <div className="text-xs text-white/50">5km PB</div>
                   </div>
                   <div>
-                     <div className="text-xl font-bold">59:10</div>
+                     <div className="text-xl font-bold">--</div>
                      <div className="text-xs text-white/50">10km PB</div>
                   </div>
                </div>

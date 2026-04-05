@@ -53,7 +53,7 @@ interface CounterAttackPageProps {
 }
 
 export function CounterAttackPage({
-  territories = sampleTerritories,
+  territories = [],
   onStartCounterAttack,
   onViewMap,
 }: CounterAttackPageProps) {
@@ -432,44 +432,3 @@ export function CounterAttackProgressView({
   )
 }
 
-// Sample data
-const sampleTerritories: OccupiedTerritory[] = [
-  {
-    id: "1",
-    name: "中央广场",
-    coordinates: "H7-K3",
-    occupiedAt: "2025-01-25 10:30",
-    occupier: {
-      name: "NightHunter",
-      level: 12,
-      clan: "暗影军团",
-    },
-    expiresIn: 1800, // 30 minutes
-    requiredDistance: 500,
-  },
-  {
-    id: "2",
-    name: "科技园区",
-    coordinates: "D4-F8",
-    occupiedAt: "2025-01-25 09:15",
-    occupier: {
-      name: "SpeedDemon",
-      level: 15,
-    },
-    expiresIn: 7200, // 2 hours
-    requiredDistance: 800,
-  },
-  {
-    id: "3",
-    name: "滨江步道",
-    coordinates: "A2-C5",
-    occupiedAt: "2025-01-24 22:00",
-    occupier: {
-      name: "GridMaster",
-      level: 18,
-      clan: "闪电战队",
-    },
-    expiresIn: 14400, // 4 hours
-    requiredDistance: 1000,
-  },
-]

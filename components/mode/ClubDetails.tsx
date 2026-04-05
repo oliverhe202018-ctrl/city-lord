@@ -119,7 +119,7 @@ export default function ClubDetails({ club: propClub, onBack }: ClubDetailsProps
                     member: t.member || '',
                     memberName: t.memberName || 'Unknown',
                     lastTime: t.lastTime,
-                    pace: '5:30', // Mock
+                    pace: t.pace, // Use real data from API
                     location: t.location
                 })));
 
@@ -418,35 +418,10 @@ export default function ClubDetails({ club: propClub, onBack }: ClubDetailsProps
               <TrendingUp className="w-5 h-5" />
               俱乐部领地随时间变化
             </h3>
-            <div className="relative h-64 bg-zinc-900/50 rounded-lg p-4">
-              <div className="absolute bottom-0 left-0 right-0 h-48">
-                <svg className="w-full h-full" viewBox="0 0 400 192">
-                  <path
-                    d="M 20 180 L 60 160 L 100 140 L 140 120 L 180 100 L 220 80 L 260 60 L 300 40 L 340 20"
-                    stroke="white"
-                    strokeWidth="2"
-                    fill="none"
-                  />
-                  <path
-                    d="M 20 180 L 60 160 L 100 140 L 140 120 L 180 100 L 220 80 L 260 60 L 300 40 L 340 20 L 340 180 L 20 180"
-                    stroke="none"
-                    fill="rgba(255, 255, 255, 0.1)"
-                  />
-                </svg>
-              </div>
-              <div className="absolute left-0 top-0 bottom-0 flex flex-col justify-between text-xs text-white/60">
-                <span>579.1 mi²</span>
-                <span>386.1 mi²</span>
-                <span>193.1 mi²</span>
-                <span>0 mi²</span>
-              </div>
-              <div className="absolute bottom-0 left-0 right-0 flex justify-between text-xs text-white/60">
-                <span>02/10</span>
-                <span>09/09</span>
-                <span>10/19</span>
-                <span>11/25</span>
-                <span>12/26</span>
-                <span>01/28</span>
+            <div className="relative h-64 bg-zinc-900/50 rounded-lg p-4 flex items-center justify-center">
+              <div className="text-center text-white/40">
+                <LineChart className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                <p className="text-sm">数据积累中，持续跑步即可查看趋势图</p>
               </div>
             </div>
           </div>

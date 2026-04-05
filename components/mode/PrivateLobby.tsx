@@ -3,7 +3,7 @@
 
 import { useState, memo, useCallback, useMemo } from 'react';
 import useSWR from 'swr';
-import { mockPublicRooms } from '@/data/public-rooms';
+
 import { RoomCard } from './RoomCard';
 import type { PublicRoom } from '@/data/public-rooms';
 import { toast } from 'sonner';
@@ -23,7 +23,7 @@ export const PrivateLobby = memo(function PrivateLobby() {
 
   // Transform server data to UI format
   const rooms: PublicRoom[] = useMemo(() => {
-    if (!serverRooms || serverRooms.length === 0) return mockPublicRooms;
+    if (!serverRooms || serverRooms.length === 0) return [];
     
     return serverRooms.map(r => ({
       id: r.id,
