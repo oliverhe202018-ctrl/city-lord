@@ -1,5 +1,7 @@
 'use server';
 
+export const maxDuration = 60; // 允许 Serverless 函数最多执行 60 秒
+
 import { prisma } from '@/lib/prisma';
 import { evaluateTasks, RunData, TaskResult } from '@/lib/game/task-engine';
 import { revalidatePath, revalidateTag } from 'next/cache';
@@ -163,7 +165,15 @@ export async function saveRunActivity(
         const isBlockedByAntiCheat = isFlagged || isPedometerInvalid;
         const flagReason = metadataValidation.flagReason || (pathValidation.riskLevel === 'HIGH' ? 'PATH_ANALYSIS_FAILED' : undefined);
 
-        const extractedLoops = extractValidLoops((runData.path as any[]) || [], LOOP_CLOSURE_THRESHOLD_M);
+        // 2. 轨迹采样降维 (防 O(N²) 爆算)
+        const MAX_SERVER_PATH_POINTS = 600;
+        const rawPathPoints = (runData.path as any[]) || [];
+        const sampledPath = rawPathPoints.length > MAX_SERVER_PATH_POINTS
+            ? rawPathPoints.filter((_: any, i: number) => i % Math.ceil(rawPathPoints.length / MAX_SERVER_PATH_POINTS) === 0)
+            : rawPathPoints;
+
+        // 3. 提取闭环
+        const extractedLoops = extractValidLoops(sampledPath, LOOP_CLOSURE_THRESHOLD_M);
         let finalPolygons: Coord[][] = extractedLoops;
 
         // Settlement Gating
@@ -175,70 +185,53 @@ export async function saveRunActivity(
             console.log(`[saveRunActivity] MEDIUM risk run. Polygons neutralized for user: ${userId}`);
         }
 
-        // ── Phase 1: Pre-process territory polygons BEFORE transaction ──
-        const preProcessedTerritories: Array<{
-            polyFeature: Feature<Polygon>;
-            cleanedPolygons: Feature<Polygon>[];
-        }> = [];
+        // 4. 大圈吞噬小圈核心算法 (BBox 加速)
+        function deduplicateByContainment(polygons: any[]): any[] {
+            if (polygons.length <= 1) return polygons;
 
-        if (finalPolygons.length > 0 && !isFlagged && pathValidation.riskLevel === 'LOW') {
-            for (const polyPoints of finalPolygons) {
-                const loopCheck = isLoopClosed(
-                    polyPoints.map((point: Coord, index: number) => ({
-                        lat: point.lat, lng: point.lng, timestamp: point.timestamp ?? index
-                    })),
-                    LOOP_CLOSURE_THRESHOLD_M
-                );
-                if (!loopCheck.isClosed) continue;
+            const withData = polygons.map(polyPts => {
+                const coords = polyPts.map((p: any) => [p.lng, p.lat] as [number, number]);
+                if (coords.length > 0 && (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1])) {
+                    coords.push([...coords[0]]);
+                }
+                const f = turf.polygon([coords]);
+                return { original: polyPts, f, area: turf.area(f), bbox: turf.bbox(f) };
+            });
 
-                const coords = polyPoints.map((p: Coord) => [p.lng, p.lat] as [number, number]);
-                try {
-                    const polyFeature = turf.polygon([coords]) as Feature<Polygon>;
-                    // Run geometry cleaning (unkink, simplify) outside transaction
-                    const cleaned = cleanAndSplitTrajectory(coords);
-                    if (cleaned.length > 0) {
-                        preProcessedTerritories.push({ polyFeature, cleanedPolygons: cleaned });
+            // 优化1：过滤 < 50 平米的 GPS 漂移噪点，并按面积降序排列
+            const sorted = withData.filter(x => x.area >= 50).sort((a, b) => b.area - a.area);
+
+            const survivors: typeof sorted = [];
+            for (const candidate of sorted) {
+                let isContained = false;
+                for (const big of survivors) {
+                    // 优化2：BBox (包围盒) 快速拒绝。不相交的包围盒绝对不可能包含
+                    if (
+                        candidate.bbox[0] >= big.bbox[0] && candidate.bbox[1] >= big.bbox[1] &&
+                        candidate.bbox[2] <= big.bbox[2] && candidate.bbox[3] <= big.bbox[3]
+                    ) {
+                        // 优化3：只对极大概率包含的图形进行昂贵的 Turf 运算
+                        if (turf.booleanContains(big.f, candidate.f)) {
+                            isContained = true;
+                            break;
+                        }
                     }
-                } catch (e) {
-                    console.warn(`[Pre-process] Skipping invalid polygon:`, e);
                 }
+                if (!isContained) survivors.push(candidate);
             }
+            return survivors.map(s => s.original);
         }
 
-        // ── Phase 2: Macro-Territory Merge ("Big eats Small") ──
-        let finalTerritoriesToSave = preProcessedTerritories;
+        const polygonsForSettlement = (isBlockedByAntiCheat || pathValidation.riskLevel === 'MEDIUM') ? [] : deduplicateByContainment(finalPolygons);
 
-        if (preProcessedTerritories.length > 1) {
-            const withArea = preProcessedTerritories.map(t => ({
-                ...t,
-                area: turf.area(t.polyFeature)
-            }));
-            withArea.sort((a, b) => b.area - a.area);
-
-            const survivors: typeof withArea = [];
-            for (const candidate of withArea) {
-                const isContained = survivors.some(big =>
-                    turf.booleanContains(big.polyFeature, candidate.polyFeature)
-                );
-                if (!isContained) {
-                    survivors.push(candidate);
-                }
+        // 5. 直接在内存中累加真实占领的领地面积，拒绝虚高
+        const accurateAreaKm2 = polygonsForSettlement.reduce((sum, polyPts) => {
+            const coords = polyPts.map((p: any) => [p.lng, p.lat] as [number, number]);
+            if (coords.length > 0 && (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1])) {
+                coords.push([...coords[0]]);
             }
-
-            finalTerritoriesToSave = survivors;
-
-            if (finalTerritoriesToSave.length < preProcessedTerritories.length) {
-                console.log(
-                    `[Territory Merge] ${preProcessedTerritories.length} loops → ` +
-                    `${finalTerritoriesToSave.length} after big-eats-small filter`
-                );
-            }
-        }
-
-        // ── Phase 1 (cont.): Calculate accurate area from surviving polygons ──
-        const accurateAreaKm2 = finalTerritoriesToSave.reduce((sum, t) => {
-            return sum + turf.area(t.polyFeature);
-        }, 0) / 1_000_000;
+            return sum + (turf.area(turf.polygon([coords])) / 1000000); // 平方米转平方公里
+        }, 0);
 
         // 3. Prepare Run Data for Evaluation
         const evaluationData: RunData = {
@@ -307,12 +300,10 @@ export async function saveRunActivity(
                     runNumber: 0, // Not precisely needed for shadowban
                     newTasks: [],
                     rewards: { coins: 0, xp: 0 },
-                    damageSummary: [],
-                    maintenanceSummary: [],
-                    settledTerritoriesCount: 0,
                     isValid: !isPedometerInvalid,
                     antiCheatLog: pedometerAntiCheatLog,
-                    totalSteps: submittedTotalSteps
+                    totalSteps: submittedTotalSteps,
+                    isFlagged: true
                 };
             }
 
@@ -391,40 +382,12 @@ export async function saveRunActivity(
             totalCoins = Math.floor(totalCoins * penaltyMultiplier);
             totalXp = Math.floor(totalXp * penaltyMultiplier) + eventReward.xp;
 
-            // C. Territory Settlement — pure DB writes only
-            let settledTerritoriesCount = 0;
-            const allDamageDetails: any[] = [];
-            const allMaintenanceDetails: any[] = [];
-
-            for (const terrData of finalTerritoriesToSave) {
-                const cityId = (runData as any).cityId || "default_city";
-
-                const settlement = await processTerritorySettlement({
-                    runId: run.id,
-                    userId: userId,
-                    cityId: cityId,
-                    clubId: runnerClubId,
-                    pathGeoJSON: terrData.polyFeature,
-                    preProcessedPolygons: terrData.cleanedPolygons,
-                    db: tx
-                });
-                if (settlement.success) {
-                    settledTerritoriesCount += settlement.createdTerritories;
-                    if (settlement.damageDetails) {
-                        allDamageDetails.push(...settlement.damageDetails);
-                    }
-                    if (settlement.maintenanceDetails) {
-                        allMaintenanceDetails.push(...settlement.maintenanceDetails);
-                    }
-                }
-            }
-
-            // D. Get Run Number
+            // C. Get Run Number
             const runNumber = await tx.runs.count({
                 where: { user_id: userId }
             });
 
-            // E. Update City Progress — accurateAreaKm2 pre-computed outside tx
+            // D. Update City Progress — accurateAreaKm2 pre-computed outside tx
             if (!isFlagged) {
                 const cityId = (runData as any).cityId || "default_city";
 
@@ -437,14 +400,13 @@ export async function saveRunActivity(
                     },
                     update: {
                         area_controlled: { increment: accurateAreaKm2 },
-                        tiles_captured: { increment: settledTerritoriesCount },
                         last_active_at: new Date()
                     },
                     create: {
                         user_id: userId,
                         city_id: cityId,
                         area_controlled: accurateAreaKm2,
-                        tiles_captured: settledTerritoriesCount,
+                        tiles_captured: 0, // 数量会在微事务中补充
                         last_active_at: new Date(),
                         joined_at: new Date()
                     }
@@ -469,12 +431,10 @@ export async function saveRunActivity(
                     runNumber: updatedProfile.total_runs_count,
                     newTasks,
                     rewards: { coins: totalCoins, xp: totalXp },
-                    damageSummary: allDamageDetails,
-                    maintenanceSummary: allMaintenanceDetails,
-                    settledTerritoriesCount: settledTerritoriesCount,
                     isValid: true,
                     antiCheatLog: null,
-                    totalSteps: submittedTotalSteps
+                    totalSteps: submittedTotalSteps,
+                    isFlagged: false
                 };
             }
 
@@ -483,14 +443,66 @@ export async function saveRunActivity(
                 runNumber: 0,
                 newTasks,
                 rewards: { coins: totalCoins, xp: totalXp },
-                damageSummary: allDamageDetails,
-                maintenanceSummary: allMaintenanceDetails,
-                settledTerritoriesCount: settledTerritoriesCount,
                 isValid: true,
                 antiCheatLog: null,
-                totalSteps: submittedTotalSteps
+                totalSteps: submittedTotalSteps,
+                isFlagged: true
             };
         }, { timeout: 30000, maxWait: 10000 });
+
+        // Phase 3: 主事务外部异步结算领地 (核心解耦)
+        let settledTerritoriesCount = 0;
+        const allDamageDetails: any[] = [];
+        const allMaintenanceDetails: any[] = [];
+
+        if (!result.isFlagged) {
+            for (const polyPoints of polygonsForSettlement) {
+                const loopCheck = isLoopClosed(
+                    polyPoints.map((pt: any, i: number) => ({ ...pt, timestamp: pt.timestamp ?? i })),
+                    LOOP_CLOSURE_THRESHOLD_M
+                );
+                if (!loopCheck.isClosed) continue;
+
+                const coords = polyPoints.map((p: any) => [p.lng, p.lat] as [number, number]);
+                if (coords.length > 0 && (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1])) {
+                    coords.push([...coords[0]]);
+                }
+
+                try {
+                    const polyFeature = turf.polygon([coords]);
+                    // 在外部预处理几何
+                    const cleaned = cleanAndSplitTrajectory(coords);
+                    const cityId = (runData as any).cityId || 'default_city';
+
+                    // 独立调用，不传入 db，让 settlement 自己开微事务
+                    const settlement = await processTerritorySettlement({
+                        runId: result.runId,
+                        userId,
+                        cityId,
+                        clubId: runnerClubId,
+                        pathGeoJSON: polyFeature as any,
+                        preProcessedPolygons: cleaned as any
+                    });
+
+                    if (settlement.success) {
+                        settledTerritoriesCount += settlement.createdTerritories;
+                        allDamageDetails.push(...(settlement.damageDetails ?? []));
+                        allMaintenanceDetails.push(...(settlement.maintenanceDetails ?? []));
+                    }
+                } catch (e) {
+                    console.error('[Settlement] Failed loop settlement:', e);
+                }
+            }
+
+            // 补充更新占领的小图块数量
+            if (settledTerritoriesCount > 0) {
+                const cityId = (runData as any).cityId || 'default_city';
+                await prisma.user_city_progress.update({
+                    where: { user_id_city_id: { user_id: userId, city_id: cityId } },
+                    data: { tiles_captured: { increment: settledTerritoriesCount } }
+                }).catch(e => console.error('[Settlement] Failed to update tiles_captured', e));
+            }
+        }
 
 
         revalidatePath('/dashboard');
@@ -529,7 +541,7 @@ export async function saveRunActivity(
                     : 0;
                 await updateChallengeProgress(userId, {
                     distance_meters: evaluationData.distance,
-                    hexes_claimed: result.settledTerritoriesCount ?? 0,
+                    hexes_claimed: settledTerritoriesCount,
                     pace_seconds_per_km: paceSecondsPerKm,
                 });
                 console.log(`[Challenge] Progress updated for user: ${userId}`);
@@ -545,9 +557,9 @@ export async function saveRunActivity(
                 runNumber: result.runNumber,
                 newTasks: result.newTasks,
                 totalReward: result.rewards,
-                damageSummary: result.damageSummary,
-                maintenanceSummary: result.maintenanceSummary,
-                settledTerritoriesCount: result.settledTerritoriesCount,
+                damageSummary: allDamageDetails,
+                maintenanceSummary: allMaintenanceDetails,
+                settledTerritoriesCount: settledTerritoriesCount,
                 isValid: result.isValid,
                 antiCheatLog: result.antiCheatLog,
                 totalSteps: result.totalSteps
