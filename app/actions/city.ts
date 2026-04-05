@@ -32,6 +32,7 @@ export async function fetchTerritories(cityId: string): Promise<ExtTerritory[]> 
         clubs ( id, name, logo_url )
       `)
       .eq('city_id', cityId)
+      .eq('status', 'ACTIVE')
 
     if (error) {
       console.error('Error fetching territories:', error)

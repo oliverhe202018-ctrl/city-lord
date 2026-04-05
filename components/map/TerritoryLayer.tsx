@@ -340,7 +340,9 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
     applyViewportKingHalo(kingOwnerId);
     onViewportKingChange?.({
       ownerId: kingOwnerId,
-      nickname: profile?.nickname || `领主-${kingOwnerId.slice(0, 6)}`,
+      nickname: (profile?.nickname && profile.nickname.trim() !== '') 
+          ? profile.nickname.trim() 
+          : `领主-${kingOwnerId.slice(0, 6)}`,
       avatarUrl: profile?.avatarUrl || null,
       totalArea: kingArea,
     });
@@ -398,7 +400,9 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
             .in('id', ownerIds);
           (profiles || []).forEach((profile: OwnerProfile) => {
             profileMap.set(profile.id, {
-              nickname: profile.nickname || `领主-${profile.id.slice(0, 6)}`,
+              nickname: (profile.nickname && profile.nickname.trim() !== '') 
+                  ? profile.nickname.trim() 
+                  : `领主-${profile.id.slice(0, 6)}`,
               avatarUrl: profile.avatar_url || null,
             });
           });
@@ -413,20 +417,37 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
         const territoryMetrics: TerritoryMetric[] = [];
 
         // --- POLYGON UNION ALGORITHM & GEOMETRY CACHING FOR CLUB MODE ---
+        /**
+         * Extract ONLY the exterior ring(s) from a GeoJSON geometry.
+         * GeoJSON Polygon coordinates = [exteriorRing, ...interiorRings]
+         * We MUST discard interior rings (holes) — feeding them to AMap causes
+         * radial crosshatch lines between outer and inner ring vertices.
+         */
         const extractPaths = (t: ExtTerritory): [number, number][][] => {
           const paths: [number, number][][] = [];
-          if (t.geojson_json && t.geojson_json.coordinates) {
-             if (t.geojson_json.type === 'Polygon') {
-               const polygonRing = t.geojson_json.coordinates[0];
-               if (Array.isArray(polygonRing)) paths.push(polygonRing as [number, number][]);
-             } else if (t.geojson_json.type === 'MultiPolygon') {
-               for (const polygon of t.geojson_json.coordinates) {
-                 const polygonRing = polygon?.[0];
-                 if (Array.isArray(polygonRing)) paths.push(polygonRing as [number, number][]);
-               }
-             }
+          if (!t.geojson_json || !t.geojson_json.coordinates) return paths;
+
+          const validateRing = (ring: any): ring is [number, number][] => {
+            if (!Array.isArray(ring) || ring.length < 3) return false;
+            // Ensure first element is a coordinate pair [lng, lat], not another nested array
+            const first = ring[0];
+            return Array.isArray(first) && typeof first[0] === 'number' && typeof first[1] === 'number';
+          };
+
+          if (t.geojson_json.type === 'Polygon') {
+            // coordinates = [exteriorRing, hole1?, hole2?, ...]
+            // ONLY take index 0 (exterior ring), discard all inner rings
+            const exteriorRing = t.geojson_json.coordinates[0];
+            if (validateRing(exteriorRing)) paths.push(exteriorRing as [number, number][]);
+          } else if (t.geojson_json.type === 'MultiPolygon') {
+            // coordinates = [ [extRing, hole?], [extRing, hole?], ... ]
+            for (const polygon of t.geojson_json.coordinates) {
+              if (!Array.isArray(polygon)) continue;
+              const exteriorRing = polygon[0];
+              if (validateRing(exteriorRing)) paths.push(exteriorRing as [number, number][]);
+            }
           }
-          return paths.filter((path) => Array.isArray(path) && path.length >= 3);
+          return paths.filter((path) => path.length >= 3);
         };
 
         const renderItems: { territory: ExtTerritory; paths: [number, number][][]; isClubMerged: boolean; markerPos?: [number, number] | null }[] = [];
@@ -520,9 +541,12 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
 
             polygon.on("click", () => {
               (window as any).__amap_polygon_clicked = Date.now();
+              // 1. Set territory ID in Zustand store (triggers react-query prefetch in DetailSheet)
               setSelectedTerritoryId(territory.id);
-              setSelectedTerritory?.(territory);
-              setIsDetailSheetOpen?.(true);
+              // 2. Set shallow territory data in MapInteraction context
+              if (setSelectedTerritory) setSelectedTerritory(territory);
+              // 3. CRITICAL: Explicitly open the detail sheet bottom panel
+              if (setIsDetailSheetOpen) setIsDetailSheetOpen(true);
             });
 
             if (!isClubMerged) {
