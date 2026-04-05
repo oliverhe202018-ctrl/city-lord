@@ -113,7 +113,7 @@ public class LocationForegroundService extends Service implements AMapLocationLi
     }
 
     // AMap client
-    private AMapLocationClient locationClient = null;
+    private volatile AMapLocationClient locationClient = null;
 
     // ---- 独立定位线程 (Anti-Doze) ----
     /** 独立 HandlerThread：高德定位回调运行在此线程，不受 Doze 主线程休眠影响 */
@@ -798,6 +798,9 @@ public class LocationForegroundService extends Service implements AMapLocationLi
         Log.d(TAG, "Location persisted to cache: " + location.getLatitude() + ", " + location.getLongitude());
     }
 
+    /** 记录上一次存入 Room 的位置，用于 2 米过滤 */
+    private AMapLocation lastRoomLocation = null;
+
     /**
      * 异步将定位点写入 Room 数据库。
      * 关键设计：即使 JS/WebView 进程完全挂起，此方法仍在 Native Service 线程中执行，
@@ -808,6 +811,25 @@ public class LocationForegroundService extends Service implements AMapLocationLi
             Log.w(TAG, "Room 数据库未初始化，跳过持久化");
             return;
         }
+
+        // --- 2 米过滤逻辑 ---
+        float distance = 100f;
+        if (lastRoomLocation != null) {
+            float[] results = new float[1];
+            android.location.Location.distanceBetween(
+                    lastRoomLocation.getLatitude(), lastRoomLocation.getLongitude(),
+                    location.getLatitude(), location.getLongitude(),
+                    results
+            );
+            distance = results[0];
+        }
+
+        if (lastRoomLocation != null && distance < 2.0f) {
+            return; // 静止或抖动，跳过写入 DB
+        }
+
+        lastRoomLocation = location.clone();
+        // ------------------
 
         // 使用当前 runId 作为 sessionId；如果没有 runId 则使用 "idle" 标记
         final String sessionId = (currentRunId != null && !currentRunId.isEmpty())

@@ -20,6 +20,7 @@ import { ActiveRandomEvent, useRandomEvents } from '@/hooks/useRandomEvents';
 import { RunEventLog } from '@/types/run-sync';
 import type { CapacitorPedometerPlugin } from '@capgo/capacitor-pedometer';
 import { useGameStore } from '@/store/useGameStore';
+import { Preferences } from '@capacitor/preferences';
 
 const RECOVERY_KEY = 'CURRENT_RUN_RECOVERY';
 
@@ -401,7 +402,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         timestamp: Date.now(),
         restoreSource: 'storage'
       };
-      localStorage.setItem(RECOVERY_KEY, JSON.stringify(stateToSave));
+      Preferences.set({ key: RECOVERY_KEY, value: JSON.stringify(stateToSave) }).catch((e: unknown) => {
+        console.error("[useRunningTracker] Failed to save run state to Preferences", e);
+      });
       console.debug('[Session] periodic_save executed');
     } catch (e) {
       console.error("[useRunningTracker] Failed to save run state", e);
@@ -448,7 +451,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     return total;
   }, []);
 
-  const handleLocationUpdate = useCallback((lat: number, lng: number, accuracy?: number, timestamp?: number) => {
+  const handleLocationUpdate = useCallback((lat: number, lng: number, accuracy?: number, timestamp?: number, isOfflineReplay: boolean = false) => {
     if (isPausedRef.current || isStoppingRef.current) return;
 
     const now = timestamp || Date.now();
@@ -479,7 +482,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       const distToPrev = getDistanceFromLatLonInMeters(prevLoc.lat, prevLoc.lng, lat, lng);
       const timeDiffSec = (now - prevLoc.timestamp) / 1000;
 
-      if (timeDiffSec > 0.5) {
+      if (!isOfflineReplay && timeDiffSec > 0.5) {
         const speedMs = distToPrev / timeDiffSec;
         if (speedMs > 10) {
           console.debug(
@@ -761,7 +764,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
                 console.log(`[BlackBox] 🔄 Chunk ${chunkIndex + 1}/${chunks.length} (${batch.length} 点)`);
                 
                 for (const pt of batch) {
-                  handleLocationUpdate(pt.lat, pt.lng, pt.accuracy, pt.timestamp);
+                  handleLocationUpdate(pt.lat, pt.lng, pt.accuracy, pt.timestamp, true);
                 }
                 
                 chunkIndex++;
@@ -792,7 +795,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       // Not in Capacitor environment — no-op
     });
     return () => { cleanup?.(); };
-  }, [isRunning, handleLocationUpdate]);
+  }, [isRunning, handleLocationUpdate, saveState]);
 
   // This is the SAME data source as TrajectoryLayer (via MapRoot.userPath)
   useEffect(() => {
@@ -882,11 +885,15 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       isStoppingRef.current = false;
 
       const performRecovery = async () => {
-        const recoveryJson = localStorage.getItem(RECOVERY_KEY);
+        let recoveryJson: string | null = null;
+        try {
+          const res = await Preferences.get({ key: RECOVERY_KEY });
+          recoveryJson = res.value;
+        } catch(e: unknown) { console.warn('Preferences get error', e); }
         let recovered = false;
         let restoreSource = 'none';
 
-        // 1. Try LocalStorage
+        // 1. Try Preferences
         if (recoveryJson) {
           try {
             const data = JSON.parse(recoveryJson);
@@ -1012,9 +1019,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   }, [saveState]);
 
   const finalize = useCallback(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem(RECOVERY_KEY);
-    }
+    Preferences.remove({ key: RECOVERY_KEY }).catch(console.warn);
     // Deep reset local state
     setPath([]);
     setDistance(0);
@@ -1023,9 +1028,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   }, []);
 
   const clearRecovery = useCallback(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem(RECOVERY_KEY);
-    }
+    Preferences.remove({ key: RECOVERY_KEY }).catch(console.warn);
   }, []);
 
   const distanceKm = distance / 1000;
@@ -1053,7 +1056,8 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     if (livePath.length === 0 && liveDistance <= 0 && liveDuration <= 0) {
       console.warn('[useRunningTracker] Payload empty — attempting recovery fallback');
       try {
-        const recoveryJson = localStorage.getItem(RECOVERY_KEY);
+        const res = await Preferences.get({ key: RECOVERY_KEY });
+        const recoveryJson = res.value;
         if (recoveryJson) {
           const data = JSON.parse(recoveryJson);
           liveDistance = data.distance || 0;
