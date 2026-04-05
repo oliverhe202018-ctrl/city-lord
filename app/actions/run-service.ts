@@ -486,8 +486,6 @@ export async function saveRunActivity(
 
                 try {
                     const polyFeature = turf.polygon([coords]);
-                    // 在外部预处理几何
-                    const cleaned = cleanAndSplitTrajectory(coords);
                     const cityId = (runData as any).cityId || 'default_city';
 
                     // 独立调用，不传入 db，让 settlement 自己开微事务
@@ -497,7 +495,8 @@ export async function saveRunActivity(
                         cityId,
                         clubId: runnerClubId,
                         pathGeoJSON: polyFeature as any,
-                        preProcessedPolygons: cleaned as any
+                        // 核心修复：传入已处理好的多边形数组，直接跳过底层的 O(N^2) 重计算
+                        preProcessedPolygons: [polyFeature] as any
                     });
 
                     if (settlement.success) {
