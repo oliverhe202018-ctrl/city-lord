@@ -105,19 +105,19 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
         : turf.multiPolygon(cleanedPolygons.map(p => p.geometry.coordinates)).geometry;
     const combinedGeometryJson = JSON.stringify(combinedGeometry);
 
-    // Initial working set for area carving
-    let workingPolygons: any[] = [...cleanedPolygons];
+    const finalSettledResult = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        // Initial working set for area carving
+        let workingPolygons: any[] = [...cleanedPolygons];
 
-    let result: SettlementResult = {
-        success: true,
-        createdTerritories: 0,
-        damagedTerritories: 0,
-        destroyedTerritories: 0,
-        damageDetails: [],
-        maintenanceDetails: []
-    };
+        let result: SettlementResult = {
+            success: true,
+            createdTerritories: 0,
+            damagedTerritories: 0,
+            destroyedTerritories: 0,
+            damageDetails: [],
+            maintenanceDetails: []
+        };
 
-    const settled = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         let bestPatrolOverlap: {
             id: string;
             health: number | null;
@@ -480,7 +480,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
     if (clubId) {
         await TerritoryStatsAggregatorService.processNextBatch();
     }
-    return settled;
+    return finalSettledResult;
 }
 
 // Utility to flatten GeoJSON objects into Polygons
