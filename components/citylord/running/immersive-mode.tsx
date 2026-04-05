@@ -23,7 +23,7 @@ import { useBattleCaster } from "@/hooks/useBattleCaster"
 import { useGameStore } from "@/store/useGameStore"
 import { ActiveRandomEvent } from "@/hooks/useRandomEvents"
 import { RunEventLog } from "@/types/run-sync"
-import { LOOP_CLOSURE_THRESHOLD_M } from "@/lib/geometry-utils"
+import { LOOP_CLOSURE_THRESHOLD_M, getDistanceFromLatLonInMeters } from "@/lib/geometry-utils"
 
 // ─── Timeout utility for promises that may hang after sleep ───
 const SAVE_TIMEOUT_MS = 15_000;
@@ -266,21 +266,7 @@ const MapTopBar = memo(function MapTopBar({
   )
 })
 
-// Helper: Calculate distance between two points in meters
 
-
-function getDistanceFromLatLonInMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
-  const R = 6371e3; // Radius of the earth in meters
-  const dLat = (lat2 - lat1) * (Math.PI / 180);
-  const dLon = (lon2 - lon1) * (Math.PI / 180);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const d = R * c; // Distance in meters
-  return d;
-}
 
 interface SummarySnapshot {
   distanceMeters: number
