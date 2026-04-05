@@ -167,6 +167,9 @@ export interface AMapLocationPlugin {
     startTracking(options?: {
         notificationTitle?: string;
         notificationBody?: string;
+        runId?: string;
+        interval?: number;
+        startedAt?: number;
     }): Promise<void>;
 
     /**

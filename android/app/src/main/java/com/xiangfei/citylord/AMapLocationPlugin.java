@@ -647,6 +647,16 @@ public class AMapLocationPlugin extends Plugin {
         lbm.registerReceiver(trackingLocationReceiver,
                 new IntentFilter(LocationForegroundService.ACTION_LOCATION_UPDATE));
 
+        trackingErrorReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                JSObject error = new JSObject();
+                error.put("code", intent.getIntExtra(LocationForegroundService.EXTRA_ERROR_CODE, -1));
+                error.put("message", intent.getStringExtra(LocationForegroundService.EXTRA_ERROR_MSG));
+                
+                notifyListeners("locationError", error);
+            }
+        };
         lbm.registerReceiver(trackingErrorReceiver,
                 new IntentFilter(LocationForegroundService.ACTION_LOCATION_ERROR));
 
