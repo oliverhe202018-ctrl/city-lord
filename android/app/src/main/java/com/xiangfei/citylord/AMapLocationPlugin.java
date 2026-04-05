@@ -120,8 +120,6 @@ public class AMapLocationPlugin extends Plugin {
         }
     }
 
-
-
     // -----------------------------------------------------------------------
     // getOfflineLocations — 从 Room 拉取未同步的离线定位记录
     // -----------------------------------------------------------------------
@@ -131,10 +129,11 @@ public class AMapLocationPlugin extends Plugin {
      * JS 层在苏醒后调用此方法，拉取黑匣子中断失的坐标流。
      *
      * 参数:
-     *  - sessionId (String, 必须): 跑步会话 ID
+     * - sessionId (String, 必须): 跑步会话 ID
      *
      * 返回:
-     *  - locations: JSArray，每个元素包含 id, lat, lng, accuracy, speed, bearing, timestamp, isMock
+     * - locations: JSArray，每个元素包含 id, lat, lng, accuracy, speed, bearing,
+     * timestamp, isMock
      */
     @PluginMethod()
     public void getOfflineLocations(PluginCall call) {
@@ -194,10 +193,10 @@ public class AMapLocationPlugin extends Plugin {
      * JS 层确认处理完毕后调用。
      *
      * 参数:
-     *  - ids (number[], 必须): 需要标记的记录 ID 数组
+     * - ids (number[], 必须): 需要标记的记录 ID 数组
      *
      * 返回:
-     *  - acknowledged: 成功标记的记录数
+     * - acknowledged: 成功标记的记录数
      */
     @PluginMethod()
     public void acknowledgeLocations(PluginCall call) {
@@ -251,7 +250,8 @@ public class AMapLocationPlugin extends Plugin {
 
     @PluginMethod()
     public void getCurrentPosition(PluginCall call) {
-        if (!ensurePrivacyCompliance(call)) return;
+        if (!ensurePrivacyCompliance(call))
+            return;
 
         String mode = call.getString("mode", "fast");
         int timeout = call.getInt("timeout", 8000);
@@ -343,7 +343,8 @@ public class AMapLocationPlugin extends Plugin {
 
     @PluginMethod()
     public void startWatch(PluginCall call) {
-        if (!ensurePrivacyCompliance(call)) return;
+        if (!ensurePrivacyCompliance(call))
+            return;
 
         String mode = call.getString("mode", "browse");
         int interval = call.getInt("interval", "browse".equals(mode) ? 5000 : 1000);
@@ -362,7 +363,8 @@ public class AMapLocationPlugin extends Plugin {
             // ===== BUG FIX: Both modes use Hight_Accuracy (GPS+Network hybrid) =====
             // Previously browse used Battery_Saving (network-only, coarse fixes)
             // and running used Device_Sensors (GPS-only, fails indoors).
-            // Hight_Accuracy gives the best of both: accurate like GPS, reliable like network.
+            // Hight_Accuracy gives the best of both: accurate like GPS, reliable like
+            // network.
             option.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);
             option.setSensorEnable(true);
             if ("running".equals(mode)) {
@@ -378,7 +380,8 @@ public class AMapLocationPlugin extends Plugin {
             watchClient.setLocationListener(new AMapLocationListener() {
                 @Override
                 public void onLocationChanged(AMapLocation location) {
-                    if (location == null) return;
+                    if (location == null)
+                        return;
 
                     if (location.getErrorCode() != 0) {
                         Log.w(TAG, "watch error: code=" + location.getErrorCode()
@@ -505,7 +508,8 @@ public class AMapLocationPlugin extends Plugin {
         confirmed.put("message", "All clients destroyed, JS should removeAllListeners");
         notifyListeners("locationError", confirmed);
 
-        Log.i(TAG, "forceDestroy complete — all clients destroyed, TS notified with FORCE_DESTROY + FORCE_DESTROY_CONFIRMED");
+        Log.i(TAG,
+                "forceDestroy complete — all clients destroyed, TS notified with FORCE_DESTROY + FORCE_DESTROY_CONFIRMED");
         call.resolve();
     }
 
@@ -518,8 +522,8 @@ public class AMapLocationPlugin extends Plugin {
      * 定位在 Service 内运行，锁屏/后台/黑屏均可持续。
      *
      * Options:
-     *  - notificationTitle: 通知标题（默认 "City Lord"）
-     *  - notificationBody:  通知内容（默认 "正在追踪您的位置…"）
+     * - notificationTitle: 通知标题（默认 "City Lord"）
+     * - notificationBody: 通知内容（默认 "正在追踪您的位置…"）
      */
     @PluginMethod()
     public void startTracking(PluginCall call) {
@@ -546,7 +550,7 @@ public class AMapLocationPlugin extends Plugin {
         serviceIntent.putExtra(LocationForegroundService.EXTRA_NOTIFICATION_BODY, body);
         serviceIntent.putExtra(LocationForegroundService.EXTRA_RUN_ID, runId);
         serviceIntent.putExtra(LocationForegroundService.EXTRA_STARTED_AT, startedAt);
-        serviceIntent.putExtra(LocationForegroundService.EXTRA_INTERVAL, (long)call.getInt("interval", 2000));
+        serviceIntent.putExtra(LocationForegroundService.EXTRA_INTERVAL, (long) call.getInt("interval", 2000));
 
         // Android O+ requires startForegroundService
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -631,7 +635,7 @@ public class AMapLocationPlugin extends Plugin {
                 result.put("timestamp", intent.getLongExtra(LocationForegroundService.EXTRA_TIMESTAMP, 0));
                 result.put("coordSystem", "gcj02");
                 result.put("locationType", intent.getIntExtra(LocationForegroundService.EXTRA_LOCATION_TYPE, 0));
-                
+
                 // Anti-cheat mock detection
                 result.put("isMock", intent.getBooleanExtra(LocationForegroundService.EXTRA_IS_MOCK, false));
 
@@ -656,7 +660,7 @@ public class AMapLocationPlugin extends Plugin {
                 JSObject error = new JSObject();
                 error.put("code", intent.getIntExtra(LocationForegroundService.EXTRA_ERROR_CODE, -1));
                 error.put("message", intent.getStringExtra(LocationForegroundService.EXTRA_ERROR_MSG));
-                
+
                 notifyListeners("locationError", error);
             }
         };
@@ -672,7 +676,7 @@ public class AMapLocationPlugin extends Plugin {
                 log.put("reason", intent.getStringExtra(LocationForegroundService.EXTRA_EVENT_REASON));
                 log.put("data", intent.getStringExtra("data"));
                 log.put("ts", intent.getLongExtra("ts", System.currentTimeMillis()));
-                
+
                 // 给 TS 层统一的事件名，由 TS 转发给埋点系统
                 notifyListeners("logEvent", log);
             }
@@ -743,7 +747,7 @@ public class AMapLocationPlugin extends Plugin {
         obj.put("timestamp", location.getTime());
         obj.put("coordSystem", "gcj02");
         obj.put("locationType", location.getLocationType());
-        
+
         // Anti-cheat mock detection
         obj.put("isMock", location.isMock());
 
@@ -767,7 +771,7 @@ public class AMapLocationPlugin extends Plugin {
     @PluginMethod
     public void openAppPermissionSettings(PluginCall call) {
         JSObject ret = new JSObject();
-        
+
         // 1. 尝试厂商专属页 (方案 B: 绕过 Package Visibility 限制)
         try {
             List<Intent> intents = getManufacturerPermissionIntents();
@@ -777,7 +781,7 @@ public class AMapLocationPlugin extends Plugin {
                     ComponentName component = intent.getComponent();
                     String cmpName = (component != null) ? component.flattenToShortString() : intent.getAction();
                     Log.i(TAG, "Successfully opened manufacturer settings: " + cmpName);
-                    
+
                     ret.put("opened", true);
                     ret.put("route", "manufacturer");
                     ret.put("component", cmpName);
@@ -830,7 +834,7 @@ public class AMapLocationPlugin extends Plugin {
 
         // 小米/红米/POCO
         if (manufacturer.contains("xiaomi") || brand.contains("xiaomi") ||
-            brand.contains("redmi") || brand.contains("poco")) {
+                brand.contains("redmi") || brand.contains("poco")) {
             Intent intent = new Intent("miui.intent.action.APP_PERM_EDITOR");
             intent.setClassName("com.miui.securitycenter", "com.miui.permcenter.permissions.PermissionsEditorActivity");
             intent.putExtra("extra_pkgname", packageName);
@@ -840,42 +844,47 @@ public class AMapLocationPlugin extends Plugin {
         // 华为/荣耀
         if (manufacturer.contains("huawei") || brand.contains("huawei") || brand.contains("honor")) {
             Intent intent1 = new Intent();
-            intent1.setComponent(new ComponentName("com.huawei.systemmanager", "com.huawei.permissionmanager.ui.SingleAppActivity"));
+            intent1.setComponent(
+                    new ComponentName("com.huawei.systemmanager", "com.huawei.permissionmanager.ui.SingleAppActivity"));
             intent1.putExtra("packageName", packageName);
             intents.add(intent1);
-            
+
             Intent intent2 = new Intent();
             intent2.setComponent(new ComponentName("com.android.settings", "com.android.settings.permission.TabItem"));
             intents.add(intent2);
         }
 
         // OPPO/Realme/一加
-        if (manufacturer.contains("oppo") || brand.contains("oppo") || 
-            brand.contains("realme") || brand.contains("oneplus")) {
+        if (manufacturer.contains("oppo") || brand.contains("oppo") ||
+                brand.contains("realme") || brand.contains("oneplus")) {
             Intent intent1 = new Intent();
-            intent1.setClassName("com.coloros.safecenter", "com.coloros.safecenter.permission.PermissionAppAllPermissionActivity");
+            intent1.setClassName("com.coloros.safecenter",
+                    "com.coloros.safecenter.permission.PermissionAppAllPermissionActivity");
             intent1.putExtra("packageName", packageName);
             intents.add(intent1);
-            
+
             Intent intent2 = new Intent();
             intent2.setClassName("com.oppo.safe", "com.oppo.safe.permission.PermissionAppAllPermissionActivity");
             intent2.putExtra("packageName", packageName);
             intents.add(intent2);
 
             Intent intent3 = new Intent();
-            intent3.setClassName("com.coloros.safecenter", "com.coloros.safecenter.permission.PermissionManagerActivity");
+            intent3.setClassName("com.coloros.safecenter",
+                    "com.coloros.safecenter.permission.PermissionManagerActivity");
             intents.add(intent3);
         }
 
         // vivo/iQOO
         if (manufacturer.contains("vivo") || brand.contains("vivo") || brand.contains("iqoo")) {
             Intent intent1 = new Intent();
-            intent1.setComponent(new ComponentName("com.vivo.permissionmanager", "com.vivo.permissionmanager.activity.SoftPermissionDetailActivity"));
+            intent1.setComponent(new ComponentName("com.vivo.permissionmanager",
+                    "com.vivo.permissionmanager.activity.SoftPermissionDetailActivity"));
             intent1.putExtra("packagename", packageName);
             intents.add(intent1);
-            
+
             Intent intent2 = new Intent();
-            intent2.setComponent(new ComponentName("com.iqoo.secure", "com.iqoo.secure.safeguard.SoftPermissionDetailActivity"));
+            intent2.setComponent(
+                    new ComponentName("com.iqoo.secure", "com.iqoo.secure.safeguard.SoftPermissionDetailActivity"));
             intent2.putExtra("packagename", packageName);
             intents.add(intent2);
         }

@@ -45,7 +45,7 @@ export interface DriftFilterResult {
 // ============================================================
 
 /** Maximum distance (meters) between start/end to consider loop closed */
-export const LOOP_CLOSURE_THRESHOLD_M = 20;
+export const LOOP_CLOSURE_THRESHOLD_M = 120;
 
 /** Minimum number of GPS points required for a valid loop */
 export const MIN_LOOP_POINTS = 10;

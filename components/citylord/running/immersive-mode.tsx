@@ -668,15 +668,36 @@ export function ImmersiveRunningMode({
       const startPoint = safePath[0]
       const endPoint = safePath[safePath.length - 1]
 
-      // Calculate gap between start and end
+      // Condition A: 终点距离起点距离 <= 80
       const gap = getDistanceFromLatLonInMeters(
         startPoint.lat, startPoint.lng,
         endPoint.lat, endPoint.lng
       )
 
-      const LOOP_THRESHOLD = LOOP_CLOSURE_THRESHOLD_M
+      const END_TO_START_THRESHOLD = 80;
+      let isClosed = gap <= END_TO_START_THRESHOLD;
 
-      if (gap <= LOOP_THRESHOLD) {
+      // Condition B: 轨迹后80%部分有经过起点 120 米范围内的点
+      if (!isClosed && safePath.length > 5) {
+        const startIndexToAvoid = Math.floor(safePath.length * 0.2);
+        for (let i = startIndexToAvoid; i < safePath.length; i++) {
+          const pt = safePath[i];
+          const distToStart = getDistanceFromLatLonInMeters(startPoint.lat, startPoint.lng, pt.lat, pt.lng);
+          if (distToStart <= 120) {
+            isClosed = true;
+            break;
+          }
+        }
+      }
+
+      // Condition C: 面积 > 10000 平方米
+      if (!isClosed) {
+        if (area && area > 10000) {
+          isClosed = true;
+        }
+      }
+
+      if (isClosed) {
         // Closed loop
         freezeTrackerForSummary()
         setSummarySnapshot(buildSummarySnapshot(hexesCaptured))

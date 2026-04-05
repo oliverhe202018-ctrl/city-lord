@@ -1874,6 +1874,7 @@ enum TerritoryEventType {
   ATTACKED
   DESTROYED
   OWNER_CHANGED
+  CLAIM
 
   @@schema("public")
 }
