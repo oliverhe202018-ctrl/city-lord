@@ -94,23 +94,7 @@ public class LocationForegroundService extends Service implements AMapLocationLi
     public static final String EXTRA_ERROR_CODE = "errorCode";
     public static final String EXTRA_ERROR_MSG = "errorMsg";
 
-    // --- 极简黑匣子缓冲池 ---
-    private static final Object bufferLock = new Object();
-    private static final int MAX_BUFFER_SIZE = 10000;
-    private static final java.util.ArrayList<JSObject> locationBuffer = new java.util.ArrayList<>();
-    private static AMapLocation lastBufferedLocation = null;
 
-    /**
-     * 暴露给 Plugin，用于苏醒时直接拉取断失的坐标流。
-     * 调用后会立即清空 Buffer 避免复读。
-     */
-    public static java.util.ArrayList<JSObject> flushLocationBuffer() {
-        synchronized (bufferLock) {
-            java.util.ArrayList<JSObject> copy = new java.util.ArrayList<>(locationBuffer);
-            locationBuffer.clear();
-            return copy;
-        }
-    }
 
     // AMap client
     private volatile AMapLocationClient locationClient = null;
@@ -714,53 +698,7 @@ public class LocationForegroundService extends Service implements AMapLocationLi
         // 1b. 异步写入 Room 数据库（黑匣子核心：即便 JS 挂起也确保每个点落盘）
         persistToRoom(location);
 
-        // ------------- 新增：塞入黑匣子 Buffer -------------
-        synchronized (bufferLock) {
-            float distance = 100f; // 默认大值，确保起步能录入
-            if (lastBufferedLocation != null) {
-                float[] results = new float[1];
-                android.location.Location.distanceBetween(
-                        lastBufferedLocation.getLatitude(), lastBufferedLocation.getLongitude(),
-                        location.getLatitude(), location.getLongitude(),
-                        results
-                );
-                distance = results[0];
-            }
 
-            if (lastBufferedLocation == null || distance >= 2.0f) {
-                if (locationBuffer.size() >= MAX_BUFFER_SIZE) {
-                    locationBuffer.remove(0); // FIFO
-                }
-                // 手动转一个能供 array 返回的 JSObject
-                JSObject jsLoc = new JSObject();
-                jsLoc.put("lat", location.getLatitude());
-                jsLoc.put("lng", location.getLongitude());
-                jsLoc.put("accuracy", location.getAccuracy());
-                jsLoc.put("bearing", location.getBearing());
-                jsLoc.put("speed", location.getSpeed());
-                jsLoc.put("timestamp", location.getTime());
-                jsLoc.put("coordSystem", "gcj02");
-                jsLoc.put("locationType", location.getLocationType());
-                jsLoc.put("isMock", location.isMock());
-                
-                String provider = location.getProvider();
-                if (provider != null && !provider.isEmpty()) {
-                    jsLoc.put("provider", provider);
-                }
-                String address = location.getAddress();
-                if (address != null && !address.isEmpty()) {
-                    jsLoc.put("address", address);
-                }
-
-                locationBuffer.add(jsLoc);
-                lastBufferedLocation = location.clone();
-                // 暂时注释高频 log
-                // Log.d(TAG, "Buffered location, size=" + locationBuffer.size());
-            } else {
-                // Log.d(TAG, "Location filtered out (distance " + distance + "m < 2.0m)");
-            }
-        }
-        // ---------------------------------------------------
 
         // 2. Broadcast location to Plugin
         Intent intent = new Intent(ACTION_LOCATION_UPDATE);

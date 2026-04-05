@@ -402,7 +402,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         timestamp: Date.now(),
         restoreSource: 'storage'
       };
-      Preferences.set({ key: RECOVERY_KEY, value: JSON.stringify(stateToSave) }).catch((e: unknown) => {
+      return Preferences.set({ key: RECOVERY_KEY, value: JSON.stringify(stateToSave) }).catch((e: unknown) => {
         console.error("[useRunningTracker] Failed to save run state to Preferences", e);
       });
       console.debug('[Session] periodic_save executed');
@@ -787,7 +787,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
         // 关键事件：切后台时立即强制落盘一次
         if (!isActive && isRunning) {
-          saveState();
+          await saveState();
         }
       });
       cleanup = () => { listenerHandle.then(h => h.remove()); };
@@ -916,7 +916,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
               setAntiCheatLog(data.antiCheatLog ?? null);
               setArea(data.area || 0);
               
-              const isPausedNow = data.isPaused ?? false;
+              const isPausedNow = data.status === 'paused';
               setIsPaused(isPausedNow);
               
               // --- CRITICAL: Time Gap Handling (Anti-Pace-Corruption) ---

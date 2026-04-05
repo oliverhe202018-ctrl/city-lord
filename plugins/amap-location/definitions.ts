@@ -215,13 +215,7 @@ export interface AMapLocationPlugin {
         acknowledged: number;
     }>;
 
-    /**
-     * @deprecated 已废弃。请使用 getOfflineLocations + acknowledgeLocations 替代。
-     * 旧版内存 Buffer 冲洗接口，数据不持久化，存在丢失风险。
-     */
-    flushBufferedLocations(): Promise<{
-        locations: AMapPosition[];
-    }>;
+
 }
 
 // ---------------------------------------------------------------------------
