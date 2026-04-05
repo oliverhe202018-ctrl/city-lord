@@ -9,14 +9,19 @@ import { Loader2, MapPin, Clock, Medal, Flag, Timer, User } from 'lucide-react'
 import { TerritoryMoreMenu } from './TerritoryMoreMenu'
 import dayjs from 'dayjs'
 import { TerritoryReportDialog } from './TerritoryReportDialog'
+import { useGameStore } from '@/store/useGameStore'
 
 export function TerritoryDetailSheet() {
-    const { selectedTerritory, viewMode, kingdomMode, isDetailSheetOpen, setIsDetailSheetOpen } = useMapInteraction()
+    const { selectedTerritory, kingdomMode, isDetailSheetOpen, setIsDetailSheetOpen } = useMapInteraction()
     const [reportDialogOpen, setReportDialogOpen] = useState(false)
+    const selectedTerritoryId = useGameStore((state) => state.selectedTerritoryId)
 
-    // Sheet is open when explicitly opened (InfoBar is responsible for selecting territory)
-    const isOpen = Boolean(isDetailSheetOpen && selectedTerritory !== null && viewMode === 'individual')
-    const territoryId = selectedTerritory?.id
+    // Use store ID as primary, fallback to context
+    const activeId = selectedTerritoryId || selectedTerritory?.id || null
+
+    // Sheet is open when explicitly opened + we have a territory
+    const isOpen = Boolean(isDetailSheetOpen && activeId !== null)
+    const territoryId = activeId
     const isClubMode = kingdomMode === 'club'
 
 

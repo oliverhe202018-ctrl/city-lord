@@ -134,6 +134,7 @@ export interface ModeActions {
   // UI Actions
   openDrawer: (drawer: DrawerType) => void;
   closeDrawer: () => void;
+  setSelectedTerritoryId: (id: string | null) => void;
 
   setMyClub: (club: MyClub | null) => void;
   updateMyClubInfo: (info: Partial<MyClub>) => void;
@@ -221,6 +222,8 @@ export interface GameState extends UserState, LocationState, InventoryState, Wor
   myClub: MyClub | null;
   appSettings: AppSettings;
   territoryAppearance: TerritoryAppearance;
+  /** Ephemeral: currently selected territory ID on the map (not persisted) */
+  selectedTerritoryId: string | null;
 }
 
 export interface GameActions extends ModeActions, UserActions, LocationActions, InventoryActions, WorldActions { }
@@ -309,6 +312,7 @@ const createModeSlice: StateCreator<GameStore, [], [], ModeActions> = (set, get)
   setGameMode: (mode) => set({ gameMode: mode }),
   openDrawer: (drawer) => set({ activeDrawer: drawer }),
   closeDrawer: () => set({ activeDrawer: 'none' }),
+  setSelectedTerritoryId: (id) => set({ selectedTerritoryId: id }),
   setMyClub: (club) => set({ myClub: club }),
   updateMyClubInfo: (info) =>
     set((state) => ({
@@ -746,6 +750,7 @@ export const useGameStore = create<GameStore>()(
       currentRoom: null,
       joinedRooms: [],
       appSettings: initialAppSettings,
+      selectedTerritoryId: null,
       territoryAppearance: initialTerritoryAppearance,
       ...initialUserState,
       ...initialLocationState,
@@ -828,6 +833,7 @@ export const useGameActions = () => {
       setMyClub: state.setMyClub,
       updateMyClubInfo: state.updateMyClubInfo,
       updateAppSettings: state.updateAppSettings,
+      setSelectedTerritoryId: state.setSelectedTerritoryId,
       setCurrentRoom: state.setCurrentRoom,
       setJoinedRooms: state.setJoinedRooms,
       addJoinedRoom: state.addJoinedRoom,

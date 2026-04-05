@@ -6,16 +6,20 @@ import { useQuery } from '@tanstack/react-query'
 import { getTerritoryDetail } from '@/app/actions/territory-detail'
 import { Loader2, ChevronRight } from 'lucide-react'
 import { createPortal } from 'react-dom'
+import { useGameStore } from '@/store/useGameStore'
 
 export function TerritoryInfoBar() {
-    const { selectedTerritory, viewMode, kingdomMode, setIsDetailSheetOpen } = useMapInteraction()
+    const { selectedTerritory, kingdomMode, setIsDetailSheetOpen } = useMapInteraction()
+    const selectedTerritoryId = useGameStore((state) => state.selectedTerritoryId)
 
-    const isVisible = selectedTerritory !== null && viewMode === 'individual'
+    // Use store ID as primary, fallback to context
+    const activeId = selectedTerritoryId || selectedTerritory?.id || null
+    const isVisible = activeId !== null
     
     const { data: detail, isLoading } = useQuery({
-        queryKey: ['territory-detail', selectedTerritory?.id],
-        queryFn: () => getTerritoryDetail(selectedTerritory!.id),
-        enabled: !!selectedTerritory?.id,
+        queryKey: ['territory-detail', activeId],
+        queryFn: () => getTerritoryDetail(activeId!),
+        enabled: !!activeId,
         staleTime: 60 * 1000, // 1 minute
     })
 

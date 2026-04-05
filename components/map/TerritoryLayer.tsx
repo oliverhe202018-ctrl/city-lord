@@ -13,6 +13,13 @@ import type { ViewportKingData } from "./AMapView";
 import * as turf from '@turf/turf';
 import { useGameStore, useGameTerritoryAppearance } from "@/store/useGameStore";
 
+/** Club mode palette: own club vs enemy club */
+const CLUB_COLORS = {
+  self: { fill: '#3b82f6', stroke: '#2563eb', fillOpacity: 0.35 },
+  enemy: { fill: '#ef4444', stroke: '#dc2626', fillOpacity: 0.25 },
+  neutral: { fill: '#64748b', stroke: '#475569', fillOpacity: 0.15 },
+} as const;
+
 const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
@@ -88,6 +95,8 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
   const { user } = useAuth();
   const { territoryAppearance } = useGameTerritoryAppearance();
   const clubId = useGameStore((state) => state.clubId);
+  const setSelectedTerritoryId = useGameStore((state) => state.setSelectedTerritoryId);
+  const selectedTerritoryId = useGameStore((state) => state.selectedTerritoryId);
 
   // Track polygon 鈫?territory mapping for highlight updates
   const polygonTerritoryMap = useRef<Map<any, { territory: ExtTerritory; defaultStrokeColor: string; path: [number, number][] }>>(new Map());
@@ -170,7 +179,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
     clearViewportKingHalo();
     lastViewportKingIdRef.current = kingOwnerId;
 
-    if (!map || kingdomMode !== 'personal' || !kingOwnerId) {
+    if (!map || !kingOwnerId) {
       return;
     }
 
@@ -218,23 +227,38 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
   }, [clearViewportKingHalo, kingdomMode, map]);
 
   const buildPolygonPresentation = useCallback((territory: ExtTerritory) => {
+    const territoryHealth = territory.health ?? territory.maxHealth ?? 100;
+    const isLowHealth = territoryHealth < 50;
+
+    // --- Club mode: all territories visible, own club highlighted, enemies in red ---
+    if (kingdomMode === 'club') {
+      const isSelfClub = Boolean(clubId && territory.ownerClubId && territory.ownerClubId === clubId);
+      const hasClub = Boolean(territory.ownerClubId);
+      const palette = isSelfClub ? CLUB_COLORS.self : (hasClub ? CLUB_COLORS.enemy : CLUB_COLORS.neutral);
+      return {
+        fillColor: isLowHealth ? '#facc15' : palette.fill,
+        fillOpacity: isLowHealth ? 0.15 : palette.fillOpacity,
+        strokeColor: isLowHealth ? '#facc15' : palette.stroke,
+        strokeWeight: isSelfClub ? 3 : 2,
+      };
+    }
+
+    // --- Personal mode ---
     const ctx: ViewContext = {
       userId: user?.id || null,
       clubId: clubId || null,
-      subject: kingdomMode === 'club' ? 'club' : (viewMode === 'faction' ? 'faction' : 'individual')
+      subject: viewMode === 'faction' ? 'faction' : 'individual'
     };
     const style = generateTerritoryStyle(territory, ctx);
-    const isFactionColorActive = kingdomMode === 'personal' && showFactionColors;
+    const isFactionColorActive = showFactionColors;
     const factionBaseColor = resolveFactionColor(territory.ownerFaction);
     const factionVisuals = calculateHealthVisuals(
       factionBaseColor,
       territory.health ?? territory.maxHealth ?? 100,
       territory.maxHealth ?? 100
     );
-    const territoryHealth = territory.health ?? territory.maxHealth ?? 100;
-    const isLowHealth = territoryHealth < 50;
     const isSelfTerritory = Boolean(user?.id && territory.ownerId === user.id);
-    const allowCustomAppearance = kingdomMode === 'personal' && !isFactionColorActive && isSelfTerritory;
+    const allowCustomAppearance = !isFactionColorActive && isSelfTerritory;
 
     const fillColor = allowCustomAppearance
       ? territoryAppearance.fillColor
@@ -245,7 +269,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
     const strokeColor = isLowHealth ? '#facc15' : baseStrokeColor;
     const fillOpacity = allowCustomAppearance
       ? territoryAppearance.fillOpacity
-      : (isLowHealth ? 0.2 : (kingdomMode === 'club' ? 0.15 : 0.5));
+      : (isLowHealth ? 0.2 : 0.5);
 
     return {
       fillColor,
@@ -256,7 +280,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
   }, [clubId, kingdomMode, resolveFactionColor, showFactionColors, territoryAppearance.fillColor, territoryAppearance.fillOpacity, territoryAppearance.strokeColor, user?.id, viewMode]);
 
   const recomputeViewportKing = useCallback(() => {
-    if (!map || kingdomMode !== 'personal') {
+    if (!map) {
       applyViewportKingHalo(null);
       onViewportKingChange?.(null);
       return;
@@ -443,12 +467,11 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
 
             polygon.on("click", () => {
               (window as any).__amap_polygon_clicked = Date.now();
-              if (openTerritoryDetailDrawer && territory.id) {
-                openTerritoryDetailDrawer(territory.id);
-              } else {
-                setSelectedTerritory?.(territory);
-                setIsDetailSheetOpen?.(true);
-              }
+              // Set global store state for cross-component access
+              setSelectedTerritoryId(territory.id);
+              // Also update context for backward compat
+              setSelectedTerritory?.(territory);
+              setIsDetailSheetOpen?.(true);
             });
 
             polygon.on("mouseover", () => {
@@ -633,11 +656,6 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
 
   useEffect(() => {
     if (!map) return;
-    if (kingdomMode !== 'personal') {
-      clearViewportKingHalo();
-      onViewportKingChange?.(null);
-      return;
-    }
     let debounceTimer: NodeJS.Timeout | null = null;
     const schedule = () => {
       if (debounceTimer) clearTimeout(debounceTimer);
@@ -675,17 +693,14 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
       }
     });
 
-    if (kingdomMode === 'personal') {
-      recomputeViewportKing();
-    } else {
-      clearViewportKingHalo();
-    }
+    recomputeViewportKing();
   }, [buildPolygonPresentation, clearViewportKingHalo, kingdomMode, recomputeViewportKing]);
 
-  // Apply selection highlight when selectedTerritory changes
+  // Apply selection highlight when selectedTerritoryId changes
   useEffect(() => {
+    const activeId = selectedTerritoryId || selectedTerritory?.id || null;
     polygonTerritoryMap.current.forEach(({ territory, defaultStrokeColor }, polygon) => {
-      if (selectedTerritory && territory.id === selectedTerritory.id) {
+      if (activeId && territory.id === activeId) {
         // Highlight: darker border, thicker stroke
         polygon.setOptions({
           strokeWeight: 5,
@@ -701,7 +716,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
         });
       }
     });
-  }, [selectedTerritory]);
+  }, [selectedTerritoryId, selectedTerritory]);
 
   // 淇变箰閮?Marker 澶村儚闅?zoom 绾у埆鍔ㄦ€佺缉鏀?
   useEffect(() => {

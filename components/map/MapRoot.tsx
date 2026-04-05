@@ -546,19 +546,12 @@ export function MapRoot({ children }: { children: ReactNode }) {
     retry();
   }, [retry]);
 
-  const openTerritoryDetailDrawer = useCallback(async (id: string) => {
-    try {
-      const { MapService } = await import('@/lib/services/mapService');
-      const territories = await MapService.getTerritories();
-      const territory = territories.find(t => t.id === id);
-      if (territory) {
-        setSelectedTerritory(territory as any);
-        setIsDetailSheetOpen(true);
-      }
-    } catch (err) {
-      console.error('Failed to open territory detail:', err);
-    }
-  }, []);
+  const setSelectedTerritoryId = useGameStore((state) => state.setSelectedTerritoryId);
+
+  const openTerritoryDetailDrawer = useCallback((id: string) => {
+    setSelectedTerritoryId(id);
+    setIsDetailSheetOpen(true);
+  }, [setSelectedTerritoryId]);
 
 
   // Initial AMap check

@@ -14,6 +14,7 @@ import { MapControls } from './MapControls';
 import { useAuth } from '@/hooks/useAuth';
 import { useMapInteraction } from '@/components/map/MapInteractionContext';
 import { useEffect } from 'react';
+import { useGameStore } from '@/store/useGameStore';
 
 export type AMapViewHandle = {
   zoomIn: () => void;
@@ -74,6 +75,7 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
     } = useMap();
 
     const { setSelectedTerritory, setIsDetailSheetOpen } = useMapInteraction();
+    const setSelectedTerritoryId = useGameStore((state) => state.setSelectedTerritoryId);
     const { user } = useAuth();
     const recenterTimerRef = useRef<number | null>(null);
     const isUserInteractingRef = useRef(false);
@@ -94,6 +96,7 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
           const lastClick = (window as any).__amap_polygon_clicked || 0;
           if (Date.now() - lastClick > 300) {
             console.log(`[Interaction] map.click (ROOT): clear selection and close sheet`);
+            setSelectedTerritoryId(null);
             setSelectedTerritory?.(null);
             setIsDetailSheetOpen?.(false);
           }
@@ -104,7 +107,7 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
       return () => {
         if (map.off) map.off('click', handleRootClick);
       };
-    }, [map, setSelectedTerritory, setIsDetailSheetOpen]);
+    }, [map, setSelectedTerritory, setIsDetailSheetOpen, setSelectedTerritoryId]);
 
     useEffect(() => {
       if (!map || !isRunTakeoverActive) return;
