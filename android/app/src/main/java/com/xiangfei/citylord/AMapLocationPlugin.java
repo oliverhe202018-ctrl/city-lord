@@ -27,6 +27,7 @@ import com.amap.api.location.AMapLocationClientOption;
 import com.amap.api.location.AMapLocationListener;
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
+import org.json.JSONException;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
@@ -217,10 +218,12 @@ public class AMapLocationPlugin extends Plugin {
         final List<Long> ids = new ArrayList<>();
         try {
             for (int i = 0; i < idsArray.length(); i++) {
-                ids.add(Long.valueOf(idsArray.get(i).toString()));
+                if (!idsArray.isNull(i)) {
+                    ids.add(idsArray.getLong(i)); // 必须使用 getLong
+                }
             }
-        } catch (Exception e) {
-            call.reject("ids 参数解析失败: " + e.getMessage());
+        } catch (JSONException e) {
+            call.reject("ids 参数解析失败 (JSONException): " + e.getMessage());
             return;
         }
 

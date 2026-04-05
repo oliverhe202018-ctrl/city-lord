@@ -145,6 +145,11 @@ export interface AMapLocationPlugin {
         handler: (data: AMapLocationError) => void,
     ): Promise<PluginListenerHandle>;
 
+    addListener(
+        eventName: 'logEvent',
+        listenerFunc: (log: { eventName: string; reason?: string; data?: string; ts: number }) => void
+    ): Promise<PluginListenerHandle>;
+
     removeAllListeners(): Promise<void>;
 
     // ---- 强制销毁（stop 超时保护） ----
