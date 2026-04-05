@@ -1,7 +1,5 @@
 'use server';
 
-export const maxDuration = 60; // 允许 Serverless 函数最多执行 60 秒
-
 import { prisma } from '@/lib/prisma';
 import { evaluateTasks, RunData, TaskResult } from '@/lib/game/task-engine';
 import { revalidatePath, revalidateTag } from 'next/cache';
