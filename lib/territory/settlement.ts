@@ -1,4 +1,5 @@
 import * as turf from '@turf/turf';
+import { Feature, Polygon } from 'geojson';
 import { cleanAndSplitTrajectory } from '../gis/geometry-cleaner';
 import { PrismaClient, Prisma } from '@prisma/client';
 import { TerritoryStatsAggregatorService } from '@/lib/services/territory-stats-aggregator';
@@ -13,6 +14,8 @@ export interface SettlementInput {
     clubId?: string | null;
     pathGeoJSON: any; // Changed from turf.Feature to any to avoid lint issues
     score_weight?: number;
+    /** Pre-processed cleaned polygons — if provided, skip extractValidLoops + cleanAndSplitTrajectory */
+    preProcessedPolygons?: Feature<Polygon>[];
     db?: Prisma.TransactionClient;
 }
 
@@ -57,31 +60,39 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
     const PATROL_OVERLAP_THRESHOLD = 0.8;
     const SHIELD_CHARGE_INCREMENT = 100;
 
-    // 1. Validate Input
-    if (!pathGeoJSON || !pathGeoJSON.geometry) {
-        return { success: false, createdTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'Invalid path geometry' };
-    }
+    // 1. Validate Input & Prepare Polygons
+    let cleanedPolygons: Feature<Polygon>[];
 
-    const rawCoords = pathGeoJSON.geometry.coordinates?.[0];
-    if (!Array.isArray(rawCoords) || rawCoords.length < 3) {
-        return { success: false, createdTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'Invalid path coordinates' };
-    }
-    const extractedLoops = extractValidLoops(
-        rawCoords.map((coord: [number, number], index: number) => ({
-            lng: coord[0],
-            lat: coord[1],
-            timestamp: index
-        })),
-        LOOP_CLOSURE_THRESHOLD_M
-    );
-    if (extractedLoops.length === 0) {
-        return { success: false, createdTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'No valid closed loops' };
-    }
+    if (input.preProcessedPolygons && input.preProcessedPolygons.length > 0) {
+        // Fast path: use pre-processed data from run-service.ts (skip expensive re-computation)
+        cleanedPolygons = input.preProcessedPolygons;
+    } else {
+        // Fallback path: original extraction + cleaning (for direct callers like territory-service.ts)
+        if (!pathGeoJSON || !pathGeoJSON.geometry) {
+            return { success: false, createdTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'Invalid path geometry' };
+        }
 
-    const cleanedPolygons = extractedLoops.flatMap((loop) => {
-        const loopCoords = loop.map((point) => [point.lng, point.lat] as [number, number]);
-        return cleanAndSplitTrajectory(loopCoords);
-    });
+        const rawCoords = pathGeoJSON.geometry.coordinates?.[0];
+        if (!Array.isArray(rawCoords) || rawCoords.length < 3) {
+            return { success: false, createdTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'Invalid path coordinates' };
+        }
+        const extractedLoops = extractValidLoops(
+            rawCoords.map((coord: [number, number], index: number) => ({
+                lng: coord[0],
+                lat: coord[1],
+                timestamp: index
+            })),
+            LOOP_CLOSURE_THRESHOLD_M
+        );
+        if (extractedLoops.length === 0) {
+            return { success: false, createdTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'No valid closed loops' };
+        }
+
+        cleanedPolygons = extractedLoops.flatMap((loop) => {
+            const loopCoords = loop.map((point) => [point.lng, point.lat] as [number, number]);
+            return cleanAndSplitTrajectory(loopCoords);
+        });
+    }
 
     if (cleanedPolygons.length === 0) {
         return { success: false, createdTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'Invalid geometry after cleaning' };

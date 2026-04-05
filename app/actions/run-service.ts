@@ -10,6 +10,8 @@ import { processTerritorySettlement } from '@/lib/territory/settlement';
 import { validateRunData } from '@/lib/validators/run-validator';
 import { validateRunLegitimacy } from '@/lib/anti-cheat/mvp-rules';
 import * as turf from '@turf/turf';
+import { Feature, Polygon } from 'geojson';
+import { cleanAndSplitTrajectory } from '@/lib/gis/geometry-cleaner';
 import { isLoopClosed, LOOP_CLOSURE_THRESHOLD_M, extractValidLoops, type Coord } from '@/lib/geometry-utils';
 import { isTester } from '@/lib/constants/anti-cheat';
 
@@ -163,27 +165,80 @@ export async function saveRunActivity(
 
         const extractedLoops = extractValidLoops((runData.path as any[]) || [], LOOP_CLOSURE_THRESHOLD_M);
         let finalPolygons: Coord[][] = extractedLoops;
-        let finalArea = extractedLoops.reduce((sum, loop) => {
-            try {
-                const coords = loop.map((point: any) => [point.lng, point.lat] as [number, number]);
-                const polygon = turf.polygon([coords]);
-                return sum + turf.area(polygon);
-            } catch {
-                return sum;
-            }
-        }, 0);
 
         // Settlement Gating
         if (isBlockedByAntiCheat) {
-            // Shadowban: Force zero territory and rewards later
             finalPolygons = [];
-            finalArea = 0;
             console.warn(`[Anti-Cheat] Settlement blocked for user ${userId}. Reason: ${flagReason ?? pedometerAntiCheatLog}`);
         } else if (pathValidation.riskLevel === 'MEDIUM') {
             finalPolygons = [];
-            finalArea = 0;
             console.log(`[saveRunActivity] MEDIUM risk run. Polygons neutralized for user: ${userId}`);
         }
+
+        // ── Phase 1: Pre-process territory polygons BEFORE transaction ──
+        const preProcessedTerritories: Array<{
+            polyFeature: Feature<Polygon>;
+            cleanedPolygons: Feature<Polygon>[];
+        }> = [];
+
+        if (finalPolygons.length > 0 && !isFlagged && pathValidation.riskLevel === 'LOW') {
+            for (const polyPoints of finalPolygons) {
+                const loopCheck = isLoopClosed(
+                    polyPoints.map((point: Coord, index: number) => ({
+                        lat: point.lat, lng: point.lng, timestamp: point.timestamp ?? index
+                    })),
+                    LOOP_CLOSURE_THRESHOLD_M
+                );
+                if (!loopCheck.isClosed) continue;
+
+                const coords = polyPoints.map((p: Coord) => [p.lng, p.lat] as [number, number]);
+                try {
+                    const polyFeature = turf.polygon([coords]) as Feature<Polygon>;
+                    // Run geometry cleaning (unkink, simplify) outside transaction
+                    const cleaned = cleanAndSplitTrajectory(coords);
+                    if (cleaned.length > 0) {
+                        preProcessedTerritories.push({ polyFeature, cleanedPolygons: cleaned });
+                    }
+                } catch (e) {
+                    console.warn(`[Pre-process] Skipping invalid polygon:`, e);
+                }
+            }
+        }
+
+        // ── Phase 2: Macro-Territory Merge ("Big eats Small") ──
+        let finalTerritoriesToSave = preProcessedTerritories;
+
+        if (preProcessedTerritories.length > 1) {
+            const withArea = preProcessedTerritories.map(t => ({
+                ...t,
+                area: turf.area(t.polyFeature)
+            }));
+            withArea.sort((a, b) => b.area - a.area);
+
+            const survivors: typeof withArea = [];
+            for (const candidate of withArea) {
+                const isContained = survivors.some(big =>
+                    turf.booleanContains(big.polyFeature, candidate.polyFeature)
+                );
+                if (!isContained) {
+                    survivors.push(candidate);
+                }
+            }
+
+            finalTerritoriesToSave = survivors;
+
+            if (finalTerritoriesToSave.length < preProcessedTerritories.length) {
+                console.log(
+                    `[Territory Merge] ${preProcessedTerritories.length} loops → ` +
+                    `${finalTerritoriesToSave.length} after big-eats-small filter`
+                );
+            }
+        }
+
+        // ── Phase 1 (cont.): Calculate accurate area from surviving polygons ──
+        const accurateAreaKm2 = finalTerritoriesToSave.reduce((sum, t) => {
+            return sum + turf.area(t.polyFeature);
+        }, 0) / 1_000_000;
 
         // 3. Prepare Run Data for Evaluation
         const evaluationData: RunData = {
@@ -336,58 +391,42 @@ export async function saveRunActivity(
             totalCoins = Math.floor(totalCoins * penaltyMultiplier);
             totalXp = Math.floor(totalXp * penaltyMultiplier) + eventReward.xp;
 
-            // C. Territory Settlement (Phase 2 & 4)
+            // C. Territory Settlement — pure DB writes only
             let settledTerritoriesCount = 0;
             const allDamageDetails: any[] = [];
             const allMaintenanceDetails: any[] = [];
-            if (finalPolygons.length > 0 && !isFlagged && pathValidation.riskLevel === 'LOW') {
-                for (const polyPoints of finalPolygons) {
-                    const loopCheck = isLoopClosed(
-                        polyPoints.map((point: Coord, index: number) => ({ lat: point.lat, lng: point.lng, timestamp: point.timestamp ?? index })),
-                        LOOP_CLOSURE_THRESHOLD_M
-                    );
-                    if (!loopCheck.isClosed) {
-                        continue;
-                    }
-                    const coords = polyPoints.map((p: Coord) => [p.lng, p.lat]);
-                    const polyFeature = turf.polygon([coords]);
-                    
-                    // TODO: Extract actual cityId from points if needed, 
-                    // for now use the one from runData or fallback
-                    const cityId = (runData as any).cityId || "default_city";
 
-                    const settlement = await processTerritorySettlement({
-                        runId: run.id,
-                        userId: userId,
-                        cityId: cityId,
-                        clubId: runnerClubId,
-                        pathGeoJSON: polyFeature,
-                        db: tx
-                    });
-                    if (settlement.success) {
-                        settledTerritoriesCount += settlement.createdTerritories;
-                        if (settlement.damageDetails) {
-                            allDamageDetails.push(...settlement.damageDetails);
-                        }
-                        if (settlement.maintenanceDetails) {
-                            allMaintenanceDetails.push(...settlement.maintenanceDetails);
-                        }
+            for (const terrData of finalTerritoriesToSave) {
+                const cityId = (runData as any).cityId || "default_city";
+
+                const settlement = await processTerritorySettlement({
+                    runId: run.id,
+                    userId: userId,
+                    cityId: cityId,
+                    clubId: runnerClubId,
+                    pathGeoJSON: terrData.polyFeature,
+                    preProcessedPolygons: terrData.cleanedPolygons,
+                    db: tx
+                });
+                if (settlement.success) {
+                    settledTerritoriesCount += settlement.createdTerritories;
+                    if (settlement.damageDetails) {
+                        allDamageDetails.push(...settlement.damageDetails);
+                    }
+                    if (settlement.maintenanceDetails) {
+                        allMaintenanceDetails.push(...settlement.maintenanceDetails);
                     }
                 }
             }
 
-            // D. Get Run Number (Phase 3)
+            // D. Get Run Number
             const runNumber = await tx.runs.count({
                 where: { user_id: userId }
             });
 
-            // E. Update City Progress (Phase 2)
+            // E. Update City Progress — accurateAreaKm2 pre-computed outside tx
             if (!isFlagged) {
                 const cityId = (runData as any).cityId || "default_city";
-                
-                // Calculate accurate area in km2 for both progress and profile
-                const { MapService } = await import('@/lib/services/mapService');
-                const accurateAreaKm2 = await MapService.calculateAreaKm2(JSON.stringify(runData.path)); 
 
                 await tx.user_city_progress.upsert({
                     where: {
@@ -451,7 +490,7 @@ export async function saveRunActivity(
                 antiCheatLog: null,
                 totalSteps: submittedTotalSteps
             };
-        });
+        }, { timeout: 30000, maxWait: 10000 });
 
 
         revalidatePath('/dashboard');
