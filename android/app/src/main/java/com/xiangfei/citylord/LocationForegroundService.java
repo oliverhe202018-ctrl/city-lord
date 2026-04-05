@@ -8,7 +8,10 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
 import android.os.Build;
+import android.os.Handler;
+import android.os.HandlerThread;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.PowerManager;
 import android.content.SharedPreferences;
 import android.content.pm.ServiceInfo;
@@ -111,6 +114,11 @@ public class LocationForegroundService extends Service implements AMapLocationLi
 
     // AMap client
     private AMapLocationClient locationClient = null;
+
+    // ---- 独立定位线程 (Anti-Doze) ----
+    /** 独立 HandlerThread：高德定位回调运行在此线程，不受 Doze 主线程休眠影响 */
+    private HandlerThread locationThread = null;
+    private Handler locationHandler = null;
 
     // WakeLock
     private PowerManager.WakeLock wakeLock = null;
@@ -596,46 +604,89 @@ public class LocationForegroundService extends Service implements AMapLocationLi
             stopLocationTracking();
         }
 
-        try {
-            locationClient = new AMapLocationClient(getApplicationContext());
-
-            AMapLocationClientOption option = new AMapLocationClientOption();
-            // User dynamic interval passed from Intent
-            option.setInterval(locationInterval);
-            
-            option.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);
-            option.setSensorEnable(true);
-            option.setNeedAddress(false);
-            option.setLocationCacheEnable(true);
-            option.setGpsFirst(true);
-            option.setGpsFirstTimeout(5000);
-
-            locationClient.setLocationOption(option);
-            locationClient.setLocationListener(this);
-            
-            // 启用后台保活 (高德 SDK 要求)
-            Notification notification = buildNotification(notificationTitle, notificationBody);
-            locationClient.enableBackgroundLocation(NOTIFICATION_ID, notification);
-
-            locationClient.startLocation();
-
-            Log.i(TAG, "AMap location tracking started: Hight_Accuracy, interval=" + locationInterval + "ms");
-        } catch (Exception e) {
-            Log.e(TAG, "Failed to start location tracking: " + e.getMessage(), e);
-            broadcastError(-1, "Start tracking failed: " + e.getMessage());
+        // ====== 创建独立 HandlerThread (Anti-Doze 核心) ======
+        // 高德 AMapLocationClient 会绑定到创建它的线程的 Looper。
+        // 在独立 HandlerThread 上创建 client，回调天然运行在该线程上，
+        // 不受 Doze 模式主线程冻结的影响。
+        if (locationThread != null) {
+            locationThread.quitSafely();
         }
+        locationThread = new HandlerThread("LocationThread", android.os.Process.THREAD_PRIORITY_FOREGROUND);
+        locationThread.start();
+        locationHandler = new Handler(locationThread.getLooper());
+        Log.i(TAG, "独立定位线程已创建: LocationThread (priority=FOREGROUND)");
+
+        // 在独立线程上初始化高德定位引擎
+        final Service self = this;
+        locationHandler.post(() -> {
+            try {
+                locationClient = new AMapLocationClient(getApplicationContext());
+
+                AMapLocationClientOption option = new AMapLocationClientOption();
+                // User dynamic interval passed from Intent
+                option.setInterval(locationInterval);
+
+                option.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);
+                option.setSensorEnable(true);
+                option.setNeedAddress(false);
+                // ====== 禁用定位缓存：强制输出实时硬件 GPS 点，杜绝缓存脏点 ======
+                option.setLocationCacheEnable(false);
+                option.setGpsFirst(true);
+                option.setGpsFirstTimeout(5000);
+
+                locationClient.setLocationOption(option);
+                locationClient.setLocationListener(LocationForegroundService.this);
+
+                // 启用后台保活 (高德 SDK 要求)
+                Notification notification = buildNotification(notificationTitle, notificationBody);
+                locationClient.enableBackgroundLocation(NOTIFICATION_ID, notification);
+
+                locationClient.startLocation();
+
+                Log.i(TAG, "AMap location tracking started on LocationThread: Hight_Accuracy, interval=" + locationInterval + "ms, cache=DISABLED");
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to start location tracking on LocationThread: " + e.getMessage(), e);
+                broadcastError(-1, "Start tracking failed: " + e.getMessage());
+            }
+        });
     }
 
     private void stopLocationTracking() {
         if (locationClient != null) {
-            try {
-                locationClient.stopLocation();
-                locationClient.onDestroy();
-                Log.i(TAG, "AMap location client stopped and destroyed");
-            } catch (Exception e) {
-                Log.e(TAG, "Error stopping location client: " + e.getMessage(), e);
+            // 在定位线程上停止 client，确保线程安全
+            if (locationHandler != null) {
+                locationHandler.post(() -> {
+                    try {
+                        if (locationClient != null) {
+                            locationClient.stopLocation();
+                            locationClient.onDestroy();
+                            locationClient = null;
+                            Log.i(TAG, "AMap location client stopped and destroyed on LocationThread");
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error stopping location client: " + e.getMessage(), e);
+                        locationClient = null;
+                    }
+                });
+            } else {
+                // Fallback: 直接在当前线程停止
+                try {
+                    locationClient.stopLocation();
+                    locationClient.onDestroy();
+                    Log.i(TAG, "AMap location client stopped and destroyed (fallback)");
+                } catch (Exception e) {
+                    Log.e(TAG, "Error stopping location client: " + e.getMessage(), e);
+                }
+                locationClient = null;
             }
-            locationClient = null;
+        }
+
+        // 安全退出定位线程
+        if (locationThread != null) {
+            locationThread.quitSafely();
+            Log.i(TAG, "LocationThread quitSafely called");
+            locationThread = null;
+            locationHandler = null;
         }
     }
 

@@ -150,6 +150,8 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   const lastClaimAtRef = useRef(0);
   const validPointsCountRef = useRef(0);
   const firstPointAtRef = useRef<number | null>(null);
+  /** 防重入锁：防止多次 appStateChange 触发重复分帧注入 */
+  const isHydratingRef = useRef(false);
 
   // ─── Live-snapshot refs (always current, immune to stale closures) ───
   const distanceRef = useRef(distance);
@@ -687,9 +689,11 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           setDuration(pausedAccumulatorRef.current + elapsed);
           console.log('[useRunningTracker] Foreground resume — timer reconciled');
 
-          // --- BEGIN: Room 黑匣子追帧 (SQLite 持久化) ---
-          // 核心逻辑：从原生 Room 数据库拉取 JS 挂起期间遗失的坐标，
-          // 合入后立即 ACK，确保每批数据只被消费一次，杜绝重复。
+          // --- BEGIN: Room 黑匣子追帧 — 分批分帧注入 (Chunked Hydration) ---
+          // 核心设计：从 Room 数据库拉取离线坐标后，按每批 20 个点切片，
+          // 通过 setTimeout(0) 链式调度，让出主线程给 React commit & GC，
+          // 杜绝一次性 setState 导致的高德 JS Bridge 内存撑爆。
+          // ACK 仅在最后一批处理完毕后才会触发 — 确保数据不会被提前清空。
           try {
             const { AMapLocation } = await import('@/plugins/amap-location/definitions');
             const sessionId = runIdempotencyKeyRef.current;
@@ -700,6 +704,12 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
             if (offlinePoints.length > 0) {
               console.log(`[BlackBox] 🔄 拉取到 ${offlinePoints.length} 条离线定位记录, sessionId=${sessionId}`);
               
+              // 防重入锁：避免多次 appStateChange 触发重复注入
+              if (isHydratingRef.current) {
+                console.warn('[BlackBox] ⚠️ 分帧注入进行中，跳过本次触发');
+                return;
+              }
+              
               // 基于时间戳严格去重：仅提取还未进入路径状态机的新数据点
               const currentPath = pathRef.current;
               const lastPathTime = currentPath.length > 0 
@@ -708,32 +718,68 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
               
               // 按时间戳升序排列（Room 已排序，但再做一次安全保证）
               const sortedPoints = offlinePoints
-                .filter(pt => pt.timestamp > lastPathTime)
-                .sort((a, b) => a.timestamp - b.timestamp);
+                .filter((pt: { timestamp: number }) => pt.timestamp > lastPathTime)
+                .sort((a: { timestamp: number }, b: { timestamp: number }) => a.timestamp - b.timestamp);
               
-              // 逐帧喂入状态机，触发空间防抖（3m 过滤）、循环闭合等完整逻辑
-              for (const pt of sortedPoints) {
-                handleLocationUpdate(pt.lat, pt.lng, pt.accuracy, pt.timestamp);
+              if (sortedPoints.length === 0) {
+                console.log('[BlackBox] 所有离线记录已在路径中，无需注入');
+                return;
               }
               
-              console.log(`[BlackBox] ✅ 已合入 ${sortedPoints.length}/${offlinePoints.length} 个有效离线轨迹点`);
-              
-              // ACK 闭环：标记这批记录为已同步，防止下次苏醒时重复拉取
-              const idsToAck = offlinePoints.map(pt => pt.id);
-              try {
-                const ackResult = await AMapLocation.acknowledgeLocations({ ids: idsToAck });
-                console.log(`[BlackBox] 🔒 ACK 完成: ${ackResult.acknowledged} 条记录已确认`);
-              } catch (ackErr) {
-                // ACK 失败不阻断主流程 — 下次苏醒会重新拉取（幂等安全）
-                console.warn('[BlackBox] ⚠️ ACK 失败（数据不会丢失，下次苏醒自动重试）:', ackErr);
+              // ====== 分批分帧注入核心 ======
+              isHydratingRef.current = true;
+              const CHUNK_SIZE = 20;
+              const chunks: Array<typeof sortedPoints> = [];
+              for (let i = 0; i < sortedPoints.length; i += CHUNK_SIZE) {
+                chunks.push(sortedPoints.slice(i, i + CHUNK_SIZE));
               }
+              
+              console.log(`[BlackBox] 📦 切分为 ${chunks.length} 个批次 (每批 ${CHUNK_SIZE} 点), 总计 ${sortedPoints.length} 个有效点`);
+              
+              // 预先收集所有待 ACK 的 ID（包括被去重过滤掉的旧点）
+              const idsToAck = offlinePoints.map((pt: { id: number }) => pt.id);
+              let chunkIndex = 0;
+              
+              const processNextChunk = () => {
+                if (chunkIndex >= chunks.length) {
+                  // ====== 全部批次完成 → 安全执行 ACK ======
+                  isHydratingRef.current = false;
+                  console.log(`[BlackBox] ✅ 分帧注入完成: ${sortedPoints.length} 个轨迹点已全部合入`);
+                  
+                  AMapLocation.acknowledgeLocations({ ids: idsToAck })
+                    .then((ackResult) => {
+                      console.log(`[BlackBox] 🔒 ACK 完成: ${ackResult.acknowledged} 条记录已确认`);
+                    })
+                    .catch((ackErr) => {
+                      // ACK 失败不阻断主流程 — 下次苏醒会重新拉取（幂等安全）
+                      console.warn('[BlackBox] ⚠️ ACK 失败（数据不会丢失，下次苏醒自动重试）:', ackErr);
+                    });
+                  return;
+                }
+                
+                const batch = chunks[chunkIndex];
+                console.log(`[BlackBox] 🔄 Chunk ${chunkIndex + 1}/${chunks.length} (${batch.length} 点)`);
+                
+                for (const pt of batch) {
+                  handleLocationUpdate(pt.lat, pt.lng, pt.accuracy, pt.timestamp);
+                }
+                
+                chunkIndex++;
+                // 让出主线程：允许 React 完成当前批次的 commit & reconciliation
+                setTimeout(processNextChunk, 0);
+              };
+              
+              // 启动第一批
+              processNextChunk();
+              // ====== 分批分帧注入核心 END ======
             } else {
               console.log('[BlackBox] 无离线记录需要追帧');
             }
           } catch (e) {
+            isHydratingRef.current = false; // 异常时释放锁
             console.warn('[BlackBox] 从 Room 黑匣子追帧失败（可能在 Web 环境）:', e);
           }
-          // --- END: Room 黑匣子追帧 ---
+          // --- END: Room 黑匣子追帧 — 分批分帧注入 ---
         }
 
         // 关键事件：切后台时立即强制落盘一次
