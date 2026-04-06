@@ -120,11 +120,6 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
       if (!map || !isRunTakeoverActive) return;
       map.setZoom(18);
     }, [map, isRunTakeoverActive]);
-    useEffect(() => {
-      if (!isRunTakeoverActive) {
-        useGameStore.getState().resetRunState?.();
-      }
-    }, [isRunTakeoverActive]);
 
     useEffect(() => {
       if (!map || !isRunTakeoverActive) return;

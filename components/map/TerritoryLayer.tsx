@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { createClient } from "@/lib/supabase/client";
 import type { ViewportKingData } from "./AMapView";
 import * as turf from '@turf/turf';
+import debounce from 'lodash.debounce';
 import { useGameStore, useGameTerritoryAppearance } from "@/store/useGameStore";
 
 /** Club mode palette: own club vs enemy club */
@@ -34,8 +35,12 @@ const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, ti
   }
 }
 
-const fetchTerritories = async (cityId: string): Promise<ExtTerritory[]> => {
-  const res = await fetchWithTimeout(`/api/city/fetch-territories?cityId=${cityId}`, { credentials: 'include', cache: 'no-store' })
+const fetchTerritories = async (cityId: string, bounds?: { minLng: number, minLat: number, maxLng: number, maxLat: number }): Promise<ExtTerritory[]> => {
+  let url = `/api/city/fetch-territories?cityId=${cityId}`;
+  if (bounds) {
+    url += `&minLng=${bounds.minLng}&minLat=${bounds.minLat}&maxLng=${bounds.maxLng}&maxLat=${bounds.maxLat}`;
+  }
+  const res = await fetchWithTimeout(url, { credentials: 'include', cache: 'no-store' })
   if (!res.ok) throw new Error('Failed to fetch territories')
   return await res.json()
 }
@@ -376,14 +381,27 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
 
     let mounted = true;
 
-    const loadTerritories = async (retryCount = 0) => {
+    const loadTerritories = async (bounds?: { minLng: number, minLat: number, maxLng: number, maxLat: number }, isIncremental = false, retryCount = 0) => {
       try {
         console.log(`[Audit] loadTerritories: cityId=${city.id} map=${!!map} retry=${retryCount}`);
-        const data = await fetchTerritories(city.id);
+        const rawData = await fetchTerritories(city.id, bounds);
 
         if (!mounted) return;
-        if (!data || !Array.isArray(data)) {
+        if (!rawData || !Array.isArray(rawData)) {
           throw new Error('API returned invalid data format');
+        }
+
+        let data = rawData;
+        if (isIncremental) {
+          const existingIds = new Set(Array.from(activeTerritoryMap.current.keys()));
+          data = rawData.filter(t => !existingIds.has(t.id));
+          if (data.length === 0) return;
+        } else {
+          polygonTerritoryMap.current.clear();
+          activeTerritoryMap.current.clear();
+          unionGeometryCache.current.clear();
+          setPolygons(prev => { prev.forEach(p => p && p.setMap && p.setMap(null)); return []; });
+          setMarkers(prev => { prev.forEach(m => m && m.setMap && m.setMap(null)); return []; });
         }
 
         if (data && data.length > 0) {
@@ -412,10 +430,10 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
 
         console.log(`[Audit] Success: API returned ${data.length} items`);
 
-        const newPolygonMap = new Map<any, { territory: ExtTerritory; defaultStrokeColor: string; path: [number, number][] }>();
-        const newCellMap = new Map<string, ExtTerritory>();
+        const newPolygonMap = isIncremental ? polygonTerritoryMap.current : new Map<any, { territory: ExtTerritory; defaultStrokeColor: string; path: [number, number][] }>();
+        const newCellMap = isIncremental ? activeTerritoryMap.current : new Map<string, ExtTerritory>();
 
-        const territoryMetrics: TerritoryMetric[] = [];
+        const territoryMetrics: TerritoryMetric[] = isIncremental ? territoryMetricsRef.current : [];
 
         // --- POLYGON UNION ALGORITHM & GEOMETRY CACHING FOR CLUB MODE ---
         /**
@@ -666,20 +684,18 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
         // Atomic update on map
         if (map) {
           setPolygons(prev => {
-            prev.forEach(p => p && p.setMap && p.setMap(null));
             const validPolygons = createdPolygons
               .filter(item => item !== null)
               .flatMap(item => item!.polygons)
               .filter(p => !!p);
             map.add(validPolygons);
-            return validPolygons;
+            return isIncremental ? [...prev, ...validPolygons] : validPolygons;
           });
 
           setMarkers(prev => {
-            prev.forEach(m => m && m.setMap && m.setMap(null));
             const validMarkers = createdPolygons.filter(item => item !== null).map(item => item!.marker).filter(m => !!m);
             map.add(validMarkers);
-            return validMarkers;
+            return isIncremental ? [...prev, ...validMarkers] : validMarkers;
           });
         }
 
@@ -697,23 +713,47 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
           if (retryCount < 4) {
             const delay = 500 * Math.pow(2, retryCount);
             setTimeout(() => {
-              if (mounted) loadTerritories(retryCount + 1);
+              if (mounted) loadTerritories(bounds, isIncremental, retryCount + 1);
             }, delay);
           }
         }
       }
     };
 
-    loadTerritories();
+    loadTerritories(undefined, false);
 
     const handleRefresh = () => {
-      loadTerritories();
+      loadTerritories(undefined, false);
     };
     window.addEventListener('citylord:refresh-territories', handleRefresh);
+
+    const fetchTerritoriesInView = debounce((currentMap: any) => {
+      if (!currentMap || !mounted) return;
+      
+      const bounds = currentMap.getBounds();
+      if (!bounds) return;
+
+      const sw = bounds.getSouthWest();
+      const ne = bounds.getNorthEast();
+
+      loadTerritories({
+        minLng: sw.getLng(),
+        minLat: sw.getLat(),
+        maxLng: ne.getLng(),
+        maxLat: ne.getLat()
+      }, true);
+    }, 500);
+
+    const handleMoveEnd = () => fetchTerritoriesInView(map);
+    map.on('moveend', handleMoveEnd);
+    map.on('zoomend', handleMoveEnd);
 
     return () => {
       mounted = false;
       window.removeEventListener('citylord:refresh-territories', handleRefresh);
+      map.off('moveend', handleMoveEnd);
+      map.off('zoomend', handleMoveEnd);
+      fetchTerritoriesInView.cancel();
     };
     // 鍔犲叆 user?.id 纭繚璁よ瘉鐘舵€佸彉鍖栧悗 polygon 閲嶅缓锛屼互鑾峰緱姝ｇ‘鐨?self/enemy 鏍峰紡
   }, [
