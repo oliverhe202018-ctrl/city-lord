@@ -41,6 +41,7 @@ export interface SaveRunResult {
     isValid?: boolean;
     antiCheatLog?: string | null;
     totalSteps?: number;
+    settlingAsync?: boolean;
 }
 
 const isRunEventLog = (event: unknown): event is RunEventLog => {
@@ -467,59 +468,72 @@ export async function saveRunActivity(
         }, { timeout: 30000, maxWait: 10000 });
 
         // Phase 3: 主事务外部异步结算领地 (核心解耦)
-        let settledTerritoriesCount = 0;
-        const allDamageDetails: any[] = [];
-        const allMaintenanceDetails: any[] = [];
+        if (!result.isFlagged && polygonsForSettlement.length > 0) {
+            const cityId = (runData as any).cityId || 'default_city';
+            
+            // TODO: 待配置 TRIGGER_API_KEY 后生效
+            try {
+                // 暂时注释掉 trigger SDK 调用，待未来安装依赖后解开
+                // await triggerClient.sendEvent({
+                //     name: 'run.settle-territories',
+                //     payload: {
+                //         runId: result.runId,
+                //         userId,
+                //         cityId,
+                //         clubId: runnerClubId,
+                //         polygons: polygonsForSettlement
+                //     }
+                // });
+                throw new Error("Trigger 未配置，主动降级");
+            } catch (err: any) {
+                // Background execution (Node.js microtask fallback)
+                const runBackgroundSettlement = async () => {
+                    let settledCount = 0;
+                    for (const polyPoints of polygonsForSettlement) {
+                        const loopCheck = isLoopClosed(
+                            polyPoints.map((pt: any, i: number) => ({ ...pt, timestamp: pt.timestamp ?? i })),
+                            LOOP_CLOSURE_THRESHOLD_M
+                        );
+                        if (!loopCheck.isClosed) continue;
 
-        if (!result.isFlagged) {
-            for (const polyPoints of polygonsForSettlement) {
-                const loopCheck = isLoopClosed(
-                    polyPoints.map((pt: any, i: number) => ({ ...pt, timestamp: pt.timestamp ?? i })),
-                    LOOP_CLOSURE_THRESHOLD_M
-                );
-                if (!loopCheck.isClosed) continue;
+                        const coords = polyPoints.map((p: any) => [p.lng, p.lat] as [number, number]);
+                        if (coords.length > 0 && (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1])) {
+                            coords.push([...coords[0]]);
+                        }
 
-                const coords = polyPoints.map((p: any) => [p.lng, p.lat] as [number, number]);
-                if (coords.length > 0 && (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1])) {
-                    coords.push([...coords[0]]);
-                }
+                        try {
+                            const polyFeature = turf.polygon([coords]);
+                            // 独立调用，不传入 db，让 settlement 自己开微事务
+                            const settlement = await processTerritorySettlement({
+                                runId: result.runId,
+                                userId,
+                                cityId,
+                                clubId: runnerClubId,
+                                pathGeoJSON: polyFeature as any,
+                                // 核心修复：传入已处理好的多边形数组，直接跳过底层的 O(N^2) 重计算
+                                preProcessedPolygons: [polyFeature] as any
+                            });
 
-                try {
-                    const polyFeature = turf.polygon([coords]);
-                    const cityId = (runData as any).cityId || 'default_city';
-
-                    // 独立调用，不传入 db，让 settlement 自己开微事务
-                    const settlement = await processTerritorySettlement({
-                        runId: result.runId,
-                        userId,
-                        cityId,
-                        clubId: runnerClubId,
-                        pathGeoJSON: polyFeature as any,
-                        // 核心修复：传入已处理好的多边形数组，直接跳过底层的 O(N^2) 重计算
-                        preProcessedPolygons: [polyFeature] as any
-                    });
-
-                    if (settlement.success) {
-                        settledTerritoriesCount += settlement.createdTerritories;
-                        allDamageDetails.push(...(settlement.damageDetails ?? []));
-                        allMaintenanceDetails.push(...(settlement.maintenanceDetails ?? []));
+                            if (settlement.success) {
+                                settledCount += settlement.createdTerritories;
+                            }
+                        } catch (error) {
+                            console.error(`[Territory Settlement Failed] runId: ${result.runId}`, error);
+                        }
                     }
-                } catch (error) {
-                    // 记录单块领地结算异常，但不中断循环，继续处理下一块地
-                    console.error(`[Territory Settlement Failed] runId: ${result.runId}`, error);
-                }
-            }
 
-            // 补充更新占领的小图块数量
-            if (settledTerritoriesCount > 0) {
-                const cityId = (runData as any).cityId || 'default_city';
-                await prisma.user_city_progress.update({
-                    where: { user_id_city_id: { user_id: userId, city_id: cityId } },
-                    data: { tiles_captured: { increment: settledTerritoriesCount } }
-                }).catch(e => console.error('[Settlement] Failed to update tiles_captured', e));
+                    if (settledCount > 0) {
+                        await prisma.user_city_progress.update({
+                            where: { user_id_city_id: { user_id: userId, city_id: cityId } },
+                            data: { tiles_captured: { increment: settledCount } }
+                        }).catch(e => console.error('[Settlement] Failed to update tiles_captured', e));
+                        console.log(`[Background Settlement] Successfully processed ${settledCount} territories for run ${result.runId}`);
+                    }
+                };
+
+                runBackgroundSettlement().catch(e => console.error("后台异步结算失败:", e));
             }
         }
-
 
         revalidatePath('/dashboard');
         revalidatePath('/profile/me');
@@ -557,7 +571,7 @@ export async function saveRunActivity(
                     : 0;
                 await updateChallengeProgress(userId, {
                     distance_meters: evaluationData.distance,
-                    hexes_claimed: settledTerritoriesCount,
+                    hexes_claimed: 0, // Since it's async, we don't know the final count yet
                     pace_seconds_per_km: paceSecondsPerKm,
                 });
                 console.log(`[Challenge] Progress updated for user: ${userId}`);
@@ -573,12 +587,13 @@ export async function saveRunActivity(
                 runNumber: result.runNumber,
                 newTasks: result.newTasks,
                 totalReward: result.rewards,
-                damageSummary: allDamageDetails,
-                maintenanceSummary: allMaintenanceDetails,
-                settledTerritoriesCount: settledTerritoriesCount,
+                damageSummary: [],
+                maintenanceSummary: [],
+                settledTerritoriesCount: 0,
                 isValid: result.isValid,
                 antiCheatLog: result.antiCheatLog,
-                totalSteps: result.totalSteps
+                totalSteps: result.totalSteps,
+                settlingAsync: (!result.isFlagged && polygonsForSettlement.length > 0) ? true : undefined
             }
         };
 

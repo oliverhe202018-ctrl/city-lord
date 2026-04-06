@@ -610,67 +610,41 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
             const displayLevel = getDisplayLevelByZoom(map.getZoom());
             const baseSize = isClubMerged ? 40 : (displayLevel === 'club' ? 24 : 32);
 
-            const content = document.createElement('div');
-            content.className = 'pointer-events-none';
-            content.style.width = `${baseSize}px`;
-            content.style.height = `${baseSize}px`;
-            content.style.marginLeft = `-${baseSize / 2}px`;
-            content.style.marginTop = `-${baseSize / 2}px`;
-
-            const inner = document.createElement('div');
-            inner.className = 'w-full h-full rounded-full overflow-hidden border border-white bg-black/60 shadow flex items-center justify-center';
-
-            const clubContainer = document.createElement('div');
-            clubContainer.className = 'w-full h-full flex items-center justify-center';
-            if (territory.ownerClub?.logoUrl) {
-              const img = document.createElement('img');
-              img.src = territory.ownerClub.logoUrl;
-              img.className = 'w-full h-full object-cover';
-              clubContainer.appendChild(img);
+            let avatarHtml = '';
+            // In club merged mode or club kingdom mode, exclusively show the club container
+            if (isClubMerged || kingdomMode === 'club') {
+              if (territory.ownerClub?.logoUrl) {
+                avatarHtml = `<img src="${territory.ownerClub.logoUrl}" class="w-full h-full object-cover" />`;
+              } else {
+                const char = (territory.ownerClub?.name || ownerProfile?.nickname || '').substring(0, 1) || '领';
+                avatarHtml = `<span class="text-[10px] text-white font-bold leading-none">${char}</span>`;
+              }
             } else {
-              const span = document.createElement('span');
-              span.className = 'text-[10px] text-white font-bold leading-none';
-              span.innerText = (territory.ownerClub?.name || ownerProfile?.nickname || '').substring(0, 1) || '领';
-              clubContainer.appendChild(span);
+              if (ownerProfile?.avatarUrl) {
+                avatarHtml = `<img src="${ownerProfile.avatarUrl}" class="w-full h-full object-cover" />`;
+              } else {
+                const char = (ownerProfile?.nickname || '').substring(0, 1) || '领';
+                avatarHtml = `<span class="text-[10px] text-white font-bold leading-none">${char}</span>`;
+              }
             }
 
-            const individualContainer = document.createElement('div');
-            individualContainer.className = 'w-full h-full flex items-center justify-center';
-            if (ownerProfile?.avatarUrl) {
-              const img = document.createElement('img');
-              img.src = ownerProfile.avatarUrl;
-              img.className = 'w-full h-full object-cover';
-              individualContainer.appendChild(img);
-            } else {
-              const span = document.createElement('span');
-              span.className = 'text-[10px] text-white font-bold leading-none';
-              span.innerText = (ownerProfile?.nickname || '').substring(0, 1) || '领';
-              individualContainer.appendChild(span);
-            }
-
-            // In club merged mode, exclusively show the club container
-            if (isClubMerged || displayLevel === 'club') {
-              individualContainer.style.display = 'none';
-            } else {
-              clubContainer.style.display = 'none';
-            }
-            inner.appendChild(clubContainer);
-            inner.appendChild(individualContainer);
-            content.appendChild(inner);
+            const contentHtml = `
+              <div class="pointer-events-none territory-marker" style="width: ${baseSize}px; height: ${baseSize}px; margin-left: -${baseSize / 2}px; margin-top: -${baseSize / 2}px;">
+                <div class="w-full h-full rounded-full overflow-hidden border border-white bg-black/60 shadow flex items-center justify-center">
+                  ${avatarHtml}
+                </div>
+              </div>
+            `;
 
             // Hide zoom restrictions if it's the large club merged avatar (show at all zoom levels)
             marker = new (window as any).AMap.Marker({
               position: markerPosition,
-              content: content,
+              content: contentHtml,
               zIndex: 60,
               bubble: true,
               zooms: isClubMerged ? [3, 20] : [10, 20],
+              extData: { id: territory.id }
             });
-            (marker as any).__avatarContentEl = content;
-            (marker as any).__clubContentEl = clubContainer;
-            (marker as any).__individualContentEl = individualContainer;
-            (marker as any).__displayLevel = displayLevel;
-            (marker as any).__isClubMerged = isClubMerged;
           }
 
           return { polygons: territoryPolygons, marker };

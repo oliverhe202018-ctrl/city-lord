@@ -49,7 +49,7 @@ interface RunningStats {
   sessionClaims: Location[][]; // Claimed polygons during this run session
   addManualLocation: (lat: number, lng: number) => void;
   isSyncing: boolean;
-  saveRun: (isFinal?: boolean) => Promise<void>;
+  saveRun: (isFinal?: boolean) => Promise<{ settlingAsync?: boolean } | void>;
   // Raw data for UI calculations (preferred)
   distanceMeters: number; // meters — use this for display/calculations
   durationSeconds: number; // seconds — use this for speed/pace calculations
@@ -1155,6 +1155,8 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
             description: `获得 +${totalCoins} 金币`,
           });
         }
+        
+        return { settlingAsync: result.data?.settlingAsync };
       } else {
         console.error("Save failed:", result.error);
         if (isFinal) {
