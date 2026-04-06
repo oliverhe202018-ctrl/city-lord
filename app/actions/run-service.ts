@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { evaluateTasks, RunData, TaskResult } from '@/lib/game/task-engine';
 import { revalidatePath, revalidateTag } from 'next/cache';
+import { tasks } from "@trigger.dev/sdk/v3";
 import { RunRecordDTO, ActionResponse, RunEventLog } from '@/types/run-sync';
 import { validateRunAndRebuildTerritories, AntiCheatValidationResult } from '@/lib/anti-cheat/territory-builder';
 import { checkRunRateLimit } from '@/lib/anti-cheat/rate-limiter';
@@ -467,71 +468,22 @@ export async function saveRunActivity(
             };
         }, { timeout: 30000, maxWait: 10000 });
 
-        // Phase 3: 主事务外部异步结算领地 (核心解耦)
-        if (!result.isFlagged && polygonsForSettlement.length > 0) {
+        // Phase 3: 主事务外部异步结算领地与附属数据更新 (Trigger.dev 核心解耦)
+        if (!isBlockedByAntiCheat) {
             const cityId = (runData as any).cityId || 'default_city';
             
-            // TODO: 待配置 TRIGGER_API_KEY 后生效
             try {
-                // 暂时注释掉 trigger SDK 调用，待未来安装依赖后解开
-                // await triggerClient.sendEvent({
-                //     name: 'run.settle-territories',
-                //     payload: {
-                //         runId: result.runId,
-                //         userId,
-                //         cityId,
-                //         clubId: runnerClubId,
-                //         polygons: polygonsForSettlement
-                //     }
-                // });
-                throw new Error("Trigger 未配置，主动降级");
+                await tasks.trigger("settle-territories", {
+                    runId: result.runId,
+                    userId,
+                    cityId,
+                    clubId: runnerClubId,
+                    polygons: polygonsForSettlement,
+                    distance: evaluationData.distance,
+                    duration: evaluationData.duration
+                });
             } catch (err: any) {
-                // Background execution (Node.js microtask fallback)
-                const runBackgroundSettlement = async () => {
-                    let settledCount = 0;
-                    for (const polyPoints of polygonsForSettlement) {
-                        const loopCheck = isLoopClosed(
-                            polyPoints.map((pt: any, i: number) => ({ ...pt, timestamp: pt.timestamp ?? i })),
-                            LOOP_CLOSURE_THRESHOLD_M
-                        );
-                        if (!loopCheck.isClosed) continue;
-
-                        const coords = polyPoints.map((p: any) => [p.lng, p.lat] as [number, number]);
-                        if (coords.length > 0 && (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1])) {
-                            coords.push([...coords[0]]);
-                        }
-
-                        try {
-                            const polyFeature = turf.polygon([coords]);
-                            // 独立调用，不传入 db，让 settlement 自己开微事务
-                            const settlement = await processTerritorySettlement({
-                                runId: result.runId,
-                                userId,
-                                cityId,
-                                clubId: runnerClubId,
-                                pathGeoJSON: polyFeature as any,
-                                // 核心修复：传入已处理好的多边形数组，直接跳过底层的 O(N^2) 重计算
-                                preProcessedPolygons: [polyFeature] as any
-                            });
-
-                            if (settlement.success) {
-                                settledCount += settlement.createdTerritories;
-                            }
-                        } catch (error) {
-                            console.error(`[Territory Settlement Failed] runId: ${result.runId}`, error);
-                        }
-                    }
-
-                    if (settledCount > 0) {
-                        await prisma.user_city_progress.update({
-                            where: { user_id_city_id: { user_id: userId, city_id: cityId } },
-                            data: { tiles_captured: { increment: settledCount } }
-                        }).catch(e => console.error('[Settlement] Failed to update tiles_captured', e));
-                        console.log(`[Background Settlement] Successfully processed ${settledCount} territories for run ${result.runId}`);
-                    }
-                };
-
-                runBackgroundSettlement().catch(e => console.error("后台异步结算失败:", e));
+                console.error("[Trigger.dev] Failed to enqueue territory settlement task:", err);
             }
         }
 
@@ -540,45 +492,6 @@ export async function saveRunActivity(
         revalidateTag('territories');
         revalidateTag('city-stats');
         revalidateTag('city-leaderboard');
-
-        // Trigger Task Center Event (Awaiting to ensure consistency before response)
-        try {
-            const { TaskService } = await import('@/lib/services/task');
-            if (!isBlockedByAntiCheat) {
-                const eventPayload = {
-                    type: 'RUN_FINISHED' as const,
-                    userId: userId,
-                    timestamp: new Date(),
-                    data: {
-                        distance: evaluationData.distance, // meters
-                        duration: evaluationData.duration, // seconds
-                        pace: (evaluationData.duration / (evaluationData.distance / 1000)), // s/km
-                    }
-                };
-                await TaskService.processEvent(userId, eventPayload);
-                console.log(`[Task] Event processed synchronously for user: ${userId}`);
-            }
-        } catch (taskError) {
-            console.error('Task event processing failed', taskError);
-        }
-
-        // [Challenge System] Update 1v1 challenge progress (fire-and-forget)
-        if (!isBlockedByAntiCheat) {
-            try {
-                const { updateChallengeProgress } = await import('@/app/actions/challenge-service');
-                const paceSecondsPerKm = evaluationData.distance > 0
-                    ? evaluationData.duration / (evaluationData.distance / 1000)
-                    : 0;
-                await updateChallengeProgress(userId, {
-                    distance_meters: evaluationData.distance,
-                    hexes_claimed: 0, // Since it's async, we don't know the final count yet
-                    pace_seconds_per_km: paceSecondsPerKm,
-                });
-                console.log(`[Challenge] Progress updated for user: ${userId}`);
-            } catch (challengeError) {
-                console.error('[Challenge] Progress update failed (non-blocking):', challengeError);
-            }
-        }
 
         return {
             success: true,

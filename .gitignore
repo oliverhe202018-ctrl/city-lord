@@ -40,3 +40,5 @@ yarn-error.log*
 /android/build
 /ios/build
 /capacitor.config.json.tmp
+
+.trigger
