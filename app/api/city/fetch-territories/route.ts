@@ -13,12 +13,26 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url)
     const cityId = searchParams.get('cityId')
+    const minLng = searchParams.get('minLng')
+    const minLat = searchParams.get('minLat')
+    const maxLng = searchParams.get('maxLng')
+    const maxLat = searchParams.get('maxLat')
 
     if (!cityId) {
       return NextResponse.json({ error: 'cityId required' }, { status: 400 })
     }
 
-    const territories = await fetchTerritories(cityId)
+    let bounds;
+    if (minLng && minLat && maxLng && maxLat) {
+      bounds = {
+        minLng: parseFloat(minLng),
+        minLat: parseFloat(minLat),
+        maxLng: parseFloat(maxLng),
+        maxLat: parseFloat(maxLat)
+      }
+    }
+
+    const territories = await fetchTerritories(cityId, bounds)
     return NextResponse.json(territories || [])
   } catch (error: any) {
     console.error('fetchTerritories error:', error)

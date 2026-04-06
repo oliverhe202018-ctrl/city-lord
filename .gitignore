@@ -44,3 +44,4 @@ yarn-error.log*
 # PWA Service Worker files
 public/sw.js
 public/sw.js.map
+.trigger

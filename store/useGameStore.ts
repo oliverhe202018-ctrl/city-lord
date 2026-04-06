@@ -31,6 +31,7 @@ export interface UserState {
   achievements: Record<string, boolean>; // id -> claimed
   unreadMessageCount: number;
   unreadNotificationCount: number;
+  unreadSocialCount: number;
   clubId: string | null; // 鏂板锛氬綋鍓嶄勘涔愰儴ID
   backgroundUrl?: string | null;
   totalRunsCount: number;
@@ -160,6 +161,7 @@ export interface UserActions {
   updateClubId: (clubId: string | null) => void;
   setUnreadMessageCount: (count: number) => void;
   setUnreadNotificationCount: (count: number) => void;
+  setUnreadSocialCount: (count: number) => void;
   addExperience: (amount: number) => void;
   addCoins: (amount: number) => void;
   levelUp: () => void;
@@ -265,6 +267,7 @@ const initialUserState: UserState = {
   achievements: {},
   unreadMessageCount: 0,
   unreadNotificationCount: 0,
+  unreadSocialCount: 0,
   clubId: null,
   backgroundUrl: null,
   totalRunsCount: 0,
@@ -445,6 +448,7 @@ const createUserSlice: StateCreator<GameStore, [], [], UserActions> = (set, get)
   updateClubId: (clubId) => set({ clubId }),
   setUnreadMessageCount: (count) => set({ unreadMessageCount: count }),
   setUnreadNotificationCount: (count) => set({ unreadNotificationCount: count }),
+  setUnreadSocialCount: (count) => set({ unreadSocialCount: count }),
   addExperience: (amount) => set((state) => {
     const newExp = state.currentExp + amount;
     const newLevel = Math.floor(newExp / 1000) + 1; // Simplified leveling

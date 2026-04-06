@@ -65,7 +65,7 @@ interface ImmersiveModeProps {
   closedPolygons?: Location[][]
   onHexClaimed?: () => void
   onManualLocation?: (lat: number, lng: number) => void
-  saveRun?: (isFinal?: boolean) => Promise<void>
+  saveRun?: (isFinal?: boolean) => Promise<{ settlingAsync?: boolean } | void>
   savedRunId?: string | null
   runNumber?: number
   damageSummary?: any[]
@@ -784,11 +784,15 @@ export function ImmersiveRunningMode({
     if (saveRun) {
       try {
         // Wrap with timeout — prevents infinite hang after long sleep
-        await withTimeout(saveRun(true), SAVE_TIMEOUT_MS);
+        const res = await withTimeout(saveRun(true), SAVE_TIMEOUT_MS);
         // Success — Clean up recovery key. (Do NOT blindly wipe all PENDING_RUN_UPLOADs)
         localStorage.removeItem('CURRENT_RUN_RECOVERY');
         const { useGameStore } = await import('@/store/useGameStore');
         useGameStore.getState().resetRunState();
+
+        if (res?.settlingAsync) {
+          toast.success("跑步记录已保存，领地正在后台极速结算中...", { duration: 5000 });
+        }
 
         onStop();
         setSummarySnapshot(null);

@@ -1,10 +1,10 @@
 import * as turf from '@turf/turf';
+import { Feature, Polygon } from 'geojson';
 import { cleanAndSplitTrajectory } from '../gis/geometry-cleaner';
-import { PrismaClient, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { TerritoryStatsAggregatorService } from '@/lib/services/territory-stats-aggregator';
 import { extractValidLoops, LOOP_CLOSURE_THRESHOLD_M } from '@/lib/geometry-utils';
-
-const prisma = new PrismaClient();
 
 export interface SettlementInput {
     runId: string;
@@ -13,7 +13,8 @@ export interface SettlementInput {
     clubId?: string | null;
     pathGeoJSON: any; // Changed from turf.Feature to any to avoid lint issues
     score_weight?: number;
-    db?: Prisma.TransactionClient;
+    /** Pre-processed cleaned polygons — if provided, skip extractValidLoops + cleanAndSplitTrajectory */
+    preProcessedPolygons?: Feature<Polygon>[];
 }
 
 export interface DamageDetail {
@@ -49,39 +50,46 @@ export interface SettlementResult {
  * Handles the calculation and database persistence of territory overlaps, damage, and acquisition.
  */
 export async function processTerritorySettlement(input: SettlementInput): Promise<SettlementResult> {
-    const { runId, userId, cityId, clubId, pathGeoJSON, db } = input;
-    const client = db || prisma;
+    const { runId, userId, cityId, clubId, pathGeoJSON } = input;
     const TERRITORY_MAX_HEALTH = 100;
     const ALLY_HEAL = 50;
     const ENEMY_DAMAGE = 20;
     const PATROL_OVERLAP_THRESHOLD = 0.8;
     const SHIELD_CHARGE_INCREMENT = 100;
 
-    // 1. Validate Input
-    if (!pathGeoJSON || !pathGeoJSON.geometry) {
-        return { success: false, createdTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'Invalid path geometry' };
-    }
+    // 1. Validate Input & Prepare Polygons
+    let cleanedPolygons: Feature<Polygon>[];
 
-    const rawCoords = pathGeoJSON.geometry.coordinates?.[0];
-    if (!Array.isArray(rawCoords) || rawCoords.length < 3) {
-        return { success: false, createdTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'Invalid path coordinates' };
-    }
-    const extractedLoops = extractValidLoops(
-        rawCoords.map((coord: [number, number], index: number) => ({
-            lng: coord[0],
-            lat: coord[1],
-            timestamp: index
-        })),
-        LOOP_CLOSURE_THRESHOLD_M
-    );
-    if (extractedLoops.length === 0) {
-        return { success: false, createdTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'No valid closed loops' };
-    }
+    if (input.preProcessedPolygons && input.preProcessedPolygons.length > 0) {
+        // Fast path: use pre-processed data from run-service.ts (skip expensive re-computation)
+        cleanedPolygons = input.preProcessedPolygons;
+    } else {
+        // Fallback path: original extraction + cleaning (for direct callers like territory-service.ts)
+        if (!pathGeoJSON || !pathGeoJSON.geometry) {
+            return { success: false, createdTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'Invalid path geometry' };
+        }
 
-    const cleanedPolygons = extractedLoops.flatMap((loop) => {
-        const loopCoords = loop.map((point) => [point.lng, point.lat] as [number, number]);
-        return cleanAndSplitTrajectory(loopCoords);
-    });
+        const rawCoords = pathGeoJSON.geometry.coordinates?.[0];
+        if (!Array.isArray(rawCoords) || rawCoords.length < 3) {
+            return { success: false, createdTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'Invalid path coordinates' };
+        }
+        const extractedLoops = extractValidLoops(
+            rawCoords.map((coord: [number, number], index: number) => ({
+                lng: coord[0],
+                lat: coord[1],
+                timestamp: index
+            })),
+            LOOP_CLOSURE_THRESHOLD_M
+        );
+        if (extractedLoops.length === 0) {
+            return { success: false, createdTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'No valid closed loops' };
+        }
+
+        cleanedPolygons = extractedLoops.flatMap((loop) => {
+            const loopCoords = loop.map((point) => [point.lng, point.lat] as [number, number]);
+            return cleanAndSplitTrajectory(loopCoords);
+        });
+    }
 
     if (cleanedPolygons.length === 0) {
         return { success: false, createdTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'Invalid geometry after cleaning' };
@@ -97,28 +105,29 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
         : turf.multiPolygon(cleanedPolygons.map(p => p.geometry.coordinates)).geometry;
     const combinedGeometryJson = JSON.stringify(combinedGeometry);
 
-    // Initial working set for area carving
-    let workingPolygons: any[] = [...cleanedPolygons];
+    const finalSettledResult = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        // Initial working set for area carving
+        let workingPolygons: any[] = [...cleanedPolygons];
 
-    let result: SettlementResult = {
-        success: true,
-        createdTerritories: 0,
-        damagedTerritories: 0,
-        destroyedTerritories: 0,
-        damageDetails: [],
-        maintenanceDetails: []
-    };
+        let result: SettlementResult = {
+            success: true,
+            createdTerritories: 0,
+            damagedTerritories: 0,
+            destroyedTerritories: 0,
+            damageDetails: [],
+            maintenanceDetails: []
+        };
 
-    let bestPatrolOverlap: {
-        id: string;
-        health: number | null;
-        current_hp: number | null;
-        max_hp: number | null;
-        level: number | null;
-        overlap_ratio: number;
-    } | null = null;
-    try {
-        const overlapRows = await client.$queryRaw<any[]>`
+        let bestPatrolOverlap: {
+            id: string;
+            health: number | null;
+            current_hp: number | null;
+            max_hp: number | null;
+            level: number | null;
+            overlap_ratio: number;
+        } | null = null;
+        try {
+            const overlapRows = await tx.$queryRaw<any[]>`
             SELECT
                 t.id,
                 t.health,
@@ -158,7 +167,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
     // 2. Fetch overlapping territories using PostGIS BBox/Intersects (Raw SQL)
     let overlappingTerritories: any[] = [];
     try {
-        overlappingTerritories = await client.$queryRaw<any[]>`
+        overlappingTerritories = await tx.$queryRaw<any[]>`
             SELECT 
                 t.id, 
                 t.owner_id,
@@ -183,8 +192,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
         return { success: false, createdTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: `SQL Error: ${sqlErr.message}` };
     }
 
-    const processLogic = async (tx: Prisma.TransactionClient) => {
-        const runnerProfile = await tx.profiles.findUnique({
+    const runnerProfile = await tx.profiles.findUnique({
             where: { id: userId },
             select: { faction: true }
         });
@@ -349,6 +357,24 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
             workingPolygons = newWorkingPolygons;
         }
 
+        // 清理被完全吞噬的历史废块
+        const destroyedAndContainedIds = overlappingTerritories
+            .filter((t: any) => {
+                const beforeHp = Number(t.health ?? t.current_hp ?? 100);
+                const afterHp = Math.max(0, beforeHp - ENEMY_DAMAGE);
+                return afterHp <= 0 && Boolean(t.is_contained);
+            })
+            .map((t: any) => t.id);
+
+        if (destroyedAndContainedIds.length > 0) {
+            await tx.territories.updateMany({
+                where: { id: { in: destroyedAndContainedIds } },
+                data: {
+                    status: 'SUPERSEDED' as any
+                }
+            });
+        }
+
         // 4. Generate New Territories
         // After carving out existing alive territories, we have 1 or more polygons representing empty space + destroyed territories space
 
@@ -370,41 +396,25 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                 // Dual Write: raw SQL required for the standard PostGIS geometry column
                 const geojsonStr = JSON.stringify(shape.geometry);
 
-                await tx.$executeRawUnsafe(`
+                await tx.$executeRaw`
                     INSERT INTO territories (
-                        id, 
-                        city_id,
-                        owner_id, 
-                        owner_club_id, 
-                        geojson, 
-                        geojson_json,
-                        source_run_id,
-                        first_claimed_at, 
-                        last_claimed_at,
-                        max_hp,
-                        current_hp,
-                        health,
-                        territory_type,
-                        score_weight,
-                        status
+                        id, city_id, owner_id, owner_club_id, geojson, geojson_json,
+                        source_run_id, first_claimed_at, last_claimed_at,
+                        max_hp, current_hp, health, territory_type, score_weight, status
                     ) VALUES (
-                        '${newId}', 
-                        '${finalCityId}',
-                        '${userId}', 
-                        ${clubId ? `'${clubId}'` : 'NULL'}, 
-                        ST_CollectionExtract(ST_MakeValid(ST_GeomFromGeoJSON('${geojsonStr}'::text)), 3), 
-                        '${geojsonStr}'::jsonb,
-                        '${runId}',
-                        NOW(), 
-                        NOW(),
-                        1000,
-                        1000,
-                        100,
+                        ${newId},
+                        ${finalCityId},
+                        ${userId}::uuid,
+                        ${clubId ?? null}::uuid,
+                        ST_CollectionExtract(ST_MakeValid(ST_GeomFromGeoJSON(${geojsonStr}::text)), 3),
+                        ${geojsonStr}::jsonb,
+                        ${runId},
+                        NOW(), NOW(), 1000, 1000, 100,
                         'NORMAL'::"TerritoryType",
                         1.0,
                         'ACTIVE'::"TerritoryStatus"
                     )
-                `);
+                `;
 
                 // Log Genesis event
                 await tx.territory_events.create({
@@ -466,21 +476,11 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
             `;
         }
         return result; // Add return
-    };
-
-    if (db) {
-        const settled = await processLogic(db);
-        if (clubId) {
-            await TerritoryStatsAggregatorService.processNextBatch();
-        }
-        return settled;
-    } else {
-        const settled = await prisma.$transaction(processLogic);
-        if (clubId) {
-            await TerritoryStatsAggregatorService.processNextBatch();
-        }
-        return settled;
+    }, { timeout: 30000, maxWait: 10000 });
+    if (clubId) {
+        await TerritoryStatsAggregatorService.processNextBatch();
     }
+    return finalSettledResult;
 }
 
 // Utility to flatten GeoJSON objects into Polygons

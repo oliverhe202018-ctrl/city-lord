@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { cookies } from 'next/headers'
 import { UserCityProgress, Territory, ExtTerritory } from '@/types/city'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { Prisma } from '@prisma/client'
 
 // Redefine types to avoid dependency on mock-api
 export interface CityLeaderboardEntry {
@@ -17,25 +18,52 @@ export interface CityLeaderboardEntry {
   reputation: number
 }
 
-export async function fetchTerritories(cityId: string): Promise<ExtTerritory[]> {
+export async function fetchTerritories(cityId: string, bounds?: { minLng: number, minLat: number, maxLng: number, maxLat: number }): Promise<ExtTerritory[]> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   const currentUserId = user?.id
 
   try {
-    const { data: terrData, error } = await supabaseAdmin
-      .from('territories')
-      .select(`
-        id, city_id, owner_id, owner_club_id, owner_faction, 
-        captured_at, health, last_maintained_at, owner_change_count, last_owner_change_at,
-        geojson_json,
-        clubs ( id, name, logo_url )
-      `)
-      .eq('city_id', cityId)
+    let terrData: any[];
 
-    if (error) {
-      console.error('Error fetching territories:', error)
-      return []
+    if (!bounds) {
+      const { data, error } = await supabaseAdmin
+        .from('territories')
+        .select(`
+          id, city_id, owner_id, owner_club_id, owner_faction, 
+          captured_at, health, last_maintained_at, owner_change_count, last_owner_change_at,
+          geojson_json,
+          clubs ( id, name, logo_url )
+        `)
+        .eq('city_id', cityId)
+        .eq('status', 'ACTIVE')
+        .limit(300)
+
+      if (error) {
+        console.error('Error fetching territories:', error)
+        return []
+      }
+      terrData = data || []
+    } else {
+      terrData = await prisma.$queryRaw<any[]>`
+        SELECT 
+          t.id, t.city_id, t.owner_id, t.owner_club_id, t.owner_faction, 
+          t.captured_at, t.health, t.last_maintained_at, t.owner_change_count, t.last_owner_change_at,
+          t.geojson_json,
+          CASE 
+            WHEN c.id IS NOT NULL THEN json_build_object('id', c.id, 'name', c.name, 'logo_url', c.avatar_url)
+            ELSE NULL 
+          END as clubs
+        FROM "territories" t
+        LEFT JOIN "clubs" c ON t."owner_club_id" = c.id
+        WHERE t."city_id" = ${cityId}
+          AND t.status = 'ACTIVE'
+          AND ST_Intersects(
+            ST_GeomFromGeoJSON(t.geojson_json::text),
+            ST_MakeEnvelope(${bounds.minLng}, ${bounds.minLat}, ${bounds.maxLng}, ${bounds.maxLat}, 4326)
+          )
+        LIMIT 300
+      `;
     }
 
     if (!terrData || terrData.length === 0) {
@@ -64,10 +92,10 @@ export async function fetchTerritories(cityId: string): Promise<ExtTerritory[]> 
         isHotZone,
         ownerChangeCount: changeCount,
         geojson_json: t.geojson_json,
-        ownerClub: t.clubs ? {
+        ownerClub: t.clubs && t.clubs.id ? {
           id: Array.isArray(t.clubs) ? t.clubs[0]?.id : t.clubs.id,
           name: Array.isArray(t.clubs) ? t.clubs[0]?.name : t.clubs.name,
-          logoUrl: Array.isArray(t.clubs) ? t.clubs[0]?.logo_url : t.clubs.logo_url
+          logoUrl: Array.isArray(t.clubs) ? (t.clubs[0]?.logo_url || t.clubs[0]?.avatar_url) : (t.clubs.logo_url || t.clubs.avatar_url)
         } : null
       }
     })

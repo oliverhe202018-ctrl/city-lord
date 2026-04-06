@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { saveRunActivity } from "@/app/actions/run-service";
 import { RunRecordDTO } from "@/types/run-sync";
 
+export const maxDuration = 60;
+
 export async function POST(req: NextRequest) {
     try {
         const supabase = await createClient();
@@ -78,7 +80,8 @@ export async function POST(req: NextRequest) {
                 success: true, 
                 runId: result.data?.runId,
                 runNumber: result.data?.runNumber,
-                newTerritoriesCount: result.data?.settledTerritoriesCount
+                newTerritoriesCount: result.data?.settledTerritoriesCount,
+                settlingAsync: result.data?.settlingAsync
             });
         } else {
             return NextResponse.json({ error: result.error || "Save failed" }, { status: 500 });

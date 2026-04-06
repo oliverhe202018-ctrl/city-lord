@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { evaluateTasks, RunData, TaskResult } from '@/lib/game/task-engine';
 import { revalidatePath, revalidateTag } from 'next/cache';
+import { tasks } from "@trigger.dev/sdk/v3";
 import { RunRecordDTO, ActionResponse, RunEventLog } from '@/types/run-sync';
 import { validateRunAndRebuildTerritories, AntiCheatValidationResult } from '@/lib/anti-cheat/territory-builder';
 import { checkRunRateLimit } from '@/lib/anti-cheat/rate-limiter';
@@ -10,8 +11,25 @@ import { processTerritorySettlement } from '@/lib/territory/settlement';
 import { validateRunData } from '@/lib/validators/run-validator';
 import { validateRunLegitimacy } from '@/lib/anti-cheat/mvp-rules';
 import * as turf from '@turf/turf';
+import { Feature, Polygon } from 'geojson';
+import { cleanAndSplitTrajectory } from '@/lib/gis/geometry-cleaner';
 import { isLoopClosed, LOOP_CLOSURE_THRESHOLD_M, extractValidLoops, type Coord } from '@/lib/geometry-utils';
 import { isTester } from '@/lib/constants/anti-cheat';
+
+// 用 Ramer-Douglas-Peucker 保留关键几何节点，不破坏环路
+function rdpSamplePath(points: any[], maxPoints: number): any[] {
+    if (points.length <= maxPoints) return points;
+    const line = turf.lineString(points.map((p: any) => [p.lng, p.lat]));
+    // 容差从小到大自动收敛，直到点数满足要求
+    let tolerance = 0.00001;
+    let simplified = points;
+    while (simplified.length > maxPoints && tolerance < 0.01) {
+        const result = turf.simplify(line, { tolerance, highQuality: false });
+        simplified = result.geometry.coordinates.map(([lng, lat]: number[]) => ({ lat, lng }));
+        tolerance *= 2;
+    }
+    return simplified;
+}
 
 export interface SaveRunResult {
     runId?: string;
@@ -24,6 +42,7 @@ export interface SaveRunResult {
     isValid?: boolean;
     antiCheatLog?: string | null;
     totalSteps?: number;
+    settlingAsync?: boolean;
 }
 
 const isRunEventLog = (event: unknown): event is RunEventLog => {
@@ -161,29 +180,76 @@ export async function saveRunActivity(
         const isBlockedByAntiCheat = isFlagged || isPedometerInvalid;
         const flagReason = metadataValidation.flagReason || (pathValidation.riskLevel === 'HIGH' ? 'PATH_ANALYSIS_FAILED' : undefined);
 
-        const extractedLoops = extractValidLoops((runData.path as any[]) || [], LOOP_CLOSURE_THRESHOLD_M);
+        // 2. 轨迹采样降维 (防 O(N²) 爆算)
+        const MAX_SERVER_PATH_POINTS = 600;
+        const rawPathPoints = (runData.path as any[]) || [];
+        const sampledPath = rdpSamplePath(rawPathPoints, MAX_SERVER_PATH_POINTS);
+
+        // 3. 提取闭环
+        const extractedLoops = extractValidLoops(sampledPath, LOOP_CLOSURE_THRESHOLD_M);
         let finalPolygons: Coord[][] = extractedLoops;
-        let finalArea = extractedLoops.reduce((sum, loop) => {
-            try {
-                const coords = loop.map((point: any) => [point.lng, point.lat] as [number, number]);
-                const polygon = turf.polygon([coords]);
-                return sum + turf.area(polygon);
-            } catch {
-                return sum;
-            }
-        }, 0);
 
         // Settlement Gating
         if (isBlockedByAntiCheat) {
-            // Shadowban: Force zero territory and rewards later
             finalPolygons = [];
-            finalArea = 0;
             console.warn(`[Anti-Cheat] Settlement blocked for user ${userId}. Reason: ${flagReason ?? pedometerAntiCheatLog}`);
         } else if (pathValidation.riskLevel === 'MEDIUM') {
             finalPolygons = [];
-            finalArea = 0;
             console.log(`[saveRunActivity] MEDIUM risk run. Polygons neutralized for user: ${userId}`);
         }
+
+        // 4. 大圈吞噬小圈核心算法 (BBox 加速)
+        function deduplicateByContainment(polygons: any[]): any[] {
+            if (polygons.length <= 1) return polygons;
+
+            const withData = polygons.map(polyPts => {
+                const coords = polyPts.map((p: any) => [p.lng, p.lat] as [number, number]);
+                if (coords.length > 0 && (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1])) {
+                    coords.push([...coords[0]]);
+                }
+                const f = turf.polygon([coords]);
+                return { original: polyPts, f, area: turf.area(f), bbox: turf.bbox(f) };
+            });
+
+            // 优化1：过滤 < 50 平米的 GPS 漂移噪点，并按面积降序排列
+            const sorted = withData.filter(x => x.area >= 50).sort((a, b) => b.area - a.area);
+
+            const survivors: typeof sorted = [];
+            for (const candidate of sorted) {
+                let isContained = false;
+                for (const big of survivors) {
+                    // 优化2：BBox (包围盒) 快速拒绝。不相交的包围盒绝对不可能包含
+                    if (
+                        candidate.bbox[0] >= big.bbox[0] && candidate.bbox[1] >= big.bbox[1] &&
+                        candidate.bbox[2] <= big.bbox[2] && candidate.bbox[3] <= big.bbox[3]
+                    ) {
+                        // 优化3：只对极大概率包含的图形进行昂贵的 Turf 运算
+                        const intersection = turf.intersect(turf.featureCollection([big.f, candidate.f]));
+                        if (intersection) {
+                            const overlapRatio = turf.area(intersection) / candidate.area;
+                            // 只要重叠面积超过 90%，就认为被大圈吞噬，容忍 GPS 边缘漂移
+                            if (overlapRatio > 0.90) {
+                                isContained = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (!isContained) survivors.push(candidate);
+            }
+            return survivors.map(s => s.original);
+        }
+
+        const polygonsForSettlement = (isBlockedByAntiCheat || pathValidation.riskLevel === 'MEDIUM') ? [] : deduplicateByContainment(finalPolygons);
+
+        // 5. 直接在内存中累加真实占领的领地面积，拒绝虚高
+        const accurateAreaKm2 = polygonsForSettlement.reduce((sum, polyPts) => {
+            const coords = polyPts.map((p: any) => [p.lng, p.lat] as [number, number]);
+            if (coords.length > 0 && (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1])) {
+                coords.push([...coords[0]]);
+            }
+            return sum + (turf.area(turf.polygon([coords])) / 1000000); // 平方米转平方公里
+        }, 0);
 
         // 3. Prepare Run Data for Evaluation
         const evaluationData: RunData = {
@@ -252,12 +318,10 @@ export async function saveRunActivity(
                     runNumber: 0, // Not precisely needed for shadowban
                     newTasks: [],
                     rewards: { coins: 0, xp: 0 },
-                    damageSummary: [],
-                    maintenanceSummary: [],
-                    settledTerritoriesCount: 0,
                     isValid: !isPedometerInvalid,
                     antiCheatLog: pedometerAntiCheatLog,
-                    totalSteps: submittedTotalSteps
+                    totalSteps: submittedTotalSteps,
+                    isFlagged: true
                 };
             }
 
@@ -336,58 +400,14 @@ export async function saveRunActivity(
             totalCoins = Math.floor(totalCoins * penaltyMultiplier);
             totalXp = Math.floor(totalXp * penaltyMultiplier) + eventReward.xp;
 
-            // C. Territory Settlement (Phase 2 & 4)
-            let settledTerritoriesCount = 0;
-            const allDamageDetails: any[] = [];
-            const allMaintenanceDetails: any[] = [];
-            if (finalPolygons.length > 0 && !isFlagged && pathValidation.riskLevel === 'LOW') {
-                for (const polyPoints of finalPolygons) {
-                    const loopCheck = isLoopClosed(
-                        polyPoints.map((point: Coord, index: number) => ({ lat: point.lat, lng: point.lng, timestamp: point.timestamp ?? index })),
-                        LOOP_CLOSURE_THRESHOLD_M
-                    );
-                    if (!loopCheck.isClosed) {
-                        continue;
-                    }
-                    const coords = polyPoints.map((p: Coord) => [p.lng, p.lat]);
-                    const polyFeature = turf.polygon([coords]);
-                    
-                    // TODO: Extract actual cityId from points if needed, 
-                    // for now use the one from runData or fallback
-                    const cityId = (runData as any).cityId || "default_city";
-
-                    const settlement = await processTerritorySettlement({
-                        runId: run.id,
-                        userId: userId,
-                        cityId: cityId,
-                        clubId: runnerClubId,
-                        pathGeoJSON: polyFeature,
-                        db: tx
-                    });
-                    if (settlement.success) {
-                        settledTerritoriesCount += settlement.createdTerritories;
-                        if (settlement.damageDetails) {
-                            allDamageDetails.push(...settlement.damageDetails);
-                        }
-                        if (settlement.maintenanceDetails) {
-                            allMaintenanceDetails.push(...settlement.maintenanceDetails);
-                        }
-                    }
-                }
-            }
-
-            // D. Get Run Number (Phase 3)
+            // C. Get Run Number
             const runNumber = await tx.runs.count({
                 where: { user_id: userId }
             });
 
-            // E. Update City Progress (Phase 2)
+            // D. Update City Progress — accurateAreaKm2 pre-computed outside tx
             if (!isFlagged) {
                 const cityId = (runData as any).cityId || "default_city";
-                
-                // Calculate accurate area in km2 for both progress and profile
-                const { MapService } = await import('@/lib/services/mapService');
-                const accurateAreaKm2 = await MapService.calculateAreaKm2(JSON.stringify(runData.path)); 
 
                 await tx.user_city_progress.upsert({
                     where: {
@@ -398,14 +418,13 @@ export async function saveRunActivity(
                     },
                     update: {
                         area_controlled: { increment: accurateAreaKm2 },
-                        tiles_captured: { increment: settledTerritoriesCount },
                         last_active_at: new Date()
                     },
                     create: {
                         user_id: userId,
                         city_id: cityId,
                         area_controlled: accurateAreaKm2,
-                        tiles_captured: settledTerritoriesCount,
+                        tiles_captured: 0, // 数量会在微事务中补充
                         last_active_at: new Date(),
                         joined_at: new Date()
                     }
@@ -430,12 +449,10 @@ export async function saveRunActivity(
                     runNumber: updatedProfile.total_runs_count,
                     newTasks,
                     rewards: { coins: totalCoins, xp: totalXp },
-                    damageSummary: allDamageDetails,
-                    maintenanceSummary: allMaintenanceDetails,
-                    settledTerritoriesCount: settledTerritoriesCount,
                     isValid: true,
                     antiCheatLog: null,
-                    totalSteps: submittedTotalSteps
+                    totalSteps: submittedTotalSteps,
+                    isFlagged: false
                 };
             }
 
@@ -444,60 +461,37 @@ export async function saveRunActivity(
                 runNumber: 0,
                 newTasks,
                 rewards: { coins: totalCoins, xp: totalXp },
-                damageSummary: allDamageDetails,
-                maintenanceSummary: allMaintenanceDetails,
-                settledTerritoriesCount: settledTerritoriesCount,
                 isValid: true,
                 antiCheatLog: null,
-                totalSteps: submittedTotalSteps
+                totalSteps: submittedTotalSteps,
+                isFlagged: true
             };
-        });
+        }, { timeout: 30000, maxWait: 10000 });
 
+        // Phase 3: 主事务外部异步结算领地与附属数据更新 (Trigger.dev 核心解耦)
+        if (!isBlockedByAntiCheat) {
+            const cityId = (runData as any).cityId || 'default_city';
+            
+            try {
+                await tasks.trigger("settle-territories", {
+                    runId: result.runId,
+                    userId,
+                    cityId,
+                    clubId: runnerClubId,
+                    polygons: polygonsForSettlement,
+                    distance: evaluationData.distance,
+                    duration: evaluationData.duration
+                });
+            } catch (err: any) {
+                console.error("[Trigger.dev] Failed to enqueue territory settlement task:", err);
+            }
+        }
 
         revalidatePath('/dashboard');
         revalidatePath('/profile/me');
         revalidateTag('territories');
         revalidateTag('city-stats');
         revalidateTag('city-leaderboard');
-
-        // Trigger Task Center Event (Awaiting to ensure consistency before response)
-        try {
-            const { TaskService } = await import('@/lib/services/task');
-            if (!isBlockedByAntiCheat) {
-                const eventPayload = {
-                    type: 'RUN_FINISHED' as const,
-                    userId: userId,
-                    timestamp: new Date(),
-                    data: {
-                        distance: evaluationData.distance, // meters
-                        duration: evaluationData.duration, // seconds
-                        pace: (evaluationData.duration / (evaluationData.distance / 1000)), // s/km
-                    }
-                };
-                await TaskService.processEvent(userId, eventPayload);
-                console.log(`[Task] Event processed synchronously for user: ${userId}`);
-            }
-        } catch (taskError) {
-            console.error('Task event processing failed', taskError);
-        }
-
-        // [Challenge System] Update 1v1 challenge progress (fire-and-forget)
-        if (!isBlockedByAntiCheat) {
-            try {
-                const { updateChallengeProgress } = await import('@/app/actions/challenge-service');
-                const paceSecondsPerKm = evaluationData.distance > 0
-                    ? evaluationData.duration / (evaluationData.distance / 1000)
-                    : 0;
-                await updateChallengeProgress(userId, {
-                    distance_meters: evaluationData.distance,
-                    hexes_claimed: result.settledTerritoriesCount ?? 0,
-                    pace_seconds_per_km: paceSecondsPerKm,
-                });
-                console.log(`[Challenge] Progress updated for user: ${userId}`);
-            } catch (challengeError) {
-                console.error('[Challenge] Progress update failed (non-blocking):', challengeError);
-            }
-        }
 
         return {
             success: true,
@@ -506,12 +500,13 @@ export async function saveRunActivity(
                 runNumber: result.runNumber,
                 newTasks: result.newTasks,
                 totalReward: result.rewards,
-                damageSummary: result.damageSummary,
-                maintenanceSummary: result.maintenanceSummary,
-                settledTerritoriesCount: result.settledTerritoriesCount,
+                damageSummary: [],
+                maintenanceSummary: [],
+                settledTerritoriesCount: 0,
                 isValid: result.isValid,
                 antiCheatLog: result.antiCheatLog,
-                totalSteps: result.totalSteps
+                totalSteps: result.totalSteps,
+                settlingAsync: (!result.isFlagged && polygonsForSettlement.length > 0) ? true : undefined
             }
         };
 
