@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
     <!-- Base configuration for all connections -->
-    <base-config>
+    <base-config cleartextTrafficPermitted="true">
         <trust-anchors>
             <!-- Trust system-installed CAs (standard security) -->
             <certificates src="system" />

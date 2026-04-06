@@ -2,8 +2,13 @@
 
 import { Suspense, useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { GamePageContent } from "@/components/citylord/game-page-content"
 import { LoadingScreen } from "@/components/citylord/loading-screen"
+import dynamic from "next/dynamic"
+
+const GamePageContent = dynamic(
+  () => import("@/components/citylord/game-page-content").then(mod => mod.GamePageContent),
+  { ssr: false }
+)
 
 export default function CityLordApp() {
   const [user, setUser] = useState<any>(null);

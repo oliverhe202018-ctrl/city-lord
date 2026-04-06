@@ -40,3 +40,7 @@ yarn-error.log*
 /android/build
 /ios/build
 /capacitor.config.json.tmp
+
+# PWA Service Worker files
+public/sw.js
+public/sw.js.map

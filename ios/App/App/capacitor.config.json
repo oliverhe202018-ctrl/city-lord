@@ -35,6 +35,7 @@
 		"HapticsPlugin",
 		"KeyboardPlugin",
 		"LocalNotificationsPlugin",
+		"PreferencesPlugin",
 		"StatusBarPlugin",
 		"BackgroundTaskPlugin",
 		"CapacitorPedometerPlugin",
