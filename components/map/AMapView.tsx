@@ -76,6 +76,7 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
 
     const { setSelectedTerritory, setIsDetailSheetOpen } = useMapInteraction();
     const setSelectedTerritoryId = useGameStore((state) => state.setSelectedTerritoryId);
+    const resetRunState = useGameStore((state) => state.resetRunState);
     const { user } = useAuth();
     const recenterTimerRef = useRef<number | null>(null);
     const isUserInteractingRef = useRef(false);
@@ -89,7 +90,7 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
     // Map Click Root Handler: uniform empty space click to clear selection
     useEffect(() => {
       if (!map) return;
-      
+
       const handleRootClick = () => {
         // Deferred to allow overlay elements to write their timestamp first
         setTimeout(() => {
@@ -110,9 +111,20 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
     }, [map, setSelectedTerritory, setIsDetailSheetOpen, setSelectedTerritoryId]);
 
     useEffect(() => {
+      if (!isRunTakeoverActive) {
+        resetRunState();
+      }
+    }, [isRunTakeoverActive, resetRunState]);
+
+    useEffect(() => {
       if (!map || !isRunTakeoverActive) return;
       map.setZoom(18);
     }, [map, isRunTakeoverActive]);
+    useEffect(() => {
+      if (!isRunTakeoverActive) {
+        useGameStore.getState().resetRunState?.();
+      }
+    }, [isRunTakeoverActive]);
 
     useEffect(() => {
       if (!map || !isRunTakeoverActive) return;
@@ -252,7 +264,7 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
           )}
 
           {/* Layer 2b: GPS Trajectory (Real-time Polyline - z-index 50) */}
-          {activeTrajectoryPath && activeTrajectoryPath.length > 0 && (
+          {isRunTakeoverActive && activeTrajectoryPath && activeTrajectoryPath.length > 0 && (
             <TrajectoryLayer
               map={mapLayerRef?.current?.map as any}
               path={activeTrajectoryPath}

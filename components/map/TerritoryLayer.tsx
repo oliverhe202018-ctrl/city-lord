@@ -117,16 +117,17 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
   const lastViewportKingIdRef = useRef<string | null>(null);
   const lastAuthUserIdRef = useRef<string | null>(user?.id ?? null);
 
-  const resolveFactionColor = useCallback((ownerFaction: string | null | undefined) => {
-    const key = (ownerFaction || '').toLowerCase();
-    if (key.includes('blue') || key.includes('azure') || key.includes('蔚蓝') || key.includes('cyan')) {
-      return '#3b82f6';
-    }
-    if (key.includes('red') || key.includes('crimson') || key.includes('赤红')) {
-      return '#ef4444';
-    }
-    return '#64748b';
-  }, []);
+  const resolveFactionColor = useCallback(
+    (ownerFaction: string | null | undefined, territory?: ExtTerritory) => {
+      const key = (ownerFaction || '').toLowerCase();
+      if (key.includes('blue') || key.includes('azure') || key.includes('蔚蓝') || key.includes('cyan')) return '#3b82f6';
+      if (key.includes('red') || key.includes('crimson') || key.includes('赤红')) return '#ef4444';
+      if (territory) {
+        return Boolean(user?.id && territory.ownerId === user.id) ? '#3b82f6' : '#ef4444';
+      }
+      return '#64748b';
+    },
+    [user?.id]);
 
   const getDisplayLevelByZoom = useCallback((zoom: number): DisplayLevel => {
     if (kingdomMode === 'club' && zoom < 14) {
@@ -252,7 +253,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
     };
     const style = generateTerritoryStyle(territory, ctx);
     const isFactionColorActive = showFactionColors;
-    const factionBaseColor = resolveFactionColor(territory.ownerFaction);
+    const factionBaseColor = resolveFactionColor(territory.ownerFaction, territory);
     const factionVisuals = calculateHealthVisuals(
       factionBaseColor,
       territory.health ?? territory.maxHealth ?? 100,
@@ -340,9 +341,9 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
     applyViewportKingHalo(kingOwnerId);
     onViewportKingChange?.({
       ownerId: kingOwnerId,
-      nickname: (profile?.nickname && profile.nickname.trim() !== '') 
-          ? profile.nickname.trim() 
-          : `领主-${kingOwnerId.slice(0, 6)}`,
+      nickname: (profile?.nickname && profile.nickname.trim() !== '')
+        ? profile.nickname.trim()
+        : `领主-${kingOwnerId.slice(0, 6)}`,
       avatarUrl: profile?.avatarUrl || null,
       totalArea: kingArea,
     });
@@ -352,19 +353,19 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
   const prevContextRef = useRef({ cityId: city?.id, viewMode, kingdomMode });
   useEffect(() => {
     const prev = prevContextRef.current;
-    
+
     // 鍙湪闈炲垵濮嬫寕杞斤紙鍗宠嚦灏戞湁涓€涓凡缂撳瓨锛夛紝涓旂‘瀹炲彂鐢熶簡涓ユ牸鍙樺寲鏃讹紝鎵嶆竻绌洪€変腑
     // 杩欓噷鐣ヨ繃浜嗗灏氭湭璁剧疆 city 鐨勬瀬鍒濇湡杩囨护
-    const isChanged = 
-      (city?.id !== undefined && city?.id !== prev.cityId) || 
-      (viewMode !== undefined && viewMode !== prev.viewMode) || 
+    const isChanged =
+      (city?.id !== undefined && city?.id !== prev.cityId) ||
+      (viewMode !== undefined && viewMode !== prev.viewMode) ||
       (kingdomMode !== undefined && kingdomMode !== prev.kingdomMode);
 
     if (isChanged) {
       console.log(`[Audit] ContextSwitch clear: city ${prev.cityId}->${city?.id} viewMode ${prev.viewMode}->${viewMode} kingdomMode ${prev.kingdomMode}->${kingdomMode}`);
       setSelectedTerritory?.(null);
     }
-    
+
     // 姘歌繙鍚屾鏈€鏂?ref
     prevContextRef.current = { cityId: city?.id, viewMode, kingdomMode };
   }, [city, viewMode, kingdomMode, setSelectedTerritory]);
@@ -379,10 +380,10 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
       try {
         console.log(`[Audit] loadTerritories: cityId=${city.id} map=${!!map} retry=${retryCount}`);
         const data = await fetchTerritories(city.id);
-        
+
         if (!mounted) return;
         if (!data || !Array.isArray(data)) {
-           throw new Error('API returned invalid data format');
+          throw new Error('API returned invalid data format');
         }
 
         if (data && data.length > 0) {
@@ -400,9 +401,9 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
             .in('id', ownerIds);
           (profiles || []).forEach((profile: OwnerProfile) => {
             profileMap.set(profile.id, {
-              nickname: (profile.nickname && profile.nickname.trim() !== '') 
-                  ? profile.nickname.trim() 
-                  : `领主-${profile.id.slice(0, 6)}`,
+              nickname: (profile.nickname && profile.nickname.trim() !== '')
+                ? profile.nickname.trim()
+                : `领主-${profile.id.slice(0, 6)}`,
               avatarUrl: profile.avatar_url || null,
             });
           });
@@ -474,14 +475,20 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
                 paths.forEach(p => {
                   try {
                     const ring = p[0][0] === p[p.length - 1][0] && p[0][1] === p[p.length - 1][1] ? p : [...p, p[0]];
-                    const poly = turf.polygon([ring]);
+                    const poly = turf.cleanCoords(turf.polygon([ring]));
                     if (!mergedFeat) {
                       mergedFeat = poly;
                     } else {
-                      try { mergedFeat = turf.union(turf.featureCollection([mergedFeat, poly])); } 
-                      catch (e) { try { mergedFeat = (turf as any).union(mergedFeat, poly); } catch(e){} }
+                      try { mergedFeat = turf.union(turf.featureCollection([mergedFeat, poly])); }
+                      catch (e) {
+                        try { mergedFeat = (turf as any).union(mergedFeat, poly); } catch (e) {
+                          renderItems.push({ territory: t, paths: [p], isClubMerged: false });
+                        }
+                      }
                     }
-                  } catch (e) {}
+                  } catch (e) {
+                    renderItems.push({ territory: t, paths: [p], isClubMerged: false });
+                  }
                 });
               }
               const mergedPaths: [number, number][][] = [];
@@ -497,7 +504,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
                   const pt = turf.pointOnFeature(mergedFeat);
                   markerPos = pt.geometry.coordinates as [number, number];
                 }
-              } catch(e){}
+              } catch (e) { }
               cached = { hash, paths: mergedPaths, markerPos };
               unionGeometryCache.current.set(clubId, cached);
             }
@@ -580,11 +587,11 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
                 markerPosition = [center.getLng(), center.getLat()];
               }
             }
-            
+
             const ownerProfile = profileMap.get(territory.ownerId);
             const displayLevel = getDisplayLevelByZoom(map.getZoom());
             const baseSize = isClubMerged ? 40 : (displayLevel === 'club' ? 24 : 32);
-            
+
             const content = document.createElement('div');
             content.className = 'pointer-events-none';
             content.style.width = `${baseSize}px`;
@@ -675,7 +682,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
             return validMarkers;
           });
         }
-        
+
         // [鍩嬬偣琛ラ綈] 娓叉煋鎴愬姛
         logEvent('territory_render_success', { cityId: city.id, count: data.length });
 
@@ -683,12 +690,12 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
         if (!mounted) return;
         if (error?.name !== 'AbortError' && error?.digest !== 'NEXT_REDIRECT') {
           console.error(`Failed to load territories (retry=${retryCount}):`, error);
-          
+
           // 鍩嬬偣: territory_render_retry
           logEvent('territory_render_retry', { retryCount: retryCount + 1, error: error.message });
 
           if (retryCount < 4) {
-            const delay = 500 * Math.pow(2, retryCount); 
+            const delay = 500 * Math.pow(2, retryCount);
             setTimeout(() => {
               if (mounted) loadTerritories(retryCount + 1);
             }, delay);
@@ -708,7 +715,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
       mounted = false;
       window.removeEventListener('citylord:refresh-territories', handleRefresh);
     };
-  // 鍔犲叆 user?.id 纭繚璁よ瘉鐘舵€佸彉鍖栧悗 polygon 閲嶅缓锛屼互鑾峰緱姝ｇ‘鐨?self/enemy 鏍峰紡
+    // 鍔犲叆 user?.id 纭繚璁よ瘉鐘舵€佸彉鍖栧悗 polygon 閲嶅缓锛屼互鑾峰緱姝ｇ‘鐨?self/enemy 鏍峰紡
   }, [
     map,
     city,
@@ -718,7 +725,6 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
     openTerritoryDetailDrawer,
     setSelectedTerritory,
     setIsDetailSheetOpen,
-    showFactionColors,
     resolveFactionColor,
     computePathBounds,
     buildPolygonPresentation,
@@ -843,7 +849,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
     map.on('zoomchange', updateMarkerSizes);
     return () => { map.off('zoomchange', updateMarkerSizes); };
   }, [map, markers, getDisplayLevelByZoom]);
-  
+
   useEffect(() => {
     return () => {
       try {
