@@ -8,6 +8,7 @@ import { getTerritoryDetail } from '@/app/actions/territory-detail'
 import { Loader2, MapPin, Clock, Medal, Flag, Timer, User } from 'lucide-react'
 import { TerritoryMoreMenu } from './TerritoryMoreMenu'
 import dayjs from 'dayjs'
+import Link from 'next/link'
 import { TerritoryReportDialog } from './TerritoryReportDialog'
 import { useGameStore } from '@/store/useGameStore'
 
@@ -50,10 +51,12 @@ export function TerritoryDetailSheet() {
                     <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-muted mt-2" />
 
                     <div className="p-4 flex flex-col gap-4 max-h-[80vh] overflow-y-auto overflow-x-hidden">
-                        {isLoading ? (
+                        {isLoading || detail?.status === 'pending' ? (
                             <div className="flex flex-col items-center justify-center py-10 gap-2">
                                 <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-                                <span className="text-sm text-muted-foreground">加载领地详细信息...</span>
+                                <span className="text-sm text-muted-foreground">
+                                    {detail?.status === 'pending' ? '领地数据云端结算中...' : '加载领地详细信息...'}
+                                </span>
                             </div>
                         ) : (!detail && !selectedTerritory) ? (
                             <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
@@ -181,25 +184,49 @@ export function TerritoryDetailSheet() {
                                         <Flag className="w-3.5 h-3.5" />
                                         攻占地块跑步记录
                                     </h4>
-                                    <div className="grid grid-cols-4 gap-2">
-                                        <div className="flex flex-col items-center text-center p-2 rounded-lg bg-muted/50 border border-border/50">
-                                            <span className="text-[10px] text-muted-foreground mb-1">距离 (km)</span>
-                                            <span className="text-sm font-bold text-foreground">{displayDetail.recentRun?.distanceKm ?? '--'}</span>
+                                    {displayDetail.recentRun?.id ? (
+                                        <Link href={`/run/detail?id=${displayDetail.recentRun.id}`} className="block hover:bg-white/5 rounded-lg transition-colors">
+                                            <div className="grid grid-cols-4 gap-2">
+                                                <div className="flex flex-col items-center text-center p-2 rounded-lg bg-muted/50 border border-border/50">
+                                                    <span className="text-[10px] text-muted-foreground mb-1">距离 (km)</span>
+                                                    <span className="text-sm font-bold text-foreground">{displayDetail.recentRun?.distanceKm ?? '--'}</span>
+                                                </div>
+                                                <div className="flex flex-col items-center text-center p-2 rounded-lg bg-muted/50 border border-border/50">
+                                                    <span className="text-[10px] text-muted-foreground mb-1">时长</span>
+                                                    <span className="text-sm font-bold text-foreground">{displayDetail.recentRun?.durationStr || '--'}</span>
+                                                </div>
+                                                <div className="flex flex-col items-center text-center p-2 rounded-lg bg-muted/50 border border-border/50">
+                                                    <span className="text-[10px] text-muted-foreground mb-1">配速</span>
+                                                    <span className="text-sm font-bold text-foreground">{displayDetail.recentRun?.paceMinPerKm || '--'}</span>
+                                                </div>
+                                                <div className="flex flex-col items-center text-center p-2 rounded-lg bg-muted/50 border border-border/50">
+                                                    <span className="text-[10px] text-muted-foreground mb-1">领地面积</span>
+                                                    <span className="text-sm font-bold text-foreground">{displayDetail.area}</span>
+                                                    <span className="text-[10px] text-muted-foreground -mt-1">km²</span>
+                                                </div>
+                                            </div>
+                                        </Link>
+                                    ) : (
+                                        <div className="grid grid-cols-4 gap-2">
+                                            <div className="flex flex-col items-center text-center p-2 rounded-lg bg-muted/50 border border-border/50">
+                                                <span className="text-[10px] text-muted-foreground mb-1">距离 (km)</span>
+                                                <span className="text-sm font-bold text-foreground">{displayDetail.recentRun?.distanceKm ?? '--'}</span>
+                                            </div>
+                                            <div className="flex flex-col items-center text-center p-2 rounded-lg bg-muted/50 border border-border/50">
+                                                <span className="text-[10px] text-muted-foreground mb-1">时长</span>
+                                                <span className="text-sm font-bold text-foreground">{displayDetail.recentRun?.durationStr || '--'}</span>
+                                            </div>
+                                            <div className="flex flex-col items-center text-center p-2 rounded-lg bg-muted/50 border border-border/50">
+                                                <span className="text-[10px] text-muted-foreground mb-1">配速</span>
+                                                <span className="text-sm font-bold text-foreground">{displayDetail.recentRun?.paceMinPerKm || '--'}</span>
+                                            </div>
+                                            <div className="flex flex-col items-center text-center p-2 rounded-lg bg-muted/50 border border-border/50">
+                                                <span className="text-[10px] text-muted-foreground mb-1">领地面积</span>
+                                                <span className="text-sm font-bold text-foreground">{displayDetail.area}</span>
+                                                <span className="text-[10px] text-muted-foreground -mt-1">km²</span>
+                                            </div>
                                         </div>
-                                        <div className="flex flex-col items-center text-center p-2 rounded-lg bg-muted/50 border border-border/50">
-                                            <span className="text-[10px] text-muted-foreground mb-1">时长</span>
-                                            <span className="text-sm font-bold text-foreground">{displayDetail.recentRun?.durationStr || '--'}</span>
-                                        </div>
-                                        <div className="flex flex-col items-center text-center p-2 rounded-lg bg-muted/50 border border-border/50">
-                                            <span className="text-[10px] text-muted-foreground mb-1">配速</span>
-                                            <span className="text-sm font-bold text-foreground">{displayDetail.recentRun?.paceMinPerKm || '--'}</span>
-                                        </div>
-                                        <div className="flex flex-col items-center text-center p-2 rounded-lg bg-muted/50 border border-border/50">
-                                            <span className="text-[10px] text-muted-foreground mb-1">领地面积</span>
-                                            <span className="text-sm font-bold text-foreground">{displayDetail.area}</span>
-                                            <span className="text-[10px] text-muted-foreground -mt-1">km²</span>
-                                        </div>
-                                    </div>
+                                    )}
                                 </div>
                             </>
                         );

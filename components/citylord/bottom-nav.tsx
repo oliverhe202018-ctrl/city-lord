@@ -56,7 +56,7 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
   ]
 
   return (
-    <nav className="absolute bottom-0 left-0 right-0 z-[1000] border-t border-border bg-background/80 backdrop-blur-2xl" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+    <nav className="absolute bottom-0 left-0 right-0 z-[1000] border-t border-border bg-background/80 backdrop-blur-2xl safe-pb">
       <div className="flex items-center justify-around px-2 py-1">
         {tabs.map((tab) => {
           const Icon = tab.icon

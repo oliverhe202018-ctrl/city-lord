@@ -5,6 +5,7 @@ import { getCityById } from '@/lib/city-data'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 
 export interface TerritoryDetailResult {
+    status?: 'pending' | 'success'
     territoryId: string
     cityName: string
     capturedAt: string | null
@@ -20,6 +21,7 @@ export interface TerritoryDetailResult {
         logoUrl: string | null
     } | null
     recentRun: {
+        id?: string
         distanceKm: number
         durationStr: string
         paceMinPerKm: string
@@ -63,7 +65,7 @@ export async function getTerritoryDetail(
 
         if (terrError || !data) {
             console.error('Failed to fetch territory detail:', terrError)
-            return null
+            return { territoryId, status: 'pending' } as any
         }
         territory = data;
     }
@@ -131,7 +133,7 @@ export async function getTerritoryDetail(
     }
 
     // 4. Fetch the specific run that captured this territory (Legacy fallback to recent if missing)
-    let runQuery = supabaseAdmin.from('runs').select('distance, duration');
+    let runQuery = supabaseAdmin.from('runs').select('id, distance, duration');
     
     if (territory.source_run_id) {
         runQuery = runQuery.eq('id', territory.source_run_id);
@@ -166,6 +168,7 @@ export async function getTerritoryDetail(
         }
 
         result.recentRun = {
+            id: captureRun.id,
             distanceKm: Number(distanceKm.toFixed(2)),
             durationStr,
             paceMinPerKm: paceStr

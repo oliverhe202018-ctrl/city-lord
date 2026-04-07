@@ -71,7 +71,7 @@ export default function LordCenterPage() {
    return (
       <div className="h-screen bg-black text-white flex flex-col">
          {/* Top Navigation */}
-         <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between p-4 bg-transparent pointer-events-none">
+         <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between p-4 bg-transparent pointer-events-none safe-pt">
             <button onClick={() => router.back()} className="pointer-events-auto p-2 rounded-full bg-black/40 backdrop-blur-md">
                <ChevronLeft className="w-6 h-6 text-white" />
             </button>

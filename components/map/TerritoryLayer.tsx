@@ -445,6 +445,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
         const extractPaths = (t: ExtTerritory): [number, number][][] => {
           const paths: [number, number][][] = [];
           if (!t.geojson_json || !t.geojson_json.coordinates) return paths;
+          if (!Array.isArray(t.geojson_json.coordinates) || t.geojson_json.coordinates.length === 0) return paths;
 
           const validateRing = (ring: any): ring is [number, number][] => {
             if (!Array.isArray(ring) || ring.length < 3) return false;
