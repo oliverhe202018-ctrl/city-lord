@@ -10,8 +10,8 @@ buildscript {
     }
     dependencies {
         // 确保使用 8.2.1 以匹配你的 Gradle Wrapper
-        classpath 'com.android.tools.build:gradle:8.13.2'
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.10"
+        classpath 'com.android.tools.build:gradle:9.1.0'
+        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.2.10'
         classpath 'com.google.gms:google-services:4.4.1'
 
         // NOTE: Do not place your application dependencies here; they belong

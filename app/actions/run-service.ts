@@ -11,7 +11,7 @@ import { processTerritorySettlement } from '@/lib/territory/settlement';
 import { validateRunData } from '@/lib/validators/run-validator';
 import { validateRunLegitimacy } from '@/lib/anti-cheat/mvp-rules';
 import * as turf from '@turf/turf';
-import { Feature, Polygon } from 'geojson';
+import type { Feature, Polygon, MultiPolygon } from 'geojson';
 import { cleanAndSplitTrajectory } from '@/lib/gis/geometry-cleaner';
 import { isLoopClosed, LOOP_CLOSURE_THRESHOLD_M, extractValidLoops, type Coord } from '@/lib/geometry-utils';
 import { isTester } from '@/lib/constants/anti-cheat';
@@ -243,13 +243,30 @@ export async function saveRunActivity(
         const polygonsForSettlement = (isBlockedByAntiCheat || pathValidation.riskLevel === 'MEDIUM') ? [] : deduplicateByContainment(finalPolygons);
 
         // 5. 直接在内存中累加真实占领的领地面积，拒绝虚高
-        const accurateAreaKm2 = polygonsForSettlement.reduce((sum, polyPts) => {
-            const coords = polyPts.map((p: any) => [p.lng, p.lat] as [number, number]);
-            if (coords.length > 0 && (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1])) {
-                coords.push([...coords[0]]);
+        let accurateAreaKm2 = 0;
+        if (polygonsForSettlement.length > 0) {
+            const validPolys: Feature<Polygon>[] = [];
+            polygonsForSettlement.forEach((polyPts) => {
+                const coords = polyPts.map((p: any) => [p.lng, p.lat] as [number, number]);
+                if (coords.length > 0 && (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1])) {
+                    coords.push([...coords[0]]);
+                }
+                if (coords.length >= 4) {
+                    validPolys.push(turf.polygon([coords]));
+                }
+            });
+
+            if (validPolys.length > 0) {
+                let merged = validPolys[0] as Feature<Polygon | MultiPolygon>;
+                for (let i = 1; i < validPolys.length; i++) {
+                    const combined = turf.union(turf.featureCollection([merged, validPolys[i]]));
+                    if (combined) {
+                        merged = combined as Feature<Polygon | MultiPolygon>;
+                    }
+                }
+                accurateAreaKm2 = turf.area(merged) / 1000000;
             }
-            return sum + (turf.area(turf.polygon([coords])) / 1000000); // 平方米转平方公里
-        }, 0);
+        }
 
         // 3. Prepare Run Data for Evaluation
         const evaluationData: RunData = {

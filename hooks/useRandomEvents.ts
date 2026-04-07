@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { RunEventLog, RunEventStatus, RunEventType } from "@/types/run-sync";
+import { TextToSpeech } from '@capacitor-community/text-to-speech';
+import { isNativePlatform } from "@/lib/capacitor/safe-plugins";
 
 const EVENT_INTERVAL_METERS = 600;
 const TRIGGER_CHANCE = 0.22;
@@ -19,6 +21,7 @@ export interface ActiveRandomEvent {
   baselineDistance: number;
   baselineDuration: number;
   targetText: string;
+  progressHint?: string;
 }
 
 interface UseRandomEventsParams {
@@ -43,7 +46,20 @@ const buildTargetText = (eventType: RunEventType): string =>
 const buildSuccessReward = (eventType: RunEventType): RunEventLog["reward"] =>
   eventType === "CHASE" ? { xp: 50 } : { xp: 30, stamina: 5 };
 
-const speak = (text: string) => {
+const speak = async (text: string) => {
+  if (await isNativePlatform()) {
+    try {
+      await TextToSpeech.speak({
+        text,
+        lang: "zh-CN",
+        category: "ambient",
+      });
+      return;
+    } catch (e) {
+      console.warn("Native TTS Error", e);
+    }
+  }
+
   if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = "zh-CN";
@@ -68,6 +84,7 @@ export function useRandomEvents({
     if (Math.random() > TRIGGER_CHANCE) return;
     const eventType = randomEventType();
     const nowDuration = durationSeconds;
+    const targetText = buildTargetText(eventType);
     const event: ActiveRandomEvent = {
       eventId: uuidv4(),
       eventType,
@@ -75,26 +92,44 @@ export function useRandomEvents({
       expiresAt: nowDuration + resolveWindowSeconds(eventType),
       baselineDistance: distanceMeters,
       baselineDuration: nowDuration,
-      targetText: buildTargetText(eventType),
+      targetText,
+      progressHint: "事件已触发，快开始吧！"
     };
     setActiveEvent(event);
-    speak(event.targetText);
+    void speak(targetText);
   }, [activeEvent, distanceMeters, durationSeconds, isPaused, isRunning]);
 
   useEffect(() => {
     if (!activeEvent || !isRunning || isPaused) return;
-    if (durationSeconds < activeEvent.expiresAt) return;
 
     const distanceDelta = Math.max(0, distanceMeters - activeEvent.baselineDistance);
     const durationDelta = Math.max(1, durationSeconds - activeEvent.baselineDuration);
     const paceSecondsPerKm = (durationDelta * 1000) / Math.max(1, distanceDelta);
 
-    let status: RunEventStatus = "FAILED";
+    let isSuccess = false;
+    let hint = "";
+
     if (activeEvent.eventType === "CHASE") {
-      if (paceSecondsPerKm <= CHASE_TARGET_PACE_SECONDS_PER_KM) status = "SUCCESS";
-    } else if (distanceDelta >= ENERGY_SURGE_TARGET_DISTANCE_METERS) {
-      status = "SUCCESS";
+      isSuccess = paceSecondsPerKm <= CHASE_TARGET_PACE_SECONDS_PER_KM && durationDelta >= 10;
+      if (paceSecondsPerKm <= CHASE_TARGET_PACE_SECONDS_PER_KM) {
+        hint = `配速达标，继续保持！(当前配速: ${Math.floor(paceSecondsPerKm/60)}'${Math.floor(paceSecondsPerKm%60)}")`;
+      } else {
+        hint = `进度落后，请加速！(当前配速: ${Math.floor(paceSecondsPerKm/60)}'${Math.floor(paceSecondsPerKm%60)}")`;
+      }
+    } else {
+      isSuccess = distanceDelta >= ENERGY_SURGE_TARGET_DISTANCE_METERS;
+      const remaining = Math.max(0, ENERGY_SURGE_TARGET_DISTANCE_METERS - distanceDelta);
+      hint = `已冲刺 ${Math.floor(distanceDelta)} 米，还剩 ${Math.floor(remaining)} 米！`;
     }
+
+    if (activeEvent.progressHint !== hint) {
+      setActiveEvent(prev => prev ? { ...prev, progressHint: hint } : null);
+    }
+
+    if (durationSeconds < activeEvent.expiresAt && !isSuccess) return;
+
+    let status: RunEventStatus = "FAILED";
+    if (isSuccess) status = "SUCCESS";
 
     const reward = status === "SUCCESS" ? buildSuccessReward(activeEvent.eventType) : undefined;
     const penaltyMultiplier = status === "FAILED" ? 0.5 : undefined;
@@ -107,7 +142,7 @@ export function useRandomEvents({
       reward,
       penaltyMultiplier,
     });
-    speak(status === "SUCCESS" ? "挑战成功，奖励已记录" : "挑战失败，本次收益将衰减");
+    void speak(status === "SUCCESS" ? "挑战成功，奖励已记录" : "挑战失败，本次收益将衰减");
     setActiveEvent(null);
   }, [activeEvent, distanceMeters, durationSeconds, isPaused, isRunning, onEventResolved]);
 
@@ -123,5 +158,5 @@ export function useRandomEvents({
     return Math.max(0, activeEvent.expiresAt - durationSeconds);
   }, [activeEvent, durationSeconds]);
 
-  return { activeEvent, countdownSeconds };
+  return { activeEvent, countdownSeconds, progressHint: activeEvent?.progressHint };
 }

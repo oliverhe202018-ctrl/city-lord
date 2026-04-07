@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
+import * as turf from '@turf/turf';
+import type { Feature, Polygon, MultiPolygon } from 'geojson';
 
 export interface ClaimedPolygon {
     lat: number;
@@ -38,6 +40,56 @@ export function ClaimedPolygonLayer({
 }: ClaimedPolygonLayerProps) {
     const polygonRefs = useRef<any[]>([]);
 
+    const polygonCount = polygons?.length || 0;
+
+    const mergedPolygonPaths = useMemo(() => {
+        if (!polygons || polygons.length === 0) return [];
+        try {
+            const turfPolys = polygons
+                .filter(p => p.length >= 3)
+                .map(p => {
+                    const coords = p.map(pt => [pt.lng, pt.lat] as [number, number]);
+                    const first = coords[0];
+                    const last = coords[coords.length - 1];
+                    if (first[0] !== last[0] || first[1] !== last[1]) {
+                        coords.push([...first]);
+                    }
+                    return turf.polygon([coords]);
+                });
+
+            if (turfPolys.length === 0) return [];
+            
+            let merged = turfPolys[0] as Feature<Polygon | MultiPolygon>;
+            for (let i = 1; i < turfPolys.length; i++) {
+                const combined = turf.union(turf.featureCollection([merged, turfPolys[i]]));
+                if (combined) {
+                    merged = combined as Feature<Polygon | MultiPolygon>;
+                }
+            }
+
+            const amapPaths: number[][][] = [];
+            if (merged.geometry.type === 'Polygon') {
+                amapPaths.push(merged.geometry.coordinates[0] as number[][]);
+            } else if (merged.geometry.type === 'MultiPolygon') {
+                merged.geometry.coordinates.forEach((polyCoords: any) => {
+                    amapPaths.push(polyCoords[0] as number[][]);
+                });
+            }
+
+            return amapPaths;
+        } catch (e) {
+            console.error('[ClaimedPolygonLayer] Error during turf.union', e);
+            return polygons.filter(p => p.length >= 3).map(p => {
+                const coords = p.map(pt => [pt.lng, pt.lat]);
+                if (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1]) {
+                    coords.push([...coords[0]]);
+                }
+                return coords;
+            });
+        }
+    }, [polygonCount, polygons]);
+
+
     useEffect(() => {
         if (!map || !window.AMap) return;
 
@@ -47,20 +99,8 @@ export function ClaimedPolygonLayer({
         });
         polygonRefs.current = [];
 
-        // Render all claimed polygons
-        polygons.forEach((polygon) => {
-            if (polygon.length < 3) return; // Need at least 3 points
-
-            // Convert to AMap format [[lng, lat], ...]
-            const amapPath = polygon.map(p => [p.lng, p.lat]);
-
-            // Ensure closed ring
-            const first = amapPath[0];
-            const last = amapPath[amapPath.length - 1];
-            if (first[0] !== last[0] || first[1] !== last[1]) {
-                amapPath.push(first);
-            }
-
+        // Render all merged polygons
+        mergedPolygonPaths.forEach((amapPath) => {
             // Create polygon overlay
 // @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
             const poly = new window.AMap.Polygon({
@@ -92,7 +132,7 @@ export function ClaimedPolygonLayer({
             }
             polygonRefs.current = [];
         };
-    }, [map, polygons, fillColor, fillOpacity, strokeColor, strokeWeight]);
+    }, [map, mergedPolygonPaths, fillColor, fillOpacity, strokeColor, strokeWeight]);
 
     return null;
 }

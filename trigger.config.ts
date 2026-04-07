@@ -1,4 +1,5 @@
 import { defineConfig } from "@trigger.dev/sdk/v3";
+import { prismaExtension } from "@trigger.dev/build/extensions/prisma";
 
 export default defineConfig({
   project: "proj_etxtvqetjmgtrbljbenq",
@@ -9,6 +10,13 @@ export default defineConfig({
       "@prisma/client",
       ".prisma/client",
       ".prisma/client/default"
+    ],
+  },
+  build: {
+    extensions: [
+      prismaExtension({
+        schema: "prisma/schema.prisma", // 确认这是你 schema 文件的绝对正确路径
+      }),
     ],
   },
   // The max compute seconds a task is allowed to run. If the task run exceeds this duration, it will be stopped.

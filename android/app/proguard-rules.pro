@@ -34,3 +34,4 @@
 # ---- General ----
 -dontwarn javax.annotation.**
 -dontwarn org.codehaus.mojo.**
+-dontwarn kotlin.coroutines.jvm.internal.SpillingKt

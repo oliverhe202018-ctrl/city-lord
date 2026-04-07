@@ -1,4 +1,4 @@
-﻿import { prisma } from '@/lib/prisma'
+import { prisma } from '@/lib/prisma'
 import { Task, UserTaskProgress } from '@prisma/client'
 import { startOfDay, endOfDay, startOfWeek, endOfWeek, addDays, addWeeks, isAfter } from 'date-fns'
 // Define Timezone
@@ -45,11 +45,6 @@ export class TaskService {
             const updates: any[] = []
 
             for (const progress of activeProgress) {
-                // Idempotency check inside transaction
-                if (eventId && (progress as any).lastEventId === eventId) {
-                    continue
-                }
-
                 const { task } = progress
                 let newValue = progress.currentValue
                 let shouldUpdate = false
@@ -167,8 +162,7 @@ export class TaskService {
                         data: {
                             currentValue: Math.min(newValue, task.targetValue),
                             status: isCompleted ? 'COMPLETED' : 'IN_PROGRESS',
-                            completedAt: isCompleted ? new Date() : null,
-                            lastEventId: eventId || null
+                            completedAt: isCompleted ? new Date() : null
                         } as any
                     })
                     updates.push(updatePromise)

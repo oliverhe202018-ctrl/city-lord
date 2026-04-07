@@ -393,27 +393,36 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                 // Ensure cityId has a fallback for safety
                 const finalCityId = cityId || 'default_city';
 
-                // Dual Write: raw SQL required for the standard PostGIS geometry column
+                // CTE Dual Write: validate geometry ONCE, then derive BOTH columns from the validated result.
+                // This prevents the desync bug where geojson_json stored raw (self-intersecting) data
+                // while the geojson geometry column stored the ST_MakeValid output.
                 const geojsonStr = JSON.stringify(shape.geometry);
 
                 await tx.$executeRaw`
+                    WITH validated AS (
+                        SELECT ST_CollectionExtract(
+                            ST_MakeValid(ST_GeomFromGeoJSON(${geojsonStr}::text)),
+                            3
+                        ) AS geom
+                    )
                     INSERT INTO territories (
                         id, city_id, owner_id, owner_club_id, geojson, geojson_json,
                         source_run_id, first_claimed_at, last_claimed_at,
                         max_hp, current_hp, health, territory_type, score_weight, status
-                    ) VALUES (
+                    )
+                    SELECT
                         ${newId},
                         ${finalCityId},
-                        ${userId}::uuid,
-                        ${clubId ?? null}::uuid,
-                        ST_CollectionExtract(ST_MakeValid(ST_GeomFromGeoJSON(${geojsonStr}::text)), 3),
-                        ${geojsonStr}::jsonb,
-                        ${runId},
+                        CAST(${userId} AS UUID),
+                        CAST(${clubId ?? null} AS UUID),
+                        v.geom,
+                        ST_AsGeoJSON(v.geom)::jsonb,
+                        CAST(${runId} AS UUID),
                         NOW(), NOW(), 1000, 1000, 100,
                         'NORMAL'::"TerritoryType",
                         1.0,
                         'ACTIVE'::"TerritoryStatus"
-                    )
+                    FROM validated v
                 `;
 
                 // Log Genesis event

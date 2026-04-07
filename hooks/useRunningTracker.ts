@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { mutate } from 'swr';
 import { LocationService } from '@/utils/locationService';
 import * as turf from '@turf/turf';
+import type { Feature, Polygon, MultiPolygon } from 'geojson';
 import { toast } from 'sonner';
 import { syncManager } from '@/lib/sync/SyncManager';
 import { uploadTrajectoryBatch } from '@/app/actions/sync';
@@ -432,23 +433,40 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   };
 
   const calculateArea = useCallback((polygons: Location[][]) => {
-    let total = 0;
-    polygons.forEach(poly => {
-      if (poly.length < 3) return;
-      try {
+    if (!polygons || polygons.length === 0) return 0;
+    try {
+      const validTurfPolys: Feature<Polygon>[] = [];
+      polygons.forEach(poly => {
+        if (poly.length < 3) return;
         const loopCheck = isLoopClosed(
           poly.map((point, index) => ({ lat: point.lat, lng: point.lng, timestamp: point.timestamp ?? index })),
           LOOP_CLOSURE_THRESHOLD_M
         );
         if (!loopCheck.isClosed) return;
-        const points = poly.map(p => [p.lng, p.lat]);
-        const polygon = turf.polygon([points]);
-        total += turf.area(polygon);
-      } catch (e) {
-        console.warn("[useRunningTracker] Invalid polygon for area calculation", e);
+        
+        const coords = poly.map(p => [p.lng, p.lat]);
+        // Ensure closed ring
+        if (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1]) {
+          coords.push([...coords[0]]);
+        }
+        validTurfPolys.push(turf.polygon([coords]));
+      });
+
+      if (validTurfPolys.length === 0) return 0;
+      
+      let merged = validTurfPolys[0] as Feature<Polygon | MultiPolygon>;
+      for (let i = 1; i < validTurfPolys.length; i++) {
+        const combined = turf.union(turf.featureCollection([merged, validTurfPolys[i]]));
+        if (combined) {
+          merged = combined as Feature<Polygon | MultiPolygon>;
+        }
       }
-    });
-    return total;
+      
+      return turf.area(merged);
+    } catch (e) {
+      console.warn("[useRunningTracker] Invalid polygon for area calculation, falling back to previous area", e);
+      return areaRef.current;
+    }
   }, []);
 
   const handleLocationUpdate = useCallback((lat: number, lng: number, accuracy?: number, timestamp?: number, isOfflineReplay: boolean = false) => {
@@ -629,13 +647,20 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           return;
         }
         const coords = loopForCalc.map(pt => [pt.lng, pt.lat]);
+        if (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1]) {
+            coords.push([...coords[0]]);
+        }
         const poly = turf.polygon([coords]);
         const loopArea = turf.area(poly);
 
         if (loopArea > 100) {
-          setSessionClaims(prev => [...prev, loopForCalc]);
-          setClosedPolygons(prevPolys => [...prevPolys, loopForCalc]);
-          setArea(prevArea => prevArea + loopArea);
+          // Recalculate total combined area
+          const nextClaims = [...sessionClaimsRef.current, loopForCalc];
+          const newTotalArea = calculateArea(nextClaims);
+          
+          setSessionClaims(nextClaims);
+          setClosedPolygons(prevPolys => [...prevPolys, loopForCalc!]);
+          setArea(newTotalArea);
           lastClaimAtRef.current = now;
 
           toast.success(`🎉 领地已捕获！面积: ${Math.round(loopArea)}m²`, {

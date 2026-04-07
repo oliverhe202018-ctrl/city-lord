@@ -278,11 +278,17 @@ export async function updateChallengeProgress(
   runData: RunProgressData
 ) {
   try {
-    const cookieStore = await cookies();
-    const supabase = await createClient(cookieStore);
-
     // 1. Fetch all ACCEPTED challenges this user is participating in
-    const { data: activeChallenges, error } = await (supabase as any)
+    // Since this runs in a backend worker, we need an admin client to query across RLS
+    // Create an issue here if it still has issue later, but we assume default anon/service roll works.
+    // Temporary bypass cookies dependency.
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    const { data: activeChallenges, error } = await supabase
       .from('challenges')
       .select('*')
       .eq('status', 'ACCEPTED')
@@ -414,9 +420,18 @@ export async function updateChallengeProgress(
           }
 
           // [Social Score] Award points for winning a challenge (fire-and-forget)
-          import('@/app/actions/social-service').then(({ awardSocialPoints }) =>
-            awardSocialPoints(userId, 'CHALLENGE_WON', challenge.id)
-          ).catch((e) => console.warn('[SocialScore] CHALLENGE_WON award failed:', e));
+          // Bypass app/actions/social-service to avoid Next.js cookies() in Worker environment
+          import('@/lib/social-rules').then(async ({ SOCIAL_RULES }) => {
+            const rule = SOCIAL_RULES['CHALLENGE_WON'];
+            if (rule) {
+              await supabase.from('social_score_logs').insert({
+                user_id: userId,
+                action_type: 'CHALLENGE_WON',
+                target_id: challenge.id,
+                points: rule.points,
+              });
+            }
+          }).catch((e) => console.warn('[SocialScore] CHALLENGE_WON award failed:', e));
         } catch (e) {
           console.error('[ChallengeService] Post-victory processing error:', e);
         }
