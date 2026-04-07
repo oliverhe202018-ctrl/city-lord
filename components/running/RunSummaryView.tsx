@@ -19,9 +19,10 @@ import { createClient } from "@/lib/supabase/client"
 import { createPost } from "@/app/actions/social-hub"
 import { useGameStore } from "@/store/useGameStore"
 import { generateRunStory } from "@/app/actions/story-service"
-import { updateRunSummary } from "@/app/actions/run-service"
+import { updateRunSummary, getRunSettlementStatus } from "@/app/actions/run-service"
 import { Clipboard } from "@capacitor/clipboard"
 import { isNativePlatform } from "@/lib/capacitor/safe-plugins"
+import { useRouter } from "next/navigation"
 
 interface RunSummaryViewProps {
   distanceMeters: number // meters (raw)
@@ -92,6 +93,39 @@ export function RunSummaryView({
   const userId = useGameStore(state => state.userId);
   const faction = useGameStore(state => state.faction);
   const clubId = useGameStore(state => state.clubId);
+  const setDraftPostContent = useGameStore(state => state.setDraftPostContent);
+  const router = useRouter();
+
+  // Settlement State
+  const [settlementStats, setSettlementStats] = useState<{newTerritories: number; reinforcedTerritories: number} | null>(null);
+  const [isSettlementLoading, setIsSettlementLoading] = useState(false);
+  const [hasSettlementTimeout, setHasSettlementTimeout] = useState(false);
+
+  useEffect(() => {
+    if (!runId || !runIsValid) return;
+    setIsSettlementLoading(true);
+    let attempts = 0;
+    const maxAttempts = 15; // 15 * 2s = 30s
+    let intervalId: ReturnType<typeof setInterval>;
+    
+    const poll = async () => {
+      attempts++;
+      const res = await getRunSettlementStatus(runId);
+      if (res.success && res.data && (res.data.newTerritories > 0 || res.data.reinforcedTerritories > 0)) {
+        setSettlementStats(res.data);
+        setIsSettlementLoading(false);
+        if (intervalId) clearInterval(intervalId);
+      } else if (attempts >= maxAttempts) {
+        setIsSettlementLoading(false);
+        setHasSettlementTimeout(true);
+        if (intervalId) clearInterval(intervalId);
+      }
+    };
+    
+    intervalId = setInterval(poll, 2000);
+    poll(); // initial call
+    return () => clearInterval(intervalId);
+  }, [runId, runIsValid]);
 
   // Storytelling State
   const [story, setStory] = useState<string | null>(null);
@@ -144,16 +178,8 @@ export function RunSummaryView({
 
   const handleCopyStory = async () => {
     if (!story) return;
-    try {
-      if (await isNativePlatform()) {
-        await Clipboard.write({ string: story });
-      } else {
-        await navigator.clipboard.writeText(story);
-      }
-      toast.success('战报已复制到剪贴板');
-    } catch (err) {
-      toast.error('复制失败');
-    }
+    setDraftPostContent(story);
+    toast.success('已设为分享文案');
   };
 
   // Compute average speed from raw values (no string parsing)
@@ -303,53 +329,28 @@ export function RunSummaryView({
   };
 
   // Share to feed handler
-  const handleShareToFeed = async () => {
+  const handleShareToFeed = () => {
     if (isSharing || hasShared) return;
-    setIsSharing(true);
-    try {
-      const content = [
-        `🏃 完成一次跑步！`,
-        `📏 距离: ${distanceKm} km`,
-        `⏱️ 用时: ${duration}`,
-        `🎯 配速: ${pace}`,
-        `🔥 消耗: ${calories} Kcal`,
-        `👟 步数: ${steps}`,
-        hexesCaptured > 0 ? `🏰 占领领地: ${formatArea(finalCapturedArea).fullText}` : null,
-        avgSpeed !== '--' ? `💨 平均速度: ${avgSpeed} km/h` : null,
-      ].filter(Boolean).join('\n');
-
-      const mediaUrls = photoUrl ? [photoUrl] : [];
-
-      const isRunValid = !!runId;
-      if (!isRunValid) {
-        toast.info('路线数据未完成上传，已转为文字动态');
-      }
-
-      const result = await createPost({
-        content,
-        source_type: isRunValid ? 'RUN' : 'TEXT',
-        source_id: isRunValid ? runId : undefined,
-        mediaUrls,
-        visibility: 'PUBLIC'
-      });
-
-      if (result.success) {
-        toast.success(isRunValid ? '已分享到动态！' : '文字战绩已分享！');
-        setHasShared(true);
-        setIsShareModalOpen(false);
-      } else {
-        throw new Error(result.error?.message || '分享失败');
-      }
-    } catch (err: any) {
-      console.error('Share to feed failed:', err);
-      if (err?.message?.includes('429') || err?.message?.includes('频繁')) {
-        toast.error('操作过于频繁，请稍后再试');
-      } else {
-        toast.error('分享失败，请重试');
-      }
-    } finally {
-      setIsSharing(false);
+    
+    const activeText = useGameStore.getState().draftPostContent;
+    if (!activeText && !story) {
+        const generated = [
+            `🏃 完成一次跑步！`,
+            `📏 距离: ${distanceKm} km`,
+            `⏱️ 用时: ${duration}`,
+            `🎯 配速: ${pace}`,
+            `🔥 消耗: ${calories} Kcal`,
+            `👟 步数: ${steps}`,
+            hexesCaptured > 0 ? `🏰 占领领地: ${formatArea(finalCapturedArea).fullText}` : null,
+            avgSpeed !== '--' ? `💨 平均速度: ${avgSpeed} km/h` : null,
+          ].filter(Boolean).join('\n');
+        setDraftPostContent(generated);
+    } else if (!activeText && story) {
+        setDraftPostContent(story);
     }
+
+    onClose();
+    router.push('/?tab=social');
   };
 
   useEffect(() => {
@@ -487,12 +488,26 @@ export function RunSummaryView({
               <Trophy className="h-5 w-5 text-yellow-500" />
             </div>
 
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-gray-600">
-                占领了 {hexesCaptured} 块新领地
+            {isSettlementLoading ? (
+              <div className="flex items-center justify-between mb-3 text-gray-500">
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span className="text-sm">后台结算处理中...</span>
+                </div>
               </div>
-              <MapPin className="h-5 w-5 text-red-400" />
-            </div>
+            ) : hasSettlementTimeout ? (
+              <div className="flex items-center justify-between mb-3 text-amber-600">
+                <div className="text-sm">结算后台处理中，请稍后在记录中查看明细</div>
+              </div>
+            ) : (settlementStats || hexesCaptured > 0) ? (
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-gray-600">
+                  占领了 <span className="font-bold">{settlementStats?.newTerritories ?? hexesCaptured}</span> 块新领地
+                  {(settlementStats?.reinforcedTerritories ?? 0) > 0 ? `，加固了 ${settlementStats?.reinforcedTerritories} 块` : ''}
+                </div>
+                <MapPin className="h-5 w-5 text-red-400" />
+              </div>
+            ) : null}
 
             {/* Phase 3: Damage Results */}
             {Object.entries(aggregatedDamage).map(([key, data], idx) => (
@@ -651,7 +666,7 @@ export function RunSummaryView({
                     onClick={handleCopyStory}
                     className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-full text-xs font-bold border border-white/10 transition-colors"
                   >
-                    <span>一键复制</span>
+                    <span>设为分享文案</span>
                   </button>
                   <button
                     onClick={handleGenerateStory}
@@ -679,7 +694,7 @@ export function RunSummaryView({
               完成运动
             </button>
             <button
-              onClick={() => setIsShareModalOpen(true)}
+              onClick={handleShareToFeed}
               className="flex-1 bg-[#22c55e] hover:bg-[#16a34a] text-white font-bold py-3 rounded-full transition-all active:scale-[0.98]"
             >
               分享战绩

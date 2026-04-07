@@ -5,6 +5,7 @@ import { Send, Image as ImageIcon, Smile, X, Loader2, AlertCircle, RefreshCw } f
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 import { createPost } from "@/app/actions/social-hub"
+import { useGameStore } from "@/store/useGameStore"
 import { handleAppError } from "@/lib/utils/app-error"
 
 export type UploadStatus = 'idle' | 'compressing' | 'uploading' | 'uploaded' | 'failed'
@@ -19,7 +20,18 @@ export interface ImageState {
 }
 
 export function CreatePostForm({ onSuccess }: { onSuccess?: (post: any) => void }) {
+    const draftContent = useGameStore(state => state.draftPostContent)
+    const setDraftPostContent = useGameStore(state => state.setDraftPostContent)
+    
     const [content, setContent] = useState("")
+    
+    React.useEffect(() => {
+        if (draftContent) {
+            setContent(draftContent)
+            setDraftPostContent(null)
+        }
+    }, [draftContent, setDraftPostContent])
+
     const [images, setImages] = useState<ImageState[]>([])
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [isPending, startTransition] = useTransition()

@@ -326,45 +326,35 @@ function ActivityCard({ post, onLike, onComment, isNew }: ActivityCardProps) {
           </button>
         </div>
 
-        {/* AI summary button & content (Bug 4) */}
+        {/* AI summary button & content */}
         {post.source_type === 'RUN' && post.run?.aiSummary && (
-          <div className="mt-3">
-            {!showAiSummary ? (
-              <button
-                onClick={() => setShowAiSummary(true)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900 border border-primary/30 hover:border-primary/60 transition-all active:scale-95"
-              >
-                <div className="flex -space-x-1">
-                  <Sparkles className="h-3 w-3 text-primary animate-pulse" />
-                </div>
-                <span className="text-[10px] font-bold text-primary uppercase tracking-wider">查看 AI 史诗战报</span>
-              </button>
-            ) : (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                className="relative overflow-hidden rounded-xl bg-slate-900 p-4 border border-primary/20 shadow-inner"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-1.5">
-                    <Sparkles className="h-3 w-3 text-primary" />
-                    <span className="text-[10px] font-black text-primary/80 uppercase tracking-widest">史诗战报</span>
-                  </div>
-                  <button
-                    onClick={() => setShowAiSummary(false)}
-                    className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+          <motion.div layout className="mt-3 overflow-hidden">
+            <div
+              onClick={() => setShowAiSummary(!showAiSummary)}
+              className="cursor-pointer border-l-2 border-[#22c55e] pl-3 py-1 text-sm text-gray-400 hover:text-foreground transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-3 w-3 text-[#22c55e]" />
+                <span className="font-medium text-xs">AI 战报</span>
+                <span className="text-[10px] ml-auto">{showAiSummary ? '收起' : '展开'}</span>
+              </div>
+              
+              <AnimatePresence initial={false}>
+                {showAiSummary && (
+                  <motion.div
+                    key="ai-summary-content"
+                    initial={{ height: 0, opacity: 0, marginTop: 0 }}
+                    animate={{ height: "auto", opacity: 1, marginTop: 8 }}
+                    exit={{ height: 0, opacity: 0, marginTop: 0 }}
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                    className="italic text-foreground/80 break-words whitespace-pre-wrap"
                   >
-                    收起
-                  </button>
-                </div>
-                <p className="text-xs text-white/90 leading-relaxed italic font-serif">
-                  “{post.run.aiSummary}”
-                </p>
-                {/* Decorative glow */}
-                <div className="absolute -bottom-4 -right-4 w-12 h-12 bg-primary/10 blur-2xl pointer-events-none" />
-              </motion.div>
-            )}
-          </div>
+                    “{post.run.aiSummary}”
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </motion.div>
         )}
 
         <div className="mt-3">

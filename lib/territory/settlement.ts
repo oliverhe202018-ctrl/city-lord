@@ -11,7 +11,7 @@ export interface SettlementInput {
     userId: string;
     cityId: string;
     clubId?: string | null;
-    pathGeoJSON: any; // Changed from turf.Feature to any to avoid lint issues
+    pathGeoJSON: Feature<Polygon>;
     score_weight?: number;
     /** Pre-processed cleaned polygons — if provided, skip extractValidLoops + cleanAndSplitTrajectory */
     preProcessedPolygons?: Feature<Polygon>[];
@@ -39,6 +39,7 @@ export interface MaintenanceDetail {
 export interface SettlementResult {
     success: boolean;
     createdTerritories: number;
+    reinforcedTerritories: number;
     damagedTerritories: number;
     destroyedTerritories: number;
     damageDetails: DamageDetail[];
@@ -66,15 +67,15 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
     } else {
         // Fallback path: original extraction + cleaning (for direct callers like territory-service.ts)
         if (!pathGeoJSON || !pathGeoJSON.geometry) {
-            return { success: false, createdTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'Invalid path geometry' };
+            return { success: false, createdTerritories: 0, reinforcedTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'Invalid path geometry' };
         }
 
         const rawCoords = pathGeoJSON.geometry.coordinates?.[0];
         if (!Array.isArray(rawCoords) || rawCoords.length < 3) {
-            return { success: false, createdTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'Invalid path coordinates' };
+            return { success: false, createdTerritories: 0, reinforcedTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'Invalid path coordinates' };
         }
         const extractedLoops = extractValidLoops(
-            rawCoords.map((coord: [number, number], index: number) => ({
+            (rawCoords as any).map((coord: [number, number], index: number) => ({
                 lng: coord[0],
                 lat: coord[1],
                 timestamp: index
@@ -82,7 +83,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
             LOOP_CLOSURE_THRESHOLD_M
         );
         if (extractedLoops.length === 0) {
-            return { success: false, createdTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'No valid closed loops' };
+            return { success: false, createdTerritories: 0, reinforcedTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'No valid closed loops' };
         }
 
         cleanedPolygons = extractedLoops.flatMap((loop) => {
@@ -92,11 +93,11 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
     }
 
     if (cleanedPolygons.length === 0) {
-        return { success: false, createdTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'Invalid geometry after cleaning' };
+        return { success: false, createdTerritories: 0, reinforcedTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'Invalid geometry after cleaning' };
     }
     const runAreaSqMeters = cleanedPolygons.reduce((sum, polygon) => sum + turf.area(polygon), 0);
     if (runAreaSqMeters < 50) {
-        return { success: false, createdTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'Run area too small' };
+        return { success: false, createdTerritories: 0, reinforcedTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'Run area too small' };
     }
 
     // Recalculate combined geometry for PostGIS intersection check
@@ -107,27 +108,29 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
 
     const finalSettledResult = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         // Initial working set for area carving
-        let workingPolygons: any[] = [...cleanedPolygons];
+        let workingPolygons: Feature<Polygon>[] = [...cleanedPolygons];
 
         let result: SettlementResult = {
             success: true,
             createdTerritories: 0,
+            reinforcedTerritories: 0,
             damagedTerritories: 0,
             destroyedTerritories: 0,
             damageDetails: [],
             maintenanceDetails: []
         };
 
-        let bestPatrolOverlap: {
+        interface OverlapRow {
             id: string;
             health: number | null;
             current_hp: number | null;
             max_hp: number | null;
             level: number | null;
             overlap_ratio: number;
-        } | null = null;
+        }
+        let bestPatrolOverlap: OverlapRow | null = null;
         try {
-            const overlapRows = await tx.$queryRaw<any[]>`
+            const overlapRows = await tx.$queryRaw<OverlapRow[]>`
             SELECT
                 t.id,
                 t.health,
@@ -161,13 +164,28 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
         }
     } catch (sqlErr: any) {
         console.error(`[Patrol Overlap SQL Error] userId: ${userId}, runId: ${runId}, error: ${sqlErr.message}`);
-        return { success: false, createdTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: `SQL Error: ${sqlErr.message}` };
+        return { success: false, createdTerritories: 0, reinforcedTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: `SQL Error: ${sqlErr.message}` };
     }
 
     // 2. Fetch overlapping territories using PostGIS BBox/Intersects (Raw SQL)
-    let overlappingTerritories: any[] = [];
+    interface TerritoryRow {
+        id: string;
+        owner_id: string | null;
+        owner_faction: string | null;
+        owner_club_id: string | null;
+        health: number | null;
+        current_hp: number | null;
+        max_hp: number | null;
+        score_weight: number | null;
+        territory_type: string;
+        level: number | null;
+        owner_name: string | null;
+        geometry: Polygon;
+        is_contained: boolean;
+    }
+    let overlappingTerritories: TerritoryRow[] = [];
     try {
-        overlappingTerritories = await tx.$queryRaw<any[]>`
+        overlappingTerritories = await tx.$queryRaw<TerritoryRow[]>`
             SELECT 
                 t.id, 
                 t.owner_id,
@@ -189,7 +207,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
         `;
     } catch (sqlErr: any) {
         console.error(`[Settlement SQL Error] userId: ${userId}, runId: ${runId}, error: ${sqlErr.message}`);
-        return { success: false, createdTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: `SQL Error: ${sqlErr.message}` };
+        return { success: false, createdTerritories: 0, reinforcedTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: `SQL Error: ${sqlErr.message}` };
     }
 
     const runnerProfile = await tx.profiles.findUnique({
@@ -220,6 +238,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                     afterHp: TERRITORY_MAX_HEALTH,
                     level: Number(bestPatrolOverlap.level ?? 1)
                 });
+                result.reinforcedTerritories++;
                 return result;
             }
 
@@ -240,6 +259,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                 afterHp: chargedShield,
                 level: Number(bestPatrolOverlap.level ?? 1)
             });
+            result.reinforcedTerritories++;
             return result;
         }
 
@@ -260,6 +280,17 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                         last_maintained_at: new Date()
                     }
                 });
+                
+                result.maintenanceDetails.push({
+                    territoryId: existingTerr.id,
+                    type: 'HEAL',
+                    oldMaxHp: Number(existingTerr.max_hp ?? 1000),
+                    newMaxHp: Number(existingTerr.max_hp ?? 1000),
+                    beforeHp: beforeHealth,
+                    afterHp: TERRITORY_MAX_HEALTH,
+                    level: Number(existingTerr.level ?? 1)
+                });
+                result.reinforcedTerritories++;
                 continue;
             }
 
@@ -272,6 +303,17 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                         last_maintained_at: new Date()
                     }
                 });
+                
+                result.maintenanceDetails.push({
+                    territoryId: existingTerr.id,
+                    type: 'HEAL',
+                    oldMaxHp: Number(existingTerr.max_hp ?? 1000),
+                    newMaxHp: Number(existingTerr.max_hp ?? 1000),
+                    beforeHp: beforeHealth,
+                    afterHp: healedHealth,
+                    level: Number(existingTerr.level ?? 1)
+                });
+                result.reinforcedTerritories++;
                 continue;
             }
 
@@ -301,7 +343,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
             if (shouldNotifyLowHealth) {
                 await tx.messages.create({
                     data: {
-                        user_id: existingTerr.owner_id,
+                        user_id: existingTerr.owner_id as string,
                         sender_id: null,
                         type: 'system',
                         content: `你的领地 ${existingTerr.id} 生命值已降至 ${afterHealth}/${TERRITORY_MAX_HEALTH}，请尽快前往巡逻修复。`,
@@ -310,7 +352,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                 });
                 await tx.notifications.create({
                     data: {
-                        user_id: existingTerr.owner_id,
+                        user_id: existingTerr.owner_id as string,
                         type: 'battle',
                         title: '领地遭受攻击',
                         body: `你的领地 ${existingTerr.id} 生命值已降至 ${afterHealth}/${TERRITORY_MAX_HEALTH}，请尽快巡逻修复。`,
@@ -319,8 +361,8 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                             territoryId: existingTerr.id,
                             territoryName: existingTerr.id,
                             eventType: 'LOW_HEALTH',
-                            clubId: existingTerr.owner_club_id ?? null,
-                            attackerClubId: clubId ?? null,
+                            clubId: existingTerr.owner_club_id ?? undefined,
+                            attackerClubId: clubId ?? undefined,
                             area: runAreaSqMeters,
                             health: {
                                 current: afterHealth,
@@ -347,9 +389,10 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
             }
 
             // Perform turf.difference to carve out the claimed shapes so they don't overlap existing active territories
-            const newWorkingPolygons: any[] = [];
+            const newWorkingPolygons: Feature<Polygon>[] = [];
             for (const poly of workingPolygons) {
-                const diff = (turf as any).difference(poly as any, existingFeature as any);
+                // TODO: Refactor specific type for turf.difference once @turf/turf provides stable MultiPolygon/Polygon union types
+                const diff = (turf as any).difference(poly as any, existingFeature as any) as Feature<Polygon> | null;
                 if (diff) {
                     newWorkingPolygons.push(diff);
                 }
@@ -359,18 +402,18 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
 
         // 清理被完全吞噬的历史废块
         const destroyedAndContainedIds = overlappingTerritories
-            .filter((t: any) => {
+            .filter((t: TerritoryRow) => {
                 const beforeHp = Number(t.health ?? t.current_hp ?? 100);
                 const afterHp = Math.max(0, beforeHp - ENEMY_DAMAGE);
                 return afterHp <= 0 && Boolean(t.is_contained);
             })
-            .map((t: any) => t.id);
+            .map((t: TerritoryRow) => t.id);
 
         if (destroyedAndContainedIds.length > 0) {
             await tx.territories.updateMany({
                 where: { id: { in: destroyedAndContainedIds } },
                 data: {
-                    status: 'SUPERSEDED' as any
+                    status: 'SUPERSEDED' as any 
                 }
             });
         }
