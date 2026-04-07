@@ -26,8 +26,12 @@ export function TerritoryDetailSheet() {
 
 
     const { data: detail, isLoading } = useQuery({
-        queryKey: ['territory-detail', territoryId],
-        queryFn: () => getTerritoryDetail(territoryId!),
+        queryKey: ['territory-detail', territoryId, selectedTerritory?.ownerId, selectedTerritory?.ownerClubId, selectedTerritory?.sourceRunId],
+        queryFn: () => getTerritoryDetail(territoryId!, {
+            ownerId: selectedTerritory?.ownerId || undefined,
+            clubId: selectedTerritory?.ownerClubId || undefined,
+            sourceRunId: selectedTerritory?.sourceRunId
+        }),
         enabled: !!territoryId,
         staleTime: 60 * 1000,
     })
@@ -80,10 +84,10 @@ export function TerritoryDetailSheet() {
                                 return (
                                     <>
                                         {/* 历史映射标识 */}
-                                        {!detail && selectedTerritory && (
-                                            <div className="mb-3 py-1 w-full bg-orange-500/20 rounded text-center">
-                                                <span className="text-[10px] font-bold text-orange-500">
-                                                    📍 历史轨迹测算结果，当前未生成规范领地
+                                        {activeId === 'legacy' && (
+                                            <div className="mb-3 py-1 w-full bg-primary/20 rounded text-center border border-primary/30">
+                                                <span className="text-[10px] font-bold text-primary">
+                                                    ✨ 领地已由运动轨迹精准映射生成
                                                 </span>
                                             </div>
                                         )}

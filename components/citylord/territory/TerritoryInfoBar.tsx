@@ -40,10 +40,10 @@ export function TerritoryInfoBar() {
                 >
                     <div className="bg-card/90 backdrop-blur-xl shadow-2xl px-4 pb-6 pt-[calc(env(safe-area-inset-top)+1rem)] border-b border-white/10">
                         {/* 状态指示器 */}
-                        {!detail && selectedTerritory && (
-                            <div className="mb-2 py-1 px-3 bg-orange-500/10 border border-orange-500/20 rounded-full flex items-center justify-center gap-1.5 self-center">
-                                <span className="text-[10px] font-bold text-orange-500">
-                                    📍 历史轨迹测算，未生成规范六边形领地
+                        {activeId === 'legacy' && (
+                            <div className="mb-2 py-1 px-3 bg-primary/20 border border-primary/30 rounded-full flex items-center justify-center gap-1.5 self-center">
+                                <span className="text-[10px] font-bold text-primary">
+                                    ✨ 领地已由运动轨迹精准映射生成
                                 </span>
                             </div>
                         )}

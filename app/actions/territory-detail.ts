@@ -29,19 +29,43 @@ export interface TerritoryDetailResult {
     territory_type?: string
 }
 
-export async function getTerritoryDetail(territoryId: string): Promise<TerritoryDetailResult | null> {
+export async function getTerritoryDetail(
+    territoryId: string,
+    options?: { ownerId?: string; clubId?: string; sourceRunId?: string }
+): Promise<TerritoryDetailResult | null> {
     const supabase = await createClient()
 
-    // 1. Fetch territory data
-    const { data: territory, error: terrError } = await supabaseAdmin
-        .from('territories')
-        .select('owner_id, city_id, captured_at, owner_club_id, current_hp, score_weight, territory_type, source_run_id, area_m2_exact')
-        .eq('id', territoryId)
-        .single()
+    let territory: any = null;
 
-    if (terrError || !territory) {
-        console.error('Failed to fetch territory detail:', terrError)
-        return null
+    if (territoryId === 'legacy') {
+        if (!options?.ownerId) {
+            return null; // Cannot forge without owner
+        }
+        territory = {
+            id: 'legacy',
+            owner_id: options.ownerId,
+            city_id: 'default',
+            captured_at: new Date().toISOString(),
+            owner_club_id: options.clubId || null,
+            current_hp: 1000,
+            score_weight: 1.0,
+            territory_type: 'NORMAL',
+            source_run_id: options.sourceRunId || null,
+            area_m2_exact: 0 // Will show as 0 on mocked legacy unless passed, but the map layer calculates it dynamically anyway.
+        };
+    } else {
+        // 1. Fetch territory data
+        const { data, error: terrError } = await supabaseAdmin
+            .from('territories')
+            .select('owner_id, city_id, captured_at, owner_club_id, current_hp, score_weight, territory_type, source_run_id, area_m2_exact')
+            .eq('id', territoryId)
+            .single()
+
+        if (terrError || !data) {
+            console.error('Failed to fetch territory detail:', terrError)
+            return null
+        }
+        territory = data;
     }
 
     const areaKm2 = Number(((territory.area_m2_exact || 0) / 1_000_000).toFixed(4))
