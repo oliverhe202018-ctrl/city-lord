@@ -140,7 +140,6 @@ export interface ModeActions {
   setMyClub: (club: MyClub | null) => void;
   updateMyClubInfo: (info: Partial<MyClub>) => void;
   updateAppSettings: (settings: Partial<AppSettings>) => void;
-  setDraftPostContent: (content: string | null) => void;
 
   // Settings Actions
   setSoundEnabled: (enabled: boolean) => void;
@@ -230,7 +229,6 @@ export interface GameState extends UserState, LocationState, InventoryState, Wor
   selectedTerritoryId: string | null;
   /** Whether to show faction colors instead of custom ones in personal mode */
   showFaction: boolean;
-  draftPostContent: string | null;
 }
 
 export interface GameActions extends ModeActions, UserActions, LocationActions, InventoryActions, WorldActions { }
@@ -330,7 +328,6 @@ const createModeSlice: StateCreator<GameStore, [], [], ModeActions> = (set, get)
     })),
   updateAppSettings: (settings) =>
     set((state) => ({ appSettings: { ...state.appSettings, ...settings } })),
-  setDraftPostContent: (content) => set({ draftPostContent: content }),
 
   // Settings Actions
   setSoundEnabled: (enabled) => set((state) => ({ appSettings: { ...state.appSettings, soundEnabled: enabled } })),
@@ -774,7 +771,6 @@ export const useGameStore = create<GameStore>()(
       selectedTerritoryId: null,
       territoryAppearance: initialTerritoryAppearance,
       showFaction: initialShowFaction,
-      draftPostContent: null,
       ...initialUserState,
       ...initialLocationState,
       ...initialInventoryState,
@@ -849,8 +845,6 @@ export const useGameStore = create<GameStore>()(
         latitude: state.latitude,
         longitude: state.longitude,
         hasDismissedGeolocationPrompt: state.hasDismissedGeolocationPrompt,
-        // RISK-04: Persist draft post content for social sharing resilience
-        draftPostContent: state.draftPostContent,
       } as unknown as GameStore),
     },
   ),

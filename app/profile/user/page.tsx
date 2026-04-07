@@ -285,7 +285,7 @@ function UserProfileContent() {
                 followersCount={data.stats.followers}
             />
 
-            <StatsGrid stats={data.stats} />
+            <StatsGrid stats={data.stats} userId={userId} />
 
             <RunHistoryList userId={userId} />
         </div>

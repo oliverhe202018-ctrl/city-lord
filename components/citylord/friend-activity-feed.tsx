@@ -71,7 +71,7 @@ interface ActivityCardProps {
   isNew?: boolean
 }
 
-function ActivityCard({ post, onLike, onComment, isNew }: ActivityCardProps) {
+export function ActivityCard({ post, onLike, onComment, isNew }: ActivityCardProps) {
   const router = useRouter()
   const currentUserId = useGameStore(state => state.userId)
   const currentUserNickname = useGameStore(state => state.nickname)
@@ -333,10 +333,10 @@ function ActivityCard({ post, onLike, onComment, isNew }: ActivityCardProps) {
               onClick={() => setShowAiSummary(!showAiSummary)}
               className="cursor-pointer border-l-2 border-[#22c55e] pl-3 py-1 text-sm text-gray-400 hover:text-foreground transition-colors"
             >
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-3 w-3 text-[#22c55e]" />
-                <span className="font-medium text-xs">AI 战报</span>
-                <span className="text-[10px] ml-auto">{showAiSummary ? '收起' : '展开'}</span>
+              <div className="flex items-center">
+                <span className="text-xs font-medium">
+                  {showAiSummary ? '▲ 收起 AI 史诗战报' : '✨ 展开 AI 史诗战报 ▼'}
+                </span>
               </div>
               
               <AnimatePresence initial={false}>
@@ -347,9 +347,9 @@ function ActivityCard({ post, onLike, onComment, isNew }: ActivityCardProps) {
                     animate={{ height: "auto", opacity: 1, marginTop: 8 }}
                     exit={{ height: 0, opacity: 0, marginTop: 0 }}
                     transition={{ duration: 0.3, ease: "easeInOut" }}
-                    className="italic text-foreground/80 break-words whitespace-pre-wrap"
+                    className="text-sm text-gray-400 italic break-words whitespace-pre-wrap"
                   >
-                    “{post.run.aiSummary}”
+                    &ldquo;{post.run.aiSummary}&rdquo;
                   </motion.div>
                 )}
               </AnimatePresence>

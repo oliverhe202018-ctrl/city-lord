@@ -4,6 +4,7 @@ import React from 'react'
 import { Footprints, TrendingUp, Timer, Trophy } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { ProfileStats, PersonalBest, WeeklyDistance } from '@/app/actions/profile'
+import { RecentPostsFeed } from '@/components/profile/RecentPostsFeed'
 
 import {
     BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
@@ -12,9 +13,10 @@ import {
 interface StatsGridProps {
     stats: ProfileStats | null
     isLoading?: boolean
+    userId?: string
 }
 
-export function StatsGrid({ stats, isLoading = false }: StatsGridProps) {
+export function StatsGrid({ stats, isLoading = false, userId }: StatsGridProps) {
     if (isLoading || !stats) {
         return (
             <div className="p-4 space-y-4">
@@ -83,6 +85,9 @@ export function StatsGrid({ stats, isLoading = false }: StatsGridProps) {
             <div className="rounded-2xl border border-border bg-card/50 p-3">
                 <WeeklyChart data={stats.weeklyDistances} />
             </div>
+
+            {/* 最新动态区块 */}
+            <RecentPostsFeed userId={userId} />
         </div>
     )
 }

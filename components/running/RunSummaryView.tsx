@@ -93,7 +93,6 @@ export function RunSummaryView({
   const userId = useGameStore(state => state.userId);
   const faction = useGameStore(state => state.faction);
   const clubId = useGameStore(state => state.clubId);
-  const setDraftPostContent = useGameStore(state => state.setDraftPostContent);
   const router = useRouter();
 
   // Settlement State
@@ -178,8 +177,16 @@ export function RunSummaryView({
 
   const handleCopyStory = async () => {
     if (!story) return;
-    setDraftPostContent(story);
-    toast.success('已设为分享文案');
+    try {
+      if (await isNativePlatform()) {
+        await Clipboard.write({ string: story });
+      } else {
+        await navigator.clipboard.writeText(story);
+      }
+      toast.success('AI 战报已复制到剪贴板！');
+    } catch {
+      toast.error('复制失败，请手动选取文字');
+    }
   };
 
   // Compute average speed from raw values (no string parsing)
@@ -328,29 +335,45 @@ export function RunSummaryView({
     }
   };
 
-  // Share to feed handler
-  const handleShareToFeed = () => {
+  // Share to feed handler — 直接调用 createPost API，无 Draft 中转
+  const handleShareToFeed = async () => {
     if (isSharing || hasShared) return;
-    
-    const activeText = useGameStore.getState().draftPostContent;
-    if (!activeText && !story) {
-        const generated = [
-            `🏃 完成一次跑步！`,
-            `📏 距离: ${distanceKm} km`,
-            `⏱️ 用时: ${duration}`,
-            `🎯 配速: ${pace}`,
-            `🔥 消耗: ${calories} Kcal`,
-            `👟 步数: ${steps}`,
-            hexesCaptured > 0 ? `🏰 占领领地: ${formatArea(finalCapturedArea).fullText}` : null,
-            avgSpeed !== '--' ? `💨 平均速度: ${avgSpeed} km/h` : null,
-          ].filter(Boolean).join('\n');
-        setDraftPostContent(generated);
-    } else if (!activeText && story) {
-        setDraftPostContent(story);
+    if (!runId) {
+      toast.error('跑步数据未保存，无法分享');
+      return;
     }
+    setIsSharing(true);
+    try {
+      const summaryLines = [
+        `🏃 完成一次跑步！`,
+        `📏 距离: ${distanceKm} km`,
+        `⏱️ 用时: ${duration}`,
+        `🎯 配速: ${pace}`,
+        `🔥 消耗: ${calories} Kcal`,
+        hexesCaptured > 0 ? `🏰 占领领地: ${formatArea(finalCapturedArea).fullText}` : null,
+        avgSpeed !== '--' ? `💨 平均速度: ${avgSpeed} km/h` : null,
+      ].filter(Boolean).join('\n');
 
-    onClose();
-    router.push('/?tab=social');
+      const content = (story || summaryLines).slice(0, 500);
+
+      const res = await createPost({
+        content,
+        source_type: 'RUN',
+        source_id: runId,
+        mediaUrls: photoUrl ? [photoUrl] : [],
+        visibility: 'PUBLIC',
+      });
+
+      if (!res.success) throw new Error(res.error?.message || '发布失败');
+      setHasShared(true);
+      toast.success('战绩已发布到动态圈！');
+      onClose();
+      router.push('/?tab=social');
+    } catch (err: any) {
+      toast.error(err.message || '分享失败，请重试');
+    } finally {
+      setIsSharing(false);
+    }
   };
 
   useEffect(() => {
