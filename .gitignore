@@ -41,4 +41,7 @@ yarn-error.log*
 /ios/build
 /capacitor.config.json.tmp
 
+# PWA Service Worker files
+public/sw.js
+public/sw.js.map
 .trigger

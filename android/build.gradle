@@ -31,8 +31,6 @@ allprojects {
     }
 
     // ── Global dependency resolution strategy ──────────────────────────────
-    // Unify Kotlin stdlib: capacitor.build.gradle pins 1.7.10, Health Connect
-    // pins 1.8.20 via its own buildscript — force everything to 1.9.10.
     configurations.all {
         resolutionStrategy {
             force "org.jetbrains.kotlin:kotlin-stdlib:1.9.10"
@@ -42,24 +40,35 @@ allprojects {
     }
 }
 
-// ── Kotlin JVM target override for all subprojects ───────────────────────────────
-// `capacitor.build.gradle` sets compileOptions to JavaVersion.VERSION_21 globally.
-// However capacitor-health-connect uses kotlin-gradle-plugin:1.8.20, which does NOT
-// support JVM target 21 (support was added in Kotlin 1.9.0).
-// Inject jvmTarget = '17' into every sub-module's kotlin compile task after evaluation.
+// ── Subprojects configuration ─────────────────────────────────────────────
 subprojects {
-    afterEvaluate {
+    afterEvaluate { project ->
         if (project.hasProperty('android')) {
             android {
                 compileOptions {
                     sourceCompatibility JavaVersion.VERSION_17
                     targetCompatibility JavaVersion.VERSION_17
                 }
+                
+                // Fix for: `getDefaultProguardFile('proguard-android.txt')` is no longer supported
+                buildTypes.all { buildType ->
+                    def files = buildType.proguardFiles.collect { file ->
+                        if (file instanceof String && file.endsWith('proguard-android.txt')) {
+                            return 'proguard-android-optimize.txt'
+                        } else if (file instanceof File && file.name == 'proguard-android.txt') {
+                            return project.android.getDefaultProguardFile('proguard-android-optimize.txt')
+                        }
+                        return file
+                    }
+                    buildType.setProguardFiles(files)
+                }
             }
         }
-        tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
-            kotlinOptions {
-                jvmTarget = '17'
+        if (project.tasks.findByName('compileKotlin')) {
+            tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+                kotlinOptions {
+                    jvmTarget = '17'
+                }
             }
         }
     }
