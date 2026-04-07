@@ -490,7 +490,7 @@ export async function saveRunActivity(
             const cityId = (runData as any).cityId || 'default_city';
             
             try {
-                await tasks.trigger("settle-territories", {
+                const triggerPayload = {
                     runId: result.runId,
                     userId,
                     cityId,
@@ -498,9 +498,14 @@ export async function saveRunActivity(
                     polygons: polygonsForSettlement,
                     distance: evaluationData.distance,
                     duration: evaluationData.duration
-                });
+                };
+                console.log(`[Trigger.dev] Enqueuing 'settle-territories'. polygonCount=${polygonsForSettlement.length}, runId=${result.runId}`);
+                console.log(`[Trigger.dev] payload: ${JSON.stringify({ runId: triggerPayload.runId, userId: triggerPayload.userId, cityId: triggerPayload.cityId, polygonCount: triggerPayload.polygons.length })}`);
+                const handle = await tasks.trigger("settle-territories", triggerPayload);
+                console.log(`[Trigger.dev] ✅ Task enqueued. Handle: ${(handle as any)?.id ?? 'N/A'}`);
             } catch (err: any) {
-                console.error("[Trigger.dev] Failed to enqueue territory settlement task:", err);
+                console.error(`[Trigger.dev] ❌ FAILED to enqueue 'settle-territories': ${err?.message ?? err}`);
+                console.error(`[Trigger.dev] Full error:`, err);
             }
         }
 

@@ -359,6 +359,8 @@ export function ImmersiveRunningMode({
   const unlockPressTimerRef = useRef<number | null>(null)
   const endPressTimerRef = useRef<number | null>(null)
   const prevHexesCapturedRef = useRef(hexesCaptured)
+  // Guard: prevents saveRun from being called twice when handleAttemptStop pre-saves
+  const hasSavedRunRef = useRef(false)
   const prevSuccessfulEventsRef = useRef(0)
   const [isUnlockPressing, setIsUnlockPressing] = useState(false)
   const [isEndPressing, setIsEndPressing] = useState(false)
@@ -640,7 +642,7 @@ export function ImmersiveRunningMode({
   //   // Logic moved to handleAttemptStop
   // }, [])
 
-  const handleAttemptStop = () => {
+  const handleAttemptStop = async () => {
     try {
       // If no path data or very short path, just proceed
       const safePath = path || [];
@@ -684,10 +686,35 @@ export function ImmersiveRunningMode({
       }
 
       if (isClosed) {
-        // Closed loop
+        // 1. 先冻结追踪器
         freezeTrackerForSummary()
-        setSummarySnapshot(buildSummarySnapshot(hexesCaptured))
+
+        // 2. 立即建快照（含当前已知 runId）
+        const snapshot = buildSummarySnapshot(hexesCaptured)
+        setSummarySnapshot(snapshot)
+
+        // 3. 展示 Summary Screen（不等待 saveRun，避免卡顿）
         setShowSummary(true)
+
+        // 4. 后台触发 saveRun（异步非阻塞，结算任务会被 Trigger.dev 接管）
+        // handleStop (onClose) 会检查 hasSavedRunRef 以避免双重提交
+        if (saveRun && !isSubmitting && !hasSavedRunRef.current) {
+          setIsSubmitting(true);
+          try {
+            const res = await withTimeout(saveRun(true), SAVE_TIMEOUT_MS);
+            hasSavedRunRef.current = true; // Mark as saved — handleStop will skip saveRun
+            if (res?.settlingAsync) {
+              console.log('[handleAttemptStop] saveRun succeeded, settling async');
+            }
+          } catch (saveError) {
+            const errorMsg = saveError instanceof Error ? saveError.message : '网络不可用';
+            console.error('[handleAttemptStop] saveRun failed:', saveError);
+            // On failure, handleStop will retry
+            toast.error(`预保存失败 (${errorMsg === 'SAVE_TIMEOUT' ? '超时' : errorMsg})，请点击完成重试`);
+          } finally {
+            setIsSubmitting(false);
+          }
+        }
       } else {
         // Open loop - Warn user
         setShowLoopWarning(true)
@@ -755,6 +782,20 @@ export function ImmersiveRunningMode({
     const now = Date.now();
     if (now - lastStopAttemptRef.current < 2000) return;
     lastStopAttemptRef.current = now;
+
+    // If handleAttemptStop already saved the run, skip saveRun and go straight to cleanup
+    if (hasSavedRunRef.current) {
+      localStorage.removeItem('CURRENT_RUN_RECOVERY');
+      const { useGameStore } = await import('@/store/useGameStore');
+      useGameStore.getState().resetRunState();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('citylord:refresh-territories'));
+      }
+      onStop();
+      setSummarySnapshot(null);
+      setShowSummary(false);
+      return;
+    }
 
     if (isSubmitting) return;
     setIsSubmitting(true);

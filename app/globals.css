@@ -70,41 +70,30 @@
     
     --radius: 0.5rem;
 
-    /* Safe Area Variables — 三段式降级：硬编码 -> constant() (旧 iOS) -> env() */
-    --safe-top: 0px;
-    --safe-top: constant(safe-area-inset-top);
-    --safe-top: env(safe-area-inset-top);
+    /* Safe Area Variables — 单行 env() 带 0px fallback (避开属性覆盖陷阱) */
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
 
-    --safe-bottom: 0px;
-    --safe-bottom: constant(safe-area-inset-bottom);
-    --safe-bottom: env(safe-area-inset-bottom);
-
-    --safe-left: 0px;
-    --safe-left: constant(safe-area-inset-left);
-    --safe-left: env(safe-area-inset-left);
-
-    --safe-right: 0px;
-    --safe-right: constant(safe-area-inset-right);
-    --safe-right: env(safe-area-inset-right);
-
-    /* Android 状态栏高度 (overlaysWebView: false 时为 0，由 ClientShell 动态注入) */
+    /* Android 状态栏高度 (由 ClientShell 动态注入) */
     --android-status-bar-height: 0px;
 
     /* UI Layout Helpers */
     --top-bar-height: calc(var(--safe-top) + 4rem);
   }
 
-  /* Safe Area Utilities */
-  .pt-safe {
+  /* Standard Safe Area Utilities (Unified to .safe-* namespace) */
+  .safe-pt {
     padding-top: var(--safe-top);
   }
-  .pb-safe {
+  .safe-pb {
     padding-bottom: var(--safe-bottom);
   }
-  .pl-safe {
+  .safe-pl {
     padding-left: var(--safe-left);
   }
-  .pr-safe {
+  .safe-pr {
     padding-right: var(--safe-right);
   }
   .h-safe {
@@ -238,17 +227,6 @@
 }
 
 /* === Safe Area Utilities (Fallback Support) === */
-.safe-pb {
-  padding-bottom: 16px;
-  padding-bottom: constant(safe-area-inset-bottom);
-  padding-bottom: env(safe-area-inset-bottom);
-}
-
-.safe-pt {
-  padding-top: 16px; 
-  padding-top: constant(safe-area-inset-top);
-  padding-top: env(safe-area-inset-top);
-}
 
 @keyframes voiceWave {
     0%, 100% { height: 8px; opacity: 0.7; }

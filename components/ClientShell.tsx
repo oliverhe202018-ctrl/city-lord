@@ -34,18 +34,17 @@ function StatusBarConfig() {
           safeStatusBarSetOverlaysWebView(false);
           safeStatusBarSetBackgroundColor('#000000');
 
-          // RISK-01: 读取 Android StatusBar 高度并注入 CSS 变量
+          // RISK-05: 读取 Android StatusBar 高度并注入 CSS 变量 (修正之前设为 0px 的逻辑)
           try {
             const { StatusBar } = await import('@capacitor/status-bar');
             const info = await StatusBar.getInfo();
-            // Android StatusBar 不直接暴露高度，但 overlaysWebView: false 意味着
-            // WebView 已经在状态栏下方，所以 safe-area-inset-top 为 0
-            // 注入一个辅助变量供完全自定义布局使用
+            // 在 overlaysWebView(false) 时，虽然 WebView 不被遮挡，但布局仍可能需要该高度作为参考
             document.documentElement.style.setProperty(
               '--android-status-bar-height',
-              '0px' // overlaysWebView: false 时 WebView 不被状态栏遮挡
+              `${(info as any).height}px`
             );
-          } catch {
+          } catch (err) {
+            console.warn('[StatusBar] Failed to get info', err);
             document.documentElement.style.setProperty('--android-status-bar-height', '0px');
           }
         }

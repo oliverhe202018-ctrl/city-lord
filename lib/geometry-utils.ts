@@ -47,8 +47,10 @@ export interface DriftFilterResult {
 /** Maximum distance (meters) between start/end to consider loop closed */
 export const LOOP_CLOSURE_THRESHOLD_M = 120;
 
-/** Minimum number of GPS points required for a valid loop */
-export const MIN_LOOP_POINTS = 10;
+/** Minimum number of GPS points required for a valid loop.
+ * Set to 4 (minimum for a valid polygon: 3 unique vertices + 1 closing point).
+ * Allows small square trajectories to be captured without needing 10+ GPS points. */
+export const MIN_LOOP_POINTS = 4;
 
 /** Minimum polygon area (m²) to qualify for territory */
 export const MIN_TERRITORY_AREA_M2 = 100;
@@ -156,7 +158,9 @@ export function extractValidLoops(
     if (!Array.isArray(path) || path.length < MIN_LOOP_POINTS) {
         return [];
     }
-    const minGap = Math.max(6, Math.floor(MIN_LOOP_POINTS / 2));
+    // minGap: minimum separation between anchor and closing point.
+    // For MIN_LOOP_POINTS=4, minGap=3 ensures we need at least 3 points between anchor and close.
+    const minGap = Math.max(3, Math.floor(MIN_LOOP_POINTS / 2));
     const loops: Coord[][] = [];
     const seen = new Set<string>();
     for (let anchorIndex = 0; anchorIndex < path.length; anchorIndex++) {

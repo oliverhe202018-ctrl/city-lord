@@ -1,0 +1,19 @@
+﻿app/actions/admin/changelog-actions.ts(14,13): error TS2345: Argument of type '"user_id"' is not assignable to parameter of type '"role" | "id" | "created_at"'.
+app/actions/admin/get-feedback.ts(42,17): error TS2345: Argument of type '"user_id"' is not assignable to parameter of type '"role" | "id" | "created_at"'.
+app/actions/auth-check.ts(27,11): error TS2345: Argument of type '"email"' is not assignable to parameter of type '"nickname" | "faction" | "level" | "coins" | "stamina" | "id" | "avatar_url" | "created_at" | "badges" | "club_id" | "updated_at" | "total_area" | "province" | "allow_direct_messages" | ... 17 more ... | "xp"'.
+app/actions/changelog/get-changelogs.ts(89,17): error TS2345: Argument of type '"version"' is not assignable to parameter of type 'never'.
+app/actions/changelog/unread-actions.ts(35,21): error TS2345: Argument of type '"user_id"' is not assignable to parameter of type 'never'.
+app/actions/social.ts(237,9): error TS2345: Argument of type '"is_completed"' is not assignable to parameter of type '"id" | "user_id" | "achievement_id" | "unlocked_at"'.
+app/actions/social.ts(284,9): error TS2345: Argument of type '"status"' is not assignable to parameter of type 'never'.
+app/actions/social.ts(630,9): error TS2345: Argument of type '"receiver_id"' is not assignable to parameter of type '"id" | "content" | "created_at" | "user_id" | "type" | "audio_url" | "duration_ms" | "mime_type" | "sender_id" | "size_bytes" | "waveform" | "is_read"'.
+app/actions/territory-report.ts(38,17): error TS2345: Argument of type '"reporter_id"' is not assignable to parameter of type 'never'.
+app/actions/territory-report.ts(39,17): error TS2345: Argument of type '"territory_id"' is not assignable to parameter of type 'never'.
+components/mode/RoomDrawer.tsx(284,17): error TS2345: Argument of type '"is_valid"' is not assignable to parameter of type 'never'.
+scripts/test-multipolygon-split.ts(34,1): error TS2578: Unused '@ts-expect-error' directive.
+scripts/test-multipolygon-split.ts(38,13): error TS2322: Type 'Feature<MultiPolygon, GeoJsonProperties>' is not assignable to type 'Feature<Polygon, GeoJsonProperties>'.
+  Type 'MultiPolygon' is not assignable to type 'Polygon'.
+    Types of property 'type' are incompatible.
+      Type '"MultiPolygon"' is not assignable to type '"Polygon"'.
+trigger.config.ts(15,3): error TS1117: An object literal cannot have multiple properties with the same name.
+trigger.config.ts(17,23): error TS2345: Argument of type '{ schema: string; }' is not assignable to parameter of type 'PrismaExtensionOptions'.
+  Property 'mode' is missing in type '{ schema: string; }' but required in type 'PrismaLegacyModeExtensionOptions'.

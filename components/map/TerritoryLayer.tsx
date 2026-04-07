@@ -123,16 +123,21 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
   const lastAuthUserIdRef = useRef<string | null>(user?.id ?? null);
 
   const resolveFactionColor = useCallback(
-    (ownerFaction: string | null | undefined, territory?: ExtTerritory) => {
-      const key = (ownerFaction || '').toLowerCase();
-      if (key.includes('blue') || key.includes('azure') || key.includes('蔚蓝') || key.includes('cyan')) return '#3b82f6';
-      if (key.includes('red') || key.includes('crimson') || key.includes('赤红')) return '#ef4444';
-      if (territory) {
-        return Boolean(user?.id && territory.ownerId === user.id) ? '#3b82f6' : '#ef4444';
-      }
+    (ownerFaction: string | null | undefined): string => {
+      const key = (ownerFaction || '').toLowerCase().trim();
+      if (!key) return '#64748b'; // No faction → neutral slate gray
+      // Blue faction keywords
+      if (key.includes('blue') || key.includes('azure') || key.includes('蔚蓝') || key.includes('cyan') || key.includes('water') || key.includes('water')) return '#3b82f6';
+      // Red faction keywords
+      if (key.includes('red') || key.includes('crimson') || key.includes('赤红') || key.includes('scarlet') || key.includes('fire')) return '#ef4444';
+      // Green faction
+      if (key.includes('green') || key.includes('emerald') || key.includes('翠绿')) return '#22c55e';
+      // Purple faction
+      if (key.includes('purple') || key.includes('violet') || key.includes('紫')) return '#a855f7';
+      // Default: neutral for unknown factions
       return '#64748b';
     },
-    [user?.id]);
+    []);
 
   const getDisplayLevelByZoom = useCallback((zoom: number): DisplayLevel => {
     if (kingdomMode === 'club' && zoom < 14) {
@@ -258,7 +263,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
     };
     const style = generateTerritoryStyle(territory, ctx);
     const isFactionColorActive = showFactionColors;
-    const factionBaseColor = resolveFactionColor(territory.ownerFaction, territory);
+    const factionBaseColor = resolveFactionColor(territory.ownerFaction);
     const factionVisuals = calculateHealthVisuals(
       factionBaseColor,
       territory.health ?? territory.maxHealth ?? 100,

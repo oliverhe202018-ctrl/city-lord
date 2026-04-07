@@ -1,14 +1,28 @@
 'use client'
 
 import React from 'react'
+import dynamic from 'next/dynamic'
 import { Footprints, TrendingUp, Timer, Trophy } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { ProfileStats, PersonalBest, WeeklyDistance } from '@/app/actions/profile'
-import { RecentPostsFeed } from '@/components/profile/RecentPostsFeed'
+// import { RecentPostsFeed } from '@/components/profile/RecentPostsFeed'
 
-import {
-    BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
-} from 'recharts'
+// Recharts 依赖 window/DOM CSS 变量 (cssCalc)，必须禁用 SSR，否则 Vercel 预渲染崩溃
+const WeeklyChartDynamic = dynamic(
+    () => import('@/components/profile/WeeklyChartClient').then((m) => m.WeeklyChart),
+    {
+        ssr: false,
+        loading: () => <div className="h-40 flex items-center justify-center"><Skeleton className="h-32 w-full rounded-xl" /></div>,
+    }
+)
+
+const RecentPostsFeedDynamic = dynamic(
+    () => import('@/components/profile/RecentPostsFeed').then((m) => m.RecentPostsFeed),
+    {
+        ssr: false,
+        loading: () => <div className="mt-6 space-y-3"><Skeleton className="h-24 w-full rounded-2xl" /></div>,
+    }
+)
 
 interface StatsGridProps {
     stats: ProfileStats | null
@@ -78,16 +92,16 @@ export function StatsGrid({ stats, isLoading = false, userId }: StatsGridProps) 
                 ))}
             </div>
 
-            {/* Weekly Chart */}
+            {/* Weekly Chart — dynamically loaded (ssr:false) to avoid Recharts cssCalc SSR crash */}
             <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mt-6">
                 本周跑量
             </h2>
             <div className="rounded-2xl border border-border bg-card/50 p-3">
-                <WeeklyChart data={stats.weeklyDistances} />
+                <WeeklyChartDynamic data={stats.weeklyDistances} />
             </div>
 
             {/* 最新动态区块 */}
-            <RecentPostsFeed userId={userId} />
+            <RecentPostsFeedDynamic userId={userId} />
         </div>
     )
 }
@@ -132,59 +146,5 @@ function PBCard({ pb }: { pb: PersonalBest }) {
     )
 }
 
-function WeeklyChart({ data }: { data: WeeklyDistance[] }) {
-    if (!data || data.length === 0) {
-        return (
-            <div className="h-32 flex items-center justify-center text-muted-foreground text-sm">
-                暂无数据
-            </div>
-        )
-    }
-
-    return (
-        <div className="h-40">
-            <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-                    <XAxis
-                        dataKey="day"
-                        tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
-                        axisLine={false}
-                        tickLine={false}
-                    />
-                    <YAxis
-                        tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
-                        axisLine={false}
-                        tickLine={false}
-                        unit="km"
-                    />
-                    <Tooltip
-                        cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }}
-                        contentStyle={{
-                            backgroundColor: '#1f2937', // gray-800
-                            borderColor: '#374151',     // gray-700
-                            color: '#f3f4f6',           // gray-100
-                            borderRadius: '8px',
-                            fontSize: '12px',
-                        }}
-                        itemStyle={{ color: '#f3f4f6' }}
-                        labelStyle={{ color: '#f3f4f6' }}
-                        formatter={(value: number) => [`${value} km`, '距离']}
-                    />
-                    <Bar
-                        dataKey="distance"
-                        fill="url(#barGradient)"
-                        radius={[4, 4, 0, 0]}
-                        maxBarSize={32}
-                    />
-                    <defs>
-                        <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#06b6d4" stopOpacity={0.9} />
-                            <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0.6} />
-                        </linearGradient>
-                    </defs>
-                </BarChart>
-            </ResponsiveContainer>
-        </div>
-    )
-}
+// WeeklyChart has been extracted to '@/components/profile/WeeklyChartClient'
+// and is loaded dynamically (ssr: false) above to prevent Recharts cssCalc SSR crash.

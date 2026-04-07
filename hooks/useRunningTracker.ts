@@ -150,6 +150,8 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   const pathRef = useRef<Location[]>([]);
   const isPausedRef = useRef(isPaused);
   const lastClaimAtRef = useRef(0);
+  /** 阈值锁：记录上次弹窗时的 newTotalArea（m²），防止 GPS 边界漂移频繁骚视 */
+  const lastToastAreaRef = useRef(0);
   const validPointsCountRef = useRef(0);
   const firstPointAtRef = useRef<number | null>(null);
   /** 防重入锁：防止多次 appStateChange 触发重复分帧注入 */
@@ -663,10 +665,16 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           setArea(newTotalArea);
           lastClaimAtRef.current = now;
 
-          toast.success(`🎉 领地已捕获！面积: ${Math.round(loopArea)}m²`, {
-            description: '跑步记录中... 继续前进占领更多领地！',
-            duration: 3000
-          });
+          // 阈值锁：只有总面积比上次弹窗时增加了至少 50m² 才再次弹出 Toast。
+          // 防止 GPS 边界漂移（少数几平米的微小封闭圆）触发视觉骚扰。
+          const TOAST_AREA_INCREMENT_THRESHOLD = 50; // m²
+          if (newTotalArea - lastToastAreaRef.current >= TOAST_AREA_INCREMENT_THRESHOLD) {
+            lastToastAreaRef.current = newTotalArea;
+            toast.success(`🎉 领地已捕获！面积: ${Math.round(loopArea)}m²`, {
+              description: '跑步记录中... 继续前进占领更多领地！',
+              duration: 3000
+            });
+          }
         }
       } catch (e) {
         console.warn("[useRunningTracker] Invalid polygon", e);
