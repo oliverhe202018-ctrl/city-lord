@@ -13,6 +13,7 @@ import type { ViewportKingData } from "./AMapView";
 import * as turf from '@turf/turf';
 import debounce from 'lodash.debounce';
 import { useGameStore, useGameTerritoryAppearance } from "@/store/useGameStore";
+import { extractPaths } from "@/lib/geo/extractPaths";
 
 /** Club mode palette: own club vs enemy club */
 const CLUB_COLORS = {
@@ -441,39 +442,6 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
         const territoryMetrics: TerritoryMetric[] = isIncremental ? territoryMetricsRef.current : [];
 
         // --- POLYGON UNION ALGORITHM & GEOMETRY CACHING FOR CLUB MODE ---
-        /**
-         * Extract ONLY the exterior ring(s) from a GeoJSON geometry.
-         * GeoJSON Polygon coordinates = [exteriorRing, ...interiorRings]
-         * We MUST discard interior rings (holes) — feeding them to AMap causes
-         * radial crosshatch lines between outer and inner ring vertices.
-         */
-        const extractPaths = (t: ExtTerritory): [number, number][][] => {
-          const paths: [number, number][][] = [];
-          if (!t.geojson_json || !t.geojson_json.coordinates) return paths;
-          if (!Array.isArray(t.geojson_json.coordinates) || t.geojson_json.coordinates.length === 0) return paths;
-
-          const validateRing = (ring: any): ring is [number, number][] => {
-            if (!Array.isArray(ring) || ring.length < 3) return false;
-            // Ensure first element is a coordinate pair [lng, lat], not another nested array
-            const first = ring[0];
-            return Array.isArray(first) && typeof first[0] === 'number' && typeof first[1] === 'number';
-          };
-
-          if (t.geojson_json.type === 'Polygon') {
-            // coordinates = [exteriorRing, hole1?, hole2?, ...]
-            // ONLY take index 0 (exterior ring), discard all inner rings
-            const exteriorRing = t.geojson_json.coordinates[0];
-            if (validateRing(exteriorRing)) paths.push(exteriorRing as [number, number][]);
-          } else if (t.geojson_json.type === 'MultiPolygon') {
-            // coordinates = [ [extRing, hole?], [extRing, hole?], ... ]
-            for (const polygon of t.geojson_json.coordinates) {
-              if (!Array.isArray(polygon)) continue;
-              const exteriorRing = polygon[0];
-              if (validateRing(exteriorRing)) paths.push(exteriorRing as [number, number][]);
-            }
-          }
-          return paths.filter((path) => path.length >= 3);
-        };
 
         const renderItems: { territory: ExtTerritory; paths: [number, number][][]; isClubMerged: boolean; markerPos?: [number, number] | null }[] = [];
         data.forEach(t => newCellMap.set(t.id, t));
@@ -485,7 +453,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
               if (!clubGroups.has(t.ownerClubId)) clubGroups.set(t.ownerClubId, []);
               clubGroups.get(t.ownerClubId)!.push(t);
             } else {
-              renderItems.push({ territory: t, paths: extractPaths(t), isClubMerged: false });
+              renderItems.push({ territory: t, paths: extractPaths(t.geojson_json), isClubMerged: false });
             }
           }
 
@@ -495,7 +463,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
             if (!cached || cached.hash !== hash) {
               let mergedFeat: any = null;
               for (const t of group) {
-                const paths = extractPaths(t);
+                const paths = extractPaths(t.geojson_json);
                 paths.forEach(p => {
                   try {
                     const ring = p[0][0] === p[p.length - 1][0] && p[0][1] === p[p.length - 1][1] ? p : [...p, p[0]];
@@ -537,7 +505,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
             }
           });
         } else {
-          data.forEach(t => renderItems.push({ territory: t, paths: extractPaths(t), isClubMerged: false }));
+          data.forEach(t => renderItems.push({ territory: t, paths: extractPaths(t.geojson_json), isClubMerged: false }));
         }
 
         const createdPolygons = renderItems.map(({ territory, paths, isClubMerged, markerPos: precalcMarkerPos }) => {

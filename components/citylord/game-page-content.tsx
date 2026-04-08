@@ -829,14 +829,20 @@ export function GamePageContent({
     setShowCaptureEffect(true)
   }, []);
 
-  const handleCountdownComplete = useCallback(() => {
+  const handleCountdownComplete = useCallback((anchorPoint?: import('@/hooks/useSafeGeolocation').GeoPoint) => {
     setIsCountingDown(false)
     clearWarmupState()
     setIsRunning(true)
     startRunning()
     setShowImmersiveMode(true)
     setActiveTab("play")
-  }, [clearWarmupState, startRunning]);
+
+    // If pre-warm converged on a high-quality anchor, inject it as the absolute start point
+    if (anchorPoint && typeof anchorPoint.lat === 'number' && typeof anchorPoint.lng === 'number') {
+      console.log('[SmartPrewarm] Using converged anchor:', anchorPoint.lat.toFixed(6), anchorPoint.lng.toFixed(6), 'accuracy:', anchorPoint.accuracy)
+      setTimeout(() => addManualLocation(anchorPoint.lat, anchorPoint.lng), 50)
+    }
+  }, [clearWarmupState, startRunning, addManualLocation]);
 
   // Complex stop handler
   const handleStopRun = useCallback(() => {

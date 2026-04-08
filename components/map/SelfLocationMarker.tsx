@@ -93,23 +93,21 @@ export function SelfLocationMarker({ position }: SelfLocationMarkerProps) {
     if (!currentPos || distance > 500) {
       // First load or large jump (>500m) -> Direct Set
       markerRef.current.setPosition(targetPos);
-    } else if (distance > 0) {
-      // Smooth Move
-      // We want to move over ~1000ms.
-      // speed = distance (m) / time (h) ??? No, AMap speed is usually km/h or m/s?
-      // AMap JS API v2 moveTo takes speed in km/h.
-      // distance is in meters.
-      // Speed (km/h) = (Distance (m) / 1000) / (1s / 3600) = Distance * 3.6
-      // Let's try to complete it in 1s.
-      const speed = distance * 3.6;
+    } else if (distance > 0.5) {
+      // Smooth Move — stop any in-progress animation first to prevent queue buildup
+      if (typeof markerRef.current.stopMove === 'function') {
+        markerRef.current.stopMove();
+      }
 
-      // If AMap.MoveAnimation is loaded, we can use moveTo with speed.
-      // Standard Marker in 2.0 supports moveTo.
+      // Duration = 800ms matches GPS update interval (~1s) from Kalman filter.
+      // Speed is calculated to complete the move within the target duration.
+      // AMap JS API v2 moveTo accepts speed in km/h.
+      const targetDurationSec = 0.8;
+      const speed = Math.max(1, (distance / 1000) / (targetDurationSec / 3600)); // km/h
+
       markerRef.current.moveTo(targetPos, {
-        duration: 1000, // 2.0 supports duration directly? 
-        // Docs say: moveTo(targetPos, speed, callback) OR moveTo(targetPos, options)
-        // Let's assume standard behavior. If not, use setPosition.
-        speed: speed < 1 ? 1 : speed, // Minimum speed
+        duration: 800,
+        speed: speed,
         autoRotation: false,
       });
     }

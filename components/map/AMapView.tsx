@@ -6,7 +6,6 @@ import { TrajectoryLayer } from './layers/TrajectoryLayer';
 import { GhostPathLayer } from './layers/GhostPathLayer';
 import { UserMarkerLayer } from './layers/UserMarkerLayer';
 import { LoadingSkeleton } from './LoadingSkeleton';
-import { LocationIndicator } from './LocationIndicator';
 import { KingdomLayer } from './layers/KingdomLayer';
 import TerritoryLayer from './TerritoryLayer';
 import FogLayer from './FogLayer';
@@ -217,9 +216,6 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
 
     return (
       <div className="relative w-full h-full">
-        {/* New Non-blocking Location Indicator */}
-        <LocationIndicator status={locationStatus || 'initializing'} isRunTakeoverActive={isRunTakeoverActive} />
-
         {/* Layer 1: Pure Map */}
         <div className="w-full h-full">
           <MapLayer

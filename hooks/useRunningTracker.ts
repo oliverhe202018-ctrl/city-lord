@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { mutate } from 'swr';
 import { LocationService } from '@/utils/locationService';
 import * as turf from '@turf/turf';
+import { KalmanFilter1D } from '@/lib/kalman-filter';
 import type { Feature, Polygon, MultiPolygon } from 'geojson';
 import { toast } from 'sonner';
 import { syncManager } from '@/lib/sync/SyncManager';
@@ -164,6 +165,10 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   const closedPolygonsRef = useRef(closedPolygons);
   const areaRef = useRef(area);
   const isWarmingUpRef = useRef(true);
+
+  // ─── Kalman Filters (replace legacy EMA smoothing) ───
+  const kalmanLatRef = useRef(new KalmanFilter1D(3.0, 25.0));
+  const kalmanLngRef = useRef(new KalmanFilter1D(3.0, 25.0));
 
   // ─── Timestamp-based timer refs ───
   const startTimeRef = useRef<number | null>(null);
@@ -422,14 +427,21 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     return () => clearInterval(interval);
   }, [isRunning, saveState]);
 
-  // Weighted Smoothing
-  const smoothLocation = (newLoc: Location, prevLoc: Location | null): Location => {
-    if (!prevLoc) return newLoc;
-    const weight = 0.7; // Trust new point 70%
+  // ─── Kalman-based GPS Smoothing (replaces legacy EMA) ───
+  const smoothLocation = (newLoc: Location, prevLoc: Location | null, accuracy?: number): Location => {
+    if (!prevLoc) {
+      // Initialize kalman filters with first point
+      kalmanLatRef.current.filter(newLoc.lat, newLoc.timestamp, accuracy);
+      kalmanLngRef.current.filter(newLoc.lng, newLoc.timestamp, accuracy);
+      return newLoc;
+    }
+
+    const smoothedLat = kalmanLatRef.current.filter(newLoc.lat, newLoc.timestamp, accuracy);
+    const smoothedLng = kalmanLngRef.current.filter(newLoc.lng, newLoc.timestamp, accuracy);
 
     return {
-      lat: prevLoc.lat * (1 - weight) + newLoc.lat * weight,
-      lng: prevLoc.lng * (1 - weight) + newLoc.lng * weight,
+      lat: smoothedLat,
+      lng: smoothedLng,
       timestamp: newLoc.timestamp
     };
   };
@@ -521,10 +533,8 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
     let newLoc: Location = { lat, lng, timestamp: now };
 
-    // Apply Smoothing
-    if (lastLocationRef.current) {
-      newLoc = smoothLocation(newLoc, lastLocationRef.current);
-    }
+    // Apply Kalman Smoothing (pass accuracy for dynamic R adjustment)
+    newLoc = smoothLocation(newLoc, lastLocationRef.current, accuracy);
 
     const finalLoc = newLoc;
 
@@ -720,16 +730,17 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         console.log(`[Lifecycle] appStateChange: ${isActive ? 'active' : 'background'} | time: ${new Date().toISOString()}`);
         
         if (isActive && isRunning && !isPausedRef.current && startTimeRef.current !== null) {
-          // Force re-calculate duration from absolute timestamp
-          const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
-          setDuration(pausedAccumulatorRef.current + elapsed);
-          console.log('[useRunningTracker] Foreground resume — timer reconciled');
+          // ====== CRITICAL: WebView Bridge Hydration Wait ======
+          // After app resume, Capacitor JS Bridge may not be fully mounted.
+          // Calling AMapLocation immediately can crash with "plugin not found".
+          await new Promise<void>(resolve => setTimeout(resolve, 500));
 
-          // --- BEGIN: Room 黑匣子追帧 — 分批分帧注入 (Chunked Hydration) ---
-          // 核心设计：从 Room 数据库拉取离线坐标后，按每批 20 个点切片，
-          // 通过 setTimeout(0) 链式调度，让出主线程给 React commit & GC，
-          // 杜绝一次性 setState 导致的高德 JS Bridge 内存撑爆。
-          // ACK 仅在最后一批处理完毕后才会触发 — 确保数据不会被提前清空。
+          // Force re-calculate duration from absolute timestamp
+          const elapsed = Math.floor((Date.now() - startTimeRef.current!) / 1000);
+          setDuration(pausedAccumulatorRef.current + elapsed);
+          console.log('[useRunningTracker] Foreground resume — timer reconciled (after 500ms bridge wait)');
+
+          // --- BEGIN: Room 黑匣子追帧 — 批量合入 (Batch Hydration) ---
           try {
             const { AMapLocation } = await import('@/plugins/amap-location/definitions');
             const sessionId = runIdempotencyKeyRef.current;
@@ -740,31 +751,39 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
             if (offlinePoints.length > 0) {
               console.log(`[BlackBox] 🔄 拉取到 ${offlinePoints.length} 条离线定位记录, sessionId=${sessionId}`);
               
-              // 防重入锁：避免多次 appStateChange 触发重复注入
+              // ====== CAS 硬锁：原子性防重入 ======
+              // 使用 compare-and-swap 模式：仅当 current === false 时置 true
               if (isHydratingRef.current) {
-                console.warn('[BlackBox] ⚠️ 分帧注入进行中，跳过本次触发');
+                console.warn('[BlackBox] ⚠️ CAS锁已占用，跳过本次触发（防竞态）');
                 return;
               }
+              isHydratingRef.current = true; // 原子置锁
               
-              // 基于时间戳严格去重：仅提取还未进入路径状态机的新数据点
+              // 基于时间戳严格去重
               const currentPath = pathRef.current;
               const lastPathTime = currentPath.length > 0 
                 ? currentPath[currentPath.length - 1].timestamp 
                 : 0;
               
-              // 按时间戳升序排列（Room 已排序，但再做一次安全保证）
               const sortedPoints = offlinePoints
                 .filter((pt: { timestamp: number }) => pt.timestamp > lastPathTime)
                 .sort((a: { timestamp: number }, b: { timestamp: number }) => a.timestamp - b.timestamp);
               
               if (sortedPoints.length === 0) {
                 console.log('[BlackBox] 所有离线记录已在路径中，无需注入');
+                isHydratingRef.current = false;
+                // 仍需 ACK 释放原生缓冲
+                const idsToAck = offlinePoints.map((pt: { id: number }) => pt.id);
+                AMapLocation.acknowledgeLocations({ ids: idsToAck }).catch(console.warn);
                 return;
               }
               
-              // ====== 分批分帧注入核心 ======
-              isHydratingRef.current = true;
-              const CHUNK_SIZE = 20;
+              // ====== 批量合入核心（替代逐点 handleLocationUpdate） ======
+              // 将离线点按 CHUNK_SIZE 切片，每批通过一次 setPath 合入，
+              // 使用 requestAnimationFrame 让出主线程给 React 渲染，
+              // 杜绝 for 循环中 N 次 setState 触发的状态洪水。
+              const CHUNK_SIZE = 30;
+              const speedLimitMs = 10; // 36 km/h 硬限制 — 不可放宽
               const chunks: Array<typeof sortedPoints> = [];
               for (let i = 0; i < sortedPoints.length; i += CHUNK_SIZE) {
                 chunks.push(sortedPoints.slice(i, i + CHUNK_SIZE));
@@ -772,37 +791,64 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
               
               console.log(`[BlackBox] 📦 切分为 ${chunks.length} 个批次 (每批 ${CHUNK_SIZE} 点), 总计 ${sortedPoints.length} 个有效点`);
               
-              // 预先收集所有待 ACK 的 ID（包括被去重过滤掉的旧点）
               const idsToAck = offlinePoints.map((pt: { id: number }) => pt.id);
               let chunkIndex = 0;
+              let totalDistDelta = 0;
+              let lastRef = lastLocationRef.current;
               
               const processNextChunk = () => {
                 if (chunkIndex >= chunks.length) {
-                  // ====== 全部批次完成 → 安全执行 ACK ======
+                  // ====== 全部批次完成 ======
                   isHydratingRef.current = false;
-                  console.log(`[BlackBox] ✅ 分帧注入完成: ${sortedPoints.length} 个轨迹点已全部合入`);
+                  // 累加总距离（一次 setState）
+                  if (totalDistDelta > 0) {
+                    setDistance(prev => prev + totalDistDelta);
+                  }
+                  console.log(`[BlackBox] ✅ 批量合入完成: ${sortedPoints.length} 个轨迹点, 新增距离 ${totalDistDelta.toFixed(1)}m`);
                   
                   AMapLocation.acknowledgeLocations({ ids: idsToAck })
                     .then((ackResult) => {
                       console.log(`[BlackBox] 🔒 ACK 完成: ${ackResult.acknowledged} 条记录已确认`);
                     })
                     .catch((ackErr) => {
-                      // ACK 失败不阻断主流程 — 下次苏醒会重新拉取（幂等安全）
                       console.warn('[BlackBox] ⚠️ ACK 失败（数据不会丢失，下次苏醒自动重试）:', ackErr);
                     });
                   return;
                 }
                 
                 const batch = chunks[chunkIndex];
-                console.log(`[BlackBox] 🔄 Chunk ${chunkIndex + 1}/${chunks.length} (${batch.length} 点)`);
                 
+                // 过滤：速度阈值 + 构建有效点数组
+                const validBatchPoints: Location[] = [];
                 for (const pt of batch) {
-                  handleLocationUpdate(pt.lat, pt.lng, pt.accuracy, pt.timestamp, true);
+                  // 速度过滤（与 handleLocationUpdate Layer-2 一致）
+                  if (lastRef) {
+                    const dist = getDistanceFromLatLonInMeters(lastRef.lat, lastRef.lng, pt.lat, pt.lng);
+                    const timeDiffSec = (pt.timestamp - lastRef.timestamp) / 1000;
+                    if (timeDiffSec > 0.5) {
+                      const speedMs = dist / timeDiffSec;
+                      if (speedMs > speedLimitMs) {
+                        continue; // 超速丢弃
+                      }
+                    }
+                    totalDistDelta += dist;
+                  }
+                  const loc: Location = { lat: pt.lat, lng: pt.lng, timestamp: pt.timestamp };
+                  validBatchPoints.push(loc);
+                  lastRef = loc;
+                }
+                
+                // ====== 批量 setPath（单次 React 更新） ======
+                if (validBatchPoints.length > 0) {
+                  setPath(prev => [...prev, ...validBatchPoints]);
+                  // 更新 lastLocation ref
+                  lastLocationRef.current = validBatchPoints[validBatchPoints.length - 1];
+                  setCurrentLocation(validBatchPoints[validBatchPoints.length - 1]);
                 }
                 
                 chunkIndex++;
-                // 让出主线程：允许 React 完成当前批次的 commit & reconciliation
-                setTimeout(processNextChunk, 0);
+                // 通过 rAF+setTimeout(0) 双重 yield 让出主线程给 React commit
+                requestAnimationFrame(() => setTimeout(processNextChunk, 0));
               };
               
               // 启动第一批
@@ -1025,6 +1071,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           pathRef.current = [];
           pausedAccumulatorRef.current = 0;
           runIdempotencyKeyRef.current = uuidv4();
+          // Reset Kalman filters for clean start
+          kalmanLatRef.current.reset();
+          kalmanLngRef.current.reset();
           // ⚠️ CRITICAL: Recovery effect runs AFTER the Timer effect (both on [isRunning]).
           // Timer effect set startTimeRef.current = Date.now(), but then recovery
           // reset it to null — causing all timer ticks to bail out (stale-clock bug).

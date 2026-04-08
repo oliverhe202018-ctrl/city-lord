@@ -463,40 +463,59 @@ export function useRunningLocation(options: UseRunningLocationOptions) {
                             event: 'lifecycle',
                             requestId: resumeId,
                             timestamp: Date.now(),
-                            reason: 'App resumed during running — triggering recovery',
+                            reason: 'App resumed during running — waiting 500ms for Bridge hydration',
                         });
+
+                        // ====== CRITICAL: WebView Bridge Hydration Wait ======
+                        // After app resume, Capacitor JS Bridge may not be fully mounted.
+                        // Calling AMapLocation immediately can crash with "plugin not found".
+                        // Wait 500ms to ensure native <-> JS communication is re-established.
+                        await new Promise<void>(resolve => setTimeout(resolve, 500));
+
+                        if (!isActive || !mountedRef.current || !enabledRef.current) return;
 
                         const bridge = getBridge();
                         if (!bridge) return;
 
                         setState('recovering');
-                        const fix = await bridge.forceFastFix();
 
-                        if (!isActive || !mountedRef.current) return;
+                        try {
+                            const fix = await bridge.forceFastFix();
 
-                        if (fix) {
-                            lastAcceptedTimeRef.current = Date.now();
+                            if (!isActive || !mountedRef.current) return;
+
+                            if (fix) {
+                                lastAcceptedTimeRef.current = Date.now();
+                                emitHookLog({
+                                    tag: TAG,
+                                    event: 'recovery',
+                                    requestId: resumeId,
+                                    timestamp: Date.now(),
+                                    lat: fix.lat,
+                                    lng: fix.lng,
+                                    reason: 'Resume fastFix success',
+                                });
+                            }
+
+                            // 确保仍在 running 模式
+                            if (bridge.currentWatchMode !== 'running') {
+                                emitHookLog({
+                                    tag: TAG,
+                                    event: 'recovery',
+                                    requestId: resumeId,
+                                    timestamp: Date.now(),
+                                    reason: `Resume: watch was ${bridge.currentWatchMode}, upgrading to running`,
+                                });
+                                await bridge.switchWatchMode('running', { interval: 1000, distanceFilter: 3 });
+                            }
+                        } catch (resumeErr) {
                             emitHookLog({
                                 tag: TAG,
                                 event: 'recovery',
                                 requestId: resumeId,
                                 timestamp: Date.now(),
-                                lat: fix.lat,
-                                lng: fix.lng,
-                                reason: 'Resume fastFix success',
+                                reason: `Resume recovery error (bridge may be unavailable): ${resumeErr}`,
                             });
-                        }
-
-                        // 确保仍在 running 模式
-                        if (bridge.currentWatchMode !== 'running') {
-                            emitHookLog({
-                                tag: TAG,
-                                event: 'recovery',
-                                requestId: resumeId,
-                                timestamp: Date.now(),
-                                reason: `Resume: watch was ${bridge.currentWatchMode}, upgrading to running`,
-                            });
-                            await bridge.switchWatchMode('running', { interval: 1000, distanceFilter: 3 });
                         }
 
                         setState('tracking');

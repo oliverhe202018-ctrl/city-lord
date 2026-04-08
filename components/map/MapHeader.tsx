@@ -393,7 +393,7 @@ export function MapHeader({
             </button>
 
             {/* 中间：用户等级进度与体力 */}
-            <div className={`flex-1 px-2 border-l border-r border-white/5 mx-1 flex flex-col ${!isLoggedIn ? 'justify-center items-center opacity-0' : 'gap-2'}`}>
+            <div className={`flex-1 px-2 py-1 border-l border-r border-white/5 mx-1 flex flex-col justify-center ${!isLoggedIn ? 'items-center opacity-0' : 'gap-1.5'}`}>
               {!isLoggedIn ? (
                 null
               ) : (
