@@ -45,7 +45,21 @@ export const settleTerritoriesTask = task({
                     coords.push([...coords[0]]);
                 }
 
-                // RISK-03: 拦截顶点不足的多边形，防止 turf.polygon 抛错
+                // RISK-04: Coordinate sanity guard — reject points outside plausible China bounds
+                // GeoJSON order is [lng, lat]; lng ∈ [70,140], lat ∈ [3,55] for mainland China
+                const invalidCoords = coords.filter(([lng, lat]) =>
+                    isNaN(lng) || isNaN(lat) ||
+                    lat < -90 || lat > 90 ||
+                    lng < -180 || lng > 180 ||
+                    lat < 3 || lat > 55 ||   // rough China bounding box
+                    lng < 70 || lng > 140
+                );
+                if (invalidCoords.length > 0) {
+                    console.warn(`[Territory] Polygon for run ${runId} has ${invalidCoords.length} invalid coord(s) — first invalid: [${invalidCoords[0]}]. Skipping.`);
+                    continue;
+                }
+
+                // RISK-03: Minimum vertex guard to prevent turf.polygon from throwing
                 if (coords.length < 4) {
                     console.warn(`[Territory] Skipping polygon with only ${coords.length} coordinates (need >= 4) for run ${runId}`);
                     continue;

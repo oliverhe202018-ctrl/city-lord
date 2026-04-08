@@ -89,6 +89,7 @@ export function RunSummaryView({
   const [hasShared, setHasShared] = useState(false);
   const [showAntiCheatModal, setShowAntiCheatModal] = useState(false);
   const [showClubContributionFx, setShowClubContributionFx] = useState(false);
+  const [isAiStoryApplied, setIsAiStoryApplied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const userId = useGameStore(state => state.userId);
   const faction = useGameStore(state => state.faction);
@@ -104,17 +105,21 @@ export function RunSummaryView({
     if (!runId || !runIsValid) return;
     setIsSettlementLoading(true);
     let attempts = 0;
-    const maxAttempts = 15; // 15 * 2s = 30s
+    const maxAttempts = 20; // 20 * 2s = 40s hard limit
     let intervalId: ReturnType<typeof setInterval>;
     
     const poll = async () => {
       attempts++;
       const res = await getRunSettlementStatus(runId);
-      if (res.success && res.data && (res.data.newTerritories > 0 || res.data.reinforcedTerritories > 0)) {
-        setSettlementStats(res.data);
+      // PRIMARY: exit as soon as background task marks run settled (even if 0 territories)
+      if (res.success && res.data?.isSettled) {
+        setSettlementStats({ newTerritories: res.data.newTerritories, reinforcedTerritories: res.data.reinforcedTerritories });
         setIsSettlementLoading(false);
         if (intervalId) clearInterval(intervalId);
-      } else if (attempts >= maxAttempts) {
+        return;
+      }
+      // FALLBACK: hard timeout
+      if (attempts >= maxAttempts) {
         setIsSettlementLoading(false);
         setHasSettlementTimeout(true);
         if (intervalId) clearInterval(intervalId);
@@ -335,7 +340,10 @@ export function RunSummaryView({
     }
   };
 
-  // Share to feed handler — 直接调用 createPost API，无 Draft 中转
+  // Share to feed handler
+  // Content rules:
+  //   Base = run data summary (always present)
+  //   If isAiStoryApplied=true, AI story is appended (not replaced)
   const handleShareToFeed = async () => {
     if (isSharing || hasShared) return;
     if (!runId) {
@@ -354,7 +362,10 @@ export function RunSummaryView({
         avgSpeed !== '--' ? `💨 平均速度: ${avgSpeed} km/h` : null,
       ].filter(Boolean).join('\n');
 
-      const content = (story || summaryLines).slice(0, 500);
+      // AI 战报仅在用户点击"应用到动态"后才附加，不覆盖基础跑步数据
+      const content = isAiStoryApplied && story
+        ? `${summaryLines}\n\n【AI 战况记录】\n${story}`.slice(0, 1000)
+        : summaryLines.slice(0, 500);
 
       const res = await createPost({
         content,
@@ -686,10 +697,18 @@ export function RunSummaryView({
 
                 <div className="flex justify-end gap-3">
                   <button
-                    onClick={handleCopyStory}
-                    className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-full text-xs font-bold border border-white/10 transition-colors"
+                    onClick={() => {
+                      setIsAiStoryApplied(true);
+                      toast.success('AI 战报已应用，分享时将自动附加');
+                    }}
+                    disabled={isAiStoryApplied}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold border transition-all active:scale-[0.97] ${
+                      isAiStoryApplied
+                        ? 'bg-green-500/20 text-green-400 border-green-500/30 cursor-default'
+                        : 'bg-white/5 hover:bg-white/10 text-white border-white/10'
+                    }`}
                   >
-                    <span>设为分享文案</span>
+                    <span>{isAiStoryApplied ? '✓ 已应用' : '应用到动态'}</span>
                   </button>
                   <button
                     onClick={handleGenerateStory}

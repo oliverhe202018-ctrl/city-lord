@@ -125,16 +125,18 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
 
   const resolveFactionColor = useCallback(
     (ownerFaction: string | null | undefined): string => {
-      const key = (ownerFaction || '').toLowerCase().trim();
-      if (!key) return '#64748b'; // No faction → neutral slate gray
-      // Blue faction keywords
-      if (key.includes('blue') || key.includes('azure') || key.includes('蔚蓝') || key.includes('cyan') || key.includes('water') || key.includes('water')) return '#3b82f6';
-      // Red faction keywords
-      if (key.includes('red') || key.includes('crimson') || key.includes('赤红') || key.includes('scarlet') || key.includes('fire')) return '#ef4444';
-      // Green faction
-      if (key.includes('green') || key.includes('emerald') || key.includes('翠绿')) return '#22c55e';
-      // Purple faction
-      if (key.includes('purple') || key.includes('violet') || key.includes('紫')) return '#a855f7';
+      if (!ownerFaction) return '#64748b'; // No faction → neutral slate gray
+      // Exact match first (DB stores 'Red' / 'Blue' as confirmed in faction.ts)
+      if (ownerFaction === 'Red') return '#ef4444';
+      if (ownerFaction === 'Blue') return '#3b82f6';
+      if (ownerFaction === 'RED') return '#ef4444';
+      if (ownerFaction === 'BLUE') return '#3b82f6';
+      // Fallback keyword match for legacy / localized values
+      const key = ownerFaction.toLowerCase().trim();
+      if (key.includes('blue') || key.includes('azure') || key.includes('cyan') || key.includes('water')) return '#3b82f6';
+      if (key.includes('red') || key.includes('crimson') || key.includes('scarlet') || key.includes('fire')) return '#ef4444';
+      if (key.includes('green') || key.includes('emerald')) return '#22c55e';
+      if (key.includes('purple') || key.includes('violet')) return '#a855f7';
       // Default: neutral for unknown factions
       return '#64748b';
     },

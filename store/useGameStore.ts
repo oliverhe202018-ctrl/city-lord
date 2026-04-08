@@ -303,7 +303,7 @@ const initialLocationState: LocationState = {
   locationInitialized: false,
 };
 
-const initialShowFaction = true;
+const initialShowFaction = false;
 
 const initialInventoryState: InventoryState = {
   items: new Map(),

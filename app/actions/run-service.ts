@@ -560,30 +560,29 @@ export async function updateRunSummary(runId: string, summary: string): Promise<
     }
 }
 
-export async function getRunSettlementStatus(runId: string): Promise<ActionResponse<{ newTerritories: number; reinforcedTerritories: number } | null>> {
+export async function getRunSettlementStatus(runId: string): Promise<ActionResponse<{ newTerritories: number; reinforcedTerritories: number; isSettled: boolean } | null>> {
     try {
         if (!runId) throw new Error('Run ID is required');
         const runRec = await prisma.runs.findUnique({
             where: { id: runId },
-            select: { new_territories_count: true, reinforced_territories_count: true, updated_at: true, created_at: true }
+            select: { new_territories_count: true, reinforced_territories_count: true, status: true, updated_at: true, created_at: true }
         });
         
         if (!runRec) {
             return { success: false, error: 'Run not found' };
         }
         
-        // If they are > 0, we definitely have them. 
-        // If they remain 0, we can check if it's been updated recently (after settlement). 
-        // We consider it "settled" if updated_at > created_at significantly or counts > 0.
-        // Actually, trigger updates these counts. To simplify, we return the counts.
-        // The frontend will know it's "finished" if it has been 30 seconds wait or these counts are returned.
-        // Let's just return the counts directly. If the counts are 0, frontend polling will decide when to time out.
-        
+        // isSettled = true when Trigger.dev background task has finished and written
+        // back the 'completed' (or 'flagged') status. This lets the frontend exit
+        // the polling loop even when territory capture counts are legitimately 0.
+        const isSettled = runRec.status === 'completed' || runRec.status === 'flagged';
+
         return {
             success: true,
             data: {
                 newTerritories: runRec.new_territories_count || 0,
-                reinforcedTerritories: runRec.reinforced_territories_count || 0
+                reinforcedTerritories: runRec.reinforced_territories_count || 0,
+                isSettled,
             }
         };
     } catch (error: any) {
