@@ -171,14 +171,20 @@ export async function saveRunActivity(
         let isFlagged = metadataValidation.isFlagged || pathValidation.riskLevel === 'HIGH';
         let isPedometerInvalid = pedometerAntiCheatLog !== null;
 
+        // 任务二: Tester 权限覆盖 — 强制将 effectiveRiskLevel 降为 LOW
+        // 防止 MEDIUM 虚拟定位风险在后续管道中清空多边形数组
+        let effectiveRiskLevel = pathValidation.riskLevel;
+
         if (isUserTester) {
             isFlagged = false;
             isPedometerInvalid = false;
             pedometerAntiCheatLog = null;
+            effectiveRiskLevel = 'LOW'; // 强制豁免高虚拟定位风险
+            console.log(`[God Mode] effectiveRiskLevel forced to LOW for tester: ${userId}`);
         }
 
         const isBlockedByAntiCheat = isFlagged || isPedometerInvalid;
-        const flagReason = metadataValidation.flagReason || (pathValidation.riskLevel === 'HIGH' ? 'PATH_ANALYSIS_FAILED' : undefined);
+        const flagReason = metadataValidation.flagReason || (effectiveRiskLevel === 'HIGH' ? 'PATH_ANALYSIS_FAILED' : undefined);
 
         // 2. 轨迹采样降维 (防 O(N²) 爆算)
         const MAX_SERVER_PATH_POINTS = 600;
@@ -189,11 +195,11 @@ export async function saveRunActivity(
         const extractedLoops = extractValidLoops(sampledPath, LOOP_CLOSURE_THRESHOLD_M);
         let finalPolygons: Coord[][] = extractedLoops;
 
-        // Settlement Gating
+        // Settlement Gating — 使用 effectiveRiskLevel 代替原始 pathValidation.riskLevel
         if (isBlockedByAntiCheat) {
             finalPolygons = [];
             console.warn(`[Anti-Cheat] Settlement blocked for user ${userId}. Reason: ${flagReason ?? pedometerAntiCheatLog}`);
-        } else if (pathValidation.riskLevel === 'MEDIUM') {
+        } else if (effectiveRiskLevel === 'MEDIUM') {
             finalPolygons = [];
             console.log(`[saveRunActivity] MEDIUM risk run. Polygons neutralized for user: ${userId}`);
         }
@@ -240,7 +246,7 @@ export async function saveRunActivity(
             return survivors.map(s => s.original);
         }
 
-        const polygonsForSettlement = (isBlockedByAntiCheat || pathValidation.riskLevel === 'MEDIUM') ? [] : deduplicateByContainment(finalPolygons);
+        const polygonsForSettlement = (isBlockedByAntiCheat || effectiveRiskLevel === 'MEDIUM') ? [] : deduplicateByContainment(finalPolygons);
 
         // 5. 直接在内存中累加真实占领的领地面积，拒绝虚高
         let accurateAreaKm2 = 0;
@@ -278,7 +284,7 @@ export async function saveRunActivity(
 
         // 4. Evaluate Tasks (In-Memory)
         // If flagged, we skip rewards by setting results to empty
-        const potentialResults = (isBlockedByAntiCheat || pathValidation.riskLevel === 'HIGH') ? [] : evaluateTasks(evaluationData);
+        const potentialResults = (isBlockedByAntiCheat || effectiveRiskLevel === 'HIGH') ? [] : evaluateTasks(evaluationData);
 
         // 5. Transaction: Save Run + Process Rewards + Audit Logs
         const result = await prisma.$transaction(async (tx: any) => {
@@ -330,13 +336,15 @@ export async function saveRunActivity(
             }
 
             if (isBlockedByAntiCheat) {
+                // 任务三: 强制 isValid: false 消灭静默失败
+                // 前端 UI 可据此检测到拦截并弹出具体提示
                 return {
                     runId: run.id,
-                    runNumber: 0, // Not precisely needed for shadowban
+                    runNumber: 0,
                     newTasks: [],
                     rewards: { coins: 0, xp: 0 },
-                    isValid: !isPedometerInvalid,
-                    antiCheatLog: pedometerAntiCheatLog,
+                    isValid: false, // 必须为 false，杜绝静默通过
+                    antiCheatLog: pedometerAntiCheatLog ?? 'BLOCKED_BY_ANTICHEAT_PATH_RISK',
                     totalSteps: submittedTotalSteps,
                     isFlagged: true
                 };

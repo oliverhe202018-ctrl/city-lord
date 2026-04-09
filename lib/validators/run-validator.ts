@@ -38,12 +38,13 @@ export function validateRunData(payload: RunDataPayload): ValidationResult {
     return { isValid: false, isFlagged: false };
   }
 
-  // Handle step-less runs with distance (e.g. data tampering)
+  // Handle step-less runs with distance (e.g. simulator / pedometer unavailable)
+  // Downgraded from hard-block to pass-through: real cheating is caught by
+  // subsequent stride-length and path-risk checks further down the pipeline.
   if (steps === 0 && distanceMeters > 100) {
       return {
           isValid: true,
-          isFlagged: true,
-          flagReason: 'ABNORMAL_STRIDE_ZERO_STEPS'
+          isFlagged: false,
       };
   }
 
