@@ -290,7 +290,7 @@ export async function saveRunActivity(
                     duration: evaluationData.duration,
                     path: runData.path as any,
                     polygons: evaluationData.claims as any,
-                    status: isBlockedByAntiCheat ? 'flagged' : 'completed',
+                    status: isBlockedByAntiCheat ? 'flagged' : 'settling',
                     created_at: new Date(runData.timestamp || Date.now()),
                     updated_at: new Date(),
                     idempotency_key: runData.idempotencyKey,
@@ -502,10 +502,15 @@ export async function saveRunActivity(
                 console.log(`[Trigger.dev] Enqueuing 'settle-territories'. polygonCount=${polygonsForSettlement.length}, runId=${result.runId}`);
                 console.log(`[Trigger.dev] payload: ${JSON.stringify({ runId: triggerPayload.runId, userId: triggerPayload.userId, cityId: triggerPayload.cityId, polygonCount: triggerPayload.polygons.length })}`);
                 const handle = await tasks.trigger("settle-territories", triggerPayload);
-                console.log(`[Trigger.dev] ✅ Task enqueued. Handle: ${(handle as any)?.id ?? 'N/A'}`);
+                if (!handle || !(handle as any)?.id) {
+                    throw new Error(`[Trigger.dev] tasks.trigger returned invalid handle (null/undefined id) for runId=${result.runId}`);
+                }
+                console.log(`[Trigger.dev] ✅ Task enqueued. Handle: ${(handle as any).id}`);
             } catch (err: any) {
                 console.error(`[Trigger.dev] ❌ FAILED to enqueue 'settle-territories': ${err?.message ?? err}`);
                 console.error(`[Trigger.dev] Full error:`, err);
+                // Re-throw so the outer caller can detect settlement enqueueing failure
+                throw err;
             }
         }
 

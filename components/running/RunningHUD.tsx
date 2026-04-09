@@ -97,7 +97,7 @@ interface RunningHUDProps {
   isPaused: boolean
   onResume: () => void
   onPause: () => void
-  onStop: () => void
+  onStop: () => Promise<void> | void;
   onToggleMap?: () => void
   isMapExpanded?: boolean
   isSyncing?: boolean // New prop
@@ -444,14 +444,14 @@ export function RunningHUD({
                       {/* Stop Button */}
                       <motion.button
                         whileTap={{ scale: 0.9 }}
-                        onClick={(e) => {
+                        onClick={async (e) => {
                           e.stopPropagation();
                           e.preventDefault();
                           const now = Date.now();
                           if (now - lastStopClickRef.current < 2000) return;
                           lastStopClickRef.current = now;
                           try {
-                            onStop();
+                            await onStop();
                           } catch (err) {
                             console.error("onStop failed in HUD:", err);
                           }

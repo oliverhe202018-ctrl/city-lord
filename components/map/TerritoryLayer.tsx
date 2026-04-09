@@ -22,6 +22,17 @@ const CLUB_COLORS = {
   neutral: { fill: '#64748b', stroke: '#475569', fillOpacity: 0.15 },
 } as const;
 
+// Color safety net constants
+const DEFAULT_FILL = '#FF6B35';
+const DEFAULT_STROKE = '#CC4A1A';
+const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+
+/**
+ * Validates a color string and returns a fallback if invalid.
+ */
+const safeColor = (c: any, fallback: string): string =>
+  (typeof c === 'string' && HEX_COLOR_RE.test(c)) ? c : fallback;
+
 const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
@@ -208,7 +219,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
       const halo = new (window as any).AMap.Polygon({
         path,
         fillOpacity: 0,
-        strokeColor: '#fbbf24',
+        strokeColor: safeColor('#fbbf24', '#fbbf24'),
         strokeOpacity: 0.42,
         strokeWeight: 5,
         zIndex: 45,
@@ -276,11 +287,17 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
     const allowCustomAppearance = !isFactionColorActive && isSelfTerritory;
 
     const fillColor = allowCustomAppearance
-      ? territoryAppearance.fillColor
-      : (isFactionColorActive ? factionVisuals.fillColor2D : style.fillColor2D);
+      ? territoryAppearance.fillColor || DEFAULT_FILL
+      : (isFactionColorActive
+        ? (factionVisuals as any).fillColor || factionVisuals.fillColor2D || DEFAULT_FILL
+        : (style as any).fillColor || style.fillColor2D || DEFAULT_FILL);
+
     const baseStrokeColor = allowCustomAppearance
-      ? territoryAppearance.strokeColor
-      : (isFactionColorActive ? factionBaseColor : style.strokeColor2D);
+      ? territoryAppearance.strokeColor || DEFAULT_STROKE
+      : (isFactionColorActive
+        ? (factionVisuals as any).strokeColor || factionBaseColor || DEFAULT_STROKE
+        : (style as any).strokeColor || style.strokeColor2D || DEFAULT_STROKE);
+
     const strokeColor = isLowHealth ? '#facc15' : baseStrokeColor;
     const fillOpacity = allowCustomAppearance
       ? territoryAppearance.fillOpacity
@@ -529,9 +546,9 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
 
             const polygon = new (window as any).AMap.Polygon({
               path: path,
-              fillColor: presentation.fillColor,
+              fillColor: safeColor(presentation.fillColor, DEFAULT_FILL),
               fillOpacity: presentation.fillOpacity,
-              strokeColor: presentation.strokeColor,
+              strokeColor: safeColor(presentation.strokeColor, DEFAULT_STROKE),
               strokeWeight: presentation.strokeWeight,
               zIndex: 50,
               extData: territory,

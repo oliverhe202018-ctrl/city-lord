@@ -1,49 +1,81 @@
-import type { Feature, Polygon, MultiPolygon, Geometry } from 'geojson';
+import type { Feature, Polygon, MultiPolygon, Geometry, FeatureCollection } from 'geojson';
 
 /**
- * Normalizes any GeoJSON Feature/Geometry into a format suitable for AMap.Polygon's 'path'.
- * 返回值是一个数组，每个元素对应一个独立闭合环 [lng, lat][]。
- * AMap.Polygon ({ path }) 期望：
- * - 单个多边形：[[lng, lat], [lng, lat], ...]
- * - 带孔多边形：[[[lng,lat],...], [[lng,lat],...]]
- * 
- * 为了彻底解决蜘蛛网问题，我们将 MultiPolygon 拆分为多个独立的 Polygon 路径返回。
+ * Helper to normalize and validate a single ring (array of points).
+ * Handles both [lng, lat] and {lng, lat} formats.
+ * Filters out invalid (NaN) coordinates and ensures minimum ring length.
+ */
+const toRing = (ring: any[]): [number, number][] =>
+  ring
+    .map((pt: any) => {
+      // Handle [lng, lat] format
+      if (Array.isArray(pt)) {
+        return [Number(pt[0]), Number(pt[1])] as [number, number];
+      }
+      // Handle {lng, lat} format
+      if (pt?.lng !== undefined && pt?.lat !== undefined) {
+        return [Number(pt.lng), Number(pt.lat)] as [number, number];
+      }
+      return null;
+    })
+    .filter((pt): pt is [number, number] =>
+      pt !== null && !isNaN(pt[0]) && !isNaN(pt[1])
+    );
+
+/**
+ * Normalizes any GeoJSON input (Feature, FeatureCollection, or Geometry) into
+ * a format suitable for AMap.Polygon's 'path'.
+ * Returns an array of independent closed rings [lng, lat][].
+ *
+ * - FeatureCollection → recursively flattens all contained Features
+ * - Feature → unwraps geometry and delegates
+ * - Polygon → extracts exterior ring
+ * - MultiPolygon → extracts each polygon's exterior ring
  */
 export function extractPaths(
-  geometry: Geometry | Feature | null | undefined
+  input: Geometry | Feature | FeatureCollection | null | undefined
 ): [number, number][][] {
-  if (!geometry) return [];
+  if (!input) return [];
 
-  // Unwrap Feature if necessary
+  // --- FeatureCollection: recursively flatten all features ---
+  if ((input as any).type === 'FeatureCollection') {
+    return (input as FeatureCollection).features.flatMap((f) => extractPaths(f));
+  }
+
+  // Unwrap Feature wrapper if present
   const geo: Geometry =
-    geometry.type === 'Feature' ? geometry.geometry : (geometry as Geometry);
+    (input as Feature).type === 'Feature'
+      ? (input as Feature).geometry
+      : (input as Geometry);
 
-  if (!geo) return [];
+  if (!geo || !geo.type) return [];
 
   const paths: [number, number][][] = [];
 
-  const validateRing = (ring: any): ring is [number, number][] => {
-    return Array.isArray(ring) && ring.length >= 3 && Array.isArray(ring[0]) && typeof ring[0][0] === 'number';
-  };
-
   switch (geo.type) {
     case 'Polygon': {
-      const coord = (geo as Polygon).coordinates;
-      if (!coord || coord.length === 0) break;
-      const exteriorRing = coord[0];
-      if (validateRing(exteriorRing)) {
-        paths.push(exteriorRing as [number, number][]);
+      const coords = (geo as Polygon).coordinates;
+      if (!coords || coords.length === 0) break;
+
+      // Extract exterior ring (index 0) and filter out malformed coordinates
+      const ring = toRing(coords[0]);
+      if (ring.length >= 3) {
+        paths.push(ring);
       }
       break;
     }
 
     case 'MultiPolygon': {
-      const coord = (geo as MultiPolygon).coordinates;
-      if (!coord) break;
-      for (const polygonRings of coord) {
-        const exteriorRing = polygonRings[0];
-        if (validateRing(exteriorRing)) {
-          paths.push(exteriorRing as [number, number][]);
+      const coords = (geo as MultiPolygon).coordinates;
+      if (!coords) break;
+
+      for (const polygonRings of coords) {
+        if (!polygonRings || polygonRings.length === 0) continue;
+
+        // Extract exterior ring for each polygon in the multi-polygon
+        const ring = toRing(polygonRings[0]);
+        if (ring.length >= 3) {
+          paths.push(ring);
         }
       }
       break;
