@@ -179,6 +179,18 @@ export interface UserActions {
   setTerritoryAppearance: (appearance: Partial<TerritoryAppearance>) => void;
   hydrateTerritoryAppearance: (appearance: Partial<TerritoryAppearance>) => void;
   resetTerritoryAppearance: () => void;
+  /**
+   * hydrateUserAppearance: 登录/鉴权完成后，将服务端下发的用户外观数据
+   * (path_color, fill_color, fill_opacity) 一次性原子化写入 store。
+   * 与 hydrateTerritoryAppearance 的区别：此方法同时接受 userId 参数，
+   * 用于绑定 ownerUserId，防止出现颜色与用户不对应的错位渲染。
+   */
+  hydrateUserAppearance: (params: {
+    userId: string;
+    strokeColor?: string | null;
+    fillColor?: string | null;
+    fillOpacity?: number | null;
+  }) => void;
 }
 
 export interface LocationActions {
@@ -531,6 +543,18 @@ const createUserSlice: StateCreator<GameStore, [], [], UserActions> = (set, get)
       },
     })),
   resetTerritoryAppearance: () => set({ territoryAppearance: initialTerritoryAppearance }),
+  hydrateUserAppearance: ({ userId, strokeColor, fillColor, fillOpacity }) =>
+    set((state) => ({
+      territoryAppearance: {
+        ...state.territoryAppearance,
+        // 只覆盖服务端有明确值的字段，避免用 null 清空本地有效设定
+        ...(strokeColor ? { strokeColor } : {}),
+        ...(fillColor ? { fillColor } : {}),
+        ...(typeof fillOpacity === 'number' ? { fillOpacity } : {}),
+        ownerUserId: userId,
+        lastSyncedAt: Date.now(),
+      },
+    })),
   syncUserProfile: async () => {
     try {
       const supabase = createClient();
@@ -888,6 +912,7 @@ export const useGameActions = () => {
       setTerritoryAppearance: state.setTerritoryAppearance,
       hydrateTerritoryAppearance: state.hydrateTerritoryAppearance,
       resetTerritoryAppearance: state.resetTerritoryAppearance,
+      hydrateUserAppearance: state.hydrateUserAppearance,
 
       // Location Actions
       updateLocation: state.updateLocation,

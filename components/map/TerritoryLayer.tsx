@@ -276,7 +276,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
       subject: viewMode === 'faction' ? 'faction' : 'individual'
     };
     const style = generateTerritoryStyle(territory, ctx);
-    const isFactionColorActive = showFactionColors;
+    const isFactionColorActive = showFactionColors || viewMode === 'faction';
     const factionBaseColor = resolveFactionColor(territory.ownerFaction);
     const factionVisuals = calculateHealthVisuals(
       factionBaseColor,

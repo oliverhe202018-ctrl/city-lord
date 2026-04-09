@@ -2,7 +2,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { evaluateTasks, RunData, TaskResult } from '@/lib/game/task-engine';
-import { revalidatePath, revalidateTag } from 'next/cache';
+import { revalidatePath, revalidateTag, unstable_noStore as noStore } from 'next/cache';
 import { tasks } from "@trigger.dev/sdk/v3";
 import { RunRecordDTO, ActionResponse, RunEventLog } from '@/types/run-sync';
 import { validateRunAndRebuildTerritories, AntiCheatValidationResult } from '@/lib/anti-cheat/territory-builder';
@@ -208,13 +208,16 @@ export async function saveRunActivity(
         function deduplicateByContainment(polygons: any[]): any[] {
             if (polygons.length <= 1) return polygons;
 
-            const withData = polygons.map(polyPts => {
+            const withData = polygons.flatMap(polyPts => {
                 const coords = polyPts.map((p: any) => [p.lng, p.lat] as [number, number]);
-                if (coords.length > 0 && (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1])) {
-                    coords.push([...coords[0]]);
-                }
-                const f = turf.polygon([coords]);
-                return { original: polyPts, f, area: turf.area(f), bbox: turf.bbox(f) };
+                // FIX: 使用凸包替代原始坐标直接构建多边形，防止 GPS 乱序导致自交叠（蜘蛛网畸变）
+                const pointCollection = turf.featureCollection(
+                    coords.map(([lng, lat]: [number, number]) => turf.point([lng, lat]))
+                );
+                const hull = turf.convex(pointCollection);
+                if (!hull) return []; // 过滤退化共线点集（面积为零的共线路径）
+                const f = hull as Feature<Polygon>;
+                return [{ original: polyPts, f, area: turf.area(f), bbox: turf.bbox(f) }];
             });
 
             // 优化1：过滤 < 50 平米的 GPS 漂移噪点，并按面积降序排列
@@ -254,11 +257,15 @@ export async function saveRunActivity(
             const validPolys: Feature<Polygon>[] = [];
             polygonsForSettlement.forEach((polyPts) => {
                 const coords = polyPts.map((p: any) => [p.lng, p.lat] as [number, number]);
-                if (coords.length > 0 && (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1])) {
-                    coords.push([...coords[0]]);
-                }
-                if (coords.length >= 4) {
-                    validPolys.push(turf.polygon([coords]));
+                // FIX: 同样使用凸包构建，确保面积精算基于无自交叠的合法几何体
+                if (coords.length >= 3) {
+                    const pointCollection = turf.featureCollection(
+                        coords.map(([lng, lat]: [number, number]) => turf.point([lng, lat]))
+                    );
+                    const hull = turf.convex(pointCollection);
+                    if (hull) {
+                        validPolys.push(hull as Feature<Polygon>);
+                    }
                 }
             });
 
@@ -574,6 +581,10 @@ export async function updateRunSummary(runId: string, summary: string): Promise<
 }
 
 export async function getRunSettlementStatus(runId: string): Promise<ActionResponse<{ newTerritories: number; reinforcedTerritories: number; isSettled: boolean } | null>> {
+    // 任务三：强制禁用 Next.js 数据缓存，确保每次轮询都读取最新 run.status
+    // 若不注入 noStore()，Next.js App Router 可能对 Server Action 响应做 full-route cache，
+    // 导致 status 永远是首次缓存的 'settling'，前端陷入轮询死锁。
+    noStore();
     try {
         if (!runId) throw new Error('Run ID is required');
         const runRec = await prisma.runs.findUnique({
