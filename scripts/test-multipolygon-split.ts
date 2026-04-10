@@ -31,12 +31,11 @@ async function main() {
 
         // 调用 settlement 方法（内置 Option A 包含的 splitIntoPolygons 方法）
         console.log("\n[2] 调用 processTerritorySettlement 进行拆分与入库...");
-// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
         const result = await processTerritorySettlement({
             runId: runId,
             userId: user.id,
-            pathGeoJSON: multiPolygonFeature
-        });
+            pathGeoJSON: multiPolygonFeature as any
+        } as any);
 
         console.log(`    返回结果: ${JSON.stringify(result)}`);
 
