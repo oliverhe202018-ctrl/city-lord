@@ -10,7 +10,18 @@ import { checkRunRateLimit } from '@/lib/anti-cheat/rate-limiter';
 import { processTerritorySettlement } from '@/lib/territory/settlement';
 import { validateRunData } from '@/lib/validators/run-validator';
 import { validateRunLegitimacy } from '@/lib/anti-cheat/mvp-rules';
-import * as turf from '@turf/turf';
+import {
+    lineString as turfLineString,
+    simplify as turfSimplify,
+    polygon as turfPolygon,
+    unkinkPolygon as turfUnkinkPolygon,
+    area as turfArea,
+    bbox as turfBbox,
+    intersect as turfIntersect,
+    featureCollection as turfFeatureCollection,
+    union as turfUnion,
+    length as turfLength,
+} from '@turf/turf';
 import type { Feature, Polygon, MultiPolygon } from 'geojson';
 import { cleanAndSplitTrajectory } from '@/lib/gis/geometry-cleaner';
 import { isLoopClosed, LOOP_CLOSURE_THRESHOLD_M, extractValidLoops, type Coord } from '@/lib/geometry-utils';
@@ -19,12 +30,12 @@ import { isTester } from '@/lib/constants/anti-cheat';
 // 用 Ramer-Douglas-Peucker 保留关键几何节点，不破坏环路
 function rdpSamplePath(points: any[], maxPoints: number): any[] {
     if (points.length <= maxPoints) return points;
-    const line = turf.lineString(points.map((p: any) => [p.lng, p.lat]));
+    const line = turfLineString(points.map((p: any) => [p.lng, p.lat]));
     // 容差从小到大自动收敛，直到点数满足要求
     let tolerance = 0.00001;
     let simplified = points;
     while (simplified.length > maxPoints && tolerance < 0.01) {
-        const result = turf.simplify(line, { tolerance, highQuality: false });
+        const result = turfSimplify(line, { tolerance, highQuality: false });
         simplified = result.geometry.coordinates.map(([lng, lat]: number[]) => ({ lat, lng }));
         tolerance *= 2;
     }
@@ -107,6 +118,28 @@ export async function saveRunActivity(
                     data: { runId: existingRun.id }
                 };
             }
+        }
+        
+        // --- GIS-01: 強制降維採樣 (Path Simplification) ---
+        // 應對 15000+ GPS 點導致的性能崩潰。在處理業務邏輯前，先行極速壓縮。
+        const rawPathPointsForGIS = (runData.path as any[]) || [];
+        if (rawPathPointsForGIS.length > 500) {
+            const line = turfLineString(rawPathPointsForGIS.map((p: any) => [p.lng, p.lat]));
+            // 0.0001 容差約為 10 米，能過濾大量抖動並極速壓縮點雲
+            const simplified = turfSimplify(line, { tolerance: 0.0001, highQuality: false });
+            
+            // 保持 Location[] 類型兼容性，簡單帶上時間戳
+            const startTime = rawPathPointsForGIS[0]?.timestamp || Date.now();
+            const endTime = rawPathPointsForGIS[rawPathPointsForGIS.length - 1]?.timestamp || Date.now();
+            const count = simplified.geometry.coordinates.length;
+            
+            runData.path = simplified.geometry.coordinates.map(([lng, lat]: any, idx: number) => ({ 
+                lat, 
+                lng,
+                // 基於點順序大致模擬時間分佈
+                timestamp: Math.floor(startTime + (endTime - startTime) * (idx / Math.max(1, count - 1)))
+            }));
+            console.log(`[GIS] Path simplified from ${rawPathPointsForGIS.length} to ${runData.path.length} points.`);
         }
 
         // --- P0 Anti-Cheat MVP Validation ---
@@ -204,80 +237,131 @@ export async function saveRunActivity(
             console.log(`[saveRunActivity] MEDIUM risk run. Polygons neutralized for user: ${userId}`);
         }
 
-        // 4. 大圈吞噬小圈核心算法 (BBox 加速)
+        // 4. 大圈吞噬小圈核心算法 (BBox 加速) - 使用 Unkink 解結算法替代 Convex Hull
         function deduplicateByContainment(polygons: any[]): any[] {
             if (polygons.length <= 1) return polygons;
 
             const withData = polygons.flatMap(polyPts => {
                 const coords = polyPts.map((p: any) => [p.lng, p.lat] as [number, number]);
-                // FIX: 使用凸包替代原始坐标直接构建多边形，防止 GPS 乱序导致自交叠（蜘蛛网畸变）
-                const pointCollection = turf.featureCollection(
-                    coords.map(([lng, lat]: [number, number]) => turf.point([lng, lat]))
-                );
-                const hull = turf.convex(pointCollection);
-                if (!hull) return []; // 过滤退化共线点集（面积为零的共线路径）
-                const f = hull as Feature<Polygon>;
-                return [{ original: polyPts, f, area: turf.area(f), bbox: turf.bbox(f) }];
+                
+                try {
+                    // FIX: 廢除凸包，引入解結算法 (Unkink Polygon)
+                    // 確保能精確還原 U 型彎、折返路，而不是拉一個包裹所有點的大框
+                    if (coords.length < 3) return [];
+                    const ring = [...coords];
+                    if (ring[0][0] !== ring[ring.length-1][0] || ring[0][1] !== ring[ring.length-1][1]) {
+                        ring.push([...ring[0]]);
+                    }
+                    if (ring.length < 4) return [];
+                    
+                    const rawPoly = turfPolygon([ring]);
+                    const unkinked = turfUnkinkPolygon(rawPoly);
+                    
+                    // 任务二 (GIS 溢出修复): 用等周率过滤细长溢出尾巴
+                    // 真实闭合环路 isoRatio >= 0.02，尾巴产生的细长块接近 0
+                    return unkinked.features
+                        .filter((f: any) => {
+                            const area = turfArea(f);
+                            if (area <= 50) return false;
+                            try {
+                                const perimeterM = turfLength(f) * 1000;
+                                if (perimeterM <= 0) return false;
+                                const isoRatio = (4 * Math.PI * area) / (perimeterM * perimeterM);
+                                return isoRatio >= 0.02;
+                            } catch { return true; }
+                        })
+                        .map((f: any) => ({
+                            original: polyPts,
+                            f: f as Feature<Polygon>,
+                            area: turfArea(f),
+                            bbox: turfBbox(f)
+                        }));
+                } catch (e) {
+                    console.warn('[GIS] Failed to unkink polygon during deduplication:', e);
+                    return [];
+                }
             });
 
-            // 优化1：过滤 < 50 平米的 GPS 漂移噪点，并按面积降序排列
-            const sorted = withData.filter(x => x.area >= 50).sort((a, b) => b.area - a.area);
+            // 优化1：按面積降序排列
+            const sorted = withData.sort((a, b) => b.area - a.area);
 
             const survivors: typeof sorted = [];
             for (const candidate of sorted) {
                 let isContained = false;
                 for (const big of survivors) {
-                    // 优化2：BBox (包围盒) 快速拒绝。不相交的包围盒绝对不可能包含
+                    // 优化2：BBox (包围盒) 快速拒绝
                     if (
                         candidate.bbox[0] >= big.bbox[0] && candidate.bbox[1] >= big.bbox[1] &&
                         candidate.bbox[2] <= big.bbox[2] && candidate.bbox[3] <= big.bbox[3]
                     ) {
-                        // 优化3：只对极大概率包含的图形进行昂贵的 Turf 运算
-                        const intersection = turf.intersect(turf.featureCollection([big.f, candidate.f]));
-                        if (intersection) {
-                            const overlapRatio = turf.area(intersection) / candidate.area;
-                            // 只要重叠面积超过 90%，就认为被大圈吞噬，容忍 GPS 边缘漂移
-                            if (overlapRatio > 0.90) {
-                                isContained = true;
-                                break;
+                        // 优化3：计算重叠
+                        try {
+                            const intersection = turfIntersect(turfFeatureCollection([big.f, candidate.f]));
+                            if (intersection) {
+                                const overlapRatio = turfArea(intersection) / candidate.area;
+                                if (overlapRatio > 0.90) {
+                                    isContained = true;
+                                    break;
+                                }
                             }
-                        }
+                        } catch (e) { /* skip */ }
                     }
                 }
                 if (!isContained) survivors.push(candidate);
             }
+            // 返回原始路徑點
             return survivors.map(s => s.original);
         }
 
         const polygonsForSettlement = (isBlockedByAntiCheat || effectiveRiskLevel === 'MEDIUM') ? [] : deduplicateByContainment(finalPolygons);
 
-        // 5. 直接在内存中累加真实占领的领地面积，拒绝虚高
+        // 5. 直接在内存中累加真实占领的领地面积 - 使用 Unkink 替代 Convex
         let accurateAreaKm2 = 0;
         if (polygonsForSettlement.length > 0) {
             const validPolys: Feature<Polygon>[] = [];
             polygonsForSettlement.forEach((polyPts) => {
                 const coords = polyPts.map((p: any) => [p.lng, p.lat] as [number, number]);
-                // FIX: 同样使用凸包构建，确保面积精算基于无自交叠的合法几何体
-                if (coords.length >= 3) {
-                    const pointCollection = turf.featureCollection(
-                        coords.map(([lng, lat]: [number, number]) => turf.point([lng, lat]))
-                    );
-                    const hull = turf.convex(pointCollection);
-                    if (hull) {
-                        validPolys.push(hull as Feature<Polygon>);
+                try {
+                    if (coords.length >= 3) {
+                        const ring = [...coords];
+                        if (ring[0][0] !== ring[ring.length-1][0] || ring[0][1] !== ring[ring.length-1][1]) {
+                            ring.push([...ring[0]]);
+                        }
+                        if (ring.length < 4) return;
+                        
+                        const rawPoly = turfPolygon([ring]);
+                        const unkinked = turfUnkinkPolygon(rawPoly);
+                        unkinked.features.forEach((f: any) => {
+                            const area = turfArea(f);
+                            if (area <= 50) return;
+                            try {
+                                const perimeterM = turfLength(f) * 1000;
+                                if (perimeterM > 0) {
+                                    const isoRatio = (4 * Math.PI * area) / (perimeterM * perimeterM);
+                                    if (isoRatio < 0.02) return;
+                                }
+                            } catch { /* 无法计算时保留 */ }
+                            validPolys.push(f as Feature<Polygon>);
+                        });
                     }
+                } catch (e) {
+                    console.warn('[GIS] accurateAreaKm2 unkink failed:', e);
                 }
             });
 
             if (validPolys.length > 0) {
-                let merged = validPolys[0] as Feature<Polygon | MultiPolygon>;
-                for (let i = 1; i < validPolys.length; i++) {
-                    const combined = turf.union(turf.featureCollection([merged, validPolys[i]]));
-                    if (combined) {
-                        merged = combined as Feature<Polygon | MultiPolygon>;
+                try {
+                    let merged = validPolys[0] as Feature<Polygon | MultiPolygon>;
+                    for (let i = 1; i < validPolys.length; i++) {
+                        const combined = turfUnion(turfFeatureCollection([merged, validPolys[i]]));
+                        if (combined) {
+                            merged = combined as Feature<Polygon | MultiPolygon>;
+                        }
                     }
+                    accurateAreaKm2 = turfArea(merged) / 1000000;
+                } catch (e) {
+                    console.error('[GIS] Final union for area calculation failed:', e);
                 }
-                accurateAreaKm2 = turf.area(merged) / 1000000;
             }
         }
 

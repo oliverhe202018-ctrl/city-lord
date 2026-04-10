@@ -5,6 +5,7 @@ import { processTerritorySettlement } from "@/lib/territory/settlement";
 import { prisma } from "@/lib/prisma";
 import { TaskService } from "@/lib/services/task";
 import { updateChallengeProgress } from "@/app/actions/challenge-service";
+import { cleanAndSplitTrajectory } from "@/lib/gis/geometry-cleaner";
 
 interface RunPoint {
     lng: number;
@@ -65,38 +66,33 @@ export const settleTerritoriesTask = task({
                         continue;
                     }
 
-                    // ── 核心修复：凸包替代 turf.polygon([coords]) ──
-                    // turf.polygon 直接接受原始 GPS 序列时，若轨迹交叉会产生自交叠（蜘蛛网）。
-                    // turf.convex 从点云求凸包，保证输出为合法的无自交简单多边形。
-                    const pointCollection = turf.featureCollection(
-                        rawCoords.map(([lng, lat]: [number, number]) => turf.point([lng, lat]))
-                    );
-                    const hull = turf.convex(pointCollection);
-                    if (!hull) {
-                        // 共线点集（面积为零），无法构成合法多边形，跳过
-                        console.warn(`[settle-territories] runId=${runId}: 凸包退化（共线点集），跳过该polygon`);
+                    // ── 核心重構：廢除凸包，引入解結算法 (Unkink Polygon) ──
+                    // 調用統一的 cleanAndSplitTrajectory 處理自交疊與清算
+                    const cleanedPolys = cleanAndSplitTrajectory(rawCoords);
+                    if (cleanedPolys.length === 0) {
+                        console.warn(`[settle-territories] runId=${runId}: 軌跡無法構成有效多邊形，跳過。`);
                         continue;
                     }
-                    const polyFeature = hull as Feature<Polygon>;
 
-                    try {
-                        const settlement = await processTerritorySettlement({
-                            runId,
-                            userId,
-                            cityId,
-                            clubId,
-                            pathGeoJSON: polyFeature,
-                            preProcessedPolygons: [polyFeature]
-                        });
+                    for (const polyFeature of cleanedPolys) {
+                        try {
+                            const settlement = await processTerritorySettlement({
+                                runId,
+                                userId,
+                                cityId,
+                                clubId,
+                                pathGeoJSON: polyFeature,
+                                preProcessedPolygons: [polyFeature]
+                            });
 
-                        if (settlement.success) {
-                            settledCount += settlement.createdTerritories;
-                            reinforcedCount += settlement.reinforcedTerritories;
-                            console.log(`[settle-territories] runId=${runId}: +${settlement.createdTerritories} 新领地, +${settlement.reinforcedTerritories} 强化`);
+                            if (settlement.success) {
+                                settledCount += settlement.createdTerritories;
+                                reinforcedCount += settlement.reinforcedTerritories;
+                                console.log(`[settle-territories] runId=${runId}: +${settlement.createdTerritories} 新領地, +${settlement.reinforcedTerritories} 強化`);
+                            }
+                        } catch (polyError) {
+                            console.error(`[settle-territories] 單多邊形結算失敗 runId=${runId}`, polyError);
                         }
-                    } catch (polyError) {
-                        // 单个多边形结算失败不应中断整体任务
-                        console.error(`[settle-territories] 单polygon结算失败 runId=${runId}`, polyError);
                     }
                 }
 

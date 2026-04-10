@@ -727,6 +727,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
     map,
     city,
     viewMode,
+    showFactionColors,
     kingdomMode,
     user?.id,
     openTerritoryDetailDrawer,

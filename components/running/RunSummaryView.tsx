@@ -534,12 +534,22 @@ export function RunSummaryView({
                 <div className="text-sm">结算后台处理中，请稍后在记录中查看明细</div>
               </div>
             ) : (settlementStats || hexesCaptured > 0) ? (
-              <div className="flex items-center justify-between">
-                <div className="text-sm text-gray-600">
-                  占领了 <span className="font-bold">{settlementStats?.newTerritories ?? hexesCaptured}</span> 块新领地
-                  {(settlementStats?.reinforcedTerritories ?? 0) > 0 ? `，加固了 ${settlementStats?.reinforcedTerritories} 块` : ''}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-gray-600">
+                    占领了 <span className="font-bold">{settlementStats?.newTerritories ?? hexesCaptured}</span> 块新领地
+                    {(settlementStats?.reinforcedTerritories ?? 0) > 0 ? `，加固了 ${settlementStats?.reinforcedTerritories} 块` : ''}
+                  </div>
+                  <MapPin className="h-5 w-5 text-red-400" />
                 </div>
-                <MapPin className="h-5 w-5 text-red-400" />
+                {runNumber && runNumber > 0 && (
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-gray-600">
+                      这是您的第 <span className="font-bold text-[#22c55e]">{runNumber}</span> 次占领行动
+                    </div>
+                    <Trophy className="h-4 w-4 text-[#22c55e]" />
+                  </div>
+                )}
               </div>
             ) : null}
 
