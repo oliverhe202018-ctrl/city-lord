@@ -542,16 +542,18 @@ export function RunSummaryView({
                   </div>
                   <MapPin className="h-5 w-5 text-red-400" />
                 </div>
-                {runNumber && runNumber > 0 && (
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm text-gray-600">
-                      这是您的第 <span className="font-bold text-[#22c55e]">{runNumber}</span> 次占领行动
-                    </div>
-                    <Trophy className="h-4 w-4 text-[#22c55e]" />
-                  </div>
-                )}
               </div>
             ) : null}
+
+            {/* 第几次占领行动 — 始终渲染，不受 settlementStats 限制 */}
+            {runNumber && runNumber > 0 && (
+              <div className="flex items-center justify-between mt-2">
+                <div className="text-sm text-gray-600">
+                  这是您的第 <span className="font-bold text-[#22c55e]">{runNumber}</span> 次占领行动
+                </div>
+                <Trophy className="h-4 w-4 text-[#22c55e]" />
+              </div>
+            )}
 
             {/* Phase 3: Damage Results */}
             {Object.entries(aggregatedDamage).map(([key, data], idx) => (

@@ -60,6 +60,11 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ['ioredis', '@prisma/client'],
   typescript: { ignoreBuildErrors: true },
   eslint: { ignoreDuringBuilds: true },
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '5mb',
+    },
+  },
   images: {
     formats: ['image/avif', 'image/webp'],
     minimumCacheTTL: 2592000,

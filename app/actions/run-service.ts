@@ -257,18 +257,23 @@ export async function saveRunActivity(
                     const rawPoly = turfPolygon([ring]);
                     const unkinked = turfUnkinkPolygon(rawPoly);
                     
-                    // 任务二 (GIS 溢出修复): 用等周率过滤细长溢出尾巴
-                    // 真实闭合环路 isoRatio >= 0.02，尾巴产生的细长块接近 0
+                    // 任务二 (GIS 溢出修复): 双重硬性拦截——等周率 + 绝对面积上限
+                    // 真实闭合环路 isoRatio >= 0.05，尾巴产生的细长块接近 0
+                    // MAX_TERRITORY_AREA_M2 切断由直连线产生的伪闭合超大框
+                    const MIN_ISO_RATIO = 0.05;
+                    const MAX_TERRITORY_AREA_M2 = 200_000;
                     return unkinked.features
                         .filter((f: any) => {
                             const area = turfArea(f);
                             if (area <= 50) return false;
+                            if (area > MAX_TERRITORY_AREA_M2) return false;
                             try {
                                 const perimeterM = turfLength(f) * 1000;
                                 if (perimeterM <= 0) return false;
                                 const isoRatio = (4 * Math.PI * area) / (perimeterM * perimeterM);
-                                return isoRatio >= 0.02;
-                            } catch { return true; }
+                                if (isoRatio < MIN_ISO_RATIO) return false;
+                            } catch { return false; }
+                            return true;
                         })
                         .map((f: any) => ({
                             original: polyPts,
@@ -334,11 +339,12 @@ export async function saveRunActivity(
                         unkinked.features.forEach((f: any) => {
                             const area = turfArea(f);
                             if (area <= 50) return;
+                            if (area > 200_000) return; // MAX_TERRITORY_AREA_M2 硬拦截
                             try {
                                 const perimeterM = turfLength(f) * 1000;
                                 if (perimeterM > 0) {
                                     const isoRatio = (4 * Math.PI * area) / (perimeterM * perimeterM);
-                                    if (isoRatio < 0.02) return;
+                                    if (isoRatio < 0.05) return; // 同步提升至 MIN_ISO_RATIO
                                 }
                             } catch { /* 无法计算时保留 */ }
                             validPolys.push(f as Feature<Polygon>);

@@ -289,7 +289,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
     const fillColor = allowCustomAppearance
       ? territoryAppearance.fillColor || DEFAULT_FILL
       : (isFactionColorActive
-        ? (factionVisuals as any).fillColor || factionVisuals.fillColor2D || DEFAULT_FILL
+        ? safeColor(factionBaseColor, DEFAULT_FILL)
         : (style as any).fillColor || style.fillColor2D || DEFAULT_FILL);
 
     const baseStrokeColor = allowCustomAppearance
@@ -789,7 +789,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
     });
 
     recomputeViewportKing();
-  }, [buildPolygonPresentation, clearViewportKingHalo, kingdomMode, recomputeViewportKing]);
+  }, [buildPolygonPresentation, clearViewportKingHalo, kingdomMode, recomputeViewportKing, viewMode, showFactionColors]);
 
   // Apply selection highlight when selectedTerritoryId changes
   useEffect(() => {

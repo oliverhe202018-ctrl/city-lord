@@ -4,6 +4,7 @@ import { useEffect, useCallback, useRef, useState } from "react"
 import { toast } from "sonner"
 import { saveRunActivity } from "@/app/actions/run-service"
 import { useGameStore } from "@/store/useGameStore"
+import { lineString as turfLineString, simplify as turfSimplify } from '@turf/turf'
 
 const PENDING_KEY = 'PENDING_RUN_UPLOAD'
 
@@ -53,6 +54,29 @@ export function SyncManager() {
           const distanceMeters = Math.max(0, Number(run.distance ?? 0));
           const estimatedSteps = Math.floor(distanceMeters * 1.3);
           const stepsForSubmit = Math.max(0, Math.floor(Number(run.totalSteps ?? run.steps ?? estimatedSteps)));
+
+          // --- Client-side path simplification (Payload Fix) ---
+          // 确保发送到服务端的 GPS 点数安全，防止突破 5MB 上限
+          let pathToSend = run.path || [];
+          if (pathToSend.length > 300) {
+            try {
+              const line = turfLineString(pathToSend.map((p: any) => [p.lng, p.lat]));
+              const simplified = turfSimplify(line, { tolerance: 0.0001, highQuality: false });
+              const simplifiedCoords = simplified.geometry.coordinates;
+              const count = simplifiedCoords.length;
+              const startTime = pathToSend[0]?.timestamp || Date.now();
+              const endTime = pathToSend[pathToSend.length - 1]?.timestamp || Date.now();
+              pathToSend = simplifiedCoords.map(([lng, lat]: number[], idx: number) => ({
+                lat,
+                lng,
+                timestamp: Math.floor(startTime + (endTime - startTime) * (idx / Math.max(1, count - 1)))
+              }));
+              console.log(`[SyncManager] Path simplified: ${run.path.length} → ${pathToSend.length} pts`);
+            } catch (e) {
+              console.warn('[SyncManager] Path simplification failed, using raw path:', e);
+            }
+          }
+
           // Note: saveRunActivity is a server action. 
           // AbortController on fetch inside server actions is tricky, 
           // but we can race it here.
@@ -60,7 +84,7 @@ export function SyncManager() {
             idempotencyKey: run.idempotencyKey,
             distance: run.distance,
             duration: run.duration,
-            path: run.path,
+            path: pathToSend,
             polygons: run.polygons || [],
             timestamp: run.timestamp,
             clubId: run.clubId ?? null,
