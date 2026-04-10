@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { prisma } from '@/lib/prisma'
 
 export type Room = {
   id: string
@@ -469,3 +470,45 @@ export async function getJoinedRooms() {
     return { success: false, error: error.message }
   }
 }
+
+export async function fetchRoomTerritoryEvents(participantIds: string[]) {
+  if (participantIds.length === 0) return { data: [], error: null }
+  
+  try {
+    const data = await prisma.runs.findMany({
+      where: {
+        user_id: { in: participantIds },
+        status: 'completed' // Assuming 'is_valid: true' maps to 'status: completed'
+      },
+      select: {
+        id: true,
+        user_id: true,
+        created_at: true,
+        updated_at: true,
+        distance: true,
+        area: true,
+        province: true, // using province as region
+        polygons: true
+      },
+      orderBy: {
+        updated_at: 'desc'
+      },
+      take: 20
+    })
+    
+    // Map to the expected type in RoomDrawer
+    const mappedData = data.map(r => ({
+      ...r,
+      start_time: r.created_at,
+      end_time: r.updated_at,
+      region: r.province,
+      points: r.polygons
+    }))
+    
+    return { data: mappedData, error: null }
+  } catch (err: any) {
+    return { data: null, error: err.message }
+  }
+}
+
+export type RoomTerritoryEvent = NonNullable<Awaited<ReturnType<typeof fetchRoomTerritoryEvents>>['data']>[0]

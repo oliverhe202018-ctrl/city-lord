@@ -42,9 +42,9 @@ export async function getChangelogs(): Promise<{
         const { data, error } = await supabase
 // @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
             .from('changelog_versions')
-            // @ts-expect-error - FIXME: Property 'not' does not exist on type 'PostgrestQueryBuilder<{ Postgre - [Ticket-202603-SchemaSync] baseline exemption
             .not('published_at', 'is', null)
             .order('release_date', { ascending: false })
+
 
         if (error) return { data: null, error: error.message }
 

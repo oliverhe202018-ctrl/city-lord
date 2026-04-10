@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { cookies } from 'next/headers'
+import { prisma } from '@/lib/prisma'
 
 export type UnifiedFeedbackSource = 'feedback' | 'report' | 'territory_report'
 
@@ -35,41 +35,31 @@ export async function getAdminFeedbackData(): Promise<{ data: UnifiedFeedback[] 
             return { data: null, error: 'Unauthorized' }
         }
 
-        // Role check ensures admin privileges
-        const { data: adminRole } = await supabase
-            .from('app_admins')
-            .select('role')
-            .eq('user_id', session.user.id)
-            .single()
+        // Role check using Prisma (app_admins PK = user uuid)
+        const adminRole = await prisma.app_admins.findUnique({
+            where: { id: session.user.id },
+            select: { role: true }
+        })
 
         if (!adminRole) {
             return { data: null, error: 'Forbidden' }
         }
 
-        // 2. Fetch all data concurrently
-        const [feedbackRes, reportRes, territoryRes] = await Promise.all([
-// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
-            supabase
-// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
-                .from('feedback')
-                .select(`*, profiles:user_id (nickname)`)
-                .order('created_at', { ascending: false }),
-            supabase
-                .from('post_reports')
-                .select(`*, reporter:profiles!post_reports_user_id_fkey (nickname), post:posts!post_reports_post_id_fkey (content, media_urls)`)
-                .order('created_at', { ascending: false }),
-// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
-            supabase
-// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
-                .from('territory_reports')
-                .select(`*, reporter:profiles!territory_reports_reporter_id_fkey (nickname), reported:profiles!territory_reports_reported_user_id_fkey (nickname)`)
-                .order('created_at', { ascending: false })
-        ])
+        // 2. Use Prisma for territory_reports; Supabase (with explicit casts) for feedback/post_reports
+        const feedbackResult = await (supabase.from('feedback' as any).select('*, profiles:user_id (nickname)').order('created_at', { ascending: false })) as { data: any[] | null, error: any }
+        const postReportResult = await supabase.from('post_reports').select('*, reporter:profiles!post_reports_user_id_fkey (nickname), post:posts!post_reports_post_id_fkey (content, media_urls)').order('created_at', { ascending: false }) as { data: any[] | null, error: any }
+        const territoryReports = await prisma.territory_reports.findMany({
+                include: {
+                    profiles_territory_reports_reporter_idToprofiles: { select: { nickname: true } },
+                    profiles_territory_reports_reported_user_idToprofiles: { select: { nickname: true } }
+                },
+                orderBy: { created_at: 'desc' }
+            })
 
-        let normalizedData: UnifiedFeedback[] = []
+        const normalizedData: UnifiedFeedback[] = []
 
-        if (feedbackRes.data) {
-            normalizedData.push(...feedbackRes.data.map((f: any) => ({
+        if (feedbackResult.data) {
+            normalizedData.push(...feedbackResult.data.map((f: any) => ({
                 id: f.id,
                 source: 'feedback' as const,
                 user_id: f.user_id,
@@ -82,11 +72,11 @@ export async function getAdminFeedbackData(): Promise<{ data: UnifiedFeedback[] 
             })))
         }
 
-        if (reportRes.data) {
-            normalizedData.push(...reportRes.data.map((r: any) => ({
+        if (postReportResult.data) {
+            normalizedData.push(...postReportResult.data.map((r: any) => ({
                 id: r.id,
                 source: 'report' as const,
-                user_id: r.user_id, // technically reporter
+                user_id: r.user_id,
                 reporter_name: r.reporter?.nickname || '未知用户',
                 content: r.reason,
                 contact_info: '动态圈举报',
@@ -99,20 +89,20 @@ export async function getAdminFeedbackData(): Promise<{ data: UnifiedFeedback[] 
             })))
         }
 
-        if (territoryRes.data) {
-            normalizedData.push(...territoryRes.data.map((t: any) => ({
+        if (territoryReports) {
+            normalizedData.push(...territoryReports.map((t) => ({
                 id: t.id,
                 source: 'territory_report' as const,
                 user_id: t.reporter_id,
-                reporter_name: t.reporter?.nickname || '未知用户',
+                reporter_name: t.profiles_territory_reports_reporter_idToprofiles?.nickname || '未知用户',
                 content: t.reason,
                 contact_info: '领地举报',
-                screenshot_url: null, // Using snapshot data in a custom way if needed
-                status: t.status,
-                created_at: t.created_at,
-                territory_id: t.territory_id,
+                screenshot_url: null,
+                status: t.status ?? 'pending',
+                created_at: t.created_at?.toISOString() ?? new Date().toISOString(),
+                territory_id: t.territory_id ?? undefined,
                 reported_user_id: t.reported_user_id,
-                reported_user_name: t.reported?.nickname || '未知用户',
+                reported_user_name: t.profiles_territory_reports_reported_user_idToprofiles?.nickname || '未知用户',
             })))
         }
 
@@ -120,8 +110,9 @@ export async function getAdminFeedbackData(): Promise<{ data: UnifiedFeedback[] 
         normalizedData.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
         return { data: normalizedData, error: null }
-    } catch (err: any) {
+    } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Internal error'
         console.error('Failed to fetch admin feedback data:', err)
-        return { data: null, error: err.message || 'Internal error' }
+        return { data: null, error: message }
     }
 }

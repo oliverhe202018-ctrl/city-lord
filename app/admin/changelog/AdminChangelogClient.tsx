@@ -36,8 +36,8 @@ interface ChangelogItem {
 }
 interface ChangelogVersion {
     id: string; version: string; title: string | null
-    is_latest: boolean; release_date: string; published_at?: string | null
-    changelog_items?: { count: number }[]
+    is_latest: boolean; release_date: string | Date; published_at?: string | Date | null
+    _count?: { items: number }
 }
 
 const TAG_OPTIONS = [
@@ -92,7 +92,7 @@ export function AdminChangelogClient({ initialVersions }: { initialVersions: Cha
             version:      v.version,
             title:        v.title ?? '',
             is_latest:    v.is_latest,
-            release_date: v.release_date.slice(0, 10),
+            release_date: (typeof v.release_date === 'string' ? v.release_date : v.release_date.toISOString()).slice(0, 10),
         })
         setEditingVersion(v)
     }
@@ -240,7 +240,7 @@ export function AdminChangelogClient({ initialVersions }: { initialVersions: Cha
                                     {new Date(v.release_date).toLocaleDateString('zh-CN')}
                                 </TableCell>
                                 <TableCell className="text-muted-foreground">
-                                    {v.changelog_items?.[0]?.count ?? 0}
+                                    {v._count?.items ?? 0}
                                 </TableCell>
                                 <TableCell className="text-right">
                                     <div className="flex items-center justify-end gap-1">

@@ -112,7 +112,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
         : turf.multiPolygon(cleanedPolygons.map(p => p.geometry.coordinates)).geometry;
     const combinedGeometryJson = JSON.stringify(combinedGeometry);
 
-    const finalSettledResult = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const finalSettledResult: SettlementResult = await prisma.$transaction(async (tx) => {
         // Initial working set for area carving
         let workingPolygons: Feature<Polygon>[] = [...cleanedPolygons];
 

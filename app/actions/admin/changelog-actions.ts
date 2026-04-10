@@ -1,39 +1,57 @@
 'use server'
 import { createClient } from '@/lib/supabase/server'
-import type { SupabaseClient } from '@supabase/supabase-js'
+import { prisma } from '@/lib/prisma'
 
 // 管理员鉴权复用 get-feedback.ts 的模式
-async function verifyAdmin(): Promise<SupabaseClient> {
+async function verifyAdmin(): Promise<string> {
     const supabase = await createClient()
     const { data: { session }, error: authError } = await supabase.auth.getSession()
     if (authError || !session?.user) throw new Error('Unauthorized')
 
-    const { data: adminRole } = await supabase
-        .from('app_admins')
-        .select('role')
-        .eq('user_id', session.user.id)
-        .single()
+    const adminRole = await prisma.app_admins.findUnique({
+        where: { id: session.user.id },
+        select: { role: true }
+    })
 
     if (!adminRole) throw new Error('Forbidden')
-    return supabase
+    return session.user.id
 }
 
 // ─── 版本 CRUD ────────────────────────────────────────────────────────────────
 
 export async function getAdminChangelogs() {
     try {
-        const supabase = await verifyAdmin()
-        const { data, error } = await supabase
-            .from('changelog_versions')
-            .select('id, version, title, is_latest, release_date, published_at, changelog_items(count)')
-            .order('release_date', { ascending: false })
+        await verifyAdmin()
+        const data = await prisma.changelog_versions.findMany({
+            select: {
+                id: true,
+                version: true,
+                title: true,
+                is_latest: true,
+                release_date: true,
+                published_at: true,
+                _count: {
+                    select: { items: true }
+                }
+            },
+            orderBy: {
+                release_date: 'desc'
+            }
+        })
 
-        if (error) return { data: null, error: error.message }
-        return { data, error: null }
+        // 映射格式以保持兼容性
+        const mappedData = data.map(v => ({
+            ...v,
+            changelog_items: [{ count: v._count.items }]
+        }))
+
+        return { data: mappedData, error: null }
     } catch (err: any) {
         return { data: null, error: err.message }
     }
 }
+
+export type AdminChangelog = NonNullable<Awaited<ReturnType<typeof getAdminChangelogs>>['data']>[0]
 
 export async function createChangelogVersion(input: {
     version: string
@@ -42,20 +60,21 @@ export async function createChangelogVersion(input: {
     release_date?: string
 }) {
     try {
-        const supabase = await verifyAdmin()
+        await verifyAdmin()
         if (input.is_latest) {
-            await supabase
-                .from('changelog_versions')
-                .update({ is_latest: false })
-                .eq('is_latest', true)
+            await prisma.changelog_versions.updateMany({
+                where: { is_latest: true },
+                data: { is_latest: false }
+            })
         }
-        const { error } = await supabase.from('changelog_versions').insert({
-            version:      input.version.trim(),
-            title:        input.title?.trim() || null,
-            is_latest:    input.is_latest ?? false,
-            release_date: input.release_date ?? new Date().toISOString(),
+        await prisma.changelog_versions.create({
+            data: {
+                version:      input.version.trim(),
+                title:        input.title?.trim() || null,
+                is_latest:    input.is_latest ?? false,
+                release_date: input.release_date ? new Date(input.release_date) : new Date(),
+            }
         })
-        if (error) return { success: false, error: error.message }
         return { success: true, error: null }
     } catch (err: any) {
         return { success: false, error: err.message }
@@ -67,24 +86,25 @@ export async function updateChangelogVersion(
     input: { version?: string; title?: string; is_latest?: boolean; release_date?: string }
 ) {
     try {
-        const supabase = await verifyAdmin()
+        await verifyAdmin()
         if (input.is_latest) {
-            await supabase
-                .from('changelog_versions')
-                .update({ is_latest: false })
-                .eq('is_latest', true)
-                .neq('id', id)
+            await prisma.changelog_versions.updateMany({
+                where: { 
+                    is_latest: true,
+                    id: { not: id }
+                },
+                data: { is_latest: false }
+            })
         }
-        const { error } = await supabase
-            .from('changelog_versions')
-            .update({
+        await prisma.changelog_versions.update({
+            where: { id },
+            data: {
                 ...(input.version      && { version: input.version.trim() }),
                 ...(input.title !== undefined && { title: input.title?.trim() || null }),
                 ...(input.is_latest !== undefined && { is_latest: input.is_latest }),
-                ...(input.release_date && { release_date: input.release_date }),
-            })
-            .eq('id', id)
-        if (error) return { success: false, error: error.message }
+                ...(input.release_date && { release_date: new Date(input.release_date) }),
+            }
+        })
         return { success: true, error: null }
     } catch (err: any) {
         return { success: false, error: err.message }
@@ -93,12 +113,10 @@ export async function updateChangelogVersion(
 
 export async function deleteChangelogVersion(id: string) {
     try {
-        const supabase = await verifyAdmin()
-        const { error } = await supabase
-            .from('changelog_versions')
-            .delete()
-            .eq('id', id)
-        if (error) return { success: false, error: error.message }
+        await verifyAdmin()
+        await prisma.changelog_versions.delete({
+            where: { id }
+        })
         return { success: true, error: null }
     } catch (err: any) {
         return { success: false, error: err.message }
@@ -109,24 +127,30 @@ export async function deleteChangelogVersion(id: string) {
 
 export async function getVersionWithItems(versionId: string) {
     try {
-        const supabase = await verifyAdmin()
-        const { data, error } = await supabase
-            .from('changelog_versions')
-            .select('*, changelog_items(*)')
-            .eq('id', versionId)
-            .single()
-        if (error) return { data: null, error: error.message }
-        const sorted = {
+        await verifyAdmin()
+        const data = await prisma.changelog_versions.findUnique({
+            where: { id: versionId },
+            include: {
+                items: {
+                    orderBy: {
+                        sort_order: 'asc'
+                    }
+                }
+            }
+        })
+        if (!data) return { data: null, error: 'Version not found' }
+        // 映射格式以保持兼容性
+        const mappedData = {
             ...data,
-            changelog_items: (data.changelog_items ?? []).sort(
-                (a: any, b: any) => a.sort_order - b.sort_order
-            ),
+            changelog_items: data.items
         }
-        return { data: sorted, error: null }
+        return { data: mappedData, error: null }
     } catch (err: any) {
         return { data: null, error: err.message }
     }
 }
+
+export type ChangelogItem = NonNullable<NonNullable<Awaited<ReturnType<typeof getVersionWithItems>>['data']>['changelog_items']>[0]
 
 export async function createChangelogItem(input: {
     version_id: string
@@ -135,14 +159,15 @@ export async function createChangelogItem(input: {
     sort_order?: number
 }) {
     try {
-        const supabase = await verifyAdmin()
-        const { error } = await supabase.from('changelog_items').insert({
-            version_id: input.version_id,
-            tag:        input.tag,
-            content:    input.content.trim(),
-            sort_order: input.sort_order ?? 0,
+        await verifyAdmin()
+        await prisma.changelog_items.create({
+            data: {
+                version_id: input.version_id,
+                tag:        input.tag,
+                content:    input.content.trim(),
+                sort_order: input.sort_order ?? 0,
+            }
         })
-        if (error) return { success: false, error: error.message }
         return { success: true, error: null }
     } catch (err: any) {
         return { success: false, error: err.message }
@@ -154,12 +179,11 @@ export async function updateChangelogItem(
     input: { tag?: string; content?: string; sort_order?: number }
 ) {
     try {
-        const supabase = await verifyAdmin()
-        const { error } = await supabase
-            .from('changelog_items')
-            .update(input)
-            .eq('id', id)
-        if (error) return { success: false, error: error.message }
+        await verifyAdmin()
+        await prisma.changelog_items.update({
+            where: { id },
+            data: input
+        })
         return { success: true, error: null }
     } catch (err: any) {
         return { success: false, error: err.message }
@@ -168,44 +192,41 @@ export async function updateChangelogItem(
 
 export async function deleteChangelogItem(id: string) {
     try {
-        const supabase = await verifyAdmin()
-        const { error } = await supabase
-            .from('changelog_items')
-            .delete()
-            .eq('id', id)
-        if (error) return { success: false, error: error.message }
+        await verifyAdmin()
+        await prisma.changelog_items.delete({
+            where: { id }
+        })
         return { success: true, error: null }
     } catch (err: any) {
         return { success: false, error: err.message }
     }
 }
-// 追加到文件末尾
+
 export async function publishVersion(id: string) {
     try {
-        const supabase = await verifyAdmin()
-        const { data, error } = await supabase
-            .from('changelog_versions')
-            .update({ published_at: new Date().toISOString() })
-            .eq('id', id)
-            .select('version, title')
-            .single()
-
-        if (error) return { success: false, error: error.message }
+        await verifyAdmin()
+        const data = await prisma.changelog_versions.update({
+            where: { id },
+            data: { published_at: new Date() },
+            select: { version: true }
+        })
         return { success: true, error: null, version: data.version }
     } catch (err: any) {
         return { success: false, error: err.message }
     }
 }
 
-// 拖拽排序后批量更新 sort_order
 export async function batchUpdateSortOrders(
     updates: { id: string; sort_order: number }[]
 ) {
     try {
-        const supabase = await verifyAdmin()
+        await verifyAdmin()
         await Promise.all(
             updates.map(({ id, sort_order }) =>
-                supabase.from('changelog_items').update({ sort_order }).eq('id', id)
+                prisma.changelog_items.update({
+                    where: { id },
+                    data: { sort_order }
+                })
             )
         )
         return { success: true, error: null }
@@ -222,18 +243,15 @@ export async function createChangelogItemWithReturn(input: {
     sort_order?: number
 }) {
     try {
-        const supabase = await verifyAdmin()
-        const { data, error } = await supabase
-            .from('changelog_items')
-            .insert({
+        await verifyAdmin()
+        const data = await prisma.changelog_items.create({
+            data: {
                 version_id: input.version_id,
                 tag:        input.tag,
                 content:    input.content.trim(),
                 sort_order: input.sort_order ?? 0,
-            })
-            .select()
-            .single()
-        if (error || !data) return { data: null, error: error?.message ?? 'Insert failed' }
+            }
+        })
         return { data, error: null }
     } catch (err: any) {
         return { data: null, error: err.message }

@@ -5,6 +5,10 @@ const { PrismaClient: PrismaClientValue } = pkg as any;
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient }
 
-export const prisma = globalForPrisma.prisma || new PrismaClientValue();
+const basePrisma = globalForPrisma.prisma || new PrismaClientValue();
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+export const prisma = basePrisma.$extends({});
+
+export type ExtendedPrismaClient = typeof prisma;
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = basePrisma;

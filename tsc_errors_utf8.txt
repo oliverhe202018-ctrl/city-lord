@@ -1,0 +1,30 @@
+﻿app/actions/admin/get-feedback.ts(54,13): error TS2589: Type instantiation is excessively deep and possibly infinite.
+app/actions/admin/get-feedback.ts(55,23): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "_prisma_migrations" | "_territories_backup_20260301" | "activity_comments" | "profiles" | "activity_likes" | "admin_logs" | "app_admins" | "backgrounds" | "badges" | ... 56 more ... | "worker_cursors"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"feedback"' is not assignable to parameter of type '"_prisma_migrations" | "_territories_backup_20260301" | "activity_comments" | "profiles" | "activity_likes" | "admin_logs" | "app_admins" | "backgrounds" | "badges" | "blocked_users" | ... 55 more ... | "worker_cursors"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.1"; }, { Tables: { _prisma_migrations: { Row: { applied_steps_count: number; checksum: string; finished_at: string | null; id: string; logs: string | null; migration_name: string; rolled_back_at: string | null; started_at: string; }; Insert: { ...; }; Update: { ...; }; Relationships: []; }; ... 64 more ...; worker_cursors: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"feedback"' is not assignable to parameter of type 'never'.
+app/actions/auth-check.ts(27,11): error TS2345: Argument of type '"email"' is not assignable to parameter of type '"badges" | "level" | "id" | "created_at" | "province" | "total_area" | "avatar_url" | "club_id" | "invited_by" | "referrer_id" | "updated_at" | "allow_direct_messages" | "allow_recommendations" | ... 18 more ... | "xp"'.
+app/actions/changelog/get-changelogs.ts(89,17): error TS2345: Argument of type '"version"' is not assignable to parameter of type 'never'.
+app/actions/changelog/unread-actions.ts(35,21): error TS2345: Argument of type '"user_id"' is not assignable to parameter of type 'never'.
+app/admin/changelog/[versionId]/edit/page.tsx(15,31): error TS2322: Type '{ changelog_items: { id: string; created_at: Date; sort_order: number; version_id: string; tag: string; content: string; }[]; items: { id: string; created_at: Date; sort_order: number; version_id: string; tag: string; content: string; }[]; ... 7 more ...; published_at: Date | null; }' is not assignable to type 'VersionData'.
+  Types of property 'release_date' are incompatible.
+    Type 'Date' is not assignable to type 'string'.
+app/admin/changelog/page.tsx(15,39): error TS2322: Type '{ changelog_items: { count: number; }[]; id: string; version: string; title: string | null; is_latest: boolean; release_date: Date; published_at: Date | null; _count: { items: number; }; }[]' is not assignable to type 'ChangelogVersion[]'.
+  Type '{ changelog_items: { count: number; }[]; id: string; version: string; title: string | null; is_latest: boolean; release_date: Date; published_at: Date | null; _count: { items: number; }; }' is not assignable to type 'ChangelogVersion'.
+    Types of property 'release_date' are incompatible.
+      Type 'Date' is not assignable to type 'string'.
+lib/territory/settlement.ts(115,58): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(arg: PrismaPromise<any>[], options?: { isolationLevel?: TransactionIsolationLevel | undefined; } | undefined): Promise<any[]>', gave the following error.
+    Argument of type '(tx: Prisma.TransactionClient) => Promise<SettlementResult>' is not assignable to parameter of type 'PrismaPromise<any>[]'.
+  Overload 2 of 2, '(fn: (client: Omit<DynamicClientExtensionThis<TypeMap<InternalArgs & { result: {}; model: {}; query: {}; client: {}; }, PrismaClientOptions>, TypeMapCb, { result: {}; model: {}; query: {}; client: {}; }, {}>, "$extends" | ... 4 more ... | "$use">) => Promise<...>, options?: { ...; } | undefined): Promise<...>', gave the following error.
+    Argument of type '(tx: Prisma.TransactionClient) => Promise<SettlementResult>' is not assignable to parameter of type '(client: Omit<DynamicClientExtensionThis<TypeMap<InternalArgs & { result: {}; model: {}; query: {}; client: {}; }, PrismaClientOptions>, TypeMapCb, { result: {}; model: {}; query: {}; client: {}; }, {}>, "$extends" | ... 4 more ... | "$use">) => Promise<...>'.
+      Types of parameters 'tx' and 'client' are incompatible.
+        Type 'Omit<DynamicClientExtensionThis<TypeMap<InternalArgs & { result: {}; model: {}; query: {}; client: {}; }, PrismaClientOptions>, TypeMapCb, { result: {}; model: {}; query: {}; client: {}; }, {}>, "$extends" | ... 4 more ... | "$use">' is not assignable to type 'TransactionClient'.
+          The types of 'profiles.findUnique' are incompatible between these types.
+            Type '<A extends profilesFindUniqueArgs<InternalArgs & { result: {}; model: {}; query: {}; client: {}; }>>(args: Exact<A, profilesFindUniqueArgs<InternalArgs & { result: {}; model: {}; query: {}; client: {}; }>>) => DynamicModelExtensionFluentApi<...> & PrismaPromise<...>' is not assignable to type '<T extends profilesFindUniqueArgs>(args: SelectSubset<T, profilesFindUniqueArgs<DefaultArgs>>) => Prisma__profilesClient<GetFindResult<$profilesPayload<DefaultArgs>, T, {}> | null, null, DefaultArgs>'.
+              Types of parameters 'args' and 'args' are incompatible.
+                Type 'SelectSubset<T, profilesFindUniqueArgs<DefaultArgs>>' is not assignable to type 'Exact<T, profilesFindUniqueArgs<InternalArgs & { result: {}; model: {}; query: {}; client: {}; }>>'.
+                  Type 'SelectSubset<T, profilesFindUniqueArgs<DefaultArgs>>' is not assignable to type 'T extends Narrowable ? T : never'.
+lib/territory/settlement.ts(557,5): error TS2740: Type 'any[]' is missing the following properties from type 'SettlementResult': success, createdTerritories, reinforcedTerritories, damagedTerritories, and 3 more.
+

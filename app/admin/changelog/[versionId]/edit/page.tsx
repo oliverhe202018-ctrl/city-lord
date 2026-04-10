@@ -12,5 +12,11 @@ export default async function AdminChangelogEditPage({
 
     if (error || !data) redirect('/admin/changelog')
 
-    return <AdminVisualEditor initialData={data} />
+    const initialData = {
+        ...data,
+        release_date: data.release_date instanceof Date ? data.release_date.toISOString() : data.release_date
+    }
+
+    return <AdminVisualEditor initialData={initialData as any} />
+
 }

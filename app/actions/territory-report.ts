@@ -15,6 +15,7 @@ export type SubmitReportParams = z.infer<typeof reportSchema>
 export async function submitTerritoryReport(params: SubmitReportParams) {
     try {
         const supabase = await createClient()
+        const { prisma } = await import('@/lib/prisma')
 
         // 1. Check auth
         const { data: { user } } = await supabase.auth.getUser()
@@ -30,43 +31,34 @@ export async function submitTerritoryReport(params: SubmitReportParams) {
         }
 
         // 3. Application-level deduplication: 1/user/territory/30s
-        const thirtySecsAgo = new Date(Date.now() - 30 * 1000).toISOString()
-        const { data: recentReport, error: checkError } = await supabase
-// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
-            .from('territory_reports')
-            .select('id')
-            .eq('reporter_id', user.id)
-            .eq('territory_id', validated.territoryId)
-            .gte('created_at', thirtySecsAgo)
-            .limit(1)
-            .maybeSingle()
-
-        if (checkError) {
-            console.error('Failed to check recent reports:', checkError)
-            return { success: false, error: '服务器错误，请稍后重试' }
-        }
+        const thirtySecsAgo = new Date(Date.now() - 30 * 1000)
+        const recentReport = await prisma.territory_reports.findFirst({
+            where: {
+                reporter_id: user.id,
+                territory_id: validated.territoryId,
+                created_at: { gte: thirtySecsAgo }
+            },
+            select: { id: true }
+        })
 
         if (recentReport) {
             return { success: false, error: '提交过于频繁，请稍后再试' }
         }
 
         // 4. Insert report
-        // The database partial unique index will catch if there is already a PENDING report
-        const { error: insertError } = await supabase
-// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
-            .from('territory_reports')
-            .insert({
-// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
-                reporter_id: user.id,
-                territory_id: validated.territoryId,
-                reported_user_id: validated.reportedUserId,
-                reason: validated.reason,
-                snapshot: validated.snapshot
+        try {
+            await prisma.territory_reports.create({
+                data: {
+                    reporter_id: user.id,
+                    territory_id: validated.territoryId,
+                    reported_user_id: validated.reportedUserId,
+                    reason: validated.reason,
+                    snapshot: validated.snapshot ? JSON.stringify(validated.snapshot) : undefined
+                }
             })
-
-        if (insertError) {
-            // 23505 is PostgreSQL unique violation error code
-            if (insertError.code === '23505') {
+        } catch (insertError: any) {
+            // Prisma error codes: P2002 is unique violation
+            if (insertError.code === 'P2002') {
                 return { success: false, error: '您已举报过该领地，我们正在处理中' }
             }
             console.error('Failed to insert territory report:', insertError)

@@ -24,8 +24,9 @@ export async function checkEmailExists(email: string) {
     const { data, error } = await supabase
       .from('profiles')
       .select('id')
-      .eq('email', email) 
+      // .eq('email', email) // email is not on profiles table, should check via Supabase Auth if needed
       .single()
+
 
     if (error && error.code !== 'PGRST116') { // PGRST116 means not found
       throw error

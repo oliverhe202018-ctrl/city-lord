@@ -11,11 +11,10 @@ export default defineConfig({
       ".prisma/client",
       ".prisma/client/default"
     ],
-  },
-  build: {
     extensions: [
       prismaExtension({
-        schema: "prisma/schema.prisma", // 确认这是你 schema 文件的绝对正确路径
+        schema: "prisma/schema.prisma", 
+        mode: "legacy",
       }),
     ],
   },

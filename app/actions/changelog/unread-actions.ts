@@ -20,42 +20,40 @@ export async function getUnreadVersions(): Promise<{
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return { data: [], error: null, userId: null }
 
+        const { prisma } = await import('@/lib/prisma')
+
         // 并行查询：所有已发布版本 + 该用户已读记录
-        const [versionsRes, readsRes] = await Promise.all([
-            supabase
-// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
-                .from('changelog_versions')
-                .select('id, version, title, is_latest, published_at, changelog_items(content, sort_order, tag)')
-                .not('published_at', 'is', null)
-                .order('published_at', { ascending: false }),
-            supabase
-// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
-                .from('user_changelog_reads')
-                .select('version_id')
-                .eq('user_id', user.id),
+        const [versions, reads] = await Promise.all([
+            prisma.changelog_versions.findMany({
+                where: { published_at: { not: null } },
+                include: { items: { select: { content: true, sort_order: true } } },
+                orderBy: { published_at: 'desc' }
+            }),
+            prisma.user_changelog_reads.findMany({
+                where: { user_id: user.id },
+                select: { version_id: true }
+            })
         ])
 
-        if (versionsRes.error) return { data: null, error: versionsRes.error.message, userId: user.id }
-
-        const readSet = new Set((readsRes.data ?? []).map((r: any) => r.version_id))
-        const unread = (versionsRes.data ?? [])
-            .filter((v: any) => !readSet.has(v.id))
-            .map((v: any) => {
-                const items = (v.changelog_items ?? [])
-                    .sort((a: any, b: any) => a.sort_order - b.sort_order)
+        const readSet = new Set(reads.map((r) => r.version_id))
+        const unread = versions
+            .filter((v) => !readSet.has(v.id))
+            .map((v) => {
+                const previewItems = v.items
+                    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
                     .slice(0, 3)
-                    .map((i: any) => i.content)
+                    .map((i) => i.content)
                 return {
                     id:            v.id,
                     version:       v.version,
                     title:         v.title,
                     is_latest:     v.is_latest,
-                    published_at:  v.published_at,
-                    item_previews: items,
+                    published_at:  v.published_at?.toISOString() ?? '',
+                    item_previews: previewItems,
                 }
             })
 
-        return { data: unread, error: null, userId: user.id }
+        return { data: unread as UnreadVersion[], error: null, userId: user.id }
     } catch (err: any) {
         return { data: null, error: err.message, userId: null }
     }
@@ -70,20 +68,20 @@ export async function markVersionsAsRead(versionIds: string[]): Promise<void> {
     if (versionIds.length === 0) return
     try {
         const supabase = await createClient()
+        const { prisma } = await import('@/lib/prisma')
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
 
-        const rows = versionIds.map(version_id => ({
-            user_id: user.id,
-            version_id,
-        }))
-
-        // upsert 避免唯一约束冲突
-        await supabase
-// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
-            .from('user_changelog_reads')
-            .upsert(rows, { onConflict: 'user_id,version_id', ignoreDuplicates: true })
-    } catch {
+        // 批量写入已读记录
+        await prisma.user_changelog_reads.createMany({
+            data: versionIds.map(version_id => ({
+                user_id: user.id,
+                version_id,
+            })),
+            skipDuplicates: true
+        })
+    } catch (err) {
+        console.error('Mark versions as read error:', err)
         // 标记已读失败不影响用户体验，静默处理
     }
 }

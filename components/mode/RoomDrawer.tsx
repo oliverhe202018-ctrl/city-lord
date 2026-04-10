@@ -16,6 +16,8 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import type { Room } from '@/app/actions/room';
+import { fetchRoomTerritoryEvents } from '@/app/actions/room';
+import type { RoomTerritoryEvent } from '@/app/actions/room';
 import { toast } from 'sonner';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -126,7 +128,7 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
   const [isStatsOpen, setIsStatsOpen] = React.useState(false);
 
   // Territory Events State
-  const [territoryEvents, setTerritoryEvents] = React.useState<any[]>([]);
+  const [territoryEvents, setTerritoryEvents] = React.useState<RoomTerritoryEvent[]>([]);
   const [isLoadingEvents, setIsLoadingEvents] = React.useState(false);
 
   // Create Form State
@@ -265,25 +267,8 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
       setIsLoadingEvents(true);
       const fetchEvents = async () => {
         try {
-          const supabase = createClient();
           const participantIds = participants.map(p => p.id);
-          const { data, error } = await supabase
-// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
-            .from('run_records')
-            .select(`
-              id,
-              user_id,
-              start_time,
-              end_time,
-              distance,
-              area,
-              region,
-              points
-            `)
-            .in('user_id', participantIds)
-            .eq('is_valid', true)
-            .order('end_time', { ascending: false })
-            .limit(20);
+          const { data, error } = await fetchRoomTerritoryEvents(participantIds);
 
           if (!error && data) {
             setTerritoryEvents(data);
@@ -713,21 +698,28 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
                           // Data Mapping
                           const events = territoryEvents.map(record => {
                             const user = participants.find(p => p.id === record.user_id) || { nickname: 'Unknown', avatar: null };
-                            const dateObj = new Date(record.end_time);
+                            const dateObj = record.end_time ? new Date(record.end_time) : null;
 
                             // format time as HH:MM
-                            const time = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                            const time = dateObj 
+                              ? dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                              : '进行中';
 
                             // format date as Today, Yesterday, or YYYY-MM-DD
-                            const today = new Date();
-                            const yesterday = new Date(today);
-                            yesterday.setDate(yesterday.getDate() - 1);
+                            let dateStr = '未知日期';
+                            if (dateObj) {
+                              const today = new Date();
+                              const yesterday = new Date(today);
+                              yesterday.setDate(yesterday.getDate() - 1);
 
-                            let dateStr = dateObj.toLocaleDateString();
-                            if (dateObj.toDateString() === today.toDateString()) {
-                              dateStr = '今天';
-                            } else if (dateObj.toDateString() === yesterday.toDateString()) {
-                              dateStr = '昨天';
+                              dateStr = dateObj.toLocaleDateString();
+                              if (dateObj.toDateString() === today.toDateString()) {
+                                dateStr = '今天';
+                              } else if (dateObj.toDateString() === yesterday.toDateString()) {
+                                dateStr = '昨天';
+                              }
+                            } else {
+                              dateStr = '正在进行';
                             }
 
                             return {
@@ -736,10 +728,11 @@ export function RoomDrawer({ isOpen, onClose }: RoomDrawerProps) {
                               time,
                               date: dateStr,
                               distance: record.distance,
-                              location: record.region?.city || record.region?.county || '未知区域',
+                              location: record.region || '未知区域',
                               thumbnail: null
                             };
                           });
+
 
                           // Grouping
                           const groups = events.reduce((acc, event) => {
