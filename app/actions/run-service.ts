@@ -258,8 +258,6 @@ export async function saveRunActivity(
                     const unkinked = turfUnkinkPolygon(rawPoly);
                     
                     // 任务二 (GIS 溢出修复): 双重硬性拦截——等周率 + 绝对面积上限
-                    // 真实 GPS 锯齿轨迹 isoRatio 通常在 0.001~0.01 之间，0.003 仅过滤绝对异常的细线/噪点
-                    // MAX_TERRITORY_AREA_M2 切断由直连线产生的伪闭合超大框
                     const MIN_ISO_RATIO = 0.003;
                     const MAX_TERRITORY_AREA_M2 = 200_000;
                     return unkinked.features
@@ -344,7 +342,7 @@ export async function saveRunActivity(
                                 const perimeterM = turfLength(f) * 1000;
                                 if (perimeterM > 0) {
                                     const isoRatio = (4 * Math.PI * area) / (perimeterM * perimeterM);
-                                    if (isoRatio < 0.003) return; // 与 MIN_ISO_RATIO 保持一致
+                                    if (isoRatio < 0.003) return;
                                 }
                             } catch { /* 无法计算时保留 */ }
                             validPolys.push(f as Feature<Polygon>);

@@ -1,5 +1,4 @@
 import type { Feature, Polygon, MultiPolygon, Geometry, FeatureCollection } from 'geojson';
-import { polygon as turfPolygon, unkinkPolygon as turfUnkinkPolygon } from '@turf/turf';
 
 /**
  * Helper to normalize and validate a single ring (array of points).
@@ -58,18 +57,10 @@ export function extractPaths(
       const coords = (geo as Polygon).coordinates;
       if (!coords || coords.length === 0) break;
 
-      try {
-        // ✅ 防卫性客户端 unkink — 解决存储时未 unkink 的自交多边形导致的蜘蛛网渲染
-        const rawPoly = turfPolygon(coords);
-        const unkinked = turfUnkinkPolygon(rawPoly);
-        for (const f of unkinked.features) {
-          const ring = toRing(f.geometry.coordinates[0]);
-          if (ring.length >= 3) paths.push(ring);
-        }
-      } catch {
-        // 降级：直接取外环
-        const ring = toRing(coords[0]);
-        if (ring.length >= 3) paths.push(ring);
+      // Extract exterior ring (index 0) and filter out malformed coordinates
+      const ring = toRing(coords[0]);
+      if (ring.length >= 3) {
+        paths.push(ring);
       }
       break;
     }

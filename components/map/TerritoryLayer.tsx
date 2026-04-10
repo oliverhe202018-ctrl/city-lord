@@ -13,7 +13,58 @@ import type { ViewportKingData } from "./AMapView";
 import * as turf from '@turf/turf';
 import debounce from 'lodash.debounce';
 import { useGameStore, useGameTerritoryAppearance } from "@/store/useGameStore";
-import { extractPaths } from "@/lib/geo/extractPaths";
+// Anchor A: Internal GeoJSON to AMap path extraction with MultiPolygon and Holes support
+type AMapRing = [number, number][];
+type AMapPolygonPath = AMapRing[];
+type AMapMultiPolygonPath = AMapPolygonPath[];
+
+const toRing = (ring: any[]): AMapRing =>
+  ring
+    .map((pt: any) => {
+      if (Array.isArray(pt)) return [Number(pt[0]), Number(pt[1])] as [number, number];
+      if (pt?.lng !== undefined && pt?.lat !== undefined) return [Number(pt.lng), Number(pt.lat)] as [number, number];
+      return null;
+    })
+    .filter((pt): pt is [number, number] => pt !== null && !isNaN(pt[0]) && !isNaN(pt[1]));
+
+const closeRing = (ring: AMapRing): AMapRing => {
+  if (ring.length < 3) return ring;
+  const [sx, sy] = ring[0];
+  const [ex, ey] = ring[ring.length - 1];
+  return sx === ex && sy === ey ? ring : [...ring, ring[0]];
+};
+
+const normalizePolygonPath = (rings: any[]): AMapPolygonPath => {
+  if (!Array.isArray(rings)) return [];
+  return rings
+    .map((ring) => closeRing(toRing(ring)))
+    .filter((ring) => ring.length >= 4);
+};
+
+const extractAmapPolygonPaths = (input: any): AMapMultiPolygonPath => {
+  if (!input) return [];
+
+  if (input.type === 'Feature') {
+    return extractAmapPolygonPaths(input.geometry);
+  }
+
+  if (input.type === 'FeatureCollection') {
+    return (input.features || []).flatMap((f: any) => extractAmapPolygonPaths(f));
+  }
+
+  if (input.type === 'Polygon') {
+    const polygon = normalizePolygonPath(input.coordinates);
+    return polygon.length > 0 ? [polygon] : [];
+  }
+
+  if (input.type === 'MultiPolygon') {
+    return (input.coordinates || [])
+      .map((polygonRings: any[]) => normalizePolygonPath(polygonRings))
+      .filter((polygon: AMapPolygonPath) => polygon.length > 0);
+  }
+
+  return [];
+};
 
 /** Club mode palette: own club vs enemy club */
 const CLUB_COLORS = {
@@ -117,7 +168,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
 
   // Track polygon 鈫?territory mapping for highlight updates
   const polygonTerritoryMap = useRef<Map<any, { territory: ExtTerritory; defaultStrokeColor: string; path: [number, number][] }>>(new Map());
-  const unionGeometryCache = useRef<Map<string, { hash: string; paths: [number, number][][]; markerPos: [number, number] | null }>>(new Map());
+  const unionGeometryCache = useRef<Map<string, { hash: string; paths: AMapMultiPolygonPath; markerPos: [number, number] | null }>>(new Map());
 
   // 鐢ㄤ簬 hover handler 涓幏鍙栨渶鏂扮殑 selectedTerritory锛岄伩鍏?stale closure
   const selectedTerritoryRef = useRef<ExtTerritory | null | undefined>(selectedTerritory);
@@ -465,7 +516,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
 
         // --- POLYGON UNION ALGORITHM & GEOMETRY CACHING FOR CLUB MODE ---
 
-        const renderItems: { territory: ExtTerritory; paths: [number, number][][]; isClubMerged: boolean; markerPos?: [number, number] | null }[] = [];
+        const renderItems: { territory: ExtTerritory; paths: AMapMultiPolygonPath; isClubMerged: boolean; markerPos?: [number, number] | null }[] = [];
         data.forEach(t => newCellMap.set(t.id, t));
 
         if (kingdomMode === 'club') {
@@ -475,7 +526,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
               if (!clubGroups.has(t.ownerClubId)) clubGroups.set(t.ownerClubId, []);
               clubGroups.get(t.ownerClubId)!.push(t);
             } else {
-              renderItems.push({ territory: t, paths: extractPaths(t.geojson_json), isClubMerged: false });
+              renderItems.push({ territory: t, paths: extractAmapPolygonPaths(t.geojson_json), isClubMerged: false });
             }
           }
 
@@ -485,33 +536,30 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
             if (!cached || cached.hash !== hash) {
               let mergedFeat: any = null;
               for (const t of group) {
-                const paths = extractPaths(t.geojson_json);
-                paths.forEach(p => {
+                const paths = extractAmapPolygonPaths(t.geojson_json);
+                paths.forEach(polygon => { // polygon is AMapPolygonPath (array of rings)
                   try {
-                    const ring = p[0][0] === p[p.length - 1][0] && p[0][1] === p[p.length - 1][1] ? p : [...p, p[0]];
-                    const poly = turf.cleanCoords(turf.polygon([ring]));
+                    // Turf union expects Features. Convert rings to turf polygons.
+                    const poly = turf.cleanCoords(turf.polygon(polygon));
                     if (!mergedFeat) {
                       mergedFeat = poly;
                     } else {
                       try { mergedFeat = turf.union(turf.featureCollection([mergedFeat, poly])); }
                       catch (e) {
                         try { mergedFeat = (turf as any).union(mergedFeat, poly); } catch (e) {
-                          renderItems.push({ territory: t, paths: [p], isClubMerged: false });
+                          renderItems.push({ territory: t, paths: [polygon], isClubMerged: false });
                         }
                       }
                     }
                   } catch (e) {
-                    renderItems.push({ territory: t, paths: [p], isClubMerged: false });
+                    renderItems.push({ territory: t, paths: [polygon], isClubMerged: false });
                   }
                 });
               }
-              const mergedPaths: [number, number][][] = [];
-              if (mergedFeat?.geometry) {
-                if (mergedFeat.geometry.type === 'Polygon') mergedPaths.push(mergedFeat.geometry.coordinates[0]);
-                else if (mergedFeat.geometry.type === 'MultiPolygon') {
-                  mergedFeat.geometry.coordinates.forEach((p: any) => p?.[0] && mergedPaths.push(p[0]));
-                }
-              }
+              
+              const mergedPaths: AMapMultiPolygonPath = 
+                mergedFeat?.geometry ? extractAmapPolygonPaths(mergedFeat) : [];
+
               let markerPos: [number, number] | null = null;
               try {
                 if (mergedFeat) {
@@ -522,65 +570,71 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
               cached = { hash, paths: mergedPaths, markerPos };
               unionGeometryCache.current.set(clubId, cached);
             }
-            if (cached.paths.length > 0) {
-              renderItems.push({ territory: group[0], paths: cached.paths, isClubMerged: true, markerPos: cached.markerPos });
+            const cacheEntry = unionGeometryCache.current.get(clubId);
+            if (cacheEntry && cacheEntry.paths.length > 0) {
+              renderItems.push({ territory: group[0], paths: cacheEntry.paths, isClubMerged: true, markerPos: cacheEntry.markerPos });
             }
           });
         } else {
-          data.forEach(t => renderItems.push({ territory: t, paths: extractPaths(t.geojson_json), isClubMerged: false }));
+          data.forEach(t => renderItems.push({ territory: t, paths: extractAmapPolygonPaths(t.geojson_json), isClubMerged: false }));
         }
 
         const createdPolygons = renderItems.map(({ territory, paths, isClubMerged, markerPos: precalcMarkerPos }) => {
           const validPaths = paths;
           if (validPaths.length === 0) return null;
-          const primaryPath = validPaths[0];
+
+          const primaryPolygon = validPaths[0];
+          const primaryOuterRing = primaryPolygon?.[0];
+          if (!primaryOuterRing || primaryOuterRing.length < 4) return null;
 
           const presentation = buildPolygonPresentation(territory);
-          const territoryPolygons = validPaths.map((path) => {
-            if (territory.ownerId) {
-              const bounds = computePathBounds(path);
-              const ring = path[0][0] === path[path.length - 1][0] && path[0][1] === path[path.length - 1][1] ? path : [...path, path[0]];
+
+          if (territory.ownerId) {
+            validPaths.forEach((polygonRings) => {
+              const outerRing = polygonRings[0];
+              if (!outerRing || outerRing.length < 4) return;
+
+              const bounds = computePathBounds(outerRing);
               territoryMetrics.push({
-                ownerId: territory.ownerId,
-                feature: turf.polygon([ring]),
+                ownerId: territory.ownerId as string,
+                feature: turf.polygon(polygonRings),
                 ...bounds,
               });
-            }
-
-            const polygon = new (window as any).AMap.Polygon({
-              path: path,
-              fillColor: safeColor(presentation.fillColor, DEFAULT_FILL),
-              fillOpacity: presentation.fillOpacity,
-              strokeColor: safeColor(presentation.strokeColor, DEFAULT_STROKE),
-              strokeWeight: presentation.strokeWeight,
-              zIndex: 50,
-              extData: territory,
-              bubble: false,
             });
+          }
 
-            newPolygonMap.set(polygon, { territory, defaultStrokeColor: presentation.strokeColor, path });
-
-            polygon.on("click", () => {
-              (window as any).__amap_polygon_clicked = Date.now();
-              // 1. Set territory ID in Zustand store (triggers react-query prefetch in DetailSheet)
-              setSelectedTerritoryId(territory.id);
-              // 2. Set shallow territory data in MapInteraction context
-              if (setSelectedTerritory) setSelectedTerritory(territory);
-              // 3. CRITICAL: Explicitly open the detail sheet bottom panel
-              if (setIsDetailSheetOpen) setIsDetailSheetOpen(true);
-            });
-
-            if (!isClubMerged) {
-              polygon.on("mouseover", () => {
-                if (selectedTerritoryRef.current?.id !== territory.id) polygon.setOptions({ strokeWeight: 3 });
-              });
-              polygon.on("mouseout", () => {
-                if (selectedTerritoryRef.current?.id !== territory.id) polygon.setOptions({ strokeWeight: 2 });
-              });
-            }
-
-            return polygon;
+          const polygon = new (window as any).AMap.Polygon({
+            path: validPaths, // MultiPolygon / holes => 3D path
+            fillColor: safeColor(presentation.fillColor, DEFAULT_FILL),
+            fillOpacity: presentation.fillOpacity,
+            strokeColor: safeColor(presentation.strokeColor, DEFAULT_STROKE),
+            strokeWeight: presentation.strokeWeight,
+            zIndex: 50,
+            extData: territory,
+            bubble: false,
           });
+
+          newPolygonMap.set(polygon, {
+            territory,
+            defaultStrokeColor: presentation.strokeColor,
+            path: primaryOuterRing,
+          });
+
+          polygon.on("click", () => {
+            (window as any).__amap_polygon_clicked = Date.now();
+            setSelectedTerritoryId(territory.id);
+            if (setSelectedTerritory) setSelectedTerritory(territory);
+            if (setIsDetailSheetOpen) setIsDetailSheetOpen(true);
+          });
+
+          if (!isClubMerged) {
+            polygon.on("mouseover", () => {
+              if (selectedTerritoryRef.current?.id !== territory.id) polygon.setOptions({ strokeWeight: 3 });
+            });
+            polygon.on("mouseout", () => {
+              if (selectedTerritoryRef.current?.id !== territory.id) polygon.setOptions({ strokeWeight: 2 });
+            });
+          }
 
           let marker = null;
           if (territory.ownerId) {
@@ -589,15 +643,13 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
               markerPosition = precalcMarkerPos;
             } else {
               try {
-                const coords = primaryPath.map((p: any) => [p[0], p[1]]);
-                if (coords.length > 0 && (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1])) {
-                  coords.push(coords[0]);
-                }
-                const poly = turf.polygon([coords]);
+                const poly = validPaths.length === 1
+                  ? turf.polygon(validPaths[0])
+                  : turf.multiPolygon(validPaths);
                 const pt = turf.pointOnFeature(poly);
                 markerPosition = pt.geometry.coordinates as [number, number];
               } catch {
-                const center = territoryPolygons[0].getBounds().getCenter();
+                const center = polygon.getBounds().getCenter();
                 markerPosition = [center.getLng(), center.getLat()];
               }
             }
@@ -643,7 +695,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
             });
           }
 
-          return { polygons: territoryPolygons, marker };
+          return { polygons: [polygon], marker };
         });
 
         polygonTerritoryMap.current = newPolygonMap;

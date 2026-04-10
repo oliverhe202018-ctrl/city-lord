@@ -30,11 +30,11 @@ export async function fetchTerritories(cityId: string, bounds?: { minLng: number
       const { data, error } = await supabaseAdmin
         .from('territories')
         .select(`
-          id, city_id, owner_id, owner_club_id, owner_faction, 
+          id, city_id, owner_id, owner_club_id, owner_faction,
           captured_at, health, last_maintained_at, owner_change_count, last_owner_change_at,
           geojson_json,
           clubs ( id, name, logo_url ),
-          profiles!owner_id (
+          profiles!territories_owner_id_fkey (
             faction_id,
             factions ( id, name, color )
           )
@@ -51,21 +51,27 @@ export async function fetchTerritories(cityId: string, bounds?: { minLng: number
     } else {
       terrData = await prisma.$queryRaw<any[]>`
         SELECT 
-          t.id, t.city_id, t.owner_id, t.owner_club_id, t.owner_faction, 
+          t.id, t.city_id, t.owner_id, t.owner_club_id, t.owner_faction,
           t.captured_at, t.health, t.last_maintained_at, t.owner_change_count, t.last_owner_change_at,
           t.geojson_json,
           CASE 
             WHEN c.id IS NOT NULL THEN json_build_object('id', c.id, 'name', c.name, 'logo_url', c.avatar_url)
-            ELSE NULL 
-          END as clubs,
-          CASE
-            WHEN f.id IS NOT NULL THEN json_build_object('name', f.name, 'color', f.color)
             ELSE NULL
-          END as faction_data
+          END AS clubs,
+          CASE
+            WHEN p.id IS NOT NULL THEN json_build_object(
+              'faction_id', p.faction_id,
+              'factions', CASE
+                WHEN f.id IS NOT NULL THEN json_build_object('id', f.id, 'name', f.name, 'color', f.color)
+                ELSE NULL
+              END
+            )
+            ELSE NULL
+          END AS profiles
         FROM "territories" t
         LEFT JOIN "clubs" c ON t."owner_club_id" = c.id
-        LEFT JOIN "profiles" pr ON t."owner_id" = pr.id
-        LEFT JOIN "factions" f ON pr."faction_id" = f.id
+        LEFT JOIN "profiles" p ON t."owner_id" = p.id
+        LEFT JOIN "factions" f ON p."faction_id" = f.id
         WHERE t."city_id" = ${cityId}
           AND t.status = 'ACTIVE'
           AND ST_Intersects(
@@ -88,16 +94,17 @@ export async function fetchTerritories(cityId: string, bounds?: { minLng: number
       const lastChange = t.last_owner_change_at ? new Date(t.last_owner_change_at) : null
       const isHotZone = changeCount >= 2 && lastChange != null && lastChange >= windowStart
 
+      const profileJoin = Array.isArray(t.profiles) ? t.profiles[0] : t.profiles
+      const factionJoin = Array.isArray(profileJoin?.factions) ? profileJoin?.factions[0] : profileJoin?.factions
+
       return {
         id: t.id,
         cityId: t.city_id,
         ownerId: t.owner_id ?? null,
         ownerType: !t.owner_id ? 'neutral' : (t.owner_id === currentUserId ? 'me' : 'enemy'),
         ownerClubId: t.owner_club_id ?? null,
-        // ✅ ownerFaction: 优先返回从 DB 关联取到的 faction 名称字符串，回退到 owner_faction 字段
-        ownerFaction: t.profiles?.factions?.name ?? t.faction_data?.name ?? t.owner_faction ?? null,
-        // ✅ 新增：直接传递 DB 存储的 hex 色值，避免 TerritoryLayer 依赖字符串关键字匹配
-        ownerFactionColor: t.profiles?.factions?.color ?? t.faction_data?.color ?? null,
+        ownerFaction: factionJoin?.name ?? null,
+        ownerFactionColor: factionJoin?.color ?? null,
         capturedAt: t.captured_at,
         health: t.health ?? 100,
         maxHealth: 100,
