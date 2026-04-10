@@ -33,7 +33,11 @@ export async function fetchTerritories(cityId: string, bounds?: { minLng: number
           id, city_id, owner_id, owner_club_id, owner_faction, 
           captured_at, health, last_maintained_at, owner_change_count, last_owner_change_at,
           geojson_json,
-          clubs ( id, name, logo_url )
+          clubs ( id, name, logo_url ),
+          profiles!owner_id (
+            faction_id,
+            factions ( id, name, color )
+          )
         `)
         .eq('city_id', cityId)
         .eq('status', 'ACTIVE')
@@ -53,9 +57,15 @@ export async function fetchTerritories(cityId: string, bounds?: { minLng: number
           CASE 
             WHEN c.id IS NOT NULL THEN json_build_object('id', c.id, 'name', c.name, 'logo_url', c.avatar_url)
             ELSE NULL 
-          END as clubs
+          END as clubs,
+          CASE
+            WHEN f.id IS NOT NULL THEN json_build_object('name', f.name, 'color', f.color)
+            ELSE NULL
+          END as faction_data
         FROM "territories" t
         LEFT JOIN "clubs" c ON t."owner_club_id" = c.id
+        LEFT JOIN "profiles" pr ON t."owner_id" = pr.id
+        LEFT JOIN "factions" f ON pr."faction_id" = f.id
         WHERE t."city_id" = ${cityId}
           AND t.status = 'ACTIVE'
           AND ST_Intersects(
@@ -84,7 +94,10 @@ export async function fetchTerritories(cityId: string, bounds?: { minLng: number
         ownerId: t.owner_id ?? null,
         ownerType: !t.owner_id ? 'neutral' : (t.owner_id === currentUserId ? 'me' : 'enemy'),
         ownerClubId: t.owner_club_id ?? null,
-        ownerFaction: t.owner_faction ?? null,
+        // ✅ ownerFaction: 优先返回从 DB 关联取到的 faction 名称字符串，回退到 owner_faction 字段
+        ownerFaction: t.profiles?.factions?.name ?? t.faction_data?.name ?? t.owner_faction ?? null,
+        // ✅ 新增：直接传递 DB 存储的 hex 色值，避免 TerritoryLayer 依赖字符串关键字匹配
+        ownerFactionColor: t.profiles?.factions?.color ?? t.faction_data?.color ?? null,
         capturedAt: t.captured_at,
         health: t.health ?? 100,
         maxHealth: 100,

@@ -277,7 +277,10 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
     };
     const style = generateTerritoryStyle(territory, ctx);
     const isFactionColorActive = showFactionColors || viewMode === 'faction';
-    const factionBaseColor = resolveFactionColor(territory.ownerFaction);
+    // ✅ 优先使用 DB 直接存储的 hex 色值，避免依赖字符串关键字匹配（UUID faction_id 等场景下匹配全部失败）
+    const factionBaseColor = territory.ownerFactionColor
+      ? safeColor(territory.ownerFactionColor, resolveFactionColor(territory.ownerFaction))
+      : resolveFactionColor(territory.ownerFaction);
     const factionVisuals = calculateHealthVisuals(
       factionBaseColor,
       territory.health ?? territory.maxHealth ?? 100,
