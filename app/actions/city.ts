@@ -50,11 +50,11 @@ export async function fetchTerritories(cityId: string, bounds?: { minLng: number
       terrData = data || []
     } else {
       terrData = await prisma.$queryRaw<any[]>`
-        SELECT 
+        SELECT
           t.id, t.city_id, t.owner_id, t.owner_club_id, t.owner_faction,
           t.captured_at, t.health, t.last_maintained_at, t.owner_change_count, t.last_owner_change_at,
           t.geojson_json,
-          CASE 
+          CASE
             WHEN c.id IS NOT NULL THEN json_build_object('id', c.id, 'name', c.name, 'logo_url', c.avatar_url)
             ELSE NULL
           END AS clubs,
@@ -95,7 +95,7 @@ export async function fetchTerritories(cityId: string, bounds?: { minLng: number
       const isHotZone = changeCount >= 2 && lastChange != null && lastChange >= windowStart
 
       const profileJoin = Array.isArray(t.profiles) ? t.profiles[0] : t.profiles
-      const factionJoin = Array.isArray(profileJoin?.factions) ? profileJoin?.factions[0] : profileJoin?.factions
+      const factionJoin = Array.isArray(profileJoin?.factions) ? profileJoin.factions[0] : profileJoin?.factions
 
       return {
         id: t.id,
