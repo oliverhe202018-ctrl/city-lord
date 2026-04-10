@@ -1,8 +1,26 @@
 import { PrismaClient } from '@prisma/client';
 import { processTerritorySettlement } from '../lib/territory/settlement';
 import * as turf from '@turf/turf';
+import type { Feature, Polygon, MultiPolygon } from 'geojson';
+
+// 显式声明与 Prisma 返回一致的 DB GeoJSON 类型 (从 JsonValue 安全转化)
+export interface DatabaseGeoJSON {
+    type: 'Polygon' | 'MultiPolygon';
+    coordinates: number[][][] | number[][][][];
+}
+
+// 运行时类型守卫：安全验证 Prisma 宽泛 JSON 结构
+export function isDatabaseGeoJSON(data: unknown): data is DatabaseGeoJSON {
+    return (
+        data !== null &&
+        typeof data === 'object' &&
+        'type' in data &&
+        'coordinates' in data
+    );
+}
 
 const prisma = new PrismaClient();
+
 
 async function main() {
     console.log("==================================================");
@@ -16,7 +34,7 @@ async function main() {
             return;
         }
 
-        // 构造一个不相交的 MultiPolygon (例如两个小块组成的阵列)
+        // 构造一个不相交的 MultiPolygon (由 turf 自动推导为 Feature<MultiPolygon>)
         const multiPolygonFeature = turf.multiPolygon([
             // 第 1 块
             [[[116.300, 39.900], [116.301, 39.900], [116.301, 39.901], [116.300, 39.901], [116.300, 39.900]]],
@@ -34,8 +52,9 @@ async function main() {
         const result = await processTerritorySettlement({
             runId: runId,
             userId: user.id,
-            pathGeoJSON: multiPolygonFeature as any
-        } as any);
+            cityId: "test_city",
+            pathGeoJSON: multiPolygonFeature
+        });
 
         console.log(`    返回结果: ${JSON.stringify(result)}`);
 
@@ -43,17 +62,18 @@ async function main() {
         console.log("\n[3] 验证数据库写入结果...");
         const newTerritories = await prisma.territories.findMany({
             where: { source_run_id: runId },
-// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
-            select: { id: true, geojson_json: true, area_m2: true }
+            select: { id: true, geojson_json: true, area_m2_exact: true }
         });
 
         console.log(`    找到 ${newTerritories.length} 条独立的 Polygon `);
         newTerritories.forEach((t, index) => {
-            const geoJson = t.geojson_json as any;
+            if (!isDatabaseGeoJSON(t.geojson_json)) {
+                throw new Error(`领地 ${t.id} 的 GeoJSON 格式损坏或未写入`);
+            }
+            const geoJson = t.geojson_json;
             console.log(`    - 领地 ${index+1} (${t.id}):`);
-            console.log(`      geomType: ${geoJson?.type}`);
-// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
-            console.log(`      area_m2:  ${t.area_m2}`);
+            console.log(`      geomType: ${geoJson.type}`);
+            console.log(`      area_m2_exact:  ${t.area_m2_exact}`);
         });
 
     } catch (e) {

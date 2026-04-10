@@ -1,5 +1,5 @@
 import * as turf from '@turf/turf';
-import { Feature, Polygon } from 'geojson';
+import type { Feature, Polygon, MultiPolygon } from 'geojson';
 import { cleanAndSplitTrajectory } from '../gis/geometry-cleaner';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
@@ -11,7 +11,7 @@ export interface SettlementInput {
     userId: string;
     cityId: string;
     clubId?: string | null;
-    pathGeoJSON: Feature<Polygon>;
+    pathGeoJSON: Feature<Polygon | MultiPolygon>;
     score_weight?: number;
     /** Pre-processed cleaned polygons — if provided, skip extractValidLoops + cleanAndSplitTrajectory */
     preProcessedPolygons?: Feature<Polygon>[];
@@ -70,26 +70,32 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
             return { success: false, createdTerritories: 0, reinforcedTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'Invalid path geometry' };
         }
 
-        const rawCoords = pathGeoJSON.geometry.coordinates?.[0];
-        if (!Array.isArray(rawCoords) || rawCoords.length < 3) {
-            return { success: false, createdTerritories: 0, reinforcedTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'Invalid path coordinates' };
-        }
-        const extractedLoops = extractValidLoops(
-            (rawCoords as any).map((coord: [number, number], index: number) => ({
-                lng: coord[0],
-                lat: coord[1],
-                timestamp: index
-            })),
-            LOOP_CLOSURE_THRESHOLD_M
-        );
-        if (extractedLoops.length === 0) {
-            return { success: false, createdTerritories: 0, reinforcedTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'No valid closed loops' };
-        }
+        if (pathGeoJSON.geometry.type === 'MultiPolygon') {
+            // If the raw input is already a MultiPolygon (e.g., from an external split or test mock)
+            cleanedPolygons = pathGeoJSON.geometry.coordinates.map((coords: number[][][]) => turf.polygon(coords));
+        } else {
+            // Processing a single raw path Polygon containing coordinate points
+            const rawCoords = pathGeoJSON.geometry.coordinates?.[0];
+            if (!Array.isArray(rawCoords) || rawCoords.length < 3) {
+                return { success: false, createdTerritories: 0, reinforcedTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'Invalid path coordinates' };
+            }
+            const extractedLoops = extractValidLoops(
+                (rawCoords as any).map((coord: [number, number], index: number) => ({
+                    lng: coord[0],
+                    lat: coord[1],
+                    timestamp: index
+                })),
+                LOOP_CLOSURE_THRESHOLD_M
+            );
+            if (extractedLoops.length === 0) {
+                return { success: false, createdTerritories: 0, reinforcedTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'No valid closed loops' };
+            }
 
-        cleanedPolygons = extractedLoops.flatMap((loop) => {
-            const loopCoords = loop.map((point) => [point.lng, point.lat] as [number, number]);
-            return cleanAndSplitTrajectory(loopCoords);
-        });
+            cleanedPolygons = extractedLoops.flatMap((loop) => {
+                const loopCoords = loop.map((point) => [point.lng, point.lat] as [number, number]);
+                return cleanAndSplitTrajectory(loopCoords);
+            });
+        }
     }
 
     if (cleanedPolygons.length === 0) {
@@ -421,55 +427,70 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
         // 4. Generate New Territories
         // After carving out existing alive territories, we have 1 or more polygons representing empty space + destroyed territories space
 
-        for (const poly of workingPolygons) {
-            // Break down MultiPolygons into separate Polygons for independent territories if they are disjoint
-            const shapes = splitIntoPolygons(poly);
+        if (workingPolygons.length > 0) {
+            let finalGeometry: Polygon | MultiPolygon;
 
-            for (const shape of shapes) {
-                const shapeArea = turf.area(shape);
+            if (workingPolygons.length === 1) {
+                finalGeometry = workingPolygons[0].geometry as Polygon | MultiPolygon;
+            } else {
+                const coords = workingPolygons.map(f => {
+                    if (f.geometry.type === 'Polygon') {
+                        return [(f.geometry as Polygon).coordinates];
+                    } else if (f.geometry.type === 'MultiPolygon') {
+                        return (f.geometry as unknown as MultiPolygon).coordinates;
+                    }
+                    return [];
+                }).flat(1);
+                
+                finalGeometry = turf.multiPolygon(coords as any).geometry as unknown as MultiPolygon;
+            }
 
-                // Minimum area threshold for a new territory
-                if (shapeArea < 50) continue;
+            const preCalcArea = turf.area(turf.feature(finalGeometry));
 
-                // Generate ID
+            if (preCalcArea >= 10) {
                 const newId = `terr_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-                // Ensure cityId has a fallback for safety
                 const finalCityId = cityId || 'default_city';
+                const geojsonStr = JSON.stringify(finalGeometry);
 
-                // CTE Dual Write: validate geometry ONCE, then derive BOTH columns from the validated result.
-                // This prevents the desync bug where geojson_json stored raw (self-intersecting) data
-                // while the geojson geometry column stored the ST_MakeValid output.
-                const geojsonStr = JSON.stringify(shape.geometry);
-
-                await tx.$executeRaw`
+                const affectedRows = await tx.$executeRaw`
                     WITH validated AS (
                         SELECT ST_CollectionExtract(
                             ST_MakeValid(ST_GeomFromGeoJSON(${geojsonStr}::text)),
                             3
                         ) AS geom
+                    ),
+                    calculated AS (
+                        -- 在此层进行 PostGIS 原生地理面积计算，确保与最终多边形绝对同源
+                        SELECT 
+                            geom,
+                            ST_Area(geom::geography) AS real_area
+                        FROM validated
                     )
                     INSERT INTO territories (
                         id, city_id, owner_id, owner_club_id, geojson, geojson_json,
                         source_run_id, first_claimed_at, last_claimed_at,
-                        max_hp, current_hp, health, territory_type, score_weight, status
+                        max_hp, current_hp, health, territory_type, score_weight, status,
+                        area_m2_exact
                     )
                     SELECT
                         ${newId},
                         ${finalCityId},
                         CAST(${userId} AS UUID),
                         CAST(${clubId ?? null} AS UUID),
-                        v.geom,
-                        ST_AsGeoJSON(v.geom)::jsonb,
+                        geom,
+                        ST_AsGeoJSON(geom)::jsonb,
                         CAST(${runId} AS UUID),
                         NOW(), NOW(), 1000, 1000, 100,
                         'NORMAL'::"TerritoryType",
                         1.0,
-                        'ACTIVE'::"TerritoryStatus"
-                    FROM validated v
+                        'ACTIVE'::"TerritoryStatus",
+                        real_area
+                    FROM calculated
+                    WHERE real_area >= 50
                 `;
 
-                // Log Genesis event
-                await tx.territory_events.create({
+                if (affectedRows > 0) {
+                    await tx.territory_events.create({
                     data: {
                         territory_id: newId,
                         event_type: 'CREATED',
@@ -485,7 +506,8 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                     }
                 });
 
-                result.createdTerritories++;
+                    result.createdTerritories++;
+                }
             }
         }
         if (clubId) {
@@ -535,12 +557,4 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
     return finalSettledResult;
 }
 
-// Utility to flatten GeoJSON objects into Polygons
-function splitIntoPolygons(feature: any): any[] {
-    if (feature.geometry.type === 'Polygon') {
-        return [feature];
-    } else if (feature.geometry.type === 'MultiPolygon') {
-        return feature.geometry.coordinates.map((coords: any) => turf.polygon(coords));
-    }
-    return [];
-}
+
