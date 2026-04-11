@@ -65,7 +65,7 @@ interface ImmersiveModeProps {
   closedPolygons?: Location[][]
   onHexClaimed?: () => void
   onManualLocation?: (lat: number, lng: number) => void
-  saveRun?: (isFinal?: boolean) => Promise<{ settlingAsync?: boolean } | void>
+  saveRun?: (isFinal?: boolean) => Promise<{ settlingAsync?: boolean, isDuplicate?: boolean } | void>
   savedRunId?: string | null
   runNumber?: number
   damageSummary?: any[]
@@ -642,30 +642,151 @@ export function ImmersiveRunningMode({
   //   // Logic moved to handleAttemptStop
   // }, [])
 
-  const handleAttemptStop = async () => {
+        // Block removed: Merged cleanly into new executeFinalSave framework
+
+  // Reset stop confirm after 3s
+  useEffect(() => {
+    if (showStopConfirm) {
+      const timer = setTimeout(() => setShowStopConfirm(false), 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [showStopConfirm])
+
+  const [showRetryDialog, setShowRetryDialog] = useState(false);
+
+  // Unified Final Save Method
+  const executeFinalSave = async (finalSnapshotHexes: number) => {
+    if (!saveRun || isSubmitting || hasSavedRunRef.current) return;
+    
+    freezeTrackerForSummary();
+    setIsSubmitting(true);
+    
+    // 1. Play audio (non-blocking)
     try {
-      // If no path data or very short path, just proceed
+      const audio = new Audio('/sounds/run_finish.mp3');
+      (window as typeof window & { finishAudio?: HTMLAudioElement }).finishAudio = audio;
+      audio.play().catch(() => { });
+    } catch { }
+
+    try {
+      const res = await withTimeout(saveRun(true), SAVE_TIMEOUT_MS);
+      
+      // 🚨 绝对核心防线：硬拦截假成功
+      if (res?.isDuplicate) {
+        toast.error("检测到重复提交或异常！本次跑动已因离线守护被提前冻结。", { duration: 5000 });
+        localStorage.removeItem('CURRENT_RUN_RECOVERY');
+        const { useGameStore } = await import('@/store/useGameStore');
+        useGameStore.getState().resetRunState();
+        setShowSummary(false);
+        onStop();
+        return; 
+      }
+      
+      hasSavedRunRef.current = true;
+      localStorage.removeItem('CURRENT_RUN_RECOVERY');
+      const { useGameStore } = await import('@/store/useGameStore');
+      useGameStore.getState().resetRunState();
+
+      if (res?.settlingAsync) {
+        toast.success("跑步记录已保存，领地正在后台极速结算中...", { duration: 5000 });
+      }
+
+      // 验证通过，合法弹出结算面板
+      const snapshot = buildSummarySnapshot(finalSnapshotHexes);
+      setSummarySnapshot(snapshot);
+      setShowSummary(true);
+      
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('citylord:refresh-territories'));
+      }
+
+    } catch (saveError) {
+      const errorMsg = saveError instanceof Error ? saveError.message : '网络不可用';
+      console.error('[executeFinalSave] saveRun failed:', saveError);
+      
+      // Persist to localStorage as offline fallback before showing retry dialog
+      try {
+        const fallbackData = {
+          idempotencyKey: idempotencyKey || crypto.randomUUID(),
+          path: path || [],
+          distance: distanceMeters || 0,
+          duration: durationSeconds || 0,
+          area: area || 0,
+          totalSteps: steps || 0,
+          steps: steps || 0,
+          eventsHistory,
+          timestamp: Date.now(),
+          userId: userId || '',
+        };
+        let existingPending: any[] = [];
+        try {
+          const existingPendingStr = localStorage.getItem('PENDING_RUN_UPLOAD');
+          if (existingPendingStr) {
+            existingPending = JSON.parse(existingPendingStr);
+          }
+        } catch (e) { /* ignore */ }
+
+        if (!Array.isArray(existingPending)) existingPending = [];
+
+        const existingIndex = existingPending.findIndex(p => p.idempotencyKey === fallbackData.idempotencyKey);
+        if (existingIndex >= 0) {
+          existingPending[existingIndex] = fallbackData;
+        } else {
+          existingPending.push(fallbackData);
+        }
+
+        try {
+          localStorage.setItem('PENDING_RUN_UPLOAD', JSON.stringify(existingPending));
+          localStorage.removeItem('CURRENT_RUN_RECOVERY'); 
+        } catch (storageErr) {
+          toast.error("本机存储空间已满，无法保存进度，请清理空间！", { duration: 5000 });
+        }
+      } catch (storageErr) {}
+
+      if (errorMsg === 'SAVE_TIMEOUT') {
+        toast.error('保存超时，已暂存本地', { duration: 5000 });
+      }
+
+      const { useGameStore } = await import('@/store/useGameStore');
+      useGameStore.getState().resetRunState();
+      
+      setShowRetryDialog(true);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleAttemptStop = async () => {
+    // Intercept short distance runs first!
+    if (distanceMeters < 10) {
+      toast.info("距离过短，记录已自动作废", { duration: 3000 });
+      localStorage.removeItem('CURRENT_RUN_RECOVERY');
+      const { useGameStore } = await import('@/store/useGameStore');
+      useGameStore.getState().resetRunState();
+      setSummarySnapshot(null);
+      onStop();
+      setShowSummary(false);
+      setIsSubmitting(false);
+      return;
+    }
+
+    try {
       const safePath = path || [];
       if (safePath.length < 2) {
-        freezeTrackerForSummary()
-        setSummarySnapshot(buildSummarySnapshot(hexesCaptured))
-        setShowSummary(true)
-        return
+        await executeFinalSave(hexesCaptured);
+        return;
       }
 
       const startPoint = safePath[0]
       const endPoint = safePath[safePath.length - 1]
 
-      // Condition A: 终点距离起点距离 <= 80
       const gap = getDistanceFromLatLonInMeters(
         startPoint.lat, startPoint.lng,
         endPoint.lat, endPoint.lng
       )
 
-      const END_TO_START_THRESHOLD = 80;
-      let isClosed = gap <= END_TO_START_THRESHOLD;
+      let isClosed = gap <= 80;
 
-      // Condition B: 轨迹后80%部分有经过起点 120 米范围内的点
       if (!isClosed && safePath.length > 5) {
         const startIndexToAvoid = Math.floor(safePath.length * 0.2);
         for (let i = startIndexToAvoid; i < safePath.length; i++) {
@@ -678,7 +799,6 @@ export function ImmersiveRunningMode({
         }
       }
 
-      // Condition C: 面积 > 10000 平方米
       if (!isClosed) {
         if (area && area > 10000) {
           isClosed = true;
@@ -686,87 +806,28 @@ export function ImmersiveRunningMode({
       }
 
       if (isClosed) {
-        // 1. 先冻结追踪器
-        freezeTrackerForSummary()
-
-        // 2. 立即建快照（含当前已知 runId）
-        const snapshot = buildSummarySnapshot(hexesCaptured)
-        setSummarySnapshot(snapshot)
-
-        // 3. 展示 Summary Screen（不等待 saveRun，避免卡顿）
-        setShowSummary(true)
-
-        // 4. 后台触发 saveRun（异步非阻塞，结算任务会被 Trigger.dev 接管）
-        // handleStop (onClose) 会检查 hasSavedRunRef 以避免双重提交
-        if (saveRun && !isSubmitting && !hasSavedRunRef.current) {
-          setIsSubmitting(true);
-          try {
-            const res = await withTimeout(saveRun(true), SAVE_TIMEOUT_MS);
-            hasSavedRunRef.current = true; // Mark as saved — handleStop will skip saveRun
-            if (res?.settlingAsync) {
-              console.log('[handleAttemptStop] saveRun succeeded, settling async');
-            }
-          } catch (saveError) {
-            const errorMsg = saveError instanceof Error ? saveError.message : '网络不可用';
-            console.error('[handleAttemptStop] saveRun failed:', saveError);
-            // On failure, handleStop will retry
-            toast.error(`预保存失败 (${errorMsg === 'SAVE_TIMEOUT' ? '超时' : errorMsg})，请点击完成重试`);
-          } finally {
-            setIsSubmitting(false);
-          }
-        }
+        await executeFinalSave(hexesCaptured);
       } else {
-        // Open loop - Warn user
         setShowLoopWarning(true)
       }
     } catch (err) {
-      // Fallback: always allow user to end run even if path analysis fails
-      console.error("handleAttemptStop error, falling back to summary:", err)
-      freezeTrackerForSummary()
-      setSummarySnapshot(buildSummarySnapshot(hexesCaptured))
-      setShowSummary(true)
+      console.error("handleAttemptStop error, falling back to final save:", err)
+      await executeFinalSave(hexesCaptured);
     }
   }
+  
   attemptStopRef.current = handleAttemptStop
-
-  // Reset stop confirm after 3s
-  useEffect(() => {
-    if (showStopConfirm) {
-      const timer = setTimeout(() => setShowStopConfirm(false), 3000)
-      return () => clearTimeout(timer)
-    }
-  }, [showStopConfirm])
-
-  const [showRetryDialog, setShowRetryDialog] = useState(false);
 
   const handleRetrySave = async () => {
     if (isSubmitting) return;
-    setIsSubmitting(true);
-    if (saveRun) {
-      try {
-        await withTimeout(saveRun(true), SAVE_TIMEOUT_MS);
-        localStorage.removeItem('CURRENT_RUN_RECOVERY');
-        localStorage.removeItem('PENDING_RUN_UPLOAD');
-        const { useGameStore } = await import('@/store/useGameStore');
-        useGameStore.getState().resetRunState();
-        setShowRetryDialog(false);
-        setSummarySnapshot(null);
-        onStop();
-        setShowSummary(false);
-      } catch (saveError) {
-        const errorMsg = saveError instanceof Error ? saveError.message : '网络不可用';
-        toast.error(`保存失败：${errorMsg === 'SAVE_TIMEOUT' ? '请求超时' : errorMsg}，跑步记录已安全保存在本地`, { duration: 5000 });
-      } finally {
-        setIsSubmitting(false);
-      }
-    }
+    setShowRetryDialog(false);
+    await executeFinalSave(hexesCaptured);
   };
 
   const handleSafeExit = async () => {
     setShowRetryDialog(false);
-    // Explicitly retain localStorage 'CURRENT_RUN_RECOVERY'
     const { useGameStore } = await import('@/store/useGameStore');
-    useGameStore.getState().resetRunState(); // Reset memory state only
+    useGameStore.getState().resetRunState(); 
     setSummarySnapshot(null);
     onStop();
     setShowSummary(false);
@@ -777,153 +838,20 @@ export function ImmersiveRunningMode({
       e.preventDefault();
       e.stopPropagation();
     }
-
-    // Debounce: reject clicks within 2 seconds of each other
     const now = Date.now();
     if (now - lastStopAttemptRef.current < 2000) return;
     lastStopAttemptRef.current = now;
 
-    // If handleAttemptStop already saved the run, skip saveRun and go straight to cleanup
-    if (hasSavedRunRef.current) {
-      localStorage.removeItem('CURRENT_RUN_RECOVERY');
-      const { useGameStore } = await import('@/store/useGameStore');
-      useGameStore.getState().resetRunState();
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('citylord:refresh-territories'));
-      }
-      onStop();
-      setSummarySnapshot(null);
-      setShowSummary(false);
-      return;
+    // Direct UI cleanup (Run already saved by executeFinalSave safely)
+    localStorage.removeItem('CURRENT_RUN_RECOVERY');
+    const { useGameStore } = await import('@/store/useGameStore');
+    useGameStore.getState().resetRunState();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('citylord:refresh-territories'));
     }
-
-    if (isSubmitting) return;
-    setIsSubmitting(true);
-
-    // 1. Play audio (non-blocking, never delays navigation)
-    try {
-      const audio = new Audio('/sounds/run_finish.mp3');
-      (window as typeof window & { finishAudio?: HTMLAudioElement }).finishAudio = audio;
-      audio.play().catch(() => { });
-    } catch { }
-
-    // Intercept short distance runs
-    if (distanceMeters < 10) {
-      toast.info("距离过短，记录已自动作废", { duration: 3000 });
-      localStorage.removeItem('CURRENT_RUN_RECOVERY');
-      
-      const { useGameStore } = await import('@/store/useGameStore');
-      useGameStore.getState().resetRunState();
-      
-      setSummarySnapshot(null);
-      onStop();
-      setShowSummary(false);
-      setIsSubmitting(false);
-      return;
-    }
-
-    if (saveRun) {
-      try {
-        // Wrap with timeout — prevents infinite hang after long sleep
-        const res = await withTimeout(saveRun(true), SAVE_TIMEOUT_MS);
-        // Success — Clean up recovery key. (Do NOT blindly wipe all PENDING_RUN_UPLOADs)
-        localStorage.removeItem('CURRENT_RUN_RECOVERY');
-        const { useGameStore } = await import('@/store/useGameStore');
-        useGameStore.getState().resetRunState();
-
-        if (res?.settlingAsync) {
-          toast.success("跑步记录已保存，领地正在后台极速结算中...", { duration: 5000 });
-        }
-
-        onStop();
-        setSummarySnapshot(null);
-        setShowSummary(false);
-        // Trigger map refresh (Phase 2)
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('citylord:refresh-territories'));
-        }
-      } catch (saveError) {
-        // Persist to localStorage as offline fallback before showing retry dialog
-        try {
-          const fallbackData = {
-            idempotencyKey: idempotencyKey || crypto.randomUUID(),
-            path: path || [],
-            distance: distanceMeters || 0,
-            duration: durationSeconds || 0,
-            area: area || 0,
-            totalSteps: steps || 0,
-            steps: steps || 0,
-            eventsHistory,
-            timestamp: Date.now(),
-            userId: userId || '',
-          };
-          let existingPending: any[] = [];
-          try {
-            const existingPendingStr = localStorage.getItem('PENDING_RUN_UPLOAD');
-            if (existingPendingStr) {
-              existingPending = JSON.parse(existingPendingStr);
-            }
-          } catch (e) { /* ignore parse error from corrupt storage */ }
-
-          if (!Array.isArray(existingPending)) {
-            existingPending = [];
-          }
-
-          const existingIndex = existingPending.findIndex(p => p.idempotencyKey === fallbackData.idempotencyKey);
-          if (existingIndex >= 0) {
-            existingPending[existingIndex] = fallbackData;
-            console.log('[ImmersiveMode] Offline fallback updated (upsert) in localStorage');
-          } else {
-            existingPending.push(fallbackData);
-            console.log('[ImmersiveMode] Offline fallback appended to localStorage');
-          }
-
-          // CRITICAL GUARD: Only remove active recovery if pending write SUCCESSFUL
-          try {
-            localStorage.setItem('PENDING_RUN_UPLOAD', JSON.stringify(existingPending));
-
-            // If the setItem above succeeded without QuotaExceededError, we can safely clear the active one
-            localStorage.removeItem('CURRENT_RUN_RECOVERY');
-            console.log('[ImmersiveMode] Pending saved successfully. Active recovery cleared.');
-          } catch (storageErr) {
-            console.error('[ImmersiveMode] Failed to save offline fallback due to storage constraints', storageErr);
-            toast.error("本机存储空间已满，无法保存进度，请清理空间！", { duration: 5000 });
-            // If we fail to save pending, do NOT remove CURRENT_RUN_RECOVERY.
-            // Therefore, the sequence aborts here without removing it, preserving double-loss.
-          }
-        } catch (storageErr) {
-          console.error('[ImmersiveMode] Failed to save offline fallback', storageErr);
-        }
-
-        const errorMsg = saveError instanceof Error ? saveError.message : 'Unknown error';
-        if (errorMsg === 'SAVE_TIMEOUT') {
-          toast.error('保存超时，已暂存本地', { duration: 5000 });
-        }
-
-        // ==========================================
-        // 上传失败时本地结束 (End Locally on Upload Failure)
-        // ==========================================
-        // Remove recovery key so it doesn't resume on restart is ALREADY handled safely above
-        // reset the tracker state
-        const { useGameStore } = await import('@/store/useGameStore');
-        useGameStore.getState().resetRunState();
-
-        // Show visible retry to user
-        setShowRetryDialog(true);
-      } finally {
-        setIsSubmitting(false);
-      }
-    } else {
-      // No saveRun, force clear (e.g., debug mode)
-      localStorage.removeItem('CURRENT_RUN_RECOVERY');
-      const { useGameStore } = await import('@/store/useGameStore');
-      useGameStore.getState().resetRunState();
-
-      onStop();
-      setSummarySnapshot(null);
-      setShowSummary(false);
-      setIsSubmitting(false);
-    }
+    onStop();
+    setSummarySnapshot(null);
+    setShowSummary(false);
   };
 
   if (showSummary && summarySnapshot) {
@@ -1022,9 +950,7 @@ export function ImmersiveRunningMode({
                 className="flex-1 bg-red-500 text-white hover:bg-red-600 h-12 rounded-full border-0 font-medium transition-colors"
                 onClick={() => {
                   setShowLoopWarning(false)
-                  freezeTrackerForSummary()
-                  setSummarySnapshot(buildSummarySnapshot(0))
-                  setShowSummary(true)
+                  executeFinalSave(0)
                 }}
               >
                 确认结束

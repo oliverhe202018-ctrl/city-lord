@@ -147,24 +147,11 @@ export function SyncManager() {
 
   // Monitor Network & Mount
   useEffect(() => {
-    // Initial check on mount
-    const timer = setTimeout(syncPendingRuns, 2000)
-
-    const handleOnline = () => {
-      console.log("[SyncManager] Network online, triggering sync...")
-      syncPendingRuns()
-    }
-
-    window.addEventListener('online', handleOnline)
-    
-    // Periodically check every 5 minutes as a safety net
-    const interval = setInterval(syncPendingRuns, 5 * 60 * 1000)
-
-    return () => {
-      clearTimeout(timer)
-      clearInterval(interval)
-      window.removeEventListener('online', handleOnline)
-    }
+    // 💀 Physical Castration per Execution Plan:
+    // SyncManager's auto-sync is explicitly disabled to prevent it from uploading 
+    // stale PENDING_RUN_UPLOAD entries and consuming the current active idempotencyKey.
+    // All offline recoveries must be explicitly triggered by users in a controlled environment.
+    return () => {}
   }, [syncPendingRuns])
 
   // Debug: Listen for specific "trigger-sync" events if needed
