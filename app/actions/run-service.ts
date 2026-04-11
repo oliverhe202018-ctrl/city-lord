@@ -28,6 +28,24 @@ import { isLoopClosed, LOOP_CLOSURE_THRESHOLD_M, extractValidLoops, type Coord }
 import { isTester } from '@/lib/constants/anti-cheat';
 
 // 用 Ramer-Douglas-Peucker 保留关键几何节点，不破坏环路
+
+function haversineDistance(
+  [lng1, lat1]: [number, number],
+  [lng2, lat2]: [number, number]
+): number {
+  const R = 6371000; // 地球半径，单位：米
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) *
+      Math.cos(toRad(lat2)) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 function rdpSamplePath(points: any[], maxPoints: number): any[] {
     if (points.length <= maxPoints) return points;
     const line = turfLineString(points.map((p: any) => [p.lng, p.lat]));
@@ -224,9 +242,61 @@ export async function saveRunActivity(
         const rawPathPoints = (runData.path as any[]) || [];
         const sampledPath = rdpSamplePath(rawPathPoints, MAX_SERVER_PATH_POINTS);
 
-        // 3. 提取闭环
-        const extractedLoops = extractValidLoops(sampledPath, LOOP_CLOSURE_THRESHOLD_M);
-        let finalPolygons: Coord[][] = extractedLoops;
+        // 3. 闭合检测与领地初步提取 (Rule 1 & Rule 2)
+        let finalPolygons: Coord[][] = [];
+        const sampledPointsLngLat = sampledPath.map(p => [p.lng, p.lat] as [number, number]);
+        console.log('[闭合检测] sampledPath 点数:', sampledPointsLngLat.length);
+
+
+        if (sampledPointsLngLat.length >= 5) {
+            const lastPoint = sampledPointsLngLat[sampledPointsLngLat.length - 1];
+            const firstPoint = sampledPointsLngLat[0];
+            
+            let closingPath: [number, number][] | null = null;
+
+            // 规则一：全局首尾闭合 (20米)
+            const distGlobal = haversineDistance(lastPoint, firstPoint);
+            console.log('[规则一] 首尾距离(米):', distGlobal);
+
+            if (distGlobal <= 20) {
+                closingPath = [...sampledPointsLngLat];
+            } else {
+                // 规则二：局部交叉闭合 (从起点到 L-20 遍历，寻找与终点 10米内的交叉点)
+                let bestIndex = -1;
+                let minDist = 11; // 初始化大于 10
+
+                for (let i = 0; i <= sampledPointsLngLat.length - 20; i++) {
+                    const d = haversineDistance(lastPoint, sampledPointsLngLat[i]);
+                    if (d <= 10 && d < minDist) {
+                        minDist = d;
+                        bestIndex = i;
+                    }
+                }
+                console.log('[规则二] bestIndex:', bestIndex, '最近距离(米):', minDist);
+
+
+                if (bestIndex !== -1) {
+                    closingPath = sampledPointsLngLat.slice(bestIndex);
+                }
+            }
+            console.log('[闭合结果] closingPath 长度:', closingPath ? closingPath.length : 'null');
+
+
+            // 生成最终多边形环
+            if (closingPath && closingPath.length >= 3) {
+                const ring = [...closingPath];
+                // 安全闭合：强制首尾点一致
+                const first = ring[0];
+                const last = ring[ring.length - 1];
+                if (first[0] !== last[0] || first[1] !== last[1]) {
+                    ring.push([first[0], first[1]]);
+                }
+                // 转换回 Coord[] 格式
+                finalPolygons = [ring.map(([lng, lat]) => ({ lng, lat }))];
+                console.log('[多边形] finalPolygons 长度:', finalPolygons.length);
+
+            }
+        }
 
         // Settlement Gating — 使用 effectiveRiskLevel 代替原始 pathValidation.riskLevel
         if (isBlockedByAntiCheat) {
