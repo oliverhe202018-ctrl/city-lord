@@ -19,22 +19,19 @@ export const ANTI_CHEAT_RISK_THRESHOLDS = {
   HIGH: 60,
 } as const;
 
-let _testerWhitelist: Set<string> | null = null;
 
 /**
  * Checks if a user is in the tester whitelist using an O(1) Set lookup.
- * Caches the parsed UUIDs from the TESTER_WHITELIST_UUIDS environment variable.
- * 
+ * Reads TESTER_WHITELIST_UUIDS from the environment on every call (no module-level cache).
+ *
  * @param userId - The UUID of the user to check.
  * @returns True if the user is a whitelisted tester.
  */
 export function isTester(userId: string): boolean {
     if (!userId) return false;
-    if (_testerWhitelist === null) {
-        const envStr = process.env.TESTER_WHITELIST_UUIDS || "";
-        _testerWhitelist = new Set(
-            envStr.split(',').map(id => id.trim()).filter(Boolean)
-        );
-    }
-    return _testerWhitelist.has(userId);
+    const envStr = process.env.TESTER_WHITELIST_UUIDS || "";
+    const whitelist = new Set(
+        envStr.split(',').map(id => id.trim()).filter(Boolean)
+    );
+    return whitelist.has(userId);
 }
