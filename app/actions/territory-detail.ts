@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { getCityById } from '@/lib/city-data'
-import { supabaseAdmin } from '@/lib/supabase/admin'
+import { prisma } from '@/lib/prisma'
 
 export interface TerritoryDetailResult {
     status?: 'pending' | 'success'
@@ -56,18 +56,36 @@ export async function getTerritoryDetail(
             area_m2_exact: 0 // Will show as 0 on mocked legacy unless passed, but the map layer calculates it dynamically anyway.
         };
     } else {
-        // 1. Fetch territory data
-        const { data, error: terrError } = await supabaseAdmin
-            .from('territories')
-            .select('owner_id, city_id, captured_at, owner_club_id, current_hp, score_weight, territory_type, source_run_id, area_m2_exact')
-            .eq('id', territoryId)
-            .single()
+        // 1. Fetch territory data with Prisma to avoid PostgREST schema cache issues
+        try {
+            const data = await prisma.territories.findUnique({
+                where: { id: territoryId },
+                include: {
+                    profiles: {
+                        select: {
+                            id: true,
+                            nickname: true,
+                            avatar_url: true
+                        }
+                    },
+                    clubs: {
+                        select: {
+                            id: true,
+                            name: true,
+                            avatar_url: true
+                        }
+                    }
+                }
+            });
 
-        if (terrError || !data) {
-            console.error('Failed to fetch territory detail:', terrError)
-            return { territoryId, status: 'pending' } as any
+            if (!data) {
+                return { territoryId, status: 'pending' } as any;
+            }
+            territory = data;
+        } catch (error) {
+            console.error('Failed to fetch territory detail from Prisma:', error);
+            return { territoryId, status: 'pending' } as any;
         }
-        territory = data;
     }
 
     const areaKm2 = Number(((territory.area_m2_exact || 0) / 1_000_000).toFixed(4))
@@ -79,7 +97,7 @@ export async function getTerritoryDetail(
     const result: TerritoryDetailResult = {
         territoryId,
         cityName,
-        capturedAt: territory.captured_at,
+        capturedAt: territory.captured_at instanceof Date ? territory.captured_at.toISOString() : territory.captured_at,
         area: areaKm2,
         owner: null,
         club: null,
@@ -93,86 +111,110 @@ export async function getTerritoryDetail(
         return result // Neutral territory
     }
 
-    // 2. Fetch owner profile
-    const { data: profile } = await supabaseAdmin
-        .from('profiles')
-        .select('id, nickname, avatar_url')
-        .eq('id', territory.owner_id)
-        .single()
-
-    if (profile) {
+    // 2. Map Owner Profile
+    if (territory.profiles) {
         result.owner = {
-            id: profile.id,
-            nickname: profile.nickname || '神秘领主',
-            avatarUrl: profile.avatar_url
+            id: territory.profiles.id,
+            nickname: territory.profiles.nickname || '神秘领主',
+            avatarUrl: territory.profiles.avatar_url
+        }
+    } else if (territoryId === 'legacy') {
+        // Fallback fetch if legacy mode since profiles aren't pre-loaded
+        try {
+            const profile = await prisma.profiles.findUnique({
+                where: { id: territory.owner_id },
+                select: { id: true, nickname: true, avatar_url: true }
+            });
+            result.owner = {
+                id: territory.owner_id,
+                nickname: profile?.nickname || '神秘领主',
+                avatarUrl: profile?.avatar_url || null
+            };
+        } catch (e) {
+            result.owner = { id: territory.owner_id, nickname: '神秘领主', avatarUrl: null };
         }
     } else {
-        // Fallback if profile is somehow missing
-        result.owner = {
-            id: territory.owner_id,
-            nickname: '神秘领主',
-            avatarUrl: null
-        }
+        result.owner = { id: territory.owner_id, nickname: '神秘领主', avatarUrl: null };
     }
 
-    // 3. Fetch club info if applicable
-    if (territory.owner_club_id) {
-        const { data: club } = await supabaseAdmin
-            .from('clubs')
-            .select('id, name, logo_url')
-            .eq('id', territory.owner_club_id)
-            .single()
-
-        if (club) {
-            result.club = {
-                id: club.id,
-                name: club.name,
-                logoUrl: club.logo_url
+    // 3. Map Club Info
+    if (territory.clubs) {
+        result.club = {
+            id: territory.clubs.id,
+            name: territory.clubs.name,
+            logoUrl: territory.clubs.avatar_url // prisma uses avatar_url for clubs
+        }
+    } else if (territoryId === 'legacy' && territory.owner_club_id) {
+        try {
+            const club = await prisma.clubs.findUnique({
+                where: { id: territory.owner_club_id },
+                select: { id: true, name: true, avatar_url: true }
+            });
+            if (club) {
+                result.club = {
+                    id: club.id,
+                    name: club.name,
+                    logoUrl: club.avatar_url
+                };
             }
+        } catch (e) {
+            // Ignore
         }
     }
 
     // 4. Fetch the specific run that captured this territory (Legacy fallback to recent if missing)
-    let runQuery = supabaseAdmin.from('runs').select('id, distance, duration');
-    
-    if (territory.source_run_id) {
-        runQuery = runQuery.eq('id', territory.source_run_id);
-    } else {
-        runQuery = runQuery.eq('user_id', territory.owner_id).order('created_at', { ascending: false });
-    }
-    
-    const { data: captureRun } = await runQuery.limit(1).single();
-
-    if (captureRun) {
-        // distance from DB is in meters, duration in seconds
-        const distanceKm = (captureRun.distance || 0) / 1000
-
-        // Format duration (MM:SS or HH:MM:SS)
-        const hours = Math.floor(captureRun.duration / 3600)
-        const minutes = Math.floor((captureRun.duration % 3600) / 60)
-        const seconds = captureRun.duration % 60
-        let durationStr = ''
-        if (hours > 0) {
-            durationStr += `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
-        } else {
-            durationStr += `${minutes}:${seconds.toString().padStart(2, '0')}`
+    try {
+        let captureRun = null;
+        if (territory.source_run_id) {
+            captureRun = await prisma.runs.findUnique({
+                where: { id: territory.source_run_id },
+                select: { id: true, distance: true, duration: true }
+            });
+        }
+        
+        if (!captureRun) {
+            const recentRuns = await prisma.runs.findMany({
+                where: { user_id: territory.owner_id },
+                orderBy: { created_at: 'desc' },
+                take: 1,
+                select: { id: true, distance: true, duration: true }
+            });
+            captureRun = recentRuns[0] || null;
         }
 
-        // Format pace (MM'SS")
-        let paceStr = '--\'--"'
-        if (distanceKm > 0 && captureRun.duration > 0) {
-            const paceSecondsPerKm = captureRun.duration / distanceKm
-            const paceMins = Math.floor(paceSecondsPerKm / 60)
-            const paceSecs = Math.floor(paceSecondsPerKm % 60)
-            paceStr = `${paceMins}'${paceSecs.toString().padStart(2, '0')}"`
-        }
+        if (captureRun) {
+            // distance from DB is in meters, duration in seconds
+            const distanceKm = (captureRun.distance || 0) / 1000
 
-        result.recentRun = {
-            id: captureRun.id,
-            distanceKm: Number(distanceKm.toFixed(2)),
-            durationStr,
-            paceMinPerKm: paceStr
+            // Format duration (MM:SS or HH:MM:SS)
+            const hours = Math.floor(captureRun.duration / 3600)
+            const minutes = Math.floor((captureRun.duration % 3600) / 60)
+            const seconds = captureRun.duration % 60
+            let durationStr = ''
+            if (hours > 0) {
+                durationStr += `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+            } else {
+                durationStr += `${minutes}:${seconds.toString().padStart(2, '0')}`
+            }
+
+            // Format pace (MM'SS")
+            let paceStr = '--\'--"'
+            if (distanceKm > 0 && captureRun.duration > 0) {
+                const paceSecondsPerKm = captureRun.duration / distanceKm
+                const paceMins = Math.floor(paceSecondsPerKm / 60)
+                const paceSecs = Math.floor(paceSecondsPerKm % 60)
+                paceStr = `${paceMins}'${paceSecs.toString().padStart(2, '0')}"`
+            }
+
+            result.recentRun = {
+                id: captureRun.id,
+                distanceKm: Number(distanceKm.toFixed(2)),
+                durationStr,
+                paceMinPerKm: paceStr
+            }
         }
+    } catch (e) {
+        console.error('Failed to fetch run data for territory detail:', e);
     }
 
     return result

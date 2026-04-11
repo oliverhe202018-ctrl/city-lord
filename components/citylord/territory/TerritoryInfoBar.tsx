@@ -18,7 +18,11 @@ export function TerritoryInfoBar() {
     
     const { data: detail, isLoading } = useQuery({
         queryKey: ['territory-detail', activeId],
-        queryFn: () => getTerritoryDetail(activeId!),
+        queryFn: () => getTerritoryDetail(activeId!, {
+            ownerId: selectedTerritory?.ownerId ?? undefined,
+            clubId: selectedTerritory?.ownerClubId ?? undefined,
+            sourceRunId: selectedTerritory?.sourceRunId ?? undefined
+        }),
         enabled: !!activeId,
         staleTime: 60 * 1000, // 1 minute
     })

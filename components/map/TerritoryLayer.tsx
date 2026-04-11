@@ -339,17 +339,21 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
     const isSelfTerritory = Boolean(user?.id && territory.ownerId === user.id);
     const allowCustomAppearance = !isFactionColorActive && isSelfTerritory;
 
+    // Use player's specific color if available (profile colors fetched from API)
+    const specificFillColor = (territory as any).profiles?.fill_color;
+    const specificStrokeColor = (territory as any).profiles?.path_color;
+
     const fillColor = allowCustomAppearance
       ? territoryAppearance.fillColor || DEFAULT_FILL
       : (isFactionColorActive
         ? safeColor(factionBaseColor, DEFAULT_FILL)
-        : (style as any).fillColor || style.fillColor2D || DEFAULT_FILL);
+        : specificFillColor || (style as any).fillColor || style.fillColor2D || DEFAULT_FILL);
 
     const baseStrokeColor = allowCustomAppearance
       ? territoryAppearance.strokeColor || DEFAULT_STROKE
       : (isFactionColorActive
         ? (factionVisuals as any).strokeColor || factionBaseColor || DEFAULT_STROKE
-        : (style as any).strokeColor || style.strokeColor2D || DEFAULT_STROKE);
+        : specificStrokeColor || (style as any).strokeColor || style.strokeColor2D || DEFAULT_STROKE);
 
     const strokeColor = isLowHealth ? '#facc15' : baseStrokeColor;
     const fillOpacity = allowCustomAppearance

@@ -468,7 +468,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                         FROM validated
                     )
                     INSERT INTO territories (
-                        id, city_id, owner_id, owner_club_id, geojson, geojson_json,
+                        id, city_id, owner_id, owner_club_id, owner_faction, geojson, geojson_json,
                         source_run_id, first_claimed_at, last_claimed_at,
                         max_hp, current_hp, health, territory_type, score_weight, status,
                         area_m2_exact
@@ -478,6 +478,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                         ${finalCityId},
                         CAST(${userId} AS UUID),
                         CAST(${clubId ?? null} AS UUID),
+                        ${runnerFaction},
                         geom,
                         ST_AsGeoJSON(geom)::jsonb,
                         CAST(${runId} AS UUID),

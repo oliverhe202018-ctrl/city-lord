@@ -24,7 +24,9 @@ const getCachedTerritories = unstable_cache(
             nickname: true,
             avatar_url: true,
             faction: true,
-            club_id: true
+            club_id: true,
+            path_color: true,
+            fill_color: true
           }
         }
       }
