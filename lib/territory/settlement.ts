@@ -146,9 +146,9 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                 COALESCE(
                     ST_Area(
                         ST_Intersection(
-                            t.geojson::geography,
-                            ST_SetSRID(ST_GeomFromGeoJSON(${combinedGeometryJson}), 4326)::geography
-                        )
+                            t.geojson,
+                            ST_SetSRID(ST_GeomFromGeoJSON(${combinedGeometryJson}), 4326)
+                        )::geography
                     ) / NULLIF(
                         ST_Area(ST_SetSRID(ST_GeomFromGeoJSON(${combinedGeometryJson}), 4326)::geography),
                         0
@@ -447,7 +447,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
 
             const preCalcArea = turf.area(turf.feature(finalGeometry));
 
-            if (preCalcArea >= 0) {
+            if (preCalcArea >= 10) {
                 const newId = `terr_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
                 const finalCityId = cityId || 'default_city';
                 const geojsonStr = JSON.stringify(finalGeometry);
@@ -486,7 +486,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                         'ACTIVE'::"TerritoryStatus",
                         real_area
                     FROM calculated
-                    WHERE real_area >= 0
+                    WHERE real_area >= 50
                 `;
 
                 if (affectedRows > 0) {
