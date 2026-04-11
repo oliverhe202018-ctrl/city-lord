@@ -105,6 +105,7 @@ export async function saveRunActivity(
     runData: RunRecordDTO,
     clubId?: string | null
 ): Promise<ActionResponse<SaveRunResult>> {
+    console.log(`[Territory-Diag-Init] saveRunActivity 被调用，当前时间戳: ${Date.now()}`);
     try {
         if (!userId) throw new Error('User ID is required');
         const eventsHistory = Array.isArray(runData.eventsHistory)
@@ -689,6 +690,7 @@ export async function saveRunActivity(
                 console.log(`[Trigger.dev] Enqueuing 'settle-territories'. polygonCount=${polygonsForSettlement.length}, runId=${result.runId}`);
                 console.log(`[Trigger.dev] payload: ${JSON.stringify({ runId: triggerPayload.runId, userId: triggerPayload.userId, cityId: triggerPayload.cityId, polygonCount: triggerPayload.polygons.length })}`);
                 const handle = await tasks.trigger("settle-territories", triggerPayload);
+                console.log(`[Territory-Diag-Trigger] 任务已推入队列，随机校验码: ${Math.random()}`);
                 if (!handle || !(handle as any)?.id) {
                     throw new Error(`[Trigger.dev] tasks.trigger returned invalid handle (null/undefined id) for runId=${result.runId}`);
                 }

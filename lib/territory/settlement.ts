@@ -449,7 +449,8 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
 
             if (preCalcArea >= 10) {
                 const newId = `terr_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-                const finalCityId = cityId || 'default_city';
+                // TODO[LBS-Sec]: 当前城市判定依赖 fallback。需引入区划边界多边形数据，改为 ST_Intersects(cities.geom, territory.geom) 进行后端强制判定。
+                const finalCityId = 'default_city';
                 const geojsonStr = JSON.stringify(finalGeometry);
 
                 const affectedRows = await tx.$executeRaw`
