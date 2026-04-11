@@ -285,7 +285,7 @@ export interface ExtTerritory extends Territory {
     name: string;
     logoUrl: string | null;
   } | null;
-  sourceRunId?: string;
+  sourceRunId?: string | null;
 }
 
 /**

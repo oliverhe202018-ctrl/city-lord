@@ -27,7 +27,7 @@ export function TerritoryDetailSheet() {
 
 
     const { data: detail, isLoading } = useQuery({
-        queryKey: ['territory-detail', territoryId, selectedTerritory?.ownerId, selectedTerritory?.ownerClubId, selectedTerritory?.sourceRunId],
+        queryKey: ['territory-detail', activeId],
         queryFn: () => getTerritoryDetail(territoryId!, {
             ownerId: selectedTerritory?.ownerId || undefined,
             clubId: selectedTerritory?.ownerClubId || undefined,
@@ -35,6 +35,8 @@ export function TerritoryDetailSheet() {
         }),
         enabled: !!territoryId,
         staleTime: 60 * 1000,
+        retry: 3,
+        retryDelay: 2000,
     })
 
     // Close sheet logic (do NOT clear selected territory, so InfoBar stays)

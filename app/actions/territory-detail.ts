@@ -33,7 +33,7 @@ export interface TerritoryDetailResult {
 
 export async function getTerritoryDetail(
     territoryId: string,
-    options?: { ownerId?: string; clubId?: string; sourceRunId?: string }
+    options?: { ownerId?: string; clubId?: string; sourceRunId?: string | null }
 ): Promise<TerritoryDetailResult | null> {
     const supabase = await createClient()
 
@@ -59,10 +59,10 @@ export async function getTerritoryDetail(
             try {
                 const sourceRun = await prisma.runs.findUnique({
                     where: { id: options.sourceRunId },
-                    select: { area: true }
+                    select: { id: true, distance: true, estimated_area: true }
                 });
-                if (sourceRun?.area) {
-                    territory.area_m2_exact = Number(sourceRun.area);
+                if (sourceRun?.estimated_area) {
+                    territory.area_m2_exact = Number(sourceRun.estimated_area);
                 }
             } catch (e) {
                 console.error('Failed to fetch legacy run area:', e);

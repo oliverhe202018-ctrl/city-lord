@@ -492,6 +492,15 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                 `;
 
                 if (affectedRows > 0) {
+                    await tx.$executeRaw`
+                        INSERT INTO user_city_progress (user_id, city_id, tiles_captured, area_controlled, last_active_at, joined_at)
+                        VALUES (CAST(${userId} AS UUID), ${finalCityId}, 1, (${preCalcArea} / 1000000.0), NOW(), NOW())
+                        ON CONFLICT (user_id, city_id) DO UPDATE SET
+                        tiles_captured = user_city_progress.tiles_captured + 1,
+                        area_controlled = user_city_progress.area_controlled + (${preCalcArea} / 1000000.0),
+                        last_active_at = NOW();
+                    `;
+
                     await tx.territory_events.create({
                         data: {
                             territory_id: newId,

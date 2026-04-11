@@ -657,14 +657,13 @@ export async function saveRunActivity(
                         }
                     },
                     update: {
-                        area_controlled: { increment: accurateAreaKm2 },
                         last_active_at: new Date()
                     },
                     create: {
                         user_id: userId,
                         city_id: cityId,
-                        area_controlled: accurateAreaKm2,
-                        tiles_captured: 0, // 数量会在微事务中补充
+                        area_controlled: 0,
+                        tiles_captured: 0,
                         last_active_at: new Date(),
                         joined_at: new Date()
                     }
