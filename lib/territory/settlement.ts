@@ -162,36 +162,36 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
             ORDER BY overlap_ratio DESC
             LIMIT 1
         `;
-        if (overlapRows.length > 0) {
-            bestPatrolOverlap = {
-                ...overlapRows[0],
-                overlap_ratio: Number(overlapRows[0].overlap_ratio ?? 0)
-            };
+            if (overlapRows.length > 0) {
+                bestPatrolOverlap = {
+                    ...overlapRows[0],
+                    overlap_ratio: Number(overlapRows[0].overlap_ratio ?? 0)
+                };
+            }
+        } catch (sqlErr: any) {
+            console.error(`[Patrol Overlap SQL Error] userId: ${userId}, runId: ${runId}, error: ${sqlErr.message}`);
+            return { success: false, createdTerritories: 0, reinforcedTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: `SQL Error: ${sqlErr.message}` };
         }
-    } catch (sqlErr: any) {
-        console.error(`[Patrol Overlap SQL Error] userId: ${userId}, runId: ${runId}, error: ${sqlErr.message}`);
-        return { success: false, createdTerritories: 0, reinforcedTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: `SQL Error: ${sqlErr.message}` };
-    }
 
-    // 2. Fetch overlapping territories using PostGIS BBox/Intersects (Raw SQL)
-    interface TerritoryRow {
-        id: string;
-        owner_id: string | null;
-        owner_faction: string | null;
-        owner_club_id: string | null;
-        health: number | null;
-        current_hp: number | null;
-        max_hp: number | null;
-        score_weight: number | null;
-        territory_type: string;
-        level: number | null;
-        owner_name: string | null;
-        geometry: Polygon;
-        is_contained: boolean;
-    }
-    let overlappingTerritories: TerritoryRow[] = [];
-    try {
-        overlappingTerritories = await tx.$queryRaw<TerritoryRow[]>`
+        // 2. Fetch overlapping territories using PostGIS BBox/Intersects (Raw SQL)
+        interface TerritoryRow {
+            id: string;
+            owner_id: string | null;
+            owner_faction: string | null;
+            owner_club_id: string | null;
+            health: number | null;
+            current_hp: number | null;
+            max_hp: number | null;
+            score_weight: number | null;
+            territory_type: string;
+            level: number | null;
+            owner_name: string | null;
+            geometry: Polygon;
+            is_contained: boolean;
+        }
+        let overlappingTerritories: TerritoryRow[] = [];
+        try {
+            overlappingTerritories = await tx.$queryRaw<TerritoryRow[]>`
             SELECT 
                 t.id, 
                 t.owner_id,
@@ -211,12 +211,12 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
             WHERE t.status = 'ACTIVE'::"TerritoryStatus"
             AND ST_Intersects(t.geojson, ST_GeomFromGeoJSON(${combinedGeometryJson}))
         `;
-    } catch (sqlErr: any) {
-        console.error(`[Settlement SQL Error] userId: ${userId}, runId: ${runId}, error: ${sqlErr.message}`);
-        return { success: false, createdTerritories: 0, reinforcedTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: `SQL Error: ${sqlErr.message}` };
-    }
+        } catch (sqlErr: any) {
+            console.error(`[Settlement SQL Error] userId: ${userId}, runId: ${runId}, error: ${sqlErr.message}`);
+            return { success: false, createdTerritories: 0, reinforcedTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: `SQL Error: ${sqlErr.message}` };
+        }
 
-    const runnerProfile = await tx.profiles.findUnique({
+        const runnerProfile = await tx.profiles.findUnique({
             where: { id: userId },
             select: { faction: true }
         });
@@ -286,7 +286,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                         last_maintained_at: new Date()
                     }
                 });
-                
+
                 result.maintenanceDetails.push({
                     territoryId: existingTerr.id,
                     type: 'HEAL',
@@ -309,7 +309,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                         last_maintained_at: new Date()
                     }
                 });
-                
+
                 result.maintenanceDetails.push({
                     territoryId: existingTerr.id,
                     type: 'HEAL',
@@ -419,7 +419,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
             await tx.territories.updateMany({
                 where: { id: { in: destroyedAndContainedIds } },
                 data: {
-                    status: 'SUPERSEDED' as any 
+                    status: 'SUPERSEDED' as any
                 }
             });
         }
@@ -441,13 +441,13 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                     }
                     return [];
                 }).flat(1);
-                
+
                 finalGeometry = turf.multiPolygon(coords as any).geometry as unknown as MultiPolygon;
             }
 
             const preCalcArea = turf.area(turf.feature(finalGeometry));
 
-            if (preCalcArea >= 10) {
+            if (preCalcArea >= 0) {
                 const newId = `terr_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
                 const finalCityId = cityId || 'default_city';
                 const geojsonStr = JSON.stringify(finalGeometry);
@@ -486,25 +486,25 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                         'ACTIVE'::"TerritoryStatus",
                         real_area
                     FROM calculated
-                    WHERE real_area >= 50
+                    WHERE real_area >= 0
                 `;
 
                 if (affectedRows > 0) {
                     await tx.territory_events.create({
-                    data: {
-                        territory_id: newId,
-                        event_type: 'CREATED',
-                        event_type_old: 'CREATED',
-                        user_id: userId,
-                        old_owner_id: null,
-                        new_owner_id: userId,
-                        old_club_id: null,
-                        new_club_id: clubId ?? null,
-                        old_faction: null,
-                        new_faction: runnerFaction,
-                        source_run_id: runId
-                    }
-                });
+                        data: {
+                            territory_id: newId,
+                            event_type: 'CREATED',
+                            event_type_old: 'CREATED',
+                            user_id: userId,
+                            old_owner_id: null,
+                            new_owner_id: userId,
+                            old_club_id: null,
+                            new_club_id: clubId ?? null,
+                            old_faction: null,
+                            new_faction: runnerFaction,
+                            source_run_id: runId
+                        }
+                    });
 
                     result.createdTerritories++;
                 }
