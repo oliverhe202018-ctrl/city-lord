@@ -255,8 +255,10 @@ export async function saveRunActivity(
         const sampledPath = rdpSamplePath(rawPathPoints, MAX_SERVER_PATH_POINTS);
 
         // 3. 闭合检测与领地初步提取 (Rule 1 & Rule 2)
+        let diagData: any = { status: 'init' };
         let finalPolygons: Coord[][] = [];
         const sampledPointsLngLat = sampledPath.map(p => [p.lng, p.lat] as [number, number]);
+        diagData.points = sampledPointsLngLat?.length || 0;
         console.log('[闭合检测] sampledPath 点数:', sampledPointsLngLat.length);
         console.log(`[Territory-Diag] 轨迹总点数: ${sampledPointsLngLat.length}, 总距离: ${runData.distance}m`);
 
@@ -268,6 +270,7 @@ export async function saveRunActivity(
 
             // 规则一：全局首尾闭合 (20米)
             const distGlobal = haversineDistance(lastPoint, firstPoint);
+            if(typeof distGlobal !== 'undefined') diagData.distGlobal = distGlobal;
             console.log('[规则一] 首尾距离(米):', distGlobal);
             console.log(`[Territory-Diag] 规则一测算 - 首尾物理距离: ${distGlobal}m (阈值30m)`);
 
@@ -285,7 +288,12 @@ export async function saveRunActivity(
                         bestIndex = i;
                     }
                 }
-                if (bestIndex !== -1) { console.log(`[Territory-Diag] 规则二命中 - 发现交叉点，索引: ${bestIndex}, 交叉距离: ${minDist}m`); } else { console.log(`[Territory-Diag] 规则二未命中 - 遍历 L-${sampledPointsLngLat.length-20} 未发现 15m 内交叉点`); }
+                if (bestIndex !== -1) {
+                    diagData.bestIndex = bestIndex; diagData.minDist = minDist;
+                    console.log(`[Territory-Diag] 规则二命中 - 发现交叉点，索引: ${bestIndex}, 交叉距离: ${minDist}m`);
+                } else {
+                    console.log(`[Territory-Diag] 规则二未命中 - 遍历 L-${sampledPointsLngLat.length-20} 未发现 15m 内交叉点`);
+                }
                 console.log('[规则二] bestIndex:', bestIndex, '最近距离(米):', minDist);
 
 
@@ -312,6 +320,8 @@ export async function saveRunActivity(
             }
             if (finalPolygons.length === 0) { console.log(`[Territory-Diag] 警告: 闭合条件均未满足，多边形提取被废弃。`); }
         }
+
+        diagData.status = finalPolygons.length === 0 ? 'Polygons Empty' : 'Success';
 
         // Settlement Gating — 使用 effectiveRiskLevel 代替原始 pathValidation.riskLevel
         if (isBlockedByAntiCheat) {
@@ -685,7 +695,8 @@ export async function saveRunActivity(
                     clubId: runnerClubId,
                     polygons: polygonsForSettlement,
                     distance: evaluationData.distance,
-                    duration: evaluationData.duration
+                    duration: evaluationData.duration,
+                    diag: diagData
                 };
                 console.log(`[Trigger.dev] Enqueuing 'settle-territories'. polygonCount=${polygonsForSettlement.length}, runId=${result.runId}`);
                 console.log(`[Trigger.dev] payload: ${JSON.stringify({ runId: triggerPayload.runId, userId: triggerPayload.userId, cityId: triggerPayload.cityId, polygonCount: triggerPayload.polygons.length })}`);
