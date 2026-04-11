@@ -111,7 +111,18 @@ export async function saveRunActivity(
             ? runData.eventsHistory.filter(isRunEventLog)
             : [];
         const submittedTotalSteps = Math.max(0, Math.floor(Number(runData.totalSteps ?? runData.steps ?? 0)));
-        const runnerClubId = clubId ?? runData.clubId ?? null;
+        let runnerClubId = clubId ?? runData.clubId ?? null;
+        if (!runnerClubId && userId) {
+            try {
+                const profile = await prisma.profiles.findUnique({
+                    where: { id: userId },
+                    select: { club_id: true }
+                });
+                runnerClubId = profile?.club_id ?? null;
+            } catch (e) {
+                console.warn('[runnerClubId] Failed to fetch from DB:', e);
+            }
+        }
 
         // Rate Limiting
         const rateLimitResult = checkRunRateLimit(userId);
@@ -302,7 +313,7 @@ export async function saveRunActivity(
         if (isBlockedByAntiCheat) {
             finalPolygons = [];
             console.warn(`[Anti-Cheat] Settlement blocked for user ${userId}. Reason: ${flagReason ?? pedometerAntiCheatLog}`);
-        } else if (effectiveRiskLevel === 'MEDIUM') {
+        } else if (effectiveRiskLevel === 'MEDIUM' && !isUserTester) {
             finalPolygons = [];
             console.log(`[saveRunActivity] MEDIUM risk run. Polygons neutralized for user: ${userId}`);
         }
@@ -386,7 +397,7 @@ export async function saveRunActivity(
             return survivors.map(s => s.original);
         }
 
-        const polygonsForSettlement = (isBlockedByAntiCheat || effectiveRiskLevel === 'MEDIUM') ? [] : deduplicateByContainment(finalPolygons);
+        const polygonsForSettlement = (isBlockedByAntiCheat || (effectiveRiskLevel === 'MEDIUM' && !isUserTester)) ? [] : deduplicateByContainment(finalPolygons);
 
         // 5. 直接在内存中累加真实占领的领地面积 - 使用 Unkink 替代 Convex
         let accurateAreaKm2 = 0;
