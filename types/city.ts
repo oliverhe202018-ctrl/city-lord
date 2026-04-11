@@ -278,7 +278,7 @@ export interface CityLeaderboardEntry {
 export interface ExtTerritory extends Territory {
   ownerClubId?: string | null;
   ownerFaction?: string | null;
-  /** ✅ DB 直接存储的阵营 hex 色值，优先于 ownerFaction 字符串匹配 */
+  /** 前端根据 ownerFaction 字符串映射，数据库不存储色值 */
   ownerFactionColor?: string | null;
   ownerClub?: {
     id: string;

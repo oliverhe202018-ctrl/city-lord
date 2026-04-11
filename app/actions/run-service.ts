@@ -693,8 +693,7 @@ export async function saveRunActivity(
             } catch (err: any) {
                 console.error(`[Trigger.dev] ❌ FAILED to enqueue 'settle-territories': ${err?.message ?? err}`);
                 console.error(`[Trigger.dev] Full error:`, err);
-                // Re-throw so the outer caller can detect settlement enqueueing failure
-                throw err;
+                // 错误隔离：只打印日志，绝不向上抛出，主流程继续正常返回
             }
         }
 
