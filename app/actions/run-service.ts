@@ -121,6 +121,22 @@ export async function saveRunActivity(
                     select: { club_id: true }
                 });
                 runnerClubId = profile?.club_id ?? null;
+                
+                if (!runnerClubId) {
+                    const activeMembership = await prisma.club_members.findFirst({
+                        where: { user_id: userId, status: 'active' },
+                        orderBy: { joined_at: 'desc' },
+                        select: { club_id: true }
+                    });
+                    if (activeMembership?.club_id) {
+                        runnerClubId = activeMembership.club_id;
+                        await prisma.profiles.update({
+                            where: { id: userId },
+                            data: { club_id: runnerClubId }
+                        });
+                        console.log(`[runnerClubId] Recovered club_id from club_members for user ${userId}`);
+                    }
+                }
             } catch (e) {
                 console.warn('[runnerClubId] Failed to fetch from DB:', e);
             }
@@ -490,6 +506,7 @@ export async function saveRunActivity(
             const run = await tx.runs.create({
                 data: {
                     user_id: userId,
+                    club_id: runnerClubId,
                     distance: evaluationData.distance,
                     duration: evaluationData.duration,
                     path: runData.path as any,

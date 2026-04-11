@@ -340,8 +340,8 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
     const allowCustomAppearance = !isFactionColorActive && isSelfTerritory;
 
     // Use player's specific color if available (profile colors fetched from API)
-    const specificFillColor = (territory as any).profiles?.fill_color;
-    const specificStrokeColor = (territory as any).profiles?.path_color;
+    const specificFillColor = (territory as any).ownerFillColor;
+    const specificStrokeColor = (territory as any).ownerPathColor;
 
     const fillColor = allowCustomAppearance
       ? territoryAppearance.fillColor || DEFAULT_FILL

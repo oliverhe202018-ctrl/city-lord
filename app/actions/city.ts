@@ -33,8 +33,8 @@ export async function fetchTerritories(cityId: string, bounds?: { minLng: number
           id, city_id, owner_id, owner_club_id, owner_faction,
           captured_at, health, last_maintained_at, owner_change_count, last_owner_change_at,
           geojson_json,
-          clubs ( id, name, logo_url ),
-          profiles!territories_owner_id_fkey ( faction )
+          clubs ( id, name, avatar_url ),
+          profiles!territories_owner_id_fkey ( faction, fill_color, path_color )
         `)
         .eq('city_id', cityId)
         .eq('status', 'ACTIVE')
@@ -57,7 +57,9 @@ export async function fetchTerritories(cityId: string, bounds?: { minLng: number
           END AS clubs,
           CASE
             WHEN p.id IS NOT NULL THEN json_build_object(
-              'faction', p.faction
+              'faction', p.faction,
+              'fill_color', p.fill_color,
+              'path_color', p.path_color
             )
             ELSE NULL
           END AS profiles
@@ -96,7 +98,9 @@ export async function fetchTerritories(cityId: string, bounds?: { minLng: number
         ownerType: !t.owner_id ? 'neutral' : (t.owner_id === currentUserId ? 'me' : 'enemy'),
         ownerClubId: t.owner_club_id ?? null,
         ownerFaction: profileJoin?.faction ?? null,
-        ownerFactionColor: null,
+        ownerFactionColor: profileJoin?.fill_color ?? null,
+        ownerFillColor: profileJoin?.fill_color ?? null,
+        ownerPathColor: profileJoin?.path_color ?? null,
         capturedAt: t.captured_at,
         health: t.health ?? 100,
         maxHealth: 100,

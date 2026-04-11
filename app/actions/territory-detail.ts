@@ -53,8 +53,21 @@ export async function getTerritoryDetail(
             score_weight: 1.0,
             territory_type: 'NORMAL',
             source_run_id: options.sourceRunId || null,
-            area_m2_exact: 0 // Will show as 0 on mocked legacy unless passed, but the map layer calculates it dynamically anyway.
+            area_m2_exact: 0 
         };
+        if (options.sourceRunId) {
+            try {
+                const sourceRun = await prisma.runs.findUnique({
+                    where: { id: options.sourceRunId },
+                    select: { area: true }
+                });
+                if (sourceRun?.area) {
+                    territory.area_m2_exact = Number(sourceRun.area);
+                }
+            } catch (e) {
+                console.error('Failed to fetch legacy run area:', e);
+            }
+        }
     } else {
         // 1. Fetch territory data with Prisma to avoid PostgREST schema cache issues
         try {
@@ -104,7 +117,8 @@ export async function getTerritoryDetail(
         recentRun: null,
         current_hp: territory.current_hp || 1000,
         score_weight: territory.score_weight || 1.0,
-        territory_type: territory.territory_type || 'NORMAL'
+        territory_type: territory.territory_type || 'NORMAL',
+        status: 'success'
     }
 
     if (!territory.owner_id) {
