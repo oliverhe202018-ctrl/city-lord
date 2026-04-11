@@ -72,6 +72,7 @@ export interface SaveRunResult {
     antiCheatLog?: string | null;
     totalSteps?: number;
     settlingAsync?: boolean;
+    isDuplicate?: boolean;
 }
 
 const isRunEventLog = (event: unknown): event is RunEventLog => {
@@ -145,7 +146,14 @@ export async function saveRunActivity(
                 return {
                     success: true,
                     message: "Run already processed securely.",
-                    data: { runId: existingRun.id }
+                    data: {
+                        runId: existingRun.id,
+                        isDuplicate: true,
+                        runNumber: 0,
+                        newTasks: [],
+                        totalReward: { coins: 0, xp: 0 },
+                        settlingAsync: false
+                    }
                 };
             }
         }

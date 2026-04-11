@@ -1264,10 +1264,10 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   // Auto-save when new territory is claimed
   useEffect(() => {
     if (sessionClaims.length > lastSavedClaimsCount) {
-      saveRun(false); // Auto-save
+      saveState(); // 使用安全的本地备份代替网络提前提交
       setLastSavedClaimsCount(sessionClaims.length);
     }
-  }, [sessionClaims.length, lastSavedClaimsCount, saveRun]);
+  }, [sessionClaims.length, lastSavedClaimsCount, saveState]);
 
   // Estimated steps: 1.3 steps per meter (average walking/running cadence)
   const estimatedSteps = Math.floor(distance * 1.3); // distance is in meters here
