@@ -257,9 +257,9 @@ export async function saveRunActivity(
         let finalPolygons: Coord[][] = [];
         const sampledPointsLngLat = sampledPath.map(p => [p.lng, p.lat] as [number, number]);
         console.log('[闭合检测] sampledPath 点数:', sampledPointsLngLat.length);
+        console.log(`[Territory-Diag] 轨迹总点数: ${sampledPointsLngLat.length}, 总距离: ${runData.distance}m`);
 
-
-        if (sampledPointsLngLat.length >= 5) {
+        if (sampledPointsLngLat.length >= 3) {
             const lastPoint = sampledPointsLngLat[sampledPointsLngLat.length - 1];
             const firstPoint = sampledPointsLngLat[0];
             
@@ -268,6 +268,7 @@ export async function saveRunActivity(
             // 规则一：全局首尾闭合 (20米)
             const distGlobal = haversineDistance(lastPoint, firstPoint);
             console.log('[规则一] 首尾距离(米):', distGlobal);
+            console.log(`[Territory-Diag] 规则一测算 - 首尾物理距离: ${distGlobal}m (阈值30m)`);
 
             if (distGlobal <= 20) {
                 closingPath = [...sampledPointsLngLat];
@@ -283,6 +284,7 @@ export async function saveRunActivity(
                         bestIndex = i;
                     }
                 }
+                if (bestIndex !== -1) { console.log(`[Territory-Diag] 规则二命中 - 发现交叉点，索引: ${bestIndex}, 交叉距离: ${minDist}m`); } else { console.log(`[Territory-Diag] 规则二未命中 - 遍历 L-${sampledPointsLngLat.length-20} 未发现 15m 内交叉点`); }
                 console.log('[规则二] bestIndex:', bestIndex, '最近距离(米):', minDist);
 
 
@@ -307,6 +309,7 @@ export async function saveRunActivity(
                 console.log('[多边形] finalPolygons 长度:', finalPolygons.length);
 
             }
+            if (finalPolygons.length === 0) { console.log(`[Territory-Diag] 警告: 闭合条件均未满足，多边形提取被废弃。`); }
         }
 
         // Settlement Gating — 使用 effectiveRiskLevel 代替原始 pathValidation.riskLevel
