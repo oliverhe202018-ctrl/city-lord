@@ -175,7 +175,6 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   const pausedAccumulatorRef = useRef(0); // Accumulated seconds before latest pause
 
   // Sync refs — keep refs in lockstep with React state
-  useEffect(() => { pathRef.current = path; }, [path]);
   useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
   useEffect(() => { distanceRef.current = distance; }, [distance]);
   useEffect(() => { durationRef.current = duration; }, [duration]);
@@ -190,6 +189,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   // --- Persistence & Sync State (Moved up to avoid TDZ) ---
   const [isSaving, setIsSaving] = useState(false);
   const [savedRunId, setSavedRunId] = useState<string | null>(null);
+  const savedRunIdRef = useRef<string | null>(null);
   const [runNumber, setRunNumber] = useState<number | undefined>(undefined);
   const [damageSummary, setDamageSummary] = useState<any[] | undefined>(undefined);
   const [maintenanceSummary, setMaintenanceSummary] = useState<any[] | undefined>(undefined);
@@ -388,7 +388,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     if (!isRunning || isStoppingRef.current) return;
     try {
       const stateToSave = {
-        runId: savedRunId, 
+        runId: savedRunIdRef.current, 
         idempotencyKey: runIdempotencyKeyRef.current,
         path: pathRef.current || [],
         distance: distanceRef.current,
@@ -417,7 +417,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     } catch (e) {
       console.error("[useRunningTracker] Failed to save run state", e);
     }
-  }, [antiCheatLog, isRunning, runIsValid, savedRunId]);
+  }, [antiCheatLog, isRunning, runIsValid]);
 
   // Periodic Save (Every 10 seconds per Revised Plan)
   useEffect(() => {
@@ -692,7 +692,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     }
 
     // Add ACTUAL GPS point to path (seamless continuation)
-    setPath(prev => [...prev, finalLoc]);
+    const updatedPath = [...pathRef.current, finalLoc];
+    pathRef.current = updatedPath;
+    setPath(updatedPath);
 
     if (lastLocationRef.current) {
       const dist = getDistanceFromLatLonInMeters(
@@ -840,7 +842,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
                 
                 // ====== 批量 setPath（单次 React 更新） ======
                 if (validBatchPoints.length > 0) {
-                  setPath(prev => [...prev, ...validBatchPoints]);
+                  const updatedPath = [...pathRef.current, ...validBatchPoints];
+                  pathRef.current = updatedPath;
+                  setPath(updatedPath);
                   // 更新 lastLocation ref
                   lastLocationRef.current = validBatchPoints[validBatchPoints.length - 1];
                   setCurrentLocation(validBatchPoints[validBatchPoints.length - 1]);
@@ -984,6 +988,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
               
               runIdempotencyKeyRef.current = data.idempotencyKey;
               setSavedRunId(data.runId || null);
+              savedRunIdRef.current = data.runId || null;
               setPath(safePath);
               setDistance(data.distance || 0);
               const restoredDuration = data.duration || 0;
@@ -1095,9 +1100,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   }, [saveState]);
 
   const stop = useCallback(() => {
-    isStoppingRef.current = true;
     setIsPaused(true);
     saveState();
+    isStoppingRef.current = true;
   }, [saveState]);
 
   const finalize = useCallback(() => {
@@ -1203,6 +1208,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         
         if (result.data?.runId) {
           setSavedRunId(result.data.runId);
+          savedRunIdRef.current = result.data.runId;
         }
         if (result.data?.runNumber) {
           setRunNumber(result.data.runNumber);
