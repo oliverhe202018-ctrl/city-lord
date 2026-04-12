@@ -113,12 +113,12 @@ export async function getTerritoryDetail(
             });
 
             if (!data) {
-                return { territoryId, status: 'pending' } as any;
+                return null;
             }
             territory = data;
         } catch (error) {
             console.error('Failed to fetch territory detail from Prisma:', error);
-            return { territoryId, status: 'pending' } as any;
+            return null;
         }
     }
 
@@ -146,15 +146,14 @@ export async function getTerritoryDetail(
         return result // Neutral territory
     }
 
-    // 2. Map Owner Profile
     if (territory.profiles) {
         result.owner = {
             id: territory.profiles.id,
             nickname: territory.profiles.nickname || '神秘领主',
             avatarUrl: territory.profiles.avatar_url
         }
-    } else if (territoryId === 'legacy') {
-        // Fallback fetch if legacy mode since profiles aren't pre-loaded
+    } else if (territory.owner_id) {
+        // 🔴 Corrected: Proactive fallback fetch if join failed but owner_id exists
         try {
             const profile = await prisma.profiles.findUnique({
                 where: { id: territory.owner_id },
@@ -168,8 +167,6 @@ export async function getTerritoryDetail(
         } catch (e) {
             result.owner = { id: territory.owner_id, nickname: '神秘领主', avatarUrl: null };
         }
-    } else {
-        result.owner = { id: territory.owner_id, nickname: '神秘领主', avatarUrl: null };
     }
 
     // 3. Map Club Info

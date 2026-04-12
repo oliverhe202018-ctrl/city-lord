@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -55,6 +55,7 @@ export function FactionSelector({ initialUser }: FactionSelectorProps) {
   const [stats, setStats] = useState({ RED: 0, BLUE: 0, bonus: { RED: 0, BLUE: 0 } })
   const [loading, setLoading] = useState(false)
   const [selectedFaction, setSelectedFaction] = useState<Faction | null>(null)
+  const hasJoinedRef = useRef(false)
 
   const loadStats = useCallback(async () => {
     try {
@@ -75,6 +76,8 @@ export function FactionSelector({ initialUser }: FactionSelectorProps) {
   }, [])
 
   const checkFactionStatus = useCallback(async (currentUser?: any) => {
+    if (hasJoinedRef.current) return
+    
     const supabase = createClient()
     let user = currentUser
 
@@ -118,6 +121,7 @@ export function FactionSelector({ initialUser }: FactionSelectorProps) {
     try {
       const result = await joinFaction(faction)
       if (result.success) {
+        hasJoinedRef.current = true
         // 1. 立即关闭弹窗 (Optimistic UI)
         setIsOpen(false)
 

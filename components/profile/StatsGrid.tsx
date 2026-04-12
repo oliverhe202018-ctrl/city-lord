@@ -2,7 +2,7 @@
 
 import React from 'react'
 import dynamic from 'next/dynamic'
-import { Footprints, TrendingUp, Timer, Trophy } from 'lucide-react'
+import { Footprints, TrendingUp, Timer, Trophy, Hexagon } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { ProfileStats, PersonalBest, WeeklyDistance } from '@/app/actions/profile'
 // import { RecentPostsFeed } from '@/components/profile/RecentPostsFeed'
@@ -67,11 +67,11 @@ export function StatsGrid({ stats, isLoading = false, userId }: StatsGridProps) 
                     color="text-emerald-400"
                 />
                 <StatBox
-                    icon={<Timer className="h-4 w-4" />}
-                    label="关注"
-                    value={stats.following.toString()}
-                    unit="人"
-                    color="text-purple-400"
+                    icon={<Hexagon className="h-4 w-4" />}
+                    label="占领面积"
+                    value={stats.areaControlledKm2.toFixed(4)}
+                    unit="km²"
+                    color="text-cyan-400"
                 />
                 <StatBox
                     icon={<Trophy className="h-4 w-4" />}

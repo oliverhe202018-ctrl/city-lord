@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { calculateFactionBalance } from '@/utils/faction-balance'
+import { revalidatePath } from 'next/cache'
 
 export type Faction = 'RED' | 'BLUE'
 
@@ -179,6 +180,8 @@ export async function joinFaction(faction: Faction) {
       console.error('Join faction error:', error)
       return { success: false, error: error.message }
     }
+
+    revalidatePath('/', 'layout')
 
     return { success: true }
   } catch (err: any) {

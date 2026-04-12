@@ -41,6 +41,7 @@ export interface ProfileStats {
     followers: number
     totalRuns: number
     totalDistanceKm: number
+    areaControlledKm2: number
     personalBests: PersonalBest[]
     weeklyDistances: WeeklyDistance[]
     likeCount: number
@@ -127,6 +128,7 @@ export async function getProfileData(targetUserId: string): Promise<ProfileDataR
         followingCount,
         followersCount,
         recentRuns,
+        cityProgress,
     ] = await Promise.all([
         prisma.runs.count({ where: { user_id: targetUserId } }),
         prisma.profile_likes.count({ where: { userId: targetUserId } }),
@@ -146,6 +148,10 @@ export async function getProfileData(targetUserId: string): Promise<ProfileDataR
             where: { user_id: targetUserId },
             select: { distance: true, duration: true, created_at: true },
             orderBy: { created_at: 'desc' },
+        }),
+        prisma.user_city_progress.aggregate({
+            where: { user_id: targetUserId },
+            _sum: { area_controlled: true },
         }),
     ])
 
@@ -219,6 +225,7 @@ export async function getProfileData(targetUserId: string): Promise<ProfileDataR
             followers: followersCount,
             totalRuns,
             totalDistanceKm: profile.total_distance_km ?? 0,
+            areaControlledKm2: Number((cityProgress._sum.area_controlled ?? 0).toFixed(4)),
             personalBests,
             weeklyDistances,
             likeCount,

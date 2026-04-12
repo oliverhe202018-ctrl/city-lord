@@ -339,7 +339,10 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
 
   // Real stats from DB
   const territoryHexCount = userStats.totalTiles
-  const territoryArea = formatAreaFromHexCount(territoryHexCount)
+  const territoryArea = {
+    value: Number(userStats.totalArea || 0).toFixed(4),
+    unit: 'km²'
+  }
   const areaEquivalent = getAreaEquivalentFromHexCount(territoryHexCount)
 
   return (
