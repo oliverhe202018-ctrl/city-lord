@@ -624,11 +624,18 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
             path: primaryOuterRing,
           });
 
-          polygon.on("click", () => {
+          polygon.on("click", (e: any) => {
             (window as any).__amap_polygon_clicked = Date.now();
             setSelectedTerritoryId(territory.id);
             if (setSelectedTerritory) setSelectedTerritory(territory);
             if (setIsDetailSheetOpen) setIsDetailSheetOpen(true);
+            
+            if (e) {
+                e.cancelBubble = true;
+                if (e.originEvent?.stopPropagation) {
+                    e.originEvent.stopPropagation();
+                }
+            }
           });
 
           if (!isClubMerged) {
@@ -807,6 +814,22 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
     clearRenderedLayers();
     window.dispatchEvent(new Event('citylord:refresh-territories'));
   }, [clearRenderedLayers, user?.id]);
+
+  // ─── Map blank-click: clear selected territory ───
+  useEffect(() => {
+    if (!map) return;
+    const handleMapClick = () => {
+      // Guard: if a polygon was clicked within the last 200ms, skip
+      const lastPolygonClick = (window as any).__amap_polygon_clicked || 0;
+      if (Date.now() - lastPolygonClick < 200) return;
+      // Clear selection
+      setSelectedTerritory?.(null);
+      setSelectedTerritoryId(null as any);
+      setIsDetailSheetOpen?.(false);
+    };
+    map.on('click', handleMapClick);
+    return () => { map.off('click', handleMapClick); };
+  }, [map, setSelectedTerritory, setSelectedTerritoryId, setIsDetailSheetOpen]);
 
   useEffect(() => {
     if (!map) return;

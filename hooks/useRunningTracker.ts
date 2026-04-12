@@ -1244,7 +1244,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           });
         }
         
-        return { settlingAsync: result.data?.settlingAsync, isDuplicate: result.data?.isDuplicate };
+        return { settlingAsync: result.data?.settlingAsync, isDuplicate: result.data?.isDuplicate, runId: result.data?.runId };
       } else {
         console.error("Save failed:", result.error);
         if (isFinal) {

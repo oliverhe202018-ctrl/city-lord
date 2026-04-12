@@ -26,6 +26,64 @@ import type { Feature, Polygon, MultiPolygon } from 'geojson';
 import { cleanAndSplitTrajectory } from '@/lib/gis/geometry-cleaner';
 import { isLoopClosed, LOOP_CLOSURE_THRESHOLD_M, extractValidLoops, type Coord } from '@/lib/geometry-utils';
 import { isTester } from '@/lib/constants/anti-cheat';
+import { baseCities } from '@/data/cities';
+
+// ─── 动态城市识别：基于轨迹首点坐标匹配最近城市 ───
+async function resolveRunCityId(runData: any): Promise<string> {
+  const pathPoints = runData.path;
+  if (!pathPoints || pathPoints.length === 0) return 'default_city';
+  const firstPt = pathPoints[0];
+  const lng = Number(firstPt.lng ?? firstPt[0]);
+  const lat = Number(firstPt.lat ?? firstPt[1]);
+  if (isNaN(lng) || isNaN(lat)) return 'default_city';
+
+  try {
+    const rows = await prisma.$queryRaw<any[]>`
+      SELECT id FROM public.cities 
+      WHERE geom IS NOT NULL 
+        AND ST_Contains(geom, ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)) 
+      LIMIT 1
+    `;
+    if (rows && rows.length > 0 && rows[0].id) {
+       console.log(\`[resolveRunCityId] Resolved: \${rows[0].id} from DB\`);
+       return rows[0].id;
+    }
+  } catch(e) {
+    console.error("[resolveRunCityId] DB PostGIS Query Failed", e);
+  }
+  
+  // Fallback if not found / error
+  return resolveCityFromPath(pathPoints);
+}
+
+function resolveCityFromPath(pathPoints: any[]): string {
+  if (!pathPoints || pathPoints.length === 0) return 'default_city';
+  const firstPt = pathPoints[0];
+  const lng = Number(firstPt.lng ?? firstPt[0]);
+  const lat = Number(firstPt.lat ?? firstPt[1]);
+  if (isNaN(lng) || isNaN(lat)) return 'default_city';
+
+  let bestCity = 'default_city';
+  let bestDist = Infinity;
+
+  for (const city of baseCities) {
+    const [cLng, cLat] = city.center;
+    // 快速 haversine（复用已有函数签名）
+    const d = haversineDistance([lng, lat], [cLng, cLat]);
+    if (d < bestDist) {
+      bestDist = d;
+      bestCity = city.pinyin; // city.id = pinyin
+    }
+  }
+
+  // 阈值：80km 内命中有效城市，否则回退
+  if (bestDist > 80_000) {
+    console.warn(\`[resolveCityFromPath] 最近城市 \${bestCity} 距离 \${Math.round(bestDist/1000)}km，超出阈值，回退至 default_city\`);
+    return 'default_city';
+  }
+  console.log(\`[resolveCityFromPath] Resolved: \${bestCity} (距离 \${Math.round(bestDist/1000)}km)\`);
+  return bestCity;
+}
 
 // 用 Ramer-Douglas-Peucker 保留关键几何节点，不破坏环路
 
@@ -509,6 +567,7 @@ export async function saveRunActivity(
                     club_id: runnerClubId,
                     distance: evaluationData.distance,
                     duration: evaluationData.duration,
+                    area: accurateAreaKm2 * 1_000_000, // m² 精确面积
                     path: runData.path as any,
                     polygons: evaluationData.claims as any,
                     status: isBlockedByAntiCheat ? 'flagged' : 'settling',
@@ -647,7 +706,7 @@ export async function saveRunActivity(
 
             // D. Update City Progress — accurateAreaKm2 pre-computed outside tx
             if (!isFlagged) {
-                const cityId = (runData as any).cityId || "default_city";
+                const cityId = (runData as any).cityId || await resolveRunCityId(runData);
 
                 await tx.user_city_progress.upsert({
                     where: {
@@ -677,7 +736,6 @@ export async function saveRunActivity(
                         xp: { increment: totalXp },
                         stamina: { increment: eventReward.stamina },
                         total_distance_km: { increment: evaluationData.distance / 1000 },
-                        total_area: { increment: accurateAreaKm2 },
                         total_runs_count: { increment: 1 },
                         updated_at: new Date()
                     }
@@ -709,7 +767,7 @@ export async function saveRunActivity(
 
         // Phase 3: 主事务外部异步结算领地与附属数据更新 (Trigger.dev 核心解耦)
         if (!isBlockedByAntiCheat) {
-            const cityId = (runData as any).cityId || 'default_city';
+            const cityId = (runData as any).cityId || await resolveRunCityId(runData);
             
             try {
                 const triggerPayload = {

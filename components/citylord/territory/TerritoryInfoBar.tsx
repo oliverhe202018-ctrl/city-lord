@@ -12,8 +12,8 @@ export function TerritoryInfoBar() {
     const { selectedTerritory, kingdomMode, setIsDetailSheetOpen } = useMapInteraction()
     const selectedTerritoryId = useGameStore((state) => state.selectedTerritoryId)
 
-    // Use store ID as primary, fallback to context
-    const activeId = selectedTerritoryId || selectedTerritory?.id || null
+    // Use 'legacy' if selectedTerritory is legacy, then store ID, then context ID
+    const activeId = selectedTerritory?.id === 'legacy' ? 'legacy' : (selectedTerritoryId || selectedTerritory?.id || null)
     const isVisible = activeId !== null
     
     const { data: detail, isLoading } = useQuery({

@@ -72,8 +72,8 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: 'api.dicebear.com' },
       {
         protocol: 'https',
-        hostname: process.env.NEXT_PUBLIC_SUPABASE_URL 
-          ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname 
+        hostname: process.env.NEXT_PUBLIC_SUPABASE_URL
+          ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname
           : '*.supabase.co',
         pathname: '/storage/v1/object/public/**',
       },
@@ -118,7 +118,9 @@ const nextConfig: NextConfig = {
 export default withSentryConfig(withPWA(nextConfig), {
   org: process.env.SENTRY_ORG,
   project: process.env.SENTRY_PROJECT,
-  reactComponentAnnotation: { enabled: true },
+  webpack: {
+    reactComponentAnnotation: { enabled: true },
+  },
   tunnelRoute: "/monitoring",
   sourcemaps: {
     deleteSourcemapsAfterUpload: true,

@@ -1,5 +1,7 @@
 "use client"
 
+import { useRouter } from "next/navigation"
+
 import { memo, useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from "react"
 import { ArrowLeft, Lock, Map, Settings2 } from "lucide-react"
 import { hexCountToArea, formatArea, HEX_AREA_SQ_METERS } from "@/lib/citylord/area-utils"
@@ -65,7 +67,7 @@ interface ImmersiveModeProps {
   closedPolygons?: Location[][]
   onHexClaimed?: () => void
   onManualLocation?: (lat: number, lng: number) => void
-  saveRun?: (isFinal?: boolean) => Promise<{ settlingAsync?: boolean, isDuplicate?: boolean } | void>
+  saveRun?: (isFinal?: boolean) => Promise<{ settlingAsync?: boolean; isDuplicate?: boolean; runId?: string } | void>
   savedRunId?: string | null
   runNumber?: number
   damageSummary?: any[]
@@ -332,6 +334,7 @@ export function ImmersiveRunningMode({
   activeRandomEvent,
   randomEventCountdownSeconds = 0
 }: ImmersiveModeProps) {
+  const router = useRouter()
   const [isPaused, setIsPaused] = useState(initialIsPaused)
 
   // Sync tracker's isPaused into local state whenever the external source changes.
@@ -349,6 +352,7 @@ export function ImmersiveRunningMode({
   const [areaFlash, setAreaFlash] = useState(false)
   const [showLoopWarning, setShowLoopWarning] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [effectiveRunId, setEffectiveRunId] = useState<string | null>(null)
   // Local kingdom toggle — independent of MapRoot context (avoids useMap crash)
   const [showKingdom, setShowKingdom] = useState(false)
   const [floatingBanner, setFloatingBanner] = useState<{ id: number; text: string; tone: "capture" | "shield" } | null>(null)
@@ -551,8 +555,9 @@ export function ImmersiveRunningMode({
     onPause()
   }, [isPaused, onPause])
 
-  const buildSummarySnapshot = useCallback((snapshotHexes: number): SummarySnapshot => {
+  const buildSummarySnapshot = useCallback((snapshotHexes: number, overrideRunId?: string): SummarySnapshot => {
     const safeCapturedArea = Math.max(0, Number.isFinite(area) ? area : 0)
+    const resolvedRunId = overrideRunId || effectiveRunId || savedRunId || undefined;
     return {
       distanceMeters,
       durationSeconds,
@@ -563,14 +568,14 @@ export function ImmersiveRunningMode({
       steps,
       runIsValid,
       antiCheatLog,
-      runId: savedRunId || undefined,
+      runId: resolvedRunId,
       runNumber,
       damageSummary: cloneSnapshotValue(damageSummary),
       maintenanceSummary: cloneSnapshotValue(maintenanceSummary),
       hexesCaptured: settledTerritoriesCount !== undefined ? settledTerritoriesCount : snapshotHexes,
       runTrajectory: cloneSnapshotValue(path || []),
     }
-  }, [distanceMeters, durationSeconds, time, pace, calories, area, steps, runIsValid, antiCheatLog, savedRunId, runNumber, damageSummary, maintenanceSummary, settledTerritoriesCount, path])
+  }, [distanceMeters, durationSeconds, time, pace, calories, area, steps, runIsValid, antiCheatLog, effectiveRunId, savedRunId, runNumber, damageSummary, maintenanceSummary, settledTerritoriesCount, path])
 
   const handleLockScreen = useCallback(() => {
     setIsScreenLocked(true)
@@ -679,6 +684,7 @@ export function ImmersiveRunningMode({
         useGameStore.getState().resetRunState();
         setShowSummary(false);
         onStop();
+        router.replace('/');
         return; 
       }
       
@@ -687,12 +693,18 @@ export function ImmersiveRunningMode({
       const { useGameStore } = await import('@/store/useGameStore');
       useGameStore.getState().resetRunState();
 
+      // Extract runId: prefer direct return value, then savedRunId from tracker state
+      const resolvedRunId = res?.runId || savedRunId || undefined;
+      if (resolvedRunId) {
+        setEffectiveRunId(resolvedRunId);
+      }
+
       if (res?.settlingAsync) {
         toast.success("跑步记录已保存，领地正在后台极速结算中...", { duration: 5000 });
       }
 
       // 验证通过，合法弹出结算面板
-      const snapshot = buildSummarySnapshot(finalSnapshotHexes);
+      const snapshot = buildSummarySnapshot(finalSnapshotHexes, resolvedRunId);
       setSummarySnapshot(snapshot);
       setShowSummary(true);
       

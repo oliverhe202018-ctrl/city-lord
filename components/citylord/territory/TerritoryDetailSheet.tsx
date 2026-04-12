@@ -17,8 +17,8 @@ export function TerritoryDetailSheet() {
     const [reportDialogOpen, setReportDialogOpen] = useState(false)
     const selectedTerritoryId = useGameStore((state) => state.selectedTerritoryId)
 
-    // Use store ID as primary, fallback to context
-    const activeId = selectedTerritoryId || selectedTerritory?.id || null
+    // Use 'legacy' if selectedTerritory is legacy, then store ID, then context ID
+    const activeId = selectedTerritory?.id === 'legacy' ? 'legacy' : (selectedTerritoryId || selectedTerritory?.id || null)
 
     // Sheet is open when explicitly opened + we have a territory
     const isOpen = Boolean(isDetailSheetOpen && activeId !== null)

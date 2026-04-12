@@ -43,6 +43,37 @@ export async function getTerritoryDetail(
         if (!options?.ownerId) {
             return null; // Cannot forge without owner
         }
+        // ─── Parallel async queries to populate profiles, clubs, runs ───
+        const [ownerProfile, ownerClub, sourceRun] = await Promise.all([
+            options.ownerId
+                ? prisma.profiles.findUnique({
+                    where: { id: options.ownerId },
+                    select: { id: true, nickname: true, avatar_url: true }
+                  }).catch(() => null)
+                : Promise.resolve(null),
+            options.clubId
+                ? prisma.clubs.findUnique({
+                    where: { id: options.clubId },
+                    select: { id: true, name: true, avatar_url: true }
+                  }).catch(() => null)
+                : Promise.resolve(null),
+            options.sourceRunId
+                ? prisma.runs.findUnique({
+                    where: { id: options.sourceRunId },
+                    select: { id: true, distance: true, estimated_area: true }
+                  }).catch(() => null)
+                : Promise.resolve(null),
+        ]);
+
+        // Compute area: prefer runs.area (m²), fallback to distance-based estimation
+        let legacyAreaM2 = 0;
+        if (sourceRun) {
+            const dbArea = Number((sourceRun as any).estimated_area ?? 0);
+            if (dbArea > 0) {
+                legacyAreaM2 = dbArea;
+            }
+        }
+
         territory = {
             id: 'legacy',
             owner_id: options.ownerId,
@@ -53,21 +84,11 @@ export async function getTerritoryDetail(
             score_weight: 1.0,
             territory_type: 'NORMAL',
             source_run_id: options.sourceRunId || null,
-            area_m2_exact: 0 
+            area_m2_exact: legacyAreaM2,
+            // Attach nested structures so downstream code resolves correctly
+            profiles: ownerProfile || null,
+            clubs: ownerClub || null,
         };
-        if (options.sourceRunId) {
-            try {
-                const sourceRun = await prisma.runs.findUnique({
-                    where: { id: options.sourceRunId },
-                    select: { id: true, distance: true, estimated_area: true }
-                });
-                if (sourceRun?.estimated_area) {
-                    territory.area_m2_exact = Number(sourceRun.estimated_area);
-                }
-            } catch (e) {
-                console.error('Failed to fetch legacy run area:', e);
-            }
-        }
     } else {
         // 1. Fetch territory data with Prisma to avoid PostgREST schema cache issues
         try {
