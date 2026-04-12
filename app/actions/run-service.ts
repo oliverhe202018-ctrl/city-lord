@@ -45,7 +45,7 @@ async function resolveRunCityId(runData: any): Promise<string> {
       LIMIT 1
     `;
     if (rows && rows.length > 0 && rows[0].id) {
-       console.log(\`[resolveRunCityId] Resolved: \${rows[0].id} from DB\`);
+       console.log(`[resolveRunCityId] Resolved: ${rows[0].id} from DB`);
        return rows[0].id;
     }
   } catch(e) {
@@ -78,10 +78,10 @@ function resolveCityFromPath(pathPoints: any[]): string {
 
   // 阈值：80km 内命中有效城市，否则回退
   if (bestDist > 80_000) {
-    console.warn(\`[resolveCityFromPath] 最近城市 \${bestCity} 距离 \${Math.round(bestDist/1000)}km，超出阈值，回退至 default_city\`);
+    console.warn(`[resolveCityFromPath] 最近城市 ${bestCity} 距离 ${Math.round(bestDist/1000)}km，超出阈值，回退至 default_city`);
     return 'default_city';
   }
-  console.log(\`[resolveCityFromPath] Resolved: \${bestCity} (距离 \${Math.round(bestDist/1000)}km)\`);
+  console.log(`[resolveCityFromPath] Resolved: ${bestCity} (距离 ${Math.round(bestDist/1000)}km)`);
   return bestCity;
 }
 
