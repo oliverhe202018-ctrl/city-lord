@@ -51,7 +51,7 @@ interface RunningStats {
   sessionClaims: Location[][]; // Claimed polygons during this run session
   addManualLocation: (lat: number, lng: number) => void;
   isSyncing: boolean;
-  saveRun: (isFinal?: boolean) => Promise<{ settlingAsync?: boolean; isDuplicate?: boolean } | void>;
+  saveRun: (isFinal?: boolean) => Promise<{ settlingAsync?: boolean; isDuplicate?: boolean; runId?: string; territories?: { id: string }[] } | void>;
   // Raw data for UI calculations (preferred)
   distanceMeters: number; // meters — use this for display/calculations
   durationSeconds: number; // seconds — use this for speed/pace calculations

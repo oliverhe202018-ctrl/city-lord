@@ -26,6 +26,8 @@ import { useGameStore } from "@/store/useGameStore"
 import { ActiveRandomEvent } from "@/hooks/useRandomEvents"
 import { RunEventLog } from "@/types/run-sync"
 import { LOOP_CLOSURE_THRESHOLD_M, getDistanceFromLatLonInMeters } from "@/lib/geometry-utils"
+import { getRunSettlementStatus, getTerritoriesByRunId } from "@/app/actions/run-service"
+import { useMapInteraction } from "@/components/map/MapInteractionContext"
 
 // ─── Timeout utility for promises that may hang after sleep ───
 const SAVE_TIMEOUT_MS = 15_000;
@@ -67,7 +69,7 @@ interface ImmersiveModeProps {
   closedPolygons?: Location[][]
   onHexClaimed?: () => void
   onManualLocation?: (lat: number, lng: number) => void
-  saveRun?: (isFinal?: boolean) => Promise<{ settlingAsync?: boolean; isDuplicate?: boolean; runId?: string } | void>
+  saveRun?: (isFinal?: boolean) => Promise<{ settlingAsync?: boolean; isDuplicate?: boolean; runId?: string; territories?: { id: string }[] } | void>
   savedRunId?: string | null
   runNumber?: number
   damageSummary?: any[]
@@ -357,6 +359,15 @@ export function ImmersiveRunningMode({
   const [showKingdom, setShowKingdom] = useState(false)
   const [floatingBanner, setFloatingBanner] = useState<{ id: number; text: string; tone: "capture" | "shield" } | null>(null)
   const [showEventResolveFx, setShowEventResolveFx] = useState(false)
+  
+  // Settlement Polling States
+  const [isPollingSettlement, setIsPollingSettlement] = useState(false);
+  const [settlementStats, setSettlementStats] = useState<{newTerritories: number; reinforcedTerritories: number} | null>(null);
+  const [isSettlementLoading, setIsSettlementLoading] = useState(false);
+  const [hasSettlementTimeout, setHasSettlementTimeout] = useState(false);
+  const [settledTerritoryId, setSettledTerritoryId] = useState<string | null>(null);
+
+  const { selectedTerritory, setSelectedTerritory } = useMapInteraction();
   const lastStopAttemptRef = useRef(0)
   const attemptStopRef = useRef<() => void>(() => {})
   const bannerTimerRef = useRef<number | null>(null)
@@ -430,8 +441,92 @@ export function ImmersiveRunningMode({
   // Territory Capture Logic
   const isClaimingRef = useRef(false)
 
-  // Auto-pause if location is not updating or speed is too low?
-  // For now, rely on parent component props.
+  // ─── Settlement Polling Lifecycle ───
+  useEffect(() => {
+    if (!isPollingSettlement || !effectiveRunId) return;
+
+    let attempts = 0;
+    const TIMEOUT_ATTEMPT = 13; // ~40s (13 * 3s = 39s)
+    const MAX_ATTEMPTS = 20;    // ~60s (20 * 3s = 60s)
+    
+    console.log(`[Settlement] Starting polling for run ${effectiveRunId}`);
+
+    const intervalId = setInterval(async () => {
+      attempts++;
+      
+      try {
+        const res = await getRunSettlementStatus(effectiveRunId);
+        if (res.success && res.data?.isSettled) {
+          setSettlementStats({ 
+            newTerritories: res.data.newTerritories, 
+            reinforcedTerritories: res.data.reinforcedTerritories 
+          });
+          setIsSettlementLoading(false);
+          setIsPollingSettlement(false);
+          clearInterval(intervalId);
+
+          // Atomic Swap Logic with Safety Defenses
+          // 1. Safety Delay (Main-Replica Sync)
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // 2. Fetch Territory ID with Retry
+          let terrRes = await getTerritoriesByRunId(effectiveRunId);
+          if (terrRes.success && !terrRes.data?.territoryId) {
+            console.log('[ID Swap] First attempt null, retrying in 1s...');
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            terrRes = await getTerritoriesByRunId(effectiveRunId);
+          }
+
+          if (terrRes.success && terrRes.data?.territoryId) {
+            const territoryId = terrRes.data.territoryId;
+            setSettledTerritoryId(territoryId);
+            
+            // Atomic Update: Zustand + Context
+            const { useGameStore } = await import('@/store/useGameStore');
+            useGameStore.getState().setSelectedTerritoryId(territoryId);
+            if (setSelectedTerritory && selectedTerritory) {
+              setSelectedTerritory({
+                ...selectedTerritory,
+                id: territoryId
+              });
+            }
+            
+            toast.success('领地已落盘', { description: `永久ID: ${territoryId}` });
+            console.log(`[ID Swap] Success: legacy -> ${territoryId}`);
+          } else {
+            console.warn('[ID Swap] Both retry attempts returned null. runId:', effectiveRunId);
+          }
+          return;
+        }
+
+        if (attempts >= TIMEOUT_ATTEMPT) {
+          setHasSettlementTimeout(true);
+        }
+
+        if (attempts >= MAX_ATTEMPTS) {
+          setIsPollingSettlement(false);
+          setIsSettlementLoading(false);
+          clearInterval(intervalId);
+          console.log('[Settlement] Polling stopped (timeout).');
+        }
+      } catch (err) {
+        console.error('[Settlement Polling] Error:', err);
+      }
+    }, 3000);
+
+    return () => clearInterval(intervalId);
+  }, [isPollingSettlement, effectiveRunId, setSelectedTerritory]);
+
+  // Reset settlement states when starting a new run session
+  useEffect(() => {
+    if (isActive) {
+      setIsPollingSettlement(false);
+      setSettlementStats(null);
+      setIsSettlementLoading(false);
+      setHasSettlementTimeout(false);
+      setSettledTerritoryId(null);
+    }
+  }, [isActive]);
 
   useEffect(() => {
     if (!isActive || isPaused || !currentLocation || !currentCity) return
@@ -449,11 +544,7 @@ export function ImmersiveRunningMode({
       }
     }
 
-    // Check every 10 seconds or when location updates significantly
-    // For simplicity, we just run this effect when currentLocation changes
-    // Debounce could be added if location updates are very frequent
     checkAndClaimTerritory()
-
   }, [isActive, isPaused, currentLocation, currentCity, lastClaimedHex, loadTerritories])
 
   // Animate area counter with jumping effect
@@ -701,6 +792,25 @@ export function ImmersiveRunningMode({
 
       if (res?.settlingAsync) {
         toast.success("跑步记录已保存，领地正在后台极速结算中...", { duration: 5000 });
+        setIsPollingSettlement(true);
+        setIsSettlementLoading(true);
+
+        // [Post-Save ID Initialization] Inject 'legacy' ID to trigger info bar details
+        if (setSelectedTerritory && selectedTerritory && resolvedRunId) {
+          setSelectedTerritory({
+            ...selectedTerritory,
+            id: 'legacy',
+            sourceRunId: resolvedRunId
+          });
+        }
+      }
+
+      // 🏆 ID 瞬移切换 (Patch 1): 从 Legacy 切换为正式产生的第一个领地 ID
+      if (res?.territories && res.territories.length > 0) {
+        const { useGameStore } = await import('@/store/useGameStore');
+        const firstTerrId = res.territories[0].id;
+        useGameStore.getState().setSelectedTerritoryId(firstTerrId);
+        console.log(`[ImmersiveMode] Triggered ID swap: legacy -> ${firstTerrId}`);
       }
 
       // 验证通过，合法弹出结算面板

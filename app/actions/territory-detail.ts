@@ -60,7 +60,7 @@ export async function getTerritoryDetail(
             options.sourceRunId
                 ? prisma.runs.findUnique({
                     where: { id: options.sourceRunId },
-                    select: { id: true, distance: true, estimated_area: true }
+                    select: { id: true, distance: true, area: true }
                   }).catch(() => null)
                 : Promise.resolve(null),
         ]);
@@ -68,7 +68,7 @@ export async function getTerritoryDetail(
         // Compute area: prefer runs.area (m²), fallback to distance-based estimation
         let legacyAreaM2 = 0;
         if (sourceRun) {
-            const dbArea = Number((sourceRun as any).estimated_area ?? 0);
+            const dbArea = Number((sourceRun as any).area ?? 0);
             if (dbArea > 0) {
                 legacyAreaM2 = dbArea;
             }

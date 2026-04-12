@@ -30,7 +30,7 @@ export async function fetchTerritories(cityId: string, bounds?: { minLng: number
       const { data, error } = await supabaseAdmin
         .from('territories')
         .select(`
-          id, city_id, owner_id, owner_club_id, owner_faction,
+          id, city_id, owner_id, owner_club_id, owner_faction, source_run_id,
           captured_at, health, last_maintained_at, owner_change_count, last_owner_change_at,
           geojson_json,
           clubs ( id, name, avatar_url ),
@@ -48,7 +48,7 @@ export async function fetchTerritories(cityId: string, bounds?: { minLng: number
     } else {
       terrData = await prisma.$queryRaw<any[]>`
         SELECT
-          t.id, t.city_id, t.owner_id, t.owner_club_id, t.owner_faction,
+          t.id, t.city_id, t.owner_id, t.owner_club_id, t.owner_faction, t.source_run_id,
           t.captured_at, t.health, t.last_maintained_at, t.owner_change_count, t.last_owner_change_at,
           t.geojson_json,
           CASE
@@ -98,10 +98,10 @@ export async function fetchTerritories(cityId: string, bounds?: { minLng: number
         ownerType: !t.owner_id ? 'neutral' : (t.owner_id === currentUserId ? 'me' : 'enemy'),
         ownerClubId: t.owner_club_id ?? null,
         ownerFaction: t.owner_faction ?? profileJoin?.faction ?? null,
-        ownerFactionColor: null,
+        ownerFactionColor: (t.owner_faction === 'Red' || t.owner_faction === 'RED') ? '#ef4444' : (t.owner_faction === 'Blue' || t.owner_faction === 'BLUE') ? '#3b82f6' : null,
         ownerFillColor: profileJoin?.fill_color ?? null,
         ownerPathColor: profileJoin?.path_color ?? null,
-        sourceRunId: (t as any).source_run_id ?? null,
+        sourceRunId: t.source_run_id ?? null,
         capturedAt: t.captured_at,
         health: t.health ?? 100,
         maxHealth: 100,

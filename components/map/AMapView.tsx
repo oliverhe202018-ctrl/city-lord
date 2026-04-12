@@ -213,6 +213,7 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
       ? activeTrajectoryPath[activeTrajectoryPath.length - 1]
       : currentLocation;
     const shouldShowTerritoryLayers = showTerritory && !isRunTakeoverActive;
+    const resolvedViewMode = mapViewMode;
 
     return (
       <div className="relative w-full h-full">
@@ -237,7 +238,8 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
               map={mapLayerRef?.current?.map}
               isVisible={true}
               kingdomMode={kingdomMode}
-              showFactionColors={showFactionColors}
+              showFactionColors={showFactionColors || resolvedViewMode === 'faction'}
+              viewMode={resolvedViewMode}
               onViewportKingChange={onViewportKingChange}
             />
           )}

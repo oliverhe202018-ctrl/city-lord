@@ -19,8 +19,9 @@ import { createClient } from "@/lib/supabase/client"
 import { createPost } from "@/app/actions/social-hub"
 import { useGameStore } from "@/store/useGameStore"
 import { generateRunStory } from "@/app/actions/story-service"
-import { updateRunSummary, getRunSettlementStatus } from "@/app/actions/run-service"
+import { updateRunSummary, getRunSettlementStatus, getTerritoriesByRunId } from "@/app/actions/run-service"
 import { Clipboard } from "@capacitor/clipboard"
+import { useMapInteraction } from "@/components/map/MapInteractionContext"
 import { isNativePlatform } from "@/lib/capacitor/safe-plugins"
 import { useRouter } from "next/navigation"
 
@@ -60,6 +61,9 @@ interface RunSummaryViewProps {
     level: number;
   }[]; // Phase 4: Maintenance details
   capturedArea?: number; // m² (optional, overrides hexesCaptured calculation)
+  isSettlementLoading?: boolean;
+  settlementStats?: { newTerritories: number; reinforcedTerritories: number } | null;
+  hasSettlementTimeout?: boolean;
 }
 
 export function RunSummaryView({
@@ -80,7 +84,10 @@ export function RunSummaryView({
   runNumber,
   damageSummary = [],
   maintenanceSummary = [],
-  capturedArea: propCapturedArea
+  capturedArea: propCapturedArea,
+  isSettlementLoading = false,
+  settlementStats: propSettlementStats = null,
+  hasSettlementTimeout = false
 }: RunSummaryViewProps) {
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
@@ -96,40 +103,10 @@ export function RunSummaryView({
   const clubId = useGameStore(state => state.clubId);
   const router = useRouter();
 
-  // Settlement State
-  const [settlementStats, setSettlementStats] = useState<{newTerritories: number; reinforcedTerritories: number} | null>(null);
-  const [isSettlementLoading, setIsSettlementLoading] = useState(false);
-  const [hasSettlementTimeout, setHasSettlementTimeout] = useState(false);
+  // Settlement State - Received via props, local state only for legacy fallback
+  const settlementStats = propSettlementStats;
 
-  useEffect(() => {
-    if (!runId || !runIsValid) return;
-    setIsSettlementLoading(true);
-    let attempts = 0;
-    const maxAttempts = 20; // 20 * 2s = 40s hard limit
-    let intervalId: ReturnType<typeof setInterval>;
-    
-    const poll = async () => {
-      attempts++;
-      const res = await getRunSettlementStatus(runId);
-      // PRIMARY: exit as soon as background task marks run settled (even if 0 territories)
-      if (res.success && res.data?.isSettled) {
-        setSettlementStats({ newTerritories: res.data.newTerritories, reinforcedTerritories: res.data.reinforcedTerritories });
-        setIsSettlementLoading(false);
-        if (intervalId) clearInterval(intervalId);
-        return;
-      }
-      // FALLBACK: hard timeout
-      if (attempts >= maxAttempts) {
-        setIsSettlementLoading(false);
-        setHasSettlementTimeout(true);
-        if (intervalId) clearInterval(intervalId);
-      }
-    };
-    
-    intervalId = setInterval(poll, 2000);
-    poll(); // initial call
-    return () => clearInterval(intervalId);
-  }, [runId, runIsValid]);
+  // Polling logic removed - Parent captures settlement async
 
   // Storytelling State
   const [story, setStory] = useState<string | null>(null);
@@ -531,7 +508,7 @@ export function RunSummaryView({
               </div>
             ) : hasSettlementTimeout ? (
               <div className="flex items-center justify-between mb-3 text-amber-600">
-                <div className="text-sm">结算后台处理中，请稍后在记录中查看明细</div>
+                <div className="text-sm">结算耗时较长，领地将在后台完成落盘 ✓</div>
               </div>
             ) : (settlementStats || hexesCaptured > 0) ? (
               <div className="flex flex-col gap-2">

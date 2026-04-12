@@ -124,6 +124,7 @@ interface TerritoryLayerProps {
   isVisible: boolean;
   kingdomMode?: 'personal' | 'club';
   showFactionColors?: boolean;
+  viewMode?: string;
   onViewportKingChange?: (king: ViewportKingData | null) => void;
 }
 
@@ -154,14 +155,16 @@ type DisplayLevel = 'club' | 'individual';
  * - Selected territory gets a persistent darker border highlight
  * - Map blank click clears selection (with event conflict protection)
  */
-const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdomMode, showFactionColors = false, onViewportKingChange }) => {
+const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdomMode, showFactionColors = false, viewMode: propViewMode, onViewportKingChange }) => {
   const [polygons, setPolygons] = useState<any[]>([]);
   const [markers, setMarkers] = useState<any[]>([]);
   const { currentCity: city } = useCity();
-  const { viewMode, selectedTerritory, setSelectedTerritory, setIsDetailSheetOpen, openTerritoryDetailDrawer } = useMapInteraction();
+  const { viewMode: contextViewMode, selectedTerritory, setSelectedTerritory, setIsDetailSheetOpen, openTerritoryDetailDrawer } = useMapInteraction();
+  const resolvedViewMode = propViewMode ?? contextViewMode;
   const { user } = useAuth();
   const { territoryAppearance } = useGameTerritoryAppearance();
   const clubId = useGameStore((state) => state.clubId);
+  const faction = useGameStore((state) => state.faction);
   const setSelectedTerritoryId = useGameStore((state) => state.setSelectedTerritoryId);
   const selectedTerritoryId = useGameStore((state) => state.selectedTerritoryId);
 
@@ -323,10 +326,11 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
     const ctx: ViewContext = {
       userId: user?.id || null,
       clubId: clubId || null,
-      subject: viewMode === 'faction' ? 'faction' : 'individual'
+      faction: faction || null,
+      subject: resolvedViewMode === 'faction' ? 'faction' : 'individual'
     };
     const style = generateTerritoryStyle(territory, ctx);
-    const isFactionColorActive = showFactionColors || viewMode === 'faction';
+    const isFactionColorActive = showFactionColors || resolvedViewMode === 'faction';
     // ✅ 优先使用 DB 直接存储的 hex 色值，避免依赖字符串关键字匹配（UUID faction_id 等场景下匹配全部失败）
     const factionBaseColor = territory.ownerFactionColor
       ? safeColor(territory.ownerFactionColor, resolveFactionColor(territory.ownerFaction))
@@ -366,7 +370,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
       strokeColor,
       strokeWeight: isLowHealth ? 3 : 2,
     };
-  }, [clubId, kingdomMode, resolveFactionColor, showFactionColors, territoryAppearance.fillColor, territoryAppearance.fillOpacity, territoryAppearance.strokeColor, user?.id, viewMode]);
+  }, [clubId, kingdomMode, resolveFactionColor, showFactionColors, territoryAppearance.fillColor, territoryAppearance.fillOpacity, territoryAppearance.strokeColor, user?.id, resolvedViewMode]);
 
   const recomputeViewportKing = useCallback(() => {
     if (!map) {
@@ -437,7 +441,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
   }, [applyViewportKingHalo, kingdomMode, map, onViewportKingChange]);
 
   // 鍙楁帶鐨?ContextSwitch 鎷︽埅鍣細纭繚鐪熸鐨勮涔夊彉鏇存墠瑙﹀彂娓呯┖
-  const prevContextRef = useRef({ cityId: city?.id, viewMode, kingdomMode });
+  const prevContextRef = useRef({ cityId: city?.id, resolvedViewMode, kingdomMode });
   useEffect(() => {
     const prev = prevContextRef.current;
 
@@ -445,17 +449,17 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
     // 杩欓噷鐣ヨ繃浜嗗灏氭湭璁剧疆 city 鐨勬瀬鍒濇湡杩囨护
     const isChanged =
       (city?.id !== undefined && city?.id !== prev.cityId) ||
-      (viewMode !== undefined && viewMode !== prev.viewMode) ||
+      (resolvedViewMode !== undefined && resolvedViewMode !== prev.resolvedViewMode) ||
       (kingdomMode !== undefined && kingdomMode !== prev.kingdomMode);
 
     if (isChanged) {
-      console.log(`[Audit] ContextSwitch clear: city ${prev.cityId}->${city?.id} viewMode ${prev.viewMode}->${viewMode} kingdomMode ${prev.kingdomMode}->${kingdomMode}`);
+      console.log(`[Audit] ContextSwitch clear: city ${prev.cityId}->${city?.id} resolvedViewMode ${prev.resolvedViewMode}->${resolvedViewMode} kingdomMode ${prev.kingdomMode}->${kingdomMode}`);
       setSelectedTerritory?.(null);
     }
 
     // 姘歌繙鍚屾鏈€鏂?ref
-    prevContextRef.current = { cityId: city?.id, viewMode, kingdomMode };
-  }, [city, viewMode, kingdomMode, setSelectedTerritory]);
+    prevContextRef.current = { cityId: city?.id, resolvedViewMode, kingdomMode };
+  }, [city, resolvedViewMode, kingdomMode, setSelectedTerritory]);
 
   // Load territories
   useEffect(() => {
@@ -792,7 +796,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
   }, [
     map,
     city,
-    viewMode,
+    resolvedViewMode,
     showFactionColors,
     kingdomMode,
     user?.id,
@@ -871,7 +875,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
     });
 
     recomputeViewportKing();
-  }, [buildPolygonPresentation, clearViewportKingHalo, kingdomMode, recomputeViewportKing, viewMode, showFactionColors]);
+  }, [buildPolygonPresentation, clearViewportKingHalo, kingdomMode, recomputeViewportKing, resolvedViewMode, showFactionColors]);
 
   // Apply selection highlight when selectedTerritoryId changes
   useEffect(() => {

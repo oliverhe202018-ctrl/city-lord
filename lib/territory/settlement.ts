@@ -450,7 +450,6 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
             if (preCalcArea >= 10) {
                 const newId = `terr_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
                 // TODO[LBS-Sec]: 当前城市判定依赖 fallback。需引入区划边界多边形数据，改为 ST_Intersects(cities.geom, territory.geom) 进行后端强制判定。
-                const finalCityId = 'default_city';
                 const geojsonStr = JSON.stringify(finalGeometry);
 
                 const affectedRows = await tx.$executeRaw`
@@ -475,7 +474,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                     )
                     SELECT
                         ${newId},
-                        ${finalCityId},
+                        ${cityId},
                         CAST(${userId} AS UUID),
                         CAST(${clubId ?? null} AS UUID),
                         ${runnerFaction},
@@ -494,7 +493,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                 if (affectedRows > 0) {
                     await tx.$executeRaw`
                         INSERT INTO user_city_progress (user_id, city_id, tiles_captured, area_controlled, last_active_at, joined_at)
-                        VALUES (CAST(${userId} AS UUID), ${finalCityId}, 1, (${preCalcArea} / 1000000.0), NOW(), NOW())
+                        VALUES (CAST(${userId} AS UUID), ${cityId}, 1, (${preCalcArea} / 1000000.0), NOW(), NOW())
                         ON CONFLICT (user_id, city_id) DO UPDATE SET
                         tiles_captured = user_city_progress.tiles_captured + 1,
                         area_controlled = user_city_progress.area_controlled + (${preCalcArea} / 1000000.0),
@@ -560,7 +559,42 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                 WHERE id = ${clubId}::uuid
             `;
         }
-        return result; // Add return
+        // E. Faction & Global Stats Update (Patch 2)
+        if (runnerFaction) {
+            await tx.$executeRaw`
+                INSERT INTO public.city_faction_stats (city_id, faction_id, total_area_km2, updated_at)
+                VALUES (
+                    ${cityId},
+                    ${runnerFaction},
+                    COALESCE((
+                        SELECT SUM(t.area_m2_exact) / 1000000.0
+                        FROM public.territories t
+                        WHERE t.city_id = ${cityId}
+                          AND t.owner_faction = ${runnerFaction}
+                          AND t.status = 'ACTIVE'::"TerritoryStatus"
+                    ), 0),
+                    NOW()
+                )
+                ON CONFLICT (city_id, faction_id) DO UPDATE SET
+                    total_area_km2 = EXCLUDED.total_area_km2,
+                    updated_at = NOW()
+            `;
+        }
+
+        // Update User Global Profile Stats
+        await tx.$executeRaw`
+            UPDATE public.profiles
+            SET total_area = COALESCE((
+                SELECT SUM(t.area_m2_exact) / 1000000.0
+                FROM public.territories t
+                WHERE t.owner_id = ${userId}::uuid
+                  AND t.status = 'ACTIVE'::"TerritoryStatus"
+            ), 0),
+            updated_at = NOW()
+            WHERE id = ${userId}::uuid
+        `;
+
+        return result; 
     }, { timeout: 30000, maxWait: 10000 });
     if (clubId) {
         await TerritoryStatsAggregatorService.processNextBatch();

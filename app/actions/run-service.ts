@@ -131,6 +131,7 @@ export interface SaveRunResult {
     totalSteps?: number;
     settlingAsync?: boolean;
     isDuplicate?: boolean;
+    territories?: { id: string }[];
 }
 
 const isRunEventLog = (event: unknown): event is RunEventLog => {
@@ -814,7 +815,8 @@ export async function saveRunActivity(
                 isValid: result.isValid,
                 antiCheatLog: result.antiCheatLog,
                 totalSteps: result.totalSteps,
-                settlingAsync: (!result.isFlagged && polygonsForSettlement.length > 0) ? true : undefined
+                settlingAsync: (!result.isFlagged && polygonsForSettlement.length > 0) ? true : undefined,
+                territories: [] // Placeholder for ID swap compatibility
             }
         };
 
@@ -879,4 +881,24 @@ export async function getRunSettlementStatus(runId: string): Promise<ActionRespo
         console.error('Failed to fetch run settlement status:', error);
         return { success: false, error: error.message };
     }
+}
+
+export async function getTerritoriesByRunId(
+  runId: string
+): Promise<ActionResponse<{ territoryId: string | null }>> {
+  noStore();
+  try {
+    if (!runId) throw new Error('Run ID is required');
+    const territory = await prisma.territories.findFirst({
+      where: { source_run_id: runId, status: 'ACTIVE' },
+      select: { id: true },
+      orderBy: { first_claimed_at: 'desc' },
+    });
+    return {
+      success: true,
+      data: { territoryId: territory?.id ?? null },
+    };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
 }
