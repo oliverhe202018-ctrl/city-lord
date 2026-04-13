@@ -21,6 +21,8 @@ import {
     featureCollection as turfFeatureCollection,
     union as turfUnion,
     length as turfLength,
+    convex as turfConvex,
+    point as turfPoint,
 } from '@turf/turf';
 import type { Feature, Polygon, MultiPolygon } from 'geojson';
 import { cleanAndSplitTrajectory } from '@/lib/gis/geometry-cleaner';
@@ -389,17 +391,35 @@ export async function saveRunActivity(
 
             // 生成最终多边形环
             if (closingPath && closingPath.length >= 3) {
-                const ring = [...closingPath];
-                // 安全闭合：强制首尾点一致
-                const first = ring[0];
-                const last = ring[ring.length - 1];
-                if (first[0] !== last[0] || first[1] !== last[1]) {
-                    ring.push([first[0], first[1]]);
+                try {
+                    // 使用凸包 (Convex Hull) 规范化多边形，消除所有自相交和深色三角形渲染问题
+                    const points = turfFeatureCollection(
+                        closingPath.map(p => turfPoint(p))
+                    );
+                    const hull = turfConvex(points);
+                    
+                    if (hull && hull.geometry && hull.geometry.coordinates && hull.geometry.coordinates.length > 0) {
+                        const hullRing = hull.geometry.coordinates[0];
+                        // 确保闭合并转换格式
+                        const ring = [...hullRing];
+                        finalPolygons = [ring.map((coord: any) => ({ lng: coord[0], lat: coord[1] }))];
+                        console.log('[多边形] Convex Hull 生成成功，finalPolygons 长度:', finalPolygons.length);
+                    } else {
+                        throw new Error('Convex hull generation failed');
+                    }
+                } catch (e) {
+                    console.error('[多边形] 凸包生成失败，回退到原始环:', e);
+                    const ring = [...closingPath];
+                    // 安全闭合：强制首尾点一致
+                    const first = ring[0];
+                    const last = ring[ring.length - 1];
+                    if (first[0] !== last[0] || first[1] !== last[1]) {
+                        ring.push([first[0], first[1]]);
+                    }
+                    // 转换回 Coord[] 格式
+                    finalPolygons = [ring.map(([lng, lat]) => ({ lng, lat }))];
+                    console.log('[多边形] finalPolygons 长度:', finalPolygons.length);
                 }
-                // 转换回 Coord[] 格式
-                finalPolygons = [ring.map(([lng, lat]) => ({ lng, lat }))];
-                console.log('[多边形] finalPolygons 长度:', finalPolygons.length);
-
             }
             if (finalPolygons.length === 0) { console.log(`[Territory-Diag] 警告: 闭合条件均未满足，多边形提取被废弃。`); }
         }
@@ -559,6 +579,9 @@ export async function saveRunActivity(
         // If flagged, we skip rewards by setting results to empty
         const potentialResults = (isBlockedByAntiCheat || effectiveRiskLevel === 'HIGH') ? [] : evaluateTasks(evaluationData);
 
+        const resolvedCityId = (runData as any).cityId || await resolveRunCityId(runData);
+        const safeCityId = (resolvedCityId && resolvedCityId !== 'default_city') ? resolvedCityId : null;
+
         // 5. Transaction: Save Run + Process Rewards + Audit Logs
         const result = await prisma.$transaction(async (tx: any) => {
             // A. Create Run Record (Always saved, even if flagged)
@@ -706,14 +729,12 @@ export async function saveRunActivity(
             });
 
             // D. Update City Progress — accurateAreaKm2 pre-computed outside tx
-            if (!isFlagged) {
-                const cityId = (runData as any).cityId || await resolveRunCityId(runData);
-
+            if (!isFlagged && safeCityId) {
                 await tx.user_city_progress.upsert({
                     where: {
                         user_id_city_id: {
                             user_id: userId,
-                            city_id: cityId
+                            city_id: safeCityId
                         }
                     },
                     update: {
@@ -721,7 +742,7 @@ export async function saveRunActivity(
                     },
                     create: {
                         user_id: userId,
-                        city_id: cityId,
+                        city_id: safeCityId,
                         area_controlled: 0,
                         tiles_captured: 0,
                         last_active_at: new Date(),
@@ -767,14 +788,12 @@ export async function saveRunActivity(
         }, { timeout: 30000, maxWait: 10000 });
 
         // Phase 3: 主事务外部异步结算领地与附属数据更新 (Trigger.dev 核心解耦)
-        if (!isBlockedByAntiCheat) {
-            const cityId = (runData as any).cityId || await resolveRunCityId(runData);
-            
+        if (!isBlockedByAntiCheat && safeCityId) {
             try {
                 const triggerPayload = {
                     runId: result.runId,
                     userId,
-                    cityId,
+                    cityId: safeCityId,
                     clubId: runnerClubId,
                     polygons: polygonsForSettlement,
                     distance: evaluationData.distance,

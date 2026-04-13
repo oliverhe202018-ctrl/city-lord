@@ -59,6 +59,19 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
     const SHIELD_CHARGE_INCREMENT = 100;
 
     // 1. Validate Input & Prepare Polygons
+    if (!cityId || cityId === 'default_city' || cityId === 'unknown') {
+        console.error(`[Settlement] 致命错误：cityId 无效 (${cityId})。强行终止入库以防事务崩溃。`);
+        return {
+            success: true,
+            createdTerritories: 0,
+            reinforcedTerritories: 0,
+            damagedTerritories: 0,
+            destroyedTerritories: 0,
+            damageDetails: [],
+            maintenanceDetails: []
+        }; // 必须 return success: true 放过轮询
+    }
+
     let cleanedPolygons: Feature<Polygon>[];
 
     if (input.preProcessedPolygons && input.preProcessedPolygons.length > 0) {

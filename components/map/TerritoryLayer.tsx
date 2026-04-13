@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
+import { toast } from "sonner";
 import { logEvent } from '@/lib/native-log';
 import type { ExtTerritory } from "@/types/city";
 import { useCity } from "@/contexts/CityContext";
@@ -611,12 +612,16 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
             });
           }
 
+          const isGhost = !territory.id || territory.id === 'legacy' || territory.id === '';
+
           const polygon = new (window as any).AMap.Polygon({
             path: validPaths,
             fillColor: safeColor(presentation.fillColor, DEFAULT_FILL),
-            fillOpacity: presentation.fillOpacity,
+            fillOpacity: isGhost ? 0.2 : presentation.fillOpacity,
             strokeColor: safeColor(presentation.strokeColor, DEFAULT_STROKE),
             strokeWeight: presentation.strokeWeight,
+            strokeStyle: isGhost ? 'dashed' : 'solid',
+            strokeDasharray: isGhost ? [10, 5] : undefined,
             zIndex: 50,
             extData: territory,
             bubble: false,
@@ -630,9 +635,14 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
 
           polygon.on("click", (e: any) => {
             (window as any).__amap_polygon_clicked = Date.now();
-            setSelectedTerritoryId(territory.id);
-            if (setSelectedTerritory) setSelectedTerritory(territory);
-            if (setIsDetailSheetOpen) setIsDetailSheetOpen(true);
+            
+            if (isGhost) {
+                 toast.info("领地正在云端结算中...");
+            } else {
+                 setSelectedTerritoryId(territory.id);
+                 if (setSelectedTerritory) setSelectedTerritory(territory);
+                 if (setIsDetailSheetOpen) setIsDetailSheetOpen(true);
+            }
             
             if (e) {
                 e.cancelBubble = true;
