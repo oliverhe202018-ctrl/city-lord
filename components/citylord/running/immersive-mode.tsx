@@ -27,7 +27,8 @@ import { ActiveRandomEvent } from "@/hooks/useRandomEvents"
 import { RunEventLog } from "@/types/run-sync"
 import { LOOP_CLOSURE_THRESHOLD_M, getDistanceFromLatLonInMeters } from "@/lib/geometry-utils"
 import { getRunSettlementStatus, getTerritoriesByRunId } from "@/app/actions/run-service"
-import { useMapInteraction } from "@/components/map/MapInteractionContext"
+import { useMapInteraction, MapInteractionProvider } from "@/components/map/MapInteractionContext"
+import { MapRoot } from "@/components/map/MapRoot"
 
 // ─── Timeout utility for promises that may hang after sleep ───
 const SAVE_TIMEOUT_MS = 15_000;
@@ -298,7 +299,7 @@ function cloneSnapshotValue<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
 }
 
-export function ImmersiveRunningMode({
+function ImmersiveRunningModeInner({
   isActive,
   useSharedMapBase = false,
   userId,
@@ -1333,4 +1334,36 @@ export function RunningFAB({
       )}
     </div>
   )
+}
+export function ImmersiveRunningMode(props: ImmersiveModeProps) {
+  // [HOTFIX] 构建双重 Provider 防御块，防御因 next/dynamic 造成的 Context Module 多开导致 Context 击穿
+  const [selectedTerritory, setSelectedTerritory] = useState<any>(null);
+  const [viewMode, setViewMode] = useState<'individual' | 'faction'>('individual');
+  const [isDetailSheetOpen, setIsDetailSheetOpen] = useState(false);
+  const [kingdomMode, setKingdomMode] = useState<'personal' | 'club'>('personal');
+  const [showKingdom, setShowKingdom] = useState(true);
+  const [showFog, setShowFog] = useState(false);
+
+  const interactionValue = {
+    selectedTerritory,
+    setSelectedTerritory,
+    viewMode,
+    setViewMode,
+    isDetailSheetOpen,
+    setIsDetailSheetOpen,
+    kingdomMode,
+    setKingdomMode,
+    showKingdom,
+    toggleKingdom: () => setShowKingdom(v => !v),
+    showFog,
+    toggleFog: () => setShowFog(v => !v)
+  };
+
+  return (
+    <MapRoot>
+      <MapInteractionProvider value={interactionValue as any}>
+        <ImmersiveRunningModeInner {...props} />
+      </MapInteractionProvider>
+    </MapRoot>
+  );
 }
