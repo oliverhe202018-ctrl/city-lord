@@ -75,13 +75,17 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
               className="group relative flex flex-col items-center justify-center p-1 outline-none active:scale-90 transition-transform h-full flex-1"
             >
               <div
-                className={`relative flex h-full w-full max-w-[48px] items-center justify-center rounded-xl transition-all duration-300 ${isActive ? "bg-white/10" : "bg-transparent hover:bg-white/5"
+                className={`relative flex flex-col h-full w-full max-w-[48px] items-center justify-center gap-[2px] rounded-xl transition-all duration-300 ${isActive ? "bg-white/10" : "bg-transparent hover:bg-white/5"
                   }`}
               >
                 <Icon
                   className={`h-5 w-5 transition-colors duration-300 ${isActive ? "text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]" : "text-white/50 group-hover:text-white/80"
                     }`}
                 />
+                
+                <span className={`text-[10px] leading-none transition-colors duration-300 ${isActive ? "text-[#fbbf24]" : "text-[#6b7280]"}`}>
+                  {tab.label}
+                </span>
 
                 {/* Badge */}
                 {tab.badge && tab.badge > 0 && (

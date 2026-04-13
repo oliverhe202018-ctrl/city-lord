@@ -142,6 +142,7 @@ interface TerritoryMetric {
   maxLng: number;
   minLat: number;
   maxLat: number;
+  areaM2?: number;
 }
 
 type DisplayLevel = 'club' | 'individual';
@@ -404,6 +405,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
       const viewportMinLat = southWest.getLat();
       const viewportMaxLat = northEast.getLat();
       const totals = new Map<string, number>();
+      const realAreaTotals = new Map<string, number>();
       
       for (const metric of territoryMetricsRef.current) {
         const intersects = metric.maxLng >= viewportMinLng &&
@@ -418,6 +420,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
         if (approxArea <= 0) continue;
 
         totals.set(metric.ownerId, (totals.get(metric.ownerId) || 0) + approxArea);
+        realAreaTotals.set(metric.ownerId, (realAreaTotals.get(metric.ownerId) || 0) + (metric.areaM2 || 0));
       }
       
       if (totals.size === 0) {
@@ -460,7 +463,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
           ? profile.nickname.trim()
           : `领主-${kingOwnerId.slice(0, 6)}`,
         avatarUrl: profile?.avatarUrl || null,
-        totalArea: kingArea,
+        totalArea: realAreaTotals.get(kingOwnerId) ?? 0,
       });
     };
 
@@ -667,9 +670,11 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
               if (!outerRing || outerRing.length < 4) return;
 
               const bounds = computePathBounds(outerRing);
+              const polyFeature = turf.polygon(polygonRings);
               territoryMetrics.push({
                 ownerId: territory.ownerId as string,
-                feature: turf.polygon(polygonRings),
+                feature: polyFeature,
+                areaM2: (territory as any).area_m2_exact || (territory as any).areaM2 || turf.area(polyFeature),
                 ...bounds,
               });
             });

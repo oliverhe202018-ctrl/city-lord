@@ -6,26 +6,21 @@ interface Props {
 }
 
 export const KingAreaBanner = React.memo(function KingAreaBanner({ king }: Props) {
-  const [topOffset, setTopOffset] = useState('54px');
+  const [topOffset, setTopOffset] = useState('88px');
 
   useEffect(() => {
     const updateOffset = () => {
-      let offset = 0;
       const mh = document.getElementById('map-header');
       const ms = document.getElementById('mode-switcher');
+      let headerH = 0;
+      let switcherH = 0;
+      if (mh) headerH = mh.getBoundingClientRect().height;
+      if (ms) switcherH = ms.getBoundingClientRect().height;
       
-      // mode-switcher's bottom already accounts for the map-header if it has margin-top
-      if (ms) {
-        offset = ms.getBoundingClientRect().bottom;
-      } else if (mh) {
-        offset = mh.getBoundingClientRect().bottom;
-      }
-      
-      if (offset > 0) {
-        // Add minimal 8px padding
-        setTopOffset(`${offset + 8}px`);
+      if (headerH + switcherH > 0) {
+        setTopOffset(`${headerH + switcherH + 4}px`); 
       } else {
-        setTopOffset('54px');
+        setTopOffset('88px');
       }
     };
 
