@@ -123,6 +123,7 @@ export function MapHeader({
   setShowThemeSwitcher,
   isRunTakeoverActive = false
 }: MapHeaderProps) {
+  const [isExpanded, setIsExpanded] = useState(false)
   const router = useRouter()
   const { initializeLocationSystem } = useLocationContext()
   const { region } = useRegion();
@@ -371,44 +372,47 @@ export function MapHeader({
 
   return (
     <>
-      {/* 头部状态栏容器 - 固定在顶部安全区域 */}
       <div 
         ref={headerRef}
-        className="fixed top-0 left-0 right-0 z-[100] px-4 transition-all duration-300 pt-[calc(env(safe-area-inset-top)+1rem)] max-w-md mx-auto"
+        id="map-header"
+        className="fixed top-0 left-0 right-0 z-[100] px-3 transition-all duration-300 pt-[calc(env(safe-area-inset-top)+8px)] max-w-md mx-auto"
       >
-        <GlassCard className="p-1">
-          <div className="flex items-center justify-between gap-2">
+        <div 
+          className="rounded-[16px] overflow-hidden transition-all duration-300 backdrop-blur-md cursor-pointer border border-white/5"
+          style={{ background: 'rgba(0,0,0,0.82)' }}
+          onClick={() => setIsExpanded(!isExpanded)}
+        >
+          <div className="flex items-center justify-between p-1.5 gap-2">
             {/* 左侧：城市选择器 */}
             <button
-              onClick={() => openDrawer('city')}
-              className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
+              onClick={(e) => { e.stopPropagation(); openDrawer('city') }}
+              className="flex items-center justify-center gap-1 px-1.5 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
             >
-              <span className="text-xl">{currentCity.icon}</span>
-              <div className="flex flex-col items-start">
-                <span className="text-xs font-bold text-slate-900 dark:text-white">
+              <div className="flex items-center gap-0.5">
+                <span className="text-[13px] font-medium text-slate-100">
                   {currentDistrict || '未知位置'}
                 </span>
-                <ChevronDown className="w-3 h-3 text-slate-900 dark:text-white" />
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
               </div>
             </button>
 
             {/* 中间：用户等级进度与体力 */}
-            <div className={`flex-1 px-2 py-1 border-l border-r border-white/5 mx-1 flex flex-col justify-center ${!isLoggedIn ? 'items-center opacity-0' : 'gap-1.5'}`}>
+            <div className={`flex-1 px-1.5 py-1 border-l border-r border-white/10 mx-1 flex flex-col justify-center transition-all duration-300 ${!isLoggedIn ? 'items-center opacity-0' : 'gap-1.5'}`}>
               {!isLoggedIn ? (
                 null
               ) : (
                 <>
                   {/* Level & EXP */}
-                  <div className="flex flex-col gap-0.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-medium text-slate-700 dark:text-white/80 flex items-center gap-1">
-                        <User className="w-3 h-3" /> 等级 {level}
+                  <div className="flex flex-col gap-1">
+                    <div className={`flex items-center justify-between transition-all duration-300 overflow-hidden ${isExpanded ? 'h-3.5 opacity-100 mb-0.5' : 'h-0 opacity-0'}`}>
+                      <span className="text-[10px] font-medium text-slate-300 flex items-center gap-1">
+                        <User className="w-2.5 h-2.5" /> Lv.{level}
                       </span>
-                      <span className="text-[10px] text-slate-500 dark:text-white/40">
-                        经验: {currentExp}/{maxExp}
+                      <span className="text-[10px] text-slate-400">
+                        {currentExp}/{maxExp}
                       </span>
                     </div>
-                    <div className="h-1 rounded-full bg-slate-200 dark:bg-secondary/30 overflow-hidden">
+                    <div className="rounded-full bg-white/10 overflow-hidden transition-all duration-300" style={{ height: isExpanded ? '4px' : '3px' }}>
                       <div
                         className="h-full rounded-full transition-all duration-500 ease-out"
                         style={{
@@ -420,66 +424,38 @@ export function MapHeader({
                   </div>
 
                   {/* Stamina */}
-                  <div className="flex flex-col gap-0.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-medium text-cyan-700 dark:text-cyan-400 flex items-center gap-1">
-                        <Zap className="w-3 h-3" /> 体力
+                  <div className="flex flex-col gap-1">
+                    <div className={`flex items-center justify-between transition-all duration-300 overflow-hidden ${isExpanded ? 'h-3.5 opacity-100 mb-0.5' : 'h-0 opacity-0'}`}>
+                      <span className="text-[10px] font-medium text-cyan-400 flex items-center gap-1">
+                        <Zap className="w-2.5 h-2.5" /> 体力
                       </span>
-                      <span className="text-[10px] text-cyan-600 dark:text-cyan-400/60">
-                        {stamina}/{maxStamina} {timeToNext && <span className="text-[8px] ml-1">({timeToNext})</span>}
+                      <span className="text-[10px] text-cyan-400/80">
+                        {stamina}/{maxStamina} {timeToNext && <span className="text-[8.5px] ml-1">({timeToNext})</span>}
                       </span>
                     </div>
-                    <div className="h-1 rounded-full bg-cyan-100 dark:bg-cyan-950/50 overflow-hidden border border-cyan-200 dark:border-cyan-500/20">
+                    <div className="rounded-full bg-cyan-950/40 overflow-hidden transition-all duration-300" style={{ height: isExpanded ? '4px' : '3px' }}>
                       <div
-                        className="h-full rounded-full transition-all duration-500 ease-out bg-cyan-500 dark:bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.6)]"
-                        style={{
-                          width: `${(stamina / maxStamina) * 100}%`,
-                        }}
+                        className="h-full rounded-full transition-all duration-500 ease-out bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.6)]"
+                        style={{ width: `${(stamina / maxStamina) * 100}%` }}
                       />
                     </div>
                   </div>
-
-                  {/* City Ranking */}
-                  {currentCityProgress && (
-                    <div className="flex flex-col gap-0.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                          <Trophy className="w-3 h-3" />
-                          {currentCity.name}排名
-                        </span>
-                        <span className="text-[10px] text-amber-600 dark:text-amber-400/60">
-                          第 {currentCityProgress.ranking} 名
-                        </span>
-                      </div>
-                      <div className="h-1 rounded-full bg-amber-100 dark:bg-amber-950/50 overflow-hidden border border-amber-200 dark:border-amber-500/20">
-                        <div
-                          className="h-full rounded-full transition-all duration-500 ease-out bg-amber-500 dark:bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.6)]"
-                          style={{
-                            width: `${(1 - currentCityProgress.ranking / totalPlayers) * 100}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  )}
                 </>
               )}
             </div>
 
             {/* 右侧：GPS 状态 */}
-            <div className="flex items-center gap-1 pr-2">
-              {/* RoomSelector hidden as per user request - moved to bottom navigation */}
-              {/* <RoomSelector className="h-8 border-none bg-transparent hover:bg-white/5" compact /> */}
+            <div className="flex items-center gap-1 pr-1.5">
               <button
-                onClick={handleGPSClick}
-                className={`flex items-center gap-1 px-2 py-1 rounded-lg border ${gpsConfig.bg} ${gpsConfig.border} transition-all active:scale-95`}
+                onClick={(e) => { e.stopPropagation(); handleGPSClick(); }}
+                className={`flex items-center gap-1 px-1.5 py-1 rounded border ${gpsConfig.bg} ${gpsConfig.border} transition-all active:scale-95`}
               >
                 <GpsIcon className={`w-3 h-3 ${gpsConfig.color} ${(gpsConfig.text === '定位中' || gpsConfig.text === '请求中') ? 'animate-spin' : ''}`} />
                 <span className={`text-[10px] font-bold ${gpsConfig.color}`}>{gpsConfig.text}</span>
               </button>
-
             </div>
           </div>
-        </GlassCard>
+        </div>
       </div>
 
 

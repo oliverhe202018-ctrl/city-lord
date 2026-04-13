@@ -186,6 +186,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
   const haloPolygonsRef = useRef<any[]>([]);
   const haloPulseTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastViewportKingIdRef = useRef<string | null>(null);
+  const lastKingOwnerIdRef = useRef<string | null>(null);
   const lastAuthUserIdRef = useRef<string | null>(user?.id ?? null);
 
   const resolveFactionColor = useCallback(
@@ -379,66 +380,95 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
       onViewportKingChange?.(null);
       return;
     }
-    const bounds = map.getBounds?.();
-    if (!bounds) {
-      onViewportKingChange?.(null);
-      return;
-    }
-    const northEast = bounds.getNorthEast?.();
-    const southWest = bounds.getSouthWest?.();
-    if (!northEast || !southWest) {
-      onViewportKingChange?.(null);
-      return;
-    }
-    const viewportMinLng = southWest.getLng();
-    const viewportMaxLng = northEast.getLng();
-    const viewportMinLat = southWest.getLat();
-    const viewportMaxLat = northEast.getLat();
-    const totals = new Map<string, number>();
-    const viewportBbox: [number, number, number, number] = [viewportMinLng, viewportMinLat, viewportMaxLng, viewportMaxLat];
-    for (const metric of territoryMetricsRef.current) {
-      const intersects = metric.maxLng >= viewportMinLng &&
-        metric.minLng <= viewportMaxLng &&
-        metric.maxLat >= viewportMinLat &&
-        metric.minLat <= viewportMaxLat;
-      if (!intersects) continue;
-      try {
-        const clipped = turf.bboxClip(metric.feature, viewportBbox);
-        const clippedArea = turf.area(clipped);
-        if (clippedArea <= 0) continue;
-        totals.set(metric.ownerId, (totals.get(metric.ownerId) || 0) + clippedArea);
-      } catch {
-        continue;
+
+    const doCompute = () => {
+      const bounds = map.getBounds?.();
+      if (!bounds) {
+        if (lastKingOwnerIdRef.current !== null) {
+          lastKingOwnerIdRef.current = null;
+          onViewportKingChange?.(null);
+        }
+        return;
       }
-    }
-    if (totals.size === 0) {
-      applyViewportKingHalo(null);
-      onViewportKingChange?.(null);
-      return;
-    }
-    let kingOwnerId = '';
-    let kingArea = 0;
-    totals.forEach((area, ownerId) => {
-      if (area > kingArea) {
-        kingArea = area;
-        kingOwnerId = ownerId;
+      const northEast = bounds.getNorthEast?.();
+      const southWest = bounds.getSouthWest?.();
+      if (!northEast || !southWest) {
+        if (lastKingOwnerIdRef.current !== null) {
+          lastKingOwnerIdRef.current = null;
+          onViewportKingChange?.(null);
+        }
+        return;
       }
-    });
-    if (!kingOwnerId) {
-      applyViewportKingHalo(null);
-      onViewportKingChange?.(null);
-      return;
+      const viewportMinLng = southWest.getLng();
+      const viewportMaxLng = northEast.getLng();
+      const viewportMinLat = southWest.getLat();
+      const viewportMaxLat = northEast.getLat();
+      const totals = new Map<string, number>();
+      
+      for (const metric of territoryMetricsRef.current) {
+        const intersects = metric.maxLng >= viewportMinLng &&
+          metric.minLng <= viewportMaxLng &&
+          metric.maxLat >= viewportMinLat &&
+          metric.minLat <= viewportMaxLat;
+        if (!intersects) continue;
+
+        const overlapLng = Math.min(metric.maxLng, viewportMaxLng) - Math.max(metric.minLng, viewportMinLng);
+        const overlapLat = Math.min(metric.maxLat, viewportMaxLat) - Math.max(metric.minLat, viewportMinLat);
+        const approxArea = overlapLng * overlapLat;
+        if (approxArea <= 0) continue;
+
+        totals.set(metric.ownerId, (totals.get(metric.ownerId) || 0) + approxArea);
+      }
+      
+      if (totals.size === 0) {
+        if (lastKingOwnerIdRef.current !== null) {
+          lastKingOwnerIdRef.current = null;
+          applyViewportKingHalo(null);
+          onViewportKingChange?.(null);
+        }
+        return;
+      }
+      let kingOwnerId = '';
+      let kingArea = 0;
+      totals.forEach((area, ownerId) => {
+        if (area > kingArea) {
+          kingArea = area;
+          kingOwnerId = ownerId;
+        }
+      });
+      if (!kingOwnerId) {
+        if (lastKingOwnerIdRef.current !== null) {
+          lastKingOwnerIdRef.current = null;
+          if (lastViewportKingIdRef.current) applyViewportKingHalo(null);
+          onViewportKingChange?.(null);
+        }
+        return;
+      }
+      
+      if (kingOwnerId === lastKingOwnerIdRef.current) return;
+      lastKingOwnerIdRef.current = kingOwnerId;
+
+      const profile = ownerProfileMapRef.current.get(kingOwnerId);
+      
+      if (lastViewportKingIdRef.current !== kingOwnerId) {
+        applyViewportKingHalo(kingOwnerId);
+      }
+      
+      onViewportKingChange?.({
+        ownerId: kingOwnerId,
+        nickname: (profile?.nickname && profile.nickname.trim() !== '')
+          ? profile.nickname.trim()
+          : `领主-${kingOwnerId.slice(0, 6)}`,
+        avatarUrl: profile?.avatarUrl || null,
+        totalArea: kingArea,
+      });
+    };
+
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      (window as any).requestIdleCallback(doCompute, { timeout: 1000 });
+    } else {
+      setTimeout(doCompute, 0);
     }
-    const profile = ownerProfileMapRef.current.get(kingOwnerId);
-    applyViewportKingHalo(kingOwnerId);
-    onViewportKingChange?.({
-      ownerId: kingOwnerId,
-      nickname: (profile?.nickname && profile.nickname.trim() !== '')
-        ? profile.nickname.trim()
-        : `领主-${kingOwnerId.slice(0, 6)}`,
-      avatarUrl: profile?.avatarUrl || null,
-      totalArea: kingArea,
-    });
   }, [applyViewportKingHalo, kingdomMode, map, onViewportKingChange]);
 
   // 鍙楁帶鐨?ContextSwitch 鎷︽埅鍣細纭繚鐪熸鐨勮涔夊彉鏇存墠瑙﹀彂娓呯┖
@@ -885,7 +915,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
         recomputeViewportKing();
-      }, 500);
+      }, 800);
     };
     schedule();
     map.on('moveend', schedule);

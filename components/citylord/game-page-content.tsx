@@ -56,6 +56,7 @@ import { GameHomePage } from "@/components/citylord/home/GameHomePage";
 import type { RunMode } from "@/types/home";
 import type { PlannerRoute } from "@/types/route-list";
 import { useRouteListStore } from "@/store/useRouteListStore";
+import { KingAreaBanner } from "@/components/map/KingAreaBanner";
 import { useQueryClient } from "@tanstack/react-query";
 
 // --- Step 1: Memoize Heavy Components ---
@@ -1014,57 +1015,9 @@ export function GamePageContent({
                       <MemoizedModeSwitcher onDrawerOpenChange={handleDrawerOpenChange} />
                     </div>
 
-                    <AnimatePresence mode="wait">
-                      {gameMode === 'map' && viewportKing && (
-                        <motion.div
-                          key={viewportKing.ownerId}
-                          initial={{ opacity: 0, y: -48, scale: 0.92 }}
-                          animate={{ opacity: 1, y: 0, scale: 1 }}
-                          exit={{ opacity: 0, y: -32, scale: 0.97 }}
-                          transition={prefersReducedMotion ? { duration: 0.18 } : { type: 'spring', stiffness: 240, damping: 24 }}
-                          className="pointer-events-auto absolute top-[132px] left-1/2 -translate-x-1/2 z-30 w-[calc(100%-1.25rem)] max-w-md overflow-hidden rounded-[24px] border border-amber-300/35 bg-black/70 px-4 py-3 backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.35)]"
-                        >
-                          <motion.div
-                            aria-hidden
-                            className="pointer-events-none absolute inset-0 bg-[linear-gradient(120deg,transparent_0%,rgba(251,191,36,0.08)_35%,rgba(255,255,255,0.18)_50%,rgba(251,191,36,0.08)_65%,transparent_100%)]"
-                            animate={prefersReducedMotion ? { opacity: 0.45 } : { x: ['-120%', '120%'] }}
-                            transition={prefersReducedMotion ? undefined : { duration: 2.8, repeat: Infinity, ease: 'linear' }}
-                          />
-                          <div className="relative flex items-center gap-3">
-                            <motion.div
-                              className="relative h-12 w-12 shrink-0 rounded-full border border-amber-200/50 bg-black/40 overflow-hidden flex items-center justify-center"
-                              animate={prefersReducedMotion ? undefined : { boxShadow: ['0 0 0 rgba(251,191,36,0.1)', '0 0 24px rgba(251,191,36,0.45)', '0 0 0 rgba(251,191,36,0.12)'] }}
-                              transition={prefersReducedMotion ? undefined : { duration: 1.8, repeat: Infinity }}
-                            >
-                              <motion.div
-                                aria-hidden
-                                className="absolute inset-0 rounded-full border border-amber-300/35"
-                                animate={prefersReducedMotion ? undefined : { scale: [1, 1.18, 1], opacity: [0.2, 0.55, 0.2] }}
-                                transition={prefersReducedMotion ? undefined : { duration: 1.6, repeat: Infinity }}
-                              />
-                              {viewportKing.avatarUrl ? (
-                                <img src={viewportKing.avatarUrl} alt={viewportKing.nickname} className="h-full w-full object-cover" />
-                              ) : (
-                                <span className="text-sm font-bold text-white/80">{viewportKing.nickname.slice(0, 1)}</span>
-                              )}
-                            </motion.div>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-1.5 text-amber-300">
-                                <motion.div
-                                  animate={prefersReducedMotion ? undefined : { rotate: [-8, 8, -6, 6, 0] }}
-                                  transition={prefersReducedMotion ? undefined : { duration: 0.9 }}
-                                >
-                                  <Crown className="h-4 w-4" />
-                                </motion.div>
-                                <span className="text-[10px] font-semibold tracking-[0.28em]">区域霸主登基</span>
-                              </div>
-                              <p className="truncate text-base font-black text-white">{viewportKing.nickname}</p>
-                              <p className="text-[11px] text-white/70">统治面积 {Math.round(viewportKing.totalArea).toLocaleString('zh-CN')} m²</p>
-                            </div>
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
+                    {gameMode === 'map' && viewportKing && (
+                      <KingAreaBanner king={viewportKing} />
+                    )}
 
                     {!shouldHideButtons && (
                       <div className="pointer-events-auto absolute top-[130px] left-4 z-20 flex flex-col gap-4">

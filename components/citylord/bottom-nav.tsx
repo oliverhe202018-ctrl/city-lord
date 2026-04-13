@@ -56,8 +56,11 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
   ]
 
   return (
-    <nav className="absolute bottom-0 left-0 right-0 z-[1000] border-t border-border bg-background/80 backdrop-blur-2xl safe-pb">
-      <div className="flex items-center justify-around px-2 py-1">
+    <nav 
+      className="absolute mx-auto bottom-0 left-0 right-0 max-w-md z-[1000] rounded-t-2xl bg-black/80 backdrop-blur-3xl border-t border-white/5 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]"
+      style={{ height: 'calc(48px + env(safe-area-inset-bottom))', paddingBottom: 'env(safe-area-inset-bottom)' }}
+    >
+      <div className="flex items-center justify-around px-2 h-[48px]">
         {tabs.map((tab) => {
           const Icon = tab.icon
           const isActive = activeTab === tab.id
@@ -69,39 +72,32 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
                 closeDrawer()
                 onTabChange(tab.id)
               }}
-              className="group relative flex flex-col items-center gap-0.5 px-3 py-1 transition-all outline-none rounded-xl focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 active:scale-95"
+              className="group relative flex flex-col items-center justify-center p-1 outline-none active:scale-90 transition-transform h-full flex-1"
             >
               <div
-                className={`relative flex h-11 w-11 items-center justify-center rounded-2xl transition-all duration-300 ${isActive ? "bg-primary/10 scale-110" : "bg-transparent hover:bg-white/5"
+                className={`relative flex h-full w-full max-w-[48px] items-center justify-center rounded-xl transition-all duration-300 ${isActive ? "bg-white/10" : "bg-transparent hover:bg-white/5"
                   }`}
               >
                 <Icon
-                  className={`h-5 w-5 transition-colors duration-300 ${isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground/80"
+                  className={`h-5 w-5 transition-colors duration-300 ${isActive ? "text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]" : "text-white/50 group-hover:text-white/80"
                     }`}
                 />
 
                 {/* Badge */}
                 {tab.badge && tab.badge > 0 && (
-                  <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-destructive text-[9px] font-bold text-destructive-foreground shadow-lg">
+                  <span className="absolute right-1 top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-destructive text-[9px] font-bold text-destructive-foreground shadow-lg border border-black/80">
                     {tab.badge}
                   </span>
                 )}
+                
+                {/* Active indicator dot using framer-motion layoutId for smooth sliding */}
+                {isActive && (
+                  <motion.span
+                    layoutId="bottomNavActiveDot"
+                    className="absolute -bottom-[6px] h-[3px] w-[12px] rounded-full bg-amber-400 shadow-[0_0_8px_hsl(var(--amber-400)/0.8)]"
+                  />
+                )}
               </div>
-
-              <span
-                className={`text-[10px] font-semibold transition-colors duration-300 ${isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground/80"
-                  }`}
-              >
-                {tab.label}
-              </span>
-
-              {/* Active indicator dot using framer-motion layoutId for smooth sliding */}
-              {isActive && (
-                <motion.span
-                  layoutId="bottomNavActiveDot"
-                  className="absolute -bottom-1 h-1 w-1 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.8)]"
-                />
-              )}
             </button>
           )
         })}

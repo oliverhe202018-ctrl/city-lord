@@ -49,14 +49,14 @@ export function ModeSwitcher({ onDrawerOpenChange }: ModeSwitcherProps) {
   if (!hydrated) return null;
 
   return (
-    <div className="relative z-[100] mx-auto w-full max-w-md px-4 mt-[88px]">
-      <div className="grid grid-cols-3 gap-2 rounded-full bg-card/80 p-1.5 backdrop-blur-md border border-border shadow-lg">
+    <div id="mode-switcher" className="relative z-[100] mx-auto w-full max-w-md px-3 mt-[62px]">
+      <div className="grid grid-cols-3 gap-1 rounded-xl bg-black/70 p-1 backdrop-blur-md border border-white/5 shadow-lg max-w-[240px] mx-auto">
         {/* 1. 地图按钮 */}
         <button 
           onClick={() => setGameMode('map')} 
           className={cn( 
-            "relative z-10 flex items-center justify-center rounded-full py-2 text-sm font-medium transition-all duration-200", 
-            gameMode === "map" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground" 
+            "relative z-10 flex items-center justify-center rounded-lg py-1.5 text-[13px] font-medium transition-all duration-200", 
+            gameMode === "map" ? "bg-primary text-primary-foreground shadow-sm" : "text-white/60 hover:text-white" 
           )} 
         > 
           地图 
@@ -76,9 +76,8 @@ export function ModeSwitcher({ onDrawerOpenChange }: ModeSwitcherProps) {
         > 
           <button 
             className={cn( 
-              "relative z-10 flex items-center justify-center rounded-full py-2 text-sm font-medium transition-all duration-200 w-full", 
-              // 只有当下拉菜单打开时才高亮，或者是为了视觉统一保持默认样式 
-              isRoomSelectorOpen ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground" 
+              "relative z-10 flex items-center justify-center rounded-lg py-1.5 text-[13px] font-medium transition-all duration-200 w-full", 
+              isRoomSelectorOpen ? "bg-primary/20 text-primary" : "text-white/60 hover:text-white" 
             )} 
           > 
             {/* 强制静态文本，不再显示房间名 */} 
@@ -89,7 +88,7 @@ export function ModeSwitcher({ onDrawerOpenChange }: ModeSwitcherProps) {
         {/* 3. 俱乐部按钮 */} 
         <button 
           onClick={() => openDrawer('club')} 
-          className="relative z-10 flex items-center justify-center rounded-full py-2 text-sm font-medium text-muted-foreground transition-all duration-200 hover:text-foreground" 
+          className="relative z-10 flex items-center justify-center rounded-lg py-1.5 text-[13px] font-medium text-white/60 transition-all duration-200 hover:text-white" 
         > 
           俱乐部 
         </button> 
