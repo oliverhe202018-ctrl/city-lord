@@ -555,6 +555,8 @@ model runs {
   aiSummary                    String?           @map("ai_summary")
   new_territories_count        Int               @default(0)
   reinforced_territories_count Int               @default(0)
+  settlement_error_code        String?
+  settlement_error_detail      String?
   posts                        posts[]
   clubs                        clubs?            @relation(fields: [club_id], references: [id], onUpdate: NoAction)
   profiles                     profiles?         @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)

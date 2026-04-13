@@ -470,13 +470,46 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({ map, isVisible, kingdom
 
     const loadTerritories = async (bounds?: { minLng: number, minLat: number, maxLng: number, maxLat: number }, isIncremental = false, retryCount = 0) => {
       try {
-        console.log(`[Audit] loadTerritories: cityId=${city.id} map=${!!map} retry=${retryCount}`);
-        const rawData = await fetchTerritories(city.id, bounds);
+        const [rawData, pendingRes] = await Promise.all([
+          fetchTerritories(city.id, bounds),
+          fetchWithTimeout('/api/run/pending').catch(() => null)
+        ]);
 
         if (!mounted) return;
         if (!rawData || !Array.isArray(rawData)) {
           throw new Error('API returned invalid data format');
         }
+
+        let pendingRuns: any[] = [];
+        if (pendingRes && pendingRes.ok) {
+           const json = await pendingRes.json();
+           pendingRuns = Array.isArray(json.runs) ? json.runs : [];
+        }
+
+        const settledRunIds = new Set(rawData.map((t: any) => t.sourceRunId).filter(Boolean));
+        
+        const pendingTerritories: ExtTerritory[] = pendingRuns
+           .filter(run => run.id && !settledRunIds.has(run.id))
+           .map(run => {
+             const rings = Array.isArray(run.polygons) ? run.polygons : [];
+             return {
+              id: '', // Empty ID to trigger isGhost
+              cityId: city.id,
+              ownerId: user?.id || null,
+              ownerFaction: faction || null,
+              ownerClubId: clubId || null,
+              geojson_json: { 
+                  type: 'MultiPolygon', 
+                  coordinates: rings.map((ring: any) => [ring]) 
+              },
+              health: 100,
+              maxHealth: 100,
+              sourceRunId: run.id,
+              ownerType: 'me',
+             };
+           });
+
+        rawData.push(...pendingTerritories);
 
         let data = rawData;
         if (isIncremental) {

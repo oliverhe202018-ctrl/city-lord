@@ -62,14 +62,16 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
     if (!cityId || cityId === 'default_city' || cityId === 'unknown') {
         console.error(`[Settlement] 致命错误：cityId 无效 (${cityId})。强行终止入库以防事务崩溃。`);
         return {
-            success: true,
+            success: false,
+            errorCode: 'INVALID_CITY_ID',
+            error: 'Settlement aborted: invalid cityId',
             createdTerritories: 0,
             reinforcedTerritories: 0,
             damagedTerritories: 0,
             destroyedTerritories: 0,
             damageDetails: [],
             maintenanceDetails: []
-        }; // 必须 return success: true 放过轮询
+        } as any;
     }
 
     let cleanedPolygons: Feature<Polygon>[];
@@ -504,14 +506,6 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                 `;
 
                 if (affectedRows > 0) {
-                    await tx.$executeRaw`
-                        INSERT INTO user_city_progress (user_id, city_id, tiles_captured, area_controlled, last_active_at, joined_at)
-                        VALUES (CAST(${userId} AS UUID), ${cityId}, 1, (${preCalcArea} / 1000000.0), NOW(), NOW())
-                        ON CONFLICT (user_id, city_id) DO UPDATE SET
-                        tiles_captured = user_city_progress.tiles_captured + 1,
-                        area_controlled = user_city_progress.area_controlled + (${preCalcArea} / 1000000.0),
-                        last_active_at = NOW();
-                    `;
 
                     await tx.territory_events.create({
                         data: {
@@ -533,79 +527,110 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                 }
             }
         }
-        if (clubId) {
+        if (result.createdTerritories > 0) {
+            // Update User City Progress atomically inside the global block
             await tx.$executeRaw`
-                INSERT INTO public.club_territory_stats (club_id, total_area, total_tiles, last_synced_event_id, updated_at)
+                INSERT INTO public.user_city_progress (user_id, city_id, tiles_captured, area_controlled, last_active_at, joined_at)
                 VALUES (
-                    ${clubId}::uuid,
+                    ${userId}::uuid, 
+                    ${cityId}, 
                     COALESCE((
+                        SELECT COUNT(1)::int
+                        FROM public.territories t
+                        WHERE t.owner_id = ${userId}::uuid
+                          AND t.city_id = ${cityId}
+                          AND t.status = 'ACTIVE'::"TerritoryStatus"
+                    ), 0), 
+                    COALESCE((
+                        SELECT SUM(t.area_m2_exact) / 1000000.0
+                        FROM public.territories t
+                        WHERE t.owner_id = ${userId}::uuid
+                          AND t.city_id = ${cityId}
+                          AND t.status = 'ACTIVE'::"TerritoryStatus"
+                    ), 0), 
+                    NOW(), 
+                    NOW()
+                )
+                ON CONFLICT (user_id, city_id) DO UPDATE SET
+                    tiles_captured = EXCLUDED.tiles_captured,
+                    area_controlled = EXCLUDED.area_controlled,
+                    last_active_at = NOW();
+            `;
+
+            if (clubId) {
+                await tx.$executeRaw`
+                    INSERT INTO public.club_territory_stats (club_id, total_area, total_tiles, last_synced_event_id, updated_at)
+                    VALUES (
+                        ${clubId}::uuid,
+                        COALESCE((
+                            SELECT SUM(t.area_m2_exact) / 1000000.0
+                            FROM public.territories t
+                            WHERE t.owner_club_id = ${clubId}::uuid
+                              AND t.status = 'ACTIVE'::"TerritoryStatus"
+                        ), 0),
+                        COALESCE((
+                            SELECT COUNT(1)
+                            FROM public.territories t
+                            WHERE t.owner_club_id = ${clubId}::uuid
+                              AND t.status = 'ACTIVE'::"TerritoryStatus"
+                        ), 0),
+                        COALESCE((SELECT MAX(id) FROM public.territory_events), 0),
+                        NOW()
+                    )
+                    ON CONFLICT (club_id) DO UPDATE SET
+                        total_area = EXCLUDED.total_area,
+                        total_tiles = EXCLUDED.total_tiles,
+                        last_synced_event_id = EXCLUDED.last_synced_event_id,
+                        updated_at = NOW()
+                `;
+
+                await tx.$executeRaw`
+                    UPDATE public.clubs
+                    SET total_area = COALESCE((
                         SELECT SUM(t.area_m2_exact) / 1000000.0
                         FROM public.territories t
                         WHERE t.owner_club_id = ${clubId}::uuid
                           AND t.status = 'ACTIVE'::"TerritoryStatus"
                     ), 0),
-                    COALESCE((
-                        SELECT COUNT(1)
-                        FROM public.territories t
-                        WHERE t.owner_club_id = ${clubId}::uuid
-                          AND t.status = 'ACTIVE'::"TerritoryStatus"
-                    ), 0),
-                    COALESCE((SELECT MAX(id) FROM public.territory_events), 0),
-                    NOW()
-                )
-                ON CONFLICT (club_id) DO UPDATE SET
-                    total_area = EXCLUDED.total_area,
-                    total_tiles = EXCLUDED.total_tiles,
-                    last_synced_event_id = EXCLUDED.last_synced_event_id,
                     updated_at = NOW()
-            `;
+                    WHERE id = ${clubId}::uuid
+                `;
+            }
+            // E. Faction & Global Stats Update (Patch 2)
+            if (runnerFaction) {
+                await tx.$executeRaw`
+                    INSERT INTO public.city_faction_stats (city_id, faction_id, total_area_km2, updated_at)
+                    VALUES (
+                        ${cityId},
+                        ${runnerFaction},
+                        COALESCE((
+                            SELECT SUM(t.area_m2_exact) / 1000000.0
+                            FROM public.territories t
+                            WHERE t.city_id = ${cityId}
+                              AND t.owner_faction = ${runnerFaction}
+                              AND t.status = 'ACTIVE'::"TerritoryStatus"
+                        ), 0),
+                        NOW()
+                    )
+                    ON CONFLICT (city_id, faction_id) DO UPDATE SET
+                        total_area_km2 = EXCLUDED.total_area_km2,
+                        updated_at = NOW()
+                `;
+            }
 
+            // Update User Global Profile Stats
             await tx.$executeRaw`
-                UPDATE public.clubs
+                UPDATE public.profiles
                 SET total_area = COALESCE((
                     SELECT SUM(t.area_m2_exact) / 1000000.0
                     FROM public.territories t
-                    WHERE t.owner_club_id = ${clubId}::uuid
+                    WHERE t.owner_id = ${userId}::uuid
                       AND t.status = 'ACTIVE'::"TerritoryStatus"
                 ), 0),
                 updated_at = NOW()
-                WHERE id = ${clubId}::uuid
+                WHERE id = ${userId}::uuid
             `;
         }
-        // E. Faction & Global Stats Update (Patch 2)
-        if (runnerFaction) {
-            await tx.$executeRaw`
-                INSERT INTO public.city_faction_stats (city_id, faction_id, total_area_km2, updated_at)
-                VALUES (
-                    ${cityId},
-                    ${runnerFaction},
-                    COALESCE((
-                        SELECT SUM(t.area_m2_exact) / 1000000.0
-                        FROM public.territories t
-                        WHERE t.city_id = ${cityId}
-                          AND t.owner_faction = ${runnerFaction}
-                          AND t.status = 'ACTIVE'::"TerritoryStatus"
-                    ), 0),
-                    NOW()
-                )
-                ON CONFLICT (city_id, faction_id) DO UPDATE SET
-                    total_area_km2 = EXCLUDED.total_area_km2,
-                    updated_at = NOW()
-            `;
-        }
-
-        // Update User Global Profile Stats
-        await tx.$executeRaw`
-            UPDATE public.profiles
-            SET total_area = COALESCE((
-                SELECT SUM(t.area_m2_exact) / 1000000.0
-                FROM public.territories t
-                WHERE t.owner_id = ${userId}::uuid
-                  AND t.status = 'ACTIVE'::"TerritoryStatus"
-            ), 0),
-            updated_at = NOW()
-            WHERE id = ${userId}::uuid
-        `;
 
         return result; 
     }, { timeout: 30000, maxWait: 10000 });

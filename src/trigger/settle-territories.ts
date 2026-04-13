@@ -38,6 +38,8 @@ export const settleTerritoriesTask = task({
         const { runId, userId, cityId, clubId, polygons, distance, duration } = payload;
         let settledCount = 0;
         let reinforcedCount = 0;
+        let finalStatus = 'completed';
+        let finalErrorCode: string | null = null;
 
         console.log(`[Trigger:settle-territories] 开始后台结算 runId=${runId}, polygonCount=${polygons?.length ?? 0}`);
 
@@ -89,20 +91,22 @@ export const settleTerritoriesTask = task({
                                 settledCount += settlement.createdTerritories;
                                 reinforcedCount += settlement.reinforcedTerritories;
                                 console.log(`[settle-territories] runId=${runId}: +${settlement.createdTerritories} 新領地, +${settlement.reinforcedTerritories} 強化`);
+                            } else {
+                                if ((settlement as any).errorCode === 'INVALID_CITY_ID') {
+                                    console.error(`[settle-territories] 核心业务失败 INVALID_CITY_ID: runId=${runId}`);
+                                    finalStatus = 'flagged'; // Set to valid schema status 'flagged'
+                                    finalErrorCode = 'INVALID_CITY_ID';
+                                    break; // Non-retryable
+                                }
                             }
                         } catch (polyError) {
                             console.error(`[settle-territories] 單多邊形結算失敗 runId=${runId}`, polyError);
                         }
                     }
+                    if (finalStatus !== 'completed') break;
                 }
 
-                // 更新 tiles_captured 计数
-                if (settledCount > 0) {
-                    await prisma.user_city_progress.update({
-                        where: { user_id_city_id: { user_id: userId, city_id: cityId } },
-                        data: { tiles_captured: { increment: settledCount } }
-                    }).catch((e: Error) => console.error('[settle-territories] 更新 tiles_captured 失败', e));
-                }
+                // 移除重复的 user_city_progress update, 该操作已在 run-service 的 transaction 中实现
 
                 // 更新 runs 表的地块计数
                 await prisma.runs.update({
@@ -160,20 +164,22 @@ export const settleTerritoriesTask = task({
             console.error(`[settle-territories] 致命错误 runId=${runId}`, fatalError);
         } finally {
             // ─────────────────────────────────────────────
-            // RISK-02 强制状态回写（绝对执行）
-            // 无论结算成功、失败、还是 polygons 为空，
-            // 必须将 runs.status 标记为 'completed'，
-            // 以解除前端 RunSummaryView 的轮询死锁。
-            // ─────────────────────────────────────────────
             try {
+                // If it aborted early, we still write it back gracefully to prevent infinite retries.
                 await prisma.runs.update({
                     where: { id: runId },
                     data: {
-                        status: 'completed',
+                        status: finalStatus,
                         updated_at: new Date(),
+                        ...(finalStatus === 'flagged' && finalErrorCode === 'INVALID_CITY_ID' ? { 
+                            isValid: false, 
+                            flag_reason: 'INVALID_CITY_ID',
+                            settlement_error_code: 'INVALID_CITY_ID',
+                            settlement_error_detail: 'Settlement aborted: invalid cityId'
+                        } : {})
                     }
                 });
-                console.log(`[settle-territories] ✅ Run ${runId} 状态已标记为 completed`);
+                console.log(`[settle-territories] ✅ Run ${runId} 状态已回写: ${finalStatus}`);
             } catch (statusErr) {
                 console.error(`[settle-territories] ❌ 状态回写失败 runId=${runId}`, statusErr);
             }

@@ -23,6 +23,7 @@ import {
     length as turfLength,
     convex as turfConvex,
     point as turfPoint,
+    kinks as turfKinks,
 } from '@turf/turf';
 import type { Feature, Polygon, MultiPolygon } from 'geojson';
 import { cleanAndSplitTrajectory } from '@/lib/gis/geometry-cleaner';
@@ -120,6 +121,109 @@ function rdpSamplePath(points: any[], maxPoints: number): any[] {
     return simplified;
 }
 
+function normalizeRunPolygon(closingPath: [number, number][]): {
+    polygons: { lng: number; lat: number }[][];
+    strategy: 'raw' | 'unkink' | 'convex_fallback';
+    kinkCount: number;
+    rawArea?: number;
+    finalArea?: number;
+    areaInflationRatio?: number;
+} {
+    if (closingPath.length < 3) return { polygons: [], strategy: 'raw', kinkCount: 0 };
+    
+    const ring = [...closingPath];
+    const first = ring[0];
+    const last = ring[ring.length - 1];
+    if (first[0] !== last[0] || first[1] !== last[1]) {
+        ring.push([first[0], first[1]]);
+    }
+    
+    // Safety check
+    if (ring.length < 4) return { polygons: [], strategy: 'raw', kinkCount: 0 };
+
+    let rawPoly;
+    try {
+        rawPoly = turfPolygon([ring]);
+    } catch (e) {
+        return { polygons: [], strategy: 'raw', kinkCount: 0 };
+    }
+
+    let kinks;
+    try {
+        kinks = turfKinks(rawPoly);
+    } catch (e) {
+        return { polygons: [], strategy: 'raw', kinkCount: 0 };
+    }
+    const kinkCount = kinks.features.length;
+
+    const rawArea = turfArea(rawPoly);
+
+    if (kinkCount === 0) {
+        return { 
+            polygons: [ring.map(([lng, lat]) => ({ lng, lat }))], 
+            strategy: 'raw', 
+            kinkCount,
+            rawArea,
+            finalArea: rawArea,
+            areaInflationRatio: 1
+        };
+    }
+
+    // Attempt unkink
+    try {
+        const unkinked = turfUnkinkPolygon(rawPoly);
+        let maxArea = 0;
+        let maxPolyPoints: { lng: number; lat: number }[] = [];
+        
+        unkinked.features.forEach((f: any) => {
+            const area = turfArea(f);
+            if (area > maxArea) {
+                maxArea = area;
+                if (f.geometry.coordinates[0]) {
+                    maxPolyPoints = f.geometry.coordinates[0].map((coord: any) => ({ lng: coord[0], lat: coord[1] }));
+                }
+            }
+        });
+        
+        if (maxPolyPoints.length > 0) {
+            return {
+                polygons: [maxPolyPoints],
+                strategy: 'unkink',
+                kinkCount,
+                rawArea,
+                finalArea: maxArea,
+                areaInflationRatio: rawArea > 0 ? (maxArea / rawArea) : 1
+            };
+        }
+    } catch (e) {
+        console.warn('[normalizeRunPolygon] unkink failed:', e);
+    }
+
+    // Fallback to convex hull
+    try {
+        const points = turfFeatureCollection(ring.map(p => turfPoint(p)));
+        const hull = turfConvex(points);
+        if (hull && hull.geometry?.coordinates?.[0]) {
+            const hullRing = hull.geometry.coordinates[0];
+            const finalArea = turfArea(hull);
+            const areaInflationRatio = rawArea > 0 ? (finalArea / rawArea) : 1;
+
+            return {
+                polygons: [hullRing.map((coord: any) => ({ lng: coord[0], lat: coord[1] }))],
+                strategy: 'convex_fallback',
+                kinkCount,
+                rawArea,
+                finalArea,
+                areaInflationRatio
+            };
+        }
+    } catch (e) {
+        console.warn('[normalizeRunPolygon] convex failed:', e);
+    }
+
+    return { polygons: [], strategy: 'raw', kinkCount };
+}
+
 export interface SaveRunResult {
     runId?: string;
     runNumber?: number;
@@ -202,6 +306,12 @@ export async function saveRunActivity(
                 console.warn('[runnerClubId] Failed to fetch from DB:', e);
             }
         }
+
+        // Global City ID extraction
+        const originalCityId = (runData as any).cityId;
+        const resolvedCityId = originalCityId || await resolveRunCityId(runData);
+        const resolveSource = originalCityId ? 'payload' : 'spatial';
+        const safeCityId = (resolvedCityId && resolvedCityId !== 'default_city' && resolvedCityId !== 'unknown') ? resolvedCityId : null;
 
         // Rate Limiting
         const rateLimitResult = checkRunRateLimit(userId);
@@ -391,43 +501,27 @@ export async function saveRunActivity(
 
             // 生成最终多边形环
             if (closingPath && closingPath.length >= 3) {
-                try {
-                    // 使用凸包 (Convex Hull) 规范化多边形，消除所有自相交和深色三角形渲染问题
-                    const points = turfFeatureCollection(
-                        closingPath.map(p => turfPoint(p))
-                    );
-                    const hull = turfConvex(points);
-                    
-                    if (hull && hull.geometry && hull.geometry.coordinates && hull.geometry.coordinates.length > 0) {
-                        const hullRing = hull.geometry.coordinates[0];
-                        // 确保闭合并转换格式
-                        const ring = [...hullRing];
-                        finalPolygons = [ring.map((coord: any) => ({ lng: coord[0], lat: coord[1] }))];
-                        console.log('[多边形] Convex Hull 生成成功，finalPolygons 长度:', finalPolygons.length);
-                    } else {
-                        throw new Error('Convex hull generation failed');
-                    }
-                } catch (e) {
-                    console.error('[多边形] 凸包生成失败，回退到原始环:', e);
-                    const ring = [...closingPath];
-                    // 安全闭合：强制首尾点一致
-                    const first = ring[0];
-                    const last = ring[ring.length - 1];
-                    if (first[0] !== last[0] || first[1] !== last[1]) {
-                        ring.push([first[0], first[1]]);
-                    }
-                    // 转换回 Coord[] 格式
-                    finalPolygons = [ring.map(([lng, lat]) => ({ lng, lat }))];
-                    console.log('[多边形] finalPolygons 长度:', finalPolygons.length);
-                }
+                const normResult = normalizeRunPolygon(closingPath);
+                finalPolygons = normResult.polygons;
+                diagData.strategy = normResult.strategy;
+                diagData.kinkCount = normResult.kinkCount;
+                diagData.rawArea = normResult.rawArea;
+                diagData.finalArea = normResult.finalArea;
+                diagData.areaInflationRatio = normResult.areaInflationRatio;
+                console.log(`[Territory-Diag] Normalize strategy: ${normResult.strategy}, Kinks: ${normResult.kinkCount}, Inflation: ${normResult.areaInflationRatio?.toFixed(2)}`);
             }
-            if (finalPolygons.length === 0) { console.log(`[Territory-Diag] 警告: 闭合条件均未满足，多边形提取被废弃。`); }
+            if (finalPolygons.length === 0) { console.log(`[Territory-Diag] 警告: 闭合条件均未满足或多边形构建失败。`); }
         }
 
         diagData.status = finalPolygons.length === 0 ? 'Polygons Empty' : 'Success';
 
+        const isGeometryInvalid = diagData.areaInflationRatio && diagData.areaInflationRatio > 1.35;
+        if (isGeometryInvalid) {
+            console.warn(`[GIS] Convex fallback caused massive area inflation (${diagData.areaInflationRatio.toFixed(2)}x). Run blocked with GEOMETRY_INVALID.`);
+        }
+
         // Settlement Gating — 使用 effectiveRiskLevel 代替原始 pathValidation.riskLevel
-        if (isBlockedByAntiCheat) {
+        if (isBlockedByAntiCheat || isGeometryInvalid) {
             finalPolygons = [];
             console.warn(`[Anti-Cheat] Settlement blocked for user ${userId}. Reason: ${flagReason ?? pedometerAntiCheatLog}`);
         } else if (effectiveRiskLevel === 'MEDIUM' && !isUserTester) {
@@ -577,14 +671,44 @@ export async function saveRunActivity(
 
         // 4. Evaluate Tasks (In-Memory)
         // If flagged, we skip rewards by setting results to empty
-        const potentialResults = (isBlockedByAntiCheat || effectiveRiskLevel === 'HIGH') ? [] : evaluateTasks(evaluationData);
+        const potentialResults = (isBlockedByAntiCheat || effectiveRiskLevel === 'HIGH' || isGeometryInvalid) ? [] : evaluateTasks(evaluationData);
 
-        const resolvedCityId = (runData as any).cityId || await resolveRunCityId(runData);
-        const safeCityId = (resolvedCityId && resolvedCityId !== 'default_city') ? resolvedCityId : null;
+        let finalRunStatus = isBlockedByAntiCheat ? 'flagged' : 'settling';
+        let customFlagReason = flagReason;
+        
+        if (isGeometryInvalid) {
+            finalRunStatus = 'flagged';
+            customFlagReason = 'GEOMETRY_INVALID';
+        } else if (!safeCityId) {
+            finalRunStatus = 'flagged';
+            customFlagReason = 'SETTLEMENT_ABORTED_INVALID_CITY';
+        }
 
         // 5. Transaction: Save Run + Process Rewards + Audit Logs
         const result = await prisma.$transaction(async (tx: any) => {
             // A. Create Run Record (Always saved, even if flagged)
+            const runEventsWithDiag = [
+                ...eventsHistory,
+                {
+                    eventId: `diag_${Date.now()}`,
+                    eventType: 'DIAGNOSTIC' as any,
+                    status: 'SUCCESS',
+                    triggeredAt: Date.now(),
+                    resolvedAt: Date.now(),
+                    data: {
+                        originalCityId,
+                        resolvedCityId,
+                        safeCityId,
+                        resolveSource,
+                        geometryFixStrategy: diagData.strategy,
+                        kinkCount: diagData.kinkCount,
+                        rawArea: diagData.rawArea,
+                        finalArea: diagData.finalArea,
+                        areaInflationRatio: diagData.areaInflationRatio
+                    }
+                }
+            ];
+
             const run = await tx.runs.create({
                 data: {
                     user_id: userId,
@@ -594,7 +718,7 @@ export async function saveRunActivity(
                     area: accurateAreaKm2 * 1_000_000, // m² 精确面积
                     path: runData.path as any,
                     polygons: evaluationData.claims as any,
-                    status: isBlockedByAntiCheat ? 'flagged' : 'settling',
+                    status: finalRunStatus,
                     created_at: new Date(runData.timestamp || Date.now()),
                     updated_at: new Date(),
                     idempotency_key: runData.idempotencyKey,
@@ -607,11 +731,11 @@ export async function saveRunActivity(
                     } as any,
                     client_distance: runData.distance,
                     // New Validator Fields
-                    is_flagged: isUserTester ? false : isFlagged,
-                    flag_reason: isUserTester ? null : flagReason,
-                    eventsLog: eventsHistory as any,
+                    is_flagged: isUserTester ? false : (isFlagged || isGeometryInvalid || !safeCityId),
+                    flag_reason: isUserTester ? null : customFlagReason,
+                    eventsLog: runEventsWithDiag as any,
                     totalSteps: submittedTotalSteps,
-                    isValid: isUserTester ? true : !isPedometerInvalid,
+                    isValid: isUserTester ? true : (!isPedometerInvalid && !isGeometryInvalid && !!safeCityId),
                     antiCheatLog: isUserTester ? null : pedometerAntiCheatLog,
                 },
             });
@@ -788,7 +912,7 @@ export async function saveRunActivity(
         }, { timeout: 30000, maxWait: 10000 });
 
         // Phase 3: 主事务外部异步结算领地与附属数据更新 (Trigger.dev 核心解耦)
-        if (!isBlockedByAntiCheat && safeCityId) {
+        if (!isBlockedByAntiCheat && safeCityId && !isGeometryInvalid) {
             try {
                 const triggerPayload = {
                     runId: result.runId,
