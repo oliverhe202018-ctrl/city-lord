@@ -57,8 +57,12 @@ export const LOOP_CLOSURE_SNAP_M = 20;
  * Allows small square trajectories to be captured without needing 10+ GPS points. */
 export const MIN_LOOP_POINTS = 4;
 
-/** Minimum polygon area (m²) to qualify for territory */
-export const MIN_TERRITORY_AREA_M2 = 100;
+/**
+ * Minimum polygon area (m²) to qualify for territory.
+ * Single source of truth is now: lib/constants/territory.ts -> MIN_TERRITORY_AREA_M2
+ * @deprecated Use import { MIN_TERRITORY_AREA_M2 } from '@/lib/constants/territory' instead
+ */
+export const MIN_TERRITORY_AREA_M2 = 50;
 
 /** Maximum plausible running speed (km/h) for drift filtering */
 export const MAX_RUNNING_SPEED_KMH = 35;

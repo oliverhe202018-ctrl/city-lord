@@ -43,7 +43,7 @@ export const settleTerritoriesTask = task({
         const { runId, userId, cityId, clubId, polygons, distance, duration } = payload;
         let settledCount = 0;
         let reinforcedCount = 0;
-        let finalStatus = 'completed';
+        let finalStatus: string = 'failed';
         let finalErrorCode: string | null = null;
 
         // ─── 任务一：幂等性拦截 ───
@@ -126,7 +126,6 @@ export const settleTerritoriesTask = task({
                             console.error(`[settle-territories] 單多邊形結算失敗 runId=${runId}`, polyError);
                         }
                     }
-                    if (finalStatus !== 'completed') break;
                 }
 
                 // 移除重复的 user_city_progress update, 该操作已在 run-service 的 transaction 中实现
@@ -182,13 +181,18 @@ export const settleTerritoriesTask = task({
                 console.error('[settle-territories] 挑战进度更新失败', challengeError);
             }
 
+            // 所有阶段完成，标记成功
+            finalStatus = 'completed';
+
         } catch (fatalError) {
-            // 顶层 catch：记录致命错误但不阻止 finally 中的状态回写
+            // 顶层 catch：标记为失败，记录错误
+            finalStatus = 'failed';
+            finalErrorCode = fatalError instanceof Error ? fatalError.message : String(fatalError);
             console.error(`[settle-territories] 致命错误 runId=${runId}`, fatalError);
         } finally {
             // ─────────────────────────────────────────────
-            // 无论任何路径（cityId=null / 正常结算 / 致命错误），均回写 run.status
-            // finalStatus 仅在不可恢复的校验失败时才为 'flagged'（当前代码已不再触发）
+            // 无论任何路径（正常结算 / 致命错误），均回写 run.status
+            // finalStatus 默认为 'failed'，仅在 try 块成功完成时被设为 'completed'
             try {
                 await prisma.runs.update({
                     where: { id: runId },
@@ -200,6 +204,10 @@ export const settleTerritoriesTask = task({
                             flag_reason: 'INVALID_CITY_ID',
                             settlement_error_code: 'INVALID_CITY_ID',
                             settlement_error_detail: 'Settlement aborted: invalid cityId'
+                        } : {}),
+                        ...(finalStatus === 'failed' ? {
+                            settlement_error_code: 'TASK_ERROR',
+                            settlement_error_detail: finalErrorCode
                         } : {})
                     }
                 });
@@ -207,6 +215,10 @@ export const settleTerritoriesTask = task({
             } catch (statusErr) {
                 console.error(`[settle-territories] ❌ 状态回写失败 runId=${runId}`, statusErr);
             }
+        }
+
+        if (finalStatus === 'failed') {
+            throw new Error(`Settlement failed for runId=${runId}: ${finalErrorCode}`);
         }
 
         return { settledCount, reinforcedCount, runId, distance, duration };

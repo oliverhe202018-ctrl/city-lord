@@ -1,5 +1,6 @@
 import * as turf from '@turf/turf';
-import { getDistanceFromLatLonInMeters, extractValidLoops, LOOP_CLOSURE_THRESHOLD_M, MIN_TERRITORY_AREA_M2 } from '@/lib/geometry-utils';
+import { getDistanceFromLatLonInMeters, extractValidLoops, LOOP_CLOSURE_THRESHOLD_M } from '@/lib/geometry-utils';
+import { MIN_TERRITORY_AREA_M2 } from '@/lib/constants/territory';
 import { 
     ANTI_CHEAT_MAX_SPEED_KMH, 
     ANTI_CHEAT_MAX_GAP_SECONDS, 

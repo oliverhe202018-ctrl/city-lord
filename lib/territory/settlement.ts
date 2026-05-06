@@ -58,7 +58,6 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
     const { runId, userId, cityId, clubId, pathGeoJSON } = input;
     const TERRITORY_MAX_HEALTH = 100;
     const ALLY_HEAL = 50;
-    const ENEMY_DAMAGE = 20;
     const PATROL_OVERLAP_THRESHOLD = 0.8;
     const SHIELD_CHARGE_INCREMENT = 100;
 
@@ -416,104 +415,12 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                 continue;
             }
 
-            const afterHealth = Math.max(0, beforeHealth - ENEMY_DAMAGE);
-            const shouldNeutralize = afterHealth <= 0;
-            const shouldNotifyLowHealth = Boolean(
-                existingTerr.owner_id &&
-                !shouldNeutralize &&
-                beforeHealth >= 50 &&
-                afterHealth < 50
-            );
-
-            await tx.territories.update({
-                where: { id: existingTerr.id },
-                data: shouldNeutralize ? {
-                    health: 0,
-                    owner_id: null,
-                    owner_faction: null,
-                    owner_club_id: null,
-                    last_maintained_at: new Date()
-                } : {
-                    health: afterHealth,
-                    last_maintained_at: new Date()
-                }
-            });
-
-            if (shouldNotifyLowHealth) {
-                await tx.messages.create({
-                    data: {
-                        user_id: existingTerr.owner_id as string,
-                        sender_id: null,
-                        type: 'system',
-                        content: `你的领地 ${existingTerr.id} 生命值已降至 ${afterHealth}/${TERRITORY_MAX_HEALTH}，请尽快前往巡逻修复。`,
-                        is_read: false
-                    }
-                });
-                await tx.notifications.create({
-                    data: {
-                        user_id: existingTerr.owner_id as string,
-                        type: 'battle',
-                        title: '领地遭受攻击',
-                        body: `你的领地 ${existingTerr.id} 生命值已降至 ${afterHealth}/${TERRITORY_MAX_HEALTH}，请尽快巡逻修复。`,
-                        is_read: false,
-                        data: {
-                            territoryId: existingTerr.id,
-                            territoryName: existingTerr.id,
-                            eventType: 'LOW_HEALTH',
-                            clubId: existingTerr.owner_club_id ?? undefined,
-                            attackerClubId: clubId ?? undefined,
-                            area: runAreaSqMeters,
-                            health: {
-                                current: afterHealth,
-                                max: TERRITORY_MAX_HEALTH
-                            }
-                        }
-                    }
-                });
-            }
-
-            result.damageDetails.push({
-                territoryId: existingTerr.id,
-                ownerName: existingTerr.owner_name || '未知领主',
-                damage: ENEMY_DAMAGE,
-                territoryType: 'RELATIONAL',
-                isDestroyed: shouldNeutralize,
-                isCritical: false
-            });
-
-            if (shouldNeutralize) {
-                result.destroyedTerritories++;
-                if (existingTerr.is_contained) {
-                    actuallyDestroyedContainedIds.add(existingTerr.id);
-                }
-            } else {
-                result.damagedTerritories++;
-            }
-
-            // Perform turf.difference to carve out the claimed shapes so they don't overlap existing active territories
-            const newWorkingPolygons: Feature<Polygon>[] = [];
-            for (const poly of workingPolygons) {
-                const diff = difference(
-                    poly as Feature<Polygon | MultiPolygon>,
-                    existingFeature as Feature<Polygon | MultiPolygon>
-                );
-                if (diff) {
-                    if (diff.geometry.type === 'MultiPolygon') {
-                        diff.geometry.coordinates.forEach((coords: any) => {
-                            newWorkingPolygons.push(turf.polygon(coords));
-                        });
-                    } else {
-                        newWorkingPolygons.push(diff as Feature<Polygon>);
-                    }
-                }
-            }
-            workingPolygons = newWorkingPolygons;
+            // ─── Phase 3E: 删除旧 ENEMY_DAMAGE 双重扣血逻辑，统一走 Phase 3B 单链路 ───
+            continue;
         }
 
         // ─── Phase 3B: 固定伤害 + 血量衰减 + 血量归零后裁切 ───
         const DAMAGE_PER_RUN = 10;
-
-        let newMergedFeature: Feature<Polygon | MultiPolygon> | null = null;
 
         for (const existingTerr of overlappingTerritories) {
             if (existingTerr.owner_id === userId) continue;
@@ -542,72 +449,25 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                     }
                 });
             } else {
-                // 血量归零，执行几何裁切与 SUPERSEDED
-                if (!newMergedFeature) {
-                    if (workingPolygons.length === 1) {
-                        newMergedFeature = turf.feature(workingPolygons[0].geometry) as Feature<Polygon | MultiPolygon>;
-                    } else if (workingPolygons.length > 1) {
-                        try {
-                            let merged: Feature<Polygon | MultiPolygon> = turf.feature(workingPolygons[0].geometry) as Feature<Polygon | MultiPolygon>;
-                            for (let i = 1; i < workingPolygons.length; i++) {
-                                const next = turf.feature(workingPolygons[i].geometry);
-                                const unionResult = turf.union(turf.featureCollection([merged, next]));
-                                if (unionResult) {
-                                    merged = unionResult as Feature<Polygon | MultiPolygon>;
-                                }
-                            }
-                            newMergedFeature = merged;
-                        } catch (unionErr) {
-                            console.warn('[Settlement] 合并新领地多边形失败，跳过裁切:', unionErr);
-                        }
-                    }
+                // ─── Phase 3E: 血量归零 — 摧毁领地，跳过 difference 裁切，防止土地黑洞 ───
+                // 不执行 turf.difference，将被摧毁领地的几何体加入 workingPolygons，供攻击者直接占领
+                await tx.territories.update({
+                    where: { id: existingTerr.id },
+                    data: { status: 'SUPERSEDED' as any, health: 0, last_attacked_at: new Date() }
+                });
+                result.destroyedTerritories++;
+                if (existingTerr.is_contained) {
+                    actuallyDestroyedContainedIds.add(existingTerr.id);
                 }
 
-                if (newMergedFeature) {
-                    const existingFeature = turf.feature(existingTerr.geometry) as Feature<Polygon | MultiPolygon>;
-                    let diffResult: Feature<Polygon | MultiPolygon> | null;
-                    try {
-                        diffResult = difference(turf.featureCollection([existingFeature, newMergedFeature])) as Feature<Polygon | MultiPolygon> | null;
-                    } catch {
-                        diffResult = null;
-                    }
-
-                    if (!diffResult) {
-                        await tx.territories.update({
-                            where: { id: existingTerr.id },
-                            data: { status: 'SUPERSEDED' as any, health: 0, last_attacked_at: new Date() }
-                        });
-                        continue;
-                    }
-
-                    const remainingArea = diffResult.geometry.type === 'MultiPolygon'
-                        ? diffResult.geometry.coordinates.reduce(
-                            (sum: number, coords: any) => sum + turf.area(turf.polygon(coords)), 0
-                        )
-                        : turf.area(diffResult);
-
-                    if (remainingArea < MIN_TERRITORY_AREA_M2) {
-                        await tx.territories.update({
-                            where: { id: existingTerr.id },
-                            data: { status: 'SUPERSEDED' as any, health: 0, last_attacked_at: new Date() }
-                        });
-                    } else {
-                        const updatedGeojsonStr = JSON.stringify(diffResult.geometry);
-                        await tx.$executeRaw`
-                            UPDATE territories
-                            SET geojson = ST_SetSRID(ST_GeomFromGeoJSON(${updatedGeojsonStr}::text), 4326),
-                                geojson_json = ${updatedGeojsonStr}::jsonb,
-                                area_m2_exact = ST_Area(ST_SetSRID(ST_GeomFromGeoJSON(${updatedGeojsonStr}::text), 4326)::geography),
-                                health = 100,
-                                last_attacked_at = ${new Date()}
-                            WHERE id = ${existingTerr.id}
-                        `;
-                    }
-                } else {
-                    await tx.territories.update({
-                        where: { id: existingTerr.id },
-                        data: { status: 'SUPERSEDED' as any, health: 0, last_attacked_at: new Date() }
+                // 将被摧毁领地的几何体加入工作集，使攻击者能直接占领
+                const destroyedFeature = turf.feature(existingTerr.geometry) as Feature<Polygon | MultiPolygon>;
+                if (destroyedFeature.geometry.type === 'MultiPolygon') {
+                    destroyedFeature.geometry.coordinates.forEach((coords: any) => {
+                        workingPolygons.push(turf.polygon(coords));
                     });
+                } else {
+                    workingPolygons.push(destroyedFeature as Feature<Polygon>);
                 }
             }
         }

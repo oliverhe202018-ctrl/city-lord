@@ -15,10 +15,11 @@ import {
     isLoopClosed,
     calculatePathDistance,
     LOOP_CLOSURE_THRESHOLD_M,
-    MIN_TERRITORY_AREA_M2,
     MIN_LOOP_POINTS,
     type GeoPoint,
 } from '@/lib/geometry-utils';
+import { cleanAndSplitTrajectory } from '@/lib/gis/geometry-cleaner';
+import { MIN_TERRITORY_AREA_M2 } from '@/lib/constants/territory';
 import { processTerritorySettlement } from '@/lib/territory/settlement';
 import { TerritorySource } from '@prisma/client';
 

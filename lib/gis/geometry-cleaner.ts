@@ -1,6 +1,6 @@
 import * as turf from '@turf/turf';
 import { Feature, Polygon, Position } from 'geojson';
-import { MIN_TERRITORY_AREA_M2 } from '@/lib/geometry-utils';
+import { MIN_TERRITORY_AREA_M2 } from '@/lib/constants/territory';
 
 /**
  * Validates, cleans, and unkinks a trajectory into one or more valid Polygons.
