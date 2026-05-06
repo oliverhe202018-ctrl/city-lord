@@ -52,7 +52,7 @@ export function ModeSwitcher({ onDrawerOpenChange }: ModeSwitcherProps) {
     <div 
       id="mode-switcher" 
       className="relative z-[100] mx-auto w-full max-w-md px-3"
-      style={{ marginTop: 'calc(env(safe-area-inset-top) + 48px)' }}
+      style={{ marginTop: 'calc(var(--safe-top, 0px) + 48px)' }}
     >
       <div className="grid grid-cols-3 gap-1 rounded-xl bg-black/70 p-1 backdrop-blur-md border border-white/5 shadow-lg max-w-[240px] mx-auto">
         {/* 1. 地图按钮 */}

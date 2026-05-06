@@ -41,7 +41,7 @@ export function TerritoryInfoBar() {
                     transition={{ type: 'spring', damping: 25, stiffness: 200 }}
                     className="fixed top-0 left-0 right-0 z-[5000] pointer-events-auto max-w-md mx-auto"
                 >
-                    <div className="bg-card/90 backdrop-blur-xl shadow-2xl px-4 pb-6 pt-[calc(env(safe-area-inset-top)+1rem)] border-b border-white/10">
+                    <div className="bg-card/90 backdrop-blur-xl shadow-2xl px-4 pb-6 pt-[calc(var(--safe-top,0px)+1rem)] border-b border-white/10">
                         <div 
                             className="flex items-center justify-between cursor-pointer active:scale-[0.98] transition-all bg-white/5 hover:bg-white/10 p-2.5 rounded-2xl border border-white/5"
                             onClick={() => setIsDetailSheetOpen?.(true)}

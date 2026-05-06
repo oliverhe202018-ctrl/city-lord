@@ -243,15 +243,16 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
                     return;
                 }
 
-                // ── Jitter dead-zone ───────────────────────────────────────────────
+                // ── Jitter dead-zone (with cosine latitude scaling) ────────────────
                 // Skip updates where the reported position has not moved more than
                 // GPS_JITTER_DEAD_ZONE metres. This absorbs the ±2-5m noise that GPS
                 // chips produce even under open sky.
+                // Uses cosine latitude scaling because 1° longitude ≈ 111km × cos(lat).
                 const currentState = useLocationStore.getState();
                 if (currentState.location) {
-                    const dLat = point.lat - currentState.location.lat;
-                    const dLng = point.lng - currentState.location.lng;
-                    const approxDistanceMeters = Math.sqrt(dLat * dLat + dLng * dLng) * 111000;
+                    const dLat = (point.lat - currentState.location.lat) * 111000;
+                    const dLng = (point.lng - currentState.location.lng) * 111000 * Math.cos(point.lat * Math.PI / 180);
+                    const approxDistanceMeters = Math.sqrt(dLat * dLat + dLng * dLng);
                     if (approxDistanceMeters < GPS_JITTER_DEAD_ZONE) {
                         return;
                     }

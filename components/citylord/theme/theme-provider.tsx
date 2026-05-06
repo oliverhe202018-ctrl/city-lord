@@ -294,15 +294,9 @@ export function ThemeProvider({ children, defaultTheme = "light" }: ThemeProvide
     const applyStatusBar = async () => {
       if (await isNativePlatform()) {
         const isDarkTheme = theme.isDark
-        // Style.Dark -> Light text (for dark backgrounds)
-        // Style.Light -> Dark text (for light backgrounds)
         safeStatusBarSetStyle(isDarkTheme ? 'dark' : 'light')
         safeStatusBarSetBackgroundColor(theme.colors.background)
-        
-        const platform = await safeGetPlatform()
-        if (platform === 'android') {
-          safeStatusBarSetOverlaysWebView(false)
-        }
+        // 原生状态栏控制权统一收归 ClientShell.tsx，此处不再调用 setOverlaysWebView
       }
     }
     applyStatusBar()

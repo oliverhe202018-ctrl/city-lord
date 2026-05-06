@@ -64,7 +64,7 @@ export function RunningMapOverlay({
   return (
     <div className="absolute inset-0 z-50 flex flex-col justify-between pointer-events-none">
       {/* Top Bar */}
-      <div className="pt-[calc(env(safe-area-inset-top)+12px)] px-4 flex items-center justify-between pointer-events-auto">
+      <div className="pt-[calc(var(--safe-top,0px)+12px)] px-4 flex items-center justify-between pointer-events-auto">
         <button
           onClick={onBack}
           className="h-10 w-10 rounded-full bg-slate-800/90 backdrop-blur-sm shadow-lg flex items-center justify-center active:scale-95 transition-transform border border-white/10"

@@ -323,7 +323,7 @@ export function ClubDrawer({ isOpen, onClose, onOpenCreate }: ClubDrawerProps) {
           transition={{ type: "spring", damping: 25, stiffness: 200 }}
           className="fixed inset-0 z-[1200] bg-background flex flex-col overflow-hidden"
         >
-          <div className="flex items-center px-4 py-3 border-b border-border pt-[calc(env(safe-area-inset-top)+12px)] bg-background/80 backdrop-blur-md z-10 shrink-0">
+          <div className="flex items-center px-4 py-3 border-b border-border pt-[calc(var(--safe-top,0px)+12px)] bg-background/80 backdrop-blur-md z-10 shrink-0">
             <button
               onClick={onClose}
               className="p-2 -ml-2 rounded-full hover:bg-muted/50 active:scale-95 transition-all text-foreground"

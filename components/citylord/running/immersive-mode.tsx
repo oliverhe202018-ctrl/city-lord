@@ -255,7 +255,7 @@ const MapTopBar = memo(function MapTopBar({
   onRecenter: () => void
 }) {
   return (
-    <div className="pointer-events-auto absolute left-4 right-4 top-[calc(env(safe-area-inset-top)+12px)] z-50 flex items-center justify-between">
+    <div className="pointer-events-auto absolute left-4 right-4 top-[calc(var(--safe-top,0px)+12px)] z-50 flex items-center justify-between">
       <button
         type="button"
         className="pointer-events-auto relative z-[10020] flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-black/70 text-white shadow-lg active:scale-95"
@@ -1088,7 +1088,7 @@ function ImmersiveRunningModeInner({
 
       <AnimatePresence initial={false}>
         {floatingBanner && (
-          <MotionWrapper variant="banner" className="pointer-events-none fixed left-1/2 top-[calc(env(safe-area-inset-top)+16px)] z-[100003] w-[min(92vw,360px)] -translate-x-1/2">
+          <MotionWrapper variant="banner" className="pointer-events-none fixed left-1/2 top-[calc(var(--safe-top,0px)+16px)] z-[100003] w-[min(92vw,360px)] -translate-x-1/2">
             <div className={`rounded-2xl border px-4 py-2.5 text-center text-sm font-semibold text-white shadow-2xl backdrop-blur-xl ${floatingBanner.tone === "capture" ? "border-emerald-300/45 bg-emerald-500/75" : "border-sky-300/45 bg-sky-500/75"}`}>
               {floatingBanner.text}
             </div>
@@ -1179,7 +1179,7 @@ function ImmersiveRunningModeInner({
       )}
 
       {viewMode === 'dashboard' && (
-        <div className="absolute inset-0 z-50 pointer-events-auto bg-slate-900/95 px-5 pb-[calc(env(safe-area-inset-bottom)+20px)] pt-[calc(env(safe-area-inset-top)+20px)]">
+        <div className="absolute inset-0 z-50 pointer-events-auto bg-slate-900/95 px-5 pb-[calc(env(safe-area-inset-bottom)+20px)] pt-[calc(var(--safe-top,0px)+20px)]">
           <div className="flex h-full flex-col">
             <div className="grid grid-cols-2 gap-3 rounded-3xl border border-white/10 bg-black/30 p-4">
               <div className="rounded-2xl bg-white/5 p-4 text-center">

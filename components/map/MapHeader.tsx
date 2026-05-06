@@ -358,7 +358,7 @@ export function MapHeader({
 
   if (!currentCity || isLoading || !hydrated) {
     return (
-      <div className="fixed top-0 left-0 right-0 z-[100] px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
+      <div className="fixed top-0 left-0 right-0 z-[100] px-4 pt-[calc(var(--safe-top,0px)+0.75rem)]">
         <GlassCard className="flex items-center justify-center py-3">
           <LoadingSpinner size="sm" />
           <span className="ml-2 text-sm text-slate-700 dark:text-white/80">
@@ -375,7 +375,7 @@ export function MapHeader({
       <div 
         ref={headerRef}
         id="map-header"
-        className="fixed top-0 left-0 right-0 z-[100] px-3 transition-all duration-300 pt-[calc(env(safe-area-inset-top)+8px)] max-w-md mx-auto"
+        className="fixed top-0 left-0 right-0 z-[100] px-3 transition-all duration-300 pt-[calc(var(--safe-top,0px)+8px)] max-w-md mx-auto"
       >
         <div 
           className="rounded-[16px] overflow-hidden transition-all duration-300 backdrop-blur-md cursor-pointer border border-white/5"

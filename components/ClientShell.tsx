@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { ThemeProvider } from '@/components/citylord/theme/theme-provider';
 import { CityProvider } from '@/contexts/CityContext';
 import { RegionProvider } from '@/contexts/RegionContext';
@@ -16,7 +16,7 @@ import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
 import { BackNavigationProvider, useBackNavigationContext } from '@/contexts/BackNavigationContext';
 import { ChangelogNotificationProvider } from '@/components/changelog/ChangelogNotificationProvider';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { isNativePlatform, safeGetPlatform, safeStatusBarSetBackgroundColor, safeStatusBarSetOverlaysWebView, safeStatusBarSetStyle } from "@/lib/capacitor/safe-plugins";
 import { useImmersiveMode } from "@/hooks/useImmersiveMode";
 
@@ -31,18 +31,25 @@ function StatusBarConfig() {
         safeStatusBarSetStyle('dark');
         const platform = await safeGetPlatform();
         if (platform === 'android') {
-          // 关键修复：关闭 Overlay，让 WebView 位于状态栏下方
-          safeStatusBarSetOverlaysWebView(false);
+          // 开启 Overlay，让 WebView 延伸到状态栏下方（沉浸式）
+          // 配合 CSS padding-top: var(--safe-top) 防止内容被遮挡
+          safeStatusBarSetOverlaysWebView(true);
           safeStatusBarSetBackgroundColor('#000000');
 
-          // RISK-05: 读取 Android StatusBar 高度并注入 CSS 变量 (修正之前设为 0px 的逻辑)
+          // 读取 Android StatusBar 高度并注入 CSS 变量
+          // Android WebView 不支持 env(safe-area-inset-top)，需手动注入
           try {
             const { StatusBar } = await import('@capacitor/status-bar');
             const info = await StatusBar.getInfo();
-            // 在 overlaysWebView(false) 时，虽然 WebView 不被遮挡，但布局仍可能需要该高度作为参考
+            const statusBarHeight = (info as any).height ?? 0;
             document.documentElement.style.setProperty(
               '--android-status-bar-height',
-              `${(info as any).height}px`
+              `${statusBarHeight}px`
+            );
+            // 同时覆盖 --safe-top，确保全局 safe-pt 等工具类生效
+            document.documentElement.style.setProperty(
+              '--safe-top',
+              `${statusBarHeight}px`
             );
           } catch (err) {
             console.warn('[StatusBar] Failed to get info', err);
@@ -58,50 +65,44 @@ function StatusBarConfig() {
 }
 
 /**
- * 全局唯一的 Android 物理返回键监听器。
+ * 全局唯一的 Android 物理返回键/侧滑手势监听器。
  * 必须位于 BackNavigationProvider 内部。
  * 左侧边缘滑动在 Android 手势导航模式下同样触发 backButton 事件，由此统一处理。
  */
 function GlobalBackButtonHandler() {
     const router = useRouter()
+    const pathname = usePathname()
     const { getActiveHandler } = useBackNavigationContext()
+    const rootPaths = ['/', '/home']
+    const pathnameRef = useRef(pathname)
+
+    // 路由变化时同步 pathnameRef
+    useEffect(() => {
+        pathnameRef.current = pathname
+    }, [pathname])
 
     useEffect(() => {
-        // 仅在原生平台注册（Web 端无物理返回键）
         if (!Capacitor.isNativePlatform()) return
 
         const listenerPromise = CapacitorApp.addListener('backButton', () => {
             const handler = getActiveHandler()
 
             if (handler) {
-                // 有页面级 handler（来自 usePageBackNavigation）：执行页面自定义逻辑
                 handler()
             } else {
-                // 全局兜底（38 个未覆盖页面走此路径）
-                if (typeof window !== 'undefined' && window.history.state?.idx > 0) {
-                    // 有历史：正常回退
-                    router.back()
+                const currentPath = pathnameRef.current || window.location.pathname
+                if (rootPaths.includes(currentPath)) {
+                    CapacitorApp.exitApp()
                 } else {
-                    // 无历史：按当前路径决策
-                    const currentPath = window.location.pathname
-                    if (currentPath === '/') {
-                        // 在根路径：退出 App（符合 Android 用户预期）
-                        CapacitorApp.exitApp()
-                    } else {
-                        // 其余路径无历史（异常情况）：回首页
-                        router.replace('/')
-                    }
+                    router.back()
                 }
             }
         })
 
         return () => {
-            // 组件卸载时移除监听（正常情况下 layout 不卸载，此处为防御性清理）
             listenerPromise.then(l => l.remove())
         }
-    }, [])
-    // 空依赖数组：仅挂载时注册一次
-    // getActiveHandler 读 ref（始终是当前值，无需捕获），router 在 App Router 中稳定
+    }, [router, getActiveHandler])
 
     return null
 }

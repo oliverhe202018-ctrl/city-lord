@@ -280,7 +280,7 @@ export function RunningHUD({
       <AnimatePresence>
         {!isMapExpanded && (
           <motion.div
-            className="absolute inset-0 pointer-events-none flex flex-col justify-between z-40 pb-[calc(env(safe-area-inset-bottom)+16px)] pt-[calc(env(safe-area-inset-top)+60px)]"
+            className="absolute inset-0 pointer-events-none flex flex-col justify-between z-40 pb-[calc(env(safe-area-inset-bottom)+16px)] pt-[calc(var(--safe-top,0px)+60px)]"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
