@@ -440,7 +440,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
             const nextHealth = Math.max(0, (existingTerr.health ?? 100) - DAMAGE_PER_RUN);
 
             if (nextHealth > 0) {
-                // 血量尚存，仅衰减，不裁切几何体
+                // 血量尚存，扣血并裁切 workingPolygons，防止玩家新领地与敌方重叠
                 await tx.territories.update({
                     where: { id: existingTerr.id },
                     data: {
@@ -448,9 +448,28 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                         last_attacked_at: new Date(),
                     }
                 });
+
+                const newWorkingPolygons: Feature<Polygon>[] = [];
+                const existingFeature = turf.feature(existingTerr.geometry) as Feature<Polygon | MultiPolygon>;
+                for (const poly of workingPolygons) {
+                    const diff = difference(
+                        poly as Feature<Polygon | MultiPolygon>,
+                        existingFeature
+                    );
+                    if (diff) {
+                        if (diff.geometry.type === 'MultiPolygon') {
+                            diff.geometry.coordinates.forEach((coords: any) => {
+                                newWorkingPolygons.push(turf.polygon(coords));
+                            });
+                        } else {
+                            newWorkingPolygons.push(diff as Feature<Polygon>);
+                        }
+                    }
+                }
+                workingPolygons = newWorkingPolygons;
             } else {
-                // ─── Phase 3E: 血量归零 — 摧毁领地，跳过 difference 裁切，防止土地黑洞 ───
-                // 不执行 turf.difference，将被摧毁领地的几何体加入 workingPolygons，供攻击者直接占领
+                // 血量归零 — 摧毁领地，标记 SUPERSEDED
+                // 跳过 difference 裁切：玩家的新轨迹已覆盖该区域，跳过裁切即完成吞并
                 await tx.territories.update({
                     where: { id: existingTerr.id },
                     data: { status: 'SUPERSEDED' as any, health: 0, last_attacked_at: new Date() }
@@ -458,16 +477,6 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                 result.destroyedTerritories++;
                 if (existingTerr.is_contained) {
                     actuallyDestroyedContainedIds.add(existingTerr.id);
-                }
-
-                // 将被摧毁领地的几何体加入工作集，使攻击者能直接占领
-                const destroyedFeature = turf.feature(existingTerr.geometry) as Feature<Polygon | MultiPolygon>;
-                if (destroyedFeature.geometry.type === 'MultiPolygon') {
-                    destroyedFeature.geometry.coordinates.forEach((coords: any) => {
-                        workingPolygons.push(turf.polygon(coords));
-                    });
-                } else {
-                    workingPolygons.push(destroyedFeature as Feature<Polygon>);
                 }
             }
         }
