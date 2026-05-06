@@ -1,0 +1,234 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@theme {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+}
+
+@custom-variant dark (&:is(.dark *));
+
+@layer base {
+  :root {
+    /* 默认 (赛博朋克) - Cyberpunk Default */
+    --background: 224 71% 4%; /* 深蓝黑 #020617 */
+    --foreground: 213 31% 91%; /* #e2e8f0 */
+    
+    --card: 224 71% 10%; /* #0f172a */
+    --card-foreground: 213 31% 91%;
+    
+    --popover: 224 71% 10%;
+    --popover-foreground: 213 31% 91%;
+    
+    --primary: 263 70% 50%; /* 霓虹紫/蓝 #8b5cf6 */
+    --primary-foreground: 210 40% 98%;
+    
+    --secondary: 215 27.9% 16.9%;
+    --secondary-foreground: 210 40% 98%;
+    
+    --muted: 215 27.9% 16.9%;
+    --muted-foreground: 217.9 10.6% 64.9%;
+    
+    --accent: 215 27.9% 16.9%;
+    --accent-foreground: 210 40% 98%;
+    
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    
+    --border: 215 27.9% 16.9%;
+    --input: 215 27.9% 16.9%;
+    --ring: 263 70% 50%;
+    
+    --radius: 0.5rem;
+
+    /* Safe Area Variables — 单行 env() 带 0px fallback (避开属性覆盖陷阱) */
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+
+    /* Android 状态栏高度 (由 ClientShell 动态注入) */
+    --android-status-bar-height: 0px;
+
+    /* UI Layout Helpers */
+    --top-bar-height: calc(var(--safe-top) + 4rem);
+  }
+
+  /* Standard Safe Area Utilities (Unified to .safe-* namespace) */
+  .safe-pt {
+    padding-top: var(--safe-top);
+  }
+  .safe-pb {
+    padding-bottom: var(--safe-bottom);
+  }
+  .safe-pl {
+    padding-left: var(--safe-left);
+  }
+  .safe-pr {
+    padding-right: var(--safe-right);
+  }
+  .h-safe {
+    height: calc(100vh - var(--safe-top) - var(--safe-bottom));
+  }
+  .min-h-safe {
+    min-height: calc(100vh - var(--safe-top) - var(--safe-bottom));
+  }
+
+  .theme-light {
+    /* 清爽日间 (Clear Day) */
+    --background: 0 0% 100%; /* 纯白 #ffffff */
+    --foreground: 222.2 84% 4.9%; /* #020817 */
+    
+    --card: 0 0% 96%; /* #f3f4f6 */
+    --card-foreground: 222.2 84% 4.9%;
+    
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    
+    --primary: 221.2 83.2% 53.3%; /* 亮蓝 #2563eb */
+    --primary-foreground: 210 40% 98%;
+    
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+  }
+
+  .theme-nature {
+    /* 自然健康 (Natural) */
+    --background: 120 20% 97%; /* 浅米绿 #f2fcf2 */
+    --foreground: 120 40% 20%; /* #1e4620 */
+    
+    --card: 120 20% 90%; /* #e1f0e1 */
+    --card-foreground: 120 40% 20%;
+    
+    --popover: 120 20% 97%;
+    --popover-foreground: 120 40% 20%;
+    
+    --primary: 142 76% 36%; /* 森林绿 #16a34a */
+    --primary-foreground: 355.7 100% 97.3%;
+    
+    --secondary: 120 20% 90%;
+    --secondary-foreground: 120 40% 20%;
+    
+    --muted: 120 20% 90%;
+    --muted-foreground: 120 20% 40%;
+    
+    --accent: 120 20% 85%;
+    --accent-foreground: 120 40% 20%;
+    
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    
+    --border: 120 20% 80%;
+    --input: 120 20% 80%;
+    --ring: 142 76% 36%;
+  }
+
+  /* 沉浸式游戏模式锁定 (Immersive Game Mode Locks) */
+  html, body {
+    @apply select-none touch-manipulation overscroll-none;
+    height: 100%;
+    height: 100dvh;
+    overflow: hidden;
+    touch-action: none;
+    -webkit-touch-callout: none; /* 禁止 iOS 长按菜单 */
+    -webkit-user-select: none;   /* Safari */
+    user-select: none;           /* Standard */
+    -webkit-tap-highlight-color: transparent; /* 移除点击高亮 */
+  }
+
+  /* 例外：允许输入框交互 */
+  input, textarea, [contenteditable="true"] {
+    @apply select-text;
+    -webkit-user-select: text;
+    user-select: text;
+    /* 允许输入框的长按菜单以便复制粘贴，或视需求禁用 */
+  }
+
+  /* 禁止图片拖拽 */
+  img {
+    @apply pointer-events-none select-none;
+    -webkit-user-drag: none;
+  }
+
+  /* 主题色滚动条 (Theme-aware Scrollbar) */
+  .themed-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--primary) / 0.4) hsl(var(--muted) / 0.3);
+  }
+
+  .themed-scrollbar::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .themed-scrollbar::-webkit-scrollbar-track {
+    background: hsl(var(--muted) / 0.3);
+    border-radius: 4px;
+  }
+
+  .themed-scrollbar::-webkit-scrollbar-thumb {
+    background: hsl(var(--primary) / 0.4);
+    border-radius: 4px;
+  }
+
+  .themed-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--primary) / 0.6);
+  }
+
+  /* Hide native scrollbar for mobile-native feel (used with .scrollbar-hide) */
+  .scrollbar-hide {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE 10+ */
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+  }
+}
+
+/* === Safe Area Utilities (Fallback Support) === */
+
+@keyframes voiceWave {
+    0%, 100% { height: 8px; opacity: 0.7; }
+    50%       { height: 28px; opacity: 1; }
+}

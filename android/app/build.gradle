@@ -1,0 +1,90 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace = "com.xiangfei.citylord"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId = "com.citylord.game.pro"
+        minSdkVersion = rootProject.ext.minSdkVersion
+        targetSdkVersion = rootProject.ext.targetSdkVersion
+        versionCode = 10200
+        versionName = "1.2.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+            ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+
+    signingConfigs {
+        release {
+            if (project.hasProperty('RELEASE_STORE_FILE')) {
+                storeFile file(RELEASE_STORE_FILE)
+                storePassword RELEASE_STORE_PASSWORD
+                keyAlias RELEASE_KEY_ALIAS
+                keyPassword RELEASE_KEY_PASSWORD
+            }
+        }
+    }
+    packagingOptions {
+        jniLibs {
+            pickFirsts += ['google/protobuf/**']
+        }
+        resources {
+            pickFirsts += ['META-INF/INDEX.LIST', 'META-INF/DEPENDENCIES', 'META-INF/io.netty.versions.properties', 'META-INF/LICENSE', 'META-INF/LICENSE.txt', 'META-INF/NOTICE', 'META-INF/NOTICE.txt', 'META-INF/services/io.grpc.LoadBalancerProvider', 'META-INF/services/io.grpc.NameResolverProvider', 'META-INF/services/io.grpc.ManagedChannelProvider', 'META-INF/com.android.tools/r8/from-text.txt', 'version.txt', 'google/protobuf/**', '**/*.proto', 'META-INF/*.kotlin_module']
+        }
+    }
+
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
+        }
+    }
+
+    // 统一使用 Java 17 与全局配置保持一致
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+    // 高德定位 SDK (GCJ-02 native) - 锁定稳定版本
+    implementation 'com.amap.api:location:6.4.9'
+    // LocalBroadcastManager — Service ↔ Plugin 通信
+    implementation 'androidx.localbroadcastmanager:localbroadcastmanager:1.1.0'
+
+    // ---- Room 离线持久化 (Black Box) ----
+    def room_version = '2.6.1'
+    implementation "androidx.room:room-runtime:$room_version"
+    annotationProcessor "androidx.room:room-compiler:$room_version"
+}
+
+configurations.all {
+    resolutionStrategy {
+        force 'com.google.protobuf:protobuf-javalite:3.21.12'
+        force 'com.google.protobuf:protobuf-java:3.21.12'
+    }
+}
+
+apply from: 'capacitor.build.gradle'
+
+// google-services.json removed

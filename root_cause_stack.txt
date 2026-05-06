@@ -1,0 +1,492 @@
+﻿
+> 03-14 05:41:36.828 32563 32563 E AndroidRuntime: jav
+a.lang.RuntimeException: Unable to start service com.x
+iangfei.citylord.LocationForegroundService@478c37e wit
+h Intent { xflg=0x4 cmp=com.citylord.game.pro/com.xian
+gfei.citylord.LocationForegroundService (has extras) }
+: java.lang.SecurityException: Starting FGS with type 
+location callerApp=ProcessRecord{4466184 32563:com.cit
+ylord.game.pro/u0a223} targetSDK=34 requires permissio
+ns: all of the permissions allOf=true [android.permiss
+ion.FOREGROUND_SERVICE_LOCATION] any of the permission
+s allOf=false [android.permission.ACCESS_COARSE_LOCATI
+ON, android.permission.ACCESS_FINE_LOCATION]  and the 
+app must be in the eligible state/exemptions to access
+ the foreground only permission
+  03-14 05:41:36.828 32563 32563 E AndroidRuntime: 	at
+ android.app.ActivityThread.handleServiceArgs(Activity
+Thread.java:5471)
+  03-14 05:41:36.828 32563 32563 E AndroidRuntime: 	at
+ android.app.ActivityThread.-$$Nest$mhandleServiceArgs
+(Unknown Source:0)
+  03-14 05:41:36.828 32563 32563 E AndroidRuntime: 	at
+ android.app.ActivityThread$H.handleMessage(ActivityTh
+read.java:2647)
+  03-14 05:41:36.828 32563 32563 E AndroidRuntime: 	at
+ android.os.Handler.dispatchMessage(Handler.java:110)
+  03-14 05:41:36.828 32563 32563 E AndroidRuntime: 	at
+ android.os.Looper.loopOnce(Looper.java:248)
+  03-14 05:41:36.828 32563 32563 E AndroidRuntime: 	at
+ android.os.Looper.loop(Looper.java:338)
+  03-14 05:41:36.828 32563 32563 E AndroidRuntime: 	at
+ android.app.ActivityThread.main(ActivityThread.java:9
+067)
+  03-14 05:41:36.828 32563 32563 E AndroidRuntime: 	at
+ java.lang.reflect.Method.invoke(Native Method)
+  03-14 05:41:36.828 32563 32563 E AndroidRuntime: 	at
+ com.android.internal.os.RuntimeInit$MethodAndArgsCall
+er.run(RuntimeInit.java:593)
+  03-14 05:41:36.828 32563 32563 E AndroidRuntime: 	at
+ com.android.internal.os.ZygoteInit.main(ZygoteInit.ja
+va:932)
+> 03-14 05:41:36.828 32563 32563 E AndroidRuntime: Cau
+sed by: java.lang.SecurityException: Starting FGS with
+ type location callerApp=ProcessRecord{4466184 32563:c
+om.citylord.game.pro/u0a223} targetSDK=34 requires per
+missions: all of the permissions allOf=true [android.p
+ermission.FOREGROUND_SERVICE_LOCATION] any of the perm
+issions allOf=false [android.permission.ACCESS_COARSE_
+LOCATION, android.permission.ACCESS_FINE_LOCATION]  an
+d the app must be in the eligible state/exemptions to 
+access the foreground only permission
+  03-14 05:41:36.828 32563 32563 E AndroidRuntime: 	at
+ android.os.Parcel.createExceptionOrNull(Parcel.java:3
+340)
+  03-14 05:41:36.828 32563 32563 E AndroidRuntime: 	at
+ android.os.Parcel.createException(Parcel.java:3324)
+  03-14 05:41:36.828 32563 32563 E AndroidRuntime: 	at
+ android.os.Parcel.readException(Parcel.java:3307)
+  03-14 05:41:36.828 32563 32563 E AndroidRuntime: 	at
+ android.os.Parcel.readException(Parcel.java:3249)
+  03-14 05:41:36.828 32563 32563 E AndroidRuntime: 	at
+ android.app.IActivityManager$Stub$Proxy.setServiceFor
+eground(IActivityManager.java:7274)
+  03-14 05:41:36.828 32563 32563 E AndroidRuntime: 	at
+ android.app.Service.startForeground(Service.java:776)
+  03-14 05:41:36.828 32563 32563 E AndroidRuntime: 	at
+ com.xiangfei.citylord.LocationForegroundService.onSta
+rtCommand(LocationForegroundService.java:220)
+  03-14 05:41:36.828 32563 32563 E AndroidRuntime: 	at
+ android.app.ActivityThread.handleServiceArgs(Activity
+Thread.java:5453)
+  03-14 05:41:36.828 32563 32563 E AndroidRuntime: 	..
+. 9 more
+  03-14 05:41:36.828 32563 32563 E AndroidRuntime: Cau
+sed by: android.os.RemoteException: Remote stack trace
+:
+  03-14 05:41:36.828 32563 32563 E AndroidRuntime: 	at
+ com.android.server.am.ActiveServices.validateForegrou
+ndServiceType(ActiveServices.java:2920)
+  03-14 05:41:36.828 32563 32563 E AndroidRuntime: 	at
+ com.android.server.am.ActiveServices.setServiceForegr
+oundInnerLocked(ActiveServices.java:2596)
+  03-14 05:41:36.828 32563 32563 E AndroidRuntime: 	at
+ com.android.server.am.ActiveServices.setServiceForegr
+oundLocked(ActiveServices.java:1850)
+  03-14 05:41:36.828 32563 32563 E AndroidRuntime: 	at
+ com.android.server.am.ActivityManagerService.setServi
+ceForeground(ActivityManagerService.java:13842)
+  03-14 05:41:36.828 32563 32563 E AndroidRuntime: 	at
+ android.app.IActivityManager$Stub.onTransact(IActivit
+yManager.java:3640)
+  03-14 05:41:36.828 32563 32563 E AndroidRuntime: 
+  03-14 05:41:36.845 14457 15415 W ActivityTaskManager
+:   Force finishing activity com.citylord.game.pro/com
+.xiangfei.citylord.MainActivity
+  03-14 05:41:36.846 14457 32639 I DropBoxManagerServi
+ce: add tag=data_app_crash isTagEnabled=true flags=0x2
+  03-14 05:41:36.847 14703 14727 V WindowManagerShell:
+ Transition requested (#111): android.os.BinderProxy@8
+02f08e TransitionRequestInfo { type = CLOSE, triggerTa
+sk = TaskInfo{userId=0 taskId=61 effectiveUid=10223 di
+splayId=0 isRunning=true baseIntent=Intent { flg=0x100
+00000 cmp=com.citylord.game.pro/com.xiangfei.citylord.
+MainActivity } baseActivity=ComponentInfo{com.citylord
+.game.pro/com.xiangfei.citylord.MainActivity} topActiv
+ity=ComponentInfo{com.citylord.game.pro/com.xiangfei.c
+itylord.MainActivity} origActivity=null realActivity=C
+omponentInfo{com.citylord.game.pro/com.xiangfei.citylo
+rd.MainActivity} numActivities=1 lastActiveTime=144627
+46 supportsMultiWindow=true resizeMode=1 isResizeable=
+true minWidth=-1 minHeight=-1 defaultMinSize=220 token
+=WCT{android.window.IWindowContainerToken$Stub$Proxy@a
+5fe0af} topActivityType=1 pictureInPictureParams=null 
+shouldDockBigOverlays=false launchIntoPipHostTaskId=-1
+ lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=
+Rect(0, 0 - 0, 0) topActivityInfo=ActivityInfo{7a22cbc
+ com.xiangfei.citylord.MainActivity} launchCookies=[] 
+positionInParent=Point(0, 0) parentTaskId=-1 isFocused
+=true isVisible=true isVisibleRequested=true isTopActi
+vityNoDisplay=false isSleeping=false locusId=null disp
+layAreaFeatureId=1 isTopActivityTransparent=false isAc
+tivityStackTransparent=false lastNonFullscreenBounds=R
+ect(362, 870 - 1079, 2310) capturedLink=null capturedL
+inkTimestamp=0 requestedVisibleTypes=-9 topActivityReq
+uestOpenInBrowserEducationTimestamp=0 appCompatTaskInf
+o=AppCompatTaskInfo { topActivityInSizeCompat=false el
+igibleForLetterboxEducation= false isLetterboxEducatio
+nEnabled= true isLetterboxDoubleTapEnabled= false elig
+ibleForUserAspectRatioButton= false topActivityBoundsL
+etterboxed= false isFromLetterboxDoubleTap= false topA
+ctivityLetterboxVerticalPosition= -1 topActivityLetter
+boxHorizontalPosition= -1 topActivityLetterboxWidth=-1
+ topActivityLetterboxHeight=-1 topActivityAppBounds=Re
+ct(0, 144 - 1440, 3036) isUserFullscreenOverrideEnable
+d=false isSystemFullscreenOverrideEnabled=false hasMin
+AspectRatioOverride=false topActivityLetterboxBounds=n
+ull cameraCompatTaskInfo=CameraCompatTaskInfo { freefo
+rmCameraCompatMode=inactive}} topActivityMainWindowFra
+me=null}, pipChange = null, remoteTransition = null, d
+isplayChange = null, flags = 16, debugId = 111 }
+  03-14 05:41:36.861 32563 32563 I Process : Sending s
+ignal. PID: 32563 SIG: 9
+  03-14 05:41:36.861 14869 14869 D VRI[NexusLauncherAc
+tivity]: visibilityChanged oldVisibility=false newVisi
+bility=true
+  03-14 05:41:36.864   561   571 I BpBinder: onLastStr
+ongRef automatically unlinking death recipients: 
+  03-14 05:41:36.881 14869 14869 D NexusLauncherModelD
+elegate: notifySmartspaceEvent: SmartspaceTargetEvent{
+mSmartspaceTarget=null, mSmartspaceActionId='null', mE
+ventType=6}
+  03-14 05:41:36.881 14869 14869 D BaseDepthController
+: mSurface is not valid
+  03-14 05:41:36.881 14869 14869 D BaseDepthController
+: mSurface is null and mCurrentBlur is: 0
+  03-14 05:41:36.890 14869 14869 D BaseDepthController
+: setSurface:
+  03-14 05:41:36.890 14869 14869 D BaseDepthController
+: 	mWaitingOnSurfaceValidity: true
+  03-14 05:41:36.890 14869 14869 D BaseDepthController
+: 	mBaseSurface: Surface(name=com.google.android.apps.
+nexuslauncher/com.google.android.apps.nexuslauncher.Ne
+xusLauncherActivity)/@0xf6db772
+  03-14 05:41:36.906   561   561 I BpBinder: onLastStr
+ongRef automatically unlinking death recipients: 
+  03-14 05:41:36.964 14457 14480 I ActivityManager: Pr
+ocess com.citylord.game.pro (pid 32563) has died: fg  
+TOP 
+> 03-14 05:41:58.974 32666 32666 E AndroidRuntime: jav
+a.lang.RuntimeException: Unable to start service com.x
+iangfei.citylord.LocationForegroundService@f27457 with
+ Intent { xflg=0x4 cmp=com.citylord.game.pro/com.xiang
+fei.citylord.LocationForegroundService (has extras) }:
+ java.lang.SecurityException: Starting FGS with type l
+ocation callerApp=ProcessRecord{d2d854a 32666:com.city
+lord.game.pro/u0a223} targetSDK=34 requires permission
+s: all of the permissions allOf=true [android.permissi
+on.FOREGROUND_SERVICE_LOCATION] any of the permissions
+ allOf=false [android.permission.ACCESS_COARSE_LOCATIO
+N, android.permission.ACCESS_FINE_LOCATION]  and the a
+pp must be in the eligible state/exemptions to access 
+the foreground only permission
+  03-14 05:41:58.974 32666 32666 E AndroidRuntime: 	at
+ android.app.ActivityThread.handleServiceArgs(Activity
+Thread.java:5471)
+  03-14 05:41:58.974 32666 32666 E AndroidRuntime: 	at
+ android.app.ActivityThread.-$$Nest$mhandleServiceArgs
+(Unknown Source:0)
+  03-14 05:41:58.974 32666 32666 E AndroidRuntime: 	at
+ android.app.ActivityThread$H.handleMessage(ActivityTh
+read.java:2647)
+  03-14 05:41:58.974 32666 32666 E AndroidRuntime: 	at
+ android.os.Handler.dispatchMessage(Handler.java:110)
+  03-14 05:41:58.974 32666 32666 E AndroidRuntime: 	at
+ android.os.Looper.loopOnce(Looper.java:248)
+  03-14 05:41:58.974 32666 32666 E AndroidRuntime: 	at
+ android.os.Looper.loop(Looper.java:338)
+  03-14 05:41:58.974 32666 32666 E AndroidRuntime: 	at
+ android.app.ActivityThread.main(ActivityThread.java:9
+067)
+  03-14 05:41:58.974 32666 32666 E AndroidRuntime: 	at
+ java.lang.reflect.Method.invoke(Native Method)
+  03-14 05:41:58.974 32666 32666 E AndroidRuntime: 	at
+ com.android.internal.os.RuntimeInit$MethodAndArgsCall
+er.run(RuntimeInit.java:593)
+  03-14 05:41:58.974 32666 32666 E AndroidRuntime: 	at
+ com.android.internal.os.ZygoteInit.main(ZygoteInit.ja
+va:932)
+> 03-14 05:41:58.974 32666 32666 E AndroidRuntime: Cau
+sed by: java.lang.SecurityException: Starting FGS with
+ type location callerApp=ProcessRecord{d2d854a 32666:c
+om.citylord.game.pro/u0a223} targetSDK=34 requires per
+missions: all of the permissions allOf=true [android.p
+ermission.FOREGROUND_SERVICE_LOCATION] any of the perm
+issions allOf=false [android.permission.ACCESS_COARSE_
+LOCATION, android.permission.ACCESS_FINE_LOCATION]  an
+d the app must be in the eligible state/exemptions to 
+access the foreground only permission
+  03-14 05:41:58.974 32666 32666 E AndroidRuntime: 	at
+ android.os.Parcel.createExceptionOrNull(Parcel.java:3
+340)
+  03-14 05:41:58.974 32666 32666 E AndroidRuntime: 	at
+ android.os.Parcel.createException(Parcel.java:3324)
+  03-14 05:41:58.974 32666 32666 E AndroidRuntime: 	at
+ android.os.Parcel.readException(Parcel.java:3307)
+  03-14 05:41:58.974 32666 32666 E AndroidRuntime: 	at
+ android.os.Parcel.readException(Parcel.java:3249)
+  03-14 05:41:58.974 32666 32666 E AndroidRuntime: 	at
+ android.app.IActivityManager$Stub$Proxy.setServiceFor
+eground(IActivityManager.java:7274)
+  03-14 05:41:58.974 32666 32666 E AndroidRuntime: 	at
+ android.app.Service.startForeground(Service.java:776)
+  03-14 05:41:58.974 32666 32666 E AndroidRuntime: 	at
+ com.xiangfei.citylord.LocationForegroundService.onSta
+rtCommand(LocationForegroundService.java:220)
+  03-14 05:41:58.974 32666 32666 E AndroidRuntime: 	at
+ android.app.ActivityThread.handleServiceArgs(Activity
+Thread.java:5453)
+  03-14 05:41:58.974 32666 32666 E AndroidRuntime: 	..
+. 9 more
+  03-14 05:41:58.974 32666 32666 E AndroidRuntime: Cau
+sed by: android.os.RemoteException: Remote stack trace
+:
+  03-14 05:41:58.974 32666 32666 E AndroidRuntime: 	at
+ com.android.server.am.ActiveServices.validateForegrou
+ndServiceType(ActiveServices.java:2920)
+  03-14 05:41:58.974 32666 32666 E AndroidRuntime: 	at
+ com.android.server.am.ActiveServices.setServiceForegr
+oundInnerLocked(ActiveServices.java:2596)
+  03-14 05:41:58.974 32666 32666 E AndroidRuntime: 	at
+ com.android.server.am.ActiveServices.setServiceForegr
+oundLocked(ActiveServices.java:1850)
+  03-14 05:41:58.974 32666 32666 E AndroidRuntime: 	at
+ com.android.server.am.ActivityManagerService.setServi
+ceForeground(ActivityManagerService.java:13842)
+  03-14 05:41:58.974 32666 32666 E AndroidRuntime: 	at
+ android.app.IActivityManager$Stub.onTransact(IActivit
+yManager.java:3640)
+  03-14 05:41:58.974 32666 32666 E AndroidRuntime: 
+  03-14 05:41:58.989 18077 18077 D BoundBrokerSvc: onB
+ind: Intent { act=com.google.android.gms.safebrowsing.
+SafeBrowsingService.START dat=chimera-action:/... xflg
+=0x4 cmp=com.google.android.gms/.chimera.GmsBoundBroke
+rService }
+  03-14 05:41:58.989 18077 18077 D BoundBrokerSvc: Loa
+ding bound service for intent: Intent { act=com.google
+.android.gms.safebrowsing.SafeBrowsingService.START da
+t=chimera-action:/... xflg=0x4 cmp=com.google.android.
+gms/.chimera.GmsBoundBrokerService }
+  03-14 05:41:59.010 14457 15410 W ActivityTaskManager
+:   Force finishing activity com.citylord.game.pro/com
+.xiangfei.citylord.MainActivity
+  03-14 05:41:59.013 14457   324 I DropBoxManagerServi
+ce: add tag=data_app_crash isTagEnabled=true flags=0x2
+  03-14 05:41:59.037 14703 14727 V WindowManagerShell:
+ Transition requested (#113): android.os.BinderProxy@1
+155e5a TransitionRequestInfo { type = CLOSE, triggerTa
+sk = TaskInfo{userId=0 taskId=62 effectiveUid=10223 di
+splayId=0 isRunning=true baseIntent=Intent { flg=0x100
+00000 cmp=com.citylord.game.pro/com.xiangfei.citylord.
+MainActivity } baseActivity=ComponentInfo{com.citylord
+.game.pro/com.xiangfei.citylord.MainActivity} topActiv
+ity=ComponentInfo{com.citylord.game.pro/com.xiangfei.c
+itylord.MainActivity} origActivity=null realActivity=C
+omponentInfo{com.citylord.game.pro/com.xiangfei.citylo
+rd.MainActivity} numActivities=1 lastActiveTime=144773
+04 supportsMultiWindow=true resizeMode=1 isResizeable=
+true minWidth=-1 minHeight=-1 defaultMinSize=220 token
+=WCT{android.window.IWindowContainerToken$Stub$Proxy@c
+74c88b} topActivityType=1 pictureInPictureParams=null 
+shouldDockBigOverlays=false launchIntoPipHostTaskId=-1
+ lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=
+Rect(0, 0 - 0, 0) topActivityInfo=ActivityInfo{955ed68
+ com.xiangfei.citylord.MainActivity} launchCookies=[] 
+positionInParent=Point(0, 0) parentTaskId=-1 isFocused
+=true isVisible=true isVisibleRequested=true isTopActi
+vityNoDisplay=false isSleeping=false locusId=null disp
+layAreaFeatureId=1 isTopActivityTransparent=false isAc
+tivityStackTransparent=false lastNonFullscreenBounds=R
+ect(362, 870 - 1079, 2310) capturedLink=null capturedL
+inkTimestamp=0 requestedVisibleTypes=-9 topActivityReq
+uestOpenInBrowserEducationTimestamp=0 appCompatTaskInf
+o=AppCompatTaskInfo { topActivityInSizeCompat=false el
+igibleForLetterboxEducation= false isLetterboxEducatio
+nEnabled= true isLetterboxDoubleTapEnabled= false elig
+ibleForUserAspectRatioButton= false topActivityBoundsL
+etterboxed= false isFromLetterboxDoubleTap= false topA
+ctivityLetterboxVerticalPosition= -1 topActivityLetter
+boxHorizontalPosition= -1 topActivityLetterboxWidth=-1
+ topActivityLetterboxHeight=-1 topActivityAppBounds=Re
+ct(0, 144 - 1440, 3036) isUserFullscreenOverrideEnable
+d=false isSystemFullscreenOverrideEnabled=false hasMin
+AspectRatioOverride=false topActivityLetterboxBounds=n
+ull cameraCompatTaskInfo=CameraCompatTaskInfo { freefo
+rmCameraCompatMode=inactive}} topActivityMainWindowFra
+me=null}, pipChange = null, remoteTransition = null, d
+isplayChange = null, flags = 16, debugId = 113 }
+  03-14 05:41:59.043   561   561 I BpBinder: onLastStr
+ongRef automatically unlinking death recipients: 
+  03-14 05:41:59.046 14457 14488 I ActivityManager: Sh
+owing crash dialog for package com.citylord.game.pro u
+0
+  03-14 05:41:59.071   561   755 I BpBinder: onLastStr
+ongRef automatically unlinking death recipients: 
+  03-14 05:41:59.077 14457 14488 D CoreBackPreview: Wi
+ndow{854185f u0 Application Error: com.citylord.game.p
+ro}: Setting back callback OnBackInvokedCallbackInfo{m
+Callback=android.window.WindowOnBackInvokedDispatcher$
+OnBackInvokedCallbackWrapper@6d37b44, mPriority=-1, mI
+sAnimationCallback=false, mOverrideBehavior=0}
+  03-14 05:41:59.516 14457 14490 W ActivityTaskManager
+: Activity top resumed state loss timeout for Activity
+Record{88517106 u0 com.citylord.game.pro/com.xiangfei.
+citylord.MainActivity t62 f}}
+  03-14 05:41:59.520 14457 14490 W ActivityTaskManager
+: Activity pause timeout for ActivityRecord{88517106 u
+0 com.citylord.game.pro/com.xiangfei.citylord.MainActi
+vity t62 f}}
+  03-14 05:41:59.542 14869 14869 D ViewRootImpl: Skipp
+ing stats log for color mode
+  03-14 05:41:59.549 14869 14869 D StatsLog: LAUNCHER_
+ONRESUME
+  03-14 05:41:59.567 14869 14869 D NexusLauncherModelD
+elegate: notifySmartspaceEvent: SmartspaceTargetEvent{
+mSmartspaceTarget=null, mSmartspaceActionId='null', mE
+ventType=6}
+> 03-14 05:42:00.120 14457 15302 E DatabaseUtils: java
+.lang.SecurityException: com.citylord.game.pro was not
+ granted  this permission: android.permission.WRITE_SE
+TTINGS.
+  03-14 05:42:00.120 14457 15302 E DatabaseUtils: 	at 
+android.provider.Settings.isCallingPackageAllowedToPer
+formAppOpsProtectedOperation(Settings.java:22080)
+  03-14 05:42:00.120 14457 15302 E DatabaseUtils: 	at 
+android.provider.Settings.checkAndNoteWriteSettingsOpe
+ration(Settings.java:21968)
+  03-14 05:42:00.120 14457 15302 E DatabaseUtils: 	at 
+com.android.providers.settings.SettingsProvider.mutate
+SystemSetting(SettingsProvider.java:1999)
+  03-14 05:42:00.120 14457 15302 E DatabaseUtils: 	at 
+com.android.providers.settings.SettingsProvider.insert
+SystemSetting(SettingsProvider.java:1955)
+  03-14 05:42:00.120 14457 15302 E DatabaseUtils: 	at 
+com.android.providers.settings.SettingsProvider.call(S
+ettingsProvider.java:488)
+  03-14 05:42:00.120 14457 15302 E DatabaseUtils: 	at 
+android.content.ContentProvider.call(ContentProvider.j
+ava:2709)
+  03-14 05:42:00.120 14457 15302 E DatabaseUtils: 	at 
+android.content.ContentProvider$Transport.call(Content
+Provider.java:638)
+  03-14 05:42:00.120 14457 15302 E DatabaseUtils: 	at 
+android.content.ContentProviderNative.onTransact(Conte
+ntProviderNative.java:307)
+  03-14 05:42:00.120 14457 15302 E DatabaseUtils: 	at 
+android.os.Binder.execTransactInternal(Binder.java:142
+1)
+  03-14 05:42:00.120 14457 15302 E DatabaseUtils: 	at 
+android.os.Binder.execTransact(Binder.java:1365)
+  03-14 05:42:00.194 32666 32671 W tylord.game.pro: Su
+spending all threads took: 10.432ms
+  03-14 05:42:00.387 14869 14869 I Choreographer: Skip
+ped 48 frames!  The application may be doing too much 
+work on its main thread.
+  03-14 05:42:00.389 14869 14869 D SsBaseTemplateCard:
+ No text view can be set up
+  03-14 05:42:00.389 14869 14869 D SsBaseTemplateCard:
+ Passed-in item info is null
+  03-14 05:42:00.389 14869 14869 D SsBaseTemplateCard:
+ Passed-in item info is null
+  03-14 05:42:00.389 14869 14869 D SsBaseTemplateCard:
+ Passed-in item info is null
+  03-14 05:42:00.390 14869 14869 I SsBaseTemplateCard:
+ Secondary card pane is null
+  03-14 05:42:00.394 14703 15524 V WindowManagerShell:
+ onTransitionReady(transaction=62092342203221)
+  03-14 05:42:00.395 14703 14727 V WindowManagerShell:
+ onTransitionReady (#113) android.os.BinderProxy@1155e
+5a: {id=113 t=CLOSE f=0x10 trk=0 r=[0@Point(0, 0)] c=[
+  03-14 05:42:00.395 14703 14727 V WindowManagerShell:
+         {m=TO_FRONT f=SHOW_WALLPAPER|MOVE_TO_TOP leas
+h=Surface(name=Task=1)/@0x1fe1e12 sb=Rect(0, 0 - 1440,
+ 3120) eb=Rect(0, 0 - 1440, 3120) epz=Point(1440, 3120
+) d=0 taskParent=-1},
+  03-14 05:42:00.395 14703 14727 V WindowManagerShell:
+         {m=CLOSE f=NONE leash=Surface(name=Task=62)/@
+0xa4879e3 sb=Rect(0, 0 - 1440, 3120) eb=Rect(0, 0 - 14
+40, 3120) epz=Point(1440, 3120) d=0 taskParent=-1},
+  03-14 05:42:00.395 14703 14727 V WindowManagerShell:
+         {m=TO_FRONT f=IS_WALLPAPER leash=Surface(name
+=WallpaperWindowToken{1ab78ec showWhenLocked=false})/@
+0xe913fe0 sb=Rect(0, 0 - 1440, 3120) eb=Rect(0, 0 - 14
+40, 3120) epz=Point(1440, 3120) d=0}
+  03-14 05:42:00.395 14703 14727 V WindowManagerShell:
+     ]}
+  03-14 05:42:00.395 14703 14727 V WindowManagerShell:
+ Playing animation for (#113) android.os.BinderProxy@1
+155e5a@0
+  03-14 05:42:00.396 14703 14727 V ShellRecents: Recen
+tsTransitionHandler.startAnimation: no controller foun
+d
+  03-14 05:42:00.396 14703 14727 V WindowManagerShell:
+ Transition doesn't have explicit remote, search filte
+rs for match for {id=113 t=CLOSE f=0x10 trk=0 r=[0@Poi
+nt(0, 0)] c=[{m=TO_FRONT f=SHOW_WALLPAPER|MOVE_TO_TOP 
+leash=Surface(name=Task=1)/@0x1fe1e12 sb=Rect(0, 0 - 1
+440, 3120) eb=Rect(0, 0 - 1440, 3120) epz=Point(1440, 
+3120) d=0 taskParent=-1},{m=CLOSE f=NONE leash=Surface
+(name=Task=62)/@0xa4879e3 sb=Rect(0, 0 - 1440, 3120) e
+b=Rect(0, 0 - 1440, 3120) epz=Point(1440, 3120) d=0 ta
+skParent=-1},{m=TO_FRONT f=IS_WALLPAPER leash=Surface(
+name=WallpaperWindowToken{1ab78ec showWhenLocked=false
+})/@0xe913fe0 sb=Rect(0, 0 - 1440, 3120) eb=Rect(0, 0 
+- 1440, 3120) epz=Point(1440, 3120) d=0}]}
+  03-14 05:42:00.396 14703 14727 V WindowManagerShell:
+  Checking filter Pair{{types=[] flags=0x0] notFlags=0
+x0 checks=[{atype=undefined independent=true modes=[CL
+OSE,TO_BACK] flags=IN_TASK_WITH_EMBEDDED_ACTIVITY must
+BeTask=false order=ANY topActivity=null launchCookie=n
+ull taskFragmentToken=android.os.BinderProxy@6e60332 w
+indowingMode=undefined}]} RemoteTransition { remoteTra
+nsition = android.window.IRemoteTransition$Stub$Proxy@
+f94c883, appThread = android.app.IApplicationThread$St
+ub$Proxy@fc37a00, debugName = overlayBackTransition }}
+  03-14 05:42:00.396 14703 14727 V WindowManagerShell:
+  Checking filter Pair{{types=[] flags=0x0] notFlags=0
+x0 checks=[{atype=dream independent=true modes=[OPEN,T
+O_FRONT] flags=NONE mustBeTask=false order=ANY topActi
+vity=null launchCookie=null windowingMode=undefined},{
+atype=home independent=true modes=[CLOSE,TO_BACK] flag
+s=NONE mustBeTask=false order=ANY topActivity=null lau
+nchCookie=null windowingMode=undefined}]} RemoteTransi
+tion { remoteTransition = android.window.IRemoteTransi
+tion$Stub$Proxy@1672239, appThread = android.app.IAppl
+icationThread$Stub$Proxy@66d207e, debugName = Launcher
+ToDream }}
+  03-14 05:42:00.396 14703 14727 V WindowManagerShell:
+  Checking filter Pair{{types=[] flags=0x0] notFlags=0
+x100 checks=[{atype=home independent=true modes=[OPEN,
+TO_FRONT] flags=NONE mustBeTask=false order=TOP topAct
+ivity=ComponentInfo{com.google.android.apps.nexuslaunc
+her/com.google.android.apps.nexuslauncher.NexusLaunche
+rActivity} launchCookie=null windowingMode=undefined},
+{atype=standard independent=true modes=[CLOSE,TO_BACK]
+ flags=NONE mustBeTask=false order=ANY topActivity=nul
+l launchCookie=null windowingMode=undefined},{NOT atyp
+e=undefined independent=true modes=[] flags=NONE mustB
+eTask=true order=ANY topActivity=null launchCookie=nul
+l customAnim=true windowingMode=undefined}]} RemoteTra
+nsition { remoteTransition = android.window.IRemoteTra
+nsition$Stub$Proxy@bd169df, appThread = android.app.IA
+pplicationThread$Stub$Proxy@7e6362c, debugName = Quick
+stepLaunchHome }}
+  03-14 05:42:00.396 14703 14727 D RemoteTransitionHan
+dler: Found filterPair{{types=[] flags=0x0] notFlags=0
+x100 checks=[{atype=home independent=true modes=[OPEN,
+TO_FRONT] flags=NONE mustBeTask=false order=TOP topAct
+ivity=ComponentInfo{com.google.android.apps.nexuslaunc
+her/com.google.android.apps.nexuslauncher.NexusLaunche
+rActivity} launchCookie=null windowingMode=undefined},
+{atype=standard independent=true modes=[CLOSE,TO_BACK]
+ flags=NONE mustBeTask=false order=ANY topActivity=nul
+l launchCookie=null windowingMode=undefined},{NOT atyp
+e=undefined independent=true modes=[] flags=NONE mustB
+eTask=true order=ANY topActivity=null launchCookie=nul
+l customAnim=true windowingMode=undefined}]} RemoteTra
+nsition { remoteTransition = android.window.IRemoteTra
+nsition$Stub$Proxy@bd169df, appThread = android.app.IA
+pplicationThread$Stub$Proxy@7e6362c, debugName = Quick
+stepLaunchHome }}
+
+

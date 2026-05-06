@@ -1,0 +1,2 @@
+app/actions/changelog/get-changelogs.ts(45,14): error TS2339: Property 'not' does not exist on type 'PostgrestQueryBuilder<{ PostgrestVersion: "14.1"; }, { Tables: { _prisma_migrations: { Row: { applied_steps_count: number; checksum: string; finished_at: string | null; id: string; logs: string | null; migration_name: string; rolled_back_at: string | null; started_at: string; }; Insert: { ...; }; Update: { ...; }; R...'.
+app/actions/changelog/get-changelogs.ts(89,17): error TS2345: Argument of type '"version"' is not assignable to parameter of type 'never'.

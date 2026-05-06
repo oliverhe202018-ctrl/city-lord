@@ -1,0 +1,21 @@
+app\actions\club-activity.actions.ts:18:import { Prisma } from '@prisma/client'
+app\actions\club-chat.actions.ts:20:import { Prisma } from '@prisma/client'
+app\actions\user-service.ts:4:import { Prisma } from '@prisma/client'
+app\actions\user.ts:9:import { Prisma } from '@prisma/client'
+inspect_city.ts:1:import { PrismaClient } from '@prisma/client';
+lib\prisma.ts:1:import { PrismaClient } from '@prisma/client'
+lib\services\activity-service.ts:8:import { Prisma } from '@prisma/client';
+lib\services\task.ts:2:import { Task, UserTaskProgress } from '@prisma/client'
+lib\utils.ts:4:import type { Prisma } from '@prisma/client'
+prisma\deduplicate_clubs.ts:1:import { PrismaClient } from '@prisma/client'
+prisma\fix_club_status.ts:1:import { PrismaClient } from '@prisma/client'
+prisma\seed.ts:1:import { PrismaClient } from '@prisma/client'
+prisma\seed_badges.ts:2:import { PrismaClient } from '@prisma/client'
+scripts\check-tasks.ts:2:import { PrismaClient } from '@prisma/client'
+scripts\test-2b1-execution.ts:1:import { PrismaClient } from '@prisma/client'
+scripts\test-feed.ts:6:import { PrismaClient } from '@prisma/client'
+scripts\test-notification.ts:1:import { PrismaClient } from '@prisma/client'
+scripts\test-phase2b2a-penalty.ts:1:import { PrismaClient } from '@prisma/client';
+scripts\test-prisma-query.ts:1:import { PrismaClient } from '@prisma/client'
+scripts\test-social-hub.ts:7:import { PrismaClient } from '@prisma/client'
+scripts\verify-step4.ts:1:import { PrismaClient } from '@prisma/client'

@@ -1,0 +1,155 @@
+﻿
+> Configure project :app
+WARNING: Using flatDir should be avoided because it doesn't support any meta-data formats.
+
+> Configure project :capacitor-cordova-android-plugins
+WARNING: Using flatDir should be avoided because it doesn't support any meta-data formats.
+
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :app:javaPreCompileDebug UP-TO-DATE
+> Task :capacitor-android:preBuild UP-TO-DATE
+> Task :capacitor-android:preDebugBuild UP-TO-DATE
+> Task :capacitor-android:writeDebugAarMetadata UP-TO-DATE
+> Task :capacitor-app:preBuild UP-TO-DATE
+> Task :capacitor-app:preDebugBuild UP-TO-DATE
+> Task :capacitor-app:writeDebugAarMetadata UP-TO-DATE
+> Task :capacitor-browser:preBuild UP-TO-DATE
+> Task :capacitor-browser:preDebugBuild UP-TO-DATE
+> Task :capacitor-browser:writeDebugAarMetadata UP-TO-DATE
+> Task :capacitor-community-background-geolocation:preBuild UP-TO-DATE
+> Task :capacitor-community-background-geolocation:preDebugBuild UP-TO-DATE
+> Task :capacitor-community-background-geolocation:writeDebugAarMetadata UP-TO-DATE
+> Task :capacitor-community-keep-awake:preBuild UP-TO-DATE
+> Task :capacitor-community-keep-awake:preDebugBuild UP-TO-DATE
+> Task :capacitor-community-keep-awake:writeDebugAarMetadata UP-TO-DATE
+> Task :capacitor-cordova-android-plugins:preBuild UP-TO-DATE
+> Task :capacitor-cordova-android-plugins:preDebugBuild UP-TO-DATE
+> Task :capacitor-cordova-android-plugins:writeDebugAarMetadata UP-TO-DATE
+> Task :capacitor-device:preBuild UP-TO-DATE
+> Task :capacitor-device:preDebugBuild UP-TO-DATE
+> Task :capacitor-device:writeDebugAarMetadata UP-TO-DATE
+> Task :capacitor-filesystem:preBuild UP-TO-DATE
+> Task :capacitor-filesystem:preDebugBuild UP-TO-DATE
+> Task :capacitor-filesystem:writeDebugAarMetadata UP-TO-DATE
+> Task :capacitor-geolocation:preBuild UP-TO-DATE
+> Task :capacitor-geolocation:preDebugBuild UP-TO-DATE
+> Task :capacitor-geolocation:writeDebugAarMetadata UP-TO-DATE
+> Task :capacitor-haptics:preBuild UP-TO-DATE
+> Task :capacitor-haptics:preDebugBuild UP-TO-DATE
+> Task :capacitor-haptics:writeDebugAarMetadata UP-TO-DATE
+> Task :capacitor-health-connect:preBuild UP-TO-DATE
+> Task :capacitor-health-connect:preDebugBuild UP-TO-DATE
+> Task :capacitor-health-connect:writeDebugAarMetadata UP-TO-DATE
+> Task :capacitor-keyboard:preBuild UP-TO-DATE
+> Task :capacitor-keyboard:preDebugBuild UP-TO-DATE
+> Task :capacitor-keyboard:writeDebugAarMetadata UP-TO-DATE
+> Task :capacitor-local-notifications:preBuild UP-TO-DATE
+> Task :capacitor-local-notifications:preDebugBuild UP-TO-DATE
+> Task :capacitor-local-notifications:writeDebugAarMetadata UP-TO-DATE
+> Task :capacitor-push-notifications:preBuild UP-TO-DATE
+> Task :capacitor-push-notifications:preDebugBuild UP-TO-DATE
+> Task :capacitor-push-notifications:writeDebugAarMetadata UP-TO-DATE
+> Task :capacitor-status-bar:preBuild UP-TO-DATE
+> Task :capacitor-status-bar:preDebugBuild UP-TO-DATE
+> Task :capacitor-status-bar:writeDebugAarMetadata UP-TO-DATE
+> Task :capawesome-capacitor-background-task:preBuild UP-TO-DATE
+> Task :capawesome-capacitor-background-task:preDebugBuild UP-TO-DATE
+> Task :capawesome-capacitor-background-task:writeDebugAarMetadata UP-TO-DATE
+> Task :app:generateDebugResValues UP-TO-DATE
+> Task :capacitor-android:generateDebugResValues UP-TO-DATE
+> Task :capacitor-android:generateDebugResources UP-TO-DATE
+> Task :capacitor-android:packageDebugResources UP-TO-DATE
+> Task :capacitor-app:generateDebugResValues UP-TO-DATE
+> Task :capacitor-app:generateDebugResources UP-TO-DATE
+> Task :capacitor-app:packageDebugResources UP-TO-DATE
+> Task :capacitor-browser:generateDebugResValues
+> Task :capacitor-browser:generateDebugResources
+> Task :app:checkDebugAarMetadata FAILED
+> Task :capacitor-browser:packageDebugResources
+.\gradlew : 
+所在位置 行:1 字符: 13
++ cd android; .\gradlew assembleDebug 2>&1 | Tee-Objec
+t -FilePath build ...
++             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) 
+    [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:checkDebugAarMetadata'
+.
+> A failure occurred while executing com.android.build
+.gradle.internal.tasks.CheckAarMetadataWorkAction
+   > 2 issues were found when checking AAR metadata:
+     
+       1.  Dependency 'androidx.core:core-ktx:1.15.0' 
+requires libraries and applications that
+           depend on it to compile against version 35 
+or later of the
+           Android APIs.
+     
+           :app is currently compiled against android-
+34.
+     
+           Also, the maximum recommended compile SDK v
+ersion for Android Gradle
+           plugin 8.2.1 is 34.
+     
+           Recommended action: Update this project's v
+ersion of the Android Gradle
+           plugin to one that supports 35, then update
+ this project to use
+           compileSdk of at least 35.
+     
+           Note that updating a library or application
+'s compileSdk (which
+           allows newer APIs to be used) can be done s
+eparately from updating
+           targetSdk (which opts the app in to new run
+time behavior) and
+           minSdk (which determines which devices the 
+app can be installed
+           on).
+     
+       2.  Dependency 'androidx.core:core:1.15.0' requ
+ires libraries and applications that
+           depend on it to compile against version 35 
+or later of the
+           Android APIs.
+     
+           :app is currently compiled against android-
+34.
+     
+           Also, the maximum recommended compile SDK v
+ersion for Android Gradle
+           plugin 8.2.1 is 34.
+     
+           Recommended action: Update this project's v
+ersion of the Android Gradle
+           plugin to one that supports 35, then update
+ this project to use
+           compileSdk of at least 35.
+     
+           Note that updating a library or application
+'s compileSdk (which
+           allows newer APIs to be used) can be done s
+eparately from updating
+           targetSdk (which opts the app in to new run
+time behavior) and
+           minSdk (which determines which devices the 
+app can be installed
+           on).
+
+25 actionable tasks: 3 executed, 22 up-to-date
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log ou
+tput.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 3s

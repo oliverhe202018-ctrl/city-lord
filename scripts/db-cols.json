@@ -1,0 +1,16 @@
+[
+  "id",
+  "city_id",
+  "owner_id",
+  "captured_at",
+  "last_maintained_at",
+  "health",
+  "level",
+  "geojson",
+  "h3_index",
+  "status",
+  "owner_change_count",
+  "last_owner_change_at",
+  "owner_club_id",
+  "owner_faction"
+]

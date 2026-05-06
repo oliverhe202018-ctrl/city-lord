@@ -1,0 +1,610 @@
+/**
+ * Web-safe wrappers for all Capacitor native plugins.
+ * 在非 Capacitor 环境（纯浏览器 / SSR）下静默降级，不会抛错。
+ */
+
+// ============== Haptics ==============
+export async function safeHapticImpact(style: 'light' | 'medium' | 'heavy' = 'light') {
+  try {
+    const { Haptics, ImpactStyle } = await import('@capacitor/haptics')
+    const map = { light: ImpactStyle.Light, medium: ImpactStyle.Medium, heavy: ImpactStyle.Heavy }
+    await Haptics.impact({ style: map[style] })
+  } catch {
+    // Not in Capacitor env or plugin unavailable
+  }
+}
+
+export async function safeHapticVibrate(duration?: number) {
+  try {
+    const { Haptics } = await import('@capacitor/haptics')
+    await Haptics.vibrate(duration ? { duration } : undefined)
+  } catch { }
+}
+
+export async function safeHapticNotification(type: 'success' | 'warning' | 'error' = 'success') {
+  try {
+    const { Haptics, NotificationType } = await import('@capacitor/haptics')
+    const map = { success: NotificationType.Success, warning: NotificationType.Warning, error: NotificationType.Error }
+    await Haptics.notification({ type: map[type] })
+  } catch { }
+}
+
+// ============== Geolocation ==============
+export interface SafePosition {
+  lat: number
+  lng: number
+  accuracy: number
+  altitude?: number | null
+  speed?: number | null
+  heading?: number | null
+  timestamp: number
+}
+
+export async function safeGetCurrentPosition(options?: {
+  enableHighAccuracy?: boolean
+  timeout?: number
+  maximumAge?: number
+}): Promise<SafePosition | null> {
+  const effectiveEnableHighAccuracy = options?.enableHighAccuracy ?? false;
+  const effectiveTimeout = options?.timeout ?? 5000;
+  const effectiveMaximumAge = options?.maximumAge ?? 15000;
+
+  try {
+    const { Geolocation } = await import('@capacitor/geolocation')
+    const pos = await Geolocation.getCurrentPosition({
+      enableHighAccuracy: effectiveEnableHighAccuracy,
+      timeout: effectiveTimeout,
+      maximumAge: effectiveMaximumAge,
+    })
+    return {
+      lat: pos.coords.latitude,
+      lng: pos.coords.longitude,
+      accuracy: pos.coords.accuracy,
+      altitude: pos.coords.altitude,
+      speed: pos.coords.speed,
+      heading: pos.coords.heading,
+      timestamp: pos.timestamp,
+    }
+  } catch {
+    // Fallback: try browser Geolocation API
+    return new Promise((resolve) => {
+      if (typeof navigator !== 'undefined' && navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => resolve({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            accuracy: pos.coords.accuracy,
+            altitude: pos.coords.altitude,
+            speed: pos.coords.speed,
+            heading: pos.coords.heading,
+            timestamp: pos.timestamp,
+          }),
+          () => resolve(null),
+          { enableHighAccuracy: effectiveEnableHighAccuracy, timeout: effectiveTimeout, maximumAge: effectiveMaximumAge }
+        )
+      } else {
+        resolve(null)
+      }
+    })
+  }
+}
+
+export async function safeWatchPosition(
+  callback: (position: SafePosition | null, error?: any) => void,
+  options?: { enableHighAccuracy?: boolean; timeout?: number; maximumAge?: number }
+): Promise<string | null> {
+  const effectiveEnableHighAccuracy = options?.enableHighAccuracy ?? false;
+  const effectiveTimeout = options?.timeout ?? 5000;
+  const effectiveMaximumAge = options?.maximumAge ?? 15000;
+
+  try {
+    const { Geolocation } = await import('@capacitor/geolocation')
+    const watchId = await Geolocation.watchPosition(
+      {
+        enableHighAccuracy: effectiveEnableHighAccuracy,
+        timeout: effectiveTimeout,
+        maximumAge: effectiveMaximumAge,
+      },
+      (pos, err) => {
+        if (err) {
+          callback(null, err)
+          return
+        }
+        if (pos) {
+          callback({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            accuracy: pos.coords.accuracy,
+            altitude: pos.coords.altitude,
+            speed: pos.coords.speed,
+            heading: pos.coords.heading,
+            timestamp: pos.timestamp,
+          })
+        }
+      }
+    )
+    return watchId
+  } catch {
+    // Fallback: browser watchPosition
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      const id = navigator.geolocation.watchPosition(
+        (pos) => callback({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+          altitude: pos.coords.altitude,
+          speed: pos.coords.speed,
+          heading: pos.coords.heading,
+          timestamp: pos.timestamp,
+        }),
+        (err) => callback(null, err),
+        { enableHighAccuracy: effectiveEnableHighAccuracy, timeout: effectiveTimeout, maximumAge: effectiveMaximumAge }
+      )
+      return `browser-${id}`
+    }
+    return null
+  }
+}
+
+export async function safeClearWatch(watchId: string | null) {
+  if (!watchId) return
+  try {
+    if (watchId.startsWith('browser-')) {
+      navigator.geolocation.clearWatch(parseInt(watchId.replace('browser-', ''), 10))
+    } else {
+      const { Geolocation } = await import('@capacitor/geolocation')
+      await Geolocation.clearWatch({ id: watchId })
+    }
+  } catch { }
+}
+
+export async function safeRequestGeolocationPermission(): Promise<'granted' | 'denied' | 'prompt'> {
+  try {
+    console.log('[safe-plugins] Requesting foreground location permissions: ACCESS_COARSE_LOCATION, ACCESS_FINE_LOCATION');
+    const { Geolocation } = await import('@capacitor/geolocation')
+    const status = await Geolocation.requestPermissions({
+      permissions: ['location', 'coarseLocation']
+    })
+    return status.location as 'granted' | 'denied' | 'prompt'
+  } catch {
+    // Browser fallback: just check via permissions API
+    try {
+      if (typeof navigator !== 'undefined' && navigator.permissions) {
+        const result = await navigator.permissions.query({ name: 'geolocation' })
+        return result.state as 'granted' | 'denied' | 'prompt'
+      }
+    } catch { }
+    return 'prompt'
+  }
+}
+
+export async function safeCheckGeolocationPermission(): Promise<'granted' | 'denied' | 'prompt'> {
+  try {
+    const { Geolocation } = await import('@capacitor/geolocation')
+    const status = await Geolocation.checkPermissions()
+    return status.location as 'granted' | 'denied' | 'prompt'
+  } catch {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.permissions) {
+        const result = await navigator.permissions.query({ name: 'geolocation' })
+        return result.state as 'granted' | 'denied' | 'prompt'
+      }
+    } catch { }
+    return 'prompt'
+  }
+}
+
+// ============== Device ==============
+export interface SafeDeviceInfo {
+  platform: 'ios' | 'android' | 'web'
+  model: string
+  osVersion: string
+  isNative: boolean
+}
+
+export async function safeGetDeviceInfo(): Promise<SafeDeviceInfo> {
+  try {
+    const { Device } = await import('@capacitor/device')
+    const info = await Device.getInfo()
+    return {
+      platform: info.platform as 'ios' | 'android' | 'web',
+      model: info.model,
+      osVersion: info.osVersion,
+      isNative: info.platform !== 'web',
+    }
+  } catch {
+    return {
+      platform: 'web',
+      model: typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 50) : 'unknown',
+      osVersion: 'unknown',
+      isNative: false,
+    }
+  }
+}
+
+export async function safeGetDeviceId(): Promise<string | null> {
+  try {
+    const { Device } = await import('@capacitor/device')
+    const id = await Device.getId()
+    return id.identifier
+  } catch {
+    return null
+  }
+}
+
+export async function safeGetBatteryInfo(): Promise<{ level: number; isCharging: boolean } | null> {
+  try {
+    const { Device } = await import('@capacitor/device')
+    const battery = await Device.getBatteryInfo()
+    return {
+      level: battery.batteryLevel ?? -1,
+      isCharging: battery.isCharging ?? false,
+    }
+  } catch {
+    return null
+  }
+}
+
+// ============== Sensors (Motion / Orientation) ==============
+// Note: @capacitor/sensors 不是官方核心插件，根据你项目实际 API 调整
+export async function safeStartAccelerometer(
+  callback: (event: { x: number; y: number; z: number }) => void
+): Promise<(() => void) | null> {
+  try {
+    const mod = await import(/* webpackIgnore: true */ '@capacitor/sensors')
+    if (mod && typeof (mod as any).Sensors?.addListener === 'function') {
+      const handle = await (mod as any).Sensors.addListener('accelerometer', callback)
+      return () => handle.remove()
+    }
+  } catch { }
+
+  // Fallback: Web DeviceMotion API
+  if (typeof window !== 'undefined' && 'DeviceMotionEvent' in window) {
+    const handler = (e: DeviceMotionEvent) => {
+      const acc = e.accelerationIncludingGravity
+      if (acc) callback({ x: acc.x ?? 0, y: acc.y ?? 0, z: acc.z ?? 0 })
+    }
+    window.addEventListener('devicemotion', handler)
+    return () => window.removeEventListener('devicemotion', handler)
+  }
+  return null
+}
+
+// ============== Sound ==============
+// Note: @capacitor/sound 不是官方核心插件，根据实际 API 调整
+export async function safePlaySound(path: string) {
+  try {
+    const mod = await import(/* webpackIgnore: true */ '@capacitor/sound')
+    if (mod && typeof (mod as any).Sound?.play === 'function') {
+      await (mod as any).Sound.play({ id: path })
+      return
+    }
+  } catch { }
+
+  // Fallback: HTML5 Audio
+  try {
+    if (typeof window !== 'undefined') {
+      const audio = new Audio(path)
+      await audio.play()
+    }
+  } catch { }
+}
+
+// ============== Platform Detection Helper ==============
+export async function isNativePlatform(): Promise<boolean> {
+  try {
+    const { Capacitor } = await import('@capacitor/core')
+    return Capacitor.isNativePlatform()
+  } catch {
+    return false
+  }
+}
+
+export function isCapacitorAvailable(): boolean {
+  return typeof window !== 'undefined' && !!(window as any).Capacitor
+}
+
+export async function safeGetPlatform(): Promise<'ios' | 'android' | 'web' | 'unknown'> {
+  try {
+    const { Capacitor } = await import('@capacitor/core')
+    return Capacitor.getPlatform() as 'ios' | 'android' | 'web' | 'unknown'
+  } catch {
+    return 'web'
+  }
+}
+
+// ============== Status Bar ==============
+export async function safeStatusBarSetStyle(style: 'dark' | 'light') {
+  try {
+    const { StatusBar, Style } = await import('@capacitor/status-bar')
+    await StatusBar.setStyle({ style: style === 'dark' ? Style.Dark : Style.Light })
+  } catch { }
+}
+
+export async function safeStatusBarSetBackgroundColor(color: string) {
+  try {
+    const { StatusBar } = await import('@capacitor/status-bar')
+    await StatusBar.setBackgroundColor({ color })
+  } catch { }
+}
+
+export async function safeStatusBarSetOverlaysWebView(overlay: boolean) {
+  try {
+    const { StatusBar } = await import('@capacitor/status-bar')
+    await StatusBar.setOverlaysWebView({ overlay })
+  } catch { }
+}
+
+// ============== Local Notifications ==============
+export async function safeRequestLocalNotificationPermission() {
+  try {
+    const { LocalNotifications } = await import('@capacitor/local-notifications')
+    return await LocalNotifications.requestPermissions()
+  } catch {
+    return null
+  }
+}
+
+export async function safeScheduleLocalNotification(options: any) {
+  try {
+    const { LocalNotifications } = await import('@capacitor/local-notifications')
+    await LocalNotifications.schedule(options)
+  } catch { }
+}
+
+// ============== App ==============
+export async function safeAppAddListener(eventName: string, callback: (state: any) => void) {
+  try {
+    const { App } = await import('@capacitor/app')
+    return await App.addListener(eventName as any, callback)
+  } catch {
+    return null
+  }
+}
+
+// ============== Keyboard ==============
+export async function safeKeyboardAddListener(eventName: string, callback: (info: any) => void) {
+  try {
+    const { Keyboard } = await import('@capacitor/keyboard')
+    return await Keyboard.addListener(eventName as any, callback)
+  } catch {
+    return null
+  }
+}
+
+// ============== Keep Awake ==============
+export async function safeKeepAwake() {
+  try {
+    const { KeepAwake } = await import('@capacitor-community/keep-awake')
+    await KeepAwake.keepAwake()
+  } catch { }
+}
+
+// ============== Background Task ==============
+export async function safeBackgroundTaskBeforeExit(handler: () => void) {
+  try {
+    const { BackgroundTask } = await import('@capawesome/capacitor-background-task')
+    return await BackgroundTask.beforeExit(handler)
+  } catch {
+    return null
+  }
+}
+
+export async function safeBackgroundTaskFinish(taskId: string) {
+  try {
+    const { BackgroundTask } = await import('@capawesome/capacitor-background-task')
+    await BackgroundTask.finish({ taskId })
+  } catch { }
+}
+
+// ============== Background Geolocation ==============
+export async function safeBackgroundGeolocationAddWatcher(
+  options: Record<string, any>,
+  callback: (location: any, error: any) => void
+): Promise<string | null> {
+  try {
+    const { registerPlugin } = await import('@capacitor/core')
+    const BackgroundGeolocation = registerPlugin<any>('BackgroundGeolocation')
+    const watcherId = await BackgroundGeolocation.addWatcher(options, callback)
+    return watcherId
+  } catch {
+    return null
+  }
+}
+
+export async function safeBackgroundGeolocationRemoveWatcher(id: string) {
+  try {
+    const { registerPlugin } = await import('@capacitor/core')
+    const BackgroundGeolocation = registerPlugin<any>('BackgroundGeolocation')
+    await BackgroundGeolocation.removeWatcher({ id })
+  } catch { }
+}
+
+// ============== Microphone ==============
+export interface MicPermissionResult {
+  currentStatus: 'granted' | 'denied' | 'prompt';
+  hasRequested: boolean;
+  shouldShowRationale?: boolean;
+  markRequested: () => void;
+}
+
+export async function safeCheckMicrophonePermission(): Promise<MicPermissionResult> {
+  const STORAGE_KEY = 'has_requested_microphone';
+  const hasRequested = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) === 'true' : false;
+  const markRequested = () => {
+    if (typeof window !== 'undefined') localStorage.setItem(STORAGE_KEY, 'true');
+  };
+
+  try {
+    const { Capacitor } = await import('@capacitor/core')
+    if (Capacitor.isNativePlatform()) {
+      // 原生平台：由于暂不引入社区包，且内置 API 不可靠，固定返回 prompt 配合 hasRequested。
+      // getUserMedia 在 WebView 内部会触发原生权限弹窗。
+      return {
+        currentStatus: 'prompt',
+        hasRequested,
+        markRequested
+      };
+    }
+
+    // Web 平台：使用标准的 Permissions API
+    if (typeof navigator !== 'undefined' && navigator.permissions) {
+      try {
+        const res = await (navigator.permissions as any).query({ name: 'microphone' })
+        return {
+          currentStatus: res.state as any,
+          hasRequested,
+          markRequested
+        };
+      } catch { 
+        return { currentStatus: 'prompt', hasRequested, markRequested }; 
+      }
+    }
+    
+    return { currentStatus: 'prompt', hasRequested, markRequested };
+  } catch {
+    return { currentStatus: 'prompt', hasRequested, markRequested };
+  }
+}
+
+export async function safeRequestMicrophonePermission(): Promise<'granted' | 'denied' | 'prompt'> {
+  try {
+    const { Capacitor } = await import('@capacitor/core')
+    if (Capacitor.isNativePlatform()) {
+      // Many Capacitor plugins can trigger the request dialog. 
+      // We'll use a standard request if specific plugin is available, otherwise rely on implicit trigger in useAudioRecorder
+      return 'prompt' 
+    }
+  } catch { }
+  return 'prompt'
+}
+
+// ============== App Settings ==============
+export async function safeOpenAppSettings(): Promise<boolean> {
+  if (typeof window === 'undefined') return false
+
+  try {
+    const { Capacitor } = await import('@capacitor/core')
+    if (Capacitor.getPlatform() === 'web') return false
+
+    // 使用动态导入，确保构建时不会解析到 native 包
+    const mod = await import('capacitor-native-settings')
+    const { NativeSettings, AndroidSettings, IOSSettings } = mod
+
+    await NativeSettings.open({
+      optionAndroid: AndroidSettings.ApplicationDetails,
+      optionIOS: IOSSettings.App,
+    })
+
+    return true
+  } catch (e) {
+    console.error('Failed to open app settings', e)
+    return false
+  }
+}
+
+
+// ============== AMap Location Service Helpers ==============
+export async function safeAMapGetSessionMirror(): Promise<any> {
+    try {
+        if (!(await isNativePlatform())) return null;
+        const { registerPlugin } = await import('@capacitor/core');
+        const AMapLocation = registerPlugin<any>('AMapLocation');
+        return await AMapLocation.getSessionMirror();
+    } catch (e) {
+        console.warn('AMapLocation.getSessionMirror failed', e);
+        return null;
+    }
+}
+
+export async function safeAMapStartTracking(options: {
+    notificationTitle?: string;
+    notificationBody?: string;
+    interval?: number;
+    runId?: string;
+    startedAt?: number;
+}): Promise<{ success: boolean; error?: string; reason?: string }> {
+    try {
+        if (!(await isNativePlatform())) return { success: false, reason: 'web_platform' };
+        
+        let hasNotification = true;
+        let hasLocation = true;
+        let missingReason = '';
+
+        // Android 13+ Notification Permission Check (Good practice before starting Foreground Service)
+        try {
+            const { LocalNotifications } = await import('@capacitor/local-notifications');
+            let permStatus = await LocalNotifications.checkPermissions();
+            if (permStatus.display === 'prompt') {
+                permStatus = await LocalNotifications.requestPermissions();
+            }
+            if (permStatus.display !== 'granted') {
+                hasNotification = false;
+                missingReason = 'notification_permission_missing';
+                console.warn('[safe-plugins] Notification permission not granted, Foreground Service might not show UI');
+            }
+        } catch (e) {
+            console.warn('[safe-plugins] Skip LocalNotifications permission check', e);
+        }
+
+        // Location Permissions Check
+        try {
+            const { Geolocation } = await import('@capacitor/geolocation');
+            let geoStatus = await Geolocation.checkPermissions();
+            if (geoStatus.location === 'prompt' || geoStatus.location === 'prompt-with-rationale') {
+                const { Dialog } = await import('@capacitor/dialog');
+                await Dialog.alert({
+                    title: '后台定位权限',
+                    message: '为了保证息屏后轨迹不丢失，请在接下来的权限请求中选择【始终允许】(Always Allow)。\n\n如果在选项中只看到"仅在使用中允许"，请在授权后前往系统设置中手动修改为"始终允许"以防断流。',
+                    buttonTitle: '去授权'
+                });
+                geoStatus = await Geolocation.requestPermissions({ permissions: ['location'] });
+            }
+            if (geoStatus.location !== 'granted') {
+                hasLocation = false;
+                missingReason = 'location_permission_missing';
+                console.error('[safe-plugins] Location permission denied, tracking will likely fail');
+            }
+        } catch (e) {
+            console.warn('[safe-plugins] Skip Geolocation permission check', e);
+        }
+
+        if (!hasNotification || !hasLocation) {
+            try {
+                const { Dialog } = await import('@capacitor/dialog');
+                const { value } = await Dialog.confirm({
+                    title: '权限受限',
+                    message: `后台持续轨迹需要"始终允许定位"${!hasNotification ? '和"通知"' : ''}权限。\n\n为了保证息屏后轨迹不丢失，请前往设置将定位权限改为【始终允许】。`,
+                    okButtonTitle: '去设置',
+                    cancelButtonTitle: '稍后再说'
+                });
+                if (value) {
+                    await safeOpenAppSettings();
+                }
+                console.log('[Tracking] Event: tracking_start_denied_reason', { reason: missingReason });
+            } catch (e) {}
+            return { success: false, error: 'Permissions not granted', reason: missingReason };
+        }
+
+        const { registerPlugin } = await import('@capacitor/core');
+        const AMapLocation = registerPlugin<any>('AMapLocation');
+        await AMapLocation.startTracking(options);
+        return { success: true };
+    } catch (e: any) {
+        console.warn('AMapLocation.startTracking failed', e);
+        return { success: false, error: e?.message || 'Unknown error', reason: 'plugin_error' };
+    }
+}
+
+export async function safeAMapStopTracking(): Promise<boolean> {
+    try {
+        if (!(await isNativePlatform())) return false;
+        const { registerPlugin } = await import('@capacitor/core');
+        const AMapLocation = registerPlugin<any>('AMapLocation');
+        await AMapLocation.stopTracking();
+        return true;
+    } catch (e) {
+        console.warn('AMapLocation.stopTracking failed', e);
+        return false;
+    }
+}
