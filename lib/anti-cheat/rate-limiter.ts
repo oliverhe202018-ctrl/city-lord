@@ -32,9 +32,10 @@ export function checkRunRateLimit(userId: string): { allowed: boolean; retryAfte
     const record = runSubmissionLimiter.get(userId);
 
     if (!record) {
-        // Basic memory management: Clear old entries if map gets too large
+        // Basic memory management: Evict oldest entries instead of clearing all
         if (runSubmissionLimiter.size > MAX_MAP_SIZE) {
-            runSubmissionLimiter.clear(); 
+            const oldestKeys = [...runSubmissionLimiter.keys()].slice(0, 1000);
+            oldestKeys.forEach(k => runSubmissionLimiter.delete(k));
         }
 
         runSubmissionLimiter.set(userId, { count: 1, resetAt: now + config.windowMs });

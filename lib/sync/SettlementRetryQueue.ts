@@ -1,4 +1,6 @@
-import { openDB, DBSchema, IDBPDatabase } from 'idb';
+import { openDB, IDBPDatabase, DBSchema } from 'idb';
+
+type SettlementStatus = 'pending' | 'uploading' | 'failed';
 
 interface SettlementRecord {
   id?: number;
@@ -6,7 +8,8 @@ interface SettlementRecord {
   retryCount: number;
   createdAt: number;
   lastAttemptAt: number;
-  status: 'pending' | 'uploading' | 'failed';
+  status: SettlementStatus;
+  lastError?: string;
 }
 
 interface SettlementDBSchema extends DBSchema {
@@ -17,10 +20,14 @@ interface SettlementDBSchema extends DBSchema {
   };
 }
 
+const MAX_QUEUE_SIZE = 50;
+const FLUSH_BACKOFF_MS = 60_000;
+
 class SettlementRetryQueue {
   private dbPromise: Promise<IDBPDatabase<SettlementDBSchema>> | null = null;
   private static instance: SettlementRetryQueue;
   private flushInProgress = false;
+  private lastFailureAt = 0;
 
   private constructor() {
     if (typeof window !== 'undefined') {
@@ -50,6 +57,20 @@ class SettlementRetryQueue {
     if (!this.dbPromise) return false;
     try {
       const db = await this.dbPromise;
+      const count = await db.count('pending_settlements');
+      if (count >= MAX_QUEUE_SIZE) {
+        console.warn(`[SettlementRetryQueue] Queue full (${count}/${MAX_QUEUE_SIZE}), evicting oldest entries`);
+        const tx = db.transaction('pending_settlements', 'readwrite');
+        const store = tx.objectStore('pending_settlements');
+        const index = store.index('by-created');
+        let cursor = await index.openCursor();
+        const evictCount = Math.min(10, count - MAX_QUEUE_SIZE + 1);
+        for (let i = 0; i < evictCount && cursor; i++) {
+          await cursor.delete();
+          cursor = await cursor.continue();
+        }
+        await tx.done;
+      }
       await db.add('pending_settlements', {
         payload,
         retryCount: 0,
@@ -101,7 +122,7 @@ class SettlementRetryQueue {
     }
   }
 
-  public async markFailed(id: number): Promise<void> {
+  public async markFailed(id: number, errorMessage?: string): Promise<void> {
     if (!this.dbPromise) return;
     try {
       const db = await this.dbPromise;
@@ -111,6 +132,7 @@ class SettlementRetryQueue {
       if (record) {
         record.retryCount++;
         record.lastAttemptAt = Date.now();
+        record.lastError = errorMessage ?? record.lastError;
         record.status = record.retryCount > 5 ? 'failed' : 'pending';
         await store.put(record);
       }
@@ -122,6 +144,13 @@ class SettlementRetryQueue {
 
   public async flushPendingSettlements(): Promise<void> {
     if (this.flushInProgress || !this.dbPromise) return;
+
+    const now = Date.now();
+    if (now - this.lastFailureAt < FLUSH_BACKOFF_MS) {
+      console.log(`[SettlementRetryQueue] Backoff active, skipping flush (${Math.round((FLUSH_BACKOFF_MS - (now - this.lastFailureAt)) / 1000)}s remaining)`);
+      return;
+    }
+
     this.flushInProgress = true;
 
     try {
@@ -141,11 +170,14 @@ class SettlementRetryQueue {
             await this.ackSettlement(settlement.id!);
             console.log('[SettlementRetryQueue] Settlement uploaded successfully, id:', settlement.id);
           } else {
-            await this.markFailed(settlement.id!);
+            this.lastFailureAt = Date.now();
+            await this.markFailed(settlement.id!, result.error ?? 'Unknown error');
             console.warn('[SettlementRetryQueue] Settlement upload failed, id:', settlement.id, result.error);
           }
         } catch (err) {
-          await this.markFailed(settlement.id!);
+          this.lastFailureAt = Date.now();
+          const errorMsg = err instanceof Error ? err.message : String(err);
+          await this.markFailed(settlement.id!, errorMsg);
           console.error('[SettlementRetryQueue] Settlement upload error, id:', settlement.id, err);
         }
       }

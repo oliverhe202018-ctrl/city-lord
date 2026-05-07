@@ -512,6 +512,21 @@ export async function saveRunActivity(
     try {
         if (!userId) throw new Error('User ID is required');
 
+        // ─── P0 时钟防穿越校正 ───
+        const serverNow = Date.now();
+        const CLOCK_DRIFT_TOLERANCE_MS = 10_000; // 10秒容忍
+        if (runData.timestamp && runData.timestamp > serverNow + CLOCK_DRIFT_TOLERANCE_MS) {
+            console.warn(`[Clock-Defense] 客户端时间超前服务端 ${runData.timestamp - serverNow}ms，强制压平至 serverNow=${serverNow}`);
+            runData.timestamp = serverNow;
+        }
+        // 校正 path 中所有未来时间戳
+        const rawPathForClockCheck = (runData.path as any[]) || [];
+        for (const point of rawPathForClockCheck) {
+            if (point.timestamp && point.timestamp > serverNow) {
+                point.timestamp = serverNow;
+            }
+        }
+
         // ─── Phase 3C: 跑前体力拦截 ───
         const preRunProfile = await prisma.profiles.findUnique({
             where: { id: userId },
@@ -623,8 +638,26 @@ export async function saveRunActivity(
 
         // --- P0 Anti-Cheat MVP Validation ---
         const pathPoints = (runData.path as any[]) || [];
+
+        // P0 剥夺客户端距离计算权：服务端独立重算实际距离
+        let actualDistanceKm: number;
+        try {
+            const serverPathCoords = pathPoints.map(p => [p.lng, p.lat] as [number, number]);
+            if (serverPathCoords.length >= 2) {
+                const serverLine = turfLineString(serverPathCoords);
+                actualDistanceKm = turfLength(serverLine, { units: 'kilometers' });
+                console.log(`[Distance-Defense] 服务端重算距离: ${actualDistanceKm.toFixed(4)}km, 客户端上报: ${(runData.distance / 1000).toFixed(4)}km`);
+            } else {
+                actualDistanceKm = runData.distance / 1000;
+                console.warn(`[Distance-Defense] 轨迹点不足，回退客户端距离: ${actualDistanceKm.toFixed(4)}km`);
+            }
+        } catch (err) {
+            actualDistanceKm = runData.distance / 1000;
+            console.error(`[Distance-Defense] turfLength 计算失败，回退客户端距离`, err);
+        }
+
         const legitimacyCheck = validateRunLegitimacy({
-            distanceKm: runData.distance / 1000,
+            distanceKm: actualDistanceKm,
             durationSeconds: runData.duration,
             pathPointsCount: pathPoints.length
         });

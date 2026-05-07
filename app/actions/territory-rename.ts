@@ -5,7 +5,21 @@ import { MintFilter } from 'mint-filter'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 
-const filter = new MintFilter(['敏感词', '违规', '垃圾', '广告', '政治', '色情', '暴力', '赌博'])
+const FALLBACK_WORDS = ['敏感词', '违规', '垃圾', '广告', '政治', '色情', '暴力', '赌博']
+
+let _filterInstance: MintFilter | null = null
+
+function getFilter(): MintFilter {
+    if (_filterInstance) return _filterInstance
+
+    const envWords = process.env.SENSITIVE_WORDS
+        ? process.env.SENSITIVE_WORDS.split(',').map(w => w.trim()).filter(Boolean)
+        : []
+
+    const mergedWords = [...new Set([...envWords, ...FALLBACK_WORDS])]
+    _filterInstance = new MintFilter(mergedWords)
+    return _filterInstance
+}
 
 const NAME_MAX_LENGTH = 10
 const COOLDOWN_DAYS = 7
@@ -63,7 +77,7 @@ export async function renameTerritory(territoryId: string, newName: string) {
       }
     }
 
-    const result = filter.verify(trimmedName)
+    const result = getFilter().verify(trimmedName)
     if (result.words.length > 0) {
       return {
         success: false,

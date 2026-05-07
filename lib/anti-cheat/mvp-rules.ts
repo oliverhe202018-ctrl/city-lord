@@ -21,7 +21,7 @@ export interface LegitimacyResult {
  * @param data - The run data to validate
  * @returns Validation result
  */
-export function validateRunLegitimacy(data: RunLegitimacyData): LegitimacyResult {
+export function validateRunLegitimacy(data: Readonly<RunLegitimacyData>): LegitimacyResult {
   const { distanceKm, durationSeconds, pathPointsCount } = data;
 
   // 1. Pre-computation Safety Check
