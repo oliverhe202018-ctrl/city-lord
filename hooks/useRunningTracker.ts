@@ -3,6 +3,7 @@ import { mutate } from 'swr';
 import { LocationService } from '@/utils/locationService';
 import * as turf from '@turf/turf';
 import { KalmanFilter1D } from '@/lib/kalman-filter';
+import { simplifyPath } from '@/lib/geo/simplify-path';
 import type { Feature, Polygon, MultiPolygon } from 'geojson';
 import { toast } from 'sonner';
 import { syncManager } from '@/lib/sync/SyncManager';
@@ -27,10 +28,35 @@ import { Preferences } from '@capacitor/preferences';
 import { settlementRetryQueue } from '@/lib/sync/SettlementRetryQueue';
 import { getRunSettlementStatus } from '@/app/actions/run-service';
 
+// ============================================================================
+// ⚠️ TODO: useRunningTracker 巨型 Hook 拆分规划 (当前 ~1500 行)
+//
+// 当前 Hook 承担了过多职责，建议在下一迭代拆分为三层独立 Hook：
+//
+// 1. useRunClock (纯计时 + 暂停/恢复)
+//    - rawDuration / durationSeconds 计时
+//    - isPaused / togglePause / pause timer on app background
+//    - 无 GPS 依赖，可独立单元测试
+//
+// 2. useRunPersistence (离线快照 + 恢复 + 本地存储)
+//    - CURRENT_RUN_RECOVERY localStorage 读写
+//    - appStateChange / visibilitychange 快照
+//    - 崩溃恢复 / 断点续跑
+//
+// 3. useRunSyncPipeline (轨迹同步 + 上传 + 结算)
+//    - syncManager enqueue / batch upload
+//    - settlementRetryQueue 轮询
+//    - saveRunActivity Server Action 调用
+//
+// 拆分后 useRunningTracker 仅作为协调层 (orchestrator)，将上述三个 Hook
+// 组合为统一的 RunningStats 接口，预计可降至 300 行以内。
+// ============================================================================
+
 const RECOVERY_KEY = 'CURRENT_RUN_RECOVERY';
 
 const MIN_WARMUP_POINTS = process.env.NODE_ENV === 'development' ? 1 : 3;
 const WARMUP_TIMEOUT_MS = process.env.NODE_ENV === 'development' ? 2000 : 8000;
+const CLOCK_DRIFT_TOLERANCE_MS = 5000;
 
 export interface Location {
   lat: number;
@@ -509,10 +535,11 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     // ================================================================
     // 🛡️ TIMESTAMP DEDUP (防后台缓存点重复注入)
     // 后台定位插件可能在唤醒时补发历史缓存点，若时间戳不晚于已处理点则丢弃
+    // 增加 CLOCK_DRIFT_TOLERANCE_MS 容忍窗口，防止 NTP 同步/跨时区导致的时钟回拨误杀
     // ================================================================
-    if (lastLocationRef.current && now <= lastLocationRef.current.timestamp) {
+    if (lastLocationRef.current && now < lastLocationRef.current.timestamp - CLOCK_DRIFT_TOLERANCE_MS) {
       console.debug(
-        `[GPS-Filter] ❌ Timestamp DEDUP: incoming ${now} <= last ${lastLocationRef.current.timestamp}`
+        `[GPS-Filter] ❌ Timestamp DEDUP: incoming ${now} < last ${lastLocationRef.current.timestamp} - ${CLOCK_DRIFT_TOLERANCE_MS}ms tolerance`
       );
       return;
     }
@@ -769,6 +796,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     }
 
     // Add ACTUAL GPS point to path (seamless continuation)
+    // TODO: 引入 Douglas-Peucker 算法进行轨迹抽稀（tolerance=3m）
+    // 长距离跑步（>10km）时 pathRef 可能积累数千个点，导致内存溢出与 GeoJSON 序列化超时
+    // 建议在 pathRef.current.length > 500 时触发一次增量抽稀
     const updatedPath = [...pathRef.current, finalLoc];
     pathRef.current = updatedPath;
     setPath(updatedPath);
@@ -918,6 +948,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
                 }
                 
                 // ====== 批量 setPath（单次 React 更新） ======
+                // TODO: 同上方单点注入，需在此处也引入 Douglas-Peucker 增量抽稀
                 if (validBatchPoints.length > 0) {
                   const updatedPath = [...pathRef.current, ...validBatchPoints];
                   pathRef.current = updatedPath;
@@ -1286,6 +1317,24 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
     try {
       setIsSaving(true);
+
+      // ================================================================
+      // 🗜️ TRAJECTORY SIMPLIFICATION — 超长轨迹抽稀
+      // 当轨迹点超过 2000 时，使用 Douglas-Peucker 算法进行压缩，
+      // 防止 GeoJSON 序列化超时与 Server Action payload 过大。
+      // tolerance=0.00005 ≈ 5m（在 10km 跑步中可将 10000 点压缩至 ~800 点）
+      // ================================================================
+      const SIMPLIFY_THRESHOLD = 2000;
+      const SIMPLIFY_TOLERANCE = 0.00005;
+      let simplifiedPath = livePath;
+      if (livePath.length > SIMPLIFY_THRESHOLD) {
+        simplifiedPath = simplifyPath(livePath, SIMPLIFY_TOLERANCE);
+        console.log(
+          `[Simplify] 🗜️ Path reduced: ${livePath.length} → ${simplifiedPath.length} points ` +
+          `(${((1 - simplifiedPath.length / livePath.length) * 100).toFixed(1)}% reduction)`
+        );
+      }
+
       const stepsForSubmit = currentStepsRef.current > 0
         ? currentStepsRef.current
         : estimateStepsFromDistanceMeters(liveDistance);
@@ -1294,7 +1343,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         idempotencyKey: runIdempotencyKeyRef.current,
         distance: liveDistance,
         duration: liveDuration,
-        path: livePath,
+        path: simplifiedPath,
         polygons: liveClaims,
         timestamp: Date.now(),
         totalSteps: stepsForSubmit,

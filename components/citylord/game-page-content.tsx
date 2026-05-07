@@ -955,6 +955,9 @@ export function GamePageContent({
           ? JSON.parse(offlineQueueJson)
           : [];
         offlineQueue.push(payload);
+        if (offlineQueue.length > 50) {
+          offlineQueue.splice(0, offlineQueue.length - 50);
+        }
         localStorage.setItem('pending_offline_runs', JSON.stringify(offlineQueue));
       } catch (storeErr) {
         console.error('[handleStopRun] Failed to persist offline run:', storeErr);

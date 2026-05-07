@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma'
 import { MintFilter } from 'mint-filter'
 import { revalidatePath } from 'next/cache'
+import { createClient } from '@/lib/supabase/server'
 
 const filter = new MintFilter(['敏感词', '违规', '垃圾', '广告', '政治', '色情', '暴力', '赌博'])
 
@@ -11,6 +12,17 @@ const COOLDOWN_DAYS = 7
 
 export async function renameTerritory(territoryId: string, newName: string) {
   try {
+    const cookieStore = await import('next/headers').then(m => m.cookies())
+    const supabase = await createClient(cookieStore)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return {
+        success: false,
+        error: '未登录',
+        code: 'UNAUTHORIZED'
+      }
+    }
+
     const trimmedName = newName.trim()
 
     if (trimmedName.length === 0 || trimmedName.length > NAME_MAX_LENGTH) {
@@ -22,7 +34,7 @@ export async function renameTerritory(territoryId: string, newName: string) {
     }
 
     const territory = await prisma.territories.findUnique({
-      where: { id: territoryId },
+      where: { id: territoryId, owner_id: user.id },
       select: {
         owner_id: true,
         name_updated_at: true,
@@ -33,16 +45,8 @@ export async function renameTerritory(territoryId: string, newName: string) {
     if (!territory) {
       return {
         success: false,
-        error: '领地不存在',
+        error: '领地不存在或无权操作',
         code: 'TERRITORY_NOT_FOUND'
-      }
-    }
-
-    if (!territory.owner_id) {
-      return {
-        success: false,
-        error: '无主领地无法重命名',
-        code: 'NO_OWNER'
       }
     }
 
@@ -70,7 +74,7 @@ export async function renameTerritory(territoryId: string, newName: string) {
     }
 
     await prisma.territories.update({
-      where: { id: territoryId },
+      where: { id: territoryId, owner_id: user.id },
       data: {
         custom_name: trimmedName,
         name_updated_at: new Date()
