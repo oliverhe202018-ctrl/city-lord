@@ -95,7 +95,7 @@ export default function MyProfilePage() {
     return (
         <div className="flex flex-col h-[100dvh] overflow-hidden bg-background">
             {/* Header Fixed */}
-            <div className="flex-none sticky top-0 z-20 flex items-center gap-2 px-4 py-2 bg-background/80 backdrop-blur-lg border-b border-border/10">
+            <div className="flex-none sticky top-0 z-20 flex items-center gap-2 px-4 pt-[calc(var(--safe-top,0px)+8px)] pb-2 bg-background/80 backdrop-blur-lg border-b border-border/10">
                 <button
                     onClick={() => router.back()}
                     className="p-1 rounded-full hover:bg-muted/20 transition-colors"

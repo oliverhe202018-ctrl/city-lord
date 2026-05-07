@@ -140,7 +140,7 @@ function UserProfileContent() {
     if (!profileData) {
         return (
             <div className="flex flex-col h-full bg-background">
-                <div className="sticky top-0 z-20 flex items-center gap-2 px-4 py-2 bg-background/80 backdrop-blur-lg">
+                <div className="sticky top-0 z-20 flex items-center gap-2 px-4 pt-[calc(var(--safe-top,0px)+8px)] pb-2 bg-background/80 backdrop-blur-lg">
                     <button onClick={() => router.back()} className="p-1 rounded-full hover:bg-muted/20 transition-colors">
                         <ArrowLeft className="w-5 h-5 text-foreground" />
                     </button>
@@ -165,7 +165,7 @@ function UserProfileContent() {
     if (profileData.isPrivate) {
         return (
             <div className="flex flex-col h-full bg-background">
-                <div className="sticky top-0 z-20 flex items-center gap-2 px-4 py-2 bg-background/80 backdrop-blur-lg">
+                <div className="sticky top-0 z-20 flex items-center gap-2 px-4 pt-[calc(var(--safe-top,0px)+8px)] pb-2 bg-background/80 backdrop-blur-lg">
                     <button onClick={() => router.back()} className="p-1 rounded-full hover:bg-muted/20 transition-colors">
                         <ArrowLeft className="w-5 h-5 text-foreground" />
                     </button>
@@ -215,7 +215,7 @@ function UserProfileContent() {
     return (
         <div className="flex flex-col h-full bg-background overflow-y-auto pb-24">
             {/* Top bar */}
-            <div className="sticky top-0 z-20 flex items-center justify-between px-4 py-2 bg-background/80 backdrop-blur-lg">
+            <div className="sticky top-0 z-20 flex items-center justify-between px-4 pt-[calc(var(--safe-top,0px)+8px)] pb-2 bg-background/80 backdrop-blur-lg">
                 <div className="flex items-center gap-2">
                     <button onClick={() => router.back()} className="p-1 rounded-full hover:bg-muted/20 transition-colors">
                         <ArrowLeft className="w-5 h-5 text-foreground" />

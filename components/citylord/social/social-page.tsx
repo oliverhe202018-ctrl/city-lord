@@ -278,7 +278,7 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
   return (
     <div className="flex h-full flex-col bg-background">
       {/* Header */}
-      <div className="border-b border-border px-3 pb-1 pt-3 shrink-0">
+      <div className="border-b border-border px-3 pb-1 pt-[calc(var(--safe-top,0px)+12px)] shrink-0">
         <div className="mb-2 flex items-center justify-between">
           <div>
             <h1 className="text-base font-bold text-foreground">社交中心</h1>
