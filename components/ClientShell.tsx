@@ -10,6 +10,7 @@ import { AuthSync } from "@/components/auth/AuthSync";
 import { NetworkStatus } from "@/components/NetworkStatus";
 import { Providers } from '@/components/Providers';
 import { PendingRunUploadRetry } from '@/components/running/PendingRunUploadRetry';
+import { OfflineAchievementSync } from '@/components/running/OfflineAchievementSync';
 import { RewardModal } from '@/components/running/RewardModal';
 import { GlobalLocationProvider } from '@/components/GlobalLocationProvider';
 import { Capacitor } from '@capacitor/core';
@@ -148,6 +149,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
                   <AuthSync />
                   <ChangelogNotificationProvider>
                     <PendingRunUploadRetry />
+                    <OfflineAchievementSync />
                     {children}
                     <Toaster />
                     <RewardModal />
