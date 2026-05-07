@@ -572,17 +572,21 @@ const createUserSlice: StateCreator<GameStore, [], [], UserActions> = (set, get)
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
+      const [profileResult, adminResult, badgesResult] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', user.id).single(),
+        supabase.from('app_admins').select('role').eq('id', user.id).maybeSingle(),
+        supabase.from('user_badges').select('badge_id').eq('user_id', user.id),
+      ]);
 
-      const { data: adminData } = await supabase
-        .from('app_admins')
-        .select('role')
-        .eq('id', user.id)
-        .maybeSingle();
+      const profile = profileResult.data;
+      const adminData = adminResult.data;
+      const userBadges = badgesResult.data || [];
+
+      // Build achievements map from server: badge_id -> true
+      const achievementsMap: Record<string, boolean> = {};
+      for (const ub of userBadges) {
+        achievementsMap[String(ub.badge_id)] = true;
+      }
 
       if (profile) {
         const profileData = profile as any;
@@ -597,6 +601,7 @@ const createUserSlice: StateCreator<GameStore, [], [], UserActions> = (set, get)
           role: adminData?.role ?? null,
           backgroundUrl: profileData.background_url ?? state.backgroundUrl ?? null,
           totalRunsCount: profileData.total_runs_count || 0,
+          achievements: { ...state.achievements, ...achievementsMap },
           territoryAppearance: {
             ...state.territoryAppearance,
             strokeColor: profileData.path_color || state.territoryAppearance.strokeColor,

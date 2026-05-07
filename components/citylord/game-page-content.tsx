@@ -43,6 +43,7 @@ import { ACHIEVEMENT_DEFINITIONS } from "@/lib/achievements"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/useAuth"
 import { toast } from "sonner"
+import { checkRunEndAchievements } from "@/app/actions/check-achievements"
 import { RunHistoryDrawer } from "@/components/map/RunHistoryDrawer"
 import { CountdownOverlay } from "@/components/running/CountdownOverlay"
 import { StartRunOverlay } from "@/components/citylord/start/StartRunPageClient"
@@ -815,14 +816,57 @@ export function GamePageContent({
 
   const handleClaimAchievement = useCallback(() => {
     if (currentUnlockedAchievement) {
-      localStorage.setItem(`achievement_${currentUnlockedAchievement.id}_claimed`, 'true')
       claimAchievement(currentUnlockedAchievement.id)
     } else {
-      localStorage.setItem('achievement_marathon-hero_claimed', 'true')
       claimAchievement('marathon-hero')
     }
     setShowAchievement(false)
   }, [currentUnlockedAchievement, claimAchievement]);
+
+  // Share achievement — Web Share API → Clipboard fallback
+  const handleShareAchievement = useCallback(async () => {
+    const achievement = currentUnlockedAchievement || fallbackAchievement;
+    const shareText = `我在城市领主解锁了成就「${achievement.title}」！${achievement.description}`;
+
+    // Try native Web Share API first (works on mobile browsers + Capacitor WebView)
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: '解锁成就 — 城市领主',
+          text: shareText,
+        });
+        toast.success('分享成功');
+        return;
+      } catch (err: any) {
+        // User cancelled share or unsupported — fall through to clipboard
+        if (err?.name !== 'AbortError') {
+          console.warn('[Achievement] Web Share failed, falling back to clipboard:', err);
+        }
+      }
+    }
+
+    // Fallback: copy to clipboard
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(shareText);
+        toast.success('成就信息已复制到剪贴板');
+      } else {
+        // Legacy fallback for non-secure contexts
+        const textarea = document.createElement('textarea');
+        textarea.value = shareText;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        toast.success('成就信息已复制到剪贴板');
+      }
+    } catch (clipErr) {
+      console.error('[Achievement] Clipboard copy failed:', clipErr);
+      toast.error('分享失败，请截图手动分享');
+    }
+  }, [currentUnlockedAchievement, fallbackAchievement]);
 
   // GPS retry handler removed per user request
 
@@ -847,7 +891,7 @@ export function GamePageContent({
   }, [clearWarmupState, startRunning, addManualLocation]);
 
   // Complex stop handler
-  const handleStopRun = useCallback(() => {
+  const handleStopRun = useCallback(async () => {
     stopTracker()
     stopRunning()
     clearRecovery()
@@ -859,31 +903,66 @@ export function GamePageContent({
 
     const currentRunDistance = distance || 0
     addTotalDistance(currentRunDistance)
-    const newTotalDistance = (totalDistance || 0) + currentRunDistance
 
     // Explicitly clear recovery key again to be safe
     if (typeof window !== 'undefined') {
       localStorage.removeItem('CURRENT_RUN_RECOVERY');
     }
 
-    // Check for achievements based on distance
-    if (!achievements?.['marathon-god'] && newTotalDistance >= 42195) {
-      const def = ACHIEVEMENT_DEFINITIONS.find(a => a.id === 'marathon-god');
-      if (def) {
-        setCurrentUnlockedAchievement(def);
-        setShowAchievement(true);
-        return;
-      }
-    }
+    // Lock UI with loading toast to prevent duplicate clicks
+    const settleToastId = 'settle-run';
+    toast.loading('正在结算跑步数据...', { id: settleToastId });
 
-    if (!achievements?.['city-walker'] && newTotalDistance >= 10000) {
-      const def = ACHIEVEMENT_DEFINITIONS.find(a => a.id === 'city-walker');
-      if (def) {
-        setCurrentUnlockedAchievement(def);
-        setShowAchievement(true);
+    const runEndTime = new Date().toISOString();
+    const payload = {
+      distance: currentRunDistance,
+      duration: durationSeconds || 0,
+      pace: pace || undefined,
+      endTime: runEndTime,
+    };
+
+    try {
+      const result = await checkRunEndAchievements(payload);
+
+      if (result.success && result.awarded.length > 0) {
+        // Show each awarded achievement sequentially
+        for (const awarded of result.awarded) {
+          const def = ACHIEVEMENT_DEFINITIONS.find(a => a.id === awarded.badgeCode);
+          if (def) {
+            setCurrentUnlockedAchievement(def);
+            setShowAchievement(true);
+            // Brief pause between multiple achievements
+            if (result.awarded.length > 1) {
+              await new Promise(resolve => setTimeout(resolve, 1500));
+            }
+          }
+        }
       }
+
+      toast.success('跑步数据已结算', { id: settleToastId });
+    } catch (err) {
+      console.error('[handleStopRun] Achievement check failed:', err);
+
+      // Offline fallback: persist to local queue for later sync
+      try {
+        const offlineQueueJson = typeof window !== 'undefined'
+          ? localStorage.getItem('pending_offline_runs')
+          : null;
+        const offlineQueue: typeof payload[] = offlineQueueJson
+          ? JSON.parse(offlineQueueJson)
+          : [];
+        offlineQueue.push(payload);
+        localStorage.setItem('pending_offline_runs', JSON.stringify(offlineQueue));
+      } catch (storeErr) {
+        console.error('[handleStopRun] Failed to persist offline run:', storeErr);
+      }
+
+      toast.error('网络异常，本次数据已存入本地，将在下次联网时自动结算', {
+        id: settleToastId,
+        duration: 5000,
+      });
     }
-  }, [distance, totalDistance, achievements, stopTracker, stopRunning, clearRecovery, addTotalDistance, setGhostPath]);
+  }, [distance, durationSeconds, pace, stopTracker, stopRunning, clearRecovery, addTotalDistance, setGhostPath]);
 
   const handleMapLoad = useCallback(() => { }, []);
 
@@ -1275,7 +1354,7 @@ export function GamePageContent({
           { type: "badge", amount: 1, label: "专属徽章" },
         ]}
         onClaim={handleClaimAchievement}
-        onShare={() => { }}
+        onShare={handleShareAchievement}
       />
 
       <MemoizedNetworkBanner
