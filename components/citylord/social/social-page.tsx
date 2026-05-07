@@ -149,7 +149,7 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
   if (subView === "invite") {
     return (
       <div className="flex h-full flex-col bg-background">
-        <div className="p-3 border-b border-border flex items-center gap-2 shrink-0">
+        <div className="pt-[calc(var(--safe-top,0px)+12px)] px-3 pb-1 border-b border-border flex items-center gap-2 shrink-0">
           <CyberButton variant="ghost" size="sm" onClick={handleBack} className="flex items-center gap-0.5 pr-3 pl-1 group">
             <ChevronLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
             <span>返回</span>
@@ -170,7 +170,7 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
   if (subView === "discover") {
     return (
       <div className="flex h-full flex-col bg-background">
-        <div className="p-3 border-b border-border flex items-center gap-2 shrink-0">
+        <div className="pt-[calc(var(--safe-top,0px)+12px)] px-3 pb-1 border-b border-border flex items-center gap-2 shrink-0">
           <CyberButton variant="ghost" size="sm" onClick={handleBack} className="flex items-center gap-0.5 pr-3 pl-1 group text-slate-900/80 hover:text-slate-900 dark:text-white/80 dark:hover:text-white">
             <ChevronLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
             <span>返回</span>
@@ -187,7 +187,7 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
   if (subView === "challenge") {
     return (
       <div className="flex h-full flex-col bg-background">
-        <div className="p-3 border-b border-border flex items-center gap-2 shrink-0">
+        <div className="pt-[calc(var(--safe-top,0px)+12px)] px-3 pb-1 border-b border-border flex items-center gap-2 shrink-0">
           <CyberButton variant="ghost" size="sm" onClick={handleBack} className="flex items-center gap-0.5 pr-3 pl-1 group text-slate-900/80 hover:text-slate-900 dark:text-white/80 dark:hover:text-white">
             <ChevronLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
             <span>返回</span>
@@ -210,7 +210,7 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
   if (subView === "leaderboard") {
     return (
       <div className="flex h-full flex-col bg-background">
-        <div className="p-3 border-b border-border flex items-center gap-2 shrink-0">
+        <div className="pt-[calc(var(--safe-top,0px)+12px)] px-3 pb-1 border-b border-border flex items-center gap-2 shrink-0">
           <CyberButton variant="ghost" size="sm" onClick={handleBack} className="flex items-center gap-0.5 pr-3 pl-1 group text-slate-900/80 hover:text-slate-900 dark:text-white/80 dark:hover:text-white">
             <ChevronLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
             <span>返回</span>
@@ -227,7 +227,7 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
   if (subView === "events") {
     return (
       <div className="flex h-full flex-col bg-background">
-        <div className="p-3 border-b border-border flex items-center gap-2 shrink-0">
+        <div className="pt-[calc(var(--safe-top,0px)+12px)] px-3 pb-1 border-b border-border flex items-center gap-2 shrink-0">
           <CyberButton variant="ghost" size="sm" onClick={handleBack} className="flex items-center gap-0.5 pr-3 pl-1 group text-slate-900/80 hover:text-slate-900 dark:text-white/80 dark:hover:text-white">
             <ChevronLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
             <span>返回</span>
@@ -244,7 +244,7 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
   if (subView === "store") {
     return (
       <div className="flex h-full flex-col bg-background">
-        <div className="p-3 border-b border-border flex items-center gap-2 shrink-0">
+        <div className="pt-[calc(var(--safe-top,0px)+12px)] px-3 pb-1 border-b border-border flex items-center gap-2 shrink-0">
           <CyberButton variant="ghost" size="sm" onClick={handleBack} className="flex items-center gap-0.5 pr-3 pl-1 group text-slate-900/80 hover:text-slate-900 dark:text-white/80 dark:hover:text-white">
             <ChevronLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
             <span>返回</span>

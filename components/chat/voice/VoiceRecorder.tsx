@@ -45,10 +45,12 @@ export function VoiceRecorder({ receiverId, onSend, disabled }: VoiceRecorderPro
     const [showPermissionModal, setShowPermissionModal] = useState(false);
     const startYRef = useRef<number>(0);
     const buttonRef = useRef<HTMLButtonElement>(null);
+    const isStartingRef = useRef(false);
 
     const handleStart = async (clientY: number) => {
         if (disabled) return;
         startYRef.current = clientY;
+        isStartingRef.current = true;
         try {
             await startRecording();
         } catch (error: any) {
@@ -57,11 +59,13 @@ export function VoiceRecorder({ receiverId, onSend, disabled }: VoiceRecorderPro
             if (error?.message === 'PERMISSION_DENIED') {
                 const { toast } = await import('sonner');
                 toast.error('请授予麦克风权限以发送语音', {
-                    description: '点击系统弹窗中的“允许”'
+                    description: '点击系统弹窗中的"允许"'
                 });
             } else if (error?.message === 'PERMISSION_PERMANENT_DENIED') {
                 setShowPermissionModal(true);
             }
+        } finally {
+            isStartingRef.current = false;
         }
     };
 
@@ -77,10 +81,16 @@ export function VoiceRecorder({ receiverId, onSend, disabled }: VoiceRecorderPro
     };
 
     const handleEnd = async () => {
-        if (!isRecording) return;
-        const currentCanceled = isCanceled;
+        if (!isRecording && !isStartingRef.current) return;
 
-        // reset visual state
+        if (isStartingRef.current) {
+            while (isStartingRef.current) {
+                await new Promise(r => setTimeout(r, 50));
+            }
+            if (!isRecording) return;
+        }
+
+        const currentCanceled = isCanceled;
         const result = await stopRecording(currentCanceled, receiverId);
         if (result) {
             onSend(result);

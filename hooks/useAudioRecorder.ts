@@ -129,7 +129,8 @@ export function useAudioRecorder() {
                     releaseStream(streamResult.stream);
                     localStorage.setItem('mic_web_granted', 'true');
                     await checkPermissions();
-                    toast.success('麦克风已就绪');
+                    toast.success('麦克风已就绪，请重新按住录音');
+                    return;
                 } else {
                     const wasAlreadyRequested = hasRequestedRef.current;
                     hasRequestedRef.current = true;
