@@ -46,7 +46,7 @@ export function NetworkStatus() {
   if (!hasMounted || isOnline) return null
 
   return (
-    <div className="fixed top-0 left-0 w-full bg-destructive/90 backdrop-blur-md text-destructive-foreground text-center text-[10px] sm:text-xs font-semibold py-1 z-[9999] animate-in slide-in-from-top flex items-center justify-center gap-2 shadow-lg pt-[env(safe-area-inset-top)] border-b border-white/10">
+    <div className="fixed top-0 left-0 w-full bg-destructive/90 backdrop-blur-md text-destructive-foreground text-center text-[10px] sm:text-xs font-semibold py-1 z-[9999] animate-in slide-in-from-top flex items-center justify-center gap-2 shadow-lg pt-[var(--safe-top,0px)] border-b border-white/10">
       <WifiOff className="w-3 h-3" />
       <span>当前网络不稳定，部分功能可能无法使用</span>
     </div>

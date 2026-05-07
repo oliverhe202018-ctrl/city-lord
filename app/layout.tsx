@@ -54,7 +54,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN" suppressHydrationWarning className="h-full">
-      <body className={`font-sans antialiased h-full overflow-hidden overflow-x-hidden w-full relative bg-white text-slate-900 dark:bg-[#0f172a] dark:text-slate-200`} style={{ paddingTop: 'var(--safe-top)' }}>
+      <body className={`font-sans antialiased h-full overflow-hidden overflow-x-hidden w-full relative bg-white text-slate-900 dark:bg-[#0f172a] dark:text-slate-200`}>
         <Script id="amap-security" strategy="beforeInteractive">
           {amapSecurityScript}
         </Script>

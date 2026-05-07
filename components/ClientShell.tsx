@@ -17,48 +17,41 @@ import { App as CapacitorApp } from '@capacitor/app';
 import { BackNavigationProvider, useBackNavigationContext } from '@/contexts/BackNavigationContext';
 import { ChangelogNotificationProvider } from '@/components/changelog/ChangelogNotificationProvider';
 import { useRouter, usePathname } from 'next/navigation';
-import { isNativePlatform, safeGetPlatform, safeStatusBarSetBackgroundColor, safeStatusBarSetOverlaysWebView, safeStatusBarSetStyle } from "@/lib/capacitor/safe-plugins";
+import { safeGetPlatform, safeStatusBarSetBackgroundColor, safeStatusBarSetOverlaysWebView, safeStatusBarSetStyle } from "@/lib/capacitor/safe-plugins";
 import { useImmersiveMode } from "@/hooks/useImmersiveMode";
 
 // Client Component Wrapper for Status Bar
 function StatusBarConfig() {
-  // Activate Immersive Mode Locks
   useImmersiveMode();
 
   useEffect(() => {
-    const applyStatusBar = async () => {
-      if (await isNativePlatform()) {
-        safeStatusBarSetStyle('dark');
-        const platform = await safeGetPlatform();
-        if (platform === 'android') {
-          // 开启 Overlay，让 WebView 延伸到状态栏下方（沉浸式）
-          // 配合 CSS padding-top: var(--safe-top) 防止内容被遮挡
-          safeStatusBarSetOverlaysWebView(true);
-          safeStatusBarSetBackgroundColor('#000000');
+    const applySafeArea = async () => {
+      if (!Capacitor.isNativePlatform()) return;
 
-          // 读取 Android StatusBar 高度并注入 CSS 变量
-          // Android WebView 不支持 env(safe-area-inset-top)，需手动注入
-          try {
-            const { StatusBar } = await import('@capacitor/status-bar');
-            const info = await StatusBar.getInfo();
-            const statusBarHeight = (info as any).height ?? 0;
-            document.documentElement.style.setProperty(
-              '--android-status-bar-height',
-              `${statusBarHeight}px`
-            );
-            // 同时覆盖 --safe-top，确保全局 safe-pt 等工具类生效
-            document.documentElement.style.setProperty(
-              '--safe-top',
-              `${statusBarHeight}px`
-            );
-          } catch (err) {
-            console.warn('[StatusBar] Failed to get info', err);
-            document.documentElement.style.setProperty('--android-status-bar-height', '0px');
-          }
+      safeStatusBarSetStyle('dark');
+      const platform = await safeGetPlatform();
+      if (platform === 'android') {
+        safeStatusBarSetOverlaysWebView(true);
+        safeStatusBarSetBackgroundColor('#000000');
+
+        try {
+          const { SafeArea } = await import('@capacitor-community/safe-area');
+          const insets = await SafeArea.getSafeAreaInsets();
+          const topInset = insets.insets?.top ?? 24;
+
+          document.documentElement.style.setProperty('--safe-top', `${topInset}px`);
+          document.documentElement.style.setProperty('--safe-bottom', `${insets.insets?.bottom ?? 0}px`);
+          document.documentElement.style.setProperty('--safe-left', `${insets.insets?.left ?? 0}px`);
+          document.documentElement.style.setProperty('--safe-right', `${insets.insets?.right ?? 0}px`);
+          document.documentElement.style.setProperty('--android-status-bar-height', `${topInset}px`);
+        } catch (err) {
+          console.warn('[SafeArea] Failed to get insets, using fallback 24px', err);
+          document.documentElement.style.setProperty('--safe-top', '24px');
+          document.documentElement.style.setProperty('--android-status-bar-height', '24px');
         }
       }
     };
-    applyStatusBar();
+    applySafeArea();
   }, []);
 
   return null;

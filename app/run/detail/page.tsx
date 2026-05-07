@@ -65,7 +65,7 @@ function RunDetailContent() {
    return (
       <div className="h-screen bg-black text-white overflow-y-auto">
          {/* Header */}
-         <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-3 py-2 bg-transparent pointer-events-none">
+         <div className="fixed top-[var(--safe-top,0px)] left-0 right-0 z-50 flex items-center justify-between px-3 py-2 bg-transparent pointer-events-none">
             <button onClick={() => window.history.back()} className="pointer-events-auto p-1.5 rounded-full bg-black/40 backdrop-blur-md">
                <ChevronLeft className="w-5 h-5 text-white" />
             </button>
