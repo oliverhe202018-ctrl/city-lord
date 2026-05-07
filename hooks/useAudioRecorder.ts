@@ -122,13 +122,14 @@ export function useAudioRecorder() {
 
             // 1. 权限前置（绝对阻断）
             const currentStatus = await checkPermissions();
+
             if (currentStatus !== 'granted') {
                 const streamResult = await acquireAudioStream();
                 if (streamResult.ok) {
                     releaseStream(streamResult.stream);
+                    localStorage.setItem('mic_web_granted', 'true');
                     await checkPermissions();
-                    toast.success('麦克风已就绪，请重新按住录音');
-                    return; // 请求完毕后立刻 return 退出函数，绝对不要初始化录音机
+                    toast.success('麦克风已就绪');
                 } else {
                     const wasAlreadyRequested = hasRequestedRef.current;
                     hasRequestedRef.current = true;

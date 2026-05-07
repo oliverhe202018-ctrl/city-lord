@@ -261,7 +261,7 @@ export function SocialPage({ onShowDemo, initialFriends, initialRequests }: Soci
   if (subView === "friend-chat") {
     return (
       <div className="flex h-full flex-col bg-background">
-        <div className="p-3 border-b border-border flex items-center gap-2 shrink-0 bg-background/95 backdrop-blur z-10 sticky top-0">
+        <div className="pt-[calc(var(--safe-top,0px)+12px)] px-3 pb-1 border-b border-border flex items-center gap-2 shrink-0 bg-background/95 backdrop-blur z-10 sticky top-0">
           <button onClick={handleBack} className="flex items-center gap-0.5 pr-3 pl-1 py-1 text-foreground hover:bg-muted/50 rounded-md transition-all active:scale-95">
             <ChevronLeft className="w-5 h-5 -ml-1" />
             <span className="text-sm">返回</span>

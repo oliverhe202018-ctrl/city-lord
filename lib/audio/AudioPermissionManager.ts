@@ -24,10 +24,15 @@ export async function queryMicrophonePermission(): Promise<PermissionQueryResult
     return { state: 'prompt', canAskAgain: true };
   }
 
-  // 原生平台：经核实当前项目未安装专用麦克风插件包。
-  // ⚠️ 极其重要：在此环境下严禁调用 getUserMedia 以防 WebView 渲染进程因挂起的权限请求而死锁卡住。
-  console.error('[NativePermissionError] No microphone plugin available. Blocking implicit getUserMedia call to prevent WebView hang.');
-  return { state: 'denied', canAskAgain: true };
+  // 原生平台：未安装专属麦克风插件时，回退到 localStorage 持久化标记，
+  // 允许用户在 WebView 中通过标准 getUserMedia 获取音频流。
+  try {
+    const stored = typeof localStorage !== 'undefined' ? localStorage.getItem('mic_web_granted') : null;
+    if (stored === 'true') {
+      return { state: 'granted', canAskAgain: true };
+    }
+  } catch { /* ignore */ }
+  return { state: 'prompt', canAskAgain: true };
 }
 
 export async function requestMicrophonePermission(): Promise<PermissionQueryResult> {

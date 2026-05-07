@@ -87,24 +87,14 @@ export function VoiceRecorder({ receiverId, onSend, disabled }: VoiceRecorderPro
         }
     };
 
-    // Touch events
-    const onTouchStart = (e: React.TouchEvent) => {
-        e.preventDefault();
-        handleStart(e.touches[0].clientY);
+    // Pointer events (unified for touch + mouse)
+    const onPointerDown = (e: React.PointerEvent) => {
+        (e.target as HTMLElement).setPointerCapture(e.pointerId);
+        handleStart(e.clientY);
     };
-    const onTouchMove = (e: React.TouchEvent) => handleMove(e.touches[0].clientY);
-    const onTouchEnd = () => handleEnd();
-
-    // Mouse events (for desktop testing)
-    const onMouseDown = (e: React.MouseEvent) => handleStart(e.clientY);
-    const onMouseMove = (e: React.MouseEvent) => {
-        if (e.buttons !== 1) return; // Only if left mouse button is pressed
-        handleMove(e.clientY);
-    };
-    const onMouseUp = () => handleEnd();
-    const onMouseLeave = () => {
-        if (isRecording) handleEnd();
-    };
+    const onPointerMove = (e: React.PointerEvent) => handleMove(e.clientY);
+    const onPointerUp = () => handleEnd();
+    const onPointerCancel = () => handleEnd();
 
     // Prevent context menu on long press
     useEffect(() => {
@@ -121,7 +111,7 @@ export function VoiceRecorder({ receiverId, onSend, disabled }: VoiceRecorderPro
         <>
             <button
                 ref={buttonRef}
-                type="button" // prevent form submission
+                type="button"
                 onContextMenu={(e)=>e.preventDefault()}
                 className={cn(
                     "w-full h-10 flex items-center justify-center font-medium rounded-xl select-none touch-none transition-colors",
@@ -130,13 +120,10 @@ export function VoiceRecorder({ receiverId, onSend, disabled }: VoiceRecorderPro
                         : "bg-muted text-muted-foreground hover:bg-muted/80",
                     disabled && "opacity-50 cursor-not-allowed"
                 )}
-                onTouchStart={onTouchStart}
-                onTouchMove={onTouchMove}
-                onTouchEnd={onTouchEnd}
-                onMouseDown={onMouseDown}
-                onMouseMove={onMouseMove}
-                onMouseUp={onMouseUp}
-                onMouseLeave={onMouseLeave}
+                onPointerDown={onPointerDown}
+                onPointerMove={onPointerMove}
+                onPointerUp={onPointerUp}
+                onPointerCancel={onPointerCancel}
                 disabled={disabled}
             >
                 {isRecording ? '松开 结束' : '按住 说话'}
