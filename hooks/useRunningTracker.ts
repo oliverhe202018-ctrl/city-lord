@@ -505,6 +505,18 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     if (isPausedRef.current || isStoppingRef.current) return;
 
     const now = timestamp || Date.now();
+
+    // ================================================================
+    // 🛡️ TIMESTAMP DEDUP (防后台缓存点重复注入)
+    // 后台定位插件可能在唤醒时补发历史缓存点，若时间戳不晚于已处理点则丢弃
+    // ================================================================
+    if (lastLocationRef.current && now <= lastLocationRef.current.timestamp) {
+      console.debug(
+        `[GPS-Filter] ❌ Timestamp DEDUP: incoming ${now} <= last ${lastLocationRef.current.timestamp}`
+      );
+      return;
+    }
+
     const isAwaitingAnchor = pathRef.current.length === 0;
 
     // ================================================================
@@ -946,10 +958,11 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   }, [isRunning, handleLocationUpdate, saveState]);
 
   // This is the SAME data source as TrajectoryLayer (via MapRoot.userPath)
+  // FIX: Removed blanket cache filter — background GPS points from AMap SDK
+  // may come with 'cache' source but are still valid for distance/area calculation.
+  // Timestamp dedup is handled inside handleLocationUpdate.
   useEffect(() => {
     if (!isRunning || !gpsLocation || isStoppingRef.current) return;
-    // Only process actual fixes for path tracking, not cache
-    if (locationSource === 'cache' || locationSource === 'amap-native-cache') return;
 
     // GPS location already filtered by useSafeGeolocation:
     // - 50m accuracy threshold
@@ -957,7 +970,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     // - China bounds validation
     // - WGS84 -> GCJ02 transformation
     //
-    // Just pass it to handleLocationUpdate
+    // Just pass it to handleLocationUpdate (timestamp dedup inside)
     handleLocationUpdate(
       gpsLocation.lat,
       gpsLocation.lng,

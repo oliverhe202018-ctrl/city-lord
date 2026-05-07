@@ -9,6 +9,8 @@ import type { GeoPoint } from '@/hooks/useSafeGeolocation';
 import { useLocationStore } from '@/store/useLocationStore';
 import { useLocationContext } from '@/components/GlobalLocationProvider';
 import { useGameStore } from '@/store/useGameStore';
+import { useMapInteractionStore } from '@/store/useMapInteractionStore';
+import { getTerritoryBounds, getTerritoryCenter } from '@/lib/geo/territory-utils';
 import type { ExtTerritory } from '@/types/city';
 
 const MAP_STYLES: Record<string, string> = {
@@ -328,6 +330,86 @@ export function MapRoot({ children }: { children: ReactNode }) {
       map.setMapStyle(MAP_STYLES[themeId] || 'amap://styles/normal');
     }
   }, [map, themeId]);
+
+  // ── 通知驱动的地图聚焦消费逻辑 ──────────────────────────────────────
+  const pendingFocusId = useMapInteractionStore(s => s.pendingFocusId);
+  const setSelectedTerritoryIdFromStore = useMapInteractionStore(s => s.setSelectedTerritoryId);
+  const clearFocus = useMapInteractionStore(s => s.clearFocus);
+  const territoriesRef = useRef<Map<string, any>>(new Map());
+
+  useEffect(() => {
+    if (!pendingFocusId || !map || !isLoaded) return;
+
+    console.log('[MapRoot] consuming pendingFocusId:', pendingFocusId);
+
+    const executeFocus = () => {
+      const polygon = territoriesRef.current.get(pendingFocusId);
+
+      if (polygon) {
+        // 一级优先：多边形已渲染，直接 fitView
+        try {
+          map.setFitView([polygon], false, [60, 60, 60, 60], 17);
+          console.log('[MapRoot] focused via setFitView:', pendingFocusId);
+        } catch (e) {
+          console.warn('[MapRoot] setFitView failed, falling back to bounds:', e);
+          fallbackToBounds(map, pendingFocusId);
+        }
+      } else {
+        // 降级：多边形未实例化，使用 bounds 或 center
+        fallbackToBounds(map, pendingFocusId);
+      }
+
+      // 触发详情面板
+      setSelectedTerritoryIdFromStore(pendingFocusId);
+      setIsDetailSheetOpen(true);
+
+      // 销毁一次性指令
+      clearFocus();
+    };
+
+    const fallbackToBounds = (mapInstance: AMapInstance, territoryId: string) => {
+      const territoryData = territoriesRef.current.get(territoryId);
+      if (territoryData?.path && territoryData.path.length > 0) {
+        try {
+          const bounds = getTerritoryBounds(territoryData.path);
+          mapInstance.setBounds(bounds as any, false, [60, 60, 60, 60]);
+          console.log('[MapRoot] focused via setBounds:', territoryId);
+        } catch (e) {
+          console.warn('[MapRoot] setBounds failed, falling back to panTo:', e);
+          fallbackToPanTo(mapInstance, territoryData.path);
+        }
+      } else {
+        // 极其边缘情况：仅有中心点
+        fallbackToPanTo(mapInstance, territoryData?.path);
+      }
+    };
+
+    const fallbackToPanTo = (mapInstance: AMapInstance, path?: [number, number][]) => {
+      if (path && path.length > 0) {
+        const center = getTerritoryCenter(path);
+        mapInstance.panTo(center as any);
+        mapInstance.setZoom(17);
+        console.log('[MapRoot] focused via panTo + setZoom:', pendingFocusId);
+      } else {
+        console.warn('[MapRoot] cannot focus: no path data for', pendingFocusId);
+      }
+    };
+
+    // 若多边形尚未渲染，延迟重试一次
+    if (!territoriesRef.current.has(pendingFocusId)) {
+      const retryTimer = setTimeout(() => {
+        if (territoriesRef.current.has(pendingFocusId)) {
+          executeFocus();
+        } else {
+          // 第二次仍无数据，使用降级逻辑
+          executeFocus();
+        }
+      }, 500);
+      return () => clearTimeout(retryTimer);
+    }
+
+    executeFocus();
+  }, [pendingFocusId, map, isLoaded, setSelectedTerritoryIdFromStore, clearFocus]);
 
   // Update user position (always) and trajectory (only when running)
   useEffect(() => {

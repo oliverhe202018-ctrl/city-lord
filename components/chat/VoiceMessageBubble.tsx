@@ -17,6 +17,7 @@ import {
   type PlaybackRate,
 } from '@/lib/audio/AudioPlayer';
 import { markVoiceRead } from '@/lib/audio/VoiceMessageService';
+import { transcribeVoice } from '@/app/actions/voice-transcribe';
 
 export interface VoiceQueueItem {
   messageId: string;
@@ -65,14 +66,21 @@ export function VoiceMessageBubble({
   const [isLoading, setIsLoading] = useState(true);
   const [rate, setRate] = useState<PlaybackRate>(getCurrentRate());
   const [localIsRead, setLocalIsRead] = useState(isRead);
-  // 真实音量波形：5 根柱子的高度比例 0~1
   const [barHeights, setBarHeights] = useState<number[]>([0.4, 0.8, 1, 0.8, 0.4]);
+  
+  // 长按与转文字状态
+  const [showActionSheet, setShowActionSheet] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [transcribedText, setTranscribedText] = useState<string | null>(null);
+  const [showTranscription, setShowTranscription] = useState(false);
 
   const urlExpiresAtRef = useRef<number>(0);
   const rafRef = useRef<number | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const pointerMovedRef = useRef(false);
 
   // ── 1. 初始化 signed URL + 预热 ──────────────────────────────────────
   useEffect(() => {
@@ -102,7 +110,7 @@ export function VoiceMessageBubble({
       if (!iAmPlaying) {
         stopRaf();
         stopAnalyser();
-        setCurrentMs(0);
+        // 暂停时不重置 currentMs，保持进度显示
         setBarHeights([0.4, 0.8, 1, 0.8, 0.4]);
       }
     });
@@ -294,6 +302,68 @@ export function VoiceMessageBubble({
     });
   }, [isLoading, messageId, audioUrl, isSender, localIsRead, voiceQueue]);
 
+  // ── 长按逻辑 ─────────────────────────────────────────────────────────
+  const clearLongPressTimer = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }, []);
+
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    pointerMovedRef.current = false;
+    longPressTimerRef.current = setTimeout(() => {
+      setShowActionSheet(true);
+      longPressTimerRef.current = null;
+    }, 500);
+  }, []);
+
+  const handlePointerUp = useCallback(() => {
+    clearLongPressTimer();
+  }, [clearLongPressTimer]);
+
+  const handlePointerCancel = useCallback(() => {
+    clearLongPressTimer();
+  }, [clearLongPressTimer]);
+
+  const handlePointerMove = useCallback(() => {
+    pointerMovedRef.current = true;
+    clearLongPressTimer();
+  }, [clearLongPressTimer]);
+
+  // ── 转文字 ───────────────────────────────────────────────────────────
+  const handleTranscribe = useCallback(async () => {
+    setShowActionSheet(false);
+    if (!audioUrl) return;
+
+    setIsTranscribing(true);
+    setTranscribedText(null);
+    setShowTranscription(true);
+
+    try {
+      const result = await transcribeVoice(audioUrl);
+      if (result.success) {
+        setTranscribedText(result.text);
+      } else {
+        setTranscribedText(`转写失败：${result.error}`);
+      }
+    } catch (error) {
+      setTranscribedText('转写异常，请稍后重试');
+    } finally {
+      setIsTranscribing(false);
+    }
+  }, [audioUrl]);
+
+  const handleForward = useCallback(() => {
+    setShowActionSheet(false);
+    // TODO: 实现转发逻辑
+  }, []);
+
+  const handleDelete = useCallback(() => {
+    setShowActionSheet(false);
+    // TODO: 实现删除逻辑
+  }, []);
+
   // ── 7. 倍速切换 ──────────────────────────────────────────────────────
   const handleRateToggle = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -306,6 +376,7 @@ export function VoiceMessageBubble({
   useEffect(() => {
     return () => {
       stopRaf();
+      clearLongPressTimer();
       if (sourceNodeRef.current) {
         sourceNodeRef.current.disconnect();
         sourceNodeRef.current = null;
@@ -316,7 +387,7 @@ export function VoiceMessageBubble({
       }
       analyserRef.current = null;
     };
-  }, []);
+  }, [clearLongPressTimer]);
 
   // ── 9. 渲染 ──────────────────────────────────────────────────────────
   const totalSec = Math.max(Math.ceil(durationMs / 1000), 1);
@@ -325,7 +396,7 @@ export function VoiceMessageBubble({
   const showUnread = !isSender && !localIsRead;
 
   return (
-    <div className={`flex items-center gap-1 ${isSender ? 'justify-end' : 'justify-start'}`}>
+    <div className={`flex flex-col items-start gap-1 ${isSender ? 'justify-end' : 'justify-start'}`}>
 
       {/* 未读红点（接收方左侧） */}
       {!isSender && (
@@ -338,6 +409,10 @@ export function VoiceMessageBubble({
 
       <button
         onClick={handleToggle}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
+        onPointerMove={handlePointerMove}
         disabled={isLoading}
         style={{ width: bubbleWidth }}
         className={[
@@ -404,6 +479,77 @@ export function VoiceMessageBubble({
       {/* 发送方右侧占位（保持布局对称） */}
       {isSender && (
         <div className="w-3 flex-shrink-0" />
+      )}
+
+      {/* 转文字结果面板 */}
+      {(isTranscribing || transcribedText !== null) && (
+        <div className={`w-full max-w-xs px-3 py-2 rounded-lg text-xs ${
+          isSender ? 'bg-green-50 text-green-800' : 'bg-gray-50 text-gray-700'
+        }`}>
+          {isTranscribing ? (
+            <div className="flex items-center gap-2">
+              <span className="animate-pulse">转写中...</span>
+            </div>
+          ) : transcribedText ? (
+            <div>
+              <button
+                onClick={() => setShowTranscription(!showTranscription)}
+                className="flex items-center gap-1 font-medium mb-1"
+              >
+                <span>{showTranscription ? '收起' : '展开'}转写结果</span>
+                <span className="text-xs">{showTranscription ? '▲' : '▼'}</span>
+              </button>
+              {showTranscription && (
+                <p className="leading-relaxed whitespace-pre-wrap">{transcribedText}</p>
+              )}
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      {/* Action Sheet 遮罩层 */}
+      {showActionSheet && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40"
+          onClick={() => setShowActionSheet(false)}
+        >
+          <div
+            className="w-full max-w-md bg-white rounded-t-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-4 py-3 border-b border-gray-100">
+              <h3 className="text-sm font-medium text-gray-900">操作</h3>
+            </div>
+            <div className="divide-y divide-gray-100">
+              <button
+                onClick={handleTranscribe}
+                className="w-full px-4 py-3 text-sm text-left text-gray-700 active:bg-gray-50"
+              >
+                转文字
+              </button>
+              <button
+                onClick={handleForward}
+                className="w-full px-4 py-3 text-sm text-left text-gray-700 active:bg-gray-50"
+              >
+                转发
+              </button>
+              <button
+                onClick={handleDelete}
+                className="w-full px-4 py-3 text-sm text-left text-red-600 active:bg-red-50"
+              >
+                删除
+              </button>
+            </div>
+            <div className="p-2 border-t border-gray-100">
+              <button
+                onClick={() => setShowActionSheet(false)}
+                className="w-full px-4 py-3 text-sm text-center text-gray-500 active:bg-gray-50 rounded-lg"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

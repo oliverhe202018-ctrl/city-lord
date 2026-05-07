@@ -30,7 +30,7 @@ export async function fetchTerritories(cityId: string, bounds?: { minLng: number
       const { data, error } = await getSupabaseAdmin()
         .from('territories')
         .select(`
-          id, city_id, owner_id, owner_club_id, owner_faction, source_run_id,
+          id, city_id, owner_id, owner_club_id, owner_faction, source_run_id, custom_name,
           captured_at, health, last_maintained_at, owner_change_count, last_owner_change_at,
           geojson_json,
           clubs ( id, name, avatar_url ),
@@ -48,7 +48,7 @@ export async function fetchTerritories(cityId: string, bounds?: { minLng: number
     } else {
       terrData = await prisma.$queryRaw<any[]>`
         SELECT
-          t.id, t.city_id, t.owner_id, t.owner_club_id, t.owner_faction, t.source_run_id,
+          t.id, t.city_id, t.owner_id, t.owner_club_id, t.owner_faction, t.source_run_id, t.custom_name,
           t.captured_at, t.health, t.last_maintained_at, t.owner_change_count, t.last_owner_change_at,
           t.geojson_json,
           CASE
@@ -102,6 +102,7 @@ export async function fetchTerritories(cityId: string, bounds?: { minLng: number
         ownerFillColor: profileJoin?.fill_color ?? null,
         ownerPathColor: profileJoin?.path_color ?? null,
         sourceRunId: t.source_run_id ?? null,
+        customName: t.custom_name ?? null,
         capturedAt: t.captured_at,
         health: t.health ?? 100,
         maxHealth: 100,

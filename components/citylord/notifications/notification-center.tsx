@@ -6,6 +6,8 @@ import { useState, useEffect, createContext, useContext } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/useAuth"
 import { useGameStore } from "@/store/useGameStore"
+import { useMapInteractionStore } from "@/store/useMapInteractionStore"
+import { useRouter } from "next/navigation"
 import { formatDistanceToNow } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
 
@@ -361,6 +363,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const [toasts, setToasts] = useState<Notification[]>([])
   const { user } = useAuth()
   const supabase = createClient()
+  const router = useRouter()
 
   // Fetch Notifications on Mount
   useEffect(() => {
@@ -382,9 +385,13 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
           message: n.body || '',
           timestamp: n.created_at ? formatDistanceToNow(new Date(n.created_at), { addSuffix: true, locale: zhCN }) : '刚刚',
           read: n.is_read || false,
-          action: (n.data as any)?.territoryId ? {
+          action: (n.data as any)?.territory_id ? {
             label: "查看",
-            handler: () => { } // Logic to navigate
+            handler: () => {
+              const territoryId = (n.data as any).territory_id as string
+              useMapInteractionStore.setState({ pendingFocusId: territoryId })
+              router.push('/game?focus=' + territoryId)
+            }
           } : undefined
         })))
       }
@@ -408,9 +415,13 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
           message: n.body || '',
           timestamp: '刚刚',
           read: false,
-          action: (n.data as any)?.territoryId ? {
+          action: (n.data as any)?.territory_id ? {
             label: "查看",
-            handler: () => { }
+            handler: () => {
+              const territoryId = (n.data as any).territory_id as string
+              useMapInteractionStore.setState({ pendingFocusId: territoryId })
+              router.push('/game?focus=' + territoryId)
+            }
           } : undefined
         }
 

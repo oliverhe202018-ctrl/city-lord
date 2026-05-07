@@ -30,6 +30,7 @@ export interface TerritoryDetailResult {
     score_weight?: number
     territory_type?: string
     lastAttackedAt?: Date | string | null
+    customName?: string | null
 }
 
 export async function getTerritoryDetail(
@@ -54,6 +55,7 @@ export async function getTerritoryDetail(
                 score_weight: true,
                 territory_type: true,
                 owner_faction: true,
+                custom_name: true,
                 profiles: {
                     select: {
                         id: true,
@@ -99,6 +101,7 @@ export async function getTerritoryDetail(
         score_weight: territory.score_weight || 1.0,
         territory_type: territory.territory_type || 'NORMAL',
         lastAttackedAt: territory.last_attacked_at ?? null,
+        customName: territory.custom_name || null,
         status: 'success'
     }
 

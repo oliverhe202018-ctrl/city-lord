@@ -825,7 +825,10 @@ export function GamePageContent({
 
   // Share achievement — Web Share API → Clipboard fallback
   const handleShareAchievement = useCallback(async () => {
-    const achievement = currentUnlockedAchievement || fallbackAchievement;
+    const fallbackDef = ACHIEVEMENT_DEFINITIONS.find(a => a.id === 'marathon-hero');
+    const achievement = currentUnlockedAchievement || fallbackDef;
+    if (!achievement) return;
+    
     const shareText = `我在城市领主解锁了成就「${achievement.title}」！${achievement.description}`;
 
     // Try native Web Share API first (works on mobile browsers + Capacitor WebView)
@@ -866,7 +869,7 @@ export function GamePageContent({
       console.error('[Achievement] Clipboard copy failed:', clipErr);
       toast.error('分享失败，请截图手动分享');
     }
-  }, [currentUnlockedAchievement, fallbackAchievement]);
+  }, [currentUnlockedAchievement]);
 
   // GPS retry handler removed per user request
 

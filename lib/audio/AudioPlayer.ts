@@ -9,6 +9,7 @@ export interface QueueItem {
   url: string;
   messageId: string;
   onEnd?: (messageId: string) => void;
+  startTime?: number;
 }
 
 // ---------- 单例状态 ----------
@@ -17,6 +18,9 @@ let currentMessageId: string | null = null;
 let currentRate: PlaybackRate = 1;
 let queue: QueueItem[] = [];
 let isProcessingQueue = false;
+
+// ---------- 进度记忆 ----------
+const positions = new Map<string, number>();
 
 // ---------- 预热缓存 ----------
 // key = messageId，value = 已经 preload 的 Audio 对象
@@ -122,8 +126,12 @@ function setupMediaSession(item: QueueItem, audio: HTMLAudioElement) {
 }
 
 function stopCurrent() {
-  if (currentAudio) {
+  if (currentAudio && currentMessageId) {
     console.log('[AudioPlayer] stopping current audio', currentMessageId);
+    // 保存当前播放进度，支持断点续播
+    if (!currentAudio.paused && currentAudio.currentTime > 0) {
+      positions.set(currentMessageId, currentAudio.currentTime);
+    }
     currentAudio.pause();
     currentAudio.onended = null;
     currentAudio.onerror = null;
@@ -167,6 +175,13 @@ async function playItem(item: QueueItem): Promise<void> {
   audio.volume = 1;
   audio.muted = false;
   audio.playbackRate = currentRate;
+  
+  // 注入起点：优先使用传入的 startTime，否则尝试从 positions 恢复进度
+  const resumeTime = item.startTime ?? positions.get(item.messageId) ?? 0;
+  if (resumeTime > 0) {
+    audio.currentTime = resumeTime;
+    console.log('[AudioPlayer] resuming from', resumeTime, 'seconds', item.messageId);
+  }
   
   currentAudio = audio;
   currentMessageId = item.messageId;

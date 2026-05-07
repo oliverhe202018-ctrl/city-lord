@@ -218,6 +218,70 @@ const getRoundedAvatarTile = (url: string, img: HTMLImageElement, tileSize: numb
   return offscreen;
 };
 
+function renderTerritoryLabels(
+  ctx: CanvasRenderingContext2D,
+  map: any,
+  territories: TerritoryWithRender[],
+  viewportMinLng: number,
+  viewportMaxLng: number,
+  viewportMinLat: number,
+  viewportMaxLat: number,
+  currentZoom: number
+) {
+  if (currentZoom < 15) return;
+
+  const AMapGlobal = (window as typeof window & { AMap?: { LngLat: new (lng: number, lat: number) => unknown } }).AMap;
+  if (!AMapGlobal?.LngLat) return;
+
+  const labelOpacity = Math.min(1, (currentZoom - 15) / 2);
+
+  for (const territory of territories) {
+    if (!territory.bbox) continue;
+    const b = territory.bbox;
+    const intersects =
+      b.maxLng >= viewportMinLng &&
+      b.minLng <= viewportMaxLng &&
+      b.maxLat >= viewportMinLat &&
+      b.minLat <= viewportMaxLat;
+    if (!intersects) continue;
+
+    const outerRings = extractOuterRings(territory.geojson_json);
+    if (outerRings.length === 0) continue;
+
+    const ring = outerRings[0];
+    if (ring.length < 4) continue;
+
+    const centerLng = (b.minLng + b.maxLng) / 2;
+    const centerLat = (b.minLat + b.maxLat) / 2;
+
+    const pixel = map.lngLatToContainer?.(new AMapGlobal.LngLat(centerLng, centerLat));
+    if (!pixel) continue;
+    const x = Number(pixel.x);
+    const y = Number(pixel.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+
+    const displayName = territory.customName || `领地#${territory.id.slice(-4)}`;
+
+    ctx.save();
+    ctx.globalAlpha = labelOpacity;
+    ctx.font = 'bold 12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    const textWidth = ctx.measureText(displayName).width;
+    const padding = 4;
+
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+    ctx.beginPath();
+    ctx.roundRect(x - textWidth / 2 - padding, y - 8 - padding, textWidth + padding * 2, 16 + padding * 2, 4);
+    ctx.fill();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(displayName, x, y);
+    ctx.restore();
+  }
+}
+
 function renderTerritoriesOnCanvas(
   canvas: HTMLCanvasElement,
   map: any,
@@ -370,6 +434,8 @@ function renderTerritoriesOnCanvas(
       ctx.stroke();
     }
   }
+
+  renderTerritoryLabels(ctx, map, territories, viewportMinLng, viewportMaxLng, viewportMinLat, viewportMaxLat, currentZoom);
 }
 
 const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
