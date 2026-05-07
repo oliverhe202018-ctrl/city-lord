@@ -82,6 +82,8 @@ configurations.all {
     resolutionStrategy {
         force 'com.google.protobuf:protobuf-javalite:3.21.12'
         force 'com.google.protobuf:protobuf-java:3.21.12'
+        force 'androidx.core:core:1.15.0'
+        force 'androidx.core:core-ktx:1.15.0'
     }
 }
 

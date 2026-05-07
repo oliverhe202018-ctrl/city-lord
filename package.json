@@ -49,7 +49,7 @@
     "@amap/amap-jsapi-types": "^0.0.15",
     "@capacitor-community/background-geolocation": "^1.2.26",
     "@capacitor-community/keep-awake": "^5.0.1",
-    "@capacitor-community/safe-area": "^8.0.1",
+    "@capacitor-community/safe-area": "^7.0.0",
     "@capacitor-community/text-to-speech": "6.1.0",
     "@capacitor/app": "^6.0.3",
     "@capacitor/browser": "^6.0.6",

@@ -70,11 +70,11 @@
     
     --radius: 0.5rem;
 
-    /* Safe Area Variables — 单行 env() 带 0px fallback (避开属性覆盖陷阱) */
-    --safe-top: env(safe-area-inset-top, 0px);
-    --safe-bottom: env(safe-area-inset-bottom, 0px);
-    --safe-left: env(safe-area-inset-left, 0px);
-    --safe-right: env(safe-area-inset-right, 0px);
+    /* Safe Area Variables — 纯占位符，运行时完全由 ClientShell.tsx SafeArea 插件接管 */
+    --safe-top: 0px;
+    --safe-bottom: 0px;
+    --safe-left: 0px;
+    --safe-right: 0px;
 
     /* Android 状态栏高度 (由 ClientShell 动态注入) */
     --android-status-bar-height: 0px;
