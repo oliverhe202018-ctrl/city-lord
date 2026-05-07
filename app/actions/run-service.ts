@@ -512,18 +512,29 @@ export async function saveRunActivity(
     try {
         if (!userId) throw new Error('User ID is required');
 
-        // ─── P0 时钟防穿越校正 ───
+        // ─── P0 时钟防穿越校正（整体时间轴平移策略） ───
         const serverNow = Date.now();
         const CLOCK_DRIFT_TOLERANCE_MS = 10_000; // 10秒容忍
-        if (runData.timestamp && runData.timestamp > serverNow + CLOCK_DRIFT_TOLERANCE_MS) {
-            console.warn(`[Clock-Defense] 客户端时间超前服务端 ${runData.timestamp - serverNow}ms，强制压平至 serverNow=${serverNow}`);
-            runData.timestamp = serverNow;
-        }
-        // 校正 path 中所有未来时间戳
         const rawPathForClockCheck = (runData.path as any[]) || [];
-        for (const point of rawPathForClockCheck) {
-            if (point.timestamp && point.timestamp > serverNow) {
-                point.timestamp = serverNow;
+
+        // 1. 计算轨迹中最大的未来超前量
+        const maxFutureDrift = Math.max(
+            0,
+            ...rawPathForClockCheck
+                .filter((p: any) => p.timestamp)
+                .map((p: any) => p.timestamp - serverNow)
+        );
+
+        // 2. 如果超前量大于容忍度，则对整个时间轴进行平移
+        if (maxFutureDrift > CLOCK_DRIFT_TOLERANCE_MS) {
+            console.warn(`[Clock-Defense] 客户端时间超前服务端 ${maxFutureDrift}ms，执行整体时间轴平移`);
+            if (runData.timestamp) {
+                runData.timestamp -= maxFutureDrift;
+            }
+            for (const point of rawPathForClockCheck) {
+                if (point.timestamp) {
+                    point.timestamp -= maxFutureDrift;
+                }
             }
         }
 

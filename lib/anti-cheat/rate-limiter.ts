@@ -15,10 +15,16 @@ const runSubmissionLimiter = new Map<string, RateLimitRecord>();
 const MAX_MAP_SIZE = 10000;
 
 /**
+ * TODO (v1.x): 当前基于 In-Memory 的限流器在 Vercel Serverless 多实例并发下可被绕过。
+ * 后续版本需接入 Redis / Upstash Rate Limit 以实现全局严格限流。
+ *
  * Basic in-memory rate limiter for Run API.
- * 
+ *
  * In a distributed Vercel Serverless environment, this restricts submissions
  * per cold-start instance, which is enough to thwart naive tight loops.
+ *
+ * 驱逐策略说明：当前使用 FIFO 驱逐（按插入顺序），非真正的 LRU。
+ * 由于 Map.keys() 返回插入顺序迭代器，slice + delete 实现的是先进先出。
  */
 export function checkRunRateLimit(userId: string): { allowed: boolean; retryAfter?: number } {
     // [God Mode] Tester Whitelist Bypass
@@ -32,7 +38,7 @@ export function checkRunRateLimit(userId: string): { allowed: boolean; retryAfte
     const record = runSubmissionLimiter.get(userId);
 
     if (!record) {
-        // Basic memory management: Evict oldest entries instead of clearing all
+        // FIFO 驱逐（按插入顺序）：删除最早的一批条目
         if (runSubmissionLimiter.size > MAX_MAP_SIZE) {
             const oldestKeys = [...runSubmissionLimiter.keys()].slice(0, 1000);
             oldestKeys.forEach(k => runSubmissionLimiter.delete(k));

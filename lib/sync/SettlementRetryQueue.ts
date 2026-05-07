@@ -1,16 +1,22 @@
 import { openDB, IDBPDatabase, DBSchema } from 'idb';
 
-type SettlementStatus = 'pending' | 'uploading' | 'failed';
+interface SettlementPayload {
+  idempotencyKey?: string;
+  userId: string;
+  [key: string]: unknown;
+}
 
-interface SettlementRecord {
+interface SettlementRecordBase {
   id?: number;
-  payload: any;
+  payload: SettlementPayload;
   retryCount: number;
   createdAt: number;
   lastAttemptAt: number;
-  status: SettlementStatus;
-  lastError?: string;
 }
+
+export type SettlementRecord =
+  | (SettlementRecordBase & { status: 'pending' | 'uploading'; lastError?: never })
+  | (SettlementRecordBase & { status: 'failed'; lastError: string });
 
 interface SettlementDBSchema extends DBSchema {
   pending_settlements: {
@@ -53,7 +59,7 @@ class SettlementRetryQueue {
     return SettlementRetryQueue.instance;
   }
 
-  public async enqueueSettlement(payload: any): Promise<boolean> {
+  public async enqueueSettlement(payload: SettlementPayload): Promise<boolean> {
     if (!this.dbPromise) return false;
     try {
       const db = await this.dbPromise;
@@ -132,8 +138,13 @@ class SettlementRetryQueue {
       if (record) {
         record.retryCount++;
         record.lastAttemptAt = Date.now();
-        record.lastError = errorMessage ?? record.lastError;
-        record.status = record.retryCount > 5 ? 'failed' : 'pending';
+        if (record.retryCount > 5) {
+          record.status = 'failed';
+          record.lastError = errorMessage ?? record.lastError ?? 'Unknown error';
+        } else {
+          record.status = 'pending';
+          record.lastError = errorMessage ?? record.lastError;
+        }
         await store.put(record);
       }
       await tx.done;
