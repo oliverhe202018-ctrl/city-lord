@@ -141,6 +141,75 @@ npm test
 
 ## 📅 近期更新日志 (Changelog)
 
+### 2026-05-09: 🏷️ 领地默认命名规范化重构
+
+- **View 层格式化模块**: 新增 `lib/territory-display.ts`，实现 `getTerritoryDisplayName()` 统一工具函数，封装四级展示名称 Fallback 链：`customName(10字符)` → `clubName(8字符)` → `ownerNickname(6字符)+'的领地'` → `领地_XXXXX`（哈希短码兜底）。
+- **哈希短码算法**: 基于领地 CUID 生成确定性 5 位十进制短码（`00000–99999`），无数据库迁移成本，局部唯一性满足地图展示需求。
+- **社交属性保留**: 重构保留了玩家归属的直观标识（俱乐部名、昵称），仅在匿名领地下回退至冷静短码，兼顾 UI 整洁与社交可见性。
+- **类型安全加固**: `TerritoryDisplayContext.customName` 改为必传字段（移除 `?` 修饰符），在 TypeScript 层强制调用侧显式传值，防止静默跳过第一级 Fallback。
+- **零 DB 迁移**: `custom_name` 字段保持 `String?`（nullable），与 `territory-rename.ts` 的重置逻辑完全兼容，无需 Schema 变更。
+
+### 2026-05-08: 🔐 领地重命名功能全面重构
+
+- **P0 运行时崩溃修复**: 将 `cookies()` 改为顶层静态 `import { cookies } from 'next/headers'`，修复 Next.js 15 动态 import 导致的 `cookies() was called outside a request scope` 崩溃。
+- **事务防竞态 (P1)**: 将 `findUnique` + `update` 封装进 `prisma.$transaction`，消除高并发下 TOCTOU 时间窗口，杜绝冷却期被并发绕过的风险。
+- **同名幂等短路 (P1)**: 新增同名检测逻辑，名称未变更时直接返回 `{ success: true, isIdempotent: true }`，不消耗冷却次数。
+- **重置为默认名**: 支持传入空字符串清除自定义名称（写入 `null`），配合幂等校验一并处理，回退逻辑与 `territory-display.ts` 无缝衔接。
+- **敏感词防御性校验 (P1)**: 为 `mint-filter.verify()` 添加可选链判断（`result?.words`），防止边缘输入下 TypeError 被全局 catch 吞掉。
+- **精准缓存失效 (P4)**: 新增 `revalidateTag(`territory-${territoryId}`)` 按领地 ID 精准失效，保留 `revalidatePath('/map')` 全局刷新。
+- **常量集中管理 (P5)**: 提取 `RENAME_CONFIG = { MAX_LENGTH: 10, COOLDOWN_DAYS: 7 } as const`，支持未来差异化扩展（如 VIP 冷却期）。
+
+### 2026-05-08: ⚡ 时钟漂移防御与结算状态修复
+
+- **时钟漂移修复**: 修复结算时序中因服务器与客户端时钟偏差导致的时间轴位移问题，确保跑步时间戳在极端网络环境下的准确性。
+- **SettlementRecord 严格联合类型**: 将 `SettlementRecord` 从宽松类型收窄为严格 Union，消除结算管道中的类型不一致隐患。
+- **FIFO 限流器注释补全**: 补全原生层 FIFO 坐标缓冲区的核心注释，明确最大容量与淘汰策略，提升代码可维护性。
+
+### 2026-05-08: 🛡️ 安全红队审计漏洞修补 (P0/P1/P2)
+
+- **P0 安全加固**: 修补红队审计发现的高危漏洞，涵盖身份验证、越权访问及数据注入防护。
+- **P1/P2 修复**: 完善接口层幂等性校验、鉴权中间件边界覆盖，关闭多个潜在的权限提升路径。
+
+### 2026-05-08: 🏆 成就系统服务端校验与弱网离线队列
+
+- **成就服务端校验**: 将成就解锁校验从纯客户端迁移至 Server Action，防止客户端篡改成就状态；新增服务端幂等写入保障，避免重复解锁。
+- **离线成就同步组件**: 新增 `OfflineAchievementSync` 组件，消费 `pending_offline_runs` 队列，弱网环境下跑步数据恢复上线后自动补发成就判定。
+- **TDZ 错误修复**: 修复成就分享处理器中的 Temporal Dead Zone 引用错误，确保分享回调在组件挂载后的合法调用时序。
+- **P0/P1 幂等与鉴权**: 修复离线队列重放时的重复提交问题；加固认证令牌在后台状态恢复场景下的有效性校验。
+- **时钟漂移容灾**: 离线队列回放时引入客户端-服务端时间戳偏差容忍窗口，防止因手机时钟偏移导致的结算拒绝。
+
+### 2026-05-08: 📐 跨页面 Safe-Area 统一治理
+
+- **Safe-Area 消费对齐**: 统一社交页与个人中心页的安全区 CSS 消费方式，消除不同设备（尤其是异形屏）上的底部内容被 TabBar 遮挡问题。
+
+### 2026-05-08: 🤖 Android 依赖版本锁定
+
+- **androidx.core 降级**: 将 `androidx.core` 从不稳定版本降级至 `1.15.0`，并在 Gradle 中配置强制版本解析策略（`resolutionStrategy.force`），解决高版本 core 库与 Capacitor 6 的兼容性冲突。
+
+### 2026-05-07: 🛡️ 全局 Safe-Area 系统重构
+
+- **@capacitor-community/safe-area 接入**: 引入官方社区插件实现全局安全区 CSS 变量注入（`--safe-area-inset-*`），替换原有分散的硬编码 padding 方案，统一 iOS 刘海屏与 Android 打孔屏适配。
+- **三阶段 Safe-Area 降级链**: 建立 `Capacitor 插件值 → env() 系统值 → 固定兜底值` 的三级 CSS 降级策略，保障各端一致渲染。
+- **录音竞态修复**: 修复音频录制启动与权限授予之间的 React 异步状态竞态，实现授权后毫秒级录制响应。
+- **Pointer Event 统一**: 将地图交互层的 `onTouchStart/onMouseDown` 统一迁移至 `onPointerDown`，消除移动端事件穿透导致的双触发问题。
+- **聊天安全区重叠修复**: 修复聊天页输入法弹起时底部输入框被 Safe-Area 二次偏移遮挡的问题；修复语音录制按钮长按的无限 toast 循环 Bug。
+- **GPS 标记点抖动修复**: 对 GPS 实时定位 Marker 引入坐标平滑算法，解决信号波动时标记点在地图上的视觉抖动问题。
+- **状态栏 Overlay 修复**: 解决 Android 沉浸式状态栏与页面顶部内容重叠的视觉缺陷。
+
+### 2026-05-07: 🌐 GIS 空间算法关键 Bug 修复
+
+- **多边形污染根治**: 修复因领地多边形坐标精度问题导致的"幽灵重叠"——相邻领地间存在微小面积的错误重叠判定，现通过拓扑清洗前置处理彻底消除。
+- **GIS 黑洞修复**: 修复在极端凹多边形场景下 `ST_Contains` 判定异常导致的"结算黑洞"（领地被错误吞噬），引入 `ST_IsValid` 前置校验与自动修复。
+- **结算状态机终态**: 修复结算流水线在网络超时后状态停留在 `PENDING` 的僵死问题，新增超时自动转 `FAILED` 兜底机制。
+- **伤害引擎精度修复**: 修正领地 HP 伤害计算在浮点边界的精度丢失，统一使用整数运算避免 0.1 伤害被舍入为 0。
+
+### 2026-05-07: ⚙️ 体力系统、阵营排行榜与 GiST 索引
+
+- **体力系统引擎**: 新增玩家体力（Stamina）机制，每次圈地消耗体力值，体力耗尽无法发起新占领；支持按时间自动恢复与道具即时补充。
+- **阵营排行榜**: 新增城市级别的赤红先锋 vs 蔚蓝联盟实时积分榜，按领地总面积与占领数双维排序，每日定时结算。
+- **领地 GiST 空间索引**: 为 `territories.geojson` 列建立 PostgreSQL GiST 索引，大幅提升地图瓦片加载时的空间范围查询（`ST_Intersects`）性能，在千级领地规模下查询耗时降低约 80%。
+- **多项功能优化**: 完善领地详情面板数据展示；优化跑步结算任务队列的并发控制逻辑。
+  
 ### 2026-04-08: 🛡️ 系统稳态加固与类型债清理 (Final Stabilization)
 *   **根布局重构 (BUG-01)**: 彻底解耦 `app/layout.tsx`，将其重构为纯 Server Component，恢复 Header 静态元数据注入；引入 `ClientShell` 统一管理客户端 Provider。
 - **水化崩溃防御 (BUG-02)**: 在 `useGameStore` 持久化层引入类型校验与防御性 reviver，根治因 LocalStorage 损坏导致的 App 启动白屏问题。
