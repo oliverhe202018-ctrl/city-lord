@@ -3,9 +3,9 @@
 import { useState } from 'react'
 import { Drawer, DrawerContent, DrawerOverlay } from '@/components/ui/drawer'
 import { useMapInteraction } from '@/components/map/MapInteractionContext'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getTerritoryDetail } from '@/app/actions/territory-detail'
-import { Loader2, MapPin, Clock, Medal, Flag, Timer, User, Pencil } from 'lucide-react'
+import { Loader2, MapPin, Clock, Medal, Flag, Timer, User, Pencil, RotateCcw } from 'lucide-react'
 import { TerritoryMoreMenu } from './TerritoryMoreMenu'
 import dayjs from 'dayjs'
 import Link from 'next/link'
@@ -24,6 +24,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/hooks/useAuth'
 
+const RENAME_MAX_LENGTH = 10
+
 export function TerritoryDetailSheet() {
     const { selectedTerritory, kingdomMode, isDetailSheetOpen, setIsDetailSheetOpen } = useMapInteraction()
     const [reportDialogOpen, setReportDialogOpen] = useState(false)
@@ -32,6 +34,7 @@ export function TerritoryDetailSheet() {
     const [isRenaming, setIsRenaming] = useState(false)
     const selectedTerritoryId = useGameStore((state) => state.selectedTerritoryId)
     const { user } = useAuth()
+    const queryClient = useQueryClient()
 
     const activeId = selectedTerritoryId || selectedTerritory?.id || null
 
@@ -58,12 +61,13 @@ export function TerritoryDetailSheet() {
         setIsDetailSheetOpen?.(open)
     }
 
-    const handleRenameSubmit = async () => {
-        if (!renameInput.trim() || !territoryId) return
+    const handleRenameSubmit = async (isReset = false) => {
+        const submitValue = isReset ? '' : renameInput
+        if (!territoryId) return
 
         setIsRenaming(true)
         try {
-            const result = await renameTerritory(territoryId, renameInput)
+            const result = await renameTerritory(territoryId, submitValue)
 
             if (!result.success) {
                 if (result.code === 'COOLDOWN') {
@@ -71,16 +75,17 @@ export function TerritoryDetailSheet() {
                 } else if (result.code === 'SENSITIVE_WORD') {
                     toast.error('名称包含敏感词汇，请修改后重试')
                 } else if (result.code === 'INVALID_LENGTH') {
-                    toast.error('名称长度必须为 1-10 个字符')
+                    toast.error(`名称长度不能超过 ${RENAME_MAX_LENGTH} 个字符`)
                 } else {
                     toast.error(result.error || '改名失败')
                 }
                 return
             }
 
-            toast.success('领地名称已更新')
+            toast.success(isReset ? '已恢复默认名称' : '领地名称已更新')
             setRenameDialogOpen(false)
             setRenameInput('')
+            await queryClient.invalidateQueries({ queryKey: ['territory-detail', activeId] })
         } catch (error) {
             toast.error('服务器错误，请稍后重试')
         } finally {
@@ -317,26 +322,35 @@ export function TerritoryDetailSheet() {
                         <DialogTitle>重命名领地</DialogTitle>
                     </DialogHeader>
                     <div className="py-4">
-                        <Input
-                            value={renameInput}
-                            onChange={(e) => setRenameInput(e.target.value)}
-                            placeholder="输入新的领地名称"
-                            maxLength={20}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' && !isRenaming) {
-                                    handleRenameSubmit()
-                                }
-                            }}
-                        />
+                        <div className="relative">
+                            <Input
+                                value={renameInput}
+                                onChange={(e) => setRenameInput(e.target.value)}
+                                placeholder="输入新的领地名称"
+                                maxLength={RENAME_MAX_LENGTH}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && !isRenaming) {
+                                        handleRenameSubmit()
+                                    }
+                                }}
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                                {renameInput.length}/{RENAME_MAX_LENGTH}
+                            </span>
+                        </div>
                         <p className="text-xs text-muted-foreground mt-2">
-                            名称长度 1-10 个字符，每 7 天可修改一次
+                            名称长度 1-{RENAME_MAX_LENGTH} 个字符，每 7 天可修改一次
                         </p>
                     </div>
-                    <DialogFooter>
+                    <DialogFooter className="flex gap-2 sm:gap-0">
                         <Button variant="outline" onClick={() => setRenameDialogOpen(false)} disabled={isRenaming}>
                             取消
                         </Button>
-                        <Button onClick={handleRenameSubmit} disabled={isRenaming || !renameInput.trim()}>
+                        <Button variant="ghost" onClick={() => handleRenameSubmit(true)} disabled={isRenaming} className="flex items-center gap-1">
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            恢复默认
+                        </Button>
+                        <Button onClick={() => handleRenameSubmit()} disabled={isRenaming || !renameInput.trim()}>
                             {isRenaming ? '保存中...' : '保存'}
                         </Button>
                     </DialogFooter>

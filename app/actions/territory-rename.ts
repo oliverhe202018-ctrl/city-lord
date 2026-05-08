@@ -2,8 +2,14 @@
 
 import { prisma } from '@/lib/prisma'
 import { MintFilter } from 'mint-filter'
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
+import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
+
+const RENAME_CONFIG = {
+  MAX_LENGTH: 10,
+  COOLDOWN_DAYS: 7,
+} as const
 
 const FALLBACK_WORDS = ['敏感词', '违规', '垃圾', '广告', '政治', '色情', '暴力', '赌博']
 
@@ -21,12 +27,9 @@ function getFilter(): MintFilter {
     return _filterInstance
 }
 
-const NAME_MAX_LENGTH = 10
-const COOLDOWN_DAYS = 7
-
 export async function renameTerritory(territoryId: string, newName: string) {
   try {
-    const cookieStore = await import('next/headers').then(m => m.cookies())
+    const cookieStore = await cookies()
     const supabase = await createClient(cookieStore)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
@@ -38,69 +41,87 @@ export async function renameTerritory(territoryId: string, newName: string) {
     }
 
     const trimmedName = newName.trim()
+    const isResetToDefault = trimmedName.length === 0
 
-    if (trimmedName.length === 0 || trimmedName.length > NAME_MAX_LENGTH) {
+    if (!isResetToDefault && trimmedName.length > RENAME_CONFIG.MAX_LENGTH) {
       return {
         success: false,
-        error: '名称长度必须为 1-10 个字符',
+        error: `名称长度不能超过 ${RENAME_CONFIG.MAX_LENGTH} 个字符`,
         code: 'INVALID_LENGTH'
       }
     }
 
-    const territory = await prisma.territories.findUnique({
-      where: { id: territoryId, owner_id: user.id },
-      select: {
-        owner_id: true,
-        name_updated_at: true,
-        custom_name: true
-      }
-    })
+    const result = await prisma.$transaction(async (tx) => {
+      const territory = await tx.territories.findUnique({
+        where: { id: territoryId, owner_id: user.id },
+        select: {
+          owner_id: true,
+          name_updated_at: true,
+          custom_name: true
+        }
+      })
 
-    if (!territory) {
-      return {
-        success: false,
-        error: '领地不存在或无权操作',
-        code: 'TERRITORY_NOT_FOUND'
-      }
-    }
-
-    if (territory.name_updated_at) {
-      const daysSinceLastUpdate = (Date.now() - territory.name_updated_at.getTime()) / (1000 * 60 * 60 * 24)
-      if (daysSinceLastUpdate < COOLDOWN_DAYS) {
-        const remainingDays = Math.ceil(COOLDOWN_DAYS - daysSinceLastUpdate)
+      if (!territory) {
         return {
           success: false,
-          error: `改名冷却期还剩 ${remainingDays} 天`,
-          code: 'COOLDOWN',
-          remainingDays
+          error: '领地不存在或无权操作',
+          code: 'TERRITORY_NOT_FOUND'
         }
       }
-    }
 
-    const result = getFilter().verify(trimmedName)
-    if (result.words.length > 0) {
-      return {
-        success: false,
-        error: '名称包含敏感词汇，请修改后重试',
-        code: 'SENSITIVE_WORD',
-        words: result.words
+      if (territory.custom_name === trimmedName || (isResetToDefault && !territory.custom_name)) {
+        return {
+          success: true,
+          customName: territory.custom_name ?? null,
+          isIdempotent: true
+        }
       }
-    }
 
-    await prisma.territories.update({
-      where: { id: territoryId, owner_id: user.id },
-      data: {
-        custom_name: trimmedName,
-        name_updated_at: new Date()
+      if (territory.name_updated_at) {
+        const daysSinceLastUpdate = (Date.now() - territory.name_updated_at.getTime()) / (1000 * 60 * 60 * 24)
+        if (daysSinceLastUpdate < RENAME_CONFIG.COOLDOWN_DAYS) {
+          const remainingDays = Math.ceil(RENAME_CONFIG.COOLDOWN_DAYS - daysSinceLastUpdate)
+          return {
+            success: false,
+            error: `改名冷却期还剩 ${remainingDays} 天`,
+            code: 'COOLDOWN',
+            remainingDays
+          }
+        }
+      }
+
+      if (!isResetToDefault) {
+        const filterResult = getFilter().verify(trimmedName)
+        if (filterResult?.words && filterResult.words.length > 0) {
+          return {
+            success: false,
+            error: '名称包含敏感词汇，请修改后重试',
+            code: 'SENSITIVE_WORD',
+            words: filterResult.words
+          }
+        }
+      }
+
+      await tx.territories.update({
+        where: { id: territoryId, owner_id: user.id },
+        data: {
+          custom_name: isResetToDefault ? null : trimmedName,
+          name_updated_at: new Date()
+        }
+      })
+
+      return {
+        success: true,
+        customName: isResetToDefault ? null : trimmedName
       }
     })
 
-    revalidatePath('/map')
-
-    return {
-      success: true,
-      customName: trimmedName
+    if (result.success) {
+      revalidatePath('/map')
+      revalidateTag(`territory-${territoryId}`)
     }
+
+    return result
   } catch (error) {
     console.error('Failed to rename territory:', error)
     return {
