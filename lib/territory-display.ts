@@ -14,7 +14,7 @@ function truncate(str: string, maxLen: number): string {
 
 export interface TerritoryDisplayContext {
   id: string;
-  customName?: string | null;
+  customName: string | null;
   clubName?: string | null;
   ownerNickname?: string | null;
 }
