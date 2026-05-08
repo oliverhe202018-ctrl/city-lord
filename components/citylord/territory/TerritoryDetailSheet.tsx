@@ -23,6 +23,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/hooks/useAuth'
+import { getTerritoryDisplayName } from '@/lib/territory-display'
 
 const RENAME_MAX_LENGTH = 10
 
@@ -145,7 +146,12 @@ export function TerritoryDetailSheet() {
                                 const healthPercent = Math.max(0, Math.min(100, health));
                                 const healthColor = healthPercent <= 40 ? 'bg-red-500' : healthPercent <= 70 ? 'bg-orange-500' : 'bg-green-500';
                                 
-                                const displayName = detail?.customName || (isClubMode && displayDetail.club ? displayDetail.club.name : (displayDetail.owner?.nickname || '领主'))
+                                const displayName = getTerritoryDisplayName({
+                                    id: displayDetail.territoryId,
+                                    customName: detail?.customName,
+                                    clubName: displayDetail.club?.name,
+                                    ownerNickname: displayDetail.owner?.nickname
+                                })
                                 
                                 return (
                                     <>

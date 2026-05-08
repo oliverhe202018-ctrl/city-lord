@@ -12,6 +12,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { ViewportKingData } from "./AMapView";
 import * as turf from "@turf/turf";
 import { useGameStore, useGameTerritoryAppearance } from "@/store/useGameStore";
+import { getTerritoryDisplayName } from "@/lib/territory-display";
 
 const CLUB_COLORS = {
   self: { fill: "#3b82f6", stroke: "#2563eb", fillOpacity: 0.35 },
@@ -226,7 +227,8 @@ function renderTerritoryLabels(
   viewportMaxLng: number,
   viewportMinLat: number,
   viewportMaxLat: number,
-  currentZoom: number
+  currentZoom: number,
+  ownerProfileMap: Map<string, { nickname: string; avatarUrl: string | null }>
 ) {
   if (currentZoom < 15) return;
 
@@ -260,7 +262,13 @@ function renderTerritoryLabels(
     const y = Number(pixel.y);
     if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
 
-    const displayName = territory.customName || `领地#${territory.id.slice(-4)}`;
+    const ownerProfile = territory.ownerId ? ownerProfileMap.get(territory.ownerId) : null;
+    const displayName = getTerritoryDisplayName({
+      id: territory.id,
+      customName: territory.customName,
+      clubName: territory.ownerClub?.name,
+      ownerNickname: ownerProfile?.nickname
+    });
 
     ctx.save();
     ctx.globalAlpha = labelOpacity;
@@ -287,7 +295,8 @@ function renderTerritoriesOnCanvas(
   map: any,
   territories: TerritoryWithRender[],
   canvasSizeRef: { current: { width: number; height: number } },
-  onNeedRedraw?: () => void
+  onNeedRedraw?: () => void,
+  ownerProfileMap?: Map<string, { nickname: string; avatarUrl: string | null }>
 ) {
   const size = map.getSize?.();
   if (!size) return;
@@ -435,7 +444,7 @@ function renderTerritoriesOnCanvas(
     }
   }
 
-  renderTerritoryLabels(ctx, map, territories, viewportMinLng, viewportMaxLng, viewportMinLat, viewportMaxLat, currentZoom);
+  renderTerritoryLabels(ctx, map, territories, viewportMinLng, viewportMaxLng, viewportMinLat, viewportMaxLat, currentZoom, ownerProfileMap || new Map());
 }
 
 const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
@@ -679,9 +688,10 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
         canvasSizeRef,
         () => {
           if (!mapInteractingRef.current && canvasRef.current) {
-            renderTerritoriesOnCanvas(canvasRef.current, map, territoriesDataRef.current, canvasSizeRef);
+            renderTerritoriesOnCanvas(canvasRef.current, map, territoriesDataRef.current, canvasSizeRef, undefined, ownerProfileMapRef.current);
           }
-        }
+        },
+        ownerProfileMapRef.current
       );
       
       // 更新缓存
