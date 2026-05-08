@@ -17,6 +17,14 @@
  *  - enabled=true 时 → enableBackgroundLocation()
  *  - enabled=false 时 → disableBackgroundLocation()
  *  当前标记为 TODO，待集成 @capacitor-community/foreground-service。
+ *
+ * [ARCH-DEBT] 锁屏定位中断问题：
+ *   Web WakeLock 无法在锁屏下保活，Android WebView 在屏幕关闭后会被系统挂起，
+ *   导致 GPS 定位流中断、跑步轨迹断档。
+ *   必须在下一迭代立项引入：
+ *     - Android: @capacitor-community/foreground-service（前台服务保活）
+ *     - iOS: background-geolocation 插件（后台定位模式）
+ *   当前版本暂不支持锁屏持续绘制，锁屏后定位数据可能丢失。
  */
 
 import { useEffect, useRef, useCallback, useState } from 'react';
@@ -418,7 +426,9 @@ export function useRunningLocation(options: UseRunningLocationOptions) {
                 reason: 'Running location cleanup — downgrading to browse',
             });
 
-            // TODO: disableBackgroundLocation()
+            // [ARCH-DEBT] disableBackgroundLocation() — 锁屏定位保活缺失
+            // 当前无任何后台保活机制，锁屏后 WebView 被系统挂起，GPS 流中断
+            // 需在下一迭代引入 ForegroundService (Android) / background-geolocation (iOS)
 
             downgradeToBrowse().catch((e) => {
                 console.warn(`${TAG} downgradeToBrowse error:`, e);

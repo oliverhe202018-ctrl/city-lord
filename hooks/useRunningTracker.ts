@@ -17,7 +17,7 @@ import {
   GPS_START_ANCHOR_ACCURACY_METERS,
   GPS_TRACKING_ACCURACY_METERS,
 } from '@/store/useLocationStore';
-import { getDistanceFromLatLonInMeters, LOOP_CLOSURE_THRESHOLD_M, isLoopClosed, MIN_LOOP_POINTS } from '@/lib/geometry-utils';
+import { getDistanceFromLatLonInMeters, LOOP_CLOSURE_THRESHOLD_M, isLoopClosed, MIN_LOOP_POINTS, extractValidLoops } from '@/lib/geometry-utils';
 import { shouldAcceptPointByDistance } from '@/lib/location/gps-spatial-filter';
 import { validateSegmentSpeed } from '@/lib/location/gps-speed-validator';
 import { ActiveRandomEvent, useRandomEvents } from '@/hooks/useRandomEvents';
@@ -199,6 +199,8 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   const closedPolygonsRef = useRef(closedPolygons);
   const areaRef = useRef(area);
   const isWarmingUpRef = useRef(true);
+  const realtimeLoopCheckCounterRef = useRef(0);
+  const claimedLoopKeysRef = useRef<Set<string>>(new Set());
 
   // ─── Kalman Filters (replace legacy EMA smoothing) ───
   const kalmanLatRef = useRef(new KalmanFilter1D(3.0, 25.0));
@@ -749,45 +751,41 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           loopForCalc.map((point, index) => ({ lat: point.lat, lng: point.lng, timestamp: point.timestamp ?? index })),
           LOOP_CLOSURE_THRESHOLD_M
         );
-        if (!loopCheck.isClosed) {
-          return;
-        }
-        const coords = loopForCalc.map(pt => [pt.lng, pt.lat]);
-        if (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1]) {
-            coords.push([...coords[0]]);
-        }
-        const poly = turf.polygon([coords]);
-        const loopArea = turf.area(poly);
-
-        if (loopArea > 100) {
-          // Recalculate total combined area
-          const nextClaims = [...sessionClaimsRef.current, loopForCalc];
-          const newTotalArea = calculateArea(nextClaims);
-          
-          setSessionClaims(nextClaims);
-          setClosedPolygons(prevPolys => [...prevPolys, loopForCalc!]);
-          setArea(newTotalArea);
-          lastClaimAtRef.current = now;
-
-          const closingPoint = loopForCalc[loopForCalc.length - 1];
-          const currentPathForSync = pathRef.current;
-          const lastPoint = currentPathForSync[currentPathForSync.length - 1];
-          if (!lastPoint || closingPoint.lat !== lastPoint.lat || closingPoint.lng !== lastPoint.lng) {
-            const updatedPath = [...currentPathForSync, closingPoint];
-            pathRef.current = updatedPath;
-            setPath(updatedPath);
+        if (loopCheck.isClosed) {
+          const coords = loopForCalc.map(pt => [pt.lng, pt.lat]);
+          if (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1]) {
+              coords.push([...coords[0]]);
           }
+          const poly = turf.polygon([coords]);
+          const loopArea = turf.area(poly);
 
-          // 阈值锁：只有总面积比上次弹窗时增加了至少 50m² 才再次弹出 Toast。
-          // 防止 GPS 边界漂移（少数几平米的微小封闭圆）触发视觉骚扰。
-          const TOAST_AREA_INCREMENT_THRESHOLD = 50; // m²
-          const incrementalArea = newTotalArea - lastToastAreaRef.current;
-          if (incrementalArea >= TOAST_AREA_INCREMENT_THRESHOLD) {
-            lastToastAreaRef.current = newTotalArea;
-            toast.success(`🎉 领地已捕获！新增面积: ${Math.round(incrementalArea)}m²`, {
-              description: '跑步记录中... 继续前进占领更多领地！',
-              duration: 3000
-            });
+          if (loopArea > 100) {
+            const nextClaims = [...sessionClaimsRef.current, loopForCalc];
+            const newTotalArea = calculateArea(nextClaims);
+            
+            setSessionClaims(nextClaims);
+            setClosedPolygons(prevPolys => [...prevPolys, loopForCalc!]);
+            setArea(newTotalArea);
+            lastClaimAtRef.current = now;
+
+            const closingPoint = loopForCalc[loopForCalc.length - 1];
+            const currentPathForSync = pathRef.current;
+            const lastPoint = currentPathForSync[currentPathForSync.length - 1];
+            if (!lastPoint || closingPoint.lat !== lastPoint.lat || closingPoint.lng !== lastPoint.lng) {
+              const updatedPath = [...currentPathForSync, closingPoint];
+              pathRef.current = updatedPath;
+              setPath(updatedPath);
+            }
+
+            const TOAST_AREA_INCREMENT_THRESHOLD = 50;
+            const incrementalArea = newTotalArea - lastToastAreaRef.current;
+            if (incrementalArea >= TOAST_AREA_INCREMENT_THRESHOLD) {
+              lastToastAreaRef.current = newTotalArea;
+              toast.success(`🎉 领地已捕获！新增面积: ${Math.round(incrementalArea)}m²`, {
+                description: '跑步记录中... 继续前进占领更多领地！',
+                duration: 3000
+              });
+            }
           }
         }
       } catch (e) {
@@ -802,6 +800,64 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     const updatedPath = [...pathRef.current, finalLoc];
     pathRef.current = updatedPath;
     setPath(updatedPath);
+
+    // ========================================================================
+    // 🔄 REAL-TIME SELF-INTERSECTION LOOP DETECTION (with throttling)
+    // ========================================================================
+    // 每累计 5 个 GPS 点触发一次 extractValidLoops 自交检测，
+    // 覆盖 P 形环、8 字形等复杂轨迹，确保 UI 面积实时跳动。
+    // Strategy B 为 O(n) 复杂度，1500 点内性能开销可接受。
+    // ========================================================================
+    realtimeLoopCheckCounterRef.current++;
+    if (realtimeLoopCheckCounterRef.current % 5 === 0 && pathRef.current.length >= 6) {
+      const detectedLoops = extractValidLoops(pathRef.current);
+      
+      for (const loop of detectedLoops) {
+        if (loop.length < 4) continue;
+        
+        // 去重 key：使用环首点的 lat/lng/timestamp 三元组，比 index 更稳定
+        const firstPt = loop[0];
+        const loopKey = `${firstPt.lat.toFixed(6)}-${firstPt.lng.toFixed(6)}-${firstPt.timestamp}`;
+        if (claimedLoopKeysRef.current.has(loopKey)) {
+          continue;
+        }
+        
+        // 计算面积，过滤微小环
+        const coords = loop.map(pt => [pt.lng, pt.lat]);
+        if (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1]) {
+          coords.push([...coords[0]]);
+        }
+        
+        try {
+          const poly = turf.polygon([coords]);
+          const loopArea = turf.area(poly);
+          if (loopArea < 100) continue;
+          
+          // 标记已处理 + 更新状态
+          claimedLoopKeysRef.current.add(loopKey);
+          
+          const nextClaims = [...sessionClaimsRef.current, loop as Location[]];
+          const newTotalArea = calculateArea(nextClaims);
+          
+          setSessionClaims(nextClaims);
+          setClosedPolygons(prevPolys => [...prevPolys, loop as Location[]]);
+          setArea(newTotalArea);
+          lastClaimAtRef.current = now;
+          
+          const TOAST_AREA_INCREMENT_THRESHOLD = 50;
+          const incrementalArea = newTotalArea - lastToastAreaRef.current;
+          if (incrementalArea >= TOAST_AREA_INCREMENT_THRESHOLD) {
+            lastToastAreaRef.current = newTotalArea;
+            toast.success(`🎉 领地已捕获！新增面积: ${Math.round(incrementalArea)}m²`, {
+              description: '跑步记录中... 继续前进占领更多领地！',
+              duration: 3000
+            });
+          }
+        } catch (e) {
+          console.warn("[useRunningTracker] Real-time loop polygon invalid", e);
+        }
+      }
+    }
 
     if (lastLocationRef.current) {
       const dist = getDistanceFromLatLonInMeters(
@@ -1265,6 +1321,8 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     firstPointAtRef.current = null;
     isWarmingUpRef.current = true;
     isHydratingRef.current = false;
+    realtimeLoopCheckCounterRef.current = 0;
+    claimedLoopKeysRef.current = new Set();
     kalmanLatRef.current.reset();
     kalmanLngRef.current.reset();
     console.log('[DEBUG:RunningTracker] finalize (Store Reset) FINISHED. distance resets to 0');
