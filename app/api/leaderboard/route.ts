@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { formatArea } from '@/lib/citylord/area-utils'
+import { provinceCodeToName } from '@/lib/geo/province-mapping'
 import type { RankItem } from '@/types/home'
 
 export const dynamic = 'force-dynamic'
@@ -36,7 +37,7 @@ export async function GET(request: NextRequest) {
 
       const leaderboard = snapshots.map((s) => ({
         rank: s.rank,
-        name: s.scope_code || '未知省份',
+        name: provinceCodeToName(s.scope_code),
         score: s.total_area,
         scoreLabel: formatArea(s.total_area).fullText,
         isMe: false,
