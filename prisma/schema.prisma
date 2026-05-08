@@ -34,6 +34,8 @@ model profiles {
   province                                                       String?
   city_code                                                      String?
   city_name                                                      String?
+  district_code                                                  String?
+  province_code                                                  String?
   is_active                                                      Boolean                       @default(true)
   referral_code                                                  String?                       @unique
   referrer_id                                                    String?                       @db.Uuid
@@ -1037,13 +1039,18 @@ model post_reports {
 }
 
 model leaderboard_snapshots {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  season_id    String   @db.Uuid
-  dimension    String
-  rank_data    Json     @db.Json
-  generated_at DateTime @default(now()) @db.Timestamptz(6)
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  snapshot_date DateTime @db.Date
+  scope         String
+  scope_code    String?
+  rank          Int
+  user_id       String?   @db.Uuid
+  total_area    Float
+  nickname      String?
+  avatar_url    String?
 
-  @@unique([season_id, dimension])
+  @@unique([snapshot_date, scope, scope_code, rank])
+  @@index([snapshot_date, scope, scope_code])
   @@schema("public")
 }
 

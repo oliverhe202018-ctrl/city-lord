@@ -4,7 +4,14 @@ import { prisma } from '@/lib/prisma'
 import { formatArea } from '@/lib/citylord/area-utils'
 import type { RankItem } from '@/types/home'
 
-const TOP_N = 5
+export const dynamic = 'force-dynamic'
+
+function getBeijingDate(): Date {
+  const now = new Date()
+  const utc = now.getTime() + now.getTimezoneOffset() * 60000
+  const beijing = new Date(utc + 8 * 3600000)
+  return new Date(Date.UTC(beijing.getFullYear(), beijing.getMonth(), beijing.getDate()))
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,62 +25,79 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const type = searchParams.get('type') || 'global'
 
+    const snapshotDate = getBeijingDate()
+
+    if (type === 'province') {
+      const snapshots = await prisma.leaderboard_snapshots.findMany({
+        where: { snapshot_date: snapshotDate, scope: 'province' },
+        orderBy: { rank: 'asc' },
+        select: { rank: true, scope_code: true, total_area: true },
+      })
+
+      const leaderboard = snapshots.map((s) => ({
+        rank: s.rank,
+        name: s.scope_code || '未知省份',
+        score: s.total_area,
+        scoreLabel: formatArea(s.total_area).fullText,
+        isMe: false,
+      }))
+
+      return NextResponse.json({ leaderboard, myRank: null, isProvinceRanking: true })
+    }
+
     const userProfile = await prisma.profiles.findUnique({
       where: { id: userId },
-      select: { city_code: true, city_name: true, total_area: true, nickname: true },
+      select: { district_code: true, total_area: true, nickname: true },
     })
 
     if (!userProfile) {
       return NextResponse.json({ leaderboard: [] })
     }
 
-    const where: Record<string, unknown> = { is_active: true }
-    let fallback: string | null = null
+    let scopeCode: string | null = null
 
-    if (type === 'city') {
-      if (!userProfile.city_code) {
-        // 降级到全国榜，并附标识
-        fallback = 'global_fallback'
-      } else {
-        where.city_code = userProfile.city_code
+    if (type === 'district') {
+      scopeCode = userProfile.district_code
+      if (!scopeCode) {
+        return NextResponse.json({ leaderboard: [], fallback: 'no_district' })
       }
     }
 
-    const topUsers = await prisma.profiles.findMany({
-      where,
-      orderBy: { total_area: 'desc' },
-      take: TOP_N,
-      select: {
-        id: true,
-        nickname: true,
-        avatar_url: true,
-        total_area: true,
+    const snapshots = await prisma.leaderboard_snapshots.findMany({
+      where: {
+        snapshot_date: snapshotDate,
+        scope: type === 'district' ? 'district' : 'global',
+        ...(scopeCode ? { scope_code: scopeCode } : {}),
       },
+      orderBy: { rank: 'asc' },
+      select: { rank: true, user_id: true, total_area: true, nickname: true, avatar_url: true },
     })
 
-    const leaderboard: RankItem[] = topUsers.map((u, i) => ({
-      rank: i + 1,
-      name: u.nickname || '未知跑者',
-      score: u.total_area ?? 0,
-      scoreLabel: formatArea(u.total_area ?? 0).fullText,
-      avatar: u.avatar_url || undefined,
-      isMe: u.id === userId,
+    const leaderboard: RankItem[] = snapshots.map((s) => ({
+      rank: s.rank,
+      name: s.nickname || '未知跑者',
+      score: s.total_area,
+      scoreLabel: formatArea(s.total_area).fullText,
+      avatar: s.avatar_url || undefined,
+      isMe: s.user_id === userId,
     }))
 
-    const isInTop5 = topUsers.some((u) => u.id === userId)
+    const isInTop = snapshots.some((s) => s.user_id === userId)
     let myRank: RankItem | null = null
 
-    if (!isInTop5 && userProfile.total_area != null) {
+    if (!isInTop && userProfile.total_area != null) {
       const userArea = userProfile.total_area
-      const rankCount = await prisma.profiles.count({
+      const rankCount = await prisma.leaderboard_snapshots.count({
         where: {
-          ...where,
+          snapshot_date: snapshotDate,
+          scope: type === 'district' ? 'district' : 'global',
+          ...(scopeCode ? { scope_code: scopeCode } : {}),
           total_area: { gt: userArea },
         },
       })
 
       const rank = rankCount + 1
-      const fifthPlace = topUsers[4]
+      const fifthPlace = snapshots[4]
       const gapToTarget = fifthPlace
         ? Math.round((fifthPlace.total_area ?? 0) - userArea)
         : 0
@@ -88,7 +112,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ leaderboard, myRank, fallback })
+    return NextResponse.json({ leaderboard, myRank })
   } catch (error) {
     console.error('[api/leaderboard] error:', error)
     return NextResponse.json({ leaderboard: [], error: 'Internal error' }, { status: 500 })

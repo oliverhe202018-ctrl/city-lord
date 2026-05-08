@@ -752,22 +752,24 @@ export const runSettlementTask = task({
                 if (pathPoints && pathPoints.length > 0) {
                     const firstPoint = pathPoints[0];
                     if (firstPoint && typeof firstPoint.lat === 'number' && typeof firstPoint.lng === 'number') {
-                        const { cityName, adcode } = await reverseGeocodeCity(firstPoint.lat, firstPoint.lng);
-                        if (adcode || cityName) {
+                        const { cityName, adcode, districtCode, provinceCode } = await reverseGeocodeCity(firstPoint.lat, firstPoint.lng);
+                        if (adcode || cityName || districtCode || provinceCode) {
                             await prisma.profiles.update({
                                 where: { id: userId },
                                 data: {
                                     ...(adcode ? { city_code: adcode } : {}),
                                     ...(cityName ? { city_name: cityName } : {}),
+                                    ...(districtCode ? { district_code: districtCode } : {}),
+                                    ...(provinceCode ? { province_code: provinceCode } : {}),
                                     updated_at: new Date(),
                                 },
                             });
-                            console.log(`[run-settlement] city updated for userId=${userId}: city_code=${adcode}, city_name=${cityName}`);
+                            console.log(`[run-settlement] geo updated for userId=${userId}: city_code=${adcode}, district_code=${districtCode}, province_code=${provinceCode}`);
                         }
                     }
                 }
             } catch (geoErr) {
-                console.error('[run-settlement] Failed to update city_code/city_name:', geoErr);
+                console.error('[run-settlement] Failed to update geo metadata:', geoErr);
             }
 
             revalidatePath('/dashboard');

@@ -178,6 +178,18 @@ export function GamePageContent({
     return 'home';
   })
 
+  // [Leaderboard CTA] 监听排行榜空状态 CTA 跳转事件
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { tab: TabType };
+      if (detail?.tab && VALID_TABS.includes(detail.tab)) {
+        setActiveTab(detail.tab);
+      }
+    };
+    window.addEventListener("citylord:switch-tab", handler);
+    return () => window.removeEventListener("citylord:switch-tab", handler);
+  }, []);
+
   // [Anti-Crash] Android 14+ 定位系统受控初始化
   // 仅在注水完成 + 用户登录 + 页面可见时触发
   useEffect(() => {

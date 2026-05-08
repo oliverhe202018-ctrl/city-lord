@@ -34,29 +34,37 @@ function resolveCityName(address: AmapRegeoAddressComponent): string | null {
 export async function reverseGeocodeCity(
   lat: number,
   lng: number
-): Promise<{ cityName: string | null; adcode: string | null }> {
+): Promise<{ cityName: string | null; adcode: string | null; districtCode: string | null; provinceCode: string | null }> {
   const key = process.env.AMAP_SERVER_KEY || process.env.NEXT_PUBLIC_AMAP_KEY;
-  if (!key) return { cityName: null, adcode: null };
+  if (!key) return { cityName: null, adcode: null, districtCode: null, provinceCode: null };
 
   const url = `https://restapi.amap.com/v3/geocode/regeo?key=${key}&location=${lng},${lat}&extensions=base&output=json`;
 
   try {
     const res = await fetch(url, { cache: 'no-store' });
-    if (!res.ok) return { cityName: null, adcode: null };
+    if (!res.ok) return { cityName: null, adcode: null, districtCode: null, provinceCode: null };
 
     const data: AmapRegeoResponse = await res.json();
     const address = data.regeocode?.addressComponent;
     if (data.status !== '1' || !address) {
-      return { cityName: null, adcode: null };
+      return { cityName: null, adcode: null, districtCode: null, provinceCode: null };
     }
 
     const cityName = resolveCityName(address);
+    const fullAdcode = address.adcode ?? null;
+
+    let provinceCode: string | null = null;
+    if (fullAdcode && fullAdcode.length === 6) {
+      provinceCode = fullAdcode.slice(0, 2) + '0000';
+    }
 
     return {
       cityName,
-      adcode: address.adcode ?? null,
+      adcode: fullAdcode,
+      districtCode: fullAdcode,
+      provinceCode,
     };
   } catch {
-    return { cityName: null, adcode: null };
+    return { cityName: null, adcode: null, districtCode: null, provinceCode: null };
   }
 }

@@ -2,16 +2,13 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import Image from 'next/image';
-import { Trophy, Crown, Medal, ChevronUp, TrendingUp } from 'lucide-react';
+import { Trophy, Crown, Medal, ChevronUp, TrendingUp, MapPin } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import useSWR from 'swr';
 import type { RankItem } from '@/types/home';
 import { formatArea } from '@/lib/citylord/area-utils';
 
-/**
- * [Tech Lead] 状态定义与类型支持
- */
-type LeaderboardTab = 'city' | 'global';
+type LeaderboardTab = 'district' | 'province' | 'global';
 
 interface LeaderboardMiniProps {
     initialLeaderboard?: RankItem[];
@@ -19,8 +16,28 @@ interface LeaderboardMiniProps {
     isLoadingInitial?: boolean;
 }
 
-// 通用数据拉取器
 const fetcher = (url: string) => fetch(url).then(res => res.json());
+
+interface LeaderboardApiResponse {
+    leaderboard: Array<{
+        rank: number;
+        name: string;
+        score: number;
+        scoreLabel?: string;
+        avatar?: string;
+        isMe: boolean;
+    }>;
+    myRank: {
+        rank: number;
+        name: string;
+        score: number;
+        scoreLabel?: string;
+        isMe: boolean;
+        gapToTarget?: number;
+    } | null;
+    isProvinceRanking?: boolean;
+    fallback?: string;
+}
 
 function rankIcon(rank: number) {
     if (rank === 1) return <Crown className="h-3.5 w-3.5 text-amber-400" />;
@@ -30,19 +47,21 @@ function rankIcon(rank: number) {
 }
 
 export function LeaderboardMini({ myRank, initialLeaderboard }: LeaderboardMiniProps) {
-    const [activeTab, setActiveTab] = useState<LeaderboardTab>('city');
+    const [activeTab, setActiveTab] = useState<LeaderboardTab>('district');
 
-    const { data: rankings, isLoading } = useSWR<{ leaderboard: RankItem[]; fallback?: string }>(
+    const { data: rankings, isLoading } = useSWR<LeaderboardApiResponse>(
         `/api/leaderboard?type=${activeTab}`,
         fetcher,
-        { 
-            fallbackData: activeTab === 'city' && initialLeaderboard 
-                ? { leaderboard: initialLeaderboard } 
-                : undefined 
+        {
+            fallbackData: activeTab === 'district' && initialLeaderboard
+                ? { leaderboard: initialLeaderboard, myRank }
+                : undefined
         }
     );
 
     const leaderboardData = rankings?.leaderboard || [];
+    const isProvinceRanking = rankings?.isProvinceRanking ?? false;
+    const fallback = rankings?.fallback;
 
     const rankHint = useMemo(() => {
         if (!myRank) return null;
@@ -56,24 +75,22 @@ export function LeaderboardMini({ myRank, initialLeaderboard }: LeaderboardMiniP
 
     return (
         <div className="px-4 relative">
-            {/* Header 区域 - [Tech Lead] 骨架要求结构 */}
             <div className="flex items-center gap-4 mb-4">
-                {/* 标题 */}
                 <div className="flex items-center gap-2">
                     <Trophy className="w-5 h-5 text-purple-500" />
                     <span className="font-medium text-slate-900 dark:text-white">查看排行</span>
                 </div>
 
-                {/* Tab 切换器 (药丸风格) - [Tech Lead] 动力学交互 */}
                 <div className="flex bg-gray-800/60 rounded-full p-1 border border-gray-700/50">
                     {[
-                        { id: 'city', label: '同城' },
-                        { id: 'global', label: '全国' }
+                        { id: 'district' as const, label: '同城' },
+                        { id: 'province' as const, label: '省份' },
+                        { id: 'global' as const, label: '全国' }
                     ].map((tab) => (
                         <button
                             key={tab.id}
-                            onClick={() => setActiveTab(tab.id as LeaderboardTab)}
-                            className={`px-4 py-1 rounded-full text-xs font-medium transition-all duration-300 ${activeTab === tab.id
+                            onClick={() => setActiveTab(tab.id)}
+                            className={`px-3 py-1 rounded-full text-xs font-medium transition-all duration-300 ${activeTab === tab.id
                                 ? 'bg-purple-600/80 text-white shadow-sm'
                                 : 'text-gray-400 hover:text-gray-200'
                                 }`}
@@ -84,7 +101,6 @@ export function LeaderboardMini({ myRank, initialLeaderboard }: LeaderboardMiniP
                 </div>
             </div>
 
-            {/* Content 容器 */}
             <div className="rounded-xl border border-white/10 bg-white/3 overflow-hidden">
                 <AnimatePresence mode="wait">
                     <motion.div
@@ -95,13 +111,14 @@ export function LeaderboardMini({ myRank, initialLeaderboard }: LeaderboardMiniP
                         transition={{ duration: 0.2 }}
                         className="p-3"
                     >
-                        {rankings?.fallback === 'global_fallback' && activeTab === 'city' && (
-                            <div className="mb-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-300/80 text-center">
-                                暂无城市数据，显示全国排行榜
+                        {fallback === 'no_district' && activeTab === 'district' && (
+                            <div className="py-8 text-center space-y-3">
+                                <MapPin className="mx-auto h-6 w-6 text-white/20" />
+                                <p className="text-xs text-white/40">您尚未在任何区县留下足迹</p>
+                                <p className="text-[10px] text-white/30">完成第一次圈地解锁同城排行</p>
                             </div>
                         )}
                         {isLoading && !rankings ? (
-                            /* [Tech Lead] 加载中 UI 容错 */
                             <div className="py-8 text-center space-y-3">
                                 <div className="flex justify-center gap-1">
                                     <div className="h-1.5 w-1.5 rounded-full bg-purple-500 animate-bounce" style={{ animationDelay: '0ms' }} />
@@ -110,14 +127,12 @@ export function LeaderboardMini({ myRank, initialLeaderboard }: LeaderboardMiniP
                                 </div>
                                 <p className="text-[10px] text-white/40">正在拉取活跃领主...</p>
                             </div>
-                        ) : leaderboardData.length === 0 ? (
-                            /* [Tech Lead] 空状态处理 */
+                        ) : leaderboardData.length === 0 && !myRank ? (
                             <div className="py-8 text-center bg-white/2 rounded-lg m-2 border border-dashed border-white/5">
                                 <Trophy className="mx-auto h-6 w-6 text-foreground/10 mb-2" />
                                 <p className="text-xs text-foreground/30">当前范围暂无排名数据</p>
                             </div>
                         ) : (
-                            /* 保持原本优秀的 Top 5 列表 UI */
                             <>
                                 <div className="space-y-1.5">
                                     {leaderboardData.slice(0, 5).map((item) => (
@@ -129,7 +144,11 @@ export function LeaderboardMini({ myRank, initialLeaderboard }: LeaderboardMiniP
                                             <div className="w-4 flex justify-center">
                                                 {rankIcon(item.rank)}
                                             </div>
-                                            {item.avatar ? (
+                                            {isProvinceRanking ? (
+                                                <div className="h-5 w-5 rounded bg-white/10 flex items-center justify-center text-[9px] font-bold text-foreground/40 shrink-0">
+                                                    {item.name.charAt(0)}
+                                                </div>
+                                            ) : item.avatar ? (
                                                 <Image
                                                     src={item.avatar}
                                                     alt=""
@@ -154,7 +173,6 @@ export function LeaderboardMini({ myRank, initialLeaderboard }: LeaderboardMiniP
                                     ))}
                                 </div>
 
-                                {/* 当前用户排名 (如不在前五) */}
                                 {myRank && !leaderboardData.some((r) => r.isMe) && (
                                     <div className="mt-2 pt-2 border-t border-white/5">
                                         <div className="flex items-center gap-2 rounded-lg bg-primary/10 border border-primary/20 px-2 py-1.5">
@@ -172,7 +190,6 @@ export function LeaderboardMini({ myRank, initialLeaderboard }: LeaderboardMiniP
                                             </span>
                                         </div>
 
-                                        {/* 动态排名提示 */}
                                         {rankHint && (
                                             <div className="mt-1.5 flex items-center justify-center gap-1 text-[10px] text-primary/80">
                                                 <TrendingUp className="h-2.5 w-2.5" />
