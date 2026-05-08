@@ -235,9 +235,9 @@ function GameHomePageInner({ onStartRun, onNavigateToMap, onNavigateToTab, onSma
     }
 
     return (
-        <div className="flex h-full flex-col bg-background">
+        <div className="flex min-h-[100dvh] flex-col bg-background">
             {/* Scrollable content area */}
-            <div className="flex-1 overflow-y-auto themed-scrollbar pb-24">
+            <div className="flex-1 overflow-y-auto themed-scrollbar pt-[var(--safe-top,0px)] pb-[calc(env(safe-area-inset-bottom)+96px)]">
                 {/* 0) Top Bar */}
                 <HomeTopBar
                     notificationCount={

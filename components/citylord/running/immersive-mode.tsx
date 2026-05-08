@@ -26,7 +26,7 @@ import { useBattleCaster } from "@/hooks/useBattleCaster"
 import { useGameStore } from "@/store/useGameStore"
 import { ActiveRandomEvent } from "@/hooks/useRandomEvents"
 import { RunEventLog } from "@/types/run-sync"
-import { LOOP_CLOSURE_THRESHOLD_M, getDistanceFromLatLonInMeters } from "@/lib/geometry-utils"
+import { LOOP_CLOSURE_SNAP_M, getDistanceFromLatLonInMeters } from "@/lib/geometry-utils"
 import { getRunSettlementStatus, getTerritoriesByRunId } from "@/app/actions/run-service"
 import { useMapInteraction, MapInteractionProvider } from "@/components/map/MapInteractionContext"
 import { MapRoot } from "@/components/map/MapRoot"
@@ -888,7 +888,6 @@ function ImmersiveRunningModeInner({
   };
 
   const handleAttemptStop = async () => {
-    // Intercept short distance runs first!
     if (distanceMeters < 10) {
       toast.info("距离过短，记录已自动作废", { duration: 3000 });
       await performCleanExit();
@@ -914,31 +913,15 @@ function ImmersiveRunningModeInner({
         endPoint.lat, endPoint.lng
       )
 
-      let isClosed = gap <= 80;
-
-      if (!isClosed && safePath.length > 5) {
-        const startIndexToAvoid = Math.floor(safePath.length * 0.2);
-        for (let i = startIndexToAvoid; i < safePath.length; i++) {
-          const pt = safePath[i];
-          const distToStart = getDistanceFromLatLonInMeters(startPoint.lat, startPoint.lng, pt.lat, pt.lng);
-          if (distToStart <= 120) {
-            isClosed = true;
-            break;
-          }
-        }
-      }
-
-      if (!isClosed) {
-        if (area && area > 10000) {
-          isClosed = true;
-        }
-      }
+      const isClosed = gap <= LOOP_CLOSURE_SNAP_M;
 
       if (isClosed) {
-        await executeFinalSave(hexesCaptured);
+        console.log(`[Stop] ✅ Path closed (gap=${Math.round(gap)}m <= ${LOOP_CLOSURE_SNAP_M}m), saving with territory claim`);
       } else {
-        setShowLoopWarning(true)
+        console.log(`[Stop] ⚠️ Path not closed (gap=${Math.round(gap)}m > ${LOOP_CLOSURE_SNAP_M}m), saving as plain run record`);
       }
+
+      await executeFinalSave(hexesCaptured);
     } catch (err) {
       console.error("handleAttemptStop error, falling back to final save:", err)
       await executeFinalSave(hexesCaptured);

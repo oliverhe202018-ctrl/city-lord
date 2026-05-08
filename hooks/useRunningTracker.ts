@@ -54,8 +54,8 @@ import { getRunSettlementStatus } from '@/app/actions/run-service';
 
 const RECOVERY_KEY = 'CURRENT_RUN_RECOVERY';
 
-const MIN_WARMUP_POINTS = process.env.NODE_ENV === 'development' ? 1 : 3;
-const WARMUP_TIMEOUT_MS = process.env.NODE_ENV === 'development' ? 2000 : 8000;
+const MIN_WARMUP_POINTS = process.env.NODE_ENV === 'development' ? 1 : 2;
+const WARMUP_TIMEOUT_MS = process.env.NODE_ENV === 'development' ? 2000 : 5000;
 const CLOCK_DRIFT_TOLERANCE_MS = 5000;
 
 export interface Location {
@@ -694,10 +694,10 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     // during a continuous run, not the end of the run.
     // ========================================================================
 
-    const MIN_LOOP_SIZE = MIN_LOOP_POINTS; // 4 (GeoJSON Polygon 最低要求: 3个顶点 + 1个闭合点)
+    const MIN_LOOP_SIZE = 5;
     const SNAP_THRESHOLD = LOOP_CLOSURE_THRESHOLD_M;
     const P_SHAPE_MIN_POINT_GAP = 15;
-    const MIN_CLAIM_INTERVAL_MS = 12000;
+    const MIN_CLAIM_INTERVAL_MS = 3000;
 
     let loopForCalc: Location[] | null = null;
     const currentPath = pathRef.current;
@@ -948,11 +948,18 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
                 }
                 
                 // ====== 批量 setPath（单次 React 更新） ======
-                // TODO: 同上方单点注入，需在此处也引入 Douglas-Peucker 增量抽稀
+                // 🗜️ Douglas-Peucker 增量抽稀：当路径超过 500 点时触发抽稀
                 if (validBatchPoints.length > 0) {
                   const updatedPath = [...pathRef.current, ...validBatchPoints];
-                  pathRef.current = updatedPath;
-                  setPath(updatedPath);
+                  const SIMPLIFY_THRESHOLD = 500;
+                  const SIMPLIFY_TOLERANCE = 0.00003; // ~3m
+                  let finalPath = updatedPath;
+                  if (updatedPath.length > SIMPLIFY_THRESHOLD) {
+                    finalPath = simplifyPath(updatedPath, SIMPLIFY_TOLERANCE);
+                    console.log(`[BlackBox] 🗜️ 抽稀: ${updatedPath.length} → ${finalPath.length} 点`);
+                  }
+                  pathRef.current = finalPath;
+                  setPath(finalPath);
                   // 更新 lastLocation ref
                   lastLocationRef.current = validBatchPoints[validBatchPoints.length - 1];
                   setCurrentLocation(validBatchPoints[validBatchPoints.length - 1]);
