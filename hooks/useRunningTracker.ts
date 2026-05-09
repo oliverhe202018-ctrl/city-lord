@@ -909,48 +909,58 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
       console.log(`[Hydrate] 拉取到 ${offlinePoints.length} 条离线定位记录, sessionId=${sessionId}`);
 
-      // 基于时间戳严格去重（使用 pathRef.current 获取最新状态，避免闭包旧快照）
-      const lastPathTime = pathRef.current.length > 0
-        ? pathRef.current[pathRef.current.length - 1].timestamp
-        : 0;
+      // 1. 先对所有离线点进行时间戳排序
+      const sortedOffline = [...offlinePoints].sort((a: { timestamp: number }, b: { timestamp: number }) => a.timestamp - b.timestamp);
 
-      const sortedPoints = offlinePoints
-        .filter((pt: { timestamp: number }) => pt.timestamp > lastPathTime)
-        .sort((a: { timestamp: number }, b: { timestamp: number }) => a.timestamp - b.timestamp);
+      // 2. 提取离线区间边界
+      const offlineStart = sortedOffline[0].timestamp;
+      const offlineEnd = sortedOffline[sortedOffline.length - 1].timestamp;
 
-      if (sortedPoints.length === 0) {
-        console.log('[Hydrate] 所有离线记录已在路径中，无需注入');
-        // 仍需 ACK 释放原生缓冲
-        const idsToAck = offlinePoints.map((pt: { id: number }) => pt.id);
-        AMapLocation.acknowledgeLocations({ ids: idsToAck }).catch(console.warn);
+      // 3. 截断出前置路径和后置路径（核心手术刀）
+      const currentPath = pathRef.current;
+      const prePath = currentPath.filter(p => p.timestamp < offlineStart);
+      const postPath = currentPath.filter(p => p.timestamp > offlineEnd);
+
+      // 4. 对离线点进行速度异常值滤波
+      const SPEED_LIMIT_MS = 15; // 15m/s (约 54km/h，跑步/骑行极限)
+      const validOffline: Location[] = [];
+      let lastRef = prePath.length > 0 ? prePath[prePath.length - 1] : null;
+
+      for (const pt of sortedOffline) {
+        if (lastRef) {
+          const dist = getDistanceFromLatLonInMeters(lastRef.lat, lastRef.lng, pt.lat, pt.lng);
+          const dt = Math.max((pt.timestamp - lastRef.timestamp) / 1000, 0.1);
+          if (dist / dt > SPEED_LIMIT_MS) continue; // 剔除漂移点
+        }
+        validOffline.push({ lat: pt.lat, lng: pt.lng, timestamp: pt.timestamp });
+        lastRef = validOffline[validOffline.length - 1];
+      }
+
+      if (validOffline.length === 0) {
+        console.log('[Hydrate] 所有离线点均为异常漂移点，已剔除');
+        await AMapLocation.acknowledgeLocations({ ids: offlinePoints.map((p: { id: number }) => p.id) });
+        isHydratingRef.current = false;
         return;
       }
 
-      // 批量合入核心（Chunking + rAF yield）
+      // 5. 分批渲染逻辑适配（三段拼接 Chunking）
       const CHUNK_SIZE = 30;
-      const speedLimitMs = 10; // 36 km/h 硬限制
-      const chunks: Array<typeof sortedPoints> = [];
-      for (let i = 0; i < sortedPoints.length; i += CHUNK_SIZE) {
-        chunks.push(sortedPoints.slice(i, i + CHUNK_SIZE));
-      }
-
-      console.log(`[Hydrate] 切分为 ${chunks.length} 个批次 (每批 ${CHUNK_SIZE} 点), 总计 ${sortedPoints.length} 个有效点`);
-
-      const idsToAck = offlinePoints.map((pt: { id: number }) => pt.id);
       let chunkIndex = 0;
+      const totalChunks = Math.ceil(validOffline.length / CHUNK_SIZE);
       let totalDistDelta = 0;
-      let lastRef = lastLocationRef.current;
 
-      const processNextChunk = () => {
-        if (chunkIndex >= chunks.length) {
+      console.log(`[Hydrate] 三段拼接法: prePath=${prePath.length} 点, validOffline=${validOffline.length} 点, postPath=${postPath.length} 点, 共 ${totalChunks} 个批次`);
+
+      const processChunk = async () => {
+        if (chunkIndex >= totalChunks) {
           // 全部批次完成
           isHydratingRef.current = false;
           if (totalDistDelta > 0) {
             setDistance(prev => prev + totalDistDelta);
           }
-          console.log(`[Hydrate] 批量合入完成: ${sortedPoints.length} 个轨迹点, 新增距离 ${totalDistDelta.toFixed(1)}m`);
+          console.log(`[Hydrate] 批量合入完成: ${validOffline.length} 个轨迹点, 新增距离 ${totalDistDelta.toFixed(1)}m`);
 
-          AMapLocation.acknowledgeLocations({ ids: idsToAck })
+          await AMapLocation.acknowledgeLocations({ ids: offlinePoints.map((p: { id: number }) => p.id) })
             .then((ackResult) => {
               console.log(`[Hydrate] ACK 完成: ${ackResult.acknowledged} 条记录已确认`);
             })
@@ -960,48 +970,46 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           return;
         }
 
-        const batch = chunks[chunkIndex];
+        const currentLimit = (chunkIndex + 1) * CHUNK_SIZE;
+        const offlineChunk = validOffline.slice(chunkIndex * CHUNK_SIZE, currentLimit);
 
-        // 速度过滤 + 构建有效点数组
-        const validBatchPoints: Location[] = [];
-        for (const pt of batch) {
-          if (lastRef) {
-            const dist = getDistanceFromLatLonInMeters(lastRef.lat, lastRef.lng, pt.lat, pt.lng);
-            const timeDiffSec = (pt.timestamp - lastRef.timestamp) / 1000;
-            if (timeDiffSec > 0.5) {
-              const speedMs = dist / timeDiffSec;
-              if (speedMs > speedLimitMs) {
-                continue;
-              }
-            }
-            totalDistDelta += dist;
-          }
-          const loc: Location = { lat: pt.lat, lng: pt.lng, timestamp: pt.timestamp };
-          validBatchPoints.push(loc);
-          lastRef = loc;
-        }
+        // 计算本批次新增距离
+        let chunkDistDelta = 0;
+        const firstPointInChunk = offlineChunk[0];
+        const refForChunk = chunkIndex === 0 && prePath.length > 0
+          ? prePath[prePath.length - 1]
+          : (chunkIndex > 0 ? validOffline[chunkIndex * CHUNK_SIZE - 1] : null);
 
-        // 批量 setPath（单次 React 更新）
-        if (validBatchPoints.length > 0) {
-          const updatedPath = [...pathRef.current, ...validBatchPoints];
-          const SIMPLIFY_THRESHOLD = 500;
-          const SIMPLIFY_TOLERANCE = 0.00003;
-          let finalPath = updatedPath;
-          if (updatedPath.length > SIMPLIFY_THRESHOLD) {
-            finalPath = simplifyPath(updatedPath, SIMPLIFY_TOLERANCE);
-            console.log(`[Hydrate] 抽稀: ${updatedPath.length} → ${finalPath.length} 点`);
-          }
-          pathRef.current = finalPath;
-          setPath(finalPath);
-          lastLocationRef.current = validBatchPoints[validBatchPoints.length - 1];
-          setCurrentLocation(validBatchPoints[validBatchPoints.length - 1]);
+        if (refForChunk) {
+          const dist = getDistanceFromLatLonInMeters(refForChunk.lat, refForChunk.lng, firstPointInChunk.lat, firstPointInChunk.lng);
+          chunkDistDelta += dist;
         }
+        for (let i = 1; i < offlineChunk.length; i++) {
+          const dist = getDistanceFromLatLonInMeters(offlineChunk[i - 1].lat, offlineChunk[i - 1].lng, offlineChunk[i].lat, offlineChunk[i].lng);
+          chunkDistDelta += dist;
+        }
+        totalDistDelta += chunkDistDelta;
+
+        // 三段拼接：完美保留锁屏前、锁屏期间、以及解锁后瞬间到达的点
+        const builtSoFar = [
+          ...prePath,
+          ...validOffline.slice(0, currentLimit),
+          ...postPath
+        ];
+
+        pathRef.current = builtSoFar;
+        setPath(builtSoFar);
+
+        // 更新 lastLocationRef 和 currentLocation 为当前最新点
+        const latestPoint = validOffline[validOffline.length > currentLimit ? currentLimit - 1 : validOffline.length - 1];
+        lastLocationRef.current = latestPoint;
+        setCurrentLocation(latestPoint);
 
         chunkIndex++;
-        requestAnimationFrame(() => setTimeout(processNextChunk, 0));
+        requestAnimationFrame(() => setTimeout(processChunk, 16));
       };
 
-      processNextChunk();
+      processChunk();
     } catch (e) {
       isHydratingRef.current = false;
       console.warn('[Hydrate] 从 Room 黑匣子追帧失败（可能在 Web 环境）:', e);
