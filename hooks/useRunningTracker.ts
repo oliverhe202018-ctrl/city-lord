@@ -191,6 +191,8 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   const firstPointAtRef = useRef<number | null>(null);
   /** 防重入锁：防止多次 appStateChange 触发重复分帧注入 */
   const isHydratingRef = useRef(false);
+  /** 缓冲队列：追帧期间拦截的实时 GPS 点，追帧完成后统一消费 */
+  const pendingLivePointsRef = useRef<Location[]>([]);
 
   // ─── Live-snapshot refs (always current, immune to stale closures) ───
   const distanceRef = useRef(distance);
@@ -530,6 +532,12 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   }, []);
 
   const handleLocationUpdate = useCallback((lat: number, lng: number, accuracy?: number, timestamp?: number, isOfflineReplay: boolean = false) => {
+    // 如果当前正在进行异步追帧，将实时点推入缓冲队列并立刻返回
+    if (isHydratingRef.current) {
+      pendingLivePointsRef.current.push({ lat, lng, timestamp: timestamp || Date.now() });
+      return;
+    }
+
     if (isPausedRef.current || isStoppingRef.current) return;
 
     const now = timestamp || Date.now();
@@ -954,7 +962,6 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       const processChunk = async () => {
         if (chunkIndex >= totalChunks) {
           // 全部批次完成
-          isHydratingRef.current = false;
           if (totalDistDelta > 0) {
             setDistance(prev => prev + totalDistDelta);
           }
@@ -967,6 +974,21 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
             .catch((ackErr) => {
               console.warn('[Hydrate] ACK 失败（数据不会丢失，下次苏醒自动重试）:', ackErr);
             });
+
+          // 释放追帧锁（必须先释放，否则后续 flush 会死循环拦截）
+          isHydratingRef.current = false;
+
+          // 消费并清空缓冲队列中的实时点
+          if (pendingLivePointsRef.current.length > 0) {
+            const pendingPoints = [...pendingLivePointsRef.current];
+            pendingLivePointsRef.current = [];
+            console.log(`[Hydrate] 追帧完成，开始注入缓冲队列中的 ${pendingPoints.length} 个实时点`);
+
+            // 依次将缓冲点重新塞入主处理流水线，完美复用距离/闭合计算逻辑
+            pendingPoints.forEach(pt => {
+              handleLocationUpdate(pt.lat, pt.lng, undefined, pt.timestamp);
+            });
+          }
           return;
         }
 
