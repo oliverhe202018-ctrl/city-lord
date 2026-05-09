@@ -21,26 +21,28 @@ export async function addExperienceUnified(
   // --- 浜嬪姟鍐呮墽琛?---
   const result = await prisma.$transaction(
     async (tx) => {
-      // 1. 鑾峰彇褰撳墠绛夌骇涓庣粡楠岋紙鎵句笉鍒版姏鍑洪敊璇級
+      // 1. 获取当前等级与经验（找不到则抛出错误）
       const profile = await tx.profiles.findUniqueOrThrow({
         where: { id: userId },
-        select: { level: true, xp: true }
+        select: { level: true, xp: true, max_stamina: true }
       })
 
       const currentExp = profile.xp || 0
       const currentLevel = profile.level || 1
+      const maxStamina = profile.max_stamina ?? 100
 
       // 2. 计算新经验与等级
       const newExp = currentExp + amount
       const newLevel = calculateLevel(newExp)
       const levelUp = newLevel > currentLevel
 
-      // 3. 更新属性
+      // 3. 更新属性（升级时满血复活）
       await tx.profiles.update({
         where: { id: userId },
         data: {
           xp: newExp,
           level: newLevel,
+          ...(levelUp ? { stamina: maxStamina } : {}),
           updated_at: new Date()
         }
       })
