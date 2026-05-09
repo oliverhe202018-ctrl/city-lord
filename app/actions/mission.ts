@@ -38,3 +38,13 @@ export async function claimReward(missionId: string) {
 // 兼容旧导入名，防止消费文件报错
 export const fetchUserMissions = getMissions;
 export const claimMissionReward = claimReward;
+
+// 批量领取所有任务奖励
+export async function claimAllMissions(missionIds: string[]): Promise<{ success: boolean; results: unknown[] }> {
+  const results = []
+  for (const missionId of missionIds) {
+    const result = await claimReward(missionId)
+    results.push(result)
+  }
+  return { success: true, results }
+}
