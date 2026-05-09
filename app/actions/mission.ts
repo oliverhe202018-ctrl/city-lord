@@ -34,3 +34,7 @@ export async function claimReward(missionId: string) {
 
   return claimMissionReward(user.id, missionId);
 }
+
+// 兼容旧导入名，防止消费文件报错
+export const fetchUserMissions = getMissions;
+export const claimMissionReward = claimReward;
