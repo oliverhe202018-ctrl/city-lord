@@ -1,10 +1,7 @@
-
 import { prisma } from "@/lib/prisma";
 import { RunContext } from "./types";
 import { Prisma } from "@prisma/client";
-
-// A simple leveling curve. In a real app, this might be configurable.
-const XP_CURVE = (level: number) => Math.floor(100 * Math.pow(level, 1.6));
+import { grantRewards } from "@/lib/game-logic/reward-service";
 
 export interface RewardSummary {
   totalPoints: number;
@@ -49,8 +46,12 @@ export async function resolveEventRewards(
 }
 
 /**
- * Applies points and experience to a user's profile in a single transaction.
- * It also handles the logic for leveling up based on the XP curve.
+ * Applies points and experience to a user's profile.
+ * 
+ * 升级判定已委托给 lib/game-logic/reward-service.ts 中的 grantRewards，
+ * 使用 level-system.ts 的 LEVEL_THRESHOLDS 静态查表逻辑，
+ * 确保全站只有唯一一种经验阈值计算标准。
+ * 
  * @param ctx The run context.
  * @param rewardSummary The aggregated rewards to apply.
  * @returns An object indicating if a level-up occurred and the new level.
@@ -59,32 +60,12 @@ export async function applyPointsAndLevel(
   ctx: RunContext,
   rewardSummary: RewardSummary
 ): Promise<{ leveledUp: boolean; newLevel: number }> {
-  return prisma.$transaction(async (tx) => {
-    const profile = await tx.profiles.findUniqueOrThrow({
-      where: { id: ctx.userId },
-    });
+  const result = await grantRewards(
+    ctx.userId,
+    { exp: rewardSummary.totalLevelXp, coins: rewardSummary.totalPoints },
+    'POST_RUN_EVENTS',
+    ctx.runId
+  );
 
-    const newCoins = profile.coins + rewardSummary.totalPoints;
-    let newXp = profile.xp + rewardSummary.totalLevelXp;
-
-    let currentLevel = profile.level;
-    let leveledUp = false;
-
-    // Support multi-level jumps with while loop
-    while (newXp >= XP_CURVE(currentLevel)) {
-      currentLevel++;
-      leveledUp = true;
-    }
-
-    await tx.profiles.update({
-      where: { id: ctx.userId },
-      data: {
-        coins: newCoins,
-        xp: newXp,
-        level: currentLevel,
-      },
-    });
-
-    return { leveledUp, newLevel: currentLevel };
-  });
+  return { leveledUp: result.levelUp, newLevel: result.newLevel };
 }
