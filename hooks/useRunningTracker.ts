@@ -885,6 +885,129 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
   }, []);
 
+  // ========================================================================
+  // 核心追帧函数：从 Room 黑匣子拉取离线点位并批量注入 path
+  // 三入口复用：appStateChange / 启动强制补帧 / 兜底轮询
+  // ========================================================================
+  const hydrateOfflinePoints = useCallback(async (sessionId: string) => {
+    if (isHydratingRef.current) {
+      console.warn('[Hydrate] CAS锁已占用，跳过本次触发（防竞态）');
+      return;
+    }
+
+    isHydratingRef.current = true;
+
+    try {
+      const { AMapLocation } = await import('@/plugins/amap-location/definitions');
+      const res = await AMapLocation.getOfflineLocations({ sessionId });
+      const offlinePoints = res?.locations || [];
+
+      if (offlinePoints.length === 0) {
+        console.log('[Hydrate] 无离线记录需要追帧');
+        return;
+      }
+
+      console.log(`[Hydrate] 拉取到 ${offlinePoints.length} 条离线定位记录, sessionId=${sessionId}`);
+
+      // 基于时间戳严格去重（使用 pathRef.current 获取最新状态，避免闭包旧快照）
+      const lastPathTime = pathRef.current.length > 0
+        ? pathRef.current[pathRef.current.length - 1].timestamp
+        : 0;
+
+      const sortedPoints = offlinePoints
+        .filter((pt: { timestamp: number }) => pt.timestamp > lastPathTime)
+        .sort((a: { timestamp: number }, b: { timestamp: number }) => a.timestamp - b.timestamp);
+
+      if (sortedPoints.length === 0) {
+        console.log('[Hydrate] 所有离线记录已在路径中，无需注入');
+        // 仍需 ACK 释放原生缓冲
+        const idsToAck = offlinePoints.map((pt: { id: number }) => pt.id);
+        AMapLocation.acknowledgeLocations({ ids: idsToAck }).catch(console.warn);
+        return;
+      }
+
+      // 批量合入核心（Chunking + rAF yield）
+      const CHUNK_SIZE = 30;
+      const speedLimitMs = 10; // 36 km/h 硬限制
+      const chunks: Array<typeof sortedPoints> = [];
+      for (let i = 0; i < sortedPoints.length; i += CHUNK_SIZE) {
+        chunks.push(sortedPoints.slice(i, i + CHUNK_SIZE));
+      }
+
+      console.log(`[Hydrate] 切分为 ${chunks.length} 个批次 (每批 ${CHUNK_SIZE} 点), 总计 ${sortedPoints.length} 个有效点`);
+
+      const idsToAck = offlinePoints.map((pt: { id: number }) => pt.id);
+      let chunkIndex = 0;
+      let totalDistDelta = 0;
+      let lastRef = lastLocationRef.current;
+
+      const processNextChunk = () => {
+        if (chunkIndex >= chunks.length) {
+          // 全部批次完成
+          isHydratingRef.current = false;
+          if (totalDistDelta > 0) {
+            setDistance(prev => prev + totalDistDelta);
+          }
+          console.log(`[Hydrate] 批量合入完成: ${sortedPoints.length} 个轨迹点, 新增距离 ${totalDistDelta.toFixed(1)}m`);
+
+          AMapLocation.acknowledgeLocations({ ids: idsToAck })
+            .then((ackResult) => {
+              console.log(`[Hydrate] ACK 完成: ${ackResult.acknowledged} 条记录已确认`);
+            })
+            .catch((ackErr) => {
+              console.warn('[Hydrate] ACK 失败（数据不会丢失，下次苏醒自动重试）:', ackErr);
+            });
+          return;
+        }
+
+        const batch = chunks[chunkIndex];
+
+        // 速度过滤 + 构建有效点数组
+        const validBatchPoints: Location[] = [];
+        for (const pt of batch) {
+          if (lastRef) {
+            const dist = getDistanceFromLatLonInMeters(lastRef.lat, lastRef.lng, pt.lat, pt.lng);
+            const timeDiffSec = (pt.timestamp - lastRef.timestamp) / 1000;
+            if (timeDiffSec > 0.5) {
+              const speedMs = dist / timeDiffSec;
+              if (speedMs > speedLimitMs) {
+                continue;
+              }
+            }
+            totalDistDelta += dist;
+          }
+          const loc: Location = { lat: pt.lat, lng: pt.lng, timestamp: pt.timestamp };
+          validBatchPoints.push(loc);
+          lastRef = loc;
+        }
+
+        // 批量 setPath（单次 React 更新）
+        if (validBatchPoints.length > 0) {
+          const updatedPath = [...pathRef.current, ...validBatchPoints];
+          const SIMPLIFY_THRESHOLD = 500;
+          const SIMPLIFY_TOLERANCE = 0.00003;
+          let finalPath = updatedPath;
+          if (updatedPath.length > SIMPLIFY_THRESHOLD) {
+            finalPath = simplifyPath(updatedPath, SIMPLIFY_TOLERANCE);
+            console.log(`[Hydrate] 抽稀: ${updatedPath.length} → ${finalPath.length} 点`);
+          }
+          pathRef.current = finalPath;
+          setPath(finalPath);
+          lastLocationRef.current = validBatchPoints[validBatchPoints.length - 1];
+          setCurrentLocation(validBatchPoints[validBatchPoints.length - 1]);
+        }
+
+        chunkIndex++;
+        requestAnimationFrame(() => setTimeout(processNextChunk, 0));
+      };
+
+      processNextChunk();
+    } catch (e) {
+      isHydratingRef.current = false;
+      console.warn('[Hydrate] 从 Room 黑匣子追帧失败（可能在 Web 环境）:', e);
+    }
+  }, []);
+
 
   // ======== CRITICAL: React to GPS location from global store ========
   // Capacitor appStateChange — reconcile timer on foreground resume & log state
@@ -893,11 +1016,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     import('@capacitor/app').then(({ App }) => {
       const listenerHandle = App.addListener('appStateChange', async ({ isActive }) => {
         console.log(`[Lifecycle] appStateChange: ${isActive ? 'active' : 'background'} | time: ${new Date().toISOString()}`);
-        
+
         if (isActive && isRunning && !isPausedRef.current && startTimeRef.current !== null) {
-          // ====== CRITICAL: WebView Bridge Hydration Wait ======
-          // After app resume, Capacitor JS Bridge may not be fully mounted.
-          // Calling AMapLocation immediately can crash with "plugin not found".
+          // WebView Bridge Hydration Wait
           await new Promise<void>(resolve => setTimeout(resolve, 500));
 
           // Force re-calculate duration from absolute timestamp
@@ -905,141 +1026,11 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           setDuration(pausedAccumulatorRef.current + elapsed);
           console.log('[useRunningTracker] Foreground resume — timer reconciled (after 500ms bridge wait)');
 
-          // --- BEGIN: Room 黑匣子追帧 — 批量合入 (Batch Hydration) ---
-          try {
-            const { AMapLocation } = await import('@/plugins/amap-location/definitions');
-            const sessionId = runIdempotencyKeyRef.current;
-            
-            const res = await AMapLocation.getOfflineLocations({ sessionId });
-            const offlinePoints = res?.locations || [];
-            
-            if (offlinePoints.length > 0) {
-              console.log(`[BlackBox] 🔄 拉取到 ${offlinePoints.length} 条离线定位记录, sessionId=${sessionId}`);
-              
-              // ====== CAS 硬锁：原子性防重入 ======
-              // 使用 compare-and-swap 模式：仅当 current === false 时置 true
-              if (isHydratingRef.current) {
-                console.warn('[BlackBox] ⚠️ CAS锁已占用，跳过本次触发（防竞态）');
-                return;
-              }
-              isHydratingRef.current = true; // 原子置锁
-              
-              // 基于时间戳严格去重
-              const currentPath = pathRef.current;
-              const lastPathTime = currentPath.length > 0 
-                ? currentPath[currentPath.length - 1].timestamp 
-                : 0;
-              
-              const sortedPoints = offlinePoints
-                .filter((pt: { timestamp: number }) => pt.timestamp > lastPathTime)
-                .sort((a: { timestamp: number }, b: { timestamp: number }) => a.timestamp - b.timestamp);
-              
-              if (sortedPoints.length === 0) {
-                console.log('[BlackBox] 所有离线记录已在路径中，无需注入');
-                isHydratingRef.current = false;
-                // 仍需 ACK 释放原生缓冲
-                const idsToAck = offlinePoints.map((pt: { id: number }) => pt.id);
-                AMapLocation.acknowledgeLocations({ ids: idsToAck }).catch(console.warn);
-                return;
-              }
-              
-              // ====== 批量合入核心（替代逐点 handleLocationUpdate） ======
-              // 将离线点按 CHUNK_SIZE 切片，每批通过一次 setPath 合入，
-              // 使用 requestAnimationFrame 让出主线程给 React 渲染，
-              // 杜绝 for 循环中 N 次 setState 触发的状态洪水。
-              const CHUNK_SIZE = 30;
-              const speedLimitMs = 10; // 36 km/h 硬限制 — 不可放宽
-              const chunks: Array<typeof sortedPoints> = [];
-              for (let i = 0; i < sortedPoints.length; i += CHUNK_SIZE) {
-                chunks.push(sortedPoints.slice(i, i + CHUNK_SIZE));
-              }
-              
-              console.log(`[BlackBox] 📦 切分为 ${chunks.length} 个批次 (每批 ${CHUNK_SIZE} 点), 总计 ${sortedPoints.length} 个有效点`);
-              
-              const idsToAck = offlinePoints.map((pt: { id: number }) => pt.id);
-              let chunkIndex = 0;
-              let totalDistDelta = 0;
-              let lastRef = lastLocationRef.current;
-              
-              const processNextChunk = () => {
-                if (chunkIndex >= chunks.length) {
-                  // ====== 全部批次完成 ======
-                  isHydratingRef.current = false;
-                  // 累加总距离（一次 setState）
-                  if (totalDistDelta > 0) {
-                    setDistance(prev => prev + totalDistDelta);
-                  }
-                  console.log(`[BlackBox] ✅ 批量合入完成: ${sortedPoints.length} 个轨迹点, 新增距离 ${totalDistDelta.toFixed(1)}m`);
-                  
-                  AMapLocation.acknowledgeLocations({ ids: idsToAck })
-                    .then((ackResult) => {
-                      console.log(`[BlackBox] 🔒 ACK 完成: ${ackResult.acknowledged} 条记录已确认`);
-                    })
-                    .catch((ackErr) => {
-                      console.warn('[BlackBox] ⚠️ ACK 失败（数据不会丢失，下次苏醒自动重试）:', ackErr);
-                    });
-                  return;
-                }
-                
-                const batch = chunks[chunkIndex];
-                
-                // 过滤：速度阈值 + 构建有效点数组
-                const validBatchPoints: Location[] = [];
-                for (const pt of batch) {
-                  // 速度过滤（与 handleLocationUpdate Layer-2 一致）
-                  if (lastRef) {
-                    const dist = getDistanceFromLatLonInMeters(lastRef.lat, lastRef.lng, pt.lat, pt.lng);
-                    const timeDiffSec = (pt.timestamp - lastRef.timestamp) / 1000;
-                    if (timeDiffSec > 0.5) {
-                      const speedMs = dist / timeDiffSec;
-                      if (speedMs > speedLimitMs) {
-                        continue; // 超速丢弃
-                      }
-                    }
-                    totalDistDelta += dist;
-                  }
-                  const loc: Location = { lat: pt.lat, lng: pt.lng, timestamp: pt.timestamp };
-                  validBatchPoints.push(loc);
-                  lastRef = loc;
-                }
-                
-                // ====== 批量 setPath（单次 React 更新） ======
-                // 🗜️ Douglas-Peucker 增量抽稀：当路径超过 500 点时触发抽稀
-                if (validBatchPoints.length > 0) {
-                  const updatedPath = [...pathRef.current, ...validBatchPoints];
-                  const SIMPLIFY_THRESHOLD = 500;
-                  const SIMPLIFY_TOLERANCE = 0.00003; // ~3m
-                  let finalPath = updatedPath;
-                  if (updatedPath.length > SIMPLIFY_THRESHOLD) {
-                    finalPath = simplifyPath(updatedPath, SIMPLIFY_TOLERANCE);
-                    console.log(`[BlackBox] 🗜️ 抽稀: ${updatedPath.length} → ${finalPath.length} 点`);
-                  }
-                  pathRef.current = finalPath;
-                  setPath(finalPath);
-                  // 更新 lastLocation ref
-                  lastLocationRef.current = validBatchPoints[validBatchPoints.length - 1];
-                  setCurrentLocation(validBatchPoints[validBatchPoints.length - 1]);
-                }
-                
-                chunkIndex++;
-                // 通过 rAF+setTimeout(0) 双重 yield 让出主线程给 React commit
-                requestAnimationFrame(() => setTimeout(processNextChunk, 0));
-              };
-              
-              // 启动第一批
-              processNextChunk();
-              // ====== 分批分帧注入核心 END ======
-            } else {
-              console.log('[BlackBox] 无离线记录需要追帧');
-            }
-          } catch (e) {
-            isHydratingRef.current = false; // 异常时释放锁
-            console.warn('[BlackBox] 从 Room 黑匣子追帧失败（可能在 Web 环境）:', e);
-          }
-          // --- END: Room 黑匣子追帧 — 分批分帧注入 ---
+          // 入口 1：appStateChange 触发追帧
+          await hydrateOfflinePoints(runIdempotencyKeyRef.current);
         }
 
-        // 关键事件：切后台时立即强制落盘一次
+        // 切后台时立即强制落盘一次
         if (!isActive && isRunning) {
           await saveState();
         }
@@ -1049,7 +1040,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       // Not in Capacitor environment — no-op
     });
     return () => { cleanup?.(); };
-  }, [isRunning, handleLocationUpdate, saveState]);
+  }, [isRunning, saveState, hydrateOfflinePoints]);
 
   // This is the SAME data source as TrajectoryLayer (via MapRoot.userPath)
   // FIX: Removed blanket cache filter — background GPS points from AMap SDK
@@ -1133,6 +1124,76 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       }
     };
   }, [isRunning, isPaused, userId]);
+
+  // ========================================================================
+  // 入口 2：启动强制补帧 — 解决"起步即锁屏"短路问题
+  // isRunning 变为 true 后，等待 Native Service 就绪，立刻追帧一次
+  // ========================================================================
+  useEffect(() => {
+    if (!isRunning || isStoppingRef.current) return;
+
+    let cancelled = false;
+
+    const startupHydrate = async () => {
+      // 等待 Native Service 启动并产出第一个点位（轮询探测）
+      const POLL_INTERVAL_MS = 300;
+      const MAX_WAIT_MS = 5000;
+      const maxRetries = Math.floor(MAX_WAIT_MS / POLL_INTERVAL_MS);
+      let retries = 0;
+
+      while (retries < maxRetries && !cancelled) {
+        await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+
+        try {
+          const { AMapLocation } = await import('@/plugins/amap-location/definitions');
+          const res = await AMapLocation.getOfflineLocations({
+            sessionId: runIdempotencyKeyRef.current,
+          });
+
+          if (res?.count > 0) {
+            console.log(`[StartupHydrate] Native Service 已就绪，发现 ${res.count} 个离线点位`);
+            break;
+          }
+        } catch {
+          // Web 环境或插件未就绪，静默跳过
+        }
+
+        retries++;
+      }
+
+      if (cancelled) return;
+
+      if (retries >= maxRetries) {
+        console.warn('[StartupHydrate] Native Service 超时未产出点位，仍尝试追帧（可能无数据）');
+      }
+
+      // 无论是否有数据，都执行一次追帧（hydrateOfflinePoints 内部会处理空数据场景）
+      await hydrateOfflinePoints(runIdempotencyKeyRef.current);
+    };
+
+    startupHydrate();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isRunning, hydrateOfflinePoints]);
+
+  // ========================================================================
+  // 入口 3：兜底轮询 — 每 30 秒检查一次 Room 是否有堆积点位
+  // 终极保障：即使 appStateChange 未触发，也能定期补帧
+  // ========================================================================
+  useEffect(() => {
+    if (!isRunning || isPaused || isStoppingRef.current) return;
+
+    const interval = setInterval(() => {
+      // 静默追帧，不阻塞主流程
+      hydrateOfflinePoints(runIdempotencyKeyRef.current).catch((e) => {
+        console.warn('[FallbackPoll] 兜底追帧失败:', e);
+      });
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [isRunning, isPaused, hydrateOfflinePoints]);
 
   // Recovery on start — CRITICAL: reset isStoppingRef first!
   useEffect(() => {
