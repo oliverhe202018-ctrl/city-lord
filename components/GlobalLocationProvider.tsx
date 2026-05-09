@@ -194,21 +194,21 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
                 try {
                     useLocationStore.setState({ loading: true, status: 'locating' });
 
-                    await bridgeRef.current!.getCurrentPosition({
+                    // 并行发起 fast-fix，接受 60 秒内的缓存（与 bridge 内部对齐）
+                    bridgeRef.current!.getCurrentPosition({
                         mode: 'fast',
-                        timeout: 8000,
-                        cacheMaxAge: 5000,
-                    });
+                        timeout: 5000,
+                        cacheMaxAge: 60000,
+                    }).catch(() => { /* 静默捕获，不影响后续 watch */ });
 
-                    if (!mountedRef.current) return;
-
-                    console.log(`${TAG} Conditions verified. Executing bridge.startWatch...`);
-                    await bridgeRef.current!.startWatch({
+                    // 并行启动 watch
+                    const watchPromise = bridgeRef.current!.startWatch({
                         mode: isStartWarmupActive ? 'running' : 'browse',
                         interval: isStartWarmupActive ? GPS_START_WARMUP_INTERVAL_MS : GPS_BROWSE_INTERVAL_MS,
                         distanceFilter: isStartWarmupActive ? GPS_START_WARMUP_DISTANCE_FILTER_METERS : 5,
                     });
 
+                    await watchPromise; // 只阻塞等待 watch 建立
                     setPendingStartLocation(false);
                     setIsWatching(true);
                     console.log(`${TAG} Location watch started successfully.`);
@@ -255,6 +255,19 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
                     const approxDistanceMeters = Math.sqrt(dLat * dLat + dLng * dLng);
                     if (approxDistanceMeters < GPS_JITTER_DEAD_ZONE) {
                         return;
+                    }
+                }
+
+                // ── 缓存偏差主动检测 ─────────────────────────────────────────────
+                // 当收到 amap-native 数据时，与缓存位置对比，若偏差 > 500m 则写入 drift
+                const cachedLoc = useLocationStore.getState().location;
+                if (cachedLoc && point.source === 'amap-native') {
+                    const dLat = (point.lat - cachedLoc.lat) * 111000;
+                    const dLng = (point.lng - cachedLoc.lng) * 111000 * Math.cos(point.lat * Math.PI / 180);
+                    const distFromCache = Math.sqrt(dLat * dLat + dLng * dLng);
+
+                    if (distFromCache > 500) {
+                        useLocationStore.setState({ locationDrift: distFromCache });
                     }
                 }
 

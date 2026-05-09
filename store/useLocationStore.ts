@@ -49,6 +49,9 @@ export interface LocationStoreState {
 
     warmupSamples: GeoPoint[];
 
+    /** 基站定位与缓存位置的偏差距离（米），用于触发强制地图飞跃 */
+    locationDrift?: number;
+
     /** 位置元数据（首次缓存接受标记等，来自 bridge） */
     locationMeta: {
         acceptedAsInitial?: boolean;

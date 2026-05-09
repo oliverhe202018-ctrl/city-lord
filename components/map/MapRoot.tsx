@@ -159,6 +159,16 @@ export function MapRoot({ children }: { children: ReactNode }) {
   // ✅ 关键修复：强制 fallback 为合法联合类型值，绝不允许 undefined
   const gpsSignalStrength = useLocationStore(s => (s.gpsSignalStrength ?? 'none') as 'none' | 'weak' | 'good');
   const status = useLocationStore(s => s.status ?? 'initializing');
+  const locationDrift = useLocationStore(s => s.locationDrift ?? 0);
+
+  // ── 订阅 locationDrift：大距离漂移时强制开启追踪并飞跃 ─────────────────
+  useEffect(() => {
+    if (locationDrift > 500) {
+      userInteracted.current = false;
+      setIsTracking(true);
+      useLocationStore.setState({ locationDrift: 0 }); // 消费后清零，防止死循环
+    }
+  }, [locationDrift]);
   
   // Fix: Ensure gpsSignalStrength is properly defined and available in scope
 
@@ -570,15 +580,16 @@ export function MapRoot({ children }: { children: ReactNode }) {
       if (positionStage.current !== 'gps-precise') {
         positionStage.current = 'network-coarse';
         const dist = getDistance();
-        // C.2: Explicit gate and comment for network-coarse isTracking=false
-        // Do not fly unless tracking is on AND the user is far away enough.
-        if (dist > 30) {
-          if (currentIsTracking) {
-            doFlyTo(500, false, 'network-correction');
-          } else {
-            console.debug('[MapRoot] Skipped network-coarse flyTo because isTracking is false');
-            // Marker updates implicitly because userPosition state was set
-          }
+        const isFarRelocation = dist > 500;
+
+        if (isFarRelocation) {
+          // 强制飞跃，打破 isTracking 约束
+          userInteracted.current = false;
+          setIsTracking(true);
+          executeFly(userPosition.lng, userPosition.lat, 600, 'network-relocation-force');
+        } else if (dist > 30 && currentIsTracking) {
+          // 原有的小幅基站修正逻辑
+          doFlyTo(500, false, 'network-correction');
         }
       }
     }
