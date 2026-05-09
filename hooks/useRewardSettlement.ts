@@ -1,7 +1,9 @@
 "use client"
 
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useCallback } from 'react'
+import { useGameStore } from '@/store/useGameStore'
+import type { CelebrationEvent } from '@/store/useGameStore'
 
 interface RewardSettlementResponse {
   status: 'PENDING' | 'COMPLETED' | 'ERROR'
@@ -23,6 +25,27 @@ interface RewardSettlementResponse {
 export function useRewardSettlement(runId: string | undefined) {
   const queryClient = useQueryClient()
   const startTimeRef = useRef<number>(Date.now())
+  const enqueueCelebrations = useGameStore((state) => state.enqueueCelebrations)
+  const hasPolledPendingRef = useRef<boolean>(false)
+
+  const fetchPendingRewards = useCallback(async () => {
+    try {
+      const res = await fetch('/api/user/pending-rewards')
+      if (!res.ok) return
+      const data = await res.json()
+      if (data.rewards && data.rewards.length > 0) {
+        const events: CelebrationEvent[] = data.rewards.map((r: any) => ({
+          id: r.id,
+          type: r.rewardType,
+          payload: r.payload
+        }))
+        enqueueCelebrations(events)
+        await fetch('/api/user/pending-rewards', { method: 'POST' })
+      }
+    } catch (err) {
+      console.error('[useRewardSettlement] Failed to fetch pending rewards:', err)
+    }
+  }, [enqueueCelebrations])
 
   // Anti-Freeze: Force refresh when app resumes from background
   useEffect(() => {
@@ -41,6 +64,14 @@ export function useRewardSettlement(runId: string | undefined) {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [queryClient, runId])
+
+  // Fetch pending rewards when settlement completes
+  useEffect(() => {
+    if (data?.status === 'COMPLETED' && !hasPolledPendingRef.current) {
+      hasPolledPendingRef.current = true
+      fetchPendingRewards()
+    }
+  }, [data?.status, fetchPendingRewards])
 
   const { data, error, isLoading, isError } = useQuery<RewardSettlementResponse>({
     queryKey: ['run-rewards', runId],

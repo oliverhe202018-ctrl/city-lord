@@ -20,6 +20,7 @@ import {
 } from '@/lib/game-logic/event-bus'
 import { updateMissionProgress } from '@/lib/game-logic/mission-service'
 import { checkAndAwardBadges } from '@/lib/game-logic/achievement-core'
+import { prisma } from '@/lib/prisma'
 
 // ═══════════════════════════════════════════════════════════════
 // RUN_FINISHED 事件监听
@@ -97,7 +98,22 @@ async function onLevelUp_CheckBadges(payload: LevelUpPayload): Promise<void> {
  */
 async function onLevelUp_SendNotification(payload: LevelUpPayload): Promise<void> {
   console.log(`[EventListener] LEVEL_UP → SendNotification for user ${payload.userId}: "${payload.newTitle}" (Lv.${payload.newLevel})`)
-  // TODO: Phase 2 — 调用 prisma.notifications.create({ ... })
+
+  try {
+    await prisma.pending_rewards.create({
+      data: {
+        user_id: payload.userId,
+        reward_type: 'LEVEL_UP',
+        payload: {
+          oldLevel: payload.oldLevel,
+          newLevel: payload.newLevel,
+          newTitle: payload.newTitle
+        }
+      }
+    })
+  } catch (err) {
+    console.error('[EventListener] Failed to write LEVEL_UP pending_reward:', err)
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -148,6 +164,30 @@ async function onActivityCompleted_CheckBadges(payload: ActivityCompletedPayload
  */
 async function onBadgeEarned_Log(payload: BadgeEarnedPayload): Promise<void> {
   console.log(`[EventListener] BADGE_EARNED → user ${payload.userId} earned "${payload.badgeName}" (${payload.badgeCode})`)
+
+  try {
+    const badge = await prisma.badges.findUnique({
+      where: { code: payload.badgeCode },
+      select: { icon_name: true, title: true, icon_path: true }
+    })
+
+    await prisma.pending_rewards.create({
+      data: {
+        user_id: payload.userId,
+        reward_type: 'BADGE',
+        payload: {
+          badgeId: payload.badgeId,
+          badgeCode: payload.badgeCode,
+          badgeName: payload.badgeName,
+          icon: badge?.icon_name || null,
+          iconUrl: badge?.icon_path || null,
+          title: badge?.title || null
+        }
+      }
+    })
+  } catch (err) {
+    console.error('[EventListener] Failed to write BADGE pending_reward:', err)
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════

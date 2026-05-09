@@ -128,6 +128,14 @@ export interface RoomState {
   joinedRooms: Room[];
 }
 
+export type CelebrationEventType = 'LEVEL_UP' | 'BADGE' | 'NEW_TITLE';
+
+export interface CelebrationEvent {
+  id: string;
+  type: CelebrationEventType;
+  payload: Record<string, unknown>;
+}
+
 // ==================== Actions ====================
 
 export interface ModeActions {
@@ -155,9 +163,9 @@ export interface ModeActions {
   removeJoinedRoom: (roomId: string) => void;
   syncCurrentRoom: () => Promise<void>;
 
-  // Reward Modal Actions
-  openRewardModal: (data: any) => void;
-  closeRewardModal: () => void;
+  // Celebration Queue Actions
+  enqueueCelebrations: (events: CelebrationEvent[]) => void;
+  dequeueCelebration: () => void;
 }
 
 export interface UserActions {
@@ -245,9 +253,9 @@ export interface GameState extends UserState, LocationState, InventoryState, Wor
   selectedTerritoryId: string | null;
   /** Whether to show faction colors instead of custom ones in personal mode */
   showFaction: boolean;
-  /** Reward Modal State */
-  showRewardModal: boolean;
-  currentRewardData: any | null;
+  /** Celebration Queue for sequential playback of global effects */
+  celebrationQueue: CelebrationEvent[];
+  isPlayingCelebration: boolean;
 }
 
 export interface GameActions extends ModeActions, UserActions, LocationActions, InventoryActions, WorldActions { }
@@ -369,9 +377,14 @@ const createModeSlice: StateCreator<GameStore, [], [], ModeActions> = (set, get)
     currentRoom: state.currentRoom?.id === roomId ? null : state.currentRoom
   })),
 
-  // Reward Modal Actions Implementation
-  openRewardModal: (data) => set({ showRewardModal: true, currentRewardData: data }),
-  closeRewardModal: () => set({ showRewardModal: false, currentRewardData: null }),
+  // Celebration Queue Actions Implementation
+  enqueueCelebrations: (events) => set((state) => ({
+    celebrationQueue: [...state.celebrationQueue, ...events]
+  })),
+  dequeueCelebration: () => set((state) => ({
+    celebrationQueue: state.celebrationQueue.slice(1),
+    isPlayingCelebration: false
+  })),
 
   syncCurrentRoom: async () => {
     const { currentRoom } = get();
@@ -811,8 +824,8 @@ export const useGameStore = create<GameStore>()(
       selectedTerritoryId: null,
       territoryAppearance: initialTerritoryAppearance,
       showFaction: initialShowFaction,
-      showRewardModal: false,
-      currentRewardData: null,
+      celebrationQueue: [],
+      isPlayingCelebration: false,
       ...initialUserState,
       ...initialLocationState,
       ...initialInventoryState,

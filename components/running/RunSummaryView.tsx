@@ -102,7 +102,6 @@ export function RunSummaryView({
   const userId = useGameStore(state => state.userId);
   const faction = useGameStore(state => state.faction);
   const clubId = useGameStore(state => state.clubId);
-  const { openRewardModal } = useGameStore();
   const router = useRouter();
 
   // Settlement State - Received via props, local state only for legacy fallback
@@ -139,12 +138,8 @@ export function RunSummaryView({
     retryDelay: 1000,
   });
 
-  // Watch for reward completion and trigger modal
-  useEffect(() => {
-    if (rewardStatus?.status === 'COMPLETED' && rewardStatus.data) {
-      openRewardModal(rewardStatus.data);
-    }
-  }, [rewardStatus, openRewardModal]);
+  // Watch for reward completion - pending rewards are now fetched by useRewardSettlement hook
+  // No need to open modal here anymore, the CelebrationOrchestrator handles it
 
   // Polling logic removed - Parent captures settlement async
 

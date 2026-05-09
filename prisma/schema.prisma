@@ -95,6 +95,7 @@ model profiles {
   user_purchases                                                 user_purchases[]
   user_season_stats                                              user_season_stats[]
   user_task_logs                                                 user_task_logs[]
+  pending_rewards                                                pending_rewards[]
   watchActivities                                                watch_activities[]
   triggered_random_events                                        random_events[]
 
@@ -642,6 +643,21 @@ model runs {
 
   @@index([club_id], map: "idx_runs_club_id")
   @@index([user_id])
+  @@schema("public")
+}
+
+model pending_rewards {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id     String   @db.Uuid
+  reward_type String   @db.VarChar(50)
+  payload     Json     @db.Json
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  claimed_at  DateTime? @db.Timestamptz(6)
+
+  profiles    profiles @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, claimed_at], map: "idx_pending_rewards_user_claimed")
+  @@index([user_id], map: "idx_pending_rewards_user")
   @@schema("public")
 }
 

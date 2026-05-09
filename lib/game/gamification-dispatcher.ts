@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { applyPointsAndLevel, resolveEventRewards } from '@/lib/gamification/reward-resolver';
 import { RunContext } from '@/lib/gamification/types';
+import { getTitle } from '@/lib/game-logic/level-system';
 
 /**
  * This task is a fire-and-forget dispatcher responsible for orchestrating the entire
@@ -40,6 +41,28 @@ export const processPostRunRewards = task({
             // 3. Apply points, XP, and handle leveling up
             const { leveledUp, newLevel } = await applyPointsAndLevel(context, rewardSummary);
             logger.info('Applied points and level', { leveledUp, newLevel });
+
+            // 3.5. Write LEVEL_UP to pending_rewards queue for frontend consumption
+            if (leveledUp) {
+                const profile = await prisma.profiles.findUnique({
+                    where: { id: userId },
+                    select: { level: true }
+                });
+                const oldLevel = profile?.level ? profile.level - 1 : newLevel - 1;
+                await prisma.pending_rewards.create({
+                    data: {
+                        user_id: userId,
+                        reward_type: 'LEVEL_UP',
+                        payload: {
+                            oldLevel,
+                            newLevel,
+                            newTitle: getTitle(newLevel),
+                            source: 'POST_RUN'
+                        }
+                    }
+                });
+                logger.info('Wrote LEVEL_UP pending_reward', { userId, oldLevel, newLevel });
+            }
 
             // 4. Update context with leveling results for other modules to use
             context.leveledUp = leveledUp;
