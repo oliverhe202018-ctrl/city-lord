@@ -1389,12 +1389,10 @@ export type Database = {
           api_key: string | null
           avatar_url: string | null
           background_url: string | null
-          badges: string[] | null
           club_id: string | null
           coins: number | null
           cover_url: string | null
           created_at: string
-          current_exp: number | null
           faction: string | null
           fill_color: string | null
           fill_opacity: number | null
@@ -1404,7 +1402,6 @@ export type Database = {
           last_faction_change_at: string | null
           last_social_read_at: string | null
           level: number | null
-          max_exp: number | null
           max_stamina: number | null
           nickname: string | null
           path_color: string | null
@@ -1423,12 +1420,10 @@ export type Database = {
           api_key?: string | null
           avatar_url?: string | null
           background_url?: string | null
-          badges?: string[] | null
           club_id?: string | null
           coins?: number | null
           cover_url?: string | null
           created_at?: string
-          current_exp?: number | null
           faction?: string | null
           fill_color?: string | null
           fill_opacity?: number | null
@@ -1438,7 +1433,6 @@ export type Database = {
           last_faction_change_at?: string | null
           last_social_read_at?: string | null
           level?: number | null
-          max_exp?: number | null
           max_stamina?: number | null
           nickname?: string | null
           path_color?: string | null
@@ -1457,12 +1451,10 @@ export type Database = {
           api_key?: string | null
           avatar_url?: string | null
           background_url?: string | null
-          badges?: string[] | null
           club_id?: string | null
           coins?: number | null
           cover_url?: string | null
           created_at?: string
-          current_exp?: number | null
           faction?: string | null
           fill_color?: string | null
           fill_opacity?: number | null
@@ -1472,7 +1464,6 @@ export type Database = {
           last_faction_change_at?: string | null
           last_social_read_at?: string | null
           level?: number | null
-          max_exp?: number | null
           max_stamina?: number | null
           nickname?: string | null
           path_color?: string | null

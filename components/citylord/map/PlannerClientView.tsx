@@ -1577,8 +1577,8 @@ export default function PlannerClientView({ onClose }: PlannerClientViewProps) {
 
       {/* Calculating Indicator */}
       {isCalculating && (
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-50 
-                         bg-blue-500 text-white px-4 py-2 rounded-full 
+        <div className="absolute top-[calc(var(--safe-top,0px)+80px)] left-1/2 -translate-x-1/2 z-50
+                         bg-blue-500 text-white px-4 py-2 rounded-full
                          shadow-lg flex items-center gap-2">
           <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10"
@@ -1591,7 +1591,7 @@ export default function PlannerClientView({ onClose }: PlannerClientViewProps) {
       )}
 
       {/* HUD Info Panel */}
-      <div className="absolute top-4 left-4 right-4 z-20 pointer-events-auto">
+      <div className="absolute top-[calc(var(--safe-top,0px)+16px)] left-4 right-4 z-20 pointer-events-auto">
         <div id="planner-hud" className="bg-slate-800/90 backdrop-blur-sm rounded-lg p-4 shadow-xl">
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -1610,7 +1610,7 @@ export default function PlannerClientView({ onClose }: PlannerClientViewProps) {
         </div>
 
         {/* Top Right Controls (My Routes, Help, Exit) */}
-        <div className="absolute top-0 right-0 flex gap-2 -mt-2 -mr-2">
+        <div className="absolute top-[calc(var(--safe-top,0px)+4px)] right-4 flex gap-2">
           <button
             onClick={() => setShowTutorial(true)}
             className="bg-slate-800/90 backdrop-blur p-2 rounded-full text-white/60 hover:text-white transition-all shadow-lg"
@@ -1640,7 +1640,7 @@ export default function PlannerClientView({ onClose }: PlannerClientViewProps) {
       </div>
 
       {/* Bottom Control Bar */}
-      <div className="absolute bottom-0 left-0 right-0 z-30 
+      <div className="absolute bottom-[env(safe-area-inset-bottom)] left-0 right-0 z-30
                        bg-slate-900/95 backdrop-blur-sm border-t border-slate-700 p-4 pointer-events-auto">
         <div className="flex items-center justify-between gap-4">
           {/* Mode Switch */}

@@ -508,7 +508,7 @@ const createUserSlice: StateCreator<GameStore, [], [], UserActions> = (set, get)
   checkStaminaRecovery: () => set((state) => {
     const now = Date.now();
     const timeDiff = now - state.lastStaminaUpdate;
-    const recoveryInterval = 5 * 60 * 1000; // 5 minutes
+    const recoveryInterval = 1 * 60 * 1000; // 1 minute (aligned with backend: 1 stamina/min)
 
     if (timeDiff >= recoveryInterval && state.stamina < state.maxStamina) {
       const recoveredAmount = Math.floor(timeDiff / recoveryInterval);
@@ -593,7 +593,7 @@ const createUserSlice: StateCreator<GameStore, [], [], UserActions> = (set, get)
         set((state) => ({
           userId: user.id,
           level: profileData.level,
-          currentExp: profileData.current_exp || state.currentExp,
+          currentExp: profileData.xp || state.currentExp,
           coins: profileData.coins || state.coins,
           totalArea: profileData.total_area || state.totalArea,
           totalDistance: (profileData.total_distance_km * 1000) || state.totalDistance,

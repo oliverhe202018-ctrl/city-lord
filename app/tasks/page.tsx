@@ -1,23 +1,14 @@
-import { createClient } from '@/lib/supabase/server';
-import { getTasks } from '@/app/actions/task';
-import TaskList from './TaskList';
-import { redirect } from 'next/navigation';
-import { cookies } from 'next/headers';
+import { getMissions } from '@/app/actions/mission';
+import MissionList from './MissionList';
 
-// Server Component
+export const dynamic = 'force-dynamic';
+
 export default async function TasksPage() {
-    const cookieStore = await cookies();
-    const supabase = await createClient(cookieStore);
+  const missions = await getMissions();
 
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-        redirect('/login');
-    }
-
-    // Fetch tasks
-    // This triggers lazy load if empty
-    const tasks = await getTasks(user.id);
-
-    return <TaskList initialTasks={tasks} userId={user.id} />;
+  return (
+    <div className="min-h-screen bg-zinc-50 dark:bg-black">
+      <MissionList initialMissions={missions} />
+    </div>
+  );
 }

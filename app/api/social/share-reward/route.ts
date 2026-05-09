@@ -19,7 +19,7 @@ export async function POST(req: Request) {
             where: { id: user.id },
             data: {
                 coins: { increment: REWARD_COINS },
-                current_exp: { increment: REWARD_EXP }
+                xp: { increment: REWARD_EXP }
             }
         })
 

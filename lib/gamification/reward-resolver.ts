@@ -82,7 +82,6 @@ export async function applyPointsAndLevel(
         coins: newCoins,
         xp: newXp,
         level: currentLevel,
-        max_exp: XP_CURVE(currentLevel),
       },
     });
 

@@ -3,7 +3,6 @@ import { task } from '@trigger.dev/sdk';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { applyPointsAndLevel, resolveEventRewards } from '@/lib/gamification/reward-resolver';
-import { evaluateTaskProgress } from '@/lib/gamification/task-evaluator';
 import { RunContext } from '@/lib/gamification/types';
 
 /**
@@ -46,9 +45,7 @@ export const processPostRunRewards = task({
             context.leveledUp = leveledUp;
             context.newLevel = newLevel;
 
-            // 5. Evaluate progress for all active tasks
-            await evaluateTaskProgress(context);
-            logger.info('Evaluated task progress');
+            // 5. (Task evaluation removed - missions system handles progress)
 
             // 6. Update run reward status in database with atomic write-back
             await prisma.runs.update({

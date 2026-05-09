@@ -81,7 +81,7 @@ export default function RoutePlannerPage() {
   const setGhostPath = useGameStore((state) => state.setGhostPath)
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-slate-950">
+    <div className="min-h-[100dvh] w-screen overflow-hidden bg-slate-950">
       <MyRoutesSheet
         open={isRouteListOpen}
         onOpenChange={(open) => {

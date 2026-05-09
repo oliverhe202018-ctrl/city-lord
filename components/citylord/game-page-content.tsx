@@ -1227,7 +1227,7 @@ export function GamePageContent({
           )}
 
           {!isRunTakeoverActive && activeTab === "home" && (
-            <div className="absolute inset-0 bg-[#0f172a] z-40">
+            <div className="absolute inset-0 bg-[#0f172a] z-40 overflow-y-auto">
               <GameHomePage
                 onStartRun={(_mode: RunMode) => setActiveTab('start')}
                 onNavigateToMap={(targetId) => {

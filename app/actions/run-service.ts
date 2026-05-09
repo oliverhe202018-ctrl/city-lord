@@ -1,12 +1,12 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
-import { evaluateTasks, RunData, TaskResult } from '@/lib/game/task-engine';
 import { revalidatePath, revalidateTag, unstable_noStore as noStore } from 'next/cache';
 import { headers } from 'next/headers';
 import { tasks } from "@trigger.dev/sdk/v3";
 import { RunRecordDTO, ActionResponse, RunEventLog } from '@/types/run-sync';
 import { validateRunAndRebuildTerritories, AntiCheatValidationResult } from '@/lib/anti-cheat/territory-builder';
+import { updateMissionProgress } from '@/lib/game-logic/mission-service';
 import { checkRunRateLimit } from '@/lib/anti-cheat/rate-limiter';
 import { processTerritorySettlement } from '@/lib/territory/settlement';
 import { MIN_TERRITORY_AREA_M2 } from '@/lib/constants/territory';
@@ -464,7 +464,6 @@ function normalizeRunPolygon(closingPath: [number, number][]): {
 export interface SaveRunResult {
     runId?: string;
     runNumber?: number;
-    newTasks?: TaskResult[];
     totalReward?: { coins: number; xp: number };
     damageSummary?: any[];
     maintenanceSummary?: any[];
@@ -617,7 +616,6 @@ export async function saveRunActivity(
                         runId: existingRun.id,
                         isDuplicate: true,
                         runNumber: 0,
-                        newTasks: [],
                         totalReward: { coins: 0, xp: 0 },
                         settlingAsync: false
                     }
@@ -990,18 +988,6 @@ export async function saveRunActivity(
             }
         }
 
-        // 3. Prepare Run Data for Evaluation
-        const evaluationData: RunData = {
-            distance: pathValidation.serverDistance,
-            duration: pathValidation.serverDuration,
-            claims: finalPolygons, // Server-calculated claims
-            timestamp: new Date(runData.timestamp || Date.now()),
-        };
-
-        // 4. Evaluate Tasks (In-Memory)
-        // If flagged, we skip rewards by setting results to empty
-        const potentialResults = (isBlockedByAntiCheat || effectiveRiskLevel === 'HIGH' || isGeometryInvalid) ? [] : evaluateTasks(evaluationData);
-
         let finalRunStatus = isBlockedByAntiCheat ? 'flagged' : 'settling';
         let customFlagReason = flagReason;
         
@@ -1049,11 +1035,11 @@ export async function saveRunActivity(
                 data: {
                     user_id: userId,
                     club_id: runnerClubId,
-                    distance: evaluationData.distance,
-                    duration: evaluationData.duration,
+                    distance: pathValidation.serverDistance,
+                    duration: pathValidation.serverDuration,
                     area: accurateAreaKm2 * 1_000_000, // m² 精确面积
                     path: runData.path as any,
-                    polygons: evaluationData.claims as any,
+                    polygons: finalPolygons as any,
                     status: finalRunStatus,
                     created_at: new Date(runData.timestamp || Date.now()),
                     updated_at: new Date(),
@@ -1094,73 +1080,24 @@ export async function saveRunActivity(
             }
 
             if (isBlockedByAntiCheat) {
-                // 任务三: 强制 isValid: false 消灭静默失败
-                // 前端 UI 可据此检测到拦截并弹出具体提示
                 return {
                     runId: run.id,
                     runNumber: 0,
-                    newTasks: [],
-                    rewards: { coins: 0, xp: 0 },
-                    isValid: false, // 必须为 false，杜绝静默通过
+                    totalReward: { coins: 0, xp: 0 },
+                    isValid: false,
                     antiCheatLog: pedometerAntiCheatLog ?? 'BLOCKED_BY_ANTICHEAT_PATH_RISK',
                     totalSteps: submittedTotalSteps,
                     isFlagged: true
                 };
             }
 
-            // B. Filter Tasks (Idempotency Check)
-            const newTasks: TaskResult[] = [];
             let totalCoins = 0;
             let totalXp = 0;
-            
-            // ... (Rest of existing reward and settlement logic)
 
-            if (potentialResults.length > 0) {
-                // Find existing logs for these specific tasks & periods to prevent duplicates
-                // We construct an OR query for all potential completions
-                const checks = potentialResults.map(r => ({
-                    user_id: userId,
-                    task_id: r.taskId,
-                    period_key: r.periodKey
-                }));
-
-                const existingLogs = await tx.user_task_logs.findMany({
-                    where: {
-                        OR: checks
-                    },
-                    select: {
-                        task_id: true,
-                        period_key: true
-                    }
-                });
-
-                const existingSet = new Set(
-                    existingLogs.map((l: any) => `${l.task_id}-${l.period_key}`)
-                );
-
-                // Process only NEW completions
-                for (const res of potentialResults) {
-                    const key = `${res.taskId}-${res.periodKey}`;
-                    if (!existingSet.has(key)) {
-                        // Valid new completion
-                        await tx.user_task_logs.create({
-                            data: {
-                                user_id: userId,
-                                run_id: run.id,
-                                task_id: res.taskId,
-                                type: res.type,
-                                period_key: res.periodKey,
-                                reward_coins: res.reward,
-                                reward_xp: 0, // TODO: 当 XP 奖励系统上线后，此处需接入真实的 XP 计算逻辑
-                                completed_at: new Date(),
-                            }
-                        });
-
-                        newTasks.push(res);
-                        totalCoins += res.reward;
-                        // totalXp += res.rewardXp; // If we had separate XP in helper
-                    }
-                }
+            await updateMissionProgress(userId, 'DISTANCE', Math.round(pathValidation.serverDistance), tx);
+            await updateMissionProgress(userId, 'RUN_COUNT', 1, tx);
+            if (finalPolygons.length > 0) {
+                await updateMissionProgress(userId, 'HEX_COUNT', finalPolygons.length, tx);
             }
 
             const successfulEvents = eventsHistory.filter(event => event.status === 'SUCCESS');
@@ -1209,18 +1146,30 @@ export async function saveRunActivity(
 
             if (!isFlagged) {
                 // safeCityId 允许为 null：run 与领地照常入库，仅跳过城市维度统计
-                // ─── Phase 3C: 跑后体力扣减 ───
-                // 基础 10 点 + 每公里 10 点，底线防御：不低于 0
-                const distanceKm = evaluationData.distance / 1000;
+                // ─── Phase 3C: 跑后体力扣减（边界保护）───
+                const userProfile = await tx.profiles.findUniqueOrThrow({
+                    where: { id: userId },
+                    select: { stamina: true, max_stamina: true }
+                });
+
+                const distanceKm = pathValidation.serverDistance / 1000;
                 const staminaCost = Math.max(0, Math.floor(10 + distanceKm * 10));
+                const rewardStamina = eventReward?.stamina || 0;
+                const currentStamina = userProfile.stamina ?? 0;
+                const maxStamina = userProfile.max_stamina ?? 100;
+
+                const finalStamina = Math.min(
+                    maxStamina,
+                    Math.max(0, currentStamina - staminaCost + rewardStamina)
+                );
 
                 const updatedProfile = await tx.profiles.update({
                     where: { id: userId },
                     data: {
                         coins: { increment: totalCoins },
                         xp: { increment: totalXp },
-                        stamina: { increment: eventReward.stamina - staminaCost },
-                        total_distance_km: { increment: evaluationData.distance / 1000 },
+                        stamina: finalStamina,
+                        total_distance_km: { increment: pathValidation.serverDistance / 1000 },
                         total_runs_count: { increment: 1 },
                         updated_at: new Date()
                     }
@@ -1229,8 +1178,7 @@ export async function saveRunActivity(
                 return {
                     runId: run.id,
                     runNumber: updatedProfile.total_runs_count,
-                    newTasks,
-                    rewards: { coins: totalCoins, xp: totalXp },
+                    totalReward: { coins: totalCoins, xp: totalXp },
                     isValid: true,
                     antiCheatLog: null,
                     totalSteps: submittedTotalSteps,
@@ -1241,8 +1189,7 @@ export async function saveRunActivity(
             return {
                 runId: run.id,
                 runNumber: 0,
-                newTasks,
-                rewards: { coins: totalCoins, xp: totalXp },
+                totalReward: { coins: totalCoins, xp: totalXp },
                 isValid: true,
                 antiCheatLog: null,
                 totalSteps: submittedTotalSteps,
@@ -1260,8 +1207,8 @@ export async function saveRunActivity(
                     cityId: safeCityId,
                     clubId: runnerClubId,
                     polygons: polygonsForSettlement,
-                    distance: evaluationData.distance,
-                    duration: evaluationData.duration,
+                    distance: pathValidation.serverDistance,
+                    duration: pathValidation.serverDuration,
                     diag: diagData
                 };
                 console.log(`[Trigger.dev] Enqueuing 'settle-territories'. polygonCount=${polygonsForSettlement.length}, runId=${result.runId}`);
@@ -1299,8 +1246,7 @@ export async function saveRunActivity(
             data: {
                 runId: result.runId,
                 runNumber: result.runNumber,
-                newTasks: result.newTasks,
-                totalReward: result.rewards,
+                totalReward: result.totalReward,
                 damageSummary: [],
                 maintenanceSummary: [],
                 settledTerritoriesCount: 0,
@@ -1308,7 +1254,7 @@ export async function saveRunActivity(
                 antiCheatLog: result.antiCheatLog,
                 totalSteps: result.totalSteps,
                 settlingAsync: (!result.isFlagged && polygonsForSettlement.length > 0) ? true : false,
-                territories: [] // Placeholder for ID swap compatibility
+                territories: []
             }
         };
 

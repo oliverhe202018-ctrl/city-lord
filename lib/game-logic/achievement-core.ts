@@ -33,7 +33,6 @@ export async function awardBadgeAtomic(userId: string, badgeCode: string): Promi
 
   try {
     await prisma.$transaction(async (tx) => {
-      // 插入授予记录 (由于唯一约束，重复插入会抛出 P2002)
       await tx.user_badges.create({
         data: {
           user_id: userId,
@@ -42,8 +41,6 @@ export async function awardBadgeAtomic(userId: string, badgeCode: string): Promi
         }
       })
 
-      // 创建系统通知
-      // NOTE: push_status 列尚未迁移到数据库，暂不设置
       await tx.notifications.create({
         data: {
           user_id: userId,
@@ -53,6 +50,19 @@ export async function awardBadgeAtomic(userId: string, badgeCode: string): Promi
           is_read: false
         }
       })
+
+      if (badge.title) {
+        const existing = await tx.profiles.findUnique({
+          where: { id: userId },
+          select: { current_title: true }
+        })
+        if (!existing?.current_title) {
+          await tx.profiles.update({
+            where: { id: userId },
+            data: { current_title: badge.title }
+          })
+        }
+      }
     })
 
     // 事务成功提交后，发射事件触发后续逻辑（如 UI Toast、社交分享）

@@ -18,7 +18,7 @@ import {
   type ActivityCompletedPayload,
   type BadgeEarnedPayload,
 } from '@/lib/game-logic/event-bus'
-import { TaskService } from '@/lib/services/task'
+import { updateMissionProgress } from '@/lib/game-logic/mission-service'
 import { checkAndAwardBadges } from '@/lib/game-logic/achievement-core'
 
 // ═══════════════════════════════════════════════════════════════
@@ -32,18 +32,10 @@ async function onRunFinished_UpdateTasks(payload: RunFinishedPayload): Promise<v
   console.log(`[EventListener] RUN_FINISHED → UpdateTasks for user ${payload.userId}, run ${payload.runId}`)
   
   try {
-    await TaskService.processEvent(payload.userId, {
-      type: 'RUN_FINISHED',
-      userId: payload.userId,
-      timestamp: payload.endTime,
-      data: {
-        distance: payload.distance,
-        duration: payload.duration,
-        pace: payload.pace
-      }
-    }, payload.runId)
+    await updateMissionProgress(payload.userId, 'DISTANCE', Math.round(payload.distance))
+    await updateMissionProgress(payload.userId, 'RUN_COUNT', 1)
   } catch (err) {
-    console.error('[EventListener] TaskService.processEvent failed for RUN_FINISHED:', err)
+    console.error('[EventListener] updateMissionProgress failed for RUN_FINISHED:', err)
   }
 }
 
@@ -119,17 +111,9 @@ async function onTerritoryCaptured_UpdateTasks(payload: TerritoryCapturedPayload
   console.log(`[EventListener] TERRITORY_CAPTURED → UpdateTasks for user ${payload.userId}, territory ${payload.territoryId}`)
   
   try {
-    await TaskService.processEvent(payload.userId, {
-      type: 'TERRITORY_CAPTURED',
-      userId: payload.userId,
-      timestamp: new Date(),
-      data: {
-        territoryId: payload.territoryId,
-        isNew: payload.isNew
-      }
-    }, `tc_${payload.territoryId}_${Date.now()}`)
+    await updateMissionProgress(payload.userId, 'HEX_COUNT', 1)
   } catch (err) {
-    console.error('[EventListener] TaskService.processEvent failed for TERRITORY_CAPTURED:', err)
+    console.error('[EventListener] updateMissionProgress failed for TERRITORY_CAPTURED:', err)
   }
 }
 

@@ -1,4 +1,4 @@
-﻿import { prisma } from '@/lib/prisma'
+import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { calculateLevel, getTitle } from '@/lib/game-logic/level-system'
 import { eventBus } from '@/lib/game-logic/event-bus'
@@ -24,22 +24,22 @@ export async function addExperienceUnified(
       // 1. 鑾峰彇褰撳墠绛夌骇涓庣粡楠岋紙鎵句笉鍒版姏鍑洪敊璇級
       const profile = await tx.profiles.findUniqueOrThrow({
         where: { id: userId },
-        select: { level: true, current_exp: true }
+        select: { level: true, xp: true }
       })
 
-      const currentExp = profile.current_exp || 0
+      const currentExp = profile.xp || 0
       const currentLevel = profile.level || 1
 
-      // 2. 璁＄畻鏂扮粡楠屼笌绛夌骇
+      // 2. 计算新经验与等级
       const newExp = currentExp + amount
       const newLevel = calculateLevel(newExp)
       const levelUp = newLevel > currentLevel
 
-      // 3. 鏇存柊灞炴€?
+      // 3. 更新属性
       await tx.profiles.update({
         where: { id: userId },
         data: {
-          current_exp: newExp,
+          xp: newExp,
           level: newLevel,
           updated_at: new Date()
         }

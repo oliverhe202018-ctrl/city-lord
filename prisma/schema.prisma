@@ -15,8 +15,6 @@ model profiles {
   nickname                                                       String?
   avatar_url                                                     String?
   level                                                          Int?                          @default(1)
-  current_exp                                                    Int?                          @default(0)
-  max_exp                                                        Int?                          @default(1000)
   stamina                                                        Int?                          @default(100)
   max_stamina                                                    Int?                          @default(100)
   total_area                                                     Float?                        @default(0)
@@ -28,6 +26,7 @@ model profiles {
   coins                                                          Int?                          @default(0)
   faction                                                        String?
   last_faction_change_at                                         DateTime?                     @db.Timestamptz(6)
+  current_title                                                  String?                       @db.VarChar(50)
   invited_by                                                     String?                       @db.Uuid
   path_color                                                     String?                       @default("#3B82F6")
   fill_color                                                     String?                       @default("#3B82F6")
@@ -39,7 +38,6 @@ model profiles {
   is_active                                                      Boolean                       @default(true)
   referral_code                                                  String?                       @unique
   referrer_id                                                    String?                       @db.Uuid
-  badges                                                         String[]                      @default([])
   isProfilePublic                                                Boolean                       @default(true) @map("is_profile_public")
   backgroundUrl                                                  String?                       @map("background_url")
   api_key                                                        String?                       @unique
@@ -97,7 +95,6 @@ model profiles {
   user_purchases                                                 user_purchases[]
   user_season_stats                                              user_season_stats[]
   user_task_logs                                                 user_task_logs[]
-  userTaskProgress                                               UserTaskProgress[]
   watchActivities                                                watch_activities[]
   triggered_random_events                                        random_events[]
 
@@ -322,6 +319,7 @@ model badges {
   icon_path               String?
   level                   String?
   requirement_description String?
+  title                   String?       @db.VarChar(50)
   user_badges             user_badges[]
 
   @@schema("public")
@@ -352,6 +350,7 @@ model club_members {
   role      String?  @default("member")
   joined_at DateTime @default(dbgenerated("timezone('utc'::text, now())")) @db.Timestamptz(6)
   status    String?  @default("pending")
+  territory_contribution Float @default(0)
   clubs     clubs    @relation(fields: [club_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   profiles  profiles @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
@@ -426,6 +425,23 @@ model faction_stats_snapshot {
   blue_area  Float    @default(0)
   red_area   Float    @default(0)
   updated_at DateTime @default(now())
+
+  @@schema("public")
+}
+
+model faction_settlement_logs {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  settlement_date String   @unique @db.VarChar(10)
+  winner          String?  @db.VarChar(10)
+  red_area        Float    @default(0)
+  blue_area       Float    @default(0)
+  winner_coins    Int      @default(50)
+  winner_xp       Int      @default(100)
+  loser_coins     Int      @default(20)
+  loser_xp        Int      @default(50)
+  winner_count    Int      @default(0)
+  loser_count     Int      @default(0)
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
 
   @@schema("public")
 }
@@ -875,44 +891,6 @@ model user_backgrounds {
   @@schema("public")
 }
 
-model Task {
-  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  code             String             @unique
-  type             String
-  title            String
-  description      String
-  targetValue      Int                @map("target_value")
-  unit             String
-  reward           Json
-  condition        String
-  isVisible        Boolean            @default(true) @map("is_visible")
-  createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
-  userTaskProgress UserTaskProgress[]
-
-  @@map("tasks")
-  @@schema("public")
-}
-
-model UserTaskProgress {
-  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId       String    @map("user_id") @db.Uuid
-  taskId       String    @map("task_id") @db.Uuid
-  currentValue Int       @default(0) @map("current_value")
-  status       String    @default("IN_PROGRESS")
-  completedAt  DateTime? @map("completed_at") @db.Timestamptz(6)
-  expiresAt    DateTime  @map("expires_at") @db.Timestamptz(6)
-  version      Int       @default(0)
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  task         Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  user         profiles  @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, taskId, expiresAt])
-  @@index([userId, status])
-  @@map("user_task_progress")
-  @@schema("public")
-}
-
 model activity_likes {
   id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   user_id       String   @db.Uuid
@@ -1199,12 +1177,13 @@ model user_missions {
   mission_id String
   progress   Int?      @default(0)
   status     String?   @default("ongoing")
+  period_key String    @default("") @db.VarChar(20)
   updated_at DateTime? @default(now()) @db.Timestamptz(6)
   claimed_at DateTime? @db.Timestamptz(6)
   missions   missions  @relation(fields: [mission_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   profiles   profiles  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
-  @@unique([user_id, mission_id])
+  @@unique([user_id, mission_id, period_key])
   @@index([user_id], map: "idx_user_missions_user_id")
   @@index([mission_id])
   @@schema("public")

@@ -1,4 +1,4 @@
-﻿import { prisma } from '@/lib/prisma'
+import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { calculateLevel, getTitle } from '@/lib/game-logic/level-system'
 import { eventBus } from '@/lib/game-logic/event-bus'
@@ -22,10 +22,10 @@ export async function grantRewards(
     // 娌¤幏寰椾换浣曞鍔辩殑鐭矾澶勭悊
     const current = await prisma.profiles.findUnique({
       where: { id: userId },
-      select: { current_exp: true, level: true, coins: true }
+      select: { xp: true, level: true, coins: true }
     })
     return {
-      newExp: current?.current_exp || 0,
+      newExp: current?.xp || 0,
       newLevel: current?.level || 1,
       newCoins: current?.coins || 0,
       levelUp: false
@@ -38,24 +38,24 @@ export async function grantRewards(
       // 1. 鑾峰彇褰撳墠鐘舵€?
       const profile = await tx.profiles.findUniqueOrThrow({
         where: { id: userId },
-        select: { current_exp: true, level: true, coins: true }
+        select: { xp: true, level: true, coins: true }
       })
 
-      const currentExp = profile.current_exp || 0
+      const currentExp = profile.xp || 0
       const currentLevel = profile.level || 1
       const currentCoins = profile.coins || 0
 
-      // 2. 璁＄畻鏂扮姸鎬侊紝閲戝竵鍔犱笂闄愬埗淇濊瘉涓嶈穼钀借礋鏁?
+      // 2. 计算新状态，金币加上限制保证不跌落负数
       const newCoins = Math.max(0, currentCoins + incCoins)
       const newExp = currentExp + incExp
       const newLevel = calculateLevel(newExp)
       const levelUp = newLevel > currentLevel
 
-      // 3. 鏇存柊 profile
+      // 3. 更新 profile
       await tx.profiles.update({
         where: { id: userId },
         data: {
-          current_exp: newExp,
+          xp: newExp,
           level: newLevel,
           coins: newCoins,
           updated_at: new Date()

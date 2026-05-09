@@ -299,8 +299,6 @@ const _ensureUserProfile = cache(async (userId: string) => {
       nickname: user.email?.split('@')[0] || `Runner_${userId.slice(0, 6)}`,
       avatar_url: '',
       level: 1,
-      current_exp: 0,
-      max_exp: 100,
       stamina: 100,
       max_stamina: 100,
       created_at: new Date().toISOString(),
@@ -353,4 +351,56 @@ export async function addCoins(amount: number) {
   if (error) return { success: false, error: error.message }
 
   return { success: true, newCoins }
+}
+
+export async function getUserTitles() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { titles: [], currentTitle: null }
+
+  const profile = await prisma.profiles.findUnique({
+    where: { id: user.id },
+    select: { current_title: true },
+  })
+
+  const earnedBadges = await prisma.user_badges.findMany({
+    where: { user_id: user.id },
+    include: { badges: { select: { title: true, name: true, code: true } } },
+  })
+
+  const titles = earnedBadges
+    .filter((ub) => ub.badges.title)
+    .map((ub) => ({
+      code: ub.badges.code,
+      name: ub.badges.name,
+      title: ub.badges.title!,
+    }))
+
+  return { titles, currentTitle: profile?.current_title ?? null }
+}
+
+export async function updateUserTitle(title: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: 'UNAUTHORIZED' }
+
+  const earnedBadges = await prisma.user_badges.findMany({
+    where: { user_id: user.id },
+    include: { badges: { select: { title: true } } },
+  })
+
+  const availableTitles = earnedBadges
+    .filter((ub) => ub.badges.title)
+    .map((ub) => ub.badges.title!)
+
+  if (title && !availableTitles.includes(title)) {
+    return { success: false, error: 'TITLE_NOT_OWNED' }
+  }
+
+  await prisma.profiles.update({
+    where: { id: user.id },
+    data: { current_title: title || null },
+  })
+
+  return { success: true }
 }

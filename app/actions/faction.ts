@@ -170,16 +170,30 @@ export async function joinFaction(faction: Faction) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { success: false, error: 'Not authenticated' }
 
-    // Update profile
-    const { error } = await supabase
-      .from('profiles')
-      .update({ faction: faction === 'RED' ? 'Red' : 'Blue' })
-      .eq('id', user.id)
+    const profile = await prisma.profiles.findUnique({
+      where: { id: user.id },
+      select: { last_faction_change_at: true, faction: true },
+    })
 
-    if (error) {
-      console.error('Join faction error:', error)
-      return { success: false, error: error.message }
+    if (profile?.last_faction_change_at) {
+      const daysSinceChange = (Date.now() - profile.last_faction_change_at.getTime()) / (1000 * 60 * 60 * 24)
+      if (daysSinceChange < 7) {
+        const remaining = Math.ceil(7 - daysSinceChange)
+        return { success: false, error: `阵营冷却中，请 ${remaining} 天后再试` }
+      }
     }
+
+    if (profile?.faction === (faction === 'RED' ? 'Red' : 'Blue')) {
+      return { success: false, error: '你已经在该阵营中' }
+    }
+
+    await prisma.profiles.update({
+      where: { id: user.id },
+      data: {
+        faction: faction === 'RED' ? 'Red' : 'Blue',
+        last_faction_change_at: new Date(),
+      },
+    })
 
     revalidatePath('/', 'layout')
 

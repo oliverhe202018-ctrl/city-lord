@@ -1,5 +1,10 @@
 import { BadgeCheckContext } from './badge-context'
 
+function getHourUTC8(dateValue: Date | string | number): number {
+  const d = new Date(dateValue)
+  return d.getUTCHours() + 8
+}
+
 export interface BadgeCondition {
   id: string; // 对应数据库中 badges 表的 code 字段 (如 'first-mission')
   triggerTypes: string[]; // 触发该勋章检查的事件类型列表
@@ -147,26 +152,49 @@ export const BADGE_REGISTRY: BadgeCondition[] = [
     triggerTypes: ['RUN_FINISHED'],
     check: (ctx) => {
       if (!ctx.eventData?.endTime) return false
-      const hour = new Date(ctx.eventData.endTime).getHours()
-      return hour >= 5 && hour < 7
+      const hour = getHourUTC8(ctx.eventData.endTime) % 24
+      return hour >= 5 && hour < 8
     },
     progressCheck: (ctx) => {
       if (!ctx.eventData?.endTime) return { current: 0, target: 1 }
-      const hour = new Date(ctx.eventData.endTime).getHours()
-      return { current: (hour >= 5 && hour < 7) ? 1 : 0, target: 1 }
+      const hour = getHourUTC8(ctx.eventData.endTime) % 24
+      return { current: (hour >= 5 && hour < 8) ? 1 : 0, target: 1 }
     }
+  },
+  {
+    id: 'night-owl',
+    triggerTypes: ['RUN_FINISHED'],
+    check: (ctx) => {
+      if (!ctx.eventData?.endTime) return false
+      const hour = getHourUTC8(ctx.eventData.endTime) % 24
+      return hour >= 20 && hour < 23
+    },
+    progressCheck: (ctx) => {
+      if (!ctx.eventData?.endTime) return { current: 0, target: 1 }
+      const hour = getHourUTC8(ctx.eventData.endTime) % 24
+      return { current: (hour >= 20 && hour < 23) ? 1 : 0, target: 1 }
+    }
+  },
+  {
+    id: 'city-explorer',
+    triggerTypes: ['TERRITORY_CAPTURED'],
+    check: (ctx) => ctx.distinctDistrictsCount >= 3,
+    progressCheck: (ctx) => ({
+      current: Math.min(ctx.distinctDistrictsCount, 3),
+      target: 3
+    })
   },
   {
     id: 'night-walker',
     triggerTypes: ['RUN_FINISHED'],
     check: (ctx) => {
       if (!ctx.eventData?.endTime) return false
-      const hour = new Date(ctx.eventData.endTime).getHours()
+      const hour = getHourUTC8(ctx.eventData.endTime) % 24
       return hour >= 22 || hour < 2
     },
     progressCheck: (ctx) => {
       if (!ctx.eventData?.endTime) return { current: 0, target: 1 }
-      const hour = new Date(ctx.eventData.endTime).getHours()
+      const hour = getHourUTC8(ctx.eventData.endTime) % 24
       return { current: (hour >= 22 || hour < 2) ? 1 : 0, target: 1 }
     }
   },

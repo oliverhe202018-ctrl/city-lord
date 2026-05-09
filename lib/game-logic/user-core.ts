@@ -17,7 +17,7 @@ export async function fetchUserProfileStats(userId: string): Promise<UserProfile
     where: { id: userId },
     select: {
       level: true,
-      current_exp: true,
+      xp: true,
       total_distance_km: true,
       faction: true
     }
@@ -57,7 +57,7 @@ export async function fetchUserProfileStats(userId: string): Promise<UserProfile
     totalDistance: profile?.total_distance_km || 0,
     battlesWon: 0, // Placeholder
     level: profile?.level || 1,
-    xp: profile?.current_exp || 0,
+    xp: profile?.xp || 0,
     coins: wallet?.sweat_coins || 0,
     faction: profile?.faction || null
   }

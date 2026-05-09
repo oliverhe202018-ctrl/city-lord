@@ -3,7 +3,7 @@ import * as turf from "@turf/turf";
 import type { Feature, Polygon } from "geojson";
 import { processTerritorySettlement } from "@/lib/territory/settlement";
 import { prisma } from "@/lib/prisma";
-import { TaskService } from "@/lib/services/task";
+import { updateMissionProgress } from "@/lib/game-logic/mission-service";
 import { updateChallengeProgress } from "@/app/actions/challenge-service";
 import { cleanAndSplitTrajectory } from "@/lib/gis/geometry-cleaner";
 
@@ -148,20 +148,14 @@ export const settleTerritoriesTask = task({
             // 阶段二：任务中心事件
             // ─────────────────────────────────────────────
             try {
-                const eventPayload = {
-                    type: 'RUN_FINISHED' as const,
-                    userId,
-                    timestamp: new Date(),
-                    data: {
-                        distance,
-                        duration,
-                        pace: distance > 0 ? (duration / (distance / 1000)) : 0,
-                    }
-                };
-                await TaskService.processEvent(userId, eventPayload);
-                console.log(`[settle-territories] 任务中心事件已处理 userId=${userId}`);
+                await updateMissionProgress(userId, 'DISTANCE', Math.round(distance));
+                await updateMissionProgress(userId, 'RUN_COUNT', 1);
+                if (settledCount > 0) {
+                    await updateMissionProgress(userId, 'HEX_COUNT', settledCount);
+                }
+                console.log(`[settle-territories] 任务进度已更新 userId=${userId}`);
             } catch (taskError) {
-                console.error('[settle-territories] 任务中心事件处理失败', taskError);
+                console.error('[settle-territories] 任务进度更新失败', taskError);
             }
 
             // ─────────────────────────────────────────────

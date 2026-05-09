@@ -2,7 +2,7 @@ import { task } from "@trigger.dev/sdk/v3";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { tasks } from "@trigger.dev/sdk/v3";
-import { evaluateTasks, RunData } from "@/lib/game/task-engine";
+import { updateMissionProgress } from "@/lib/game-logic/mission-service";
 import { validateRunAndRebuildTerritories } from "@/lib/anti-cheat/territory-builder";
 import { validateRunData } from "@/lib/validators/run-validator";
 import { validateRunLegitimacy } from "@/lib/anti-cheat/mvp-rules";
@@ -568,15 +568,13 @@ export const runSettlementTask = task({
         const resolvedCityId = await resolveRunCityId(runData);
         const safeCityId = await ensureCityIdExists(resolvedCityId, runData.path || []);
 
-        const evaluationData: RunData = {
-            distance: pathValidation.serverDistance,
-            duration: pathValidation.serverDuration,
-            claims: finalPolygons,
-            timestamp: new Date(runData.timestamp || Date.now()),
-        };
-
-        const potentialResults = (isBlockedByAntiCheat || effectiveRiskLevel === 'HIGH' || isGeometryInvalid)
-            ? [] : evaluateTasks(evaluationData);
+        const userProfile = await prisma.profiles.findUnique({
+            where: { id: userId },
+            select: { faction: true, stamina: true, max_stamina: true, last_stamina_update_at: true }
+        });
+        const userFaction = userProfile?.faction ?? null;
+        const currentStamina = userProfile?.stamina ?? 100;
+        const maxStamina = userProfile?.max_stamina ?? 100;
 
         let finalRunStatus = isBlockedByAntiCheat ? 'flagged' : 'settling';
         let customFlagReason = flagReason;
@@ -585,6 +583,16 @@ export const runSettlementTask = task({
             finalRunStatus = 'flagged';
             customFlagReason = 'GEOMETRY_INVALID';
         }
+
+        const distanceKm = pathValidation.serverDistance / 1000;
+        const areaM2 = accurateAreaKm2 * 1_000_000;
+        const baseCoins = Math.round(distanceKm * 2);
+        const areaCoins = Math.round(areaM2 / 1000);
+        const totalCoins = baseCoins + areaCoins;
+        const totalXp = Math.round(distanceKm * 10) + Math.round(areaM2 / 500);
+
+        const staminaCost = isBlockedByAntiCheat ? 0 : Math.max(0, Math.floor(10 + distanceKm * 10));
+        const finalStamina = Math.max(0, currentStamina - staminaCost);
 
         try {
             const result = await prisma.$transaction(async (tx: any) => {
@@ -610,11 +618,11 @@ export const runSettlementTask = task({
                 await tx.runs.update({
                     where: { id: runId },
                     data: {
-                        distance: evaluationData.distance,
-                        duration: evaluationData.duration,
+                        distance: pathValidation.serverDistance,
+                        duration: pathValidation.serverDuration,
                         area: accurateAreaKm2 * 1_000_000,
                         path: runData.path,
-                        polygons: evaluationData.claims,
+                        polygons: finalPolygons,
                         status: finalRunStatus,
                         updated_at: new Date(),
                         risk_score: isUserTester ? 0 : pathValidation.riskScore,
@@ -651,46 +659,7 @@ export const runSettlementTask = task({
                 }
 
                 if (isBlockedByAntiCheat) {
-                    return { runId, newTasks: [], rewards: { coins: 0, xp: 0 }, isValid: false };
-                }
-
-                const newTasks: any[] = [];
-                let totalCoins = 0;
-                let totalXp = 0;
-
-                if (potentialResults.length > 0) {
-                    const checks = potentialResults.map(r => ({
-                        user_id: userId,
-                        task_id: r.taskId,
-                        period_key: r.periodKey
-                    }));
-
-                    const existingLogs = await tx.user_task_logs.findMany({
-                        where: { OR: checks },
-                        select: { task_id: true, period_key: true }
-                    });
-
-                    const existingSet = new Set(existingLogs.map((l: any) => `${l.task_id}-${l.period_key}`));
-
-                    for (const res of potentialResults) {
-                        const key = `${res.taskId}-${res.periodKey}`;
-                        if (!existingSet.has(key)) {
-                            await tx.user_task_logs.create({
-                                data: {
-                                    user_id: userId,
-                                    run_id: runId,
-                                    task_id: res.taskId,
-                                    type: res.type,
-                                    period_key: res.periodKey,
-                                    reward_coins: res.reward,
-                                    reward_xp: 0,
-                                    completed_at: new Date(),
-                                }
-                            });
-                            newTasks.push(res);
-                            totalCoins += res.reward;
-                        }
-                    }
+                    return { runId, rewards: { coins: 0, xp: 0 }, isValid: false };
                 }
 
                 if (safeCityId) {
@@ -713,15 +682,15 @@ export const runSettlementTask = task({
                         where: { id: userId },
                         data: {
                             coins: { increment: totalCoins },
-                            xp: { increment: totalXp },
-                            total_distance_km: { increment: evaluationData.distance / 1000 },
+                            stamina: finalStamina,
+                            total_distance_km: { increment: distanceKm },
                             total_runs_count: { increment: 1 },
                             updated_at: new Date()
                         }
                     });
                 }
 
-                return { runId, newTasks, rewards: { coins: totalCoins, xp: totalXp }, isValid: !isBlockedByAntiCheat };
+                return { runId, rewards: { coins: totalCoins, xp: totalXp }, isValid: !isBlockedByAntiCheat, totalArea: areaM2 };
             }, { timeout: 30000, maxWait: 10000 });
 
             if (!isBlockedByAntiCheat && !isGeometryInvalid && polygonsForSettlement.length > 0) {
@@ -732,8 +701,8 @@ export const runSettlementTask = task({
                         cityId: safeCityId,
                         clubId: runnerClubId,
                         polygons: polygonsForSettlement,
-                        distance: evaluationData.distance,
-                        duration: evaluationData.duration,
+                        distance: pathValidation.serverDistance,
+                        duration: pathValidation.serverDuration,
                         diag: diagData
                     });
                     console.log(`[run-settlement] settle-territories triggered for runId=${runId}`);
@@ -777,6 +746,82 @@ export const runSettlementTask = task({
             revalidateTag('territories');
             revalidateTag('city-stats');
             revalidateTag('city-leaderboard');
+
+            if (!isBlockedByAntiCheat) {
+                const distKm = pathValidation.serverDistance / 1000;
+                const durationMin = pathValidation.serverDuration / 60;
+                const totalArea = result.totalArea ?? 0;
+
+                const asyncTasks: Promise<unknown>[] = [];
+
+                asyncTasks.push(
+                    updateMissionProgress(userId, 'DISTANCE', Math.round(distKm * 1000))
+                        .catch(err => console.error('[Settlement Async] DISTANCE progress failed:', err))
+                );
+                asyncTasks.push(
+                    updateMissionProgress(userId, 'RUN_COUNT', 1)
+                        .catch(err => console.error('[Settlement Async] RUN_COUNT progress failed:', err))
+                );
+                if (finalPolygons.length > 0) {
+                    asyncTasks.push(
+                        updateMissionProgress(userId, 'HEX_COUNT', finalPolygons.length)
+                            .catch(err => console.error('[Settlement Async] HEX_COUNT progress failed:', err))
+                    );
+                }
+
+                if (totalArea > 0 && userFaction) {
+                    asyncTasks.push(
+                        prisma.faction_stats_snapshot.upsert({
+                            where: { id: 'global_daily' },
+                            update: userFaction === 'Red'
+                                ? { red_area: { increment: totalArea } }
+                                : { blue_area: { increment: totalArea } },
+                            create: {
+                                id: 'global_daily',
+                                red_area: userFaction === 'Red' ? totalArea : 0,
+                                blue_area: userFaction === 'Blue' ? totalArea : 0
+                            }
+                        }).catch(err => console.error('[Settlement Async] Faction stats upsert failed:', err))
+                    );
+                }
+
+                if (runnerClubId && totalArea > 0) {
+                    asyncTasks.push(
+                        prisma.club_members.updateMany({
+                            where: { user_id: userId, club_id: runnerClubId },
+                            data: { territory_contribution: { increment: totalArea } }
+                        }).catch(err => console.error('[Settlement Async] Club contribution failed:', err))
+                    );
+                }
+
+                asyncTasks.push(
+                    (async () => {
+                        const { addExperienceUnified } = await import('@/lib/game-logic/experience-service');
+                        const levelResult = await addExperienceUnified(userId, totalXp, 'RUN_SETTLEMENT');
+                        if (levelResult.levelUp) {
+                            console.log(`[run-settlement] LEVEL_UP for userId=${userId}: ${levelResult.newLevel - 1} → ${levelResult.newLevel}`);
+                        }
+                    })().catch(err => console.error('[Settlement Async] XP/Level-up failed:', err))
+                );
+
+                asyncTasks.push(
+                    (async () => {
+                        const { checkAndAwardBadges } = await import('@/lib/game-logic/achievement-core');
+                        const pace = durationMin > 0 ? distKm / durationMin : 0;
+                        await checkAndAwardBadges(userId, 'RUN_FINISHED', {
+                            distance: pathValidation.serverDistance,
+                            duration: pathValidation.serverDuration,
+                            pace,
+                            area: totalArea,
+                            endTime: new Date()
+                        });
+                    })().catch(err => console.error('[Settlement Async] Badge scan failed:', err))
+                );
+
+                Promise.allSettled(asyncTasks).catch(err =>
+                    console.error('[Settlement Async Chain Error]', err)
+                );
+            }
 
             console.log(`[run-settlement] ✅ Completed for runId=${runId}`);
             return { success: true, ...result };

@@ -2,28 +2,22 @@ import { prisma } from '@/lib/prisma'
 import { validateMissionTemplates } from '@/lib/validations/mission'
 
 export interface RunContext {
-  distance: number // km
+  distance: number
   capturedHexes: number
-  capturedHexIds?: string[] // List of hex IDs captured/interacted with
-  newHexCount?: number // Count of "newly discovered" hexes (for Exploration missions)
+  capturedHexIds?: string[]
+  newHexCount?: number
   startTime: Date
   endTime: Date
-  regionId: string // Province or city identifier for the run location
+  regionId: string
 }
 
-/**
- * 预设任务列表常量。
- * ⚠️ 警告: 该常量仅用于后台（Admin）管理界面的默认任务导入数据（Seed）。
- * 游戏运行时判定与用户进度更新必须直接读取数据库 missions 表的权威配置（Data Source of Truth）。
- */
 export const SEED_DEFAULT_MISSIONS = [
-  // Daily Missions
   {
     id: 'daily_run_1',
     title: '每日开跑',
     description: '完成一次距离大于1公里的跑步',
     type: 'DISTANCE',
-    target: 1000, // 1km in meters
+    target: 1000,
     reward_coins: 10,
     reward_experience: 50,
     frequency: 'daily'
@@ -33,7 +27,7 @@ export const SEED_DEFAULT_MISSIONS = [
     title: '每日3公里',
     description: '单日累计跑步距离达到3公里',
     type: 'DISTANCE',
-    target: 3000, // meters
+    target: 3000,
     reward_coins: 30,
     reward_experience: 100,
     frequency: 'daily'
@@ -48,8 +42,6 @@ export const SEED_DEFAULT_MISSIONS = [
     reward_experience: 80,
     frequency: 'daily'
   },
-
-  // Weekly Missions
   {
     id: 'weekly_dist_15',
     title: '周跑者',
@@ -120,8 +112,6 @@ export const SEED_DEFAULT_MISSIONS = [
     reward_experience: 500,
     frequency: 'weekly'
   },
-
-  // Achievements
   {
     id: 'ach_first_run',
     title: '初次启程',
@@ -146,7 +136,7 @@ export const SEED_DEFAULT_MISSIONS = [
     id: 'ach_landlord',
     title: '大地主',
     description: '累计拥有100个地块',
-    type: 'HEX_TOTAL', // Check total owned hexes
+    type: 'HEX_TOTAL',
     target: 100,
     reward_coins: 1000,
     reward_experience: 5000,
@@ -154,26 +144,32 @@ export const SEED_DEFAULT_MISSIONS = [
   }
 ] as const
 
-// Simple in-memory cache to avoid redundant checks per request
-// Map<userId, lastCheckTimestamp>
 const missionCheckCache = new Map<string, number>()
-const CACHE_TTL_MS = 60 * 1000 // 60 seconds
+const CACHE_TTL_MS = 60 * 1000
 
-/**
- * Ensures that user has all required missions assigned and resets them if needed.
- * This implements the "Lazy Load" strategy with READ-FIRST optimization.
- *
- * Strategy:
- * 1. READ: Fetch all user missions first.
- * 2. MEMORY CHECK: Determine if any mission is missing or stale (needs daily/weekly reset).
- * 3. WRITE: Only perform DB writes if absolutely necessary.
- * 4. CACHE: Skip entire process if checked recently (60s).
- */
+function getDailyPeriodKey(date: Date = new Date()): string {
+  return date.toISOString().split('T')[0]
+}
+
+function getWeeklyPeriodKey(date: Date = new Date()): string {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+  const dayNum = d.getUTCDay() || 7
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum)
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
+  const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
+  return `${d.getUTCFullYear()}-W${weekNo.toString().padStart(2, '0')}`
+}
+
+function getPeriodKey(frequency: string, date: Date = new Date()): string {
+  if (frequency === 'daily') return getDailyPeriodKey(date)
+  if (frequency === 'weekly') return getWeeklyPeriodKey(date)
+  return 'one_time'
+}
+
 export async function initializeUserMissions(userId: string) {
   const now = Date.now()
   const lastCheck = missionCheckCache.get(userId)
 
-  // 1. Caching Strategy: Skip if checked recently
   if (lastCheck && (now - lastCheck < CACHE_TTL_MS)) {
     return
   }
@@ -182,18 +178,17 @@ export async function initializeUserMissions(userId: string) {
   const nowDate = new Date()
 
   try {
-    // 2. READ FIRST: Fetch existing user missions via Prisma
     const existingMissions = await prisma.user_missions.findMany({
       where: { user_id: userId },
       select: {
         mission_id: true,
         updated_at: true,
         status: true,
-        progress: true
+        progress: true,
+        period_key: true,
       }
     })
 
-    // 3. MEMORY CHECK
     const existingMap = new Map(
       existingMissions.map((m) => [m.mission_id, m])
     )
@@ -203,6 +198,7 @@ export async function initializeUserMissions(userId: string) {
       mission_id: string
       status: string
       progress: number
+      period_key: string
       updated_at: Date
     }> = []
     const missionsToReset: string[] = []
@@ -225,26 +221,24 @@ export async function initializeUserMissions(userId: string) {
       );
     }
 
-    // Check every template against existing data
     for (const template of missionConfigs) {
       const existing = existingMap.get(template.id)
+      const freq = template.frequency ?? 'one_time'
 
-      // A. Check for Missing
       if (!existing) {
         missionsToInsert.push({
           user_id: userId,
           mission_id: template.id,
           status: 'in-progress',
           progress: 0,
+          period_key: getPeriodKey(freq, nowDate),
           updated_at: nowDate
         })
         continue
       }
 
-      // B. Check for Stale (Reset Logic)
-      const freq = template.frequency ?? 'one_time';
       if (freq === 'achievement') continue
-      if (!existing.updated_at) continue // Defensive
+      if (!existing.updated_at) continue
 
       const lastUpdate = new Date(existing.updated_at)
       let shouldReset = false
@@ -266,7 +260,6 @@ export async function initializeUserMissions(userId: string) {
         }
         const currentMonday = getMonday(nowDate)
         const lastUpdateMonday = getMonday(lastUpdate)
-        // Reset if the last update was in a previous week
         if (currentMonday.getTime() !== lastUpdateMonday.getTime())
           shouldReset = true
       }
@@ -276,9 +269,6 @@ export async function initializeUserMissions(userId: string) {
       }
     }
 
-    // 4. WRITE ONLY IF NEEDED
-
-    // Handle Inserts (Missing Missions) — use skipDuplicates to be safe
     if (missionsToInsert.length > 0) {
       console.log(
         `[MissionService] Inserting ${missionsToInsert.length} missing missions...`
@@ -290,7 +280,6 @@ export async function initializeUserMissions(userId: string) {
       })
     }
 
-    // Handle Resets (Stale Missions)
     if (missionsToReset.length > 0) {
       console.log(
         `[MissionService] Resetting ${missionsToReset.length} stale missions...`
@@ -309,7 +298,6 @@ export async function initializeUserMissions(userId: string) {
       })
     }
 
-    // Cache only after entire flow succeeds (avoid 60s skip on partial failure)
     missionCheckCache.set(userId, now)
 
     if (missionsToInsert.length > 0 || missionsToReset.length > 0) {
@@ -323,5 +311,148 @@ export async function initializeUserMissions(userId: string) {
       '[MissionService] Unexpected error during initialization:',
       error
     )
+  }
+}
+
+export async function updateMissionProgress(
+  userId: string,
+  missionType: string,
+  increment: number,
+  tx?: any
+) {
+  const db = tx || prisma
+
+  try {
+    const missions = await db.missions.findMany({
+      where: { type: missionType }
+    })
+
+    if (missions.length === 0) return
+
+    const nowDate = new Date()
+
+    for (const mission of missions) {
+      const freq = mission.frequency ?? 'one_time'
+      if (freq === 'achievement') continue
+
+      const periodKey = getPeriodKey(freq, nowDate)
+
+      await db.user_missions.upsert({
+        where: {
+          user_id_mission_id_period_key: {
+            user_id: userId,
+            mission_id: mission.id,
+            period_key: periodKey,
+          }
+        },
+        update: {
+          progress: { increment },
+          updated_at: nowDate,
+        },
+        create: {
+          user_id: userId,
+          mission_id: mission.id,
+          progress: increment,
+          status: 'in-progress',
+          period_key: periodKey,
+          updated_at: nowDate,
+        }
+      })
+    }
+  } catch (error) {
+    console.error('[MissionService] updateMissionProgress failed:', error)
+  }
+}
+
+export async function claimMissionReward(
+  userId: string,
+  missionId: string,
+  tx?: any
+) {
+  const db = tx || prisma
+
+  try {
+    const userMission = await db.user_missions.findFirst({
+      where: {
+        user_id: userId,
+        mission_id: missionId,
+        status: 'in-progress',
+      },
+      include: {
+        missions: true,
+      }
+    })
+
+    if (!userMission) {
+      return { success: false, error: 'MISSION_NOT_FOUND' }
+    }
+
+    const target = userMission.missions.target_value ?? userMission.missions.target ?? 1
+    const progress = userMission.progress ?? 0
+
+    if (progress < target) {
+      return { success: false, error: 'PROGRESS_INSUFFICIENT' }
+    }
+
+    const coins = userMission.missions.reward_coins ?? 0
+    const xp = userMission.missions.reward_experience ?? userMission.missions.reward_xp ?? 0
+
+    await db.user_missions.update({
+      where: { id: userMission.id },
+      data: {
+        status: 'completed',
+        claimed_at: new Date(),
+      }
+    })
+
+    await db.profiles.update({
+      where: { id: userId },
+      data: {
+        coins: { increment: coins },
+        xp: { increment: xp },
+        updated_at: new Date(),
+      }
+    })
+
+    return { success: true, coins, xp }
+  } catch (error) {
+    console.error('[MissionService] claimMissionReward failed:', error)
+    return { success: false, error: 'INTERNAL_ERROR' }
+  }
+}
+
+export async function getUserMissions(userId: string) {
+  try {
+    await initializeUserMissions(userId)
+
+    const userMissions = await prisma.user_missions.findMany({
+      where: { user_id: userId },
+      include: {
+        missions: true,
+      },
+      orderBy: [
+        { missions: { frequency: 'asc' } },
+        { missions: { type: 'asc' } },
+      ]
+    })
+
+    return userMissions.map(um => ({
+      id: um.missions.id,
+      title: um.missions.title,
+      description: um.missions.description,
+      type: um.missions.type,
+      frequency: um.missions.frequency,
+      targetValue: um.missions.target_value ?? um.missions.target ?? 1,
+      progress: um.progress ?? 0,
+      status: um.status,
+      rewardCoins: um.missions.reward_coins ?? 0,
+      rewardXp: um.missions.reward_experience ?? um.missions.reward_xp ?? 0,
+      periodKey: um.period_key,
+      claimedAt: um.claimed_at,
+      percent: Math.min(100, Math.floor(((um.progress ?? 0) / (um.missions.target_value ?? um.missions.target ?? 1)) * 100)),
+    }))
+  } catch (error) {
+    console.error('[MissionService] getUserMissions failed:', error)
+    return []
   }
 }

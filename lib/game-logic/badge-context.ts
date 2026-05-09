@@ -8,30 +8,27 @@ export interface BadgeCheckContext {
   uniqueDaysRunInLast7Days: number
   activeTileCount: number
   completedActivityCount: number
+  distinctDistrictsCount: number
   earnedBadgeCodes: Set<string>
   eventData?: {
-    distance?: number // meters
-    duration?: number // seconds
-    pace?: number // min/km
+    distance?: number
+    duration?: number
+    pace?: number
     endTime?: Date
     [key: string]: any
   }
 }
 
-/**
- * 构建勋章检查所需的全量上下文
- * 通过一次性集中查询，避免后续独立检查每个勋章时的 N+1 查询风暴
- */
 export async function buildBadgeContext(userId: string, eventData?: any): Promise<BadgeCheckContext> {
   const sevenDaysAgo = new Date()
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6) // -6 ensures today + last 6 days = 7 days window
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6)
 
-  const [stats, completedMissionCount, recentRuns, activeTileCount, completedActivityCount, userBadges] = await Promise.all([
+  const [stats, completedMissionCount, recentRuns, activeTileCount, completedActivityCount, userBadges, distinctDistricts] = await Promise.all([
     fetchUserProfileStats(userId),
-    prisma.userTaskProgress.count({
+    prisma.user_missions.count({
       where: {
-        userId: userId,
-        status: { in: ['COMPLETED', 'CLAIMED'] }
+        user_id: userId,
+        status: 'completed',
       }
     }),
     prisma.runs.findMany({
@@ -47,6 +44,11 @@ export async function buildBadgeContext(userId: string, eventData?: any): Promis
     prisma.user_badges.findMany({
       where: { user_id: userId },
       include: { badges: { select: { code: true } } }
+    }),
+    prisma.territories.findMany({
+      where: { owner_id: userId },
+      select: { city_id: true },
+      distinct: ['city_id'],
     })
   ])
 
@@ -66,6 +68,7 @@ export async function buildBadgeContext(userId: string, eventData?: any): Promis
     uniqueDaysRunInLast7Days: uniqueDays.size,
     activeTileCount,
     completedActivityCount,
+    distinctDistrictsCount: distinctDistricts.length,
     earnedBadgeCodes,
     eventData
   }
