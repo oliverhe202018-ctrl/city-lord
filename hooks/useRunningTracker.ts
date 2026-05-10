@@ -71,6 +71,7 @@ interface RunningStats {
   duration: string; // "HH:MM:SS"
   calories: number;
   path: Location[];
+  displayPath: Location[];
   currentLocation: { lat: number; lng: number } | null;
   isPaused: boolean;
   togglePause: () => void;
@@ -169,6 +170,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   const [duration, setDuration] = useState(0); // seconds
   const [distance, setDistance] = useState(0); // meters
   const [path, setPath] = useState<Location[]>([]);
+  const [displayPath, setDisplayPath] = useState<Location[]>([]);
   const [closedPolygons, setClosedPolygons] = useState<Location[][]>([]);
   const [sessionClaims, setSessionClaims] = useState<Location[][]>([]); // NEW: Claimed territories
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -430,18 +432,25 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
 
   // --- Persistence & Auto-Save Function ---
+  // 双层存储架构：Preferences 仅保留结算元数据 + 最新 100 个点作为安全垫
+  // 全量原始轨迹由原生 Room DB 保管，前端恢复时通过 hydrateOfflinePoints 拉取
   const saveState = useCallback(() => {
     if (!isRunning || isStoppingRef.current) return;
     try {
+      const RECENT_POINTS_LIMIT = 100;
+      const recentPath = pathRef.current.length > RECENT_POINTS_LIMIT
+        ? pathRef.current.slice(-RECENT_POINTS_LIMIT)
+        : pathRef.current;
+
       const stateToSave = {
         runId: savedRunIdRef.current, 
         idempotencyKey: runIdempotencyKeyRef.current,
-        path: pathRef.current || [],
+        path: recentPath,
         distance: distanceRef.current,
         duration: durationRef.current,
         pausedAccumulator: pausedAccumulatorRef.current,
-        isRunning: isRunning, // 必需字段
-        status: isPausedRef.current ? 'paused' : 'running', // 状态明细
+        isRunning: isRunning,
+        status: isPausedRef.current ? 'paused' : 'running',
         startTime: startTimeRef.current,
         lastLocationAt: lastLocationRef.current?.timestamp || Date.now(),
         sessionVersion: '2.0', 
@@ -454,7 +463,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         antiCheatLog: antiCheatLog ?? null,
         area: areaRef.current || 0,
         timestamp: Date.now(),
-        restoreSource: 'storage'
+        restoreSource: 'storage',
+        pathTruncated: pathRef.current.length > RECENT_POINTS_LIMIT,
+        totalPathPoints: pathRef.current.length,
       };
       return Preferences.set({ key: RECOVERY_KEY, value: JSON.stringify(stateToSave) }).catch((e: unknown) => {
         console.error("[useRunningTracker] Failed to save run state to Preferences", e);
@@ -472,6 +483,59 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     const interval = setInterval(saveState, 5000);
     return () => clearInterval(interval);
   }, [isRunning, saveState]);
+
+  // ─── Display Path Simplification (requestIdleCallback) ───
+  // 渲染抽稀：使用 Douglas-Peucker 算法异步计算简化路径，
+  // TrajectoryLayer 仅绑定 displayPath，避免全量原始点 GPU 渲染压力。
+  // 每 30 个 GPS 点或路径变化时触发抽稀，容差 0.00005 ≈ 5m
+  const displayPathSimplifyRef = useRef<{ pending: boolean; counter: number }>({ pending: false, counter: 0 });
+  useEffect(() => {
+    if (!isRunning || isStoppingRef.current) return;
+
+    const SIMPLIFY_TOLERANCE = 0.00005;
+    const SIMPLIFY_TRIGGER_POINTS = 30;
+
+    const scheduleSimplify = () => {
+      displayPathSimplifyRef.current.counter++;
+      if (displayPathSimplifyRef.current.counter < SIMPLIFY_TRIGGER_POINTS) return;
+      displayPathSimplifyRef.current.counter = 0;
+
+      if (displayPathSimplifyRef.current.pending) return;
+      displayPathSimplifyRef.current.pending = true;
+
+      const doSimplify = () => {
+        try {
+          const rawPath = pathRef.current;
+          if (rawPath.length <= 10) {
+            setDisplayPath(rawPath);
+          } else {
+            const simplified = simplifyPath(rawPath, SIMPLIFY_TOLERANCE);
+            // simplifyPath 返回 { lat, lng } 无 timestamp，需要从原始路径映射回 Location[]
+            const timestampMap = new Map<string, number>();
+            rawPath.forEach(pt => {
+              timestampMap.set(`${pt.lat.toFixed(7)},${pt.lng.toFixed(7)}`, pt.timestamp);
+            });
+            const displayPoints: Location[] = simplified.map(pt => ({
+              lat: pt.lat,
+              lng: pt.lng,
+              timestamp: timestampMap.get(`${pt.lat.toFixed(7)},${pt.lng.toFixed(7)}`) ?? Date.now(),
+            }));
+            setDisplayPath(displayPoints);
+          }
+        } finally {
+          displayPathSimplifyRef.current.pending = false;
+        }
+      };
+
+      if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+        (window as any).requestIdleCallback(doSimplify, { timeout: 2000 });
+      } else {
+        setTimeout(doSimplify, 100);
+      }
+    };
+
+    scheduleSimplify();
+  }, [isRunning, path]);
 
   // ─── Kalman-based GPS Smoothing (replaces legacy EMA) ───
   const smoothLocation = (newLoc: Location, prevLoc: Location | null, accuracy?: number): Location => {
@@ -559,6 +623,12 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     // ================================================================
     // 🛡️ THREE-LAYER GPS ANTI-JITTER INTERCEPTOR
     // Applied BEFORE smoothing, path appending, or distance calculation
+    //
+    // 展示流与记录流分离：
+    // - Anchor 阶段（pathRef 为空）：精度 <= 50m 的点可作为首个锚点
+    // - 追踪阶段：精度 <= 30m 的点才参与距离结算
+    // - Warm-up 期间：所有通过精度检查的点仅更新 UI（currentLocation），
+    //   绝对不写入 pathRef，直到连续收到高精度点解除 warm-up
     // ================================================================
 
     if (isAwaitingAnchor) {
@@ -606,6 +676,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     const finalLoc = newLoc;
 
     // --- Phase 2: Warm-up & Jitter Filter ---
+    // 展示流与记录流分离核心逻辑：
+    // warm-up 期间，所有通过精度检查的点仅更新 currentLocation 供 UI 渲染，
+    // 绝对不写入 pathRef 参与距离结算。
     if (isWarmingUpRef.current) {
       if (firstPointAtRef.current === null) {
         firstPointAtRef.current = now;
@@ -802,23 +875,26 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     }
 
     // Add ACTUAL GPS point to path (seamless continuation)
-    // TODO: 引入 Douglas-Peucker 算法进行轨迹抽稀（tolerance=3m）
-    // 长距离跑步（>10km）时 pathRef 可能积累数千个点，导致内存溢出与 GeoJSON 序列化超时
-    // 建议在 pathRef.current.length > 500 时触发一次增量抽稀
-    const updatedPath = [...pathRef.current, finalLoc];
-    pathRef.current = updatedPath;
-    setPath(updatedPath);
+    // 性能优化：使用 push 替代 spread 操作，避免 O(n) 数组复制
+    // 长距离跑步（>10km）时 pathRef 可能积累数千个点，spread 会导致 O(n²) 累积开销
+    pathRef.current.push(finalLoc);
+    setPath([...pathRef.current]);
 
     // ========================================================================
     // 🔄 REAL-TIME SELF-INTERSECTION LOOP DETECTION (with throttling)
     // ========================================================================
     // 每累计 5 个 GPS 点触发一次 extractValidLoops 自交检测，
     // 覆盖 P 形环、8 字形等复杂轨迹，确保 UI 面积实时跳动。
-    // Strategy B 为 O(n) 复杂度，1500 点内性能开销可接受。
+    // 滑动窗口优化：路径超过 300 点时仅扫描最新 300 点，阻断 O(n²) 增长。
+    // 300 个点 × 3m 间隔 ≈ 900m，正常跑步不会跑出 >900m 不自交的环。
     // ========================================================================
     realtimeLoopCheckCounterRef.current++;
     if (realtimeLoopCheckCounterRef.current % 5 === 0 && pathRef.current.length >= 6) {
-      const detectedLoops = extractValidLoops(pathRef.current);
+      const MAX_LOOP_SCAN_POINTS = 300;
+      const scanPath = pathRef.current.length > MAX_LOOP_SCAN_POINTS
+        ? pathRef.current.slice(-MAX_LOOP_SCAN_POINTS)
+        : pathRef.current;
+      const detectedLoops = extractValidLoops(scanPath);
       
       for (const loop of detectedLoops) {
         if (loop.length < 4) continue;
@@ -1687,6 +1763,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     calories,
     currentLocation,
     path,
+    displayPath,
     isPaused,
     togglePause,
     stop,

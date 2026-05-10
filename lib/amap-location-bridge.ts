@@ -343,7 +343,7 @@ export class AMapLocationBridge {
         const requestId = makeRequestId();
         this.currentRequestId = requestId;
         this.fastFixInFlight = true;
-        const timeout = options.timeout ?? 8000;
+        const timeout = options.timeout ?? 15000;
         const cacheMaxAge = options.cacheMaxAge ?? 5000;
 
         logInfo({
@@ -790,7 +790,7 @@ export class AMapLocationBridge {
             (err) => {
                 this.callbacks.onError({ code: 'UNAVAILABLE', message: err.message });
             },
-            { enableHighAccuracy: true, timeout: 10000, maximumAge: interval },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: interval },
         );
     }
 
@@ -1238,7 +1238,7 @@ export class AMapLocationBridge {
                 // 2a. 发起 fastFix
                 let point: GeoPoint | null = null;
                 try {
-                    point = await this.getCurrentPosition({ mode: 'fast', timeout: 5000, cacheMaxAge: 2000 });
+                    point = await this.getCurrentPosition({ mode: 'fast', timeout: 10000, cacheMaxAge: 2000 });
                 } catch (e) {
                     logError({ requestId: reqId, phase: 'recovery_fastfix_error', reason: String(e) });
                 }

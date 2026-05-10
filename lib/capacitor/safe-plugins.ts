@@ -397,29 +397,6 @@ export async function safeBackgroundTaskFinish(taskId: string) {
   } catch { }
 }
 
-// ============== Background Geolocation ==============
-export async function safeBackgroundGeolocationAddWatcher(
-  options: Record<string, any>,
-  callback: (location: any, error: any) => void
-): Promise<string | null> {
-  try {
-    const { registerPlugin } = await import('@capacitor/core')
-    const BackgroundGeolocation = registerPlugin<any>('BackgroundGeolocation')
-    const watcherId = await BackgroundGeolocation.addWatcher(options, callback)
-    return watcherId
-  } catch {
-    return null
-  }
-}
-
-export async function safeBackgroundGeolocationRemoveWatcher(id: string) {
-  try {
-    const { registerPlugin } = await import('@capacitor/core')
-    const BackgroundGeolocation = registerPlugin<any>('BackgroundGeolocation')
-    await BackgroundGeolocation.removeWatcher({ id })
-  } catch { }
-}
-
 // ============== Microphone ==============
 export interface MicPermissionResult {
   currentStatus: 'granted' | 'denied' | 'prompt';

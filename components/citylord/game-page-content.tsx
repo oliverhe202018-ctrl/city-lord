@@ -321,6 +321,7 @@ export function GamePageContent({
     calories,
     currentLocation,
     path,
+    displayPath,
     closedPolygons,
     sessionClaims, // NEW: Claimed polygons for rendering
     isPaused: trackerIsPaused,
@@ -1087,7 +1088,7 @@ export function GamePageContent({
                       showControls={shouldShowPlayChrome}
                       onMapLoad={handleMapLoad}
                       sessionClaims={sessionClaims}
-                      runPath={isRunTakeoverActive ? path : undefined}
+                      runPath={isRunTakeoverActive ? displayPath : undefined}
                       ghostPath={ghostPath}
                       onViewportKingChange={setViewportKing}
                       isRunTakeoverActive={isRunTakeoverActive}
@@ -1317,7 +1318,7 @@ export function GamePageContent({
             onManualLocation={handleManualLocationUpdate}
             onExpand={handleExpand}
             currentLocation={immersiveCurrentLocation}
-            path={path}
+            path={displayPath}
             closedPolygons={closedPolygons}
             onHexClaimed={handleHexClaimed}
             saveRun={saveRun}

@@ -3,8 +3,10 @@
 import { create } from 'zustand';
 import type { GeoPoint, LocationStatus } from '@/hooks/useSafeGeolocation';
 
-export const GPS_START_ANCHOR_ACCURACY_METERS = 20;
+export const GPS_START_ANCHOR_ACCURACY_METERS = 50;
 export const GPS_TRACKING_ACCURACY_METERS = 30;
+export const GPS_DISPLAY_ACCURACY_METERS = 100;
+export const GPS_COLD_START_ACCURACY_METERS = 500;
 export const GPS_START_WARMUP_INTERVAL_MS = 1000;
 export const GPS_BROWSE_INTERVAL_MS = 1000;
 export const GPS_START_WARMUP_DISTANCE_FILTER_METERS = 3;

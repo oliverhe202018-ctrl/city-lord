@@ -6,6 +6,8 @@ import {
     saveLocationToCache,
     GPS_START_ANCHOR_ACCURACY_METERS,
     GPS_TRACKING_ACCURACY_METERS,
+    GPS_DISPLAY_ACCURACY_METERS,
+    GPS_COLD_START_ACCURACY_METERS,
     GPS_START_WARMUP_DISTANCE_FILTER_METERS,
     GPS_START_WARMUP_INTERVAL_MS,
     GPS_BROWSE_INTERVAL_MS,
@@ -65,19 +67,20 @@ export function useLocationContext(): LocationContextValue {
 const TAG = '[GlobalLocationProvider]';
 
 /**
- * GPS accuracy thresholds (meters).
+ * GPS accuracy thresholds (meters) — 展示流与记录流分离架构。
  *
- * GPS_ACCEPT_ACCURACY  — hard ceiling for accepting a location update.
- *   - 30m covers good outdoor GPS (3-10m) and acceptable network-assist (15-25m).
- *   - Points above 30m are almost always indoor WiFi/cell-tower fallbacks that
- *     produce the visible "jitter" on the map. They are silently dropped.
+ * GPS_COLD_START_ACCURACY_METERS (500m) — 冷启动首个点门槛
+ *   应用刚启动时，只要 accuracy < 500m 且时间戳在 1 分钟内，立即推给 UI。
+ *   目的：让用户瞬间看到蓝点，消除"卡死"焦虑。
  *
- * GPS_JITTER_DEAD_ZONE — minimum distance (meters) between consecutive points
- *   before the map marker is allowed to move. This absorbs the ±2-5m GPS noise
- *   seen even in good outdoor conditions.
+ * GPS_DISPLAY_ACCURACY_METERS (100m) — UI 展示门槛
+ *   通过此门槛的点可更新地图中心点和蓝点位置。
+ *   注意：展示 ≠ 记录，粗精度点不参与跑步距离结算。
+ *
+ * GPS_JITTER_DEAD_ZONE — 地图标记最小移动距离
+ *   吸收 ±2-5m GPS 噪声，防止静止时蓝点抖动。
  */
-const GPS_ACCEPT_ACCURACY = 30;   // ← was 100m; tightened to kill indoor jitter
-const GPS_JITTER_DEAD_ZONE = 3;   // ← was 0.1m (10cm); raised to 3m
+const GPS_JITTER_DEAD_ZONE = 3;
 
 export function GlobalLocationProvider({ children }: { children: ReactNode }) {
     const bridgeRef = useRef<AMapLocationBridge | null>(null);
@@ -230,17 +233,37 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
             onLocationUpdate: (point: GeoPoint, meta?: LocationMeta) => {
                 if (!mountedRef.current) return;
 
-                // ── Accuracy gate ──────────────────────────────────────────────────
-                // Drop any point whose accuracy is worse than GPS_ACCEPT_ACCURACY.
-                // Indoor WiFi/cell fixes typically report 40-200m and are the primary
-                // cause of the "jitter" seen on the map when GPS signal is lost.
-                if (point.accuracy != null && point.accuracy > GPS_ACCEPT_ACCURACY) {
+                // ── 展示流与记录流分离：两层精度门控 ──────────────────────────────
+                // 第一层：冷启动快速响应（accuracy < 500m 且时间戳在 1 分钟内）
+                //   立即推给 UI，让地图中心点瞬间移动过去并展示蓝点
+                // 第二层：常规展示门槛（accuracy <= 100m）
+                //   通过此门槛的点可正常更新地图中心点和蓝点位置
+                // 注意：展示 ≠ 记录！粗精度点由 useRunningTracker 的 warm-up 逻辑拦截，
+                //       绝对不会写入 pathRef 参与距离结算。
+                const isColdStartFirstPoint =
+                    !useLocationStore.getState().location &&
+                    point.accuracy != null &&
+                    point.accuracy < GPS_COLD_START_ACCURACY_METERS &&
+                    point.timestamp != null &&
+                    (Date.now() - point.timestamp) < 60_000;
+
+                const passesDisplayGate =
+                    isColdStartFirstPoint ||
+                    (point.accuracy != null && point.accuracy <= GPS_DISPLAY_ACCURACY_METERS);
+
+                if (!passesDisplayGate) {
                     console.warn(
-                        `${TAG} Dropped low-accuracy point: ${point.accuracy.toFixed(0)}m ` +
-                        `(threshold: ${GPS_ACCEPT_ACCURACY}m)`
+                        `${TAG} Dropped low-accuracy point: ${point.accuracy?.toFixed(0)}m ` +
+                        `(display threshold: ${GPS_DISPLAY_ACCURACY_METERS}m)`
                     );
                     useLocationStore.setState({ gpsSignalStrength: 'none' });
                     return;
+                }
+
+                if (isColdStartFirstPoint) {
+                    console.log(
+                        `${TAG} 🚀 Cold-start fast response: accuracy ${point.accuracy?.toFixed(0)}m < ${GPS_COLD_START_ACCURACY_METERS}m, pushing to UI immediately`
+                    );
                 }
 
                 // ── Jitter dead-zone (with cosine latitude scaling) ────────────────
@@ -289,7 +312,7 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
                     status: 'locked',
                     gpsSignalStrength:
                         point.accuracy != null && point.accuracy <= GPS_START_ANCHOR_ACCURACY_METERS ? 'good'
-                            : point.accuracy != null && point.accuracy <= GPS_TRACKING_ACCURACY_METERS ? 'weak'
+                            : point.accuracy != null && point.accuracy <= GPS_DISPLAY_ACCURACY_METERS ? 'weak'
                                 : 'none',
                 });
                 useLocationStore.getState().appendWarmupSample(point);
@@ -370,26 +393,56 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
                             window.dispatchEvent(new Event('amap-context-check'));
                         }
 
-                        // FIX: When the app resumes, always assume the native watch
-                        // may have been killed by the OS while in background.
-                        // Reset isWatching to false so the stable-state Effect will
-                        // unconditionally restart it if permission is still granted.
-                        // This closes the race where isWatchingRef.current stays true
-                        // even though the underlying AMap watch is already dead.
+                        // FIX: 从后台恢复时，前台服务可能已堆积大量离线点到 Room DB
+                        // 立即执行追帧，拉取黑匣子中断失的坐标流
+                        try {
+                            const { AMapLocation } = await import('@/plugins/amap-location/definitions');
+                            const res = await AMapLocation.getOfflineLocations({ sessionId: 'idle' });
+                            const offlinePoints = res?.locations || [];
+
+                            if (offlinePoints.length > 0) {
+                                console.log(`${TAG} 追帧: 拉取到 ${offlinePoints.length} 条非跑步期间离线点`);
+                                const sorted = [...offlinePoints].sort((a, b) => a.timestamp - b.timestamp);
+                                const latest = sorted[sorted.length - 1];
+
+                                // 静默更新 location store，不触发 UI 重绘
+                                useLocationStore.setState({
+                                    location: {
+                                        lat: latest.lat,
+                                        lng: latest.lng,
+                                        accuracy: latest.accuracy,
+                                        heading: latest.bearing,
+                                        speed: latest.speed,
+                                        timestamp: latest.timestamp,
+                                        source: 'amap-native',
+                                        coordSystem: 'gcj02',
+                                    },
+                                    loading: false,
+                                    status: 'locked',
+                                });
+
+                                // ACK 标记已同步
+                                await AMapLocation.acknowledgeLocations({
+                                    ids: offlinePoints.map((p: { id: number }) => p.id),
+                                });
+                            }
+                        } catch (err) {
+                            console.warn(`${TAG} 追帧失败 (非致命，数据下次恢复时仍可拉取):`, err);
+                        }
+
+                        // 假设原生 watch 可能被 OS 杀死，重置状态让 stable-state Effect 重建
                         if (initPromiseRef.current && bridgeRef.current) {
                             const { safeCheckGeolocationPermission } = await import('@/lib/capacitor/safe-plugins');
                             const currentPerm = await safeCheckGeolocationPermission();
                             if (currentPerm === 'granted') {
-                                // Reset watching state + pending — let the stable Effect decide
                                 setIsWatching(false);
                                 setPendingStartLocation(true);
                             }
                         }
                     } else {
                         setIsAppActive(false);
-                        // Mark watch as no longer active when going to background,
-                        // because the OS may suspend it at any point.
-                        setIsWatching(false);
+                        // 保留前台服务在原生层持续运行，不再主动 setIsWatching(false)
+                        // 原生 LocationForegroundService + Room DB 会继续记录坐标
                     }
                 });
 

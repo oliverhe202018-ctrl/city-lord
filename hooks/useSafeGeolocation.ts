@@ -407,17 +407,11 @@ export function useSafeGeolocation(options: UseSafeGeolocationOptions = {}): Use
         if (!isMounted.current) return;
         if (state.isActive && !isActive) {
           console.debug('[useSafeGeolocation] App resumed, restarting location tracking');
-          if (watchId.current) {
-            const id = watchId.current;
-            try { await safeClearWatch(id); } catch (e) { console.debug(e); } finally { watchId.current = null; }
-          }
+          // 不清除 watch，让原生层持续推送；直接重新请求权限并启动
           requestPermissionsAndStart(false);
         } else if (!state.isActive && isActive) {
-          console.debug('[useSafeGeolocation] App paused, clearing location tracking to save power');
-          if (watchId.current) {
-            const id = watchId.current;
-            try { await safeClearWatch(id); } catch (e) { console.debug(e); } finally { watchId.current = null; }
-          }
+          console.debug('[useSafeGeolocation] App paused, keeping watch alive for foreground service');
+          // 不再清除 watch，保留前台服务在原生层持续运行
         }
         isActive = state.isActive;
       }, 500);
