@@ -1,22 +1,4 @@
 {
-  "crons": [
-    {
-      "path": "/api/cron/update-province",
-      "schedule": "55 15 * * *"
-    },
-    {
-      "path": "/api/cron/territory-decay",
-      "schedule": "0 3 * * *"
-    },
-    {
-      "path": "/api/cron/leaderboard-snapshot",
-      "schedule": "0 16 * * *"
-    },
-    {
-      "path": "/api/cron/stamina-recovery",
-      "schedule": "0 3 * * *"
-    }
-  ],
   "regions": [
     "pdx1"
   ]
