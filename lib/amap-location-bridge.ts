@@ -96,6 +96,7 @@ interface StructuredLog {
     lng?: number;
     retries?: number;
     acceptedAsInitial?: boolean;
+    watchMode?: 'browse' | 'running' | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -615,39 +616,45 @@ export class AMapLocationBridge {
             reason: `mode=${options.mode} interval=${interval} distanceFilter=${distanceFilter}`,
         });
 
+        const START_WATCH_TIMEOUT_MS = 15000;
+
         try {
-            if (this.isNative && this._AMapLocation) {
-                if (Capacitor.getPlatform() === 'android') {
-                    // ===== BUG FIX: Always use foreground service for ALL modes =====
-                    // This ensures the status bar notification persists even when minimized/screen off.
-                    // Previously only running mode used the foreground service.
-                    const notifBody = options.mode === 'running' ? '跑步定位中…' : '位置追踪中…';
-                    logInfo({ phase: 'startWatch-foreground-service', reason: `Using foreground service for ${options.mode} mode` });
-                    await this._AMapLocation.startTracking({
-                        notificationTitle: 'City Lord',
-                        notificationBody: notifBody,
-                        interval: interval,
-                        distanceFilter: distanceFilter,
-                    });
-                    this.isUsingForegroundService = true;
+            const startWatchPromise = (async () => {
+                if (this.isNative && this._AMapLocation) {
+                    if (Capacitor.getPlatform() === 'android') {
+                        const notifBody = options.mode === 'running' ? '跑步定位中…' : '位置追踪中…';
+                        logInfo({ phase: 'startWatch-foreground-service', reason: `Using foreground service for ${options.mode} mode` });
+                        await this._AMapLocation.startTracking({
+                            notificationTitle: 'City Lord',
+                            notificationBody: notifBody,
+                            interval: interval,
+                        });
+                        this.isUsingForegroundService = true;
+                    } else {
+                        await this._AMapLocation.startWatch({ mode: options.mode });
+                        this.isUsingForegroundService = false;
+                    }
                 } else {
-                    // iOS: 无 ForegroundService 概念，直接使用 startWatch
-                    await this._AMapLocation.startWatch({ mode: options.mode });
+                    this.startWebWatch(interval);
                     this.isUsingForegroundService = false;
                 }
-            } else {
-                this.startWebWatch(interval);
-                this.isUsingForegroundService = false;
-            }
 
-            this.isWatching = true;
-            this.watchMode = options.mode;
-            this.lastAcceptedTime = Date.now();
-            this.startStaleWatchdog();
+                this.isWatching = true;
+                this.watchMode = options.mode;
+                this.lastAcceptedTime = Date.now();
+                this.startStaleWatchdog();
 
-            this.callbacks.onStatusChange('locating');
+                this.callbacks.onStatusChange('locating');
+            })();
+
+            const timeoutPromise = new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error('startWatch timeout after 15s')), START_WATCH_TIMEOUT_MS)
+            );
+
+            await Promise.race([startWatchPromise, timeoutPromise]);
         } catch (e) {
             logError({ phase: 'startWatch-error', reason: String(e) });
+            throw e;
         }
     }
 

@@ -217,7 +217,7 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
                     console.log(`${TAG} Location watch started successfully.`);
                 } catch (err) {
                     console.error(`${TAG} Async bridge startup failed:`, err);
-                    // Do NOT clear pendingStartLocation so the effect retries on next state change
+                    useLocationStore.setState({ loading: false, error: 'UNAVAILABLE', status: 'error' });
                 }
             })();
         }
@@ -245,7 +245,7 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
                     point.accuracy != null &&
                     point.accuracy < GPS_COLD_START_ACCURACY_METERS &&
                     point.timestamp != null &&
-                    (Date.now() - point.timestamp) < 60_000;
+                    (Date.now() - point.timestamp) < 600_000;
 
                 const passesDisplayGate =
                     isColdStartFirstPoint ||
@@ -257,6 +257,9 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
                         `(display threshold: ${GPS_DISPLAY_ACCURACY_METERS}m)`
                     );
                     useLocationStore.setState({ gpsSignalStrength: 'none' });
+                    if (!useLocationStore.getState().location) {
+                        useLocationStore.setState({ loading: false, status: 'locating' });
+                    }
                     return;
                 }
 
