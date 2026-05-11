@@ -102,6 +102,7 @@ interface RunningStats {
   settlementStatus: 'idle' | 'pending' | 'completed' | 'flagged' | 'timeout';
   activeRandomEvent: ActiveRandomEvent | null;
   randomEventCountdownSeconds: number;
+  isGPSWeak: boolean;
 }
 
 // Haversine formula — now imported from @/lib/geometry-utils
@@ -176,6 +177,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [area, setArea] = useState(0); // m²
   const [isWarmingUp, setIsWarmingUp] = useState(true);
+  const [isGPSWeak, setIsGPSWeak] = useState(false);
 
   // Sync State
   const [isSyncing, setIsSyncing] = useState(false);
@@ -183,6 +185,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   const clubId = useGameStore((s) => s.clubId);
 
   const isStoppingRef = useRef(false);
+  const gpsWeakTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastLocationRef = useRef<Location | null>(null);
   const pathRef = useRef<Location[]>([]);
   const isPausedRef = useRef(isPaused);
@@ -221,7 +224,6 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   useEffect(() => { sessionClaimsRef.current = sessionClaims; }, [sessionClaims]);
   useEffect(() => { closedPolygonsRef.current = closedPolygons; }, [closedPolygons]);
   useEffect(() => { areaRef.current = area; }, [area]);
-  useEffect(() => { isWarmingUpRef.current = isWarmingUp; }, [isWarmingUp]);
 
   // Idempotency key for the current run
   const runIdempotencyKeyRef = useRef<string>(uuidv4());
@@ -640,6 +642,12 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       }
     } else if (accuracy != null && accuracy > GPS_TRACKING_ACCURACY_METERS) {
       console.debug(`[GPS-Filter] ❌ Layer 1 REJECT: accuracy ${accuracy.toFixed(0)}m > ${GPS_TRACKING_ACCURACY_METERS}m threshold`);
+      if (gpsWeakTimerRef.current === null) {
+        gpsWeakTimerRef.current = setTimeout(() => {
+          setIsGPSWeak(true);
+          gpsWeakTimerRef.current = null;
+        }, 5000);
+      }
       return;
     }
 
@@ -667,6 +675,11 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     // ================================================================
     // Filters passed — this is a valid GPS point candidate
     // ================================================================
+    setIsGPSWeak(false);
+    if (gpsWeakTimerRef.current) {
+      clearTimeout(gpsWeakTimerRef.current);
+      gpsWeakTimerRef.current = null;
+    }
 
     let newLoc: Location = { lat, lng, timestamp: now };
 
@@ -687,6 +700,8 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
       // Stop warming up after timeout OR minimum high-accuracy points
       if (now - firstPointAtRef.current > WARMUP_TIMEOUT_MS || validPointsCountRef.current >= MIN_WARMUP_POINTS) {
+        // 必须同步更新 ref，不能只 setIsWarmingUp（Effect 异步，有失同步窗口）
+        isWarmingUpRef.current = false;
         setIsWarmingUp(false);
         console.log(`[GPS-Filter] ✅ Warm-up complete (${validPointsCountRef.current} points, ${now - firstPointAtRef.current}ms). Starting track.`);
       } else {
@@ -1793,5 +1808,6 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     settlementStatus,
     activeRandomEvent: activeEvent,
     randomEventCountdownSeconds: countdownSeconds,
+    isGPSWeak,
   };
 }
