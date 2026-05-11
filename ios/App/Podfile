@@ -16,8 +16,8 @@ install! 'cocoapods', :disable_input_output_paths => true
 def capacitor_pods
   pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'
   pod 'CapacitorCordova', :path => '../../node_modules/@capacitor/ios'
-  pod 'CapacitorCommunityBackgroundGeolocation', :path => '../../node_modules/@capacitor-community/background-geolocation'
   pod 'CapacitorCommunityKeepAwake', :path => '../../node_modules/@capacitor-community/keep-awake'
+  pod 'CapacitorCommunitySafeArea', :path => '../../node_modules/@capacitor-community/safe-area'
   pod 'CapacitorCommunityTextToSpeech', :path => '../../node_modules/@capacitor-community/text-to-speech'
   pod 'CapacitorApp', :path => '../../node_modules/@capacitor/app'
   pod 'CapacitorBrowser', :path => '../../node_modules/@capacitor/browser'
@@ -35,11 +35,6 @@ def capacitor_pods
   pod 'CapgoCapacitorPedometer', :path => '../../node_modules/@capgo/capacitor-pedometer'
   pod 'PerfoodCapacitorHealthkit', :path => '../../node_modules/@perfood/capacitor-healthkit'
   pod 'CapacitorNativeSettings', :path => '../../node_modules/capacitor-native-settings'
-
-  # AMap (Gaode) iOS SDK from official AMap CocoaPods specs repo
-  # AMapFoundationKit must come before AMapLocationKit
-  pod 'AMapFoundationKit', '~> 2.10'
-  pod 'AMapLocationKit', '~> 2.10'
 end
 
 target 'App' do

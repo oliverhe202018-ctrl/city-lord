@@ -223,6 +223,30 @@ export interface AMapLocationPlugin {
         acknowledged: number;
     }>;
 
+    /**
+     * 亮屏恢复时增量补帧（Hydration）。
+     * 根据 sessionId 和 sinceTimestamp 从 Room 数据库拉取息屏期间丢失的坐标点，
+     * 实现轨迹缝合。返回的点按时间戳升序排列，JS 层需依次注入状态引擎。
+     *
+     * 安全上限：单次最多返回 1000 点，防止 OOM。
+     *
+     * @param options.sessionId 跑步会话 ID
+     * @param options.sinceTimestamp 起始时间戳（毫秒），仅返回此时间之后的点
+     * @returns 包含 points 数组、count 计数和 capped 标记的对象
+     */
+    hydrateOfflinePoints(options: { sessionId: string; sinceTimestamp: number }): Promise<{
+        points: Array<{
+            lat: number;
+            lng: number;
+            timestamp: number;
+            accuracy: number;
+            speed: number;
+            bearing: number;
+        }>;
+        count: number;
+        capped: boolean;
+    }>;
+
 
 }
 

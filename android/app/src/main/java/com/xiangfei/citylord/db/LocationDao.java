@@ -60,4 +60,15 @@ public interface LocationDao {
      */
     @Query("SELECT COUNT(*) FROM location_records WHERE sessionId = :sessionId AND isAcked = 0")
     int getUnsyncedCount(String sessionId);
+
+    /**
+     * 查询指定 sessionId 下、时间戳大于 sinceTimestamp 的记录，按时间戳升序排列。
+     * 用于亮屏恢复时的增量补帧（Hydration），避免重复拉取已处理的坐标点。
+     *
+     * @param sessionId        跑步会话 ID
+     * @param sinceTimestamp   起始时间戳（毫秒），仅返回此时间之后的点
+     * @return 按时间排序的定位记录列表
+     */
+    @Query("SELECT * FROM location_records WHERE sessionId = :sessionId AND timestamp > :sinceTimestamp ORDER BY timestamp ASC")
+    List<LocationEntity> getPointsAfter(String sessionId, long sinceTimestamp);
 }

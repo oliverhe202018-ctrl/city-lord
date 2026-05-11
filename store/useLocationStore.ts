@@ -60,8 +60,18 @@ export interface LocationStoreState {
         source?: string;
         reason?: string;
     } | null;
+
+    /** 最近一次收到有效定位点的时间戳（毫秒），用于亮屏恢复时增量补帧 */
+    lastLocationTimestamp: number;
+
+    /** 当前跑步会话 ID，用于 Room DB 查询补帧 */
+    currentRunId: string | null;
+
     appendWarmupSample: (point: GeoPoint) => void;
     clearWarmupState: () => void;
+    setLastLocationTimestamp: (ts: number) => void;
+    setCurrentRunId: (id: string | null) => void;
+    injectOfflinePoint: (point: GeoPoint) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -115,7 +125,7 @@ function getInitialLocation(): { location: GeoPoint | null; status: LocationStat
 
 const initial = getInitialLocation();
 
-export const useLocationStore = create<LocationStoreState>()(() => ({
+export const useLocationStore = create<LocationStoreState>()((set) => ({
     location: initial.location,
     locationSource: initial.location ? 'cache' : null,
     loading: true,
@@ -124,14 +134,25 @@ export const useLocationStore = create<LocationStoreState>()(() => ({
     gpsSignalStrength: 'none',
     warmupSamples: [],
     locationMeta: null,
-    appendWarmupSample: (point) => useLocationStore.setState((state) => ({
+    lastLocationTimestamp: initial.location?.timestamp ?? 0,
+    currentRunId: null,
+    appendWarmupSample: (point) => set((state) => ({
         warmupSamples: [...state.warmupSamples.slice(-(WARMUP_BUFFER_LIMIT - 1)), point],
     })),
-    clearWarmupState: () => useLocationStore.setState({
+    clearWarmupState: () => set({
         location: null,
         locationSource: null,
         locationMeta: null,
         warmupSamples: [],
+    }),
+    setLastLocationTimestamp: (ts) => set({ lastLocationTimestamp: ts }),
+    setCurrentRunId: (id) => set({ currentRunId: id }),
+    injectOfflinePoint: (point) => set({
+        location: point,
+        locationSource: 'amap-native',
+        lastLocationTimestamp: point.timestamp ?? Date.now(),
+        loading: false,
+        status: 'locked',
     }),
 }));
 

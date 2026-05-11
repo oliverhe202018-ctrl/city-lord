@@ -998,15 +998,24 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
     try {
       const { AMapLocation } = await import('@/plugins/amap-location/definitions');
-      const res = await AMapLocation.getOfflineLocations({ sessionId });
-      const offlinePoints = res?.locations || [];
+      const store = useLocationStore.getState();
+      const sinceTimestamp = store.lastLocationTimestamp;
+
+      // 使用增量补帧接口（hydrateOfflinePoints），仅拉取 sinceTimestamp 之后的点
+      // 避免重复拉取已处理的坐标，彻底解决"息屏直线幽灵"
+      const res = await AMapLocation.hydrateOfflinePoints({
+        sessionId,
+        sinceTimestamp: sinceTimestamp > 0 ? sinceTimestamp : 0,
+      });
+      const offlinePoints = res?.points || [];
 
       if (offlinePoints.length === 0) {
         console.log('[Hydrate] 无离线记录需要追帧');
+        isHydratingRef.current = false;
         return;
       }
 
-      console.log(`[Hydrate] 拉取到 ${offlinePoints.length} 条离线定位记录, sessionId=${sessionId}`);
+      console.log(`[Hydrate] 拉取到 ${offlinePoints.length} 条离线定位记录 (capped=${res.capped}), sessionId=${sessionId}`);
 
       // 1. 先对所有离线点进行时间戳排序
       const sortedOffline = [...offlinePoints].sort((a: { timestamp: number }, b: { timestamp: number }) => a.timestamp - b.timestamp);
@@ -1037,7 +1046,6 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
       if (validOffline.length === 0) {
         console.log('[Hydrate] 所有离线点均为异常漂移点，已剔除');
-        await AMapLocation.acknowledgeLocations({ ids: offlinePoints.map((p: { id: number }) => p.id) });
         isHydratingRef.current = false;
         return;
       }
@@ -1058,13 +1066,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           }
           console.log(`[Hydrate] 批量合入完成: ${validOffline.length} 个轨迹点, 新增距离 ${totalDistDelta.toFixed(1)}m`);
 
-          await AMapLocation.acknowledgeLocations({ ids: offlinePoints.map((p: { id: number }) => p.id) })
-            .then((ackResult) => {
-              console.log(`[Hydrate] ACK 完成: ${ackResult.acknowledged} 条记录已确认`);
-            })
-            .catch((ackErr) => {
-              console.warn('[Hydrate] ACK 失败（数据不会丢失，下次苏醒自动重试）:', ackErr);
-            });
+          // 追帧完成后，更新 store 的时间戳为最新离线点的时间
+          const latestTimestamp = validOffline[validOffline.length - 1].timestamp;
+          useLocationStore.getState().setLastLocationTimestamp(latestTimestamp);
 
           // 释放追帧锁（必须先释放，否则后续 flush 会死循环拦截）
           isHydratingRef.current = false;
@@ -1446,6 +1450,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           // Fix: Re-initialize startTimeRef to NOW so the timer can count correctly.
           startTimeRef.current = Date.now();
         }
+
+        // 注入 currentRunId 到 useLocationStore，供亮屏追帧（Hydration）使用
+        useLocationStore.getState().setCurrentRunId(runIdempotencyKeyRef.current);
       };
 
       performRecovery();
@@ -1507,6 +1514,8 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     claimedLoopKeysRef.current = new Set();
     kalmanLatRef.current.reset();
     kalmanLngRef.current.reset();
+    // 清理 currentRunId，防止下次跑步追帧时拉取旧数据
+    useLocationStore.getState().setCurrentRunId(null);
     console.log('[DEBUG:RunningTracker] finalize (Store Reset) FINISHED. distance resets to 0');
   }, []);
 

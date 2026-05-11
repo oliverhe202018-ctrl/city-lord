@@ -315,6 +315,7 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
                             : point.accuracy != null && point.accuracy <= GPS_DISPLAY_ACCURACY_METERS ? 'weak'
                                 : 'none',
                 });
+                useLocationStore.getState().setLastLocationTimestamp(point.timestamp ?? Date.now());
                 useLocationStore.getState().appendWarmupSample(point);
                 saveLocationToCache(point);
                 useGameStore.getState().updateLocation(point.lat, point.lng);
@@ -393,42 +394,8 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
                             window.dispatchEvent(new Event('amap-context-check'));
                         }
 
-                        // FIX: 从后台恢复时，前台服务可能已堆积大量离线点到 Room DB
-                        // 立即执行追帧，拉取黑匣子中断失的坐标流
-                        try {
-                            const { AMapLocation } = await import('@/plugins/amap-location/definitions');
-                            const res = await AMapLocation.getOfflineLocations({ sessionId: 'idle' });
-                            const offlinePoints = res?.locations || [];
-
-                            if (offlinePoints.length > 0) {
-                                console.log(`${TAG} 追帧: 拉取到 ${offlinePoints.length} 条非跑步期间离线点`);
-                                const sorted = [...offlinePoints].sort((a, b) => a.timestamp - b.timestamp);
-                                const latest = sorted[sorted.length - 1];
-
-                                // 静默更新 location store，不触发 UI 重绘
-                                useLocationStore.setState({
-                                    location: {
-                                        lat: latest.lat,
-                                        lng: latest.lng,
-                                        accuracy: latest.accuracy,
-                                        heading: latest.bearing,
-                                        speed: latest.speed,
-                                        timestamp: latest.timestamp,
-                                        source: 'amap-native',
-                                        coordSystem: 'gcj02',
-                                    },
-                                    loading: false,
-                                    status: 'locked',
-                                });
-
-                                // ACK 标记已同步
-                                await AMapLocation.acknowledgeLocations({
-                                    ids: offlinePoints.map((p: { id: number }) => p.id),
-                                });
-                            }
-                        } catch (err) {
-                            console.warn(`${TAG} 追帧失败 (非致命，数据下次恢复时仍可拉取):`, err);
-                        }
+                        // 追帧职责已统一收拢到 useRunningTracker.hydrateOfflinePoints
+                        // 此处不再执行追帧，避免双重追帧竞态和数据重复注入
 
                         // 假设原生 watch 可能被 OS 杀死，重置状态让 stable-state Effect 重建
                         if (initPromiseRef.current && bridgeRef.current) {

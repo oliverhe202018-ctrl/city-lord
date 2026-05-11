@@ -255,6 +255,85 @@ public class AMapLocationPlugin extends Plugin {
     }
 
     // -----------------------------------------------------------------------
+    // hydrateOfflinePoints — 亮屏恢复时增量补帧（Hydration）
+    // -----------------------------------------------------------------------
+
+    /**
+     * 根据 sessionId 和 sinceTimestamp 从 Room 数据库查询增量定位记录。
+     * 用于亮屏恢复时从原生黑匣子拉取息屏期间丢失的坐标点，实现轨迹缝合。
+     *
+     * 参数:
+     * - sessionId (String, 必须): 跑步会话 ID
+     * - sinceTimestamp (long, 必须): 起始时间戳（毫秒），仅返回此时间之后的点
+     *
+     * 返回:
+     * - points: JSArray，每个元素包含 lat, lng, timestamp, accuracy, speed, bearing
+     * - count: 返回的点数
+     * - capped: 是否触发了 1000 点安全上限
+     */
+    @PluginMethod()
+    public void hydrateOfflinePoints(PluginCall call) {
+        String sessionId = call.getString("sessionId");
+        Long sinceTimestamp = call.getLong("sinceTimestamp", null);
+
+        if (sessionId == null || sessionId.isEmpty()) {
+            call.reject("sessionId 参数不能为空");
+            return;
+        }
+        if (sinceTimestamp == null) {
+            call.reject("sinceTimestamp 参数不能为空");
+            return;
+        }
+
+        Log.i(TAG, "hydrateOfflinePoints: sessionId=" + sessionId + " sinceTimestamp=" + sinceTimestamp);
+
+        if (dbQueryExecutor == null) {
+            call.reject("数据库查询执行器未初始化");
+            return;
+        }
+
+        final long queryTimestamp = sinceTimestamp;
+        final int MAX_HYDRATION_POINTS = 1000;
+
+        dbQueryExecutor.execute(() -> {
+            try {
+                LocationDao dao = AppDatabase.getInstance(getContext()).locationDao();
+                List<LocationEntity> records = dao.getPointsAfter(sessionId, queryTimestamp);
+
+                boolean capped = false;
+                if (records.size() > MAX_HYDRATION_POINTS) {
+                    records = records.subList(0, MAX_HYDRATION_POINTS);
+                    capped = true;
+                    Log.w(TAG, "hydrateOfflinePoints: 触发安全上限，截断至 " + MAX_HYDRATION_POINTS + " 点");
+                }
+
+                JSArray jsArray = new JSArray();
+                for (LocationEntity record : records) {
+                    JSObject obj = new JSObject();
+                    obj.put("lat", record.latitude);
+                    obj.put("lng", record.longitude);
+                    obj.put("timestamp", record.timestamp);
+                    obj.put("accuracy", record.accuracy);
+                    obj.put("speed", record.speed);
+                    obj.put("bearing", record.bearing);
+                    jsArray.put(obj);
+                }
+
+                JSObject ret = new JSObject();
+                ret.put("points", jsArray);
+                ret.put("count", records.size());
+                ret.put("capped", capped);
+                call.resolve(ret);
+
+                Log.i(TAG, "hydrateOfflinePoints 返回 " + records.size() + " 条记录 (capped=" + capped + ")");
+            } catch (Exception e) {
+                Log.e(TAG, "hydrateOfflinePoints 查询失败: " + e.getMessage(), e);
+                call.reject("hydrateOfflinePoints error: " + e.getMessage());
+            }
+        });
+    }
+
+    // -----------------------------------------------------------------------
     // getCurrentPosition — 一次定位
     // -----------------------------------------------------------------------
 
