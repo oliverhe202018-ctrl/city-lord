@@ -206,7 +206,7 @@ export function ClubDetailPageClient({ club, stats, members, currentUserRole }: 
   const canManage = currentUserRole === 'owner' || currentUserRole === 'vice_president'
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-black text-white pt-[var(--safe-top,0px)]">
       <ClubHeader club={club} currentUserRole={currentUserRole} onBack={() => window.history.back()} />
       <ClubStats stats={stats} />
       <div className="px-4 mt-4 pb-10">

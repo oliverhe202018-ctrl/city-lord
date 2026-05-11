@@ -52,7 +52,7 @@ export default function ClubChatPage() {
     // Loading
     if (state.loading) {
         return (
-            <div className="flex h-screen items-center justify-center bg-black">
+            <div className="flex h-screen items-center justify-center bg-black pt-[var(--safe-top,0px)]">
                 <Loader2 className="h-8 w-8 animate-spin text-yellow-500" />
             </div>
         )
@@ -61,7 +61,7 @@ export default function ClubChatPage() {
     // No club
     if (state.error === 'NO_CLUB') {
         return (
-            <div className="flex h-screen flex-col items-center justify-center gap-3 bg-black px-6">
+            <div className="flex h-screen flex-col items-center justify-center gap-3 bg-black px-6 pt-[var(--safe-top,0px)]">
                 <Users className="h-12 w-12 text-white/20" />
                 <h2 className="text-lg font-semibold text-white">尚未加入俱乐部</h2>
                 <p className="text-sm text-white/50 text-center">加入一个俱乐部后即可使用频道交流功能</p>
@@ -78,7 +78,7 @@ export default function ClubChatPage() {
     // Error
     if (state.error || !state.clubId || !state.userId) {
         return (
-            <div className="flex h-screen flex-col items-center justify-center gap-3 bg-black px-6">
+            <div className="flex h-screen flex-col items-center justify-center gap-3 bg-black px-6 pt-[var(--safe-top,0px)]">
                 <p className="text-sm text-red-400">{state.error || '未知错误'}</p>
                 <Button
                     variant="outline"
@@ -93,7 +93,7 @@ export default function ClubChatPage() {
     }
 
     return (
-        <div className="h-screen overflow-hidden bg-black">
+        <div className="h-screen overflow-hidden bg-black pt-[var(--safe-top,0px)]">
             <ClubChatView clubId={state.clubId} currentUserId={state.userId} />
         </div>
     )

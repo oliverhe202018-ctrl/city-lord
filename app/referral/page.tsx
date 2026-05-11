@@ -150,7 +150,7 @@ export default function ReferralPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white pb-20">
+    <div className="min-h-screen bg-black text-white pb-20 pt-[var(--safe-top,0px)]">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-md p-4 flex items-center gap-4 border-b border-white/10">
         <Button

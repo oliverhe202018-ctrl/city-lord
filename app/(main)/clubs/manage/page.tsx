@@ -149,7 +149,7 @@ function ManageContent() {
     const sortedMembers = [...members].sort((a, b) => (roleOrder[a.role] ?? 99) - (roleOrder[b.role] ?? 99))
 
     return (
-        <div className="min-h-screen bg-black text-white">
+        <div className="min-h-screen bg-black text-white pt-[var(--safe-top,0px)]">
             {/* Header */}
             <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-md border-b border-white/10 px-4 py-3 flex items-center gap-3">
                 <button onClick={() => window.history.back()} className="p-1.5 rounded-full hover:bg-white/10">

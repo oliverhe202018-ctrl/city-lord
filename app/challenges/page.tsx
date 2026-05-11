@@ -136,7 +136,7 @@ export default function ChallengesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 pb-24">
+    <div className="min-h-screen bg-slate-900 pb-24 pt-[var(--safe-top,0px)]">
       {/* 头部 */}
       <div className="sticky top-0 z-10 border-b border-white/10 bg-slate-900/95 backdrop-blur-xl px-4 py-4">
         <div className="max-w-4xl mx-auto">

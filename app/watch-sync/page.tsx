@@ -18,7 +18,7 @@ export default async function WatchSyncPage() {
     }
 
     return (
-        <main className="min-h-screen bg-background p-4 md:p-8">
+        <main className="min-h-screen bg-background p-4 md:p-8 pt-[var(--safe-top,0px)]">
             <div className="mx-auto max-w-4xl space-y-6">
                 {/* Header */}
                 <div className="space-y-2">

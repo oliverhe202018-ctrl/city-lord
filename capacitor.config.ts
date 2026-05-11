@@ -21,6 +21,10 @@ const config: CapacitorConfig = {
     allowMixedContent: true
   },
   plugins: {
+    StatusBar: {
+      overlaysWebView: true,
+      backgroundColor: '#00000000',
+    },
     Keyboard: {
       resize: KeyboardResize.None,
       resizeOnFullScreen: false,

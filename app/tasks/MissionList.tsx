@@ -56,7 +56,7 @@ export default function MissionList({ initialMissions }: MissionListProps) {
   ];
 
   return (
-    <div className="max-w-md mx-auto p-4 pb-24">
+    <div className="max-w-md mx-auto p-4 pb-24 pt-[var(--safe-top,0px)]">
       <h1 className="text-2xl font-bold mb-6 select-none tracking-tight">任务中心</h1>
 
       <div className="sticky flex space-x-2 bg-zinc-50/80 dark:bg-black/50 backdrop-blur-md p-1 rounded-xl mb-6 z-10 top-0 border border-zinc-200/50 dark:border-zinc-800/50 shadow-sm">

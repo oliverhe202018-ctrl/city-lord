@@ -84,24 +84,17 @@
   }
 
   /* Standard Safe Area Utilities (Unified to .safe-* namespace) */
-  .safe-pt {
-    padding-top: var(--safe-top);
-  }
-  .safe-pb {
-    padding-bottom: var(--safe-bottom);
-  }
-  .safe-pl {
-    padding-left: var(--safe-left);
-  }
-  .safe-pr {
-    padding-right: var(--safe-right);
-  }
-  .h-safe {
-    height: calc(100vh - var(--safe-top) - var(--safe-bottom));
-  }
-  .min-h-safe {
-    min-height: calc(100vh - var(--safe-top) - var(--safe-bottom));
-  }
+  .safe-pt { padding-top: var(--safe-top, 0px); }
+  .safe-pb { padding-bottom: var(--safe-bottom, 0px); }
+  .safe-pl { padding-left: var(--safe-left, 0px); }
+  .safe-pr { padding-right: var(--safe-right, 0px); }
+  .safe-px { padding-left: var(--safe-left, 0px); padding-right: var(--safe-right, 0px); }
+  .safe-py { padding-top: var(--safe-top, 0px); padding-bottom: var(--safe-bottom, 0px); }
+  .safe-all { padding: var(--safe-top, 0px) var(--safe-right, 0px) var(--safe-bottom, 0px) var(--safe-left, 0px); }
+  .h-safe { height: calc(100vh - var(--safe-top) - var(--safe-bottom)); }
+  .min-h-safe { min-height: calc(100vh - var(--safe-top) - var(--safe-bottom)); }
+  /* 针对带有返回按钮或标题的通用顶部栏 */
+  .safe-header { padding-top: calc(var(--safe-top, 0px) + 0.5rem); min-height: calc(var(--safe-top, 0px) + 3.5rem); }
 
   .theme-light {
     /* 清爽日间 (Clear Day) */

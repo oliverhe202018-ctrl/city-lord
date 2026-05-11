@@ -46,7 +46,7 @@ function InvitePageContent() {
     }, [ref])
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 p-4">
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 p-4 pt-[var(--safe-top,0px)]">
             <div className="w-full max-w-sm text-center space-y-6">
                 {/* Logo / Icon */}
                 <div className="text-6xl mb-2">🏙️</div>
