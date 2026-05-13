@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { useMap } from '@/components/map/AMapContext';
+import { useMapInteraction } from '@/components/map/MapInteractionContext';
 import { Button } from '@/components/ui/button';
 import {
     LocateFixedIcon, Plus, Minus, Loader2,
@@ -15,13 +16,16 @@ export const MapControls = () => {
         locationStatus,
         currentLocation,
         isTracking,
+    } = useMap();
+
+    const {
         showKingdom,
         toggleKingdom,
         showFactionColors,
         toggleFactionColors,
         kingdomMode,
         setKingdomMode,
-    } = useMap();
+    } = useMapInteraction();
 
     const isLocating = (locationStatus === 'locating' || locationStatus === 'initializing') && !currentLocation;
 

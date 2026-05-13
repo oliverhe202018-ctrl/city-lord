@@ -31,9 +31,12 @@ export interface MapInteractionContextProps {
   toggleKingdom?: () => void;
 
   // 迷雾图层
-  // 迷雾图层
   showFog?: boolean;
   toggleFog?: () => void;
+
+  // 阵营色彩
+  showFactionColors?: boolean;
+  toggleFactionColors?: () => void;
 
   /** [NEW] 打开领地详情抽屉 */
   openTerritoryDetailDrawer?: (id: string) => void;
