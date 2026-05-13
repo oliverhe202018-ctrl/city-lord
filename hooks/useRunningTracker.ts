@@ -185,6 +185,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   const clubId = useGameStore((s) => s.clubId);
 
   const isStoppingRef = useRef(false);
+  const isRunningRef = useRef(isRunning);
   const gpsWeakTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastLocationRef = useRef<Location | null>(null);
   const pathRef = useRef<Location[]>([]);
@@ -219,6 +220,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   const pausedAccumulatorRef = useRef(0); // Accumulated seconds before latest pause
 
   // Sync refs — keep refs in lockstep with React state
+  useEffect(() => { isRunningRef.current = isRunning; }, [isRunning]);
   useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
   useEffect(() => { distanceRef.current = distance; }, [distance]);
   useEffect(() => { durationRef.current = duration; }, [duration]);
@@ -636,6 +638,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
     if (isAwaitingAnchor) {
       if (typeof accuracy !== 'number' || accuracy > GPS_START_ANCHOR_ACCURACY_METERS) {
+        if (firstPointAtRef.current === null) {
+          firstPointAtRef.current = Date.now();
+        }
         console.debug(
           `[GPS-Filter] ❌ Anchor REJECT: accuracy ${typeof accuracy === 'number' ? accuracy.toFixed(0) : 'unknown'}m > ${GPS_START_ANCHOR_ACCURACY_METERS}m threshold`
         );
@@ -795,7 +800,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     // ========================================================================
 
     const MIN_LOOP_SIZE = 5;
-    const SNAP_THRESHOLD = LOOP_CLOSURE_THRESHOLD_M;
+    const SNAP_THRESHOLD = 30;
     const P_SHAPE_MIN_POINT_GAP = 15;
     const MIN_CLAIM_INTERVAL_MS = 3000;
     const SLIDING_WINDOW_SIZE = 300;
@@ -810,6 +815,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       // Track A: Global Start-End Detection
       const startPoint = currentPath[0];
       const distToStart = getDistanceFromLatLonInMeters(newLoc.lat, newLoc.lng, startPoint.lat, startPoint.lng);
+      console.log(`[Smart Snap] Track A: distToStart=${distToStart.toFixed(1)}m, threshold=${SNAP_THRESHOLD}m`);
       if (distToStart <= SNAP_THRESHOLD) {
         const snappedLoc: Location = {
           lat: startPoint.lat,
@@ -997,7 +1003,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     lastLocationRef.current = finalLoc;
     setCurrentLocation(finalLoc);
 
-    console.log(`[Tracker] New Point Processed: dist=${distFromLast.toFixed(1)}m, TotalDist=${distanceRef.current.toFixed(1)}m`);
+    console.log(`[Tracker] ✅ Point Processed: dist=${distFromLast.toFixed(1)}m | TotalDist=${distanceRef.current.toFixed(1)}m | path.length=${pathRef.current.length} | warmUp=${isWarmingUpRef.current}`);
 
     // Dual-Track Storage (indexedDB for offline sync)
     syncManager.enqueue({
@@ -1177,7 +1183,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       const listenerHandle = App.addListener('appStateChange', async ({ isActive }) => {
         console.log(`[Lifecycle] appStateChange: ${isActive ? 'active' : 'background'} | time: ${new Date().toISOString()}`);
 
-        if (isActive && isRunning && !isPausedRef.current && startTimeRef.current !== null) {
+        if (isActive && isRunningRef.current && !isPausedRef.current && startTimeRef.current !== null) {
           // WebView Bridge Hydration Wait
           await new Promise<void>(resolve => setTimeout(resolve, 500));
 
@@ -1187,11 +1193,12 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           console.log('[useRunningTracker] Foreground resume — timer reconciled (after 500ms bridge wait)');
 
           // 入口 1：appStateChange 触发追帧
+          console.log('[Hydrate] appStateChange → hydrateOfflinePoints 触发');
           await hydrateOfflinePoints(runIdempotencyKeyRef.current);
         }
 
         // 切后台时立即强制落盘一次
-        if (!isActive && isRunning) {
+        if (!isActive && isRunningRef.current) {
           await saveState();
         }
       });
@@ -1243,7 +1250,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     };
     requestWakeLock();
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && isRunning && !isPaused && !isStoppingRef.current) {
+      if (document.visibilityState === 'visible' && isRunningRef.current && !isPausedRef.current && !isStoppingRef.current) {
         requestWakeLock();
       }
     };
