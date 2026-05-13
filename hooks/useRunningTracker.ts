@@ -190,6 +190,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   const pathRef = useRef<Location[]>([]);
   const isPausedRef = useRef(isPaused);
   const lastClaimAtRef = useRef(0);
+  const claimedSegmentsRef = useRef<Array<{ start: number; end: number }>>([]);
   /** 阈值锁：记录上次弹窗时的 newTotalArea（m²），防止 GPS 边界漂移频繁骚视 */
   const lastToastAreaRef = useRef(0);
   const validPointsCountRef = useRef(0);
@@ -703,6 +704,8 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         // 必须同步更新 ref，不能只 setIsWarmingUp（Effect 异步，有失同步窗口）
         isWarmingUpRef.current = false;
         setIsWarmingUp(false);
+        // 重置 lastLocationRef，防止 warm-up 末点作为基准导致正式追踪首点被 3m 防抖过滤
+        lastLocationRef.current = null;
         console.log(`[GPS-Filter] ✅ Warm-up complete (${validPointsCountRef.current} points, ${now - firstPointAtRef.current}ms). Starting track.`);
       } else {
         // Still warming up: update current location for UI but don't record to path
@@ -713,15 +716,22 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     }
 
     // --- Phase 3: Spatial Debounce (3m threshold) ---
+    let distFromLast = 0;
     if (lastLocationRef.current) {
-      const distFromLast = getDistanceFromLatLonInMeters(
+      distFromLast = getDistanceFromLatLonInMeters(
         lastLocationRef.current.lat,
         lastLocationRef.current.lng,
         finalLoc.lat,
         finalLoc.lng
       );
+      // 距离累加与点写入解耦：即使点太近被过滤，距离仍应累加
+      setDistance(prev => prev + distFromLast);
       if (distFromLast < 3.0) {
         // Point is too close to last point, probably jitter while stationary
+        // 跳过点写入，但距离已累加
+        lastLocationRef.current = finalLoc;
+        setCurrentLocation(finalLoc);
+        console.log(`[Tracker] Point skipped (<3m), dist=${distFromLast.toFixed(1)}m, TotalDist=${(distanceRef.current + distFromLast).toFixed(1)}m`);
         return;
       }
     }
@@ -776,71 +786,94 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     }
 
     // ========================================================================
-    // 🎯 SMART LOOP CLOSURE (智能吸附) - UPDATED LOGIC
+    // 🎯 SMART LOOP CLOSURE (智能吸附) - DUAL-TRACK DETECTION
     // ========================================================================
-    // 
-    // NEW BEHAVIOR: Loop closure is now an EVENT, not a stop condition.
-    // The runner CONTINUES tracking after claiming territory.
-    //
-    // Key Changes:
-    // 1. Snapped point used ONLY for polygon calculation (area claim)
-    // 2. Actual GPS point (newLoc) added to path (no teleportation)
-    // 3. Claimed polygon stored in sessionClaims (for rendering)
-    // 4. Tracking NEVER stops - user keeps running
-    //
-    // This matches real gameplay: claiming territory is just a milestone
-    // during a continuous run, not the end of the run.
+    // Track A: Global Start-End Detection (起点-终点闭合)
+    // Track B: Sliding Window Detection (滑动窗口闭合)
+    // Either track can trigger a territory claim.
+    // Deduplication: Track claimed anchor ranges to prevent double-claiming.
     // ========================================================================
 
     const MIN_LOOP_SIZE = 5;
     const SNAP_THRESHOLD = LOOP_CLOSURE_THRESHOLD_M;
     const P_SHAPE_MIN_POINT_GAP = 15;
     const MIN_CLAIM_INTERVAL_MS = 3000;
+    const SLIDING_WINDOW_SIZE = 300;
 
     let loopForCalc: Location[] | null = null;
+    let loopSource: 'start-end' | 'sliding-window' = 'start-end';
+    let loopAnchorStart = 0;
+    let loopAnchorEnd = 0;
     const currentPath = pathRef.current;
 
     if (currentPath.length >= MIN_LOOP_SIZE) {
-      const latestPoint = turf.point([newLoc.lng, newLoc.lat]);
-      let pShapeAnchorIndex = -1;
-
-      for (let i = 0; i < currentPath.length; i++) {
-        if (currentPath.length - i <= P_SHAPE_MIN_POINT_GAP) {
-          continue;
-        }
-        const historical = currentPath[i];
-        const historicalPoint = turf.point([historical.lng, historical.lat]);
-        const gapMeters = turf.distance(latestPoint, historicalPoint, { units: 'kilometers' }) * 1000;
-        if (gapMeters <= SNAP_THRESHOLD) {
-          pShapeAnchorIndex = i;
-          break;
-        }
-      }
-
-      if (pShapeAnchorIndex >= 0) {
-        const anchor = currentPath[pShapeAnchorIndex];
-        const closingPoint: Location = {
-          lat: anchor.lat,
-          lng: anchor.lng,
+      // Track A: Global Start-End Detection
+      const startPoint = currentPath[0];
+      const distToStart = getDistanceFromLatLonInMeters(newLoc.lat, newLoc.lng, startPoint.lat, startPoint.lng);
+      if (distToStart <= SNAP_THRESHOLD) {
+        const snappedLoc: Location = {
+          lat: startPoint.lat,
+          lng: startPoint.lng,
           timestamp: now
         };
-        loopForCalc = [...currentPath.slice(pShapeAnchorIndex), newLoc, closingPoint];
-      } else {
-        const startPoint = currentPath[0];
-        const distToStart = getDistanceFromLatLonInMeters(newLoc.lat, newLoc.lng, startPoint.lat, startPoint.lng);
-        if (distToStart <= SNAP_THRESHOLD) {
-          const snappedLoc: Location = {
-            lat: startPoint.lat,
-            lng: startPoint.lng,
+        loopForCalc = [...currentPath, snappedLoc];
+        loopSource = 'start-end';
+        loopAnchorStart = 0;
+        loopAnchorEnd = currentPath.length - 1;
+        console.log(`[Smart Snap] 🎯 Track A: Snapped to start! Distance: ${Math.round(distToStart)}m`);
+      }
+
+      // Track B: Sliding Window Detection (only if Track A didn't trigger)
+      if (!loopForCalc) {
+        const windowStart = Math.max(0, currentPath.length - SLIDING_WINDOW_SIZE);
+        const latestPoint = turf.point([newLoc.lng, newLoc.lat]);
+        let pShapeAnchorIndex = -1;
+
+        for (let i = windowStart; i < currentPath.length; i++) {
+          if (currentPath.length - i <= P_SHAPE_MIN_POINT_GAP) {
+            continue;
+          }
+          const historical = currentPath[i];
+          const historicalPoint = turf.point([historical.lng, historical.lat]);
+          const gapMeters = turf.distance(latestPoint, historicalPoint, { units: 'kilometers' }) * 1000;
+          if (gapMeters <= SNAP_THRESHOLD) {
+            pShapeAnchorIndex = i;
+            break;
+          }
+        }
+
+        if (pShapeAnchorIndex >= 0) {
+          const anchor = currentPath[pShapeAnchorIndex];
+          const closingPoint: Location = {
+            lat: anchor.lat,
+            lng: anchor.lng,
             timestamp: now
           };
-          loopForCalc = [...currentPath, snappedLoc];
-          console.log(`[Smart Snap] 🎯 Snapped to start! Distance: ${Math.round(distToStart)}m`);
+          loopForCalc = [...currentPath.slice(pShapeAnchorIndex), newLoc, closingPoint];
+          loopSource = 'sliding-window';
+          loopAnchorStart = pShapeAnchorIndex;
+          loopAnchorEnd = currentPath.length - 1;
+          console.log(`[Smart Snap] 🎯 Track B: Sliding window closed at index ${pShapeAnchorIndex}`);
         }
       }
     }
 
-    if (loopForCalc && loopForCalc.length > MIN_LOOP_SIZE && now - lastClaimAtRef.current >= MIN_CLAIM_INTERVAL_MS) {
+    // Deduplication check: prevent claiming the same segment twice
+    let shouldProcessLoop = true;
+    if (loopForCalc && loopAnchorStart >= 0) {
+      for (const claimed of claimedSegmentsRef.current) {
+        if (
+          loopAnchorStart >= claimed.start && loopAnchorStart <= claimed.end &&
+          loopAnchorEnd >= claimed.start && loopAnchorEnd <= claimed.end
+        ) {
+          shouldProcessLoop = false;
+          console.log(`[Smart Snap] ⏭️ Loop segment [${loopAnchorStart}-${loopAnchorEnd}] already claimed, skipping`);
+          break;
+        }
+      }
+    }
+
+    if (loopForCalc && loopForCalc.length > MIN_LOOP_SIZE && shouldProcessLoop && now - lastClaimAtRef.current >= MIN_CLAIM_INTERVAL_MS) {
 
       try {
         const loopCheck = isLoopClosed(
@@ -863,6 +896,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
             setClosedPolygons(prevPolys => [...prevPolys, loopForCalc!]);
             setArea(newTotalArea);
             lastClaimAtRef.current = now;
+
+            // Record claimed segment for deduplication
+            claimedSegmentsRef.current.push({ start: loopAnchorStart, end: loopAnchorEnd });
 
             const closingPoint = loopForCalc[loopForCalc.length - 1];
             const currentPathForSync = pathRef.current;
@@ -958,18 +994,10 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       }
     }
 
-    if (lastLocationRef.current) {
-      const dist = getDistanceFromLatLonInMeters(
-        lastLocationRef.current.lat,
-        lastLocationRef.current.lng,
-        finalLoc.lat,
-        finalLoc.lng
-      );
-      setDistance(prev => prev + dist);
-    }
-
     lastLocationRef.current = finalLoc;
     setCurrentLocation(finalLoc);
+
+    console.log(`[Tracker] New Point Processed: dist=${distFromLast.toFixed(1)}m, TotalDist=${distanceRef.current.toFixed(1)}m`);
 
     // Dual-Track Storage (indexedDB for offline sync)
     syncManager.enqueue({
@@ -995,14 +1023,26 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     }
 
     isHydratingRef.current = true;
+    const hydrateTimeout = setTimeout(() => {
+      if (isHydratingRef.current) {
+        console.warn('[Hydrate] ⚠️ 追帧锁超时（10s），强制释放');
+        isHydratingRef.current = false;
+      }
+    }, 10000);
 
     try {
       const { AMapLocation } = await import('@/plugins/amap-location/definitions');
-      const store = useLocationStore.getState();
-      const sinceTimestamp = store.lastLocationTimestamp;
 
-      // 使用增量补帧接口（hydrateOfflinePoints），仅拉取 sinceTimestamp 之后的点
-      // 避免重复拉取已处理的坐标，彻底解决"息屏直线幽灵"
+      // 精确 sinceTimestamp：优先使用 pathRef 最后一个点的时间戳
+      let sinceTimestamp: number;
+      if (pathRef.current.length > 0) {
+        sinceTimestamp = pathRef.current[pathRef.current.length - 1].timestamp;
+        console.log(`[Hydrate] sinceTimestamp 来源: pathRef 末点 = ${sinceTimestamp}`);
+      } else {
+        sinceTimestamp = useLocationStore.getState().lastLocationTimestamp;
+        console.log(`[Hydrate] sinceTimestamp 来源: store.lastLocationTimestamp = ${sinceTimestamp}`);
+      }
+
       const res = await AMapLocation.hydrateOfflinePoints({
         sessionId,
         sinceTimestamp: sinceTimestamp > 0 ? sinceTimestamp : 0,
@@ -1011,75 +1051,80 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
       if (offlinePoints.length === 0) {
         console.log('[Hydrate] 无离线记录需要追帧');
+        clearTimeout(hydrateTimeout);
         isHydratingRef.current = false;
         return;
       }
 
       console.log(`[Hydrate] 拉取到 ${offlinePoints.length} 条离线定位记录 (capped=${res.capped}), sessionId=${sessionId}`);
 
-      // 1. 先对所有离线点进行时间戳排序
-      const sortedOffline = [...offlinePoints].sort((a: { timestamp: number }, b: { timestamp: number }) => a.timestamp - b.timestamp);
+      // 1. 对所有离线点进行时间戳排序
+      const sortedOffline: Location[] = [...offlinePoints]
+        .sort((a, b) => a.timestamp - b.timestamp)
+        .map(pt => ({ lat: pt.lat, lng: pt.lng, timestamp: pt.timestamp }));
 
-      // 2. 提取离线区间边界
-      const offlineStart = sortedOffline[0].timestamp;
-      const offlineEnd = sortedOffline[sortedOffline.length - 1].timestamp;
-
-      // 3. 截断出前置路径和后置路径（核心手术刀）
-      const currentPath = pathRef.current;
-      const prePath = currentPath.filter(p => p.timestamp < offlineStart);
-      const postPath = currentPath.filter(p => p.timestamp > offlineEnd);
-
-      // 4. 对离线点进行速度异常值滤波
-      const SPEED_LIMIT_MS = 15; // 15m/s (约 54km/h，跑步/骑行极限)
+      // 2. 速度异常值滤波
+      const SPEED_LIMIT_MS = 15;
       const validOffline: Location[] = [];
-      let lastRef = prePath.length > 0 ? prePath[prePath.length - 1] : null;
+      let lastRef: Location | null = pathRef.current.length > 0 ? pathRef.current[pathRef.current.length - 1] : null;
 
       for (const pt of sortedOffline) {
         if (lastRef) {
           const dist = getDistanceFromLatLonInMeters(lastRef.lat, lastRef.lng, pt.lat, pt.lng);
           const dt = Math.max((pt.timestamp - lastRef.timestamp) / 1000, 0.1);
-          if (dist / dt > SPEED_LIMIT_MS) continue; // 剔除漂移点
+          if (dist / dt > SPEED_LIMIT_MS) continue;
         }
-        validOffline.push({ lat: pt.lat, lng: pt.lng, timestamp: pt.timestamp });
-        lastRef = validOffline[validOffline.length - 1];
+        validOffline.push(pt);
+        lastRef = pt;
       }
 
       if (validOffline.length === 0) {
         console.log('[Hydrate] 所有离线点均为异常漂移点，已剔除');
+        clearTimeout(hydrateTimeout);
         isHydratingRef.current = false;
         return;
       }
 
-      // 5. 分批渲染逻辑适配（三段拼接 Chunking）
+      // 3. 去重合并法：将 offlinePoints 与 currentPath 合并，按 timestamp 排序后去重
+      const currentPath = pathRef.current;
+      const mergedAll = [...currentPath, ...validOffline];
+      mergedAll.sort((a, b) => a.timestamp - b.timestamp);
+
+      // 去重：相同 timestamp 保留后者（离线点优先，因为它们来自原生层更精确）
+      const dedupedPath: Location[] = [];
+      const seenTimestamps = new Set<number>();
+      for (let i = mergedAll.length - 1; i >= 0; i--) {
+        const pt = mergedAll[i];
+        if (!seenTimestamps.has(pt.timestamp)) {
+          seenTimestamps.add(pt.timestamp);
+          dedupedPath.unshift(pt);
+        }
+      }
+
       const CHUNK_SIZE = 30;
       let chunkIndex = 0;
-      const totalChunks = Math.ceil(validOffline.length / CHUNK_SIZE);
+      const totalChunks = Math.ceil(dedupedPath.length / CHUNK_SIZE);
       let totalDistDelta = 0;
 
-      console.log(`[Hydrate] 三段拼接法: prePath=${prePath.length} 点, validOffline=${validOffline.length} 点, postPath=${postPath.length} 点, 共 ${totalChunks} 个批次`);
+      console.log(`[Hydrate] 去重合并法: currentPath=${currentPath.length} 点, validOffline=${validOffline.length} 点, dedupedPath=${dedupedPath.length} 点, 共 ${totalChunks} 个批次`);
 
       const processChunk = async () => {
         if (chunkIndex >= totalChunks) {
-          // 全部批次完成
           if (totalDistDelta > 0) {
             setDistance(prev => prev + totalDistDelta);
           }
-          console.log(`[Hydrate] 批量合入完成: ${validOffline.length} 个轨迹点, 新增距离 ${totalDistDelta.toFixed(1)}m`);
+          console.log(`[Hydrate] 批量合入完成: ${dedupedPath.length} 个轨迹点, 新增距离 ${totalDistDelta.toFixed(1)}m`);
 
-          // 追帧完成后，更新 store 的时间戳为最新离线点的时间
-          const latestTimestamp = validOffline[validOffline.length - 1].timestamp;
+          const latestTimestamp = dedupedPath[dedupedPath.length - 1].timestamp;
           useLocationStore.getState().setLastLocationTimestamp(latestTimestamp);
 
-          // 释放追帧锁（必须先释放，否则后续 flush 会死循环拦截）
+          clearTimeout(hydrateTimeout);
           isHydratingRef.current = false;
 
-          // 消费并清空缓冲队列中的实时点
           if (pendingLivePointsRef.current.length > 0) {
             const pendingPoints = [...pendingLivePointsRef.current];
             pendingLivePointsRef.current = [];
             console.log(`[Hydrate] 追帧完成，开始注入缓冲队列中的 ${pendingPoints.length} 个实时点`);
-
-            // 依次将缓冲点重新塞入主处理流水线，完美复用距离/闭合计算逻辑
             pendingPoints.forEach(pt => {
               handleLocationUpdate(pt.lat, pt.lng, undefined, pt.timestamp);
             });
@@ -1088,37 +1133,26 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         }
 
         const currentLimit = (chunkIndex + 1) * CHUNK_SIZE;
-        const offlineChunk = validOffline.slice(chunkIndex * CHUNK_SIZE, currentLimit);
+        const chunk = dedupedPath.slice(chunkIndex * CHUNK_SIZE, currentLimit);
 
-        // 计算本批次新增距离
         let chunkDistDelta = 0;
-        const firstPointInChunk = offlineChunk[0];
-        const refForChunk = chunkIndex === 0 && prePath.length > 0
-          ? prePath[prePath.length - 1]
-          : (chunkIndex > 0 ? validOffline[chunkIndex * CHUNK_SIZE - 1] : null);
+        const firstPointInChunk = chunk[0];
+        const refForChunk = chunkIndex === 0 && pathRef.current.length > 0
+          ? pathRef.current[pathRef.current.length - 1]
+          : (chunkIndex > 0 ? dedupedPath[chunkIndex * CHUNK_SIZE - 1] : null);
 
         if (refForChunk) {
-          const dist = getDistanceFromLatLonInMeters(refForChunk.lat, refForChunk.lng, firstPointInChunk.lat, firstPointInChunk.lng);
-          chunkDistDelta += dist;
+          chunkDistDelta += getDistanceFromLatLonInMeters(refForChunk.lat, refForChunk.lng, firstPointInChunk.lat, firstPointInChunk.lng);
         }
-        for (let i = 1; i < offlineChunk.length; i++) {
-          const dist = getDistanceFromLatLonInMeters(offlineChunk[i - 1].lat, offlineChunk[i - 1].lng, offlineChunk[i].lat, offlineChunk[i].lng);
-          chunkDistDelta += dist;
+        for (let i = 1; i < chunk.length; i++) {
+          chunkDistDelta += getDistanceFromLatLonInMeters(chunk[i - 1].lat, chunk[i - 1].lng, chunk[i].lat, chunk[i].lng);
         }
         totalDistDelta += chunkDistDelta;
 
-        // 三段拼接：完美保留锁屏前、锁屏期间、以及解锁后瞬间到达的点
-        const builtSoFar = [
-          ...prePath,
-          ...validOffline.slice(0, currentLimit),
-          ...postPath
-        ];
+        pathRef.current = dedupedPath.slice(0, currentLimit);
+        setPath([...pathRef.current]);
 
-        pathRef.current = builtSoFar;
-        setPath(builtSoFar);
-
-        // 更新 lastLocationRef 和 currentLocation 为当前最新点
-        const latestPoint = validOffline[validOffline.length > currentLimit ? currentLimit - 1 : validOffline.length - 1];
+        const latestPoint = dedupedPath[Math.min(currentLimit, dedupedPath.length) - 1];
         lastLocationRef.current = latestPoint;
         setCurrentLocation(latestPoint);
 
@@ -1128,10 +1162,11 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
       processChunk();
     } catch (e) {
+      clearTimeout(hydrateTimeout);
       isHydratingRef.current = false;
       console.warn('[Hydrate] 从 Room 黑匣子追帧失败（可能在 Web 环境）:', e);
     }
-  }, []);
+  }, [handleLocationUpdate]);
 
 
   // ======== CRITICAL: React to GPS location from global store ========
