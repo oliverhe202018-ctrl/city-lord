@@ -50,7 +50,7 @@ export const MapControls = () => {
         "dark:bg-zinc-800/90 dark:text-white dark:border-white/10 dark:hover:bg-zinc-700";
 
     return (
-        <div className="absolute bottom-60 right-4 z-10 flex flex-col gap-3 items-center pointer-events-auto">
+        <div className="absolute bottom-60 right-4 z-[100] flex flex-col gap-3 items-center pointer-events-auto">
             {showKingdom && isPersonal && (
                 <Button
                     variant="outline"

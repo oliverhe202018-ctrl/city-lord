@@ -729,12 +729,13 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         finalLoc.lat,
         finalLoc.lng
       );
-      // 距离累加与点写入解耦：即使点太近被过滤，距离仍应累加
+      // 距离累加与锚点更新必须原子绑定，防止后续校验拦截导致锚点未更新
       setDistance(prev => prev + distFromLast);
+      lastLocationRef.current = finalLoc;
+
       if (distFromLast < 3.0) {
         // Point is too close to last point, probably jitter while stationary
-        // 跳过点写入，但距离已累加
-        lastLocationRef.current = finalLoc;
+        // 跳过点写入，但距离已累加，锚点已更新
         setCurrentLocation(finalLoc);
         console.log(`[Tracker] Point skipped (<3m), dist=${distFromLast.toFixed(1)}m, TotalDist=${(distanceRef.current + distFromLast).toFixed(1)}m`);
         return;
