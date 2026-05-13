@@ -54,8 +54,8 @@ import { getRunSettlementStatus } from '@/app/actions/run-service';
 
 const RECOVERY_KEY = 'CURRENT_RUN_RECOVERY';
 
-const MIN_WARMUP_POINTS = process.env.NODE_ENV === 'development' ? 1 : 2;
-const WARMUP_TIMEOUT_MS = process.env.NODE_ENV === 'development' ? 2000 : 5000;
+const MIN_WARMUP_POINTS = process.env.NODE_ENV === 'development' ? 1 : 1;
+const WARMUP_TIMEOUT_MS = process.env.NODE_ENV === 'development' ? 2000 : 3000;
 const CLOCK_DRIFT_TOLERANCE_MS = 5000;
 
 export interface Location {
