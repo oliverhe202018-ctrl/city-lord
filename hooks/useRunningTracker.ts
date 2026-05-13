@@ -1069,12 +1069,19 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         .sort((a, b) => a.timestamp - b.timestamp)
         .map(pt => ({ lat: pt.lat, lng: pt.lng, timestamp: pt.timestamp }));
 
-      // 2. 速度异常值滤波
+      // ─── 时间戳单位归一化（防止原生层秒级 vs JS 毫秒级漂移）───
+      // 若 timestamp < 2e12（小于 2033年对应的毫秒时间戳），则视为秒级，乘以 1000 转换
+      const normalizedOffline = sortedOffline.map(pt => ({
+        ...pt,
+        timestamp: pt.timestamp < 2e12 ? pt.timestamp * 1000 : pt.timestamp,
+      }));
+
+      // 2. 速度异常值滤波（使用归一化后的时间戳）
       const SPEED_LIMIT_MS = 15;
       const validOffline: Location[] = [];
       let lastRef: Location | null = pathRef.current.length > 0 ? pathRef.current[pathRef.current.length - 1] : null;
 
-      for (const pt of sortedOffline) {
+      for (const pt of normalizedOffline) {
         if (lastRef) {
           const dist = getDistanceFromLatLonInMeters(lastRef.lat, lastRef.lng, pt.lat, pt.lng);
           const dt = Math.max((pt.timestamp - lastRef.timestamp) / 1000, 0.1);
