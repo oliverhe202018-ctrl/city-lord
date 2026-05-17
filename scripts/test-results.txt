@@ -1,0 +1,182 @@
+
+
+================ Scenario A: Enabled & Zero-Reward Enabled ================
+--- Phase 2B-2A Gray Test Simulation ---
+Environment flags: {
+  enabled: true,
+  ratio: 0.1,
+  zeroRewardEnabled: true,
+  allowUserIds: [],
+  allowClubIds: [],
+  lookbackHours: 24,
+  minFlips: 3
+}
+
+--- Scenario 1: Normal Claim (User A) ---
+Result: {
+  success: true,
+  action: 'captured',
+  scoreChange: 184,
+  isHotZone: false,
+  elapsedMs: 2642
+}
+Territory owner: aaa00000-0000-0000-0000-000000000000
+
+--- Scenario 2: Flip 1 (User B captures from A) ---
+Result (Expect full reward because flips < 3): {
+  success: true,
+  action: 'captured',
+  scoreChange: 184,
+  isHotZone: false,
+  elapsedMs: 3199
+}
+
+--- Scenario 3: Flip 2 (User A captures from B back, making it A->B->A, flip count 2) ---
+Result (Expect full because flips=2): {
+  success: true,
+  action: 'captured',
+  scoreChange: 184,
+  isHotZone: false,
+  elapsedMs: 3375
+}
+
+--- Scenario 4: Flip 3 (User B captures from A again, flip count 3!) ---
+Result (Expect penalty hit): {
+  success: true,
+  action: 'captured',
+  scoreChange: 0,
+  isHotZone: true,
+  elapsedMs: 3607
+}
+
+Checking Penalty Table Logs:
+[
+  {
+    "id": "b6e3d2e6-a0a0-4f94-8920-38a2eabecd82",
+    "territory_id": "gray_test_hex_123",
+    "claim_event_id": "39",
+    "attacker_user_id": "bbb00000-0000-0000-0000-000000000000",
+    "attacker_club_id": "caaa0000-0000-0000-0000-000000000000",
+    "defender_user_id": "aaa00000-0000-0000-0000-000000000000",
+    "matched_rule": "A_B_A_ABUSE_0",
+    "applied_ratio": "0",
+    "reason_window": "24h",
+    "source_event_ids": [
+      38,
+      37,
+      36
+    ],
+    "penalty_enabled_snapshot": true,
+    "reward_payload_snapshot": {
+      "finalScore": 0,
+      "originalScore": 368
+    },
+    "created_at": "2026-03-10T05:23:30.537Z"
+  }
+]
+
+
+================ Scenario B: Disabled ================
+--- Phase 2B-2A Gray Test Simulation ---
+Environment flags: {
+  enabled: false,
+  ratio: 0.1,
+  zeroRewardEnabled: true,
+  allowUserIds: [],
+  allowClubIds: [],
+  lookbackHours: 24,
+  minFlips: 3
+}
+
+--- Scenario 1: Normal Claim (User A) ---
+Result: {
+  success: true,
+  action: 'captured',
+  scoreChange: 184,
+  isHotZone: false,
+  elapsedMs: 2543
+}
+Territory owner: aaa00000-0000-0000-0000-000000000000
+
+--- Scenario 2: Flip 1 (User B captures from A) ---
+Result (Expect full reward because flips < 3): {
+  success: true,
+  action: 'captured',
+  scoreChange: 184,
+  isHotZone: false,
+  elapsedMs: 3132
+}
+
+--- Scenario 3: Flip 2 (User A captures from B back, making it A->B->A, flip count 2) ---
+Result (Expect full because flips=2): {
+  success: true,
+  action: 'captured',
+  scoreChange: 184,
+  isHotZone: false,
+  elapsedMs: 3382
+}
+
+--- Scenario 4: Flip 3 (User B captures from A again, flip count 3!) ---
+Result (Expect penalty hit): {
+  success: true,
+  action: 'captured',
+  scoreChange: 368,
+  isHotZone: true,
+  elapsedMs: 3051
+}
+
+Checking Penalty Table Logs:
+[]
+
+
+================ Scenario C: Not-in-Allowlist ================
+--- Phase 2B-2A Gray Test Simulation ---
+Environment flags: {
+  enabled: true,
+  ratio: 0.1,
+  zeroRewardEnabled: true,
+  allowUserIds: [ 'some-other-uuid' ],
+  allowClubIds: [],
+  lookbackHours: 24,
+  minFlips: 3
+}
+
+--- Scenario 1: Normal Claim (User A) ---
+Result: {
+  success: true,
+  action: 'captured',
+  scoreChange: 184,
+  isHotZone: false,
+  elapsedMs: 2521
+}
+Territory owner: aaa00000-0000-0000-0000-000000000000
+
+--- Scenario 2: Flip 1 (User B captures from A) ---
+Result (Expect full reward because flips < 3): {
+  success: true,
+  action: 'captured',
+  scoreChange: 184,
+  isHotZone: false,
+  elapsedMs: 3496
+}
+
+--- Scenario 3: Flip 2 (User A captures from B back, making it A->B->A, flip count 2) ---
+Result (Expect full because flips=2): {
+  success: true,
+  action: 'captured',
+  scoreChange: 184,
+  isHotZone: false,
+  elapsedMs: 3201
+}
+
+--- Scenario 4: Flip 3 (User B captures from A again, flip count 3!) ---
+Result (Expect penalty hit): {
+  success: true,
+  action: 'captured',
+  scoreChange: 368,
+  isHotZone: true,
+  elapsedMs: 2966
+}
+
+Checking Penalty Table Logs:
+[]

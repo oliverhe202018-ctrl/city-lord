@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>method</key>
+    <string>ad-hoc</string> <!-- Use 'app-store' for TestFlight, or 'development'/'ad-hoc' for independent distribution -->
+    <key>teamID</key>
+    <string>YOUR_TEAM_ID</string> <!-- Replace with GitHub Secret or actual Team ID -->
+    <key>provisioningProfiles</key>
+    <dict>
+        <key>com.citylord.game.pro</key> <!-- Your bundle identifier -->
+        <string>YOUR_PROVISIONING_PROFILE_NAME</string> <!-- Replace with the actual name of your Profile (not filename) -->
+    </dict>
+    <key>compileBitcode</key>
+    <false/>
+    <key>uploadSymbols</key>
+    <true/>
+    <key>stripSwiftSymbols</key>
+    <true/>
+    <key>signingStyle</key>
+    <string>manual</string>
+    <key>signingCertificate</key>
+    <string>Apple Distribution</string> <!-- Options: 'Apple Distribution' or 'Apple Development' -->
+    <key>destination</key>
+    <string>export</string> 
+</dict>
+</plist>

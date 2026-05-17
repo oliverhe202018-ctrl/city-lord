@@ -1,0 +1,293 @@
+'use client';
+
+import { useState, useEffect, useRef } from 'react';
+import { Button } from '@/components/ui/button';
+import { Plus, Users, Globe, Check, Settings2 } from 'lucide-react';
+import { useGameStore, useGameActions } from '@/store/useGameStore';
+import { Room } from '@/types/room';
+import { toast } from 'sonner';
+
+const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 30000) => {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    let url = input
+    if (typeof url === 'string' && url.startsWith('/api')) {
+      url = `${process.env.NEXT_PUBLIC_API_SERVER || ''}${url}`
+    }
+    return await fetch(url, { ...init, signal: controller.signal })
+  } catch (error) {
+    console.debug('[fetchWithTimeout] Network warning:', error);
+    return new Response(JSON.stringify({ error: 'Network error or CORS issue' }), { status: 504, statusText: 'Frontend Timeout' })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const getJoinedRooms = async (): Promise<{ success: boolean; rooms: Room[] }> => {
+  try {
+    const res = await fetchWithTimeout('/api/room/get-joined-rooms', { credentials: 'include' })
+    
+    if (!res.ok) {
+      const status = res.status
+      const statusText = res.statusText
+      let errorDetail = ''
+      
+      try {
+        errorDetail = await res.text()
+      } catch {
+        errorDetail = 'Unable to read response body'
+      }
+      
+      console.error(
+        `[RoomSelector] Fetch failed with status ${status} ${statusText}: ${errorDetail}`
+      )
+      
+      // 401/403: 未登录或无权限，静默返回空数组，避免 UI 白屏
+      if (status === 401 || status === 403) {
+        return { success: true, rooms: [] }
+      }
+
+      // 504: 前端超时断开，不抛异常，静默返回空数组
+      if (status === 504) {
+        return { success: true, rooms: [] }
+      }
+      
+      // 5xx 或其他错误：抛出详细错误供上层 catch
+      throw new Error(
+        `获取房间列表失败 (HTTP ${status}): ${statusText}`
+      )
+    }
+    
+    const result = await res.json()
+    return {
+      success: result.success ?? true,
+      rooms: result.rooms ?? []
+    }
+  } catch (error) {
+    // fetchWithTimeout 已捕获网络错误并返回 502，这里处理 JSON 解析失败等异常
+    if (error instanceof Error) {
+      console.error('[RoomSelector] Unexpected error in getJoinedRooms:', error.message)
+      throw error
+    }
+    throw new Error('[RoomSelector] Unknown error occurred while fetching rooms')
+  }
+}
+
+import { cn } from '@/lib/utils';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { RoomManagerModal } from './RoomManagerModal';
+
+export interface RoomSelectorProps {
+  side?: 'top' | 'bottom' | 'left' | 'right';
+  align?: 'start' | 'center' | 'end';
+  compact?: boolean;
+  className?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  onRoomSelect?: () => void;
+  children?: React.ReactNode;
+}
+
+export function RoomSelector({
+  side = 'bottom',
+  align = 'center',
+  compact = false,
+  className,
+  open,
+  onOpenChange,
+  onRoomSelect,
+  children
+}: RoomSelectorProps) {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+
+  const isControlled = open !== undefined;
+  const showOpen = isControlled ? open : internalOpen;
+  const setShowOpen = isControlled ? onOpenChange : setInternalOpen;
+
+  const currentRoom = useGameStore((state) => state.currentRoom);
+  const joinedRooms = useGameStore((state) => state.joinedRooms);
+  const { setCurrentRoom, setJoinedRooms } = useGameActions();
+
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Load joined rooms on mount
+  useEffect(() => {
+    const loadRooms = async () => {
+      try {
+        const result = await getJoinedRooms();
+        if (result.success && result.rooms) {
+          setJoinedRooms(result.rooms as Room[]);
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : '未知错误';
+        console.error('[RoomSelector] Failed to load joined rooms:', errorMessage);
+        
+        // 根据错误类型显示不同的 toast 提示
+        if (errorMessage.includes('HTTP 5') || errorMessage.includes('Network')) {
+          toast.error('网络异常，无法获取房间列表');
+        } else if (errorMessage.includes('HTTP 4')) {
+          toast.error('获取房间列表失败，请检查登录状态');
+        } else {
+          toast.error('加载房间列表失败，请稍后重试');
+        }
+        
+        // 确保 UI 不会因 undefined 崩溃
+        setJoinedRooms([]);
+      }
+    };
+
+    loadRooms();
+  }, [setJoinedRooms]);
+
+  // Click Outside Handler (Method 2)
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!showOpen) return;
+
+      const target = event.target as HTMLElement;
+
+      // 1. Check if click is inside the container (Trigger Button)
+      if (containerRef.current && containerRef.current.contains(target)) {
+        return;
+      }
+
+      // 2. Check if click is inside the Dropdown Content (Portal)
+      // Radix UI / Shadcn content is usually portaled
+      if (target.closest('[role="menu"]') || target.closest('[data-radix-popper-content-wrapper]')) {
+        return;
+      }
+
+      if (setShowOpen) {
+        setShowOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showOpen, setShowOpen]);
+
+  const handleRoomSelect = (room: Room) => {
+    // 1. Set Active Room
+    setCurrentRoom(room);
+
+    // 2. Trigger Callback
+    if (onRoomSelect) {
+      onRoomSelect();
+    }
+
+    // Close dropdown if internal state is used (though typically controlled by parent now)
+    if (!isControlled && setShowOpen) {
+      setShowOpen(false);
+    }
+  };
+
+  return (
+    <>
+      <div ref={containerRef} className={cn("relative", compact ? "inline-block" : "w-full")}>
+        <DropdownMenu open={showOpen} onOpenChange={setShowOpen}>
+          <DropdownMenuTrigger asChild>
+            {children ? children : (
+              <div className={cn(
+                "relative z-[9999]",
+                compact ? "inline-block" : "w-full",
+                "rounded-xl",
+                className?.includes("flex-shrink-0") ? "" : ""
+              )}>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "h-9 px-3 gap-2 justify-between border-white/10 bg-black/20 backdrop-blur-sm hover:bg-white/10 transition-all w-full",
+                    currentRoom ? "text-cyan-400 border-cyan-500/30" : "text-muted-foreground",
+                    !compact && "min-w-[140px]",
+                    className
+                  )}
+                >
+                  <div className="flex items-center gap-2 truncate max-w-[120px]">
+                    {currentRoom ? (
+                      <>
+                        <Users className="w-4 h-4 shrink-0" />
+                        {!compact && <span className="truncate">{currentRoom.name}</span>}
+                      </>
+                    ) : (
+                      <>
+                        <Globe className="w-4 h-4 shrink-0" />
+                        {!compact && <span>单人模式</span>}
+                      </>
+                    )}
+                  </div>
+                  {!compact && <Settings2 className="w-3 h-3 opacity-50" />}
+                </Button>
+              </div>
+            )}
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            side={side}
+            align={align}
+            className="w-64 bg-slate-900 border-slate-700 text-slate-200 z-[99999]"
+          >
+            <DropdownMenuLabel className="text-xs text-slate-400 font-medium flex justify-between items-center">
+              <span>我的房间</span>
+              <span className="bg-white/10 px-1.5 py-0.5 rounded text-[10px] text-white/60">{joinedRooms.length}</span>
+            </DropdownMenuLabel>
+
+            <div className="max-h-[200px] overflow-y-auto custom-scrollbar flex flex-col gap-1 p-1">
+              {joinedRooms.length === 0 ? (
+                <div className="px-2 py-3 text-xs text-center text-slate-500">
+                  暂未加入任何房间
+                </div>
+              ) : (
+                joinedRooms.map((room) => (
+                  <DropdownMenuItem
+                    key={room.id}
+                    onClick={() => handleRoomSelect(room)}
+                    className="flex items-center gap-3 cursor-pointer focus:bg-white/5 focus:text-white rounded-lg"
+                  >
+                    <div className={cn(
+                      "w-2 h-2 rounded-full shrink-0",
+                      currentRoom?.id === room.id ? "bg-cyan-500 shadow-[0_0_8px_rgba(6,182,212,0.5)]" : "bg-cyan-500/30"
+                    )} />
+                    <span className="flex-1 truncate">{room.name}</span>
+                    {currentRoom?.id === room.id && <Check className="w-4 h-4 text-cyan-500" />}
+                  </DropdownMenuItem>
+                ))
+              )}
+            </div>
+
+            <DropdownMenuSeparator className="bg-white/5" />
+
+            <DropdownMenuItem
+              onClick={() => setIsModalOpen(true)}
+              className="cursor-pointer focus:bg-cyan-600/20 focus:text-cyan-300 text-cyan-400"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              <span>加入或创建房间</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      <RoomManagerModal
+        open={isModalOpen}
+        onOpenChange={setIsModalOpen}
+        onRoomEnter={(roomId) => {
+          // Close the modal
+          setIsModalOpen(false);
+
+          // Trigger the parent's onRoomSelect (which opens RoomDrawer)
+          if (onRoomSelect) {
+            onRoomSelect();
+          }
+        }}
+      />
+    </>
+  );
+}

@@ -1,0 +1,314 @@
+﻿diff --git a/app/actions/run-service.ts b/app/actions/run-service.ts
+index 2b60642..560d7ab 100644
+--- a/app/actions/run-service.ts
++++ b/app/actions/run-service.ts
+@@ -11,6 +11,7 @@ import { validateRunData } from '@/lib/validators/run-validator';
+ import { validateRunLegitimacy } from '@/lib/anti-cheat/mvp-rules';
+ import * as turf from '@turf/turf';
+ import { isLoopClosed, LOOP_CLOSURE_THRESHOLD_M, extractValidLoops, type Coord } from '@/lib/geometry-utils';
++import { isTester } from '@/lib/constants/anti-cheat';
+ 
+ export interface SaveRunResult {
+     runId?: string;
+@@ -97,6 +98,13 @@ export async function saveRunActivity(
+             pathPointsCount: pathPoints.length
+         });
+ 
++        // [God Mode] Bypass P0 legit check for white-listed testers
++        const isUserTester = isTester(userId);
++        if (isUserTester) {
++            (legitimacyCheck as any).isValid = true;
++            console.log(`[God Mode] P0 Legitimacy check bypassed for tester: ${userId}`);
++        }
++
+         if (!legitimacyCheck.isValid) {
+             console.warn(`[Anti-Cheat MVP] Run blocked for user ${userId}. Reason: ${legitimacyCheck.reason}`);
+             
+@@ -143,7 +151,9 @@ export async function saveRunActivity(
+         // Combined risk assessment
+         const isFlagged = metadataValidation.isFlagged || pathValidation.riskLevel === 'HIGH';
+         const isPedometerInvalid = pedometerAntiCheatLog !== null;
+-        const isBlockedByAntiCheat = isFlagged || isPedometerInvalid;
++
++        // [God Mode] Tester bypass for all automated blocks
++        const isBlockedByAntiCheat = !isUserTester && (isFlagged || isPedometerInvalid);
+         const flagReason = metadataValidation.flagReason || (pathValidation.riskLevel === 'HIGH' ? 'PATH_ANALYSIS_FAILED' : undefined);
+ 
+         const extractedLoops = extractValidLoops((runData.path as any[]) || [], LOOP_CLOSURE_THRESHOLD_M);
+@@ -197,17 +207,20 @@ export async function saveRunActivity(
+                     updated_at: new Date(),
+                     idempotency_key: runData.idempotencyKey,
+                     // Anti-Cheat Fields
+-                    risk_score: pathValidation.riskScore,
+-                    risk_level: pathValidation.riskLevel,
+-                    cheat_flags: pathValidation.cheatFlags as any,
++                    risk_score: isUserTester ? 0 : pathValidation.riskScore,
++                    risk_level: isUserTester ? 'LOW' : pathValidation.riskLevel,
++                    cheat_flags: {
++                        ...(pathValidation.cheatFlags as any),
++                        ...(isUserTester ? { tester_bypass: true } : {})
++                    } as any,
+                     client_distance: runData.distance,
+                     // New Validator Fields
+-                    is_flagged: isFlagged,
+-                    flag_reason: flagReason,
++                    is_flagged: isUserTester ? false : isFlagged,
++                    flag_reason: isUserTester ? null : flagReason,
+                     eventsLog: eventsHistory as any,
+                     totalSteps: submittedTotalSteps,
+-                    isValid: !isPedometerInvalid,
+-                    antiCheatLog: pedometerAntiCheatLog,
++                    isValid: isUserTester ? true : !isPedometerInvalid,
++                    antiCheatLog: isUserTester ? null : pedometerAntiCheatLog,
+                 },
+             });
+ 
+diff --git a/components/citylord/start/StartRunPageClient.tsx b/components/citylord/start/StartRunPageClient.tsx
+index e77abae..8b4a1f7 100644
+--- a/components/citylord/start/StartRunPageClient.tsx
++++ b/components/citylord/start/StartRunPageClient.tsx
+@@ -11,6 +11,7 @@ import { useGameStore } from "@/store/useGameStore"
+ import { useRouteListStore } from "@/store/useRouteListStore"
+ import { useLocationContext } from "@/components/GlobalLocationProvider"
+ import { isNativePlatform, safeOpenAppSettings } from "@/lib/capacitor/safe-plugins"
++import { App } from "@capacitor/app"
+ import { toast } from "sonner"
+ import type { PlannerRoute } from "@/types/route-list"
+ 
+@@ -81,36 +82,47 @@ export function StartRunOverlay({ onBack, onBeginRun }: StartRunOverlayProps) {
+     setGhostPath(null)
+   }, [setGhostPath])
+ 
+-  useEffect(() => {
+-    let mounted = true
+-    const checkBatteryOptimization = async () => {
+-      const native = await isNativePlatform()
+-      if (!native || !mounted) return
++  const checkBatteryOptimization = useCallback(async () => {
++    const skipWarning = localStorage.getItem("city-lord-skip-battery-warning") === "true"
++    if (skipWarning) return
+ 
+-      const { Capacitor, registerPlugin } = await import("@capacitor/core")
+-      if (Capacitor.getPlatform() !== "android") return
++    const native = await isNativePlatform()
++    if (!native) return
+ 
+-      let restricted = true
+-      try {
+-        const AMapLocation = registerPlugin<BatteryOptimizationPlugin>("AMapLocation")
+-        if (typeof AMapLocation.isIgnoringBatteryOptimizations === "function") {
+-          const result = await AMapLocation.isIgnoringBatteryOptimizations()
+-          const ignoring = typeof result === "boolean"
+-            ? result
+-            : Boolean(result.ignoring ?? result.isIgnoring ?? result.value)
+-          restricted = !ignoring
+-        }
+-      } catch {
+-        restricted = true
+-      }
++    const { Capacitor, registerPlugin } = await import("@capacitor/core")
++    if (Capacitor.getPlatform() !== "android") return
+ 
+-      if (restricted && mounted) setShowBatteryModal(true)
++    let restricted = true
++    try {
++      const AMapLocation = registerPlugin<BatteryOptimizationPlugin>("AMapLocation")
++      if (typeof AMapLocation.isIgnoringBatteryOptimizations === "function") {
++        const result = await AMapLocation.isIgnoringBatteryOptimizations()
++        const ignoring = typeof result === "boolean"
++          ? result
++          : Boolean(result.ignoring ?? result.isIgnoring ?? result.value)
++        restricted = !ignoring
++      }
++    } catch {
++      // 瀹归敊澶勭悊锛氬鏋?API 澶辫触锛屼繚瀹堣捣瑙佸湪鏌愪簺 ROM 涓婁笉鍙嶅寮圭獥骞叉壈锛屾澶勮嫢 API 寮傚父鍙€冭檻鏀捐
++      restricted = false
+     }
++
++    setShowBatteryModal(restricted)
++  }, [])
++
++  useEffect(() => {
+     checkBatteryOptimization()
++
++    const listenerPromise = App.addListener('appStateChange', ({ isActive }) => {
++      if (isActive) {
++        checkBatteryOptimization()
++      }
++    })
++
+     return () => {
+-      mounted = false
++      listenerPromise.then(l => l.remove())
+     }
+-  }, [])
++  }, [checkBatteryOptimization])
+ 
+   const gpsLabel = gpsSignalStrength === "good" ? "寮? : gpsSignalStrength === "weak" ? "寮? : "鏃?
+   const plannedPointCount = ghostPath?.length ?? 0
+@@ -265,9 +277,21 @@ export function StartRunOverlay({ onBack, onBeginRun }: StartRunOverlayProps) {
+                   type="button"
+                   variant="outline"
+                   className="h-12 w-full rounded-xl border-rose-300 bg-white text-rose-700 hover:bg-rose-50"
++                  onClick={() => {
++                    localStorage.setItem("city-lord-skip-battery-warning", "true")
++                    setShowBatteryModal(false)
++                    toast.success("宸茶缃笉鍐嶆彁閱?)
++                  }}
++                >
++                  涓嶅啀鎻愰啋 (Don't remind again)
++                </Button>
++                <Button
++                  type="button"
++                  variant="ghost"
++                  className="h-10 w-full text-xs text-muted-foreground underline-offset-4 hover:underline"
+                   onClick={() => setShowGuideModal(true)}
+                 >
+-                  闃呰鎸囧崡 (Read article)
++                  闃呰鍏抽棴鎸囧崡 (Read guide article)
+                 </Button>
+               </div>
+             </div>
+diff --git a/components/map/GaodeMap3D.tsx b/components/map/GaodeMap3D.tsx
+index 62d4987..acaa584 100644
+--- a/components/map/GaodeMap3D.tsx
++++ b/components/map/GaodeMap3D.tsx
+@@ -60,9 +60,7 @@ export function GaodeMap3D({
+   const polygonRefs = useRef<any[]>([])
+   const reqAnimIdRef = useRef<number | null>(null)
+   const destroyedRef = useRef(false)
+-<<<<<<< HEAD
+   const { territoryAppearance } = useGameTerritoryAppearance()
+-=======
+ 
+   // User Color Preferences
+   const [pathColor, setPathColor] = useState('#3B82F6')
+@@ -72,6 +70,7 @@ export function GaodeMap3D({
+   // Load user colors
+   useEffect(() => {
+     const loadColors = async () => {
++      const { createClient } = await import('@/lib/supabase/client')
+       const supabase = createClient()
+       const { data: { user } } = await supabase.auth.getUser()
+       if (user) {
+@@ -93,7 +92,6 @@ export function GaodeMap3D({
+     }
+     loadColors()
+   }, [])
+->>>>>>> 8c67c67 (fix(UAT): resolve Android keep-alive, theme switcher UI overflow, and pace state leakage)
+ 
+   const addLog = (msg: string) => {
+     console.log(`[GaodeMap3D] ${msg}`)
+@@ -238,16 +236,11 @@ export function GaodeMap3D({
+     return () => {
+       destroyedRef.current = true;
+       if (mapInstanceRef.current) {
+-<<<<<<< HEAD
+-=======
+         // Explicitly destroy the map instance to prevent WebView crashes
+->>>>>>> 8c67c67 (fix(UAT): resolve Android keep-alive, theme switcher UI overflow, and pace state leakage)
+         try {
+           mapInstanceRef.current.destroy?.();
+         } catch (e) {
+           console.warn('Failed to destroy map instance:', e);
+-<<<<<<< HEAD
+-=======
+         }
+ 
+         // Safe Cleanup using optional chaining
+@@ -257,7 +250,6 @@ export function GaodeMap3D({
+         // Handle array cleanup
+         if (Array.isArray(polygonRefs.current)) {
+           polygonRefs.current.forEach((p: any) => p?.remove?.())
+->>>>>>> 8c67c67 (fix(UAT): resolve Android keep-alive, theme switcher UI overflow, and pace state leakage)
+         }
+         safeDestroyMap(mapInstanceRef.current);
+         mapInstanceRef.current = null;
+diff --git a/components/ui/sheet.tsx b/components/ui/sheet.tsx
+index 5891612..9192f6a 100644
+--- a/components/ui/sheet.tsx
++++ b/components/ui/sheet.tsx
+@@ -73,7 +73,7 @@ function SheetContent({
+       >
+         {children}
+         <SheetPrimitive.Close className="ring-offset-background focus:ring-ring data-[state=open]:bg-secondary absolute top-4 right-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none">
+-          <XIcon className="size-4 text-white/70 hover:text-white" />
++          <XIcon className="size-4 text-muted-foreground/80 hover:text-foreground" />
+           <span className="sr-only">Close</span>
+         </SheetPrimitive.Close>
+       </SheetPrimitive.Content>
+diff --git a/lib/anti-cheat/rate-limiter.ts b/lib/anti-cheat/rate-limiter.ts
+index 4a33732..2dbd9e8 100644
+--- a/lib/anti-cheat/rate-limiter.ts
++++ b/lib/anti-cheat/rate-limiter.ts
+@@ -1,3 +1,5 @@
++import { isTester } from "../constants/anti-cheat";
++
+ interface RateLimitConfig {
+     maxRequests: number;
+     windowMs: number;
+@@ -18,6 +20,11 @@ const MAX_MAP_SIZE = 10000;
+  * per cold-start instance, which is enough to thwart naive tight loops.
+  */
+ export function checkRunRateLimit(userId: string): { allowed: boolean; retryAfter?: number } {
++    // [God Mode] Tester Whitelist Bypass
++    if (isTester(userId)) {
++        return { allowed: true };
++    }
++
+     const config: RateLimitConfig = { maxRequests: 2, windowMs: 10000 }; // Max 2 runs every 10 seconds
+     const now = Date.now();
+ 
+diff --git a/lib/constants/anti-cheat.ts b/lib/constants/anti-cheat.ts
+index 2c5a441..9686c04 100644
+--- a/lib/constants/anti-cheat.ts
++++ b/lib/constants/anti-cheat.ts
+@@ -1,22 +1,30 @@
+ /**
+- * Anti-Cheat Thresholds & Settings
+- * Configurable via server/environment.
++ * Anti-Cheat constants and shared utilities.
+  */
+ 
+-// Max allowed speed in km/h for a single segment
+-export const ANTI_CHEAT_MAX_SPEED_KMH = Number(process.env.ANTI_CHEAT_MAX_SPEED_KMH || 35);
+-
+-// The maximum acceptable distance gap in seconds (teleportation check)
+-export const ANTI_CHEAT_MAX_GAP_SECONDS = Number(process.env.ANTI_CHEAT_MAX_GAP_SECONDS || 60);
+-
+-// Percentage threshold for mock location points (0-100)
+-// If more than this % of points have isMock = true, it is heavily penalized.
+-export const ANTI_CHEAT_MOCK_PERCENT_THRESHOLD = Number(process.env.ANTI_CHEAT_MOCK_PERCENT_THRESHOLD || 5);
+-
+-// Allowed static movement standard deviation (in meters)
+-export const ANTI_CHEAT_STATIC_MOVEMENT_RADIUS = Number(process.env.ANTI_CHEAT_STATIC_MOVEMENT_RADIUS || 5);
++/**
++ * Gets the static whitelist of user UUIDs that bypass all anti-cheat rules.
++ * Values are read from TESTER_WHITELIST_UUIDS environment variable, 
++ * expected as a comma-separated string.
++ */
++export const getTesterWhitelist = (): string[] => {
++  const envValue = process.env.TESTER_WHITELIST_UUIDS || '';
++  if (!envValue) return [];
++  
++  return envValue
++    .split(',')
++    .map(uuid => uuid.trim())
++    .filter(uuid => uuid.length > 0);
++};
+ 
+-export const ANTI_CHEAT_RISK_THRESHOLDS = {
+-    MEDIUM: 31,
+-    HIGH: 71
++/**
++ * Checks if a user is in the tester whitelist.
++ * 
++ * @param userId - The UUID of the user to check.
++ * @returns True if the user is a whitelisted tester.
++ */
++export const isTester = (userId: string): boolean => {
++  if (!userId) return false;
++  const whitelist = getTesterWhitelist();
++  return whitelist.includes(userId);
+ };
+

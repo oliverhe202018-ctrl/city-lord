@@ -1,0 +1,36 @@
+[dotenv@17.3.1] injecting env (20) from .env.local -- tip: ⚙️  suppress all logs with { quiet: true }
+Columns: [
+  'id',
+  'city_id',
+  'owner_id',
+  'captured_at',
+  'last_maintained_at',
+  'health',
+  'level',
+  'geojson',
+  'h3_index',
+  'status',
+  'owner_change_count',
+  'last_owner_change_at',
+  'owner_club_id',
+  'owner_faction',
+  'neutral_until'
+] Data: [
+  {
+    id: 'hex_test_02',
+    city_id: 'city_test',
+    owner_id: '11111111-1111-1111-1111-111111111111',
+    captured_at: '2026-03-10T03:25:58.452711+00:00',
+    last_maintained_at: '2026-03-10T03:25:58.452711+00:00',
+    health: 1000,
+    level: 1,
+    geojson: null,
+    h3_index: null,
+    status: 'active',
+    owner_change_count: 0,
+    last_owner_change_at: null,
+    owner_club_id: '11111111-1111-1111-1111-111111111111',
+    owner_faction: 'bio',
+    neutral_until: null
+  }
+]

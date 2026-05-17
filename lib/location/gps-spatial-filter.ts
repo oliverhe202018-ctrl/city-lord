@@ -165,6 +165,13 @@ export const shouldAcceptPointByDistance = (
       };
     }
 
+    // 同一时刻两点（部分安卓设备批量推送时会出现）：直接用距离兜底，无需速度计算
+    if (timeDiffMs === 0) {
+      return distanceMeters > 10
+        ? { accept: false, reason: 'speed-anomaly', distanceMeters, calculatedSpeed: Infinity }
+        : { accept: true, reason: 'valid', distanceMeters };
+    }
+
     const timeDiffS = timeDiffMs / 1000;
 
     if (timeDiffMs > 100) {
