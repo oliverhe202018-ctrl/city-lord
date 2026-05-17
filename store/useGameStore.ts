@@ -216,7 +216,7 @@ export interface LocationActions {
   setCountdownState: (state: number) => void;
   startRunning: (sessionId?: string) => void;
   stopRunning: () => void;
-  finalizeRunCleanup: () => void;
+  finalizeRunCleanup: (isConfirmedSaved?: boolean) => void;
   recoverRunFromNative: () => Promise<void>;
   updateSpeed: (speed: number) => void;
   addDistance: (distance: number) => void;
@@ -711,14 +711,30 @@ const createLocationSlice: StateCreator<GameStore, [], [], LocationActions> = (s
   setIsPermissionRequesting: (requesting) => set({ isPermissionRequesting: requesting }),
   setLocationInitialized: (initialized: boolean) => set({ locationInitialized: initialized }),
   setCountdownState: (state) => {}, // Stub pending implementation
-  finalizeRunCleanup: () => set({
-    isRunning: false,
-    runStartTime: null,
-    distance: 0,
-    duration: 0,
-    currentRunPath: [],
-    speed: 0,
-    ghostPath: null,
+  finalizeRunCleanup: (isConfirmedSaved: boolean = false) => set((state) => {
+    // 仅在确认数据已安全保存或存入本地后备队列后，才清空 currentRunPath 状态
+    if (!isConfirmedSaved) {
+      console.warn('[useGameStore] finalizeRunCleanup called without confirmation, preserving run state');
+      return {
+        isRunning: false,
+        runStartTime: null,
+        distance: 0,
+        duration: 0,
+        speed: 0,
+        ghostPath: null,
+        currentRunPath: state.currentRunPath, // 保留轨迹数据
+      };
+    }
+    
+    return {
+      isRunning: false,
+      runStartTime: null,
+      distance: 0,
+      duration: 0,
+      currentRunPath: [],
+      speed: 0,
+      ghostPath: null,
+    };
   }),
   recoverRunFromNative: async () => {}, // Stub pending implementation
 });
