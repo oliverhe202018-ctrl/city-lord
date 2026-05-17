@@ -1624,9 +1624,10 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     // ─── 指数退避重试配置 ───
     const maxRetries = 3;
     const retryDelays = [1000, 2000, 4000]; // 1s, 2s, 4s
-    let timeoutId: NodeJS.Timeout | undefined;
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
+      let controller: AbortController | undefined;
+      let timeoutId: NodeJS.Timeout | undefined;
       try {
         setIsSaving(true);
 
@@ -1693,24 +1694,10 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           toast.warning('跑步数据过大，已自动压缩轨迹以保证上传成功');
         }
 
-        if (payloadSize > PAYLOAD_SIZE_WARNING) {
-          console.warn(`[PayloadPreCheck] Payload size ${payloadSize} bytes exceeds 3.8MB threshold, forcing secondary truncation`);
-          // 二次降采样：截断路径至最大 200 点
-          if (simplifiedPath.length > MAX_POINTS_AFTER_TRUNCATION) {
-            const step = Math.ceil(simplifiedPath.length / MAX_POINTS_AFTER_TRUNCATION);
-            finalPath = simplifiedPath.filter((_, idx) => idx % step === 0 || idx === simplifiedPath.length - 1);
-          }
-          // 裁减 eventsHistory 至最后 50 条
-          if (eventsHistoryRef.current.length > MAX_EVENTS_AFTER_TRUNCATION) {
-            finalEvents = eventsHistoryRef.current.slice(-MAX_EVENTS_AFTER_TRUNCATION);
-          }
-          toast.warning('跑步数据过大，已自动压缩轨迹以保证上传成功');
-        }
-
         // ─── 植入 AbortController，设置 120 秒超时 ───
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => {
-          controller.abort();
+        controller = new AbortController();
+        timeoutId = setTimeout(() => {
+          controller!.abort();
           // 强退本地兜底：超时触发时将当前轨迹数据压入 settlementRetryQueue
           const fallbackPayload = {
             userId,
@@ -1749,6 +1736,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         } as any);
 
         clearTimeout(timeoutId);
+        timeoutId = undefined;
 
         if (result.success) {
           console.log(`[useRunningTracker] Save successful | runId: ${result.data?.runId}`);

@@ -853,7 +853,12 @@ export async function saveRunActivity(
             console.log(`[规则一] 首尾距离: ${distGlobal.toFixed(1)}m (阈值 ${START_END_SNAP_THRESHOLD_M}m)`);
             console.log(`[Territory-Diag] 规则一测算 - 首尾物理距离: ${distGlobal}m (阈值${START_END_SNAP_THRESHOLD_M}m)`);
 
-            if (distGlobal <= START_END_SNAP_THRESHOLD_M && sampledPointsLngLat.length >= 4) {
+            const MIN_RUN_DISTANCE_FOR_CLOSURE_M = 50;
+            if (
+                distGlobal <= START_END_SNAP_THRESHOLD_M &&
+                sampledPointsLngLat.length >= 4 &&
+                runData.distance >= MIN_RUN_DISTANCE_FOR_CLOSURE_M
+            ) {
                 // 显式首尾吸附：将起点坐标副本 push 到末尾，形成合法 GeoJSON LinearRing
                 const snappedPath = [...sampledPointsLngLat, [firstPoint[0], firstPoint[1]] as [number, number]];
                 closingPath = snappedPath;
