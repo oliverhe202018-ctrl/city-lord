@@ -931,7 +931,7 @@ export class AMapLocationBridge {
                 point.lat,
                 point.lng,
             );
-            const minDist = this.watchMode === 'running' ? 3 : 2;
+            const minDist = this.watchMode === 'running' ? 5 : 5;
             if (dist < minDist) {
                 return; // 距离过近，静默跳过
             }

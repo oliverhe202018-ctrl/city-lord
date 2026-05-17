@@ -115,10 +115,8 @@ export function useSafeGeolocation(options: UseSafeGeolocationOptions = {}): Use
   }, []);
 
   // Accuracy thresholds for running game (CRITICAL for polygon integrity)
-  // 100m: indoor base-station drift typically reports 50m~200m accuracy;
-  // tightening from 200m to 100m blocks the majority of indoor jitter at the
-  // source before it reaches the spatial filter.
-  const ACCURACY_THRESHOLD_GPS = 100; // meters — tightened from 200m to block indoor base-station drift
+  // 30m: tightened from 100m to reject low-accuracy points that cause polygon drift
+  const ACCURACY_THRESHOLD_GPS = 30; // meters — tightened from 100m to block GPS drift
   const ACCURACY_THRESHOLD_NETWORK = 5000; // meters
 
   const processPosition = useCallback((position: SafePosition | GeoPoint, source: 'cache' | 'network-coarse' | 'gps-precise') => {
@@ -298,8 +296,8 @@ export function useSafeGeolocation(options: UseSafeGeolocationOptions = {}): Use
         },
         {
           enableHighAccuracy: options.enableHighAccuracy ?? true,
-          timeout: options.timeout ?? 8000,
-          maximumAge: options.maximumAge ?? 5000
+          timeout: options.timeout ?? 15000,
+          maximumAge: options.maximumAge ?? 1000
         }
       );
     } catch (e) {

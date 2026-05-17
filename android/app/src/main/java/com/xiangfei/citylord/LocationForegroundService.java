@@ -695,10 +695,20 @@ public class LocationForegroundService extends Service implements AMapLocationLi
         // 1a. 持久化缓存位置到 SharedPreferences (兼容旧逻辑)
         saveLocationToCache(location);
 
-        // 1b. 异步写入 Room 数据库（黑匣子核心：即便 JS 挂起也确保每个点落盘）
+        // 1b. 距离滤波前置：未通过过滤的点直接丢弃，不广播给JS层
+        final float BROADCAST_DISTANCE_FILTER_METERS = 5.0f;
+        if (!passesDistanceFilter(location, BROADCAST_DISTANCE_FILTER_METERS)) {
+            Log.d(TAG, "位置未通过距离滤波，跳过广播: lat=" + location.getLatitude() + " lng=" + location.getLongitude());
+            // 仍写入 Room 数据库（黑匣子记录所有采样点）
+            persistToRoom(location);
+            return;
+        }
+
+        // 1c. 更新上次广播位置
+        lastBroadcastLocation = location.clone();
+
+        // 1d. 异步写入 Room 数据库（黑匣子核心：即便 JS 挂起也确保每个点落盘）
         persistToRoom(location);
-
-
 
         // 2. Broadcast location to Plugin
         Intent intent = new Intent(ACTION_LOCATION_UPDATE);
@@ -738,6 +748,36 @@ public class LocationForegroundService extends Service implements AMapLocationLi
 
     /** 记录上一次存入 Room 的位置，用于 2 米过滤 */
     private AMapLocation lastRoomLocation = null;
+
+    /** 记录上一次广播的位置，用于 5 米距离滤波（防止原生抖动直达JS层） */
+    private AMapLocation lastBroadcastLocation = null;
+
+    /**
+     * 距离滤波：检查新位置与上次广播位置的距离是否超过阈值
+     * @return true 表示通过滤波，可以广播；false 表示距离过近，应丢弃
+     */
+    private boolean passesDistanceFilter(AMapLocation location, float minDistanceMeters) {
+        if (lastBroadcastLocation == null) {
+            return true; // 首次定位，直接通过
+        }
+
+        float[] results = new float[1];
+        android.location.Location.distanceBetween(
+                lastBroadcastLocation.getLatitude(),
+                lastBroadcastLocation.getLongitude(),
+                location.getLatitude(),
+                location.getLongitude(),
+                results
+        );
+        float distance = results[0];
+
+        if (distance < minDistanceMeters) {
+            Log.d(TAG, "距离滤波: " + String.format("%.1f", distance) + "m < " + (int)minDistanceMeters + "m 阈值，丢弃");
+            return false;
+        }
+
+        return true;
+    }
 
     /**
      * 异步将定位点写入 Room 数据库。

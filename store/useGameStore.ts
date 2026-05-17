@@ -55,7 +55,7 @@ export interface LocationState {
   runStartTime: number | null;
   currentRunPath: [number, number][];
   ghostPath: [number, number][] | null;
-  lastKnownLocation: { lat: number; lng: number } | null;
+  lastKnownLocation: { lat: number; lng: number; timestamp?: number } | null;
   /** [NEW] 鍏ㄥ眬鏉冮檺璇锋眰鐘舵€侀攣锛岀敤浜庨槻姝㈢櫥褰曞脊绐楀啿绐?*/
   isPermissionRequesting: boolean;
   /** [NEW] 鏍囪瘑瀹氫綅绯荤粺鏄惁宸茬粡灏濊瘯杩囪嚦灏戜竴杞垵濮嬪寲锛堟棤璁烘潈闄愮粨鏋滃浣曪級 */
@@ -223,7 +223,7 @@ export interface LocationActions {
   dismissGeolocationPrompt: () => void;
   resetRunState: () => void;
   setGhostPath: (path: [number, number][] | null) => void;
-  setLastKnownLocation: (location: { lat: number; lng: number } | null) => void;
+  setLastKnownLocation: (location: { lat: number; lng: number; timestamp?: number } | null) => void;
   setIsPermissionRequesting: (requesting: boolean) => void;
   setLocationInitialized: (initialized: boolean) => void;
 }
@@ -691,7 +691,16 @@ const createLocationSlice: StateCreator<GameStore, [], [], LocationActions> = (s
     speed: 0,
   }),
   setGhostPath: (path) => set({ ghostPath: path }),
-  setLastKnownLocation: (location) => set({ lastKnownLocation: location }),
+  setLastKnownLocation: (location: { lat: number; lng: number; timestamp?: number } | null) => set((state) => {
+    // 时间戳校验：若新传入的坐标时间戳早于 Store 中现存的时间戳，则拒绝更新
+    if (location && location.timestamp && state.lastKnownLocation && state.lastKnownLocation.timestamp) {
+      if (location.timestamp < state.lastKnownLocation.timestamp) {
+        console.debug('[useGameStore] setLastKnownLocation: rejected stale point, new timestamp', location.timestamp, '< current', state.lastKnownLocation.timestamp);
+        return {}; // 拒绝更新
+      }
+    }
+    return { lastKnownLocation: location };
+  }),
   setIsPermissionRequesting: (requesting) => set({ isPermissionRequesting: requesting }),
   setLocationInitialized: (initialized: boolean) => set({ locationInitialized: initialized }),
   setCountdownState: (state) => {}, // Stub pending implementation

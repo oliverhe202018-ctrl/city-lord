@@ -1,58 +1,201 @@
-type LatLngPoint = {
-  lat: number
-  lng: number
-  accuracy?: number
+/**
+ * GpsSpatialFilter — GPS 空间滤波与卡尔曼平滑器
+ *
+ * 职责：
+ *  - 低精度漂移过滤：accuracy > 50m 时，要求位移 > accuracy * 0.8 且绝对位移 > 10m
+ *  - 速度校验：前后两点移动速度 > 14m/s（约50km/h）判定为 GPS 飞点
+ *  - 一维卡尔曼滤波：对 Lat 和 Lng 分别进行平滑，根据 accuracy 动态调整观测噪声 R
+ *  - 距离滤波：jitter < 2m 丢弃，fly-point > 50m 丢弃
+ *
+ * 所有坐标假定为 GCJ-02，直接用于轨迹 store。
+ */
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export interface LatLngPoint {
+  lat: number;
+  lng: number;
+  accuracy?: number;
+  timestamp?: number;
 }
 
-type SpatialFilterDecision = {
-  accept: boolean
-  reason: 'first-point' | 'jitter(<2m)' | 'low-accuracy-drift' | 'fly-point(>50m)' | 'valid'
-  distanceMeters: number
+export interface SpatialFilterDecision {
+  accept: boolean;
+  reason: 'first-point' | 'jitter(<2m)' | 'low-accuracy-drift' | 'fly-point(>50m)' | 'speed-anomaly' | 'valid';
+  distanceMeters: number;
+  calculatedSpeed?: number;
 }
 
-const EARTH_RADIUS_METERS = 6371000
+export interface KalmanFilterState {
+  x: number; // 估计值
+  p: number; // 估计误差协方差
+  q: number; // 过程噪声协方差
+  r: number; // 观测噪声协方差
+}
 
-const toRadians = (degrees: number): number => (degrees * Math.PI) / 180
+export interface FilteredPoint extends LatLngPoint {
+  smoothedLat: number;
+  smoothedLng: number;
+}
 
-const distanceMetersBetween = (a: LatLngPoint, b: LatLngPoint): number => {
-  const dLat = toRadians(b.lat - a.lat)
-  const dLng = toRadians(b.lng - a.lng)
-  const lat1 = toRadians(a.lat)
-  const lat2 = toRadians(b.lat)
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const EARTH_RADIUS_METERS = 6371000;
+const MAX_HUMAN_SPEED_MS = 14; // 约 50km/h，超过此速度视为 GPS 飞点
+const LOW_ACCURACY_THRESHOLD = 50; // meters
+const LOW_ACCURACY_DISPLACEMENT_RATIO = 0.8; // 位移必须超过 accuracy 的 80%
+const LOW_ACCURACY_MIN_DISPLACEMENT = 10; // meters
+const JITTER_THRESHOLD = 2; // meters
+const FLY_POINT_THRESHOLD = 50; // meters
+const DEFAULT_PROCESS_NOISE = 0.01; // 默认过程噪声 Q
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+const toRadians = (degrees: number): number => (degrees * Math.PI) / 180;
+
+export const distanceMetersBetween = (a: LatLngPoint, b: LatLngPoint): number => {
+  const dLat = toRadians(b.lat - a.lat);
+  const dLng = toRadians(b.lng - a.lng);
+  const lat1 = toRadians(a.lat);
+  const lat2 = toRadians(b.lat);
 
   const hav =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2)
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
 
-  const c = 2 * Math.atan2(Math.sqrt(hav), Math.sqrt(1 - hav))
-  return EARTH_RADIUS_METERS * c
-}
+  const c = 2 * Math.atan2(Math.sqrt(hav), Math.sqrt(1 - hav));
+  return EARTH_RADIUS_METERS * c;
+};
+
+// ---------------------------------------------------------------------------
+// Kalman Filter (1D)
+// ---------------------------------------------------------------------------
+
+/**
+ * 创建一维卡尔曼滤波器实例
+ * @param initialValue 初始估计值
+ * @param accuracy GPS 报告的精度（米），用于初始化观测噪声 R
+ */
+export const createKalmanFilter = (initialValue: number, accuracy: number = 10): KalmanFilterState => ({
+  x: initialValue, // 初始估计
+  p: accuracy, // 初始估计误差协方差
+  q: DEFAULT_PROCESS_NOISE, // 过程噪声协方差（固定）
+  r: Math.max(accuracy, 1), // 观测噪声协方差（至少为 1）
+});
+
+/**
+ * 一维卡尔曼滤波更新步骤
+ * @param filter 滤波器状态
+ * @param measurement 新观测值
+ * @param measurementAccuracy 新观测值的精度（用于动态调整 R）
+ */
+export const kalmanUpdate = (
+  filter: KalmanFilterState,
+  measurement: number,
+  measurementAccuracy: number = 10
+): number => {
+  // 动态调整观测噪声 R：精度越差，R 越大，滤波器越信任估计值
+  filter.r = Math.max(measurementAccuracy, 1);
+
+  // 卡尔曼增益
+  const k = filter.p / (filter.p + filter.r);
+
+  // 更新估计值
+  filter.x = filter.x + k * (measurement - filter.x);
+
+  // 更新估计误差协方差
+  filter.p = (1 - k) * filter.p + filter.q;
+
+  return filter.x;
+};
+
+// ---------------------------------------------------------------------------
+// Spatial Filter
+// ---------------------------------------------------------------------------
 
 export const shouldAcceptPointByDistance = (
   prevPoint: LatLngPoint | null,
   nextPoint: LatLngPoint & { accuracy?: number }
 ): SpatialFilterDecision => {
   if (!prevPoint) {
-    return { accept: true, reason: 'first-point', distanceMeters: 0 }
+    return { accept: true, reason: 'first-point', distanceMeters: 0 };
   }
 
-  const distanceMeters = distanceMetersBetween(prevPoint, nextPoint)
-  const accuracy = nextPoint.accuracy ?? 9999
+  const distanceMeters = distanceMetersBetween(prevPoint, nextPoint);
+  const accuracy = nextPoint.accuracy ?? 9999;
 
-  // Accuracy gate: when GPS signal is poor (accuracy > 50m, i.e. indoor/base-station),
-  // only accept the point if displacement exceeds 50% of the reported accuracy radius.
-  // This prevents network/base-station position drift from causing visible map jitter.
-  if (accuracy > 50 && distanceMeters < accuracy * 0.5) {
-    return { accept: false, reason: 'low-accuracy-drift', distanceMeters }
+  // --- 1. 低精度漂移过滤 ---
+  // 当 GPS 信号差（accuracy > 50m，即室内/基站定位）时：
+  // 必须满足位移 > accuracy * 0.8 且绝对位移 > 10m 才予通过
+  if (accuracy > LOW_ACCURACY_THRESHOLD) {
+    const requiredDisplacement = accuracy * LOW_ACCURACY_DISPLACEMENT_RATIO;
+    if (distanceMeters < requiredDisplacement || distanceMeters < LOW_ACCURACY_MIN_DISPLACEMENT) {
+      return {
+        accept: false,
+        reason: 'low-accuracy-drift',
+        distanceMeters,
+      };
+    }
   }
 
-  if (distanceMeters < 2) {
-    return { accept: false, reason: 'jitter(<2m)', distanceMeters }
+  // --- 2. 静止抖动过滤 ---
+  if (distanceMeters < JITTER_THRESHOLD) {
+    return { accept: false, reason: 'jitter(<2m)', distanceMeters };
   }
 
-  if (distanceMeters > 50) {
-    return { accept: false, reason: 'fly-point(>50m)', distanceMeters }
+  // --- 3. 飞点过滤 ---
+  if (distanceMeters > FLY_POINT_THRESHOLD) {
+    return { accept: false, reason: 'fly-point(>50m)', distanceMeters };
   }
 
-  return { accept: true, reason: 'valid', distanceMeters }
-}
+  // --- 4. 速度校验 ---
+  if (prevPoint.timestamp && nextPoint.timestamp) {
+    const timeDiffS = (nextPoint.timestamp - prevPoint.timestamp) / 1000;
+    if (timeDiffS > 0.1) { // 至少 100ms 时间差才计算速度
+      const speed = distanceMeters / timeDiffS;
+      if (speed > MAX_HUMAN_SPEED_MS) {
+        return {
+          accept: false,
+          reason: 'speed-anomaly',
+          distanceMeters,
+          calculatedSpeed: speed,
+        };
+      }
+    }
+  }
+
+  return { accept: true, reason: 'valid', distanceMeters };
+};
+
+// ---------------------------------------------------------------------------
+// SmoothPoint — 卡尔曼平滑入口
+// ---------------------------------------------------------------------------
+
+/**
+ * 对定位点进行卡尔曼平滑
+ * @param point 原始定位点
+ * @param latFilter 纬度滤波器状态（会被修改）
+ * @param lngFilter 经度滤波器状态（会被修改）
+ */
+export const smoothPoint = (
+  point: LatLngPoint,
+  latFilter: KalmanFilterState,
+  lngFilter: KalmanFilterState
+): FilteredPoint => {
+  const accuracy = point.accuracy ?? 10;
+
+  const smoothedLat = kalmanUpdate(latFilter, point.lat, accuracy);
+  const smoothedLng = kalmanUpdate(lngFilter, point.lng, accuracy);
+
+  return {
+    ...point,
+    smoothedLat,
+    smoothedLng,
+  };
+};

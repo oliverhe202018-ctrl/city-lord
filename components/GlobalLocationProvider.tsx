@@ -80,7 +80,7 @@ const TAG = '[GlobalLocationProvider]';
  * GPS_JITTER_DEAD_ZONE — 地图标记最小移动距离
  *   吸收 ±2-5m GPS 噪声，防止静止时蓝点抖动。
  */
-const GPS_JITTER_DEAD_ZONE = 3;
+const GPS_JITTER_DEAD_ZONE = 5;
 
 export function GlobalLocationProvider({ children }: { children: ReactNode }) {
     const bridgeRef = useRef<AMapLocationBridge | null>(null);

@@ -93,12 +93,19 @@ export const useGeolocation = ({
 
   /**
    * 坐标系转换逻辑：WGS-84 -> GCJ-02 (如果开启)
+   * 来源校验：原生高德返回的点已标记为 GCJ02，禁止二次转换（防止200-500米固定偏移）
    */
   const transformPosition = useCallback(
     (position: SafePosition): GeolocationState['data'] => {
       let latitude = position.lat;
       let longitude = position.lng;
       let coordType: 'gcj02' | 'wgs84' = 'wgs84';
+
+      // 来源校验：如果已标记为 GCJ02，直接跳过转换
+      if ((position as any).coordSystem === 'gcj02') {
+        coordType = 'gcj02';
+        return { latitude, longitude, coordType };
+      }
 
       if (gpsCorrectionEnabled) {
         const result = gcoord.transform(

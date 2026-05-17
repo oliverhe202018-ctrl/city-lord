@@ -1,2 +1,0 @@
-npx lint-staged
-# npx tsc --noEmit  # TEMPORARILY DISABLED — 46 pre-existing TS errors block all commits (Prisma schema drift). Re-enable after schema sync.

@@ -38,6 +38,8 @@ export interface SafePosition {
   speed?: number | null
   heading?: number | null
   timestamp: number
+  /** 坐标系标识：'gcj02' 表示高德国测局坐标，'wgs84' 表示原始GPS坐标 */
+  coordSystem?: 'gcj02' | 'wgs84'
 }
 
 export async function safeGetCurrentPosition(options?: {
@@ -45,9 +47,9 @@ export async function safeGetCurrentPosition(options?: {
   timeout?: number
   maximumAge?: number
 }): Promise<SafePosition | null> {
-  const effectiveEnableHighAccuracy = options?.enableHighAccuracy ?? false;
-  const effectiveTimeout = options?.timeout ?? 5000;
-  const effectiveMaximumAge = options?.maximumAge ?? 15000;
+  const effectiveEnableHighAccuracy = options?.enableHighAccuracy ?? true;
+  const effectiveTimeout = options?.timeout ?? 15000;
+  const effectiveMaximumAge = options?.maximumAge ?? 1000;
 
   try {
     const { Geolocation } = await import('@capacitor/geolocation')
@@ -93,9 +95,9 @@ export async function safeWatchPosition(
   callback: (position: SafePosition | null, error?: any) => void,
   options?: { enableHighAccuracy?: boolean; timeout?: number; maximumAge?: number }
 ): Promise<string | null> {
-  const effectiveEnableHighAccuracy = options?.enableHighAccuracy ?? false;
-  const effectiveTimeout = options?.timeout ?? 5000;
-  const effectiveMaximumAge = options?.maximumAge ?? 15000;
+  const effectiveEnableHighAccuracy = options?.enableHighAccuracy ?? true;
+  const effectiveTimeout = options?.timeout ?? 15000;
+  const effectiveMaximumAge = options?.maximumAge ?? 1000;
 
   try {
     const { Geolocation } = await import('@capacitor/geolocation')

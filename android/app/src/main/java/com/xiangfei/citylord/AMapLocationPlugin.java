@@ -459,15 +459,15 @@ public class AMapLocationPlugin extends Plugin {
             if ("running".equals(mode)) {
                 option.setGpsFirst(true);
                 option.setGpsFirstTimeout(5000);
+                option.setLocationCacheEnable(false);
             } else {
-                // browse模式：允许秒级返回网络/缓存位置，禁止死等GPS冷启动
-                option.setLocationCacheEnable(true);
+                // browse模式：禁用缓存，杜绝陈旧缓存导致的跳点
+                option.setLocationCacheEnable(false);
                 option.setGpsFirst(false);
             }
 
             option.setInterval(interval);
             option.setNeedAddress(false);
-            option.setLocationCacheEnable(true);
 
             watchClient.setLocationOption(option);
             watchClient.setLocationListener(new AMapLocationListener() {
