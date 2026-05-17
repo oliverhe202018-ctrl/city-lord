@@ -60,6 +60,7 @@ export interface LocationState {
   currentRunPath: [number, number][];
   ghostPath: [number, number][] | null;
   lastKnownLocation: { lat: number; lng: number; timestamp?: number } | null;
+  savedRunId: string | null;
   /** [NEW] 鍏ㄥ眬鏉冮檺璇锋眰鐘舵€侀攣锛岀敤浜庨槻姝㈢櫥褰曞脊绐楀啿绐?*/
   isPermissionRequesting: boolean;
   /** [NEW] 鏍囪瘑瀹氫綅绯荤粺鏄惁宸茬粡灏濊瘯杩囪嚦灏戜竴杞垵濮嬪寲锛堟棤璁烘潈闄愮粨鏋滃浣曪級 */
@@ -330,6 +331,7 @@ const initialLocationState: LocationState = {
   currentRunPath: [],
   ghostPath: null,
   lastKnownLocation: null,
+  savedRunId: null,
   isPermissionRequesting: false,
   locationInitialized: false,
 };
@@ -712,9 +714,12 @@ const createLocationSlice: StateCreator<GameStore, [], [], LocationActions> = (s
   setLocationInitialized: (initialized: boolean) => set({ locationInitialized: initialized }),
   setCountdownState: (state) => {}, // Stub pending implementation
   finalizeRunCleanup: (isConfirmedSaved: boolean = false) => set((state) => {
-    // 仅在确认数据已安全保存或存入本地后备队列后，才清空 currentRunPath 状态
-    if (!isConfirmedSaved) {
-      console.warn('[useGameStore] finalizeRunCleanup called without confirmation, preserving run state');
+    // 双重守卫：不仅依赖入参 isConfirmedSaved，还强制检查内部状态 savedRunId
+    // 防止在数据未真正持久化时误清空轨迹
+    const safeToClean = isConfirmedSaved && !!state.savedRunId;
+    
+    if (!safeToClean) {
+      console.warn('[useGameStore] finalizeRunCleanup: safeToClean=false (isConfirmedSaved=' + isConfirmedSaved + ', savedRunId=' + state.savedRunId + '), preserving run state');
       return {
         isRunning: false,
         runStartTime: null,

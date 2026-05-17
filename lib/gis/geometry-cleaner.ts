@@ -17,6 +17,7 @@ export function cleanAndSplitTrajectory(coordinates: Position[]): Feature<Polygo
 
   // 1. Closure Check: 使用 haversineDistance 判断首尾距离是否 <= 20 米
   const CLOSURE_THRESHOLD_METERS = 20;
+  const MIN_PATH_LENGTH_METERS = 50;
   const closedCoords = [...coordinates];
   const first = closedCoords[0];
   const last = closedCoords[closedCoords.length - 1];
@@ -24,12 +25,24 @@ export function cleanAndSplitTrajectory(coordinates: Position[]): Feature<Polygo
   // 计算首尾点之间的实际距离（米）
   const startEndDistance = haversineDistance(first[1], first[0], last[1], last[0]);
   
-  // 若距离在 20m 内则自动补点闭合
-  if (startEndDistance > CLOSURE_THRESHOLD_METERS) {
+  // 计算路径总长度（米）
+  let totalPathLength = 0;
+  for (let i = 1; i < closedCoords.length; i++) {
+    totalPathLength += haversineDistance(
+      closedCoords[i - 1][1], closedCoords[i - 1][0],
+      closedCoords[i][1], closedCoords[i][0]
+    );
+  }
+  
+  // 若首尾距离在 20m 内且路径总长 >= 50m，则自动补点闭合
+  // 防止用户原地踏步（首尾距离近但路径总长不足）被误判为闭合领地
+  if (startEndDistance <= CLOSURE_THRESHOLD_METERS && totalPathLength >= MIN_PATH_LENGTH_METERS) {
     closedCoords.push([...first]);
-    console.log(`[GeometryCleaner] 首尾距离 ${startEndDistance.toFixed(1)}m > ${CLOSURE_THRESHOLD_METERS}m，已自动补点闭合`);
+    console.log(`[GeometryCleaner] 首尾距离 ${startEndDistance.toFixed(1)}m <= ${CLOSURE_THRESHOLD_METERS}m，路径总长 ${totalPathLength.toFixed(1)}m >= ${MIN_PATH_LENGTH_METERS}m，已自动补点闭合`);
+  } else if (startEndDistance > CLOSURE_THRESHOLD_METERS) {
+    console.log(`[GeometryCleaner] 首尾距离 ${startEndDistance.toFixed(1)}m > ${CLOSURE_THRESHOLD_METERS}m，不满足闭合条件`);
   } else {
-    console.log(`[GeometryCleaner] 首尾距离 ${startEndDistance.toFixed(1)}m <= ${CLOSURE_THRESHOLD_METERS}m，满足闭合条件`);
+    console.log(`[GeometryCleaner] 首尾距离 ${startEndDistance.toFixed(1)}m <= ${CLOSURE_THRESHOLD_METERS}m，但路径总长 ${totalPathLength.toFixed(1)}m < ${MIN_PATH_LENGTH_METERS}m，判定为原地踏步，不闭合`);
   }
 
   try {

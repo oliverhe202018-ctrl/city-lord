@@ -1624,8 +1624,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     // ─── 指数退避重试配置 ───
     const maxRetries = 3;
     const retryDelays = [1000, 2000, 4000]; // 1s, 2s, 4s
+    let timeoutId: NodeJS.Timeout | undefined;
 
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
         setIsSaving(true);
 
@@ -1637,9 +1638,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         // ================================================================
         const SIMPLIFY_THRESHOLD = 2000;
         const SIMPLIFY_TOLERANCE = 0.00005;
-        let simplifiedPath = livePath;
+        let simplifiedPath: Location[] = livePath;
         if (livePath.length > SIMPLIFY_THRESHOLD) {
-          simplifiedPath = simplifyPath(livePath, SIMPLIFY_TOLERANCE);
+          simplifiedPath = simplifyPath(livePath, SIMPLIFY_TOLERANCE) as Location[];
           console.log(
             `[Simplify] 🗜️ Path reduced: ${livePath.length} → ${simplifiedPath.length} points ` +
             `(${((1 - simplifiedPath.length / livePath.length) * 100).toFixed(1)}% reduction)`
@@ -1650,11 +1651,19 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           ? currentStepsRef.current
           : estimateStepsFromDistanceMeters(liveDistance);
 
-        // ─── 植入 AbortController，设置 120 秒超时 ───
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 120_000); // 120s timeout
+        // ================================================================
+        // 🛡️ PAYLOAD SIZE PRE-CHECK — Vercel 4.5MB 硬限制防护
+        // 在调用 saveRunActivity 前评估 payload 大小，若超过 3.8MB 警戒线
+        // 则强制执行二次降采样（截断至最大 200 点）并裁减 eventsHistory
+        // ================================================================
+        const PAYLOAD_SIZE_WARNING = 3_800_000; // 3.8MB
+        const MAX_POINTS_AFTER_TRUNCATION = 200;
+        const MAX_EVENTS_AFTER_TRUNCATION = 50;
 
-        const result = await saveRunActivity(userId, {
+        let finalPath: Location[] = simplifiedPath;
+        let finalEvents = eventsHistoryRef.current;
+
+        const runData = {
           clubId: clubId ?? null,
           idempotencyKey: runIdempotencyKeyRef.current,
           distance: liveDistance,
@@ -1667,7 +1676,77 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           manualLocationCount: 0,
           eventsHistory: eventsHistoryRef.current,
           clientFlags: clientFlagsRef.current,
-        } as any, { signal: controller.signal });
+        };
+        const payloadSize = JSON.stringify(runData).length;
+
+        if (payloadSize > PAYLOAD_SIZE_WARNING) {
+          console.warn(`[PayloadPreCheck] Payload size ${payloadSize} bytes exceeds 3.8MB threshold, forcing secondary truncation`);
+          // 二次降采样：截断路径至最大 200 点
+          if (simplifiedPath.length > MAX_POINTS_AFTER_TRUNCATION) {
+            const step = Math.ceil(simplifiedPath.length / MAX_POINTS_AFTER_TRUNCATION);
+            finalPath = simplifiedPath.filter((_, idx) => idx % step === 0 || idx === simplifiedPath.length - 1);
+          }
+          // 裁减 eventsHistory 至最后 50 条
+          if (eventsHistoryRef.current.length > MAX_EVENTS_AFTER_TRUNCATION) {
+            finalEvents = eventsHistoryRef.current.slice(-MAX_EVENTS_AFTER_TRUNCATION);
+          }
+          toast.warning('跑步数据过大，已自动压缩轨迹以保证上传成功');
+        }
+
+        if (payloadSize > PAYLOAD_SIZE_WARNING) {
+          console.warn(`[PayloadPreCheck] Payload size ${payloadSize} bytes exceeds 3.8MB threshold, forcing secondary truncation`);
+          // 二次降采样：截断路径至最大 200 点
+          if (simplifiedPath.length > MAX_POINTS_AFTER_TRUNCATION) {
+            const step = Math.ceil(simplifiedPath.length / MAX_POINTS_AFTER_TRUNCATION);
+            finalPath = simplifiedPath.filter((_, idx) => idx % step === 0 || idx === simplifiedPath.length - 1);
+          }
+          // 裁减 eventsHistory 至最后 50 条
+          if (eventsHistoryRef.current.length > MAX_EVENTS_AFTER_TRUNCATION) {
+            finalEvents = eventsHistoryRef.current.slice(-MAX_EVENTS_AFTER_TRUNCATION);
+          }
+          toast.warning('跑步数据过大，已自动压缩轨迹以保证上传成功');
+        }
+
+        // ─── 植入 AbortController，设置 120 秒超时 ───
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => {
+          controller.abort();
+          // 强退本地兜底：超时触发时将当前轨迹数据压入 settlementRetryQueue
+          const fallbackPayload = {
+            userId,
+            clubId: clubId ?? null,
+            idempotencyKey: runIdempotencyKeyRef.current,
+            distance: liveDistance,
+            duration: liveDuration,
+            path: livePath,
+            polygons: liveClaims,
+            timestamp: Date.now(),
+            totalSteps: stepsForSubmit,
+            steps: stepsForSubmit,
+            manualLocationCount: 0,
+            eventsHistory: eventsHistoryRef.current,
+            clientFlags: clientFlagsRef.current,
+          };
+          settlementRetryQueue.enqueueSettlement(fallbackPayload).catch((err) => {
+            console.error('[AbortTimeout] Failed to enqueue fallback payload:', err);
+          });
+          console.warn('[AbortTimeout] 120s timeout triggered, payload enqueued to settlementRetryQueue');
+        }, 120_000); // 120s timeout
+
+        const result = await saveRunActivity(userId, {
+          clubId: clubId ?? null,
+          idempotencyKey: runIdempotencyKeyRef.current,
+          distance: liveDistance,
+          duration: liveDuration,
+          path: finalPath,
+          polygons: liveClaims,
+          timestamp: Date.now(),
+          totalSteps: stepsForSubmit,
+          steps: stepsForSubmit,
+          manualLocationCount: 0,
+          eventsHistory: finalEvents,
+          clientFlags: clientFlagsRef.current,
+        } as any);
 
         clearTimeout(timeoutId);
 
@@ -1792,16 +1871,13 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           }
         }
       } catch (err: any) {
-        // ─── 清除超时定时器 ───
-        // 注意：timeoutId 可能未定义（如果在创建 controller 前就抛出异常）
-        if (typeof timeoutId !== 'undefined') {
-          clearTimeout(timeoutId);
-        }
+        // ─── 清除超时定时器（成功/异常路径都必须执行） ───
+        clearTimeout(timeoutId);
 
-        console.error(`Save error (attempt ${attempt + 1}/${maxRetries + 1}):`, err);
+        console.error(`Save error (attempt ${attempt + 1}/${maxRetries}):`, err);
 
         // ─── 最后一次尝试失败 ───
-        if (attempt >= maxRetries) {
+        if (attempt >= maxRetries - 1) {
           if (isFinal) {
             // ─── 根据错误类型给出明确 Toast 提示 ───
             if (err.name === 'AbortError') {

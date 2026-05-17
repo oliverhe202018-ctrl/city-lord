@@ -332,6 +332,8 @@ function pointToSegmentDistance(
 
 /**
  * 使用 CCW 向量叉乘算法判断两条线段是否相交
+ * 增加共线重叠（Collinear Overlap）处理：当叉乘结果为 0 时，
+ * 使用 onSegment 检查端点是否落在另一线段上
  */
 function segmentsIntersect(
   p1: [number, number],
@@ -343,11 +345,39 @@ function segmentsIntersect(
     a: [number, number],
     b: [number, number],
     c: [number, number]
-  ): boolean => {
-    return (c[1] - a[1]) * (b[0] - a[0]) > (b[1] - a[1]) * (c[0] - a[0]);
+  ): number => {
+    return (c[1] - a[1]) * (b[0] - a[0]) - (b[1] - a[1]) * (c[0] - a[0]);
   };
 
-  return ccw(p1, p3, p4) !== ccw(p2, p3, p4) && ccw(p1, p2, p3) !== ccw(p1, p2, p4);
+  const onSegment = (
+    a: [number, number],
+    b: [number, number],
+    c: [number, number]
+  ): boolean => {
+    return (
+      Math.min(a[0], b[0]) <= c[0] && c[0] <= Math.max(a[0], b[0]) &&
+      Math.min(a[1], b[1]) <= c[1] && c[1] <= Math.max(a[1], b[1])
+    );
+  };
+
+  const d1 = ccw(p3, p4, p1);
+  const d2 = ccw(p3, p4, p2);
+  const d3 = ccw(p1, p2, p3);
+  const d4 = ccw(p1, p2, p4);
+
+  // 标准相交判断：严格交叉
+  if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
+      ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) {
+    return true;
+  }
+
+  // 共线重叠处理：叉乘为 0 时检查端点是否落在另一线段上
+  if (d1 === 0 && onSegment(p3, p4, p1)) return true;
+  if (d2 === 0 && onSegment(p3, p4, p2)) return true;
+  if (d3 === 0 && onSegment(p1, p2, p3)) return true;
+  if (d4 === 0 && onSegment(p1, p2, p4)) return true;
+
+  return false;
 }
 
 function rdpSamplePath(points: any[], maxPoints: number): any[] {
@@ -372,10 +402,19 @@ function rdpSamplePath(points: any[], maxPoints: number): any[] {
     let result = simplified.geometry.coordinates.map(([lng, lat]: number[]) => ({ lat, lng }));
     
     // 如果仍然超过 maxPoints，逐步增加 tolerance
+    // 增加几何变化率监控：防止单次降低 tolerance 导致保留点数锐减超过 30%
     while (result.length > maxPoints && tolerance < 0.01) {
+        const prevCount = result.length;
         tolerance *= 1.5;
         const resimplified = turfSimplify(line, { tolerance, highQuality: true });
         result = resimplified.geometry.coordinates.map(([lng, lat]: number[]) => ({ lat, lng }));
+        
+        // 若单次降低 tolerance 导致保留点数锐减超过 30%，直接 break
+        // 防止密集转角的拓扑被过度抹平
+        if (result.length < prevCount * 0.70) {
+            console.log(`[rdpSamplePath] 几何变化率监控触发：${prevCount} → ${result.length} 点（降幅 ${(1 - result.length / prevCount) * 100}%)，停止进一步降采样`);
+            break;
+        }
     }
     
     // 确保不超过 500 点
@@ -810,7 +849,7 @@ export async function saveRunActivity(
             // 规则一：全局首尾闭合 (20米自动吸附)
             const distGlobal = haversineDistance(lastPoint, firstPoint);
             const START_END_SNAP_THRESHOLD_M = 20; // 与前端 LOOP_CLOSURE_THRESHOLD_M 严格对齐
-            if(typeof distGlobal !== 'undefined') diagData.distGlobal = distGlobal;
+            diagData.distGlobal = distGlobal;
             console.log(`[规则一] 首尾距离: ${distGlobal.toFixed(1)}m (阈值 ${START_END_SNAP_THRESHOLD_M}m)`);
             console.log(`[Territory-Diag] 规则一测算 - 首尾物理距离: ${distGlobal}m (阈值${START_END_SNAP_THRESHOLD_M}m)`);
 

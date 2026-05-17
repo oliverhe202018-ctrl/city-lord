@@ -210,12 +210,14 @@ export function extractValidLoops(
 
             if (intersectPoint) {
                 // 修复：使用精确交叉点作为环的起点和闭合点
-                // 继承原路径点的时间戳（取 path[i] 和 path[i+1] 的平均值）
-                const avgTimestamp = (path[i].timestamp ?? 0) + (path[i + 1].timestamp ?? 0);
+                // 继承原路径点的时间戳（取 path[i] 和 path[i+1] 的防 NaN 插值）
+                const t1 = typeof path[i].timestamp === 'number' && isFinite(path[i].timestamp!) ? path[i].timestamp! : null;
+                const t2 = typeof path[i+1].timestamp === 'number' && isFinite(path[i+1].timestamp!) ? path[i+1].timestamp! : null;
+                const interpolatedTimestamp = (t1 !== null && t2 !== null) ? (t1 + t2) / 2 : (t1 ?? t2 ?? undefined);
                 const intersectPointWithTimestamp: Coord = {
                     lat: intersectPoint.lat,
                     lng: intersectPoint.lng,
-                    timestamp: avgTimestamp > 0 ? avgTimestamp / 2 : undefined
+                    timestamp: interpolatedTimestamp
                 };
                 
                 // 提取交叉点之后到末尾的环
