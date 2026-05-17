@@ -13,6 +13,7 @@ import type { ViewportKingData } from "./AMapView";
 import * as turf from "@turf/turf";
 import { useGameStore, useGameTerritoryAppearance } from "@/store/useGameStore";
 import { getTerritoryDisplayName } from "@/lib/territory-display";
+import { useMapDisplayStore, type MapDisplayMode } from "@/store/useMapDisplayStore";
 
 const CLUB_COLORS = {
   self: { fill: "#3b82f6", stroke: "#2563eb", fillOpacity: 0.35 },
@@ -40,8 +41,6 @@ type TerritoryWithRender = ExtTerritory & {
 interface TerritoryLayerProps {
   map: any | null;
   isVisible: boolean;
-  kingdomMode?: "personal" | "club";
-  showFactionColors?: boolean;
   viewMode?: string;
   onViewportKingChange?: (king: ViewportKingData | null) => void;
   currentZoom?: number;
@@ -164,8 +163,55 @@ const computeRingBBox = (ring: PolygonRing) => {
 };
 
 const PIXEL_AREA_THRESHOLD = 3600;
-const imageCache = new Map<string, HTMLImageElement | "loading" | "error">();
-const avatarTileCache = new Map<string, HTMLCanvasElement>();
+
+class LRUCache<K, V> {
+  private cache = new Map<K, V>();
+  private readonly maxSize: number;
+
+  constructor(maxSize: number) {
+    this.maxSize = maxSize;
+  }
+
+  get(key: K): V | undefined {
+    const value = this.cache.get(key);
+    if (value !== undefined) {
+      this.cache.delete(key);
+      this.cache.set(key, value);
+    }
+    return value;
+  }
+
+  set(key: K, value: V): void {
+    if (this.cache.has(key)) {
+      this.cache.delete(key);
+    } else if (this.cache.size >= this.maxSize) {
+      const firstKey = this.cache.keys().next().value;
+      if (firstKey !== undefined) {
+        this.cache.delete(firstKey);
+      }
+    }
+    this.cache.set(key, value);
+  }
+
+  has(key: K): boolean {
+    return this.cache.has(key);
+  }
+
+  delete(key: K): boolean {
+    return this.cache.delete(key);
+  }
+
+  clear(): void {
+    this.cache.clear();
+  }
+
+  get size(): number {
+    return this.cache.size;
+  }
+}
+
+const imageCache = new LRUCache<string, HTMLImageElement | "loading" | "error">(150);
+const avatarTileCache = new LRUCache<string, HTMLCanvasElement>(300);
 
 const getOrLoadImage = (
   url: string,
@@ -265,9 +311,9 @@ function renderTerritoryLabels(
     const ownerProfile = territory.ownerId ? ownerProfileMap.get(territory.ownerId) : null;
     const displayName = getTerritoryDisplayName({
       id: territory.id,
-      customName: territory.customName,
+      customName: territory.customName ?? null,
       clubName: territory.ownerClub?.name,
-      ownerNickname: ownerProfile?.nickname
+      ownerNickname: ownerProfile?.nickname ?? null
     });
 
     ctx.save();
@@ -450,8 +496,6 @@ function renderTerritoriesOnCanvas(
 const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
   map,
   isVisible,
-  kingdomMode,
-  showFactionColors = false,
   viewMode: propViewMode,
   onViewportKingChange,
   currentZoom = 13,
@@ -464,6 +508,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
   const clubId = useGameStore((state) => state.clubId);
   const faction = useGameStore((state) => state.faction);
   const setSelectedTerritoryId = useGameStore((state) => state.setSelectedTerritoryId);
+  const { mapDisplayMode } = useMapDisplayStore();
 
   const customLayerRef = useRef<{ setMap: (target: unknown) => void; render?: () => void } | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -505,7 +550,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
     const territoryHealth = territory.health ?? territory.maxHealth ?? 100;
     const isLowHealth = territoryHealth < 50;
 
-    if (kingdomMode === "club") {
+    if (mapDisplayMode === "club") {
       const isSelfClub = Boolean(clubId && territory.ownerClubId && territory.ownerClubId === clubId);
       const hasClub = Boolean(territory.ownerClubId);
       const palette = isSelfClub ? CLUB_COLORS.self : hasClub ? CLUB_COLORS.enemy : CLUB_COLORS.neutral;
@@ -525,7 +570,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
     };
 
     const style = generateTerritoryStyle(territory, ctx);
-    const isFactionColorActive = showFactionColors || resolvedViewMode === "faction";
+    const isFactionColorActive = mapDisplayMode === "faction";
     const factionBaseColor = territory.ownerFactionColor
       ? safeColor(territory.ownerFactionColor, resolveFactionColor(territory.ownerFaction))
       : resolveFactionColor(territory.ownerFaction);
@@ -560,7 +605,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
       strokeColor: isLowHealth ? "#facc15" : baseStrokeColor,
       strokeWeight: isLowHealth ? 2.5 : 1.5,
     };
-  }, [clubId, faction, kingdomMode, resolvedViewMode, resolveFactionColor, showFactionColors, territoryAppearance.fillColor, territoryAppearance.fillOpacity, territoryAppearance.strokeColor, user?.id]);
+  }, [clubId, faction, mapDisplayMode, resolvedViewMode, resolveFactionColor, territoryAppearance.fillColor, territoryAppearance.fillOpacity, territoryAppearance.strokeColor, user?.id]);
 
   const decorateTerritories = useCallback((items: ExtTerritory[]) => {
     territoriesDataRef.current = items
@@ -590,10 +635,10 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
           areaM2,
           bbox,
           clubAvatarUrl: item.ownerClubId ? (clubAvatarMapRef.current.get(item.ownerClubId) ?? null) : null,
-          isClubMode: kingdomMode === "club",
+          isClubMode: mapDisplayMode === "club",
         };
       });
-  }, [buildPolygonPresentation, kingdomMode]);
+  }, [buildPolygonPresentation, mapDisplayMode]);
 
   const recomputeViewportKing = useCallback(() => {
     if (!map || !onViewportKingChange) return;
@@ -657,13 +702,17 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
     // 性能优化：检查是否需要重绘
     const currentZoom = map.getZoom?.() || 0;
     const currentCenter = map.getCenter?.() || [0, 0];
-    const territoriesHash = JSON.stringify(territoriesDataRef.current.map(t => t.id));
+    // 修复：将 mapDisplayMode 纳入缓存校验因子，确保模式切换时强制重绘
+    const territoriesHash = JSON.stringify({
+      mode: mapDisplayMode,
+      ids: territoriesDataRef.current.map(t => t.id)
+    });
     
     // 检查缓存是否有效
     if (lastRenderDataRef.current) {
       const { territoriesHash: lastHash, canvasSize, mapZoom, mapCenter } = lastRenderDataRef.current;
       
-      // 如果领地数据、画布尺寸、缩放级别、中心点都未变化，则跳过重绘
+      // 如果领地数据、画布尺寸、缩放级别、中心点、显示模式都未变化，则跳过重绘
       if (territoriesHash === lastHash && 
           canvasSize.width === canvasSizeRef.current.width && 
           canvasSize.height === canvasSizeRef.current.height &&
@@ -704,7 +753,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
       
       renderDebounceRef.current = null;
     }, 16); // 约60fps
-  }, [isVisible, map]);
+  }, [isVisible, map, mapDisplayMode]);
 
   const loadTerritories = useCallback(async () => {
     if (!map || !city) return;

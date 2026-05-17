@@ -59,15 +59,9 @@ export interface AMapContextProps {
   showKingdom?: boolean;
   toggleKingdom?: () => void;
 
-  // Kingdom mode (Phase 14)
-  kingdomMode?: 'personal' | 'club';
-  setKingdomMode?: (mode: 'personal' | 'club') => void;
-
   // Fog (mask) layer control
   showFog?: boolean;
   toggleFog?: () => void;
-  showFactionColors?: boolean;
-  toggleFactionColors?: () => void;
 
   // Territory selection (individual view detail interaction)
   selectedTerritory?: ExtTerritory | null;

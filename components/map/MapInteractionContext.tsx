@@ -22,10 +22,6 @@ export interface MapInteractionContextProps {
   viewMode: 'individual' | 'faction';
   setViewMode: (mode: 'individual' | 'faction') => void;
 
-  // 领地图层模式
-  kingdomMode?: 'personal' | 'club';
-  setKingdomMode?: (mode: 'personal' | 'club') => void;
-
   // 领地图层可见性
   showKingdom?: boolean;
   toggleKingdom?: () => void;
@@ -33,10 +29,6 @@ export interface MapInteractionContextProps {
   // 迷雾图层
   showFog?: boolean;
   toggleFog?: () => void;
-
-  // 阵营色彩
-  showFactionColors?: boolean;
-  toggleFactionColors?: () => void;
 
   /** [NEW] 打开领地详情抽屉 */
   openTerritoryDetailDrawer?: (id: string) => void;

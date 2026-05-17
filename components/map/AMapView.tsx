@@ -88,9 +88,7 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
       setSelectedTerritory, 
       setIsDetailSheetOpen,
       showKingdom, // Kingdom layer visibility
-      kingdomMode, // 'personal' | 'club'
       showFog, // Fog layer visibility
-      showFactionColors,
     } = useMapInteraction();
     const setSelectedTerritoryId = useGameStore((state) => state.setSelectedTerritoryId);
     const resetRunState = useGameStore((state) => state.resetRunState);
@@ -335,8 +333,6 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
               <TerritoryLayer
                 map={map}
                 isVisible={true}
-                kingdomMode={kingdomMode}
-                showFactionColors={showFactionColors || resolvedViewMode === 'faction'}
                 viewMode={resolvedViewMode}
                 onViewportKingChange={onViewportKingChange}
                 currentZoom={currentZoom}

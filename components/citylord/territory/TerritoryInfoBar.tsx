@@ -7,9 +7,11 @@ import { getTerritoryDetail } from '@/app/actions/territory-detail'
 import { Loader2, ChevronRight } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useGameStore } from '@/store/useGameStore'
+import { useMapDisplayStore } from '@/store/useMapDisplayStore'
 
 export function TerritoryInfoBar() {
-    const { selectedTerritory, kingdomMode, setIsDetailSheetOpen } = useMapInteraction()
+    const { selectedTerritory, setIsDetailSheetOpen } = useMapInteraction()
+    const { mapDisplayMode } = useMapDisplayStore()
     const selectedTerritoryId = useGameStore((state) => state.selectedTerritoryId)
 
     const activeId = selectedTerritoryId || selectedTerritory?.id || null
@@ -26,7 +28,7 @@ export function TerritoryInfoBar() {
         staleTime: 60 * 1000, // 1 minute
     })
 
-    const isClubMode = kingdomMode === 'club' && detail?.club
+    const isClubMode = mapDisplayMode === 'club' && detail?.club
 
     // 只有在客户端且可见时才渲染 Portal
     if (typeof window === 'undefined' || !isVisible) return null;

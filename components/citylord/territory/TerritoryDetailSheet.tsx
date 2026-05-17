@@ -24,11 +24,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/hooks/useAuth'
 import { getTerritoryDisplayName } from '@/lib/territory-display'
+import { useMapDisplayStore } from '@/store/useMapDisplayStore'
 
 const RENAME_MAX_LENGTH = 10
 
 export function TerritoryDetailSheet() {
-    const { selectedTerritory, kingdomMode, isDetailSheetOpen, setIsDetailSheetOpen } = useMapInteraction()
+    const { selectedTerritory, isDetailSheetOpen, setIsDetailSheetOpen } = useMapInteraction()
+    const { mapDisplayMode } = useMapDisplayStore()
     const [reportDialogOpen, setReportDialogOpen] = useState(false)
     const [renameDialogOpen, setRenameDialogOpen] = useState(false)
     const [renameInput, setRenameInput] = useState('')
@@ -41,7 +43,7 @@ export function TerritoryDetailSheet() {
 
     const isOpen = Boolean(isDetailSheetOpen && activeId !== null)
     const territoryId = activeId
-    const isClubMode = kingdomMode === 'club'
+    const isClubMode = mapDisplayMode === 'club'
 
     const { data: detail, isLoading } = useQuery({
         queryKey: ['territory-detail', activeId],
@@ -148,9 +150,9 @@ export function TerritoryDetailSheet() {
                                 
                                 const displayName = getTerritoryDisplayName({
                                     id: displayDetail.territoryId,
-                                    customName: detail?.customName,
-                                    clubName: displayDetail.club?.name,
-                                    ownerNickname: displayDetail.owner?.nickname
+                                    customName: detail?.customName ?? null,
+                                    clubName: displayDetail.club?.name ?? null,
+                                    ownerNickname: displayDetail.owner?.nickname ?? null
                                 })
                                 
                                 return (

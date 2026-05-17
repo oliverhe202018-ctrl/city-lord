@@ -134,8 +134,6 @@ export function MapHeader({
   const { openDrawer, closeDrawer } = useGameActions();
   const hydrated = useHydration();
   const interactionContext = useContext(MapInteractionCtx);
-  const kingdomMode = interactionContext?.kingdomMode ?? 'personal';
-  const setKingdomMode = interactionContext?.setKingdomMode;
   const gpsSignalStrength = useLocationStore((s) => s.gpsSignalStrength);
 
   const [isLoggedIn, setIsLoggedIn] = useState(true)
