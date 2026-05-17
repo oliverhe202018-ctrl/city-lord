@@ -8,6 +8,10 @@ import { createClient } from '@/lib/supabase/client';
 import { touchUserActivity } from '@/app/actions/user';
 import { resetGlobalHydration } from '@/hooks/useHydration';
 
+// ==================== Module-level Concurrency Lock ====================
+/** 单调递增时钟：用于 setLastKnownLocation 的同步拦截，绕过 Zustand set 回调中的快照竞态 */
+let _lastAcceptedLocationTimestamp = 0;
+
 // ==================== Types ====================
 
 export type GameMode = 'map' | 'single' | 'private' | 'club';
@@ -691,16 +695,19 @@ const createLocationSlice: StateCreator<GameStore, [], [], LocationActions> = (s
     speed: 0,
   }),
   setGhostPath: (path) => set({ ghostPath: path }),
-  setLastKnownLocation: (location: { lat: number; lng: number; timestamp?: number } | null) => set((state) => {
-    // 时间戳校验：若新传入的坐标时间戳早于 Store 中现存的时间戳，则拒绝更新
-    if (location && location.timestamp && state.lastKnownLocation && state.lastKnownLocation.timestamp) {
-      if (location.timestamp < state.lastKnownLocation.timestamp) {
-        console.debug('[useGameStore] setLastKnownLocation: rejected stale point, new timestamp', location.timestamp, '< current', state.lastKnownLocation.timestamp);
-        return {}; // 拒绝更新
-      }
+  setLastKnownLocation: (location: { lat: number; lng: number; timestamp?: number } | null) => {
+    if (!location) {
+      _lastAcceptedLocationTimestamp = 0;
+      return set({ lastKnownLocation: null });
     }
-    return { lastKnownLocation: location };
-  }),
+    const ts = location.timestamp ?? Date.now();
+    if (ts <= _lastAcceptedLocationTimestamp) {
+      console.debug('[useGameStore] setLastKnownLocation: sync-rejected stale point, timestamp', ts, '<=', _lastAcceptedLocationTimestamp);
+      return;
+    }
+    _lastAcceptedLocationTimestamp = ts;
+    set({ lastKnownLocation: { ...location, timestamp: ts } });
+  },
   setIsPermissionRequesting: (requesting) => set({ isPermissionRequesting: requesting }),
   setLocationInitialized: (initialized: boolean) => set({ locationInitialized: initialized }),
   setCountdownState: (state) => {}, // Stub pending implementation

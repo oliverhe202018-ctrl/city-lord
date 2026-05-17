@@ -3,9 +3,9 @@
  *
  * 职责：
  *  - 低精度漂移过滤：accuracy > 50m 时，要求位移 > accuracy * 0.8 且绝对位移 > 10m
- *  - 速度校验：前后两点移动速度 > 14m/s（约50km/h）判定为 GPS 飞点
+ *  - 速度校验：前后两点移动速度 > 30m/s（约108km/h）判定为 GPS 飞点（兼容公交/骑行）
  *  - 一维卡尔曼滤波：对 Lat 和 Lng 分别进行平滑，根据 accuracy 动态调整观测噪声 R
- *  - 距离滤波：jitter < 2m 丢弃，fly-point > 50m 丢弃
+ *  - 距离滤波：jitter < 2m 丢弃
  *
  * 所有坐标假定为 GCJ-02，直接用于轨迹 store。
  */
@@ -23,7 +23,7 @@ export interface LatLngPoint {
 
 export interface SpatialFilterDecision {
   accept: boolean;
-  reason: 'first-point' | 'jitter(<2m)' | 'low-accuracy-drift' | 'fly-point(>50m)' | 'speed-anomaly' | 'valid';
+  reason: 'first-point' | 'jitter(<2m)' | 'low-accuracy-drift' | 'speed-anomaly' | 'valid';
   distanceMeters: number;
   calculatedSpeed?: number;
 }
@@ -45,13 +45,12 @@ export interface FilteredPoint extends LatLngPoint {
 // ---------------------------------------------------------------------------
 
 const EARTH_RADIUS_METERS = 6371000;
-const MAX_HUMAN_SPEED_MS = 14; // 约 50km/h，超过此速度视为 GPS 飞点
+const MAX_HUMAN_SPEED_MS = 30; // 约 108km/h，超过此速度视为 GPS 飞点（兼容公交/骑行）
 const LOW_ACCURACY_THRESHOLD = 50; // meters
 const LOW_ACCURACY_DISPLACEMENT_RATIO = 0.8; // 位移必须超过 accuracy 的 80%
 const LOW_ACCURACY_MIN_DISPLACEMENT = 10; // meters
 const JITTER_THRESHOLD = 2; // meters
-const FLY_POINT_THRESHOLD = 50; // meters
-const DEFAULT_PROCESS_NOISE = 0.01; // 默认过程噪声 Q
+const DEFAULT_PROCESS_NOISE = 2.0; // 默认过程噪声 Q（方差量纲，与 P/R 对齐）
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -84,13 +83,13 @@ export const distanceMetersBetween = (a: LatLngPoint, b: LatLngPoint): number =>
  */
 export const createKalmanFilter = (initialValue: number, accuracy: number = 10): KalmanFilterState => ({
   x: initialValue, // 初始估计
-  p: accuracy, // 初始估计误差协方差
-  q: DEFAULT_PROCESS_NOISE, // 过程噪声协方差（固定）
-  r: Math.max(accuracy, 1), // 观测噪声协方差（至少为 1）
+  p: accuracy * accuracy, // 初始估计误差协方差（方差量纲）
+  q: DEFAULT_PROCESS_NOISE, // 过程噪声协方差（方差量纲）
+  r: Math.max(accuracy * accuracy, 1), // 观测噪声协方差（方差量纲）
 });
 
 /**
- * 一维卡尔曼滤波更新步骤
+ * 一维卡尔曼滤波更新步骤（分离预测步与更新步）
  * @param filter 滤波器状态
  * @param measurement 新观测值
  * @param measurementAccuracy 新观测值的精度（用于动态调整 R）
@@ -100,17 +99,20 @@ export const kalmanUpdate = (
   measurement: number,
   measurementAccuracy: number = 10
 ): number => {
-  // 动态调整观测噪声 R：精度越差，R 越大，滤波器越信任估计值
-  filter.r = Math.max(measurementAccuracy, 1);
+  // 预测步：P_predicted = P + Q
+  const pPredicted = filter.p + filter.q;
 
-  // 卡尔曼增益
-  const k = filter.p / (filter.p + filter.r);
+  // 动态观测噪声 R（方差量纲）
+  const r = Math.max(measurementAccuracy * measurementAccuracy, 1);
+
+  // 更新步：卡尔曼增益
+  const k = pPredicted / (pPredicted + r);
 
   // 更新估计值
   filter.x = filter.x + k * (measurement - filter.x);
 
   // 更新估计误差协方差
-  filter.p = (1 - k) * filter.p + filter.q;
+  filter.p = (1 - k) * pPredicted;
 
   return filter.x;
 };
@@ -149,15 +151,24 @@ export const shouldAcceptPointByDistance = (
     return { accept: false, reason: 'jitter(<2m)', distanceMeters };
   }
 
-  // --- 3. 飞点过滤 ---
-  if (distanceMeters > FLY_POINT_THRESHOLD) {
-    return { accept: false, reason: 'fly-point(>50m)', distanceMeters };
-  }
-
-  // --- 4. 速度校验 ---
+  // --- 3. 速度校验与飞点兜底（合并逻辑） ---
   if (prevPoint.timestamp && nextPoint.timestamp) {
-    const timeDiffS = (nextPoint.timestamp - prevPoint.timestamp) / 1000;
-    if (timeDiffS > 0.1) { // 至少 100ms 时间差才计算速度
+    const timeDiffMs = nextPoint.timestamp - prevPoint.timestamp;
+
+    // 时钟回拨：直接拒绝
+    if (timeDiffMs < 0) {
+      return {
+        accept: false,
+        reason: 'speed-anomaly',
+        distanceMeters,
+        calculatedSpeed: Infinity,
+      };
+    }
+
+    const timeDiffS = timeDiffMs / 1000;
+
+    if (timeDiffMs > 100) {
+      // 时间差 > 100ms：正常计算速度
       const speed = distanceMeters / timeDiffS;
       if (speed > MAX_HUMAN_SPEED_MS) {
         return {
@@ -165,6 +176,15 @@ export const shouldAcceptPointByDistance = (
           reason: 'speed-anomaly',
           distanceMeters,
           calculatedSpeed: speed,
+        };
+      }
+    } else {
+      // 时间差 <= 100ms：无法可靠计算速度，用绝对距离兜底
+      if (distanceMeters > 100) {
+        return {
+          accept: false,
+          reason: 'speed-anomaly',
+          distanceMeters,
         };
       }
     }
