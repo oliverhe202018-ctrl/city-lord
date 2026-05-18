@@ -15,7 +15,8 @@ import {
   MessageSquareWarning,
   ImageIcon,
   ShoppingBag,
-  ScrollText
+  ScrollText,
+  MapPin,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
@@ -27,6 +28,11 @@ const sidebarItems = [
     title: 'Dashboard',
     href: '/admin',
     icon: LayoutDashboard
+  },
+  {
+    title: '领地管理',
+    href: '/admin/territories',
+    icon: MapPin
   },
   {
     title: '俱乐部审核',

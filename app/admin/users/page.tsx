@@ -1,16 +1,19 @@
-import AdminUsersPageClient from '@/components/admin/AdminUsersPageClient'
-import { getAdminUsers } from '@/app/actions/admin'
+import { prisma } from '@/lib/prisma'
+import AdminEnhancedUsersPageClient from '@/components/admin/AdminEnhancedUsersPageClient'
 
 export const dynamic = 'force-dynamic'
 
-export default async function UsersPage() {
-  const res = await getAdminUsers()
+export default async function AdminUsersPage() {
+  const profiles = await prisma.profiles.findMany({
+    orderBy: {
+      created_at: 'desc',
+    },
+    take: 100,
+  })
 
   return (
-    <AdminUsersPageClient
-      // @ts-expect-error - FIXME: Type '{ id: any; nickname: any; avatar_url: any; created_at: any; }[]  - [Ticket-202603-SchemaSync] baseline exemption
-      initialProfiles={res.success ? res.data : []}
-      initialError={res.success ? null : res.error}
+    <AdminEnhancedUsersPageClient
+      initialProfiles={profiles}
     />
   )
 }
