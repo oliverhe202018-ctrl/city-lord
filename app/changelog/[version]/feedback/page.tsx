@@ -59,7 +59,7 @@ export default function ChangelogFeedbackPage() {
     return (
         <div className="min-h-screen bg-background">
             {/* Header */}
-            <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-border bg-background/80 px-4 py-3 backdrop-blur-sm">
+            <div className="sticky top-[var(--safe-top,0px)] z-10 flex items-center gap-3 border-b border-border bg-background/80 px-4 py-3 backdrop-blur-sm">
                 <button
                     onClick={() => router.back()}
                     className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-muted/20 transition-colors"

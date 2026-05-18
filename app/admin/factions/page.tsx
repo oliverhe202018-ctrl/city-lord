@@ -244,7 +244,7 @@ export default function FactionsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pt-[var(--safe-top,0px)]">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">阵营管理</h2>

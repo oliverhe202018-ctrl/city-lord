@@ -814,9 +814,55 @@ city-lord
 
 - **原生能力检查**：涉及 Geolocation/Haptics 时，必须检查 `Capacitor.isNativePlatform()`
 - **交互规范**：禁止使用 Hover 态作为核心功能触发点
-- **安全区域**：所有页面必须使用 Safe Area 适配
+- **安全区域 (Safe Area)**：所有页面必须适配刘海屏和底部手势条
 
-### 15.3 地理计算规范
+### 15.3 Safe Area 实现规范
+
+#### 工作原理
+
+```typescript
+// components/ClientShell.tsx#L29-54 - 注入 CSS 变量
+document.documentElement.style.setProperty('--safe-top', `${topInset}px`);
+document.documentElement.style.setProperty('--safe-bottom', `${bottomInset}px`);
+```
+
+#### 使用方式
+
+| 场景 | 推荐写法 | 说明 |
+|------|---------|------|
+| 页面容器顶部 | `pt-[var(--safe-top,0px)]` | 适配刘海屏 |
+| 固定头部 (sticky) | `top-[var(--safe-top,0px)]` | 导航栏适配 |
+| 导航栏 + 间距 | `pt-[calc(var(--safe-top,0px)+8px)]` | 加额外间距 |
+| 页面容器底部 | `pb-[calc(var(--safe-bottom,0px)+16px)]` | 适配底部手势条 |
+
+#### 新页面模板
+
+```tsx
+export default function NewPage() {
+  return (
+    <div className="min-h-screen bg-background">
+      {/* 固定导航栏 */}
+      <div className="sticky top-[var(--safe-top,0px)] z-50 flex items-center gap-3 border-b border-border bg-background/80 px-4 py-3 backdrop-blur-sm">
+        {/* ... */}
+      </div>
+
+      {/* 主内容区域 */}
+      <div className="pt-[var(--safe-top,0px)]">
+        {/* ... */}
+      </div>
+    </div>
+  )
+}
+```
+
+#### 检查清单
+
+- [ ] 页面顶部是否使用 `pt-[var(--safe-top,0px)]` 适配刘海屏
+- [ ] 固定导航栏是否使用 `top-[var(--safe-top,0px)]`
+- [ ] Admin 后台页面容器是否添加 `pt-[var(--safe-top,0px)]`
+- [ ] 组件内部是否有独立的 sticky header 需要适配
+
+### 15.4 地理计算规范
 
 - **Turf.js 强制**：所有空间计算必须使用 Turf.js
 - **常量约束**：

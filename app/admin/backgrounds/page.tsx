@@ -116,7 +116,7 @@ export default function AdminBackgroundsPage() {
 
     // ─── Main Render ───────────────────────────────────────────
     return (
-        <div className="p-8 space-y-6 bg-background text-foreground">
+        <div className="p-8 space-y-6 pt-[var(--safe-top,0px)] bg-background text-foreground">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>

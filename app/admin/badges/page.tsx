@@ -28,7 +28,7 @@ export default async function BadgesPage() {
   }))
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pt-[var(--safe-top,0px)]">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">徽章管理</h1>
