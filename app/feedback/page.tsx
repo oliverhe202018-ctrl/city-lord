@@ -72,7 +72,7 @@ export default function FeedbackPage() {
   return (
     <div className="flex flex-col h-full min-h-screen bg-background text-foreground">
       {/* Navbar */}
-      <div className="flex items-center px-4 py-4 border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-50 safe-pt">
+      <div className="flex items-center px-4 py-4 border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-50 pt-[calc(var(--safe-top,0px)+16px)]">
         <button
           onClick={() => window.history.back()}
           className="p-2 -ml-2 rounded-full hover:bg-muted/20 transition-colors"
