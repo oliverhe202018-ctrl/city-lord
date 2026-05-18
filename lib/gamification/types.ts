@@ -17,7 +17,10 @@ export interface EventRewardPayload {
   ambush?: {
     health_reduction_percent: number;
   };
-  mystery_item_id?: string;
+  mysteryBonus?: {
+    pointsMultiplier: number; // 随机双倍倍数: 1.0-3.0
+    coinsBonus: number; // 额外金币
+  };
 }
 
 /**

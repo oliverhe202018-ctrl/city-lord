@@ -48,7 +48,15 @@ function getRewardPayload(eventType: EventType): EventRewardPayload {
     case "BLESSING":
       return { staminaBoost: 50 };
     case "MYSTERY":
-      return { mystery_item_id: "special_item_001" };
+      // 神秘奖励：随机倍数(1.0-3.0) + 额外金币(50-200)
+      const pointsMultiplier = 1 + Math.random() * 2; // 1.0-3.0
+      const coinsBonus = 50 + Math.floor(Math.random() * 151); // 50-200
+      return { 
+        mysteryBonus: { 
+          pointsMultiplier, 
+          coinsBonus 
+        } 
+      };
     default:
       return {};
   }
@@ -58,6 +66,16 @@ export const spawnDailyEventsForAllCities = task({
   id: "spawn-daily-events-for-all-cities",
   run: async () => {
     logger.info("Starting daily event spawner task.");
+
+    // 0. Cleanup Old Territory HP Logs (保持存储健康)
+    const cleanupCutoff = new Date();
+    cleanupCutoff.setDate(cleanupCutoff.getDate() - 30); // 保留 30 天
+    const hpLogsDeleted = await prisma.territory_hp_logs.deleteMany({
+      where: {
+        attack_date: { lt: cleanupCutoff }
+      }
+    });
+    logger.info(`Deleted ${hpLogsDeleted.count} old territory HP logs.`);
 
     // 1. Expire Old Events
     const now = new Date();

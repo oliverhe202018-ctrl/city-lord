@@ -253,13 +253,14 @@ import { getUserProfileStats } from './user'
 /**
  * Check and grant hidden badges based on context
  */
+import { isNightTime, isEarlyBirdTime } from '@/lib/constants/time'
+
 export async function checkHiddenBadges(userId: string, context: { type: 'run_end' | 'territory_claim', timestamp: Date }) {
   const hour = context.timestamp.getHours()
   const results: string[] = []
 
   // Logic for 'night-walker': Activity between 22:00 (10 PM) and 04:00 (4 AM)
-  // 22, 23, 0, 1, 2, 3
-  if (hour >= 22 || hour < 4) {
+  if (isNightTime(hour)) {
     const result = await grantBadge(userId, 'night-walker')
     if (result.success && result.badgeName) {
       results.push(result.badgeName)
@@ -267,7 +268,7 @@ export async function checkHiddenBadges(userId: string, context: { type: 'run_en
   }
 
   // Logic for 'early-bird': Activity between 05:00 and 07:00
-  if (hour >= 5 && hour < 8) {
+  if (isEarlyBirdTime(hour)) {
     const result = await grantBadge(userId, 'early-bird')
     if (result.success && result.badgeName) {
       results.push(result.badgeName)

@@ -7,6 +7,10 @@ export interface RewardSummary {
   totalPoints: number;
   totalLevelXp: number;
   maxAreaMultiplier: number;
+  mysteryBonus?: {
+    pointsMultiplier: number;
+    coinsBonus: number;
+  };
 }
 
 /**
@@ -31,6 +35,10 @@ export async function resolveEventRewards(
   let totalLevelXp = 0;
   let maxAreaMultiplier = 1;
 
+  let hasMysteryBonus = false;
+  let mysteryBonusPointsMultiplier = 1;
+  let mysteryCoinsBonus = 0;
+
   for (const event of events) {
     const payload = event.reward_payload as Prisma.JsonObject;
     if (payload) {
@@ -39,7 +47,19 @@ export async function resolveEventRewards(
       if (payload.areaMultiplier && (payload.areaMultiplier as number) > maxAreaMultiplier) {
         maxAreaMultiplier = payload.areaMultiplier as number;
       }
+      // 处理神秘奖励
+      if (payload.mysteryBonus && !hasMysteryBonus) {
+        const mystery = payload.mysteryBonus as any;
+        mysteryBonusPointsMultiplier = mystery.pointsMultiplier || 1;
+        mysteryCoinsBonus = mystery.coinsBonus || 0;
+        hasMysteryBonus = true;
+      }
     }
+  }
+
+  // 应用神秘奖励的倍数
+  if (hasMysteryBonus) {
+    totalPoints = Math.floor(totalPoints * mysteryBonusPointsMultiplier) + mysteryCoinsBonus;
   }
 
   return { totalPoints, totalLevelXp, maxAreaMultiplier };

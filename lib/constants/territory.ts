@@ -6,11 +6,14 @@
  */
 
 // ============================================================
-// Territory HP
+// Territory HP & Shield
 // ============================================================
 
 /** Maximum HP for new/reset territories */
 export const MAX_TERRITORY_HP = 1000
+
+/** Maximum shield (current_hp) for territories when fully reinforced */
+export const MAX_TERRITORY_SHIELD = 1000
 
 /** Minimum damage per attack */
 export const MIN_DAMAGE = 10

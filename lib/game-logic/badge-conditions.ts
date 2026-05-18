@@ -1,4 +1,6 @@
 import { BadgeCheckContext } from './badge-context'
+import { isNightTime, isEarlyBirdTime, isEveningTime } from '@/lib/constants/time'
+import { BADGE_TARGETS } from '@/lib/constants/badges'
 
 function getHourUTC8(dateValue: Date | string | number): number {
   const d = new Date(dateValue)
@@ -16,45 +18,37 @@ export const BADGE_REGISTRY: BadgeCondition[] = [
   {
     id: 'first-mission',
     triggerTypes: ['MISSION_COMPLETED'],
-    check: (ctx) => ctx.completedMissionCount >= 1,
+    check: (ctx) => ctx.completedMissionCount >= BADGE_TARGETS.firstMission,
     progressCheck: (ctx) => ({
-      current: Math.min(ctx.completedMissionCount, 1),
-      target: 1
+      current: Math.min(ctx.completedMissionCount, BADGE_TARGETS.firstMission),
+      target: BADGE_TARGETS.firstMission
     })
   },
   {
     id: 'mission-master',
     triggerTypes: ['MISSION_COMPLETED'],
-    check: (ctx) => {
-      // TODO: Phase 5 - N 值建议后续从数据库配置项读取，此处暂以硬编码 10 为示例平滑过渡
-      const targetN = 10;
-      return ctx.completedMissionCount >= targetN;
-    },
-    progressCheck: (ctx) => {
-      // TODO: Phase 5 - 读取配置项替换硬编码 10
-      const targetN = 10;
-      return {
-        current: Math.min(ctx.completedMissionCount, targetN),
-        target: targetN
-      };
-    }
+    check: (ctx) => ctx.completedMissionCount >= BADGE_TARGETS.missionMaster,
+    progressCheck: (ctx) => ({
+      current: Math.min(ctx.completedMissionCount, BADGE_TARGETS.missionMaster),
+      target: BADGE_TARGETS.missionMaster
+    })
   },
   {
     id: 'level-10',
     triggerTypes: ['LEVEL_UP'],
-    check: (ctx) => ctx.stats.level >= 10,
+    check: (ctx) => ctx.stats.level >= BADGE_TARGETS.level10,
     progressCheck: (ctx) => ({
-      current: Math.min(ctx.stats.level, 10),
-      target: 10
+      current: Math.min(ctx.stats.level, BADGE_TARGETS.level10),
+      target: BADGE_TARGETS.level10
     })
   },
   {
     id: 'level-50',
     triggerTypes: ['LEVEL_UP'],
-    check: (ctx) => ctx.stats.level >= 50,
+    check: (ctx) => ctx.stats.level >= BADGE_TARGETS.level50,
     progressCheck: (ctx) => ({
-      current: Math.min(ctx.stats.level, 50),
-      target: 50
+      current: Math.min(ctx.stats.level, BADGE_TARGETS.level50),
+      target: BADGE_TARGETS.level50
     })
   },
 
@@ -63,39 +57,39 @@ export const BADGE_REGISTRY: BadgeCondition[] = [
     id: 'landlord',
     triggerTypes: ['TERRITORY_CAPTURED'], // Old trigger 'TERRITORY_CAPTURE'
     // landlord: 同时持有（active count），需要保住地盘
-    check: (ctx) => ctx.activeTileCount >= 10,
+    check: (ctx) => ctx.activeTileCount >= BADGE_TARGETS.landlord,
     progressCheck: (ctx) => ({
-      current: Math.min(ctx.activeTileCount, 10),
-      target: 10
+      current: Math.min(ctx.activeTileCount, BADGE_TARGETS.landlord),
+      target: BADGE_TARGETS.landlord
     })
   },
   {
     id: 'territory-raider',
     triggerTypes: ['TERRITORY_CAPTURED'],
     // territory-raider: 历史累计占领（total count），一次性里程碑
-    check: (ctx) => ctx.stats.totalTiles >= 50,
+    check: (ctx) => ctx.stats.totalTiles >= BADGE_TARGETS.territoryRaider,
     progressCheck: (ctx) => ({
-      current: Math.min(ctx.stats.totalTiles, 50),
-      target: 50
+      current: Math.min(ctx.stats.totalTiles, BADGE_TARGETS.territoryRaider),
+      target: BADGE_TARGETS.territoryRaider
     })
   },
   {
     id: 'first-territory',
     triggerTypes: ['TERRITORY_CAPTURED'],
     // first-territory: 历史累计占领（total count），一次性里程碑
-    check: (ctx) => ctx.stats.totalTiles >= 1,
+    check: (ctx) => ctx.stats.totalTiles >= BADGE_TARGETS.firstTerritory,
     progressCheck: (ctx) => ({
-      current: Math.min(ctx.stats.totalTiles, 1),
-      target: 1
+      current: Math.min(ctx.stats.totalTiles, BADGE_TARGETS.firstTerritory),
+      target: BADGE_TARGETS.firstTerritory
     })
   },
   {
     id: 'shoe-killer',
     triggerTypes: ['RUN_FINISHED'],
-    check: (ctx) => ctx.stats.totalDistance >= 500,
+    check: (ctx) => ctx.stats.totalDistance >= BADGE_TARGETS.shoeKiller,
     progressCheck: (ctx) => ({
-      current: Math.min(ctx.stats.totalDistance, 500),
-      target: 500
+      current: Math.min(ctx.stats.totalDistance, BADGE_TARGETS.shoeKiller),
+      target: BADGE_TARGETS.shoeKiller
     })
   },
   {
@@ -167,12 +161,12 @@ export const BADGE_REGISTRY: BadgeCondition[] = [
     check: (ctx) => {
       if (!ctx.eventData?.endTime) return false
       const hour = getHourUTC8(ctx.eventData.endTime) % 24
-      return hour >= 20 && hour < 23
+      return isEveningTime(hour)
     },
     progressCheck: (ctx) => {
       if (!ctx.eventData?.endTime) return { current: 0, target: 1 }
       const hour = getHourUTC8(ctx.eventData.endTime) % 24
-      return { current: (hour >= 20 && hour < 23) ? 1 : 0, target: 1 }
+      return { current: isEveningTime(hour) ? 1 : 0, target: 1 }
     }
   },
   {
@@ -190,12 +184,12 @@ export const BADGE_REGISTRY: BadgeCondition[] = [
     check: (ctx) => {
       if (!ctx.eventData?.endTime) return false
       const hour = getHourUTC8(ctx.eventData.endTime) % 24
-      return hour >= 22 || hour < 2
+      return isNightTime(hour)
     },
     progressCheck: (ctx) => {
       if (!ctx.eventData?.endTime) return { current: 0, target: 1 }
       const hour = getHourUTC8(ctx.eventData.endTime) % 24
-      return { current: (hour >= 22 || hour < 2) ? 1 : 0, target: 1 }
+      return { current: isNightTime(hour) ? 1 : 0, target: 1 }
     }
   },
   {
