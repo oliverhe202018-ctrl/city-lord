@@ -12,7 +12,7 @@
 
 import { useCallback, useEffect, useState, useTransition } from 'react'
 import { toast } from 'sonner'
-import { MapPin, RefreshCw, Trash2, ArrowRightLeft, Search, Shield } from 'lucide-react'
+import { MapPin, RefreshCw, Trash2, ArrowRightLeft, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -92,7 +92,7 @@ export default function AdminTerritoriesPage() {
   }
 
   const handleDelete = (t: TerritoryAdminRow) => {
-    if (!confirm(`确认删除领地 ${t.id.slice(0, 8)}... ？此操作不可撤销。`)) return
+    if (!confirm(`确认删除领地 ${t.id.slice(0, 12)}...?`)) return
     startTransition(async () => {
       const res = await adminDeleteTerritory(t.id)
       if (res.success) {
@@ -104,160 +104,173 @@ export default function AdminTerritoriesPage() {
     })
   }
 
-  const hpColor = (hp: number) =>
-    hp >= 700 ? 'text-green-400' : hp >= 300 ? 'text-yellow-400' : 'text-red-400'
+  const hpColor = (hp: number, maxHp: number) => {
+    const ratio = maxHp > 0 ? hp / maxHp : 0
+    if (ratio > 0.6) return 'text-green-500'
+    if (ratio > 0.3) return 'text-yellow-500'
+    return 'text-red-500'
+  }
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white p-6 pt-[var(--safe-top,0px)]">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-6">
-          <MapPin className="w-6 h-6 text-blue-400" />
-          <h1 className="text-2xl font-bold">领地管理</h1>
-          <Badge variant="outline" className="ml-auto">
-            {pagination?.total ?? 0} 个领地
-          </Badge>
-        </div>
-
-        {/* Filters */}
-        <Card className="mb-4 bg-gray-900 border-gray-800">
-          <CardContent className="pt-4 flex flex-wrap gap-3">
+    <div className="p-4 space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MapPin className="w-5 h-5" />
+            领地管理
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Filters */}
+          <div className="flex gap-2 flex-wrap">
             <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Search className="absolute left-2 top-2.5 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="搜索所有者名称 / ID..."
-                className="pl-9 bg-gray-800 border-gray-700"
+                className="pl-8"
+                placeholder="搜索领地 ID..."
                 value={search}
-                onChange={e => { setSearch(e.target.value); setPage(1) }}
+                onChange={(e) => { setSearch(e.target.value); setPage(1) }}
               />
             </div>
-            {(['all', 'owned', 'neutral'] as const).map(s => (
+            {(['all', 'owned', 'neutral'] as const).map((s) => (
               <Button
                 key={s}
-                size="sm"
                 variant={statusFilter === s ? 'default' : 'outline'}
+                size="sm"
                 onClick={() => { setStatusFilter(s); setPage(1) }}
               >
-                {s === 'all' ? '全部' : s === 'owned' ? '已占领' : '中立'}
+                {{ all: '全部', owned: '已占领', neutral: '中立' }[s]}
               </Button>
             ))}
-            <Button size="sm" variant="outline" onClick={loadTerritories} disabled={loading}>
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <Button variant="outline" size="sm" onClick={loadTerritories} disabled={loading}>
+              <RefreshCw className="w-4 h-4" />
             </Button>
-          </CardContent>
-        </Card>
+          </div>
 
-        {/* Table */}
-        {loading ? (
-          <div className="flex justify-center py-20"><Spinner /></div>
-        ) : (
-          <div className="overflow-x-auto rounded-lg border border-gray-800">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-900 text-gray-400">
-                <tr>
-                  <th className="text-left p-3">ID</th>
-                  <th className="text-left p-3">所有者</th>
-                  <th className="text-left p-3">阵营</th>
-                  <th className="text-right p-3">HP</th>
-                  <th className="text-right p-3">护盾</th>
-                  <th className="text-right p-3">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {territories.length === 0 && (
-                  <tr><td colSpan={6} className="text-center py-12 text-gray-500">暂无数据</td></tr>
-                )}
-                {territories.map(t => (
-                  <tr key={t.id} className="border-t border-gray-800 hover:bg-gray-900/50 transition-colors">
-                    <td className="p-3 font-mono text-xs text-gray-400">{t.id.slice(0, 12)}...</td>
-                    <td className="p-3">{t.owner_name ?? <span className="text-gray-500">中立</span>}</td>
-                    <td className="p-3">
-                      {t.faction ? (
-                        <Badge variant="outline" className="text-xs">{t.faction}</Badge>
-                      ) : '—'}
-                    </td>
-                    <td className={`p-3 text-right font-mono font-semibold ${hpColor(t.hp)}`}>
-                      {t.hp}
-                    </td>
-                    <td className="p-3 text-right font-mono text-blue-300">{t.shield}</td>
-                    <td className="p-3">
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          title="重置 HP + 护盾"
-                          disabled={isPending}
-                          onClick={() => handleResetHp(t, 'full')}
-                        >
-                          <Shield className="w-4 h-4 text-green-400" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          title="仅重置 HP"
-                          disabled={isPending}
-                          onClick={() => handleResetHp(t, 'hp-only')}
-                        >
-                          <RefreshCw className="w-4 h-4 text-yellow-400" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          title="转让所有权"
-                          disabled={isPending}
-                          onClick={() => setTransferTarget(t)}
-                        >
-                          <ArrowRightLeft className="w-4 h-4 text-blue-400" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          title="删除领地"
-                          disabled={isPending}
-                          onClick={() => handleDelete(t)}
-                        >
-                          <Trash2 className="w-4 h-4 text-red-400" />
-                        </Button>
-                      </div>
-                    </td>
+          {/* Table */}
+          {loading ? (
+            <div className="flex justify-center py-8"><Spinner /></div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-muted-foreground">
+                    <th className="text-left py-2 pr-4">ID</th>
+                    <th className="text-left py-2 pr-4">所有者</th>
+                    <th className="text-left py-2 pr-4">阵营</th>
+                    <th className="text-left py-2 pr-4">HP</th>
+                    <th className="text-left py-2 pr-4">面积(m²)</th>
+                    <th className="text-left py-2">操作</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                </thead>
+                <tbody>
+                  {territories.map((t) => (
+                    <tr key={t.id} className="border-b hover:bg-muted/40">
+                      <td className="py-2 pr-4 font-mono text-xs">{t.id.slice(0, 12)}...</td>
+                      <td className="py-2 pr-4">{t.owner_name ?? '中立'}</td>
+                      <td className="py-2 pr-4">
+                        {t.faction ? <Badge variant="outline">{t.faction}</Badge> : '—'}
+                      </td>
+                      <td className={`py-2 pr-4 font-semibold ${hpColor(t.hp, t.max_hp)}`}>
+                        {t.hp}<span className="text-muted-foreground font-normal">/{t.max_hp}</span>
+                      </td>
+                      <td className="py-2 pr-4">
+                        {t.area_m2 != null ? t.area_m2.toFixed(1) : '—'}
+                      </td>
+                      <td className="py-2">
+                        <div className="flex gap-1 flex-wrap">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleResetHp(t, 'full')}
+                            disabled={isPending}
+                            title="全重置HP"
+                          >
+                            <RefreshCw className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setTransferTarget(t)}
+                            disabled={isPending}
+                            title="转让所有权"
+                          >
+                            <ArrowRightLeft className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleDelete(t)}
+                            disabled={isPending}
+                            title="删除领地"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
-        {/* Pagination */}
-        {pagination && pagination.totalPages > 1 && (
-          <div className="flex justify-center gap-2 mt-4">
-            <Button size="sm" variant="outline" disabled={!pagination.hasPrevPage} onClick={() => setPage(p => p - 1)}>上一页</Button>
-            <span className="text-sm text-gray-400 self-center">{pagination.page} / {pagination.totalPages}</span>
-            <Button size="sm" variant="outline" disabled={!pagination.hasNextPage} onClick={() => setPage(p => p + 1)}>下一页</Button>
-          </div>
-        )}
+          {/* Pagination */}
+          {pagination && (
+            <div className="flex items-center justify-between text-sm text-muted-foreground">
+              <span>共 {pagination.total} 条领地</span>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1 || loading}
+                >
+                  上一页
+                </Button>
+                <span>{page} / {pagination.totalPages}</span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
+                  disabled={page >= pagination.totalPages || loading}
+                >
+                  下一页
+                </Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-        {/* Transfer Modal */}
-        {transferTarget && (
-          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-            <Card className="w-full max-w-md bg-gray-900 border-gray-700">
-              <CardHeader><CardTitle>转让领地所有权</CardTitle></CardHeader>
-              <CardContent className="space-y-3">
-                <p className="text-sm text-gray-400">领地 ID: {transferTarget.id.slice(0, 16)}...</p>
-                <Input
-                  placeholder="输入目标用户 UUID"
-                  className="bg-gray-800 border-gray-700"
-                  value={transferUserId}
-                  onChange={e => setTransferUserId(e.target.value)}
-                />
-                <div className="flex gap-2">
-                  <Button className="flex-1" onClick={handleTransfer} disabled={isPending || !transferUserId.trim()}>确认转让</Button>
-                  <Button variant="outline" className="flex-1" onClick={() => setTransferTarget(null)}>取消</Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-      </div>
+      {/* Transfer Modal */}
+      {transferTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-md mx-4">
+            <CardHeader>
+              <CardTitle>转让领地所有权</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                领地 ID: <code>{transferTarget.id.slice(0, 20)}...</code>
+              </p>
+              <Input
+                placeholder="输入目标用户 ID (UUID)"
+                value={transferUserId}
+                onChange={(e) => setTransferUserId(e.target.value)}
+              />
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => { setTransferTarget(null); setTransferUserId('') }}>
+                  取消
+                </Button>
+                <Button onClick={handleTransfer} disabled={!transferUserId.trim() || isPending}>
+                  确认转让
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   )
 }
