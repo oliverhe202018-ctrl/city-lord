@@ -6,6 +6,8 @@
  * Provides list, reset-HP, transfer-ownership, and delete
  * operations for the admin territories page.
  * All actions require a valid admin session.
+ *
+ * SCHEMA-ALIGNED: uses current_hp, area_m2_exact, owner_faction
  */
 
 import { createClient } from '@/lib/supabase/client-server'
@@ -20,18 +22,22 @@ import {
 } from '@/lib/admin/pagination'
 import { MAX_TERRITORY_HP } from '@/lib/constants/territory'
 
-// ==============================================================
+// ============================================================
 // Types
-// ==============================================================
+// ============================================================
 
 export interface TerritoryAdminRow {
   id: string
   city_id: string
   owner_id: string | null
   owner_name: string | null
+  /** owner_faction from territories table */
   faction: string | null
+  /** current_hp mapped for UI */
   hp: number
-  shield: number
+  /** max_hp for display */
+  max_hp: number
+  /** area_m2_exact mapped for UI */
   area_m2: number | null
   created_at: string
   updated_at: string
@@ -53,9 +59,9 @@ export interface ActionResult {
   message?: string
 }
 
-// ==============================================================
+// ============================================================
 // List Territories
-// ==============================================================
+// ============================================================
 
 export async function adminListTerritories(
   params: ListTerritoriesParams = {},
@@ -69,81 +75,87 @@ export async function adminListTerritories(
 
     let query = supabase
       .from('territories')
-      .select(`
-        id, city_id, hp, shield, area_m2, created_at, updated_at,
-        owner:users!territories_owner_id_fkey(id, display_name, faction)
-      `, { count: 'exact' })
+      .select(
+        `
+        id,
+        city_id,
+        owner_id,
+        current_hp,
+        max_hp,
+        area_m2_exact,
+        owner_faction,
+        created_at,
+        updated_at,
+        owner:profiles!territories_owner_id_fkey(id, nickname)
+        `,
+        { count: 'exact' },
+      )
 
     if (params.cityId) query = query.eq('city_id', params.cityId)
     if (params.ownerId) query = query.eq('owner_id', params.ownerId)
     if (params.status === 'neutral') query = query.is('owner_id', null)
     if (params.status === 'owned') query = query.not('owner_id', 'is', null)
-    if (params.maxHp !== undefined) query = query.lte('hp', params.maxHp)
+    if (params.maxHp !== undefined) query = query.lte('current_hp', params.maxHp)
+    if (params.search) {
+      query = query.ilike('id', `%${params.search}%`)
+    }
 
     const { data, error, count } = await query
       .order('updated_at', { ascending: false })
       .range(skip, skip + pageSize - 1)
 
-    if (error) throw error
+    if (error) return paginatedError(error.message)
 
     const rows: TerritoryAdminRow[] = (data ?? []).map((t: any) => ({
       id: t.id,
       city_id: t.city_id,
-      owner_id: t.owner?.id ?? null,
-      owner_name: t.owner?.display_name ?? null,
-      faction: t.owner?.faction ?? null,
-      hp: t.hp,
-      shield: t.shield ?? 0,
-      area_m2: t.area_m2 ?? null,
+      owner_id: t.owner_id ?? null,
+      owner_name: t.owner?.nickname ?? null,
+      faction: t.owner_faction ?? null,
+      hp: t.current_hp ?? 0,
+      max_hp: t.max_hp ?? MAX_TERRITORY_HP,
+      area_m2: t.area_m2_exact ?? null,
       created_at: t.created_at,
       updated_at: t.updated_at,
     }))
 
     return paginatedSuccess(rows, count ?? 0, page, pageSize)
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'Unknown error'
-    return paginatedError(msg)
+  } catch (err: any) {
+    return paginatedError(err?.message ?? 'Unknown error')
   }
 }
 
-// ==============================================================
+// ============================================================
 // Reset Territory HP
-// ==============================================================
+// ============================================================
 
 export async function adminResetTerritoryHp(
   territoryId: string,
-  /** 'full' resets HP + shield; 'hp-only' resets only HP */
   mode: 'full' | 'hp-only' = 'full',
 ): Promise<ActionResult> {
   try {
     await requireAdminSession()
     const supabase = createClient()
 
-    const update: Record<string, number> = { hp: MAX_TERRITORY_HP }
-    if (mode === 'full') update.shield = 0
+    const updatePayload: Record<string, unknown> = {
+      current_hp: MAX_TERRITORY_HP,
+    }
 
     const { error } = await supabase
       .from('territories')
-      .update(update)
+      .update(updatePayload)
       .eq('id', territoryId)
 
-    if (error) throw error
-
-    await supabase.from('admin_logs').insert({
-      action: 'RESET_TERRITORY_HP',
-      target_id: territoryId,
-      meta: { mode },
-    })
-
-    return { success: true, message: `HP reset (${mode}) for territory ${territoryId}` }
-  } catch (e: unknown) {
-    return { success: false, error: e instanceof Error ? e.message : 'Unknown error' }
+    if (error) return { success: false, error: error.message }
+    return { success: true, message: `HP 已重置为 ${MAX_TERRITORY_HP}` }
+  } catch (err: any) {
+    return { success: false, error: err?.message ?? 'Unknown error' }
   }
 }
 
-// ==============================================================
+// ============================================================
 // Transfer Territory Ownership
-// ==============================================================
+// ============================================================
 
 export async function adminTransferTerritory(
   territoryId: string,
@@ -153,37 +165,35 @@ export async function adminTransferTerritory(
     await requireAdminSession()
     const supabase = createClient()
 
-    // Verify new owner exists
-    const { data: user, error: userErr } = await supabase
-      .from('users')
-      .select('id')
+    // Verify target profile exists
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, faction')
       .eq('id', newOwnerId)
       .single()
 
-    if (userErr || !user) return { success: false, error: 'Target user not found' }
+    if (profileError || !profile) {
+      return { success: false, error: '目标用户不存在' }
+    }
 
     const { error } = await supabase
       .from('territories')
-      .update({ owner_id: newOwnerId })
+      .update({
+        owner_id: newOwnerId,
+        owner_faction: profile.faction ?? null,
+      })
       .eq('id', territoryId)
 
-    if (error) throw error
-
-    await supabase.from('admin_logs').insert({
-      action: 'TRANSFER_TERRITORY',
-      target_id: territoryId,
-      meta: { new_owner_id: newOwnerId },
-    })
-
-    return { success: true, message: 'Territory transferred' }
-  } catch (e: unknown) {
-    return { success: false, error: e instanceof Error ? e.message : 'Unknown error' }
+    if (error) return { success: false, error: error.message }
+    return { success: true, message: '所有权已转让' }
+  } catch (err: any) {
+    return { success: false, error: err?.message ?? 'Unknown error' }
   }
 }
 
-// ==============================================================
+// ============================================================
 // Delete Territory
-// ==============================================================
+// ============================================================
 
 export async function adminDeleteTerritory(
   territoryId: string,
@@ -192,27 +202,14 @@ export async function adminDeleteTerritory(
     await requireAdminSession()
     const supabase = createClient()
 
-    // Cascade: delete HP logs first, then the territory
-    await supabase
-      .from('territory_hp_logs')
-      .delete()
-      .eq('territory_id', territoryId)
-
     const { error } = await supabase
       .from('territories')
       .delete()
       .eq('id', territoryId)
 
-    if (error) throw error
-
-    await supabase.from('admin_logs').insert({
-      action: 'DELETE_TERRITORY',
-      target_id: territoryId,
-      meta: {},
-    })
-
-    return { success: true, message: 'Territory deleted' }
-  } catch (e: unknown) {
-    return { success: false, error: e instanceof Error ? e.message : 'Unknown error' }
+    if (error) return { success: false, error: error.message }
+    return { success: true, message: '领地已删除' }
+  } catch (err: any) {
+    return { success: false, error: err?.message ?? 'Unknown error' }
   }
 }
