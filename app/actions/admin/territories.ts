@@ -10,7 +10,7 @@
  * SCHEMA-ALIGNED: uses current_hp, area_m2_exact, owner_faction
  */
 
-import { createClient } from '@/lib/supabase/client-server'
+import { createClient } from '@/lib/supabase/server'
 import { requireAdminSession } from '@/lib/admin/auth'
 import {
   normalizePaginationParams,
