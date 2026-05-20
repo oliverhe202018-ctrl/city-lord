@@ -991,4 +991,69 @@ public class AMapLocationPlugin extends Plugin {
 
         return intents;
     }
+
+    // -----------------------------------------------------------------------
+    // Battery Optimization — 白名单检测与引导跳转
+    // -----------------------------------------------------------------------
+
+    /**
+     * 查询 App 是否已在电池优化白名单中。
+     * JS 层可在启动跑步前调用，决定是否显示引导弹窗。
+     *
+     * 返回:
+     * - isIgnored: boolean，true 表示已在白名单
+     */
+    @PluginMethod()
+    public void isBatteryOptimizationIgnored(PluginCall call) {
+        boolean isIgnored = false;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            android.os.PowerManager pm = (android.os.PowerManager) getContext().getSystemService(Context.POWER_SERVICE);
+            if (pm != null) {
+                isIgnored = pm.isIgnoringBatteryOptimizations(getContext().getPackageName());
+            }
+        }
+
+        JSObject ret = new JSObject();
+        ret.put("isIgnored", isIgnored);
+        call.resolve(ret);
+    }
+
+    /**
+     * 跳转电池优化白名单设置页（REQUEST_IGNORE_BATTERY_OPTIMIZATIONS）。
+     * 这是所有运动类 App 的硬性标准，用于对抗 MIUI/EMUI 激进杀后台。
+     *
+     * 返回:
+     * - opened: boolean，是否成功跳转
+     */
+    @PluginMethod()
+    public void openBatteryOptimizationSettings(PluginCall call) {
+        boolean opened = false;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            try {
+                Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                intent.setData(Uri.parse("package:" + getContext().getPackageName()));
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(intent);
+                opened = true;
+                Log.i(TAG, "Battery optimization settings opened");
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to open battery optimization settings: " + e.getMessage());
+                // 兜底：跳转应用详情页
+                try {
+                    Intent fallback = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                    fallback.setData(Uri.parse("package:" + getContext().getPackageName()));
+                    fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    getContext().startActivity(fallback);
+                    opened = true;
+                    Log.i(TAG, "Fallback to app details settings");
+                } catch (Exception e2) {
+                    Log.e(TAG, "Fallback also failed: " + e2.getMessage());
+                }
+            }
+        }
+
+        JSObject ret = new JSObject();
+        ret.put("opened", opened);
+        call.resolve(ret);
+    }
 }

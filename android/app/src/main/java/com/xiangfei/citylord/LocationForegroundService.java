@@ -13,6 +13,7 @@ import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.PowerManager;
+import android.os.SystemClock;
 import android.content.SharedPreferences;
 import android.content.pm.ServiceInfo;
 import android.util.Log;
@@ -134,6 +135,16 @@ public class LocationForegroundService extends Service implements AMapLocationLi
     private LocationDao locationDao = null;
     /** 单线程写入池：保证插入顺序性，不阻塞定位回调主线程 */
     private ExecutorService dbExecutor = null;
+
+    // ---- 时间戳防回拨（单调递增硬约束） ----
+    /** 上一个定位点的单调递增时间戳（毫秒） */
+    private long lastMonotonicTimestamp = 0;
+    /** 上一个定位点的 SystemClock.elapsedRealtime()（毫秒） */
+    private long lastElapsedRealtime = 0;
+    /** 自增序列号，用于去重和排序 */
+    private long sequenceId = 0;
+    /** CLOCK_DRIFT 容差：当 location.getTime() 与 elapsedRealtime 偏差超过此值时启用修正 */
+    private static final long CLOCK_DRIFT_TOLERANCE_MS = 5000;
 
     // ---- Daily motivational quotes (60 条，每天不重样) ----
     private static final String[] DAILY_QUOTES = {
@@ -322,6 +333,9 @@ public class LocationForegroundService extends Service implements AMapLocationLi
         // 5. 启动定位引擎
         startLocationTracking();
 
+        // 6. 电池优化白名单检测（非阻塞，仅通知 JS 层引导用户）
+        checkAndNotifyBatteryOptimization();
+
         return START_STICKY;
     }
 
@@ -339,6 +353,25 @@ public class LocationForegroundService extends Service implements AMapLocationLi
             return fine || coarse;
         }
         return true;
+    }
+
+    /**
+     * 检测电池优化白名单状态，若未加入则通过 Broadcast 通知 JS 层弹窗引导用户。
+     * 这是所有运动类 App 的硬性标准，对抗 MIUI/EMUI 激进杀后台。
+     */
+    private void checkAndNotifyBatteryOptimization() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
+            if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
+                Log.w(TAG, "App 不在电池优化白名单中，通知 JS 层引导用户");
+                // 通过 Broadcast 通知 JS 层
+                Intent intent = new Intent(ACTION_LOG_EVENT);
+                intent.putExtra(EXTRA_EVENT_NAME, "battery_optimization_needed");
+                intent.putExtra(EXTRA_EVENT_REASON, "app_not_in_whitelist");
+                intent.putExtra("ts", System.currentTimeMillis());
+                LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
+            }
+        }
     }
 
     private void saveToPrefs(Intent intent) {
@@ -692,23 +725,26 @@ public class LocationForegroundService extends Service implements AMapLocationLi
             return;
         }
 
-        // 1a. 持久化缓存位置到 SharedPreferences (兼容旧逻辑)
-        saveLocationToCache(location);
+        // 1a. 时间戳防回拨修正（单调递增硬约束）
+        long correctedTimestamp = correctTimestamp(location);
 
-        // 1b. 距离滤波前置：未通过过滤的点直接丢弃，不广播给JS层
+        // 1b. 持久化缓存位置到 SharedPreferences (兼容旧逻辑)
+        saveLocationToCache(location, correctedTimestamp);
+
+        // 1c. 距离滤波前置：未通过过滤的点直接丢弃，不广播给JS层
         final float BROADCAST_DISTANCE_FILTER_METERS = 5.0f;
         if (!passesDistanceFilter(location, BROADCAST_DISTANCE_FILTER_METERS)) {
             Log.d(TAG, "位置未通过距离滤波，跳过广播: lat=" + location.getLatitude() + " lng=" + location.getLongitude());
             // 仍写入 Room 数据库（黑匣子记录所有采样点）
-            persistToRoom(location);
+            persistToRoom(location, correctedTimestamp);
             return;
         }
 
-        // 1c. 更新上次广播位置
+        // 1d. 更新上次广播位置
         lastBroadcastLocation = location.clone();
 
-        // 1d. 异步写入 Room 数据库（黑匣子核心：即便 JS 挂起也确保每个点落盘）
-        persistToRoom(location);
+        // 1e. 异步写入 Room 数据库（黑匣子核心：即便 JS 挂起也确保每个点落盘）
+        persistToRoom(location, correctedTimestamp);
 
         // 2. Broadcast location to Plugin
         Intent intent = new Intent(ACTION_LOCATION_UPDATE);
@@ -717,7 +753,7 @@ public class LocationForegroundService extends Service implements AMapLocationLi
         intent.putExtra(EXTRA_ACCURACY, location.getAccuracy());
         intent.putExtra(EXTRA_BEARING, location.getBearing());
         intent.putExtra(EXTRA_SPEED, location.getSpeed());
-        intent.putExtra(EXTRA_TIMESTAMP, location.getTime());
+        intent.putExtra(EXTRA_TIMESTAMP, correctedTimestamp);
         intent.putExtra(EXTRA_LOCATION_TYPE, location.getLocationType());
         intent.putExtra(EXTRA_IS_MOCK, location.isMock());
 
@@ -736,12 +772,12 @@ public class LocationForegroundService extends Service implements AMapLocationLi
     /**
      * 将位置持久化到 SharedPreferences（轻量快照，用于最后已知位置恢复）
      */
-    private void saveLocationToCache(AMapLocation location) {
+    private void saveLocationToCache(AMapLocation location, long correctedTimestamp) {
         SharedPreferences sp = getApplicationContext().getSharedPreferences("citylord_location_cache", android.content.Context.MODE_PRIVATE);
         sp.edit()
             .putLong("last_lat_bits", Double.doubleToRawLongBits(location.getLatitude()))
             .putLong("last_lng_bits", Double.doubleToRawLongBits(location.getLongitude()))
-            .putLong("last_timestamp", location.getTime())
+            .putLong("last_timestamp", correctedTimestamp)
             .apply();
         Log.d(TAG, "Location persisted to cache: " + location.getLatitude() + ", " + location.getLongitude());
     }
@@ -780,11 +816,67 @@ public class LocationForegroundService extends Service implements AMapLocationLi
     }
 
     /**
+     * 时间戳防回拨修正（单调递增硬约束）。
+     *
+     * 核心逻辑：
+     * 1. 使用 SystemClock.elapsedRealtime() 作为唯一真相源（不受 NTP/时区跳变影响）
+     * 2. 当 location.getTime() 与 elapsedRealtime 差值超过容差时，启用修正
+     * 3. 最终入库的 timestamp 必须严格满足 T(n) > T(n-1)
+     * 4. 若计算结果出现相等或倒退，强制 T(n) = T(n-1) + 1 (ms)
+     *
+     * @return 修正后的单调递增时间戳（毫秒）
+     */
+    private synchronized long correctTimestamp(AMapLocation location) {
+        long rawTimestamp = location.getTime();
+        long nowElapsed = android.os.SystemClock.elapsedRealtime();
+        sequenceId++;
+
+        // 首次定位：直接接受原始时间戳
+        if (lastMonotonicTimestamp == 0) {
+            lastMonotonicTimestamp = rawTimestamp;
+            lastElapsedRealtime = nowElapsed;
+            Log.d(TAG, "时间戳初始化: ts=" + rawTimestamp + " elapsed=" + nowElapsed + " seq=" + sequenceId);
+            return rawTimestamp;
+        }
+
+        // 计算 elapsedRealtime 的流逝时间
+        long elapsedDelta = nowElapsed - lastElapsedRealtime;
+
+        // 检测时钟跳变：如果 rawTimestamp 与基于 elapsedRealtime 推算的时间偏差超过容差
+        long expectedTimestamp = lastMonotonicTimestamp + elapsedDelta;
+        long drift = Math.abs(rawTimestamp - expectedTimestamp);
+
+        long correctedTs;
+        if (drift > CLOCK_DRIFT_TOLERANCE_MS) {
+            // 时钟跳变超过容差，使用 elapsedRealtime 推算值
+            correctedTs = expectedTimestamp;
+            Log.w(TAG, "检测到时钟跳变 " + drift + "ms，使用 elapsedRealtime 修正: " + correctedTs);
+        } else {
+            // 偏差在容差内，使用原始时间戳
+            correctedTs = rawTimestamp;
+        }
+
+        // 硬约束：严格单调递增 T(n) > T(n-1)
+        if (correctedTs <= lastMonotonicTimestamp) {
+            correctedTs = lastMonotonicTimestamp + 1;
+            Log.w(TAG, "时间戳回拨检测: 原始=" + rawTimestamp + " 修正为=" + correctedTs + " seq=" + sequenceId);
+        }
+
+        lastMonotonicTimestamp = correctedTs;
+        lastElapsedRealtime = nowElapsed;
+
+        return correctedTs;
+    }
+
+    /**
      * 异步将定位点写入 Room 数据库。
      * 关键设计：即使 JS/WebView 进程完全挂起，此方法仍在 Native Service 线程中执行，
      * 确保每一个 GPS 采样点都完成 dao.insert()。
+     *
+     * @param location 原始定位数据
+     * @param correctedTimestamp 经过单调递增修正后的时间戳
      */
-    private void persistToRoom(AMapLocation location) {
+    private void persistToRoom(AMapLocation location, long correctedTimestamp) {
         if (locationDao == null || dbExecutor == null) {
             Log.w(TAG, "Room 数据库未初始化，跳过持久化");
             return;
@@ -817,7 +909,7 @@ public class LocationForegroundService extends Service implements AMapLocationLi
         entity.sessionId = sessionId;
         entity.latitude = location.getLatitude();
         entity.longitude = location.getLongitude();
-        entity.timestamp = location.getTime();
+        entity.timestamp = correctedTimestamp;
         entity.isAcked = false;
         entity.accuracy = location.getAccuracy();
         entity.speed = location.getSpeed();
