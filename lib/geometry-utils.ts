@@ -246,6 +246,26 @@ export function isLoopClosed(
     };
 }
 
+interface TopologyInterval {
+    start: number;
+    end: number;
+}
+
+function isIndexConsumed(idx: number, intervals: TopologyInterval[]): boolean {
+    return intervals.some(iv => {
+        const margin = iv.end - iv.start >= 4 ? 2 : 0;
+        return idx >= iv.start + margin && idx <= iv.end - margin;
+    });
+}
+
+function isIntervalOverlap(i: number, j: number, intervals: TopologyInterval[]): boolean {
+    const margin = j - i >= 4 ? 2 : 0;
+    return intervals.some(iv => {
+        const ivMargin = iv.end - iv.start >= 4 ? 2 : 0;
+        return (i + margin) <= (iv.end - ivMargin) && (j - margin) >= (iv.start + ivMargin);
+    });
+}
+
 /**
  * 双策略闭合算法：使用Turf.js实现智能领地闭合
  * 策略A (Snap)：当最新点距起点 <= 30m时自动闭合
@@ -297,37 +317,17 @@ export function extractValidLoops(
     if (!disableIntersect && simplifiedPath.length >= 6) {
         const n = simplifiedPath.length;
         // 记录已提取为闭合环的区间列表 [start, end]
-        const intervals: { start: number; end: number }[] = [];
+        const intervals: TopologyInterval[] = [];
 
         for (let i = 0; i < n - 3; i++) {
             // 检查 i 是否落在已提取环的内部（允许在端点处重合）
-            const inExisting = intervals.some(interval => {
-                if (interval.end - interval.start >= 4) {
-                    return i >= interval.start + 2 && i <= interval.end - 2;
-                }
-                return i > interval.start && i < interval.end;
-            });
-            if (inExisting) continue;
+            if (isIndexConsumed(i, intervals)) continue;
 
             for (let j = i + 2; j < n - 1; j++) {
-
-                const inExistingJ = intervals.some(interval => {
-                    if (interval.end - interval.start >= 4) {
-                        return j >= interval.start + 2 && j <= interval.end - 2;
-                    }
-                    return j > interval.start && j < interval.end;
-                });
-                if (inExistingJ) continue;
+                if (isIndexConsumed(j, intervals)) continue;
 
                 // 检查当前候选区间 [i, j] 与已有区间是否发生重叠
-                const overlaps = intervals.some(interval => {
-                    if (j - i >= 4 && (interval.end - interval.start) >= 4) {
-                        return (i + 2) <= (interval.end - 2) && (j - 2) >= (interval.start + 2);
-                    }
-                    // 兜底：若任何一个区间长度小于 4，退化为普通重叠校验，防止端点越界与索引反转
-                    return i < interval.end && j > interval.start;
-                });
-                if (overlaps) continue;
+                if (isIntervalOverlap(i, j, intervals)) continue;
 
                 const intersectPoint = findLineSegmentIntersection(
                     simplifiedPath[i], simplifiedPath[i + 1],
@@ -481,6 +481,33 @@ export function isDuplicatePolygon(
     polyCoords2: Coord[]
 ): boolean {
     if (polyCoords1.length < 4 || polyCoords2.length < 4) return false;
+
+    // P2: Compute BBox bounds for both coordinate arrays for O(1) early rejection
+    let minLngA = Infinity, maxLngA = -Infinity, minLatA = Infinity, maxLatA = -Infinity;
+    for (let idx = 0; idx < polyCoords1.length; idx++) {
+        const p = polyCoords1[idx];
+        if (p.lng < minLngA) minLngA = p.lng;
+        if (p.lng > maxLngA) maxLngA = p.lng;
+        if (p.lat < minLatA) minLatA = p.lat;
+        if (p.lat > maxLatA) maxLatA = p.lat;
+    }
+
+    let minLngB = Infinity, maxLngB = -Infinity, minLatB = Infinity, maxLatB = -Infinity;
+    for (let idx = 0; idx < polyCoords2.length; idx++) {
+        const p = polyCoords2[idx];
+        if (p.lng < minLngB) minLngB = p.lng;
+        if (p.lng > maxLngB) maxLngB = p.lng;
+        if (p.lat < minLatB) minLatB = p.lat;
+        if (p.lat > maxLatB) maxLatB = p.lat;
+    }
+
+    const isNotOverlapping =
+        minLngA > maxLngB || // A 在 B 右侧
+        maxLngA < minLngB || // A 在 B 左侧
+        minLatA > maxLatB || // A 在 B 上侧（Lat 递增通常向上）
+        maxLatA < minLatB;   // A 在 B 下侧
+
+    if (isNotOverlapping) return false;
 
     // Convert to Turf.js polygon coordinates (lng, lat)
     const coords1 = polyCoords1.map(p => [p.lng, p.lat]);

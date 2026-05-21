@@ -29,7 +29,7 @@ import {
 } from '@turf/turf';
 import type { Feature, Polygon, MultiPolygon } from 'geojson';
 import { cleanAndSplitTrajectory } from '@/lib/gis/geometry-cleaner';
-import { isLoopClosed, LOOP_CLOSURE_THRESHOLD_M, extractValidLoops, type Coord } from '@/lib/geometry-utils';
+import { isLoopClosed, LOOP_CLOSURE_THRESHOLD_M, extractValidLoops, type Coord, simplifyPathDP } from '@/lib/geometry-utils';
 import { isTester } from '@/lib/constants/anti-cheat';
 import { reverseGeocodeCity } from '@/lib/map/server-geocode';
 
@@ -598,21 +598,15 @@ export async function saveRunActivity(
         let pathPoints = (runData.path as any[]) || [];
         if (pathPoints.length > MAX_SERVER_RAW_POINTS) {
             const totalPoints = pathPoints.length;
-            // Use a step size that guarantees length is under MAX_SERVER_RAW_POINTS
-            const step = Math.ceil(totalPoints / (MAX_SERVER_RAW_POINTS - 1));
-            const downsampled: any[] = [];
-            for (let idx = 0; idx < totalPoints; idx++) {
-                if (idx === 0 || idx === totalPoints - 1 || idx % step === 0) {
-                    if (downsampled.length === 0 || downsampled[downsampled.length - 1] !== pathPoints[idx]) {
-                        downsampled.push(pathPoints[idx]);
-                    }
-                }
+            const dpSimplified = simplifyPathDP(pathPoints, 2.0);
+            let guarded = dpSimplified;
+            if (dpSimplified.length > MAX_SERVER_RAW_POINTS) {
+                guarded = dpSimplified.slice(0, MAX_SERVER_RAW_POINTS);
+                // 强行补回原始轨迹的终点，防全局起终点自动闭合特征丢失
+                guarded[guarded.length - 1] = pathPoints[pathPoints.length - 1];
             }
-            if (downsampled[downsampled.length - 1] !== pathPoints[totalPoints - 1]) {
-                downsampled.push(pathPoints[totalPoints - 1]);
-            }
-            runData.path = downsampled;
-            console.log(`[P4 Downsampling] Downsampled path points from ${totalPoints} to ${runData.path.length}.`);
+            runData.path = guarded;
+            console.log(`[P4 Downsampling] Simplified and guarded path points from ${totalPoints} to ${runData.path.length}.`);
         }
 
         // ─── P0 时钟防穿越校正（整体时间轴平移策略） ───
