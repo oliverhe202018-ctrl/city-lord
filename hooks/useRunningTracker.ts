@@ -17,7 +17,7 @@ import {
   GPS_START_ANCHOR_ACCURACY_METERS,
   GPS_TRACKING_ACCURACY_METERS,
 } from '@/store/useLocationStore';
-import { getDistanceFromLatLonInMeters, LOOP_CLOSURE_THRESHOLD_M, LOOP_CLOSURE_SNAP_M, isLoopClosed, MIN_LOOP_POINTS, extractValidLoops } from '@/lib/geometry-utils';
+import { getDistanceFromLatLonInMeters, LOOP_CLOSURE_THRESHOLD_M, LOOP_CLOSURE_SNAP_M, isLoopClosed, MIN_LOOP_POINTS, extractValidLoops, isDuplicatePolygon } from '@/lib/geometry-utils';
 import { shouldAcceptPointByDistance } from '@/lib/location/gps-spatial-filter';
 import { validateSegmentSpeed } from '@/lib/location/gps-speed-validator';
 import { ActiveRandomEvent, useRandomEvents } from '@/hooks/useRandomEvents';
@@ -892,34 +892,42 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           const loopArea = turf.area(poly);
 
           if (loopArea > 100) {
-            const nextClaims = [...sessionClaimsRef.current, loopForCalc];
-            const newTotalArea = calculateArea(nextClaims);
-            
-            setSessionClaims(nextClaims);
-            setClosedPolygons(prevPolys => [...prevPolys, loopForCalc!]);
-            setArea(newTotalArea);
-            lastClaimAtRef.current = now;
+            // Check if the loop is a duplicate of any existing claimed loops
+            const isDup = sessionClaimsRef.current.some(existingLoop => 
+              isDuplicatePolygon(loopForCalc!, existingLoop)
+            );
+            if (isDup) {
+              console.log("[Smart Snap] ⏭️ Loop is a duplicate (overlap > 80%), skipping");
+            } else {
+              const nextClaims = [...sessionClaimsRef.current, loopForCalc];
+              const newTotalArea = calculateArea(nextClaims);
+              
+              setSessionClaims(nextClaims);
+              setClosedPolygons(prevPolys => [...prevPolys, loopForCalc!]);
+              setArea(newTotalArea);
+              lastClaimAtRef.current = now;
 
-            // Record claimed segment for deduplication
-            claimedSegmentsRef.current.push({ start: loopAnchorStart, end: loopAnchorEnd });
+              // Record claimed segment for deduplication
+              claimedSegmentsRef.current.push({ start: loopAnchorStart, end: loopAnchorEnd });
 
-            const closingPoint = loopForCalc[loopForCalc.length - 1];
-            const currentPathForSync = pathRef.current;
-            const lastPoint = currentPathForSync[currentPathForSync.length - 1];
-            if (!lastPoint || closingPoint.lat !== lastPoint.lat || closingPoint.lng !== lastPoint.lng) {
-              const updatedPath = [...currentPathForSync, closingPoint];
-              pathRef.current = updatedPath;
-              setPath(updatedPath);
-            }
+              const closingPoint = loopForCalc[loopForCalc.length - 1];
+              const currentPathForSync = pathRef.current;
+              const lastPoint = currentPathForSync[currentPathForSync.length - 1];
+              if (!lastPoint || closingPoint.lat !== lastPoint.lat || closingPoint.lng !== lastPoint.lng) {
+                const updatedPath = [...currentPathForSync, closingPoint];
+                pathRef.current = updatedPath;
+                setPath(updatedPath);
+              }
 
-            const TOAST_AREA_INCREMENT_THRESHOLD = 50;
-            const incrementalArea = newTotalArea - lastToastAreaRef.current;
-            if (incrementalArea >= TOAST_AREA_INCREMENT_THRESHOLD) {
-              lastToastAreaRef.current = newTotalArea;
-              toast.success(`🎉 领地已捕获！新增面积: ${Math.round(incrementalArea)}m²`, {
-                description: '跑步记录中... 继续前进占领更多领地！',
-                duration: 3000
-              });
+              const TOAST_AREA_INCREMENT_THRESHOLD = 50;
+              const incrementalArea = newTotalArea - lastToastAreaRef.current;
+              if (incrementalArea >= TOAST_AREA_INCREMENT_THRESHOLD) {
+                lastToastAreaRef.current = newTotalArea;
+                toast.success(`🎉 领地已捕获！新增面积: ${Math.round(incrementalArea)}m²`, {
+                  description: '跑步记录中... 继续前进占领更多领地！',
+                  duration: 3000
+                });
+              }
             }
           }
         }
@@ -943,7 +951,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     // 1000 个点 × 3m 间隔 ≈ 3000m，正常跑步不会跑出 >3000m 不自交的环。
     // ========================================================================
     realtimeLoopCheckCounterRef.current++;
-    if (realtimeLoopCheckCounterRef.current % 5 === 0 && pathRef.current.length >= 6) {
+    if (realtimeLoopCheckCounterRef.current % 15 === 0 && pathRef.current.length >= 6) {
       const MAX_LOOP_SCAN_POINTS = 1000;
       const scanPath = pathRef.current.length > MAX_LOOP_SCAN_POINTS
         ? pathRef.current.slice(-MAX_LOOP_SCAN_POINTS)
@@ -960,6 +968,14 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         const firstPt = loop[0];
         const loopKey = `${firstPt.lat.toFixed(6)}-${firstPt.lng.toFixed(6)}-${firstPt.timestamp}`;
         if (claimedLoopKeysRef.current.has(loopKey)) {
+          continue;
+        }
+
+        // Check if the loop is a duplicate of any existing claimed loops
+        const isDup = sessionClaimsRef.current.some(existingLoop => 
+          isDuplicatePolygon(loop, existingLoop)
+        );
+        if (isDup) {
           continue;
         }
         
@@ -1790,9 +1806,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
             console.log("Run saved successfully:", result.data?.runId);
           }
 
-          if (result.data?.newTasks && result.data.newTasks.length > 0) {
-            const tasks = result.data.newTasks;
-            const totalCoins = tasks.reduce((sum, t) => sum + t.reward, 0);
+          if ((result.data as any)?.newTasks && (result.data as any).newTasks.length > 0) {
+            const tasks = (result.data as any).newTasks;
+            const totalCoins = tasks.reduce((sum: number, t: any) => sum + t.reward, 0);
             toast.success(`达成 ${tasks.length} 个目标!`, {
               description: `获得 +${totalCoins} 金币`,
             });

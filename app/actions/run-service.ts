@@ -593,6 +593,28 @@ export async function saveRunActivity(
     try {
         if (!userId) throw new Error('User ID is required');
 
+        // ─── P4 服务端 800 点抽稀防爆 (Downsampling) ───
+        const MAX_SERVER_RAW_POINTS = 800;
+        let pathPoints = (runData.path as any[]) || [];
+        if (pathPoints.length > MAX_SERVER_RAW_POINTS) {
+            const totalPoints = pathPoints.length;
+            // Use a step size that guarantees length is under MAX_SERVER_RAW_POINTS
+            const step = Math.ceil(totalPoints / (MAX_SERVER_RAW_POINTS - 1));
+            const downsampled: any[] = [];
+            for (let idx = 0; idx < totalPoints; idx++) {
+                if (idx === 0 || idx === totalPoints - 1 || idx % step === 0) {
+                    if (downsampled.length === 0 || downsampled[downsampled.length - 1] !== pathPoints[idx]) {
+                        downsampled.push(pathPoints[idx]);
+                    }
+                }
+            }
+            if (downsampled[downsampled.length - 1] !== pathPoints[totalPoints - 1]) {
+                downsampled.push(pathPoints[totalPoints - 1]);
+            }
+            runData.path = downsampled;
+            console.log(`[P4 Downsampling] Downsampled path points from ${totalPoints} to ${runData.path.length}.`);
+        }
+
         // ─── P0 时钟防穿越校正（整体时间轴平移策略） ───
         const serverNow = Date.now();
         const CLOCK_DRIFT_TOLERANCE_MS = 10_000; // 10秒容忍
@@ -952,19 +974,26 @@ export async function saveRunActivity(
             for (const candidate of sorted) {
                 let isContained = false;
                 for (const big of survivors) {
-                    // 优化2：BBox (包围盒) 快速拒绝
-                    if (
-                        candidate.bbox[0] >= big.bbox[0] && candidate.bbox[1] >= big.bbox[1] &&
-                        candidate.bbox[2] <= big.bbox[2] && candidate.bbox[3] <= big.bbox[3]
-                    ) {
+                    // 优化2：BBox (包围盒) 快速重叠检查
+                    const isNotOverlapping = 
+                        candidate.bbox[0] > big.bbox[2] || // 候选件在右侧
+                        candidate.bbox[2] < big.bbox[0] || // 候选件在左侧
+                        candidate.bbox[1] > big.bbox[3] || // 候选件在上侧
+                        candidate.bbox[3] < big.bbox[1];   // 候选件在下侧
+                    const isBBoxOverlapping = !isNotOverlapping;
+
+                    if (isBBoxOverlapping) {
                         // 优化3：计算重叠
                         try {
                             const intersection = turfIntersect(turfFeatureCollection([big.f, candidate.f]));
                             if (intersection) {
-                                const overlapRatio = turfArea(intersection) / candidate.area;
-                                if (overlapRatio > 0.90) {
-                                    isContained = true;
-                                    break;
+                                const minArea = Math.min(big.area, candidate.area);
+                                if (minArea > 0) {
+                                    const overlapRatio = turfArea(intersection) / minArea;
+                                    if (overlapRatio > 0.80) {
+                                        isContained = true;
+                                        break;
+                                    }
                                 }
                             }
                         } catch (e) { /* skip */ }

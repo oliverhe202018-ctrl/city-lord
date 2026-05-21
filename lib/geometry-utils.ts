@@ -301,15 +301,32 @@ export function extractValidLoops(
 
         for (let i = 0; i < n - 3; i++) {
             // 检查 i 是否落在已提取环的内部（允许在端点处重合）
-            const inExisting = intervals.some(interval => i > interval.start && i < interval.end);
+            const inExisting = intervals.some(interval => {
+                if (interval.end - interval.start >= 4) {
+                    return i >= interval.start + 2 && i <= interval.end - 2;
+                }
+                return i > interval.start && i < interval.end;
+            });
             if (inExisting) continue;
 
             for (let j = i + 2; j < n - 1; j++) {
-                const inExistingJ = intervals.some(interval => j > interval.start && j < interval.end);
+
+                const inExistingJ = intervals.some(interval => {
+                    if (interval.end - interval.start >= 4) {
+                        return j >= interval.start + 2 && j <= interval.end - 2;
+                    }
+                    return j > interval.start && j < interval.end;
+                });
                 if (inExistingJ) continue;
 
                 // 检查当前候选区间 [i, j] 与已有区间是否发生重叠
-                const overlaps = intervals.some(interval => i < interval.end && j > interval.start);
+                const overlaps = intervals.some(interval => {
+                    if (j - i >= 4 && (interval.end - interval.start) >= 4) {
+                        return (i + 2) <= (interval.end - 2) && (j - 2) >= (interval.start + 2);
+                    }
+                    // 兜底：若任何一个区间长度小于 4，退化为普通重叠校验，防止端点越界与索引反转
+                    return i < interval.end && j > interval.start;
+                });
                 if (overlaps) continue;
 
                 const intersectPoint = findLineSegmentIntersection(
@@ -450,6 +467,52 @@ function isValidPolygon(points: Coord[]): boolean {
         return area >= MIN_TERRITORY_AREA_M2;
     } catch (error) {
         // 无效的几何形状
+        return false;
+    }
+}
+
+/**
+ * Check if two polygons overlap by more than 80%.
+ * Overlap Ratio = turf.area(intersection) / Math.min(turf.area(poly1), turf.area(poly2))
+ * Uses turf.intersect(turf.featureCollection([poly1, poly2])) under Turf.js v7.x.
+ */
+export function isDuplicatePolygon(
+    polyCoords1: Coord[],
+    polyCoords2: Coord[]
+): boolean {
+    if (polyCoords1.length < 4 || polyCoords2.length < 4) return false;
+
+    // Convert to Turf.js polygon coordinates (lng, lat)
+    const coords1 = polyCoords1.map(p => [p.lng, p.lat]);
+    if (coords1[0][0] !== coords1[coords1.length - 1][0] || coords1[0][1] !== coords1[coords1.length - 1][1]) {
+        coords1.push([...coords1[0]]);
+    }
+
+    const coords2 = polyCoords2.map(p => [p.lng, p.lat]);
+    if (coords2[0][0] !== coords2[coords2.length - 1][0] || coords2[0][1] !== coords2[coords2.length - 1][1]) {
+        coords2.push([...coords2[0]]);
+    }
+
+    try {
+        const poly1 = turf.polygon([coords1]);
+        const poly2 = turf.polygon([coords2]);
+
+        const area1 = turf.area(poly1);
+        const area2 = turf.area(poly2);
+        
+        if (area1 <= 0 || area2 <= 0) return false;
+
+        // Turf v7.x intersect takes a FeatureCollection
+        const intersection = turf.intersect(turf.featureCollection([poly1, poly2]));
+        if (!intersection) return false;
+
+        const intersectArea = turf.area(intersection);
+        const minArea = Math.min(area1, area2);
+        const overlapRatio = intersectArea / minArea;
+
+        return overlapRatio > 0.80;
+    } catch (error) {
+        console.warn("[isDuplicatePolygon] Error checking intersection:", error);
         return false;
     }
 }
