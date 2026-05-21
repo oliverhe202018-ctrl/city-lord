@@ -11,7 +11,6 @@ export interface UserProfileBasic {
     avatarUrl: string | null
     level: number | null
     backgroundUrl: string | null
-    badges: string[]
 }
 
 export interface RunRecord {
@@ -81,7 +80,6 @@ export async function getProfileData(targetUserId: string): Promise<ProfileDataR
             avatar_url: true,
             level: true,
             backgroundUrl: true,
-            badges: true,
             isProfilePublic: true,
             total_distance_km: true,
         },
@@ -97,7 +95,6 @@ export async function getProfileData(targetUserId: string): Promise<ProfileDataR
                 avatarUrl: null,
                 level: 1,
                 backgroundUrl: null,
-                badges: [],
             },
         }
     }
@@ -108,7 +105,6 @@ export async function getProfileData(targetUserId: string): Promise<ProfileDataR
         avatarUrl: profile.avatar_url,
         level: profile.level,
         backgroundUrl: profile.backgroundUrl,
-        badges: profile.badges,
     }
 
     // SERVER-SIDE PRIVACY GUARD: if private and not self, return ONLY basic info

@@ -168,7 +168,8 @@ export async function stopRunningAction(context: RunContext) {
               area: Number(capturedArea.toFixed(4)),
               duration: Math.floor(durationMinutes * 60),
               province: userProvince || context.regionId,
-              created_at: new Date()
+              created_at: new Date(),
+              idempotency_key: `user_run_${user.id}_${Date.now()}`,
             }
           })
         } else {
@@ -179,7 +180,8 @@ export async function stopRunningAction(context: RunContext) {
               area: Number(((context.newHexCount || 0) * 0.00065).toFixed(4)),
               duration: Math.floor(durationMinutes * 60),
               province: userProvince || context.regionId,
-              created_at: new Date()
+              created_at: new Date(),
+              idempotency_key: `user_run_${user.id}_${Date.now()}`,
             }
           })
         }

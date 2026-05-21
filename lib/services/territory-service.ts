@@ -137,6 +137,7 @@ export const TerritoryService = {
                     source: source,
                     created_at: new Date(),
                     updated_at: new Date(),
+                    idempotency_key: `territory_${userId}_${Date.now()}`,
                 },
             });
 

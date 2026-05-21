@@ -47,6 +47,7 @@ model profiles {
   last_social_read_at                                            DateTime?                     @default(now()) @db.Timestamptz(6)
   total_runs_count                                               Int                           @default(0)
   fill_opacity                                                   Float?                        @default(0.35)
+  crit_rate                                                      Float                         @default(0)
   wallet                                                         UserWallet?
   activity_comments                                              activity_comments[]
   activity_likes                                                 activity_likes[]
@@ -98,6 +99,7 @@ model profiles {
   pending_rewards                                                pending_rewards[]
   watchActivities                                                watch_activities[]
   triggered_random_events                                        random_events[]
+  user_buffs                                                     user_buffs[]
 
   @@index([club_id], map: "idx_profiles_club_id")
   @@index([faction], map: "idx_profiles_faction")
@@ -613,7 +615,7 @@ model runs {
   distance                     Float?            @default(0)
   polygons                     Json?             @default("[]") @db.Json
   source                       String?           @default("phone")
-  idempotency_key              String?           @unique
+  idempotency_key              String          @unique
   photo_url                    String?
   risk_score                   Int               @default(0)
   risk_level                   String            @default("LOW") @db.VarChar(20)
@@ -1924,6 +1926,32 @@ model cities {
   @@index([boundary], map: "cities_boundary_gist", type: Gist)
   @@index([is_active])
   @@index([name])
+  @@schema("public")
+}
+
+model leaderboard_settlements {
+  id                        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  settlement_date           DateTime @unique @db.Date
+  faction_rankings          Json     @default("[]") @db.Json
+  total_rewards_distributed Int      @default(0)
+  total_users_rewarded      Int      @default(0)
+  created_at                DateTime @default(now()) @db.Timestamptz(6)
+
+  @@schema("public")
+}
+
+model user_buffs {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id     String   @db.Uuid
+  buff_type   String   @db.VarChar(50)
+  buff_value  Float    @default(1)
+  expires_at  DateTime @db.Timestamptz(6)
+  source      String?  @db.VarChar(100)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  profiles    profiles @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id, expires_at])
+  @@index([buff_type])
   @@schema("public")
 }
 

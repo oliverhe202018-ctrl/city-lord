@@ -193,6 +193,7 @@ export async function POST(req: NextRequest) {
         });
       } else {
         // Create new active run
+        const idempotencyKey = `native_sync_${user.id}_${Date.now()}`;
         await tx.runs.create({
           data: {
             user_id: user.id,
@@ -202,7 +203,8 @@ export async function POST(req: NextRequest) {
             created_at: new Date(validPoints[0].timestamp), // Start time
             updated_at: new Date(),
             area: 0, // Calculated later
-            duration: 0 // Calculated later or client update
+            duration: 0, // Calculated later or client update
+            idempotency_key: idempotencyKey,
           }
         });
       }

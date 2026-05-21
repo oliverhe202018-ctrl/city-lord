@@ -188,12 +188,12 @@ export async function fetchUserBadges() {
   if (!user) return []
 
   try {
-    const userData = await prisma.profiles.findUnique({
-      where: { id: user.id },
-      select: { badges: true }
+    const userBadges = await prisma.user_badges.findMany({
+      where: { user_id: user.id },
+      include: { badges: { select: { id: true, name: true, code: true, tier: true } } }
     })
 
-    return userData?.badges || []
+    return userBadges.map(ub => ub.badges)
   } catch (error) {
     console.error('Error fetching user badges:', error)
     return []

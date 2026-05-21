@@ -247,9 +247,10 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
 
         const runnerProfile = await tx.profiles.findUnique({
             where: { id: userId },
-            select: { faction: true }
+            select: { faction: true, crit_rate: true }
         });
         const runnerFaction = runnerProfile?.faction ?? null;
+        const runnerCritRate = runnerProfile?.crit_rate ?? 0; // 0-1 multiplier
 
         if (bestPatrolOverlap && bestPatrolOverlap.overlap_ratio >= PATROL_OVERLAP_THRESHOLD) {
             const beforeHealth = Number(bestPatrolOverlap.health ?? TERRITORY_MAX_HEALTH);
@@ -421,6 +422,8 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
 
         // ─── Phase 3B: 固定伤害 + 血量衰减 + 血量归零后裁切 ───
         const DAMAGE_PER_RUN = 10;
+        // Crit rate multiplier: damage = base * (1 + critRate)
+        const damageMultiplier = 1 + runnerCritRate;
 
         for (const existingTerr of overlappingTerritories) {
             if (existingTerr.owner_id === userId) continue;
@@ -437,7 +440,8 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                 continue;
             }
 
-            const nextHealth = Math.max(0, (existingTerr.health ?? 100) - DAMAGE_PER_RUN);
+            const baseDamage = DAMAGE_PER_RUN * damageMultiplier;
+            const nextHealth = Math.max(0, (existingTerr.health ?? 100) - baseDamage);
 
             if (nextHealth > 0) {
                 // 血量尚存，扣血并裁切 workingPolygons，防止玩家新领地与敌方重叠

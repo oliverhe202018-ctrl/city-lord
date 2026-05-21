@@ -39,6 +39,7 @@ export interface UserState {
   clubId: string | null; // 鏂板锛氬綋鍓嶄勘涔愰儴ID
   backgroundUrl?: string | null;
   totalRunsCount: number;
+  critRate: number; // 暴击率 (0-1 multiplier)
 }
 
 export interface LocationState {
@@ -303,6 +304,7 @@ const initialUserState: UserState = {
   clubId: null,
   backgroundUrl: null,
   totalRunsCount: 0,
+  critRate: 0,
 };
 
 const initialTerritoryAppearance: TerritoryAppearance = {
@@ -505,16 +507,20 @@ const createUserSlice: StateCreator<GameStore, [], [], UserActions> = (set, get)
   levelUp: () => {
     const state = get();
     const newLevel = state.level + 1;
+    // Level benefits: +10 max stamina, +20 bonus stamina, +0.5% crit rate per level
+    const critRateBonus = 0.005; // 0.5% per level
+    const newCritRate = Math.min((state.critRate || 0) + critRateBonus, 0.3); // Cap at 30%
 
     toast.success(`鍗囩骇鍟︼紒杈惧埌绛夌骇 ${newLevel}`, {
-      description: "鑾峰緱浣撳姏涓婇檺 +10",
+      description: "鑾峰緱浣撳姏涓婇檺 +10, 鏆村嚮鐜?+0.5%",
       icon: "馃帀"
     });
 
     set({
       level: newLevel,
       maxStamina: 100 + (newLevel * 10),
-      stamina: state.stamina + 20 // Bonus stamina on level up
+      stamina: state.stamina + 20, // Bonus stamina on level up
+      critRate: newCritRate,
     });
   },
   consumeStamina: (amount) => set((state) => {
@@ -620,6 +626,7 @@ const createUserSlice: StateCreator<GameStore, [], [], UserActions> = (set, get)
           role: adminData?.role ?? null,
           backgroundUrl: profileData.background_url ?? state.backgroundUrl ?? null,
           totalRunsCount: profileData.total_runs_count || 0,
+          critRate: typeof profileData.crit_rate === 'number' ? profileData.crit_rate : (state.critRate || 0),
           achievements: { ...state.achievements, ...achievementsMap },
           territoryAppearance: {
             ...state.territoryAppearance,

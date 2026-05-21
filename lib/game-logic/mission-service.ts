@@ -364,14 +364,63 @@ export async function updateMissionProgress(
   }
 }
 
+// ─── Deduplication: Redis fallback to in-memory LRU cache ───
+const claimDedupCache = new Map<string, number>()
+const DEDUP_TTL_MS = 5000 // 5s window
+const DEDUP_MAX_ENTRIES = 1000
+
+function getDedupKey(userId: string, missionId: string): string {
+  return `claim:${userId}:${missionId}`
+}
+
+function isDeduplicated(userId: string, missionId: string): boolean {
+  const key = getDedupKey(userId, missionId)
+  const now = Date.now()
+
+  // Try Redis first
+  try {
+    // Lazy require to avoid crash if ioredis is unavailable
+    const { redis } = require('@/lib/redis')
+    if (redis && redis.status === 'ready') {
+      // Synchronous check not possible with Redis, skip and rely on DB atomicity
+      return false
+    }
+  } catch {
+    // Redis not available, fall through to memory cache
+  }
+
+  // Memory LRU fallback
+  const timestamp = claimDedupCache.get(key)
+  if (timestamp && now - timestamp < DEDUP_TTL_MS) {
+    return true
+  }
+
+  // Evict old entries if cache is full
+  if (claimDedupCache.size >= DEDUP_MAX_ENTRIES) {
+    const oldestKey = claimDedupCache.keys().next().value
+    if (oldestKey) claimDedupCache.delete(oldestKey)
+  }
+
+  claimDedupCache.set(key, now)
+  return false
+}
+
 export async function claimMissionReward(
   userId: string,
   missionId: string,
   tx?: any
 ) {
+  // Fast-path deduplication (5s window, Redis or memory fallback)
+  if (isDeduplicated(userId, missionId)) {
+    console.warn(`[MissionService] Duplicate claim blocked (dedup): userId=${userId}, missionId=${missionId}`)
+    return { success: false, error: 'DUPLICATE_CLAIM' }
+  }
+
   const db = tx || prisma
 
   try {
+    // Atomic claim: use updateMany with WHERE clause to prevent race conditions
+    // The WHERE condition ensures only 'in-progress' missions with sufficient progress can be claimed
     const userMission = await db.user_missions.findFirst({
       where: {
         user_id: userId,
@@ -397,14 +446,25 @@ export async function claimMissionReward(
     const coins = userMission.missions.reward_coins ?? 0
     const xp = userMission.missions.reward_experience ?? userMission.missions.reward_xp ?? 0
 
-    await db.user_missions.update({
-      where: { id: userMission.id },
+    // Atomic update: only succeed if status is still 'in-progress'
+    const updateResult = await db.user_missions.updateMany({
+      where: {
+        id: userMission.id,
+        status: 'in-progress', // Atomic guard: prevents double-claim
+      },
       data: {
         status: 'completed',
         claimed_at: new Date(),
       }
     })
 
+    if (updateResult.count === 0) {
+      // Another request already claimed this mission
+      console.warn(`[MissionService] Concurrent claim detected: userId=${userId}, missionId=${missionId}`)
+      return { success: false, error: 'DUPLICATE_CLAIM' }
+    }
+
+    // Grant rewards in same transaction context
     await db.profiles.update({
       where: { id: userId },
       data: {

@@ -37,7 +37,14 @@ export async function claimReward(missionId: string) {
 
 // 兼容旧导入名，防止消费文件报错
 export const fetchUserMissions = getMissions;
-export const claimMissionReward = claimReward;
+
+export async function claimMissionRewardAction(missionId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: 'UNAUTHORIZED' };
+
+  return claimMissionReward(user.id, missionId);
+}
 
 // 批量领取所有任务奖励
 export async function claimAllMissions(missionIds: string[]): Promise<{ success: boolean; results: unknown[] }> {

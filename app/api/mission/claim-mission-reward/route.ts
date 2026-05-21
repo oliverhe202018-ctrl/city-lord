@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { claimMissionReward } from '@/app/actions/mission'
+import { claimReward } from '@/app/actions/mission'
 
 export async function POST(request: Request) {
   try {
@@ -18,7 +18,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'missionId required' }, { status: 400 })
     }
 
-    const result = await claimMissionReward(missionId)
+    const result = await claimReward(missionId)
     return NextResponse.json(result)
   } catch (error: any) {
     console.error('claimMissionReward error:', error)
