@@ -17,7 +17,7 @@ import {
   GPS_START_ANCHOR_ACCURACY_METERS,
   GPS_TRACKING_ACCURACY_METERS,
 } from '@/store/useLocationStore';
-import { getDistanceFromLatLonInMeters, LOOP_CLOSURE_THRESHOLD_M, isLoopClosed, MIN_LOOP_POINTS, extractValidLoops } from '@/lib/geometry-utils';
+import { getDistanceFromLatLonInMeters, LOOP_CLOSURE_THRESHOLD_M, LOOP_CLOSURE_SNAP_M, isLoopClosed, MIN_LOOP_POINTS, extractValidLoops } from '@/lib/geometry-utils';
 import { shouldAcceptPointByDistance } from '@/lib/location/gps-spatial-filter';
 import { validateSegmentSpeed } from '@/lib/location/gps-speed-validator';
 import { ActiveRandomEvent, useRandomEvents } from '@/hooks/useRandomEvents';
@@ -801,10 +801,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     // ========================================================================
 
     const MIN_LOOP_SIZE = 5;
-    const SNAP_THRESHOLD = 30;
     const P_SHAPE_MIN_POINT_GAP = 15;
     const MIN_CLAIM_INTERVAL_MS = 3000;
-    const SLIDING_WINDOW_SIZE = 300;
+    const SLIDING_WINDOW_SIZE = 1000;
 
     let loopForCalc: Location[] | null = null;
     let loopSource: 'start-end' | 'sliding-window' = 'start-end';
@@ -816,8 +815,8 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       // Track A: Global Start-End Detection
       const startPoint = currentPath[0];
       const distToStart = getDistanceFromLatLonInMeters(newLoc.lat, newLoc.lng, startPoint.lat, startPoint.lng);
-      console.log(`[Smart Snap] Track A: distToStart=${distToStart.toFixed(1)}m, threshold=${SNAP_THRESHOLD}m`);
-      if (distToStart <= SNAP_THRESHOLD) {
+      console.log(`[Smart Snap] Track A: distToStart=${distToStart.toFixed(1)}m, threshold=${LOOP_CLOSURE_SNAP_M}m`);
+      if (distToStart <= LOOP_CLOSURE_SNAP_M) {
         const snappedLoc: Location = {
           lat: startPoint.lat,
           lng: startPoint.lng,
@@ -836,14 +835,11 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         const latestPoint = turf.point([newLoc.lng, newLoc.lat]);
         let pShapeAnchorIndex = -1;
 
-        for (let i = windowStart; i < currentPath.length; i++) {
-          if (currentPath.length - i <= P_SHAPE_MIN_POINT_GAP) {
-            continue;
-          }
+        for (let i = currentPath.length - 1 - P_SHAPE_MIN_POINT_GAP; i >= windowStart; i--) {
           const historical = currentPath[i];
           const historicalPoint = turf.point([historical.lng, historical.lat]);
           const gapMeters = turf.distance(latestPoint, historicalPoint, { units: 'kilometers' }) * 1000;
-          if (gapMeters <= SNAP_THRESHOLD) {
+          if (gapMeters <= LOOP_CLOSURE_SNAP_M) {
             pShapeAnchorIndex = i;
             break;
           }
@@ -943,16 +939,19 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     // ========================================================================
     // 每累计 5 个 GPS 点触发一次 extractValidLoops 自交检测，
     // 覆盖 P 形环、8 字形等复杂轨迹，确保 UI 面积实时跳动。
-    // 滑动窗口优化：路径超过 300 点时仅扫描最新 300 点，阻断 O(n²) 增长。
-    // 300 个点 × 3m 间隔 ≈ 900m，正常跑步不会跑出 >900m 不自交的环。
+    // 滑动窗口优化：路径超过 1000 点时仅扫描最新 1000 点，阻断 O(n²) 增长。
+    // 1000 个点 × 3m 间隔 ≈ 3000m，正常跑步不会跑出 >3000m 不自交的环。
     // ========================================================================
     realtimeLoopCheckCounterRef.current++;
     if (realtimeLoopCheckCounterRef.current % 5 === 0 && pathRef.current.length >= 6) {
-      const MAX_LOOP_SCAN_POINTS = 300;
+      const MAX_LOOP_SCAN_POINTS = 1000;
       const scanPath = pathRef.current.length > MAX_LOOP_SCAN_POINTS
         ? pathRef.current.slice(-MAX_LOOP_SCAN_POINTS)
         : pathRef.current;
-      const detectedLoops = extractValidLoops(scanPath);
+      
+      const snapLoops = extractValidLoops(pathRef.current, undefined, undefined, { disableIntersect: true });
+      const intersectLoops = extractValidLoops(scanPath, undefined, undefined, { disableSnap: true });
+      const detectedLoops = [...snapLoops, ...intersectLoops];
       
       for (const loop of detectedLoops) {
         if (loop.length < 4) continue;

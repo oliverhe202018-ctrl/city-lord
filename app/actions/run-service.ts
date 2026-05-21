@@ -827,99 +827,51 @@ export async function saveRunActivity(
         const isBlockedByAntiCheat = isFlagged || isPedometerInvalid;
         const flagReason = metadataValidation.flagReason || (effectiveRiskLevel === 'HIGH' ? 'PATH_ANALYSIS_FAILED' : undefined);
 
-        // 2. 轨迹采样降维 (防 O(N²) 爆算)
-        const MAX_SERVER_PATH_POINTS = 600;
+        // 2. 轨迹采样降维 (使用统一黑盒闭合检测，无需再在此采样降维，在 extractValidLoops 内部进行 DP 过滤)
         const rawPathPoints = (runData.path as any[]) || [];
-        const sampledPath = rdpSamplePath(rawPathPoints, MAX_SERVER_PATH_POINTS);
 
-        // 3. 闭合检测与领地初步提取 (Rule 1 & Rule 2)
+        // 3. 闭合检测与领地初步提取 (统一黑盒调用)
         let diagData: any = { status: 'init' };
         let finalPolygons: Coord[][] = [];
-        const sampledPointsLngLat = sampledPath.map(p => [p.lng, p.lat] as [number, number]);
-        diagData.points = sampledPointsLngLat?.length || 0;
-        console.log('[闭合检测] sampledPath 点数:', sampledPointsLngLat.length);
-        console.log(`[Territory-Diag] 轨迹总点数: ${sampledPointsLngLat.length}, 总距离: ${runData.distance}m`);
+        
+        console.log(`[Territory-Diag] 轨迹总点数: ${rawPathPoints.length}, 总距离: ${runData.distance}m`);
 
-        if (sampledPointsLngLat.length >= 3) {
-            const lastPoint = sampledPointsLngLat[sampledPointsLngLat.length - 1];
-            const firstPoint = sampledPointsLngLat[0];
+        let totalRawArea = 0;
+        let totalFinalArea = 0;
+        let totalKinkCount = 0;
+        let finalStrategy: 'raw' | 'unkink' | 'convex_fallback' = 'raw';
+
+        const loops = extractValidLoops(rawPathPoints);
+        console.log('[闭合检测] extractValidLoops 提取到环数量:', loops.length);
+
+        for (const loop of loops) {
+            const closingPath = loop.map(p => [p.lng, p.lat] as [number, number]);
+            const normResult = normalizeRunPolygon(closingPath);
             
-            let closingPath: [number, number][] | null = null;
-
-            // 规则一：全局首尾闭合 (20米自动吸附)
-            const distGlobal = haversineDistance(lastPoint, firstPoint);
-            const START_END_SNAP_THRESHOLD_M = 20; // 与前端 LOOP_CLOSURE_THRESHOLD_M 严格对齐
-            diagData.distGlobal = distGlobal;
-            console.log(`[规则一] 首尾距离: ${distGlobal.toFixed(1)}m (阈值 ${START_END_SNAP_THRESHOLD_M}m)`);
-            console.log(`[Territory-Diag] 规则一测算 - 首尾物理距离: ${distGlobal}m (阈值${START_END_SNAP_THRESHOLD_M}m)`);
-
-            const MIN_RUN_DISTANCE_FOR_CLOSURE_M = 50;
-            if (
-                distGlobal <= START_END_SNAP_THRESHOLD_M &&
-                sampledPointsLngLat.length >= 4 &&
-                runData.distance >= MIN_RUN_DISTANCE_FOR_CLOSURE_M
-            ) {
-                // 显式首尾吸附：将起点坐标副本 push 到末尾，形成合法 GeoJSON LinearRing
-                const snappedPath = [...sampledPointsLngLat, [firstPoint[0], firstPoint[1]] as [number, number]];
-                closingPath = snappedPath;
-                console.log(`[规则一-吸附] 首尾距离 ${Math.round(distGlobal)}m ≤ ${START_END_SNAP_THRESHOLD_M}m，已自动闭合`);
-            } else {
-                // 规则二：P 形线段相交（替换旧的采样点碰撞逻辑）
-                const MIN_LOOP_SEGMENT_INDEX = 10;
-                const MAX_SEARCH_SEGMENT_INDEX = Math.min(
-                    Math.floor(sampledPointsLngLat.length * 0.70),
-                    sampledPointsLngLat.length - 2
-                );
-                const SEGMENT_CROSS_THRESHOLD_M = 15;
-                console.log(`[Territory-Diag] 规则二搜索范围 [${MIN_LOOP_SEGMENT_INDEX}, ${MAX_SEARCH_SEGMENT_INDEX}], 总点数: ${sampledPointsLngLat.length}`);
-                console.log(`[Territory-Diag] 规则二 - 总采样点: ${sampledPointsLngLat.length}, 搜索范围: [${MIN_LOOP_SEGMENT_INDEX}, ${MAX_SEARCH_SEGMENT_INDEX}]`);
-
-                let bestIndex = -1;
-                let minDist = SEGMENT_CROSS_THRESHOLD_M + 1;
-
-                for (let i = MIN_LOOP_SEGMENT_INDEX; i < MAX_SEARCH_SEGMENT_INDEX; i++) {
-                    const segA = sampledPointsLngLat[i];
-                    const segB = sampledPointsLngLat[i + 1];
-                    if (!segA || !segB) continue;
-                    
-                    // 使用真正的线段交叉验证（CCW 向量叉乘算法）
-                    const prevPoint = sampledPointsLngLat[sampledPointsLngLat.length - 2];
-                    if (segmentsIntersect(lastPoint, prevPoint, segA, segB)) {
-                        minDist = 0; // 交叉距离为 0
-                        bestIndex = i;
-                        break; // 找到第一个交叉点即停
-                    }
-                }
-                console.log(`[Territory-Diag] 规则二 - bestIndex: ${bestIndex}, minDist: ${minDist.toFixed(1)}m`);
-
-                if (bestIndex !== -1) {
-                    diagData.bestIndex = bestIndex;
-                    diagData.minDist = minDist;
-                    console.log(`[Territory-Diag] 规则二命中 - 线段交叉索引: ${bestIndex}, 距离: ${minDist.toFixed(1)}m`);
-                    closingPath = sampledPointsLngLat.slice(bestIndex);
-                } else {
-                    console.log(`[Territory-Diag] 规则二未命中 - 无线段交叉点（U形/直线跑步，无领地）`);
-                }
+            for (const poly of normResult.polygons) {
+                finalPolygons.push(poly);
             }
-            console.log('[闭合结果] closingPath 长度:', closingPath ? closingPath.length : 'null');
-            console.log(`[Territory-Diag] closingPath 长度: ${closingPath?.length ?? 0}, finalPolygons 长度: ${finalPolygons.length}`);
-
-
-            // 生成最终多边形环
-            if (closingPath && closingPath.length >= 3) {
-                const normResult = normalizeRunPolygon(closingPath);
-                finalPolygons = normResult.polygons;
-                diagData.strategy = normResult.strategy;
-                diagData.kinkCount = normResult.kinkCount;
-                diagData.rawArea = normResult.rawArea;
-                diagData.finalArea = normResult.finalArea;
-                diagData.areaInflationRatio = normResult.areaInflationRatio;
-                console.log(`[Territory-Diag] Normalize strategy: ${normResult.strategy}, Kinks: ${normResult.kinkCount}, Inflation: ${normResult.areaInflationRatio?.toFixed(2)}`);
+            if (normResult.rawArea) totalRawArea += normResult.rawArea;
+            if (normResult.finalArea) totalFinalArea += normResult.finalArea;
+            totalKinkCount += normResult.kinkCount;
+            if (normResult.strategy === 'convex_fallback') {
+                finalStrategy = 'convex_fallback';
+            } else if (normResult.strategy === 'unkink' && finalStrategy !== 'convex_fallback') {
+                finalStrategy = 'unkink';
             }
-            if (finalPolygons.length === 0) { console.log(`[Territory-Diag] 警告: 闭合条件均未满足或多边形构建失败。`); }
         }
 
+        diagData.rawArea = totalRawArea;
+        diagData.finalArea = totalFinalArea;
+        diagData.kinkCount = totalKinkCount;
+        diagData.strategy = finalStrategy;
+        diagData.areaInflationRatio = totalRawArea > 0 ? totalFinalArea / totalRawArea : 1;
+        diagData.points = rawPathPoints.length;
         diagData.status = finalPolygons.length === 0 ? 'Polygons Empty' : 'Success';
+
+        if (finalPolygons.length === 0) {
+            console.log(`[Territory-Diag] 警告: 闭合条件均未满足或多边形构建失败。`);
+        }
 
         const isGeometryInvalid = diagData.areaInflationRatio && diagData.areaInflationRatio > 1.35;
         if (isGeometryInvalid) {

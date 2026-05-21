@@ -130,14 +130,17 @@ export function simplifyPathDP<T extends Coord>(
     dpReduce(points, 0, points.length - 1, keptIndices);
 
     // 按原始顺序输出，保留完整元数据
-    return points.filter((_, i) => keptIndices.has(i));
+    const sortedIndices = Array.from(keptIndices).sort((a, b) => a - b);
+    return sortedIndices.map(i => points[i]);
 }
 
 /**
  * 计算点到线段 p1-p2 的垂直距离（米）。
  */
 function perpendicularDistance(point: Coord, p1: Coord, p2: Coord): number {
-    const dx = p2.lng - p1.lng;
+    const latRad = deg2rad((p1.lat + p2.lat) / 2);
+    const cosLat = Math.cos(latRad);
+    const dx = (p2.lng - p1.lng) * cosLat;
     const dy = p2.lat - p1.lat;
     const lenSq = dx * dx + dy * dy;
 
@@ -147,12 +150,14 @@ function perpendicularDistance(point: Coord, p1: Coord, p2: Coord): number {
     }
 
     // 投影参数 t
-    const t = ((point.lng - p1.lng) * dx + (point.lat - p1.lat) * dy) / lenSq;
+    const pDx = (point.lng - p1.lng) * cosLat;
+    const pDy = point.lat - p1.lat;
+    const t = (pDx * dx + pDy * dy) / lenSq;
     const clampedT = Math.max(0, Math.min(1, t));
 
     // 投影点坐标
-    const projLat = p1.lat + clampedT * dy;
-    const projLng = p1.lng + clampedT * dx;
+    const projLat = p1.lat + clampedT * (p2.lat - p1.lat);
+    const projLng = p1.lng + clampedT * (p2.lng - p1.lng);
 
     return haversineDistance(point.lat, point.lng, projLat, projLng);
 }
@@ -255,7 +260,8 @@ export function isLoopClosed(
 export function extractValidLoops(
     path: Coord[],
     snapThreshold: number = LOOP_CLOSURE_SNAP_M,
-    intersectThreshold: number = LOOP_CLOSURE_THRESHOLD_M
+    intersectThreshold: number = LOOP_CLOSURE_THRESHOLD_M,
+    options?: { disableSnap?: boolean; disableIntersect?: boolean }
 ): Coord[][] {
     if (!Array.isArray(path) || path.length < 4) {
         return [];
@@ -265,37 +271,46 @@ export function extractValidLoops(
     const seen = new Set<string>();
 
     // 入口 DP 简化：剔除微小毛刺，保留完整元数据（含 timestamp）
-    const simplifiedPath = simplifyPathDP(path, 3);
+    const simplifiedPath = simplifyPathDP(path, 1.5);
 
     // 策略A: Snap闭合 - 检测首尾点距离是否在容差范围内
-    const firstPoint = simplifiedPath[0];
-    const lastPoint = simplifiedPath[simplifiedPath.length - 1];
-    const snapDistance = haversineDistance(firstPoint.lat, firstPoint.lng, lastPoint.lat, lastPoint.lng);
-    
-    if (snapDistance <= snapThreshold) {
-        const loop = [...simplifiedPath];
-        if (loop[loop.length - 1].lat !== firstPoint.lat || loop[loop.length - 1].lng !== firstPoint.lng) {
-            loop.push({ lat: firstPoint.lat, lng: firstPoint.lng, timestamp: firstPoint.timestamp });
-        }
+    const disableSnap = options?.disableSnap ?? false;
+    if (!disableSnap) {
+        const firstPoint = simplifiedPath[0];
+        const lastPoint = simplifiedPath[simplifiedPath.length - 1];
+        const snapDistance = haversineDistance(firstPoint.lat, firstPoint.lng, lastPoint.lat, lastPoint.lng);
         
-        if (isValidPolygon(loop)) {
-            loops.push(loop);
+        if (snapDistance <= snapThreshold) {
+            const loop = [...simplifiedPath];
+            if (loop[loop.length - 1].lat !== firstPoint.lat || loop[loop.length - 1].lng !== firstPoint.lng) {
+                loop.push({ lat: firstPoint.lat, lng: firstPoint.lng, timestamp: firstPoint.timestamp });
+            }
+            
+            if (isValidPolygon(loop)) {
+                loops.push(loop);
+            }
         }
     }
 
     // 策略B: 自交闭合 — 扫描全部线段，提取所有有效闭合环
-    if (simplifiedPath.length >= 6) {
+    const disableIntersect = options?.disableIntersect ?? false;
+    if (!disableIntersect && simplifiedPath.length >= 6) {
         const n = simplifiedPath.length;
-        // 记录已被提取为闭合环的线段索引
-        const extractedSegments = new Set<number>();
+        // 记录已提取为闭合环的区间列表 [start, end]
+        const intervals: { start: number; end: number }[] = [];
 
         for (let i = 0; i < n - 3; i++) {
-            // 跳过已被之前环覆盖的线段
-            if (extractedSegments.has(i)) continue;
+            // 检查 i 是否落在已提取环的内部（允许在端点处重合）
+            const inExisting = intervals.some(interval => i > interval.start && i < interval.end);
+            if (inExisting) continue;
 
             for (let j = i + 2; j < n - 1; j++) {
-                // 跳过已被之前环覆盖的线段
-                if (extractedSegments.has(j)) continue;
+                const inExistingJ = intervals.some(interval => j > interval.start && j < interval.end);
+                if (inExistingJ) continue;
+
+                // 检查当前候选区间 [i, j] 与已有区间是否发生重叠
+                const overlaps = intervals.some(interval => i < interval.end && j > interval.start);
+                if (overlaps) continue;
 
                 const intersectPoint = findLineSegmentIntersection(
                     simplifiedPath[i], simplifiedPath[i + 1],
@@ -316,26 +331,21 @@ export function extractValidLoops(
                         timestamp: interpolatedTimestamp
                     };
 
-                    // 提取闭合环：从交点出发，沿路径走到 j+1，再回到交点
+                    // 提取闭合环：从交点出发，沿路径走到 j，再回到交点
                     const ring: Coord[] = [
                         intersectPointWithTimestamp,
-                        ...simplifiedPath.slice(i + 1, j + 2),
+                        ...simplifiedPath.slice(i + 1, j + 1),
                         intersectPointWithTimestamp,
                     ];
 
                     if (isValidPolygon(ring)) {
-                        const segKey = `${i}-${j + 1}`;
+                        const segKey = `${i}-${j}`;
                         if (!seen.has(segKey)) {
                             seen.add(segKey);
-                            // 标记该环覆盖的所有线段索引
-                            for (let s = i; s <= j + 1; s++) {
-                                extractedSegments.add(s);
-                            }
+                            intervals.push({ start: i, end: j });
                             loops.push(ring);
                         }
                     }
-                    // 找到一个有效环后，跳出内层循环，继续外层扫描下一个未覆盖线段
-                    break;
                 }
             }
         }
