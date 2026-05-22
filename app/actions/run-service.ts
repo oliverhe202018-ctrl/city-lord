@@ -744,7 +744,7 @@ export async function saveRunActivity(
         }
 
         // --- P0 Anti-Cheat MVP Validation ---
-        const pathPoints = (runData.path as any[]) || [];
+        pathPoints = (runData.path as any[]) || [];
 
         // P0 剥夺客户端距离计算权：服务端独立重算实际距离
         let actualDistanceKm: number;

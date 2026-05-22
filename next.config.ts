@@ -47,15 +47,6 @@ const withPWA = withPWAInit({
   },
 });
 
-const CAPACITOR_ORIGINS = [
-  'capacitor://localhost',
-  'http://localhost',
-  'ionic://localhost',
-];
-
-const DEV_ORIGINS = process.env.NODE_ENV === 'development' ? ['http://localhost:3000'] : [];
-const allowedOrigins = [...CAPACITOR_ORIGINS, ...DEV_ORIGINS].join(',');
-
 const nextConfig: NextConfig = {
   // Capacitor WebView 兼容配置
   trailingSlash: true,
@@ -66,7 +57,6 @@ const nextConfig: NextConfig = {
   experimental: {
     serverActions: {
       bodySizeLimit: '4mb',
-      timeout: 30000,
     },
   },
   images: {
@@ -91,7 +81,6 @@ const nextConfig: NextConfig = {
       {
         source: '/api/:path*',
         headers: [
-          { key: 'Access-Control-Allow-Origin', value: allowedOrigins },
           { key: 'Access-Control-Allow-Methods', value: 'GET,POST,PUT,PATCH,DELETE,OPTIONS' },
           { key: 'Access-Control-Allow-Headers', value: 'Content-Type,Authorization,X-Idempotency-Key' },
           { key: 'Access-Control-Allow-Credentials', value: 'true' },

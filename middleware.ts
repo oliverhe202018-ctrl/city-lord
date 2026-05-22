@@ -5,6 +5,7 @@ const ALLOWED_ORIGINS = [
   'capacitor://localhost',
   'http://localhost',
   'ionic://localhost',
+  'https://cl.4567666.xyz',
   ...(process.env.NODE_ENV === 'development' ? ['http://localhost:3000'] : []),
 ];
 

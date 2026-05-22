@@ -15,6 +15,31 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Capacitor } from "@capacitor/core"
 
+interface AgreementBoxProps {
+  id: string
+  agreed: boolean
+  setAgreed: (val: boolean) => void
+}
+
+function AgreementBox({ id, agreed, setAgreed }: AgreementBoxProps) {
+  return (
+    <div className="flex items-center justify-center space-x-2 py-2 mt-4 opacity-80">
+      <Checkbox
+        id={id}
+        checked={agreed}
+        onCheckedChange={(checked) => setAgreed(checked as boolean)}
+        className="h-3.5 w-3.5 border-white/40 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600"
+      />
+      <Label htmlFor={id} className="text-[10px] text-white/60">
+        我已阅读并同意
+        <Link href="/terms" className="text-green-400 hover:text-green-300 ml-0.5">《用户协议》</Link>
+        和
+        <Link href="/privacy" className="text-green-400 hover:text-green-300 ml-0.5">《隐私政策》</Link>
+      </Label>
+    </div>
+  )
+}
+
 function LoginPageContent() {
   const [email, setEmail] = useState("")
   const [phone, setPhone] = useState("")
@@ -301,22 +326,7 @@ function LoginPageContent() {
     }
   }
 
-  const AgreementBox = ({ id }: { id: string }) => (
-    <div className="flex items-center justify-center space-x-2 py-2 mt-4 opacity-80">
-      <Checkbox
-        id={id}
-        checked={agreed}
-        onCheckedChange={(checked) => setAgreed(checked as boolean)}
-        className="h-3.5 w-3.5 border-white/40 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600"
-      />
-      <Label htmlFor={id} className="text-[10px] text-white/60">
-        我已阅读并同意
-        <Link href="/terms" className="text-green-400 hover:text-green-300 ml-0.5">《用户协议》</Link>
-        和
-        <Link href="/privacy" className="text-green-400 hover:text-green-300 ml-0.5">《隐私政策》</Link>
-      </Label>
-    </div>
-  );
+
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#0a0f1a] p-4 relative overflow-hidden">
@@ -335,9 +345,9 @@ function LoginPageContent() {
 
         <Tabs defaultValue="login" className="w-full space-y-4">
           <TabsList className="grid w-full grid-cols-3 mb-4 bg-black/40 border border-white/10">
-            <TabsTrigger value="login">登录</TabsTrigger>
-            <TabsTrigger value="register">邮箱注册</TabsTrigger>
-            <TabsTrigger value="sms-register">手机注册</TabsTrigger>
+            <TabsTrigger value="login" className="text-white/60 data-[state=active]:bg-white data-[state=active]:text-black hover:text-white transition-all">登录</TabsTrigger>
+            <TabsTrigger value="register" className="text-white/60 data-[state=active]:bg-white data-[state=active]:text-black hover:text-white transition-all">邮箱注册</TabsTrigger>
+            <TabsTrigger value="sms-register" className="text-white/60 data-[state=active]:bg-white data-[state=active]:text-black hover:text-white transition-all">手机注册</TabsTrigger>
           </TabsList>
 
           <TabsContent value="login">
@@ -369,7 +379,7 @@ function LoginPageContent() {
                        <div className="relative"><Lock className="absolute left-3 top-3 h-4 w-4 text-white/40" /><Input type="password" name="account_secret" autoComplete="new-password" placeholder="密码" value={password} onChange={e => setPassword(e.target.value)} className="pl-10 bg-white/5 border-white/10 text-white" required /></div>
                     </div>
                     <Button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white" disabled={loading}>{loading ? <Loader2 className="animate-spin" /> : "登录"}</Button>
-                    <AgreementBox id="terms-pass" />
+                    <AgreementBox id="terms-pass" agreed={agreed} setAgreed={setAgreed} />
                     <div className="text-center mt-2 font-mono"><Link href="/reset-password" onClick={() => logEvent('forgot_password_click')} className="text-[10px] text-green-400 hover:underline">忘记密码？</Link></div>
                   </form>
                 )}
@@ -386,7 +396,7 @@ function LoginPageContent() {
                       </div>
                     </div>
                     <Button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white" disabled={loading}>{loading ? <Loader2 className="animate-spin" /> : "登录"}</Button>
-                    <AgreementBox id="terms-code" />
+                    <AgreementBox id="terms-code" agreed={agreed} setAgreed={setAgreed} />
                   </form>
                 )}
 
@@ -402,7 +412,7 @@ function LoginPageContent() {
                       </div>
                     </div>
                     <Button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white" disabled={loading}>{loading ? <Loader2 className="animate-spin" /> : "登录"}</Button>
-                    <AgreementBox id="terms-sms" />
+                    <AgreementBox id="terms-sms" agreed={agreed} setAgreed={setAgreed} />
                   </form>
                 )}
               </CardContent>
@@ -425,7 +435,7 @@ function LoginPageContent() {
                     <div className="relative"><Lock className="absolute left-3 top-3 h-4 w-4 text-white/40" /><Input type="password" name="account_secret" autoComplete="new-password" placeholder="设置密码" value={password} onChange={e => setPassword(e.target.value)} className="pl-10 bg-white/5 border-white/10 text-white" required minLength={6} /></div>
                   </div>
                   <Button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white" disabled={loading}>注册并登录</Button>
-                  <AgreementBox id="terms-reg" />
+                  <AgreementBox id="terms-reg" agreed={agreed} setAgreed={setAgreed} />
                 </form>
               </CardContent>
             </Card>
@@ -447,7 +457,7 @@ function LoginPageContent() {
                     <div className="relative"><Lock className="absolute left-3 top-3 h-4 w-4 text-white/40" /><Input type="password" name="account_secret" autoComplete="new-password" placeholder="设置密码" value={password} onChange={e => setPassword(e.target.value)} className="pl-10 bg-white/5 border-white/10 text-white" required minLength={6} /></div>
                   </div>
                   <Button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white" disabled={loading}>注册并登录</Button>
-                  <AgreementBox id="terms-sms-reg" />
+                  <AgreementBox id="terms-sms-reg" agreed={agreed} setAgreed={setAgreed} />
                 </form>
               </CardContent>
             </Card>
