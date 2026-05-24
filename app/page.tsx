@@ -38,10 +38,16 @@ export default function CityLordApp() {
           console.warn("Auth check warning:", error.message);
         }
         setUser(user);
+        if (!user) {
+          window.location.href = '/login';
+          return;
+        }
       } catch (e) {
         console.error("Auth init exception:", e);
         // On error/timeout, assume no user (show login)
         setUser(null);
+        window.location.href = '/login';
+        return;
       } finally {
         setLoading(false);
       }

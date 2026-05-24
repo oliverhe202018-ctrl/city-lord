@@ -28,24 +28,27 @@ export function TrajectoryLayer({
         // 第一层防重防线
         if (polylineRef.current) return;
 
-        // 必须使用 plugin 异步加载高德图层插件
-        window.AMap.plugin(['AMap.Polyline'], () => {
-            // 第二层防并发重入防线
-            if (polylineRef.current) return;
+        const polylineOptions: any = {
+            strokeColor,
+            strokeWeight,
+            borderWeight: 1,
+            isOutline: true,
+            outlineColor: '#ffffff',
+            lineJoin: 'round',
+            lineCap: 'round',
+        };
 
-            polylineRef.current = new window.AMap.Polyline({
-                path: [],
-                strokeColor,
-                strokeWeight,
-                borderWeight: 1,
-                isOutline: true,
-                outlineColor: '#ffffff',
-                lineJoin: 'round',
-                lineCap: 'round',
-            });
+        const initialAmapPath = (path || [])
+            .filter(p => p && Number.isFinite(p.lat) && Number.isFinite(p.lng))
+            .map(p => new window.AMap.LngLat(p.lng, p.lat));
 
-            map.add(polylineRef.current);
-        });
+        if (initialAmapPath.length > 0) {
+            polylineOptions.path = initialAmapPath;
+        }
+
+        polylineRef.current = new window.AMap.Polyline(polylineOptions);
+
+        map.add(polylineRef.current);
 
         return () => {
             if (map && polylineRef.current) {
@@ -57,18 +60,14 @@ export function TrajectoryLayer({
     }, [map, strokeColor, strokeWeight]);
 
     useEffect(() => {
-        if (!polylineRef.current) return;
+        if (!polylineRef.current || !window.AMap) return;
         if (!path || path.length === 0) {
             polylineRef.current.setPath([]);
             return;
         }
         const amapPath = path
             .filter(p => p && Number.isFinite(p.lat) && Number.isFinite(p.lng))
-            .map(p => [p.lng, p.lat] as [number, number]);
-        if (amapPath.length === 0) {
-            polylineRef.current.setPath([]);
-            return;
-        }
+            .map(p => new window.AMap.LngLat(p.lng, p.lat));
         polylineRef.current.setPath(amapPath);
     }, [path]);
 

@@ -2,6 +2,7 @@
 
 import { create } from 'zustand';
 import type { GeoPoint, LocationStatus } from '@/hooks/useSafeGeolocation';
+import { haversineDistance } from '@/lib/amap-location-bridge';
 
 export const GPS_START_ANCHOR_ACCURACY_METERS = 80;
 export const GPS_TRACKING_ACCURACY_METERS = 30;
@@ -11,6 +12,16 @@ export const GPS_START_WARMUP_INTERVAL_MS = 1000;
 export const GPS_BROWSE_INTERVAL_MS = 1000;
 export const GPS_START_WARMUP_DISTANCE_FILTER_METERS = 3;
 const WARMUP_BUFFER_LIMIT = 12;
+
+// ---------------------------------------------------------------------------
+// Anti-Cheat & Data Quality Constants
+// ---------------------------------------------------------------------------
+
+/** 人类跑步/步行不可能达到的瞬时速度上限 (m/s) — 12m/s ≈ 43km/h */
+const MAX_INSTANTANEOUS_SPEED_MS = 12;
+
+/** 时间回拨容差 (ms) — 超过此值视为异常回拨 */
+const TIME_ROLLBACK_TOLERANCE_MS = 5000;
 
 // ---------------------------------------------------------------------------
 // useLocationStore — Global GPS state (runtime-only, NOT persisted)
@@ -154,6 +165,23 @@ export const useLocationStore = create<LocationStoreState>()((set) => ({
     lastLocationTimestamp: initial.location?.timestamp ?? 0,
     currentRunId: null,
     appendWarmupSample: (point) => set((state) => {
+        // P0 #2 — Mock 虚拟定位拦截：不推入预热历史（开发环境放行以支持模拟器测试）
+        const isDev = process.env.NODE_ENV === 'development';
+        if (point.isMock === true && !isDev) {
+            console.warn('[Store] Mock location detected, rejecting from prewarm history');
+            return {};
+        }
+
+        // P2 #5 — 时间回拨防呆：校验单调性
+        const lastTs = state.prewarmHistory.length > 0
+            ? (state.prewarmHistory[state.prewarmHistory.length - 1].timestamp ?? 0)
+            : 0;
+        const pointTs = point.timestamp ?? Date.now();
+        if (pointTs < lastTs - TIME_ROLLBACK_TOLERANCE_MS) {
+            console.warn(`[Store] Time rollback detected (${pointTs - lastTs}ms), skipping sample`);
+            return {};
+        }
+
         const newHistory = [...state.prewarmHistory.slice(-(PREWARM_HISTORY_MAX_LENGTH - 1)), point];
         return {
             warmupSamples: [...state.warmupSamples.slice(-(WARMUP_BUFFER_LIMIT - 1)), point],
@@ -178,15 +206,33 @@ export const useLocationStore = create<LocationStoreState>()((set) => ({
         const state = useLocationStore.getState();
         const now = Date.now();
         const cutoff = now - PREWARM_HISTORY_WINDOW_MS;
+        const history = state.prewarmHistory;
 
-        // Filter: within time window AND accuracy <= maxAccuracy
-        const validSamples = state.prewarmHistory.filter(
-            (p: GeoPoint) => {
-                const ts = p.timestamp ?? 0;
-                const acc = p.accuracy ?? Infinity;
-                return ts >= cutoff && acc <= maxAccuracy;
+        // Filter: within time window AND accuracy <= maxAccuracy AND instantaneous speed check
+        const validSamples = history.filter((p: GeoPoint, idx: number) => {
+            const ts = p.timestamp ?? 0;
+            const acc = p.accuracy ?? Infinity;
+            if (ts < cutoff || acc > maxAccuracy) return false;
+
+            // P0 #1 — 瞬时速度过滤：与前后邻近点比较，排除基站漂移伪高精
+            for (let di = -1; di <= 1; di += 2) {
+                const neighborIdx = idx + di;
+                if (neighborIdx < 0 || neighborIdx >= history.length) continue;
+                const neighbor = history[neighborIdx];
+                const dt = Math.abs(ts - (neighbor.timestamp ?? 0)) / 1000;
+                if (dt <= 0.5 || dt > 60) continue; // 忽略太近或太远的时间差
+
+                const dist = haversineDistance(p.lat, p.lng, neighbor.lat, neighbor.lng);
+                const speed = dist / dt;
+                if (speed > MAX_INSTANTANEOUS_SPEED_MS) {
+                    console.debug(
+                        `[Store] Instantaneous speed ${speed.toFixed(1)}m/s exceeds ${MAX_INSTANTANEOUS_SPEED_MS}m/s, rejecting sample`
+                    );
+                    return false;
+                }
             }
-        );
+            return true;
+        });
 
         if (validSamples.length === 0) return null;
 

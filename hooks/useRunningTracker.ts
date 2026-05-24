@@ -16,6 +16,7 @@ import {
   useLocationStore,
   GPS_START_ANCHOR_ACCURACY_METERS,
   GPS_TRACKING_ACCURACY_METERS,
+  GPS_DISPLAY_ACCURACY_METERS,
 } from '@/store/useLocationStore';
 import { getDistanceFromLatLonInMeters, LOOP_CLOSURE_THRESHOLD_M, LOOP_CLOSURE_SNAP_M, isLoopClosed, MIN_LOOP_POINTS, extractValidLoops, isDuplicatePolygon } from '@/lib/geometry-utils';
 import { shouldAcceptPointByDistance } from '@/lib/location/gps-spatial-filter';
@@ -65,6 +66,7 @@ export interface Location {
   lat: number;
   lng: number;
   timestamp: number;
+  accuracy?: number;
 }
 
 interface RunningStats {
@@ -738,14 +740,20 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         return;
       }
     } else if (accuracy != null && accuracy > GPS_TRACKING_ACCURACY_METERS) {
-      console.debug(`[GPS-Filter] ❌ Layer 1 REJECT: accuracy ${accuracy.toFixed(0)}m > ${GPS_TRACKING_ACCURACY_METERS}m threshold`);
-      if (gpsWeakTimerRef.current === null) {
-        gpsWeakTimerRef.current = setTimeout(() => {
-          setIsGPSWeak(true);
-          gpsWeakTimerRef.current = null;
-        }, 5000);
+      // 起跑初期（前 20 个点）允许放行精度在展示门槛（100m）内的点，以便立即渲染轨迹，并在后台平滑修复
+      const isEarlyPhase = pathRef.current.length < 20;
+      if (isEarlyPhase && accuracy <= GPS_DISPLAY_ACCURACY_METERS) {
+        console.log(`[GPS-Filter] ⚠️ Early phase low-accuracy point accepted for instant rendering: accuracy ${accuracy.toFixed(0)}m`);
+      } else {
+        console.debug(`[GPS-Filter] ❌ Layer 1 REJECT: accuracy ${accuracy.toFixed(0)}m > ${GPS_TRACKING_ACCURACY_METERS}m threshold`);
+        if (gpsWeakTimerRef.current === null) {
+          gpsWeakTimerRef.current = setTimeout(() => {
+            setIsGPSWeak(true);
+            gpsWeakTimerRef.current = null;
+          }, 5000);
+        }
+        return;
       }
-      return;
     }
 
     // --- Layer 2: Speed Filter ---
@@ -783,7 +791,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     // Apply Kalman Smoothing (pass accuracy for dynamic R adjustment)
     newLoc = smoothLocation(newLoc, lastLocationRef.current, accuracy);
 
-    const finalLoc = newLoc;
+    const finalLoc = { ...newLoc, accuracy };
 
     // --- Phase 2: Warm-up & Jitter Filter ---
     // 展示流与记录流分离核心逻辑：
@@ -888,6 +896,30 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       setDistance(prev => prev + distFromLast);
     }
     lastLocationRef.current = finalLoc;
+
+    // P1 #4 — 步频-速度不匹配熔断：防止车载/骑行作弊（起跑前 20 个点预热期内挂起，平滑修正完成后激活）
+    const isWarmedUpAndSmoothed = pathRef.current.length >= 20;
+    if (prevLoc && distanceRef.current > 100 && isWarmedUpAndSmoothed) {
+      const timeDiffSec = (now - prevLoc.timestamp) / 1000;
+      if (timeDiffSec > 0.5) {
+        const speedMs = distFromLast / timeDiffSec;
+        const stepsPerKm = distanceRef.current > 0 && currentStepsRef.current > 0
+          ? (currentStepsRef.current / (distanceRef.current / 1000))
+          : 0;
+
+        // 速度 > 4m/s (14.4km/h) 且每公里步数 < 150 → 高度疑似车辆
+        if (speedMs > 4 && stepsPerKm < 150) {
+          console.warn(
+            `[AntiCheat] Speed/step mismatch: ${speedMs.toFixed(1)}m/s, ${stepsPerKm.toFixed(0)} steps/km — possible vehicle`
+          );
+          setClientFlags(prev => {
+            const next = [...prev, 'speed_step_mismatch'];
+            clientFlagsRef.current = next;
+            return next;
+          });
+        }
+      }
+    }
 
     // ========================================================================
     // 🎯 SMART LOOP CLOSURE (智能吸附) - DUAL-TRACK DETECTION
@@ -1040,10 +1072,59 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       }
     }
 
-    // Add ACTUAL GPS point to path (seamless continuation)
-    // 性能优化：使用 push 替代 spread 操作，避免 O(n) 数组复制
-    // 长距离跑步（>10km）时 pathRef 可能积累数千个点，spread 会导致 O(n²) 累积开销
     pathRef.current.push(finalLoc);
+ 
+    // 后台线性插值算法 (Linear Interpolation Back-Smoothing)
+    if (accuracy != null && accuracy <= GPS_TRACKING_ACCURACY_METERS) {
+      const currentPath = pathRef.current;
+      if (currentPath.length >= 3) {
+        let firstHighAccIndex = -1;
+        // 查找在黄金起点之后的第一个高精度点
+        for (let i = 1; i < currentPath.length; i++) {
+          const pt = currentPath[i] as any;
+          if (pt.accuracy != null && pt.accuracy <= GPS_TRACKING_ACCURACY_METERS) {
+            firstHighAccIndex = i;
+            break;
+          }
+        }
+ 
+        // 如果在第一个高精度点之前存在低精度脏点，启动插值重写与里程校准
+        if (firstHighAccIndex > 1) {
+          console.log(`[GPS-Repair] 🛠️ Found first high-accuracy point at index ${firstHighAccIndex}. Smoothing preceding points...`);
+          const startPt = currentPath[0];
+          const endPt = currentPath[firstHighAccIndex];
+          const startTs = startPt.timestamp;
+          const endTs = endPt.timestamp;
+          const totalDuration = endTs - startTs;
+ 
+          if (totalDuration > 0) {
+            // 进行线性插值平滑位置重写
+            for (let i = 1; i < firstHighAccIndex; i++) {
+              const pt = currentPath[i];
+              const ratio = (pt.timestamp - startTs) / totalDuration;
+              pt.lat = startPt.lat + (endPt.lat - startPt.lat) * ratio;
+              pt.lng = startPt.lng + (endPt.lng - startPt.lng) * ratio;
+              (pt as any).accuracy = GPS_TRACKING_ACCURACY_METERS; // 提升精度，解除脏点状态
+            }
+ 
+            // 里程校准：重新计算整条 Path 的累计哈弗辛距离，覆盖更新 distanceRef.current 与 setDistance 状态，严防里程虚高
+            let newTotalDist = 0;
+            for (let i = 1; i < currentPath.length; i++) {
+              newTotalDist += getDistanceFromLatLonInMeters(
+                currentPath[i - 1].lat,
+                currentPath[i - 1].lng,
+                currentPath[i].lat,
+                currentPath[i].lng
+              );
+            }
+            distanceRef.current = newTotalDist;
+            setDistance(newTotalDist);
+            console.log(`[GPS-Repair] ✅ Back-smoothing completed. Recalculated cumulative distance: ${newTotalDist.toFixed(1)}m`);
+          }
+        }
+      }
+    }
+ 
     setPath([...pathRef.current]);
 
     // ========================================================================
@@ -1403,6 +1484,18 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   useEffect(() => {
     if (!isRunning || !gpsLocation || isStoppingRef.current) return;
 
+    // P0 #2 — Mock 虚拟定位防御纵深：Store 层已拦截，Tracker 层再次校验（开发环境放行以支持模拟器测试）
+    const isDev = process.env.NODE_ENV === 'development';
+    if ((gpsLocation as any).isMock === true && !isDev) {
+      console.warn('[AntiCheat] Mock location detected at tracker level, rejecting');
+      setClientFlags(prev => {
+        const next = [...prev, 'mock_location_detected'];
+        clientFlagsRef.current = next;
+        return next;
+      });
+      return;
+    }
+
     // GPS location already filtered by useSafeGeolocation:
     // - 50m accuracy threshold
     // - Null Island (0,0) prevention
@@ -1442,8 +1535,20 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       lat: anchor.lat,
       lng: anchor.lng,
       timestamp: anchor.timestamp ?? Date.now(),
+      accuracy: anchor.accuracy,
     };
     setCurrentLocation(lastLocationRef.current);
+
+    // 同步将 anchor 坐标作为首点推入 pathRef.current 并更新 state，解决起跑 3m 轨迹断层问题
+    const startLoc: Location = {
+      lat: anchor.lat,
+      lng: anchor.lng,
+      timestamp: anchor.timestamp ?? Date.now(),
+      accuracy: anchor.accuracy,
+    };
+    pathRef.current = [startLoc];
+    setPath([startLoc]);
+    setDisplayPath([startLoc]);
   }, []);
 
   // Wake Lock (keep screen on during run)

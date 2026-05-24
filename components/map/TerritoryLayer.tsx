@@ -34,6 +34,8 @@ type TerritoryWithRender = ExtTerritory & {
   strokeWeight: number;
   areaM2: number;
   bbox: { minLng: number; maxLng: number; minLat: number; maxLat: number };
+  centerPoint: [number, number];
+  gridPoints: [number, number][];
   clubAvatarUrl: string | null;
   isClubMode: boolean;
 };
@@ -64,9 +66,24 @@ const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, ti
       url = `${process.env.NEXT_PUBLIC_API_SERVER || ""}${url}`;
     }
     const externalSignal = init?.signal;
-    const combinedSignal = externalSignal 
-      ? AbortSignal.any([externalSignal, timeoutController.signal])
-      : timeoutController.signal;
+    let combinedSignal = timeoutController.signal;
+    if (externalSignal) {
+      if (typeof AbortSignal !== "undefined" && "any" in AbortSignal && typeof (AbortSignal as any).any === "function") {
+        combinedSignal = (AbortSignal as any).any([externalSignal, timeoutController.signal]);
+      } else {
+        const controller = new AbortController();
+        const onAbort = () => {
+          try { controller.abort(); } catch {}
+        };
+        if (externalSignal.aborted || timeoutController.signal.aborted) {
+          controller.abort();
+        } else {
+          externalSignal.addEventListener("abort", onAbort);
+          timeoutController.signal.addEventListener("abort", onAbort);
+        }
+        combinedSignal = controller.signal;
+      }
+    }
     const { signal: _drop, ...restInit } = init ?? {};
     return await fetch(url, { ...restInit, signal: combinedSignal });
   } finally {
@@ -79,6 +96,7 @@ const fetchTerritories = async (
   signal?: AbortSignal
 ): Promise<ExtTerritory[]> => {
   const url = `/api/city/fetch-territories?cityId=${cityId}`;
+  console.log(`🔮 [fetchTerritories] Requesting: ${url}`);
   const res = await fetchWithTimeout(url, { 
     credentials: "include", 
     cache: "no-store",
@@ -235,7 +253,28 @@ const getOrLoadImage = (
   return null;
 };
 
-const getRoundedAvatarTile = (url: string, img: HTMLImageElement, tileSize: number): HTMLCanvasElement => {
+function hashString(str: string): number {
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) + hash) + str.charCodeAt(i);
+  }
+  return Math.abs(hash);
+}
+
+function deterministicShuffle<T>(array: T[], seedStr: string): T[] {
+  const arr = [...array];
+  let seed = hashString(seedStr);
+  for (let i = arr.length - 1; i > 0; i--) {
+    seed = (seed * 1664525 + 1013904223) % 4294967296;
+    const j = seed % (i + 1);
+    const temp = arr[i];
+    arr[i] = arr[j];
+    arr[j] = temp;
+  }
+  return arr;
+}
+
+const getRoundedAvatarTile = (url: string, img: HTMLImageElement, tileSize: 32 | 48 | 64): HTMLCanvasElement => {
   const cacheKey = `${url}::${tileSize}`;
   const cached = avatarTileCache.get(cacheKey);
   if (cached) return cached;
@@ -376,7 +415,7 @@ function renderTerritoriesOnCanvas(
   const viewportMaxLat = northEast.getLat();
 
   const currentZoom = map.getZoom?.() || 0;
-  
+
   // 根据缩放级别动态调整抽稀步长
   let stride = 1;
   if (currentZoom < 10) stride = 8;      // 低缩放级别，大幅抽稀
@@ -404,14 +443,17 @@ function renderTerritoriesOnCanvas(
     for (const ring of outerRings) {
       if (ring.length < 4) continue;
       
-      // 降采样绘制：根据 stride 抽稀点
+      // 降采样绘制：如果点数较少，不进行抽稀以防止多边形退化
+      const activeStride = ring.length < 30 ? 1 : stride;
       const downsampledRing: [number, number][] = [];
-      for (let i = 0; i < ring.length; i += stride) {
+      for (let i = 0; i < ring.length; i += activeStride) {
         downsampledRing.push(ring[i]);
       }
       // 确保闭合
-      if (downsampledRing.length > 0 && downsampledRing[downsampledRing.length - 1] !== ring[0]) {
-        downsampledRing.push(ring[0]);
+      const lastPt = downsampledRing[downsampledRing.length - 1];
+      const firstPt = ring[0];
+      if (downsampledRing.length > 0 && (Math.abs(lastPt[0] - firstPt[0]) > 1e-9 || Math.abs(lastPt[1] - firstPt[1]) > 1e-9)) {
+        downsampledRing.push([...firstPt]);
       }
       
       const pixels = downsampledRing
@@ -430,63 +472,100 @@ function renderTerritoriesOnCanvas(
         ctx.lineTo(pixels[i].x, pixels[i].y);
       }
       ctx.closePath();
-      let minPx = Infinity;
-      let maxPx = -Infinity;
-      let minPy = Infinity;
-      let maxPy = -Infinity;
-      for (const { x, y } of pixels) {
-        if (x < minPx) minPx = x;
-        if (x > maxPx) maxPx = x;
-        if (y < minPy) minPy = y;
-        if (y > maxPy) maxPy = y;
-      }
-      const pixelW = maxPx - minPx;
-      const pixelH = maxPy - minPy;
-      const pixelArea = pixelW * pixelH;
 
-      const useAvatarTiles =
-        territory.isClubMode &&
-        Boolean(territory.clubAvatarUrl) &&
-        pixelArea >= PIXEL_AREA_THRESHOLD;
+      // Always draw the base filled polygon first
+      ctx.fillStyle = territory.fillColor || "rgba(251, 146, 60, 0.5)";
+      ctx.globalAlpha = territory.fillOpacity;
+      ctx.fill();
+      ctx.globalAlpha = 1;
 
-      if (useAvatarTiles) {
+      // Always draw the boundary stroke
+      ctx.strokeStyle = territory.strokeColor || "rgba(234, 88, 12, 0.8)";
+      ctx.lineWidth = territory.strokeWeight || 1.5;
+      ctx.stroke();
+
+      const hasAvatar = territory.isClubMode && Boolean(territory.clubAvatarUrl);
+      if (hasAvatar) {
         const avatarUrl = territory.clubAvatarUrl as string;
         const cachedImg = getOrLoadImage(avatarUrl, () => {
           onNeedRedraw?.();
         });
 
         if (cachedImg) {
-          const tileSize = Math.min(128, Math.max(32, Math.round(pixelW * 0.3)));
-          const avatarTile = getRoundedAvatarTile(avatarUrl, cachedImg, tileSize);
-          const startX = Math.floor(minPx / tileSize) * tileSize;
-          const startY = Math.floor(minPy / tileSize) * tileSize;
+          const discreteSize: 32 | 48 = currentZoom >= 17 ? 32 : 48;
+          const avatarTile = getRoundedAvatarTile(avatarUrl, cachedImg, discreteSize);
 
-          ctx.save();
-          ctx.globalAlpha = territory.fillOpacity;
-          // clip() applies to the ring path created above, keeping avatar tiles inside the territory boundary.
-          ctx.clip();
-          for (let x = startX; x <= maxPx; x += tileSize) {
-            for (let y = startY; y <= maxPy; y += tileSize) {
-              ctx.drawImage(avatarTile, x, y);
+          const finalPointsToDraw: { x: number; y: number }[] = [];
+
+          if (currentZoom < 14) {
+            // Zoom < 14: Only 1 avatar at centerPoint
+            const p = map.lngLatToContainer?.(new AMapGlobal.LngLat(territory.centerPoint[0], territory.centerPoint[1]));
+            if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) {
+              const x = Number(p.x);
+              const y = Number(p.y);
+              if (x >= -discreteSize && x <= canvas.width + discreteSize && y >= -discreteSize && y <= canvas.height + discreteSize) {
+                finalPointsToDraw.push({ x, y });
+              }
+            }
+          } else if (currentZoom < 17) {
+            // 14 <= Zoom < 17: Sparse layout
+            const maxCandidates = currentZoom < 15 ? 3 : (currentZoom < 16 ? 6 : 9);
+            const shuffledGrid = deterministicShuffle(territory.gridPoints, `${territory.id}_${Math.floor(currentZoom)}`);
+            const candidatePoints = [territory.centerPoint, ...shuffledGrid].slice(0, maxCandidates);
+
+            const minDistance = 2.5 * discreteSize;
+            for (const pt of candidatePoints) {
+              const p = map.lngLatToContainer?.(new AMapGlobal.LngLat(pt[0], pt[1]));
+              if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) {
+                const x = Number(p.x);
+                const y = Number(p.y);
+                if (x >= -discreteSize && x <= canvas.width + discreteSize && y >= -discreteSize && y <= canvas.height + discreteSize) {
+                  // Greedy overlap check in pixel space
+                  let tooClose = false;
+                  for (const cp of finalPointsToDraw) {
+                    const dx = x - cp.x;
+                    const dy = y - cp.y;
+                    if (Math.hypot(dx, dy) < minDistance) {
+                      tooClose = true;
+                      break;
+                    }
+                  }
+                  if (!tooClose) {
+                    finalPointsToDraw.push({ x, y });
+                  }
+                }
+              }
+            }
+          } else {
+            // Zoom >= 17: Dense layout
+            const allPoints = [territory.centerPoint, ...territory.gridPoints];
+            for (const pt of allPoints) {
+              const p = map.lngLatToContainer?.(new AMapGlobal.LngLat(pt[0], pt[1]));
+              if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) {
+                const x = Number(p.x);
+                const y = Number(p.y);
+                if (x >= -discreteSize && x <= canvas.width + discreteSize && y >= -discreteSize && y <= canvas.height + discreteSize) {
+                  finalPointsToDraw.push({ x, y });
+                }
+              }
             }
           }
-          ctx.restore();
-        } else {
-          ctx.fillStyle = territory.fillColor || "rgba(251, 146, 60, 0.5)";
-          ctx.globalAlpha = territory.fillOpacity;
-          ctx.fill();
-          ctx.globalAlpha = 1;
-        }
-      } else {
-        ctx.fillStyle = territory.fillColor || "rgba(251, 146, 60, 0.5)";
-        ctx.globalAlpha = territory.fillOpacity;
-        ctx.fill();
-        ctx.globalAlpha = 1;
-      }
 
-      ctx.strokeStyle = territory.strokeColor || "rgba(234, 88, 12, 0.8)";
-      ctx.lineWidth = territory.strokeWeight || 1.5;
-      ctx.stroke();
+          // Clip drawing to territory polygon boundary
+          ctx.save();
+          ctx.clip();
+          for (const pt of finalPointsToDraw) {
+            ctx.drawImage(
+              avatarTile,
+              pt.x - discreteSize / 2,
+              pt.y - discreteSize / 2,
+              discreteSize,
+              discreteSize
+            );
+          }
+          ctx.restore();
+        }
+      }
     }
   }
 
@@ -533,6 +612,8 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
   
   // 防抖渲染，避免高频更新
   const renderDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  // P0-2 FIX: RAF ref
+  const redrawRAFRef = useRef<number | null>(null);
 
   const resolveFactionColor = useCallback((ownerFaction: string | null | undefined): string => {
     if (!ownerFaction) return "#64748b";
@@ -615,14 +696,89 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
         const rings = extractOuterRings(item.geojson_json);
         let bbox = { minLng: 0, maxLng: 0, minLat: 0, maxLat: 0 };
         let areaM2 = 0;
+        let centerPoint: [number, number] = [0, 0];
+        let gridPoints: [number, number][] = [];
 
         if (rings.length > 0) {
-          bbox = computeRingBBox(rings[0]);
+          const ring = rings[0];
+          bbox = computeRingBBox(ring);
           try {
-            const poly = turf.polygon([rings[0]]);
+            const poly = turf.polygon([ring]);
             areaM2 = turf.area(poly);
-          } catch {
+
+            // 1. Calculate centroid and validate inside polygon
+            let centroid: any;
+            let centerVal: [number, number] | null = null;
+            try {
+              centroid = turf.centroid(poly);
+              if (centroid && centroid.geometry && centroid.geometry.coordinates) {
+                const coords = centroid.geometry.coordinates as [number, number];
+                if (turf.booleanPointInPolygon(centroid, poly)) {
+                  centerVal = coords;
+                }
+              }
+            } catch (e) {
+              console.error("Centroid calculation failed", e);
+            }
+
+            // 2. Fallback to centerOfMass if centroid is outside
+            if (!centerVal) {
+              try {
+                const com = turf.centerOfMass(poly);
+                if (com && com.geometry && com.geometry.coordinates) {
+                  const coords = com.geometry.coordinates as [number, number];
+                  if (turf.booleanPointInPolygon(com, poly)) {
+                    centerVal = coords;
+                  }
+                }
+              } catch (e) {
+                console.error("Center of mass calculation failed", e);
+              }
+            }
+
+            // 3. Fallback to first coordinate of outer ring if both are outside (safest fallback)
+            if (!centerVal) {
+              centerVal = [ring[0][0], ring[0][1]];
+            }
+
+            centerPoint = centerVal;
+
+            // Generate deterministic grid points inside BBox
+            const candidates: [number, number][] = [];
+            const steps = 5; // 5x5 grid
+            const dLng = (bbox.maxLng - bbox.minLng) / (steps + 1);
+            const dLat = (bbox.maxLat - bbox.minLat) / (steps + 1);
+
+            for (let i = 1; i <= steps; i++) {
+              for (let j = 1; j <= steps; j++) {
+                const lng = bbox.minLng + i * dLng;
+                const lat = bbox.minLat + j * dLat;
+                const pt = turf.point([lng, lat]);
+                try {
+                  if (turf.booleanPointInPolygon(pt, poly)) {
+                    // Check that it doesn't duplicate the centerPoint exactly
+                    const distToCenterSq = Math.pow(lng - centerPoint[0], 2) + Math.pow(lat - centerPoint[1], 2);
+                    if (distToCenterSq > 1e-12) {
+                      candidates.push([lng, lat]);
+                    }
+                  }
+                } catch {}
+              }
+            }
+
+            // Sort candidates by distance to centerPoint to render from center outward
+            candidates.sort((a, b) => {
+              const distA = Math.pow(a[0] - centerPoint[0], 2) + Math.pow(a[1] - centerPoint[1], 2);
+              const distB = Math.pow(b[0] - centerPoint[0], 2) + Math.pow(b[1] - centerPoint[1], 2);
+              return distA - distB;
+            });
+
+            gridPoints = candidates.slice(0, 12);
+          } catch (e) {
+            console.error("Territory geometry processing failed", e);
             areaM2 = 0;
+            centerPoint = [(bbox.minLng + bbox.maxLng) / 2, (bbox.minLat + bbox.maxLat) / 2];
+            gridPoints = [];
           }
         }
 
@@ -634,6 +790,8 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
           strokeWeight: presentation.strokeWeight,
           areaM2,
           bbox,
+          centerPoint,
+          gridPoints,
           clubAvatarUrl: item.ownerClubId ? (clubAvatarMapRef.current.get(item.ownerClubId) ?? null) : null,
           isClubMode: mapDisplayMode === "club",
         };
@@ -699,63 +857,56 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
   const redrawCanvas = useCallback(() => {
     if (!map || !canvasRef.current || !isVisible) return;
     
-    // 性能优化：检查是否需要重绘
-    const currentZoom = map.getZoom?.() || 0;
-    const currentCenter = map.getCenter?.() || [0, 0];
-    // 修复：将 mapDisplayMode 纳入缓存校验因子，确保模式切换时强制重绘
-    const territoriesHash = JSON.stringify({
-      mode: mapDisplayMode,
-      ids: territoriesDataRef.current.map(t => t.id)
-    });
+    // P0-2 FIX: RAF throttle lock to prevent main thread blocking
+    if (redrawRAFRef.current !== null) return; // Already scheduled
     
-    // 检查缓存是否有效
-    if (lastRenderDataRef.current) {
-      const { territoriesHash: lastHash, canvasSize, mapZoom, mapCenter } = lastRenderDataRef.current;
+    redrawRAFRef.current = requestAnimationFrame(() => {
+      redrawRAFRef.current = null;
       
-      // 如果领地数据、画布尺寸、缩放级别、中心点、显示模式都未变化，则跳过重绘
-      if (territoriesHash === lastHash && 
-          canvasSize.width === canvasSizeRef.current.width && 
-          canvasSize.height === canvasSizeRef.current.height &&
-          Math.abs(mapZoom - currentZoom) < 0.1 &&
-          Math.abs(mapCenter[0] - currentCenter[0]) < 0.0001 &&
-          Math.abs(mapCenter[1] - currentCenter[1]) < 0.0001) {
-        return;
+      const currentZoom = map.getZoom?.() || 0;
+      const currentCenter = map.getCenter?.() || [0, 0];
+      const territoriesHash = JSON.stringify({
+        mode: mapDisplayMode,
+        ids: territoriesDataRef.current.map(t => t.id)
+      });
+      
+      // Check cache validity (with small tolerances to avoid redundant draws)
+      if (lastRenderDataRef.current) {
+        const { territoriesHash: lastHash, canvasSize, mapZoom, mapCenter } = lastRenderDataRef.current;
+        
+        if (territoriesHash === lastHash && 
+            canvasSize.width === canvasSizeRef.current.width && 
+            canvasSize.height === canvasSizeRef.current.height &&
+            Math.abs(mapZoom - currentZoom) < 0.005 &&
+            Math.abs(mapCenter[0] - currentCenter[0]) < 0.00001 &&
+            Math.abs(mapCenter[1] - currentCenter[1]) < 0.00001) {
+          return;
+        }
       }
-    }
-    
-    // 防抖处理：取消之前的渲染任务
-    if (renderDebounceRef.current) {
-      clearTimeout(renderDebounceRef.current);
-    }
-    
-    // 延迟渲染，避免高频更新
-    renderDebounceRef.current = setTimeout(() => {
+      
       renderTerritoriesOnCanvas(
         canvasRef.current!,
         map,
         territoriesDataRef.current,
         canvasSizeRef,
         () => {
-          if (!mapInteractingRef.current && canvasRef.current) {
-            renderTerritoriesOnCanvas(canvasRef.current, map, territoriesDataRef.current, canvasSizeRef, undefined, ownerProfileMapRef.current);
-          }
+          redrawCanvas();
         },
         ownerProfileMapRef.current
       );
       
-      // 更新缓存
+      // Update cache
       lastRenderDataRef.current = {
         territoriesHash,
         canvasSize: { ...canvasSizeRef.current },
         mapZoom: currentZoom,
         mapCenter: [currentCenter[0], currentCenter[1]] as [number, number]
       };
-      
-      renderDebounceRef.current = null;
-    }, 16); // 约60fps
+    });
   }, [isVisible, map, mapDisplayMode]);
 
   const loadTerritories = useCallback(async () => {
+    console.log(`🔮 [loadTerritories] Triggered. Map is ready: ${!!map}, City is ready: ${!!city}, City ID: ${city?.id}`);
     if (!map || !city) return;
     
     // 先取消旧请求（无论是否在加载中）
@@ -863,7 +1014,6 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
     const customLayer = new AMapGlobal.CustomLayer(canvas, { zIndex: 120, opacity: 1 });
 
     customLayer.render = () => {
-      if (mapInteractingRef.current) return;
       redrawCanvas();
     };
 
@@ -871,6 +1021,11 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
     customLayerRef.current = customLayer;
 
     return () => {
+      // 清理 RAF
+      if (redrawRAFRef.current !== null) {
+        cancelAnimationFrame(redrawRAFRef.current);
+        redrawRAFRef.current = null;
+      }
       // 清理防抖定时器
       if (renderDebounceRef.current) {
         clearTimeout(renderDebounceRef.current);
@@ -917,6 +1072,8 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
     map.on("dragstart", handleMoveStart);
     map.on("moveend", handleMoveEnd);
     map.on("zoomend", handleMoveEnd);
+    map.on("zoomchange", redrawCanvas);
+    map.on("mapmove", redrawCanvas);
 
     window.addEventListener("citylord:refresh-territories", handleRefresh);
     loadTerritories();
@@ -934,9 +1091,11 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
       map.off("dragstart", handleMoveStart);
       map.off("moveend", handleMoveEnd);
       map.off("zoomend", handleMoveEnd);
+      map.off("zoomchange", redrawCanvas);
+      map.off("mapmove", redrawCanvas);
       window.removeEventListener("citylord:refresh-territories", handleRefresh);
     };
-  }, [loadTerritories, map, recomputeViewportKing]);
+  }, [loadTerritories, map, recomputeViewportKing, redrawCanvas]);
 
   useEffect(() => {
     decorateTerritories(rawTerritoriesRef.current);

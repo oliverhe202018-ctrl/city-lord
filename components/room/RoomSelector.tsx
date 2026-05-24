@@ -16,9 +16,19 @@ const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, ti
       url = `${process.env.NEXT_PUBLIC_API_SERVER || ''}${url}`
     }
     return await fetch(url, { ...init, signal: controller.signal })
-  } catch (error) {
+  } catch (error: any) {
     console.debug('[fetchWithTimeout] Network warning:', error);
-    return new Response(JSON.stringify({ error: 'Network error or CORS issue' }), { status: 504, statusText: 'Frontend Timeout' })
+    const isTimeout = error.name === 'AbortError';
+    return new Response(
+      JSON.stringify({ 
+        error: isTimeout ? 'Request timed out' : 'Network error or CORS issue',
+        details: error.message 
+      }), 
+      { 
+        status: isTimeout ? 504 : 502, 
+        statusText: isTimeout ? 'Frontend Timeout' : 'Bad Gateway' 
+      }
+    )
   } finally {
     clearTimeout(timer)
   }
@@ -39,9 +49,16 @@ const getJoinedRooms = async (): Promise<{ success: boolean; rooms: Room[] }> =>
         errorDetail = 'Unable to read response body'
       }
       
-      console.error(
-        `[RoomSelector] Fetch failed with status ${status} ${statusText}: ${errorDetail}`
-      )
+      const isHandledStatus = status === 401 || status === 403 || status === 504;
+      if (isHandledStatus) {
+        console.warn(
+          `[RoomSelector] Fetch expected warning (HTTP ${status} ${statusText}): ${errorDetail}`
+        )
+      } else {
+        console.error(
+          `[RoomSelector] Fetch failed with status ${status} ${statusText}: ${errorDetail}`
+        )
+      }
       
       // 401/403: 未登录或无权限，静默返回空数组，避免 UI 白屏
       if (status === 401 || status === 403) {

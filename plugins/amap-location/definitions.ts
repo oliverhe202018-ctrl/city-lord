@@ -150,6 +150,11 @@ export interface AMapLocationPlugin {
         listenerFunc: (log: { eventName: string; reason?: string; data?: string; ts: number }) => void
     ): Promise<PluginListenerHandle>;
 
+    addListener(
+        eventName: 'systemEvent',
+        listenerFunc: (data: { eventName: string; ts: number }) => void
+    ): Promise<PluginListenerHandle>;
+
     removeAllListeners(): Promise<void>;
 
     // ---- 强制销毁（stop 超时保护） ----
@@ -197,6 +202,12 @@ export interface AMapLocationPlugin {
         route: 'manufacturer' | 'app_details' | 'system_settings';
         component: string;
     }>;
+
+    /**
+     * 跳转至系统的电池优化设置页面。
+     * 用于引导用户将应用加入电池优化白名单，防止后台被系统杀死。
+     */
+    openBatteryOptimizationSettings(): Promise<void>;
 
     // ---- Room 黑匣子持久化 (SQLite) ----
 

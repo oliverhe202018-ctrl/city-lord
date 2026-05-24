@@ -6,6 +6,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { TerritoryStatsAggregatorService } from '@/lib/services/territory-stats-aggregator';
 import { extractValidLoops, LOOP_CLOSURE_THRESHOLD_M } from '@/lib/geometry-utils';
+import { gcj02LngLatToWgs84 } from '@/lib/gis/coord-transform';
 import { tasks } from '@trigger.dev/sdk';
 import { processPostRunRewards } from '../game/gamification-dispatcher';
 import { MIN_TERRITORY_AREA_M2 } from '@/lib/constants/territory';
@@ -119,7 +120,12 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
     if (cleanedPolygons.length === 0) {
         return { success: false, createdTerritories: 0, reinforcedTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'Invalid geometry after cleaning' };
     }
-    const runAreaSqMeters = cleanedPolygons.reduce((sum, polygon) => sum + turf.area(polygon), 0);
+    // P0-1 FIX: Convert GCJ02 → WGS84 before area calculation for accuracy
+    const runAreaSqMeters = cleanedPolygons.reduce((sum, polygon) => {
+        const wgsCoords = gcj02LngLatToWgs84(polygon.geometry.coordinates[0] as [number, number][]);
+        const wgsPoly = turf.polygon([wgsCoords]);
+        return sum + turf.area(wgsPoly);
+    }, 0);
     if (runAreaSqMeters < MIN_TERRITORY_AREA_M2) {
         return { success: false, createdTerritories: 0, reinforcedTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'Run area too small' };
     }
@@ -188,6 +194,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
               AND ST_Intersects(t.geojson, ST_SetSRID(ST_GeomFromGeoJSON(${combinedGeometryJson}), 4326))
             ORDER BY overlap_ratio DESC
             LIMIT 1
+            FOR UPDATE SKIP LOCKED
         `;
             if (overlapRows.length > 0) {
                 bestPatrolOverlap = {
@@ -197,7 +204,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
             }
         } catch (sqlErr: any) {
             console.error(`[Patrol Overlap SQL Error] userId: ${userId}, runId: ${runId}, error: ${sqlErr.message}`);
-            return { success: false, createdTerritories: 0, reinforcedTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: `SQL Error: ${sqlErr.message}` };
+            throw new Error(`[Tx-Rollback] Patrol Overlap SQL Error: ${sqlErr.message}`);
         }
 
         // 2. Fetch overlapping territories using PostGIS BBox/Intersects (Raw SQL)
@@ -239,10 +246,11 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
             LEFT JOIN profiles p ON t.owner_id = p.id
             WHERE t.status = 'ACTIVE'::"TerritoryStatus"
             AND ST_Intersects(t.geojson, ST_GeomFromGeoJSON(${combinedGeometryJson}))
+            FOR UPDATE SKIP LOCKED
         `;
         } catch (sqlErr: any) {
             console.error(`[Settlement SQL Error] userId: ${userId}, runId: ${runId}, error: ${sqlErr.message}`);
-            return { success: false, createdTerritories: 0, reinforcedTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: `SQL Error: ${sqlErr.message}` };
+            throw new Error(`[Tx-Rollback] Settlement SQL Error: ${sqlErr.message}`);
         }
 
         const runnerProfile = await tx.profiles.findUnique({
@@ -297,21 +305,22 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
             }
         }
 
-        const actuallyDestroyedContainedIds = new Set<string>();
-
+        // 1. Process friendly / same-faction territories (Heal & Fortify)
         for (const existingTerr of overlappingTerritories) {
             const existingFeature = turf.feature(existingTerr.geometry);
-
             const territoryFaction = existingTerr.owner_faction ?? null;
             const beforeHealth = Number(existingTerr.health ?? existingTerr.current_hp ?? TERRITORY_MAX_HEALTH);
 
+            // Owner-own territory
             if (existingTerr.owner_id === userId) {
                 if (bestPatrolOverlap && bestPatrolOverlap.id === existingTerr.id) {
                     const newWorkingPolygons: Feature<Polygon>[] = [];
                     for (const poly of workingPolygons) {
                         const diff = difference(
-                            poly as Feature<Polygon | MultiPolygon>,
-                            existingFeature as Feature<Polygon | MultiPolygon>
+                            turf.featureCollection([
+                                poly as Feature<Polygon | MultiPolygon>,
+                                existingFeature as Feature<Polygon | MultiPolygon>
+                            ])
                         );
                         if (diff) {
                             if (diff.geometry.type === 'MultiPolygon') {
@@ -349,8 +358,10 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                 const newWorkingPolygons: Feature<Polygon>[] = [];
                 for (const poly of workingPolygons) {
                     const diff = difference(
-                        poly as Feature<Polygon | MultiPolygon>,
-                        existingFeature as Feature<Polygon | MultiPolygon>
+                        turf.featureCollection([
+                            poly as Feature<Polygon | MultiPolygon>,
+                            existingFeature as Feature<Polygon | MultiPolygon>
+                        ])
                     );
                     if (diff) {
                         if (diff.geometry.type === 'MultiPolygon') {
@@ -366,6 +377,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                 continue;
             }
 
+            // Teammate (same faction) territory
             if (runnerFaction && territoryFaction && runnerFaction === territoryFaction) {
                 const healedHealth = Math.min(TERRITORY_MAX_HEALTH, beforeHealth + ALLY_HEAL);
                 await tx.territories.update({
@@ -390,8 +402,10 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                 const newWorkingPolygons: Feature<Polygon>[] = [];
                 for (const poly of workingPolygons) {
                     const diff = difference(
-                        poly as Feature<Polygon | MultiPolygon>,
-                        existingFeature as Feature<Polygon | MultiPolygon>
+                        turf.featureCollection([
+                            poly as Feature<Polygon | MultiPolygon>,
+                            existingFeature as Feature<Polygon | MultiPolygon>
+                        ])
                     );
                     if (diff) {
                         if (diff.geometry.type === 'MultiPolygon') {
@@ -406,8 +420,18 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                 workingPolygons = newWorkingPolygons;
                 continue;
             }
+        }
 
-            // ─── Phase 3D: 离线冲突防御 — 时间戳倒挂校验 ───
+        // ─── Phase 3B: 固定伤害 + 实时切割 + 离散分裂 ───
+        const DAMAGE_PER_RUN = 10;
+        const damageMultiplier = 1 + runnerCritRate;
+
+        for (const existingTerr of overlappingTerritories) {
+            // Skip friendly / same faction (processed in the first loop)
+            if (existingTerr.owner_id === userId) continue;
+            const territoryFaction = existingTerr.owner_faction ?? null;
+            if (runnerFaction && territoryFaction && runnerFaction === territoryFaction) continue;
+
             const territoryLastAttackedAt = existingTerr.last_attacked_at
                 ? new Date(existingTerr.last_attacked_at).getTime()
                 : 0;
@@ -416,90 +440,190 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                 continue;
             }
 
-            // ─── Phase 3E: 删除旧 ENEMY_DAMAGE 双重扣血逻辑，统一走 Phase 3B 单链路 ───
-            continue;
-        }
+            const targetId = existingTerr.id;
+            const currentHp = Number(existingTerr.current_hp ?? 1000);
+            const maxHp = Number(existingTerr.max_hp ?? 1000);
+            const damage = (DAMAGE_PER_RUN * damageMultiplier) * 10;
 
-        // ─── Phase 3B: 固定伤害 + 血量衰减 + 血量归零后裁切 ───
-        const DAMAGE_PER_RUN = 10;
-        // Crit rate multiplier: damage = base * (1 + critRate)
-        const damageMultiplier = 1 + runnerCritRate;
+            const nextHp = Math.max(0, currentHp - damage);
+            const nextHealth = Math.round((nextHp / maxHp) * 100);
 
-        for (const existingTerr of overlappingTerritories) {
-            if (existingTerr.owner_id === userId) continue;
-            const territoryFaction = existingTerr.owner_faction ?? null;
-            if (runnerFaction && territoryFaction && runnerFaction === territoryFaction) continue;
+            // 1. Process ResidueZone (ST_Difference):
+            // Splitting residue into independent active polygons inheriting attributes (excluding HitZone area)
+            // Filter area < 50m² to avoid slivers
+            await tx.$executeRaw`
+                WITH difference_geom AS (
+                    SELECT ST_Difference(
+                        t.geojson,
+                        ST_SetSRID(ST_GeomFromGeoJSON(${combinedGeometryJson}), 4326)
+                    ) as geom
+                    FROM territories t
+                    WHERE t.id = ${targetId}
+                ),
+                dumped_polygons AS (
+                    SELECT (ST_Dump(ST_CollectionExtract(ST_MakeValid(geom), 3))).geom AS single_geom
+                    FROM difference_geom
+                ),
+                calculated AS (
+                    SELECT 
+                        single_geom,
+                        ST_Area(single_geom::geography) AS real_area
+                    FROM dumped_polygons
+                )
+                INSERT INTO territories (
+                    id, city_id, owner_id, owner_club_id, owner_faction, geojson, geojson_json,
+                    source_run_id, first_claimed_at, last_claimed_at,
+                    max_hp, current_hp, health, territory_type, score_weight, status,
+                    area_m2_exact, level
+                )
+                SELECT
+                    'terr_' || substring(replace(gen_random_uuid()::text, '-', ''), 1, 24),
+                    t.city_id,
+                    t.owner_id,
+                    t.owner_club_id,
+                    t.owner_faction,
+                    c.single_geom,
+                    ST_AsGeoJSON(c.single_geom)::jsonb,
+                    t.source_run_id,
+                    t.first_claimed_at,
+                    NOW(),
+                    t.max_hp,
+                    t.current_hp, -- inherits original current_hp
+                    t.health,     -- inherits original health percentage
+                    t.territory_type,
+                    t.score_weight,
+                    'ACTIVE'::"TerritoryStatus",
+                    c.real_area,
+                    t.level
+                FROM calculated c
+                CROSS JOIN territories t
+                WHERE t.id = ${targetId} AND c.real_area >= 50
+            `;
 
-            // 扣血逻辑：固定伤害，每次 10 点
-            // ─── Phase 3D: 离线冲突防御 — 时间戳倒挂校验 ───
-            const territoryLastAttackedAt3B = existingTerr.last_attacked_at
-                ? new Date(existingTerr.last_attacked_at).getTime()
-                : 0;
-            if (territoryLastAttackedAt3B > runEndTime) {
-                console.warn(`[Settlement][Offline Conflict 3B] runId: ${runId}, territory: ${existingTerr.id} - skipping. runEndTime < last_attacked_at`);
-                continue;
-            }
-
-            const baseDamage = DAMAGE_PER_RUN * damageMultiplier;
-            const nextHealth = Math.max(0, (existingTerr.health ?? 100) - baseDamage);
-
-            if (nextHealth > 0) {
-                // 血量尚存，扣血并裁切 workingPolygons，防止玩家新领地与敌方重叠
-                await tx.territories.update({
-                    where: { id: existingTerr.id },
-                    data: {
-                        health: nextHealth,
-                        last_attacked_at: new Date(),
-                    }
+            // 2. Process HitZone (ST_Intersection):
+            if (nextHp <= 0) {
+                // Destroyed / Captured: Attacker captures it.
+                // Do NOT subtract from workingPolygons.
+                result.destroyedTerritories++;
+                result.damageDetails.push({
+                    territoryId: targetId,
+                    ownerName: existingTerr.owner_name || 'Unknown',
+                    damage: currentHp,
+                    territoryType: existingTerr.territory_type,
+                    isDestroyed: true
                 });
+            } else {
+                // Damaged but not destroyed: Defender keeps HitZone with reduced HP.
+                // Subtract HitZone from attacker's workingPolygons.
+                const hitZoneRows = await tx.$queryRaw<{ id: string; geometry: any }[]>`
+                    WITH intersection_geom AS (
+                        SELECT ST_Intersection(
+                            t.geojson,
+                            ST_SetSRID(ST_GeomFromGeoJSON(${combinedGeometryJson}), 4326)
+                        ) as geom
+                        FROM territories t
+                        WHERE t.id = ${targetId}
+                    ),
+                    dumped_polygons AS (
+                        SELECT (ST_Dump(ST_CollectionExtract(ST_MakeValid(geom), 3))).geom AS single_geom
+                        FROM intersection_geom
+                    )
+                    SELECT 
+                        ${targetId} as id,
+                        ST_AsGeoJSON(single_geom)::jsonb as geometry
+                    FROM dumped_polygons
+                    WHERE ST_Area(single_geom::geography) >= 50
+                `;
 
-                const newWorkingPolygons: Feature<Polygon>[] = [];
-                const existingFeature = turf.feature(existingTerr.geometry) as Feature<Polygon | MultiPolygon>;
-                for (const poly of workingPolygons) {
-                    const diff = difference(
-                        poly as Feature<Polygon | MultiPolygon>,
-                        existingFeature
-                    );
-                    if (diff) {
-                        if (diff.geometry.type === 'MultiPolygon') {
-                            diff.geometry.coordinates.forEach((coords: any) => {
-                                newWorkingPolygons.push(turf.polygon(coords));
-                            });
-                        } else {
-                            newWorkingPolygons.push(diff as Feature<Polygon>);
+                for (const row of hitZoneRows) {
+                    const hitZoneFeature = turf.feature(row.geometry) as Feature<Polygon | MultiPolygon>;
+                    
+                    // Subtract from workingPolygons
+                    const newWorkingPolygons: Feature<Polygon>[] = [];
+                    for (const poly of workingPolygons) {
+                        const diff = difference(
+                            turf.featureCollection([
+                                poly,
+                                hitZoneFeature
+                            ])
+                        );
+                        if (diff) {
+                            if (diff.geometry.type === 'MultiPolygon') {
+                                diff.geometry.coordinates.forEach((coords: any) => {
+                                    newWorkingPolygons.push(turf.polygon(coords));
+                                });
+                            } else {
+                                newWorkingPolygons.push(diff as Feature<Polygon>);
+                            }
                         }
                     }
+                    workingPolygons = newWorkingPolygons;
+
+                    // Insert HitZone as defender's damaged territory
+                    await tx.$executeRaw`
+                        WITH geom_holder AS (
+                            SELECT ST_SetSRID(ST_GeomFromGeoJSON(${JSON.stringify(row.geometry)}), 4326) AS geom
+                        ),
+                        calculated AS (
+                            SELECT 
+                                geom,
+                                ST_Area(geom::geography) AS real_area
+                            FROM geom_holder
+                        )
+                        INSERT INTO territories (
+                            id, city_id, owner_id, owner_club_id, owner_faction, geojson, geojson_json,
+                            source_run_id, first_claimed_at, last_claimed_at,
+                            max_hp, current_hp, health, territory_type, score_weight, status,
+                            area_m2_exact, level
+                        )
+                        SELECT
+                            'terr_' || substring(replace(gen_random_uuid()::text, '-', ''), 1, 24),
+                            t.city_id,
+                            t.owner_id,
+                            t.owner_club_id,
+                            t.owner_faction,
+                            c.geom,
+                            ST_AsGeoJSON(c.geom)::jsonb,
+                            t.source_run_id,
+                            t.first_claimed_at,
+                            NOW(),
+                            t.max_hp,
+                            CAST(${nextHp} AS INTEGER),
+                            CAST(${nextHealth} AS INTEGER),
+                            t.territory_type,
+                            t.score_weight,
+                            'ACTIVE'::"TerritoryStatus",
+                            c.real_area,
+                            t.level
+                        FROM calculated c
+                        CROSS JOIN territories t
+                        WHERE t.id = ${targetId} AND c.real_area >= 50
+                    `;
                 }
-                workingPolygons = newWorkingPolygons;
-            } else {
-                // 血量归零 — 摧毁领地，标记 SUPERSEDED
-                // 跳过 difference 裁切：玩家的新轨迹已覆盖该区域，跳过裁切即完成吞并
-                await tx.territories.update({
-                    where: { id: existingTerr.id },
-                    data: { status: 'SUPERSEDED' as any, health: 0, last_attacked_at: new Date() }
+
+                result.damagedTerritories++;
+                result.damageDetails.push({
+                    territoryId: targetId,
+                    ownerName: existingTerr.owner_name || 'Unknown',
+                    damage: damage,
+                    territoryType: existingTerr.territory_type,
+                    isDestroyed: false
                 });
-                result.destroyedTerritories++;
-                if (existingTerr.is_contained) {
-                    actuallyDestroyedContainedIds.add(existingTerr.id);
-                }
             }
-        }
 
-        // 清理被完全吞噬的历史废块
-        const destroyedAndContainedIds = Array.from(actuallyDestroyedContainedIds);
-
-        if (destroyedAndContainedIds.length > 0) {
-            await tx.territories.updateMany({
-                where: { id: { in: destroyedAndContainedIds } },
+            // Mark the original territory as SUPERSEDED (since it has been replaced/split)
+            await tx.territories.update({
+                where: { id: targetId },
                 data: {
-                    status: 'SUPERSEDED' as any
+                    status: 'SUPERSEDED' as any,
+                    health: 0,
+                    current_hp: 0,
+                    last_attacked_at: new Date()
                 }
             });
         }
 
-        // 4. Generate New Territories
-        // After carving out existing alive territories, we have 1 or more polygons representing empty space + destroyed territories space
-
+        // 4. Generate New Territories (Discrete Polygons insertion)
         const triggeredEventIds: string[] = [];
 
         if (workingPolygons.length > 0) {
@@ -513,7 +637,6 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                     for (const event of activeRandomEvents) {
                         const point = turf.point([event.lng, event.lat]);
                         if (turf.booleanPointInPolygon(point, poly)) {
-                            // Ensure we only trigger once
                             if (!triggeredEventIds.includes(event.id)) {
                                 triggeredEventIds.push(event.id);
                             }
@@ -533,91 +656,130 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                 });
             }
 
-            let finalGeometry: Polygon | MultiPolygon;
+            // Insert each remaining polygon in workingPolygons as a separate record
+            for (const poly of workingPolygons) {
+                const preCalcArea = turf.area(poly);
 
-            if (workingPolygons.length === 1) {
-                finalGeometry = workingPolygons[0].geometry as Polygon | MultiPolygon;
-            } else {
-                const coords = workingPolygons.map(f => {
-                    if (f.geometry.type === 'Polygon') {
-                        return [(f.geometry as Polygon).coordinates];
-                    } else if (f.geometry.type === 'MultiPolygon') {
-                        return (f.geometry as unknown as MultiPolygon).coordinates;
-                    }
-                    return [];
-                }).flat(1);
+                if (preCalcArea >= 50) { // filter slivers < 50m²
+                    const newId = `terr_${globalThis.crypto.randomUUID().replace(/-/g, '').substring(0, 24)}`;
+                    const geojsonStr = JSON.stringify(poly.geometry);
 
-                finalGeometry = turf.multiPolygon(coords as any).geometry as unknown as MultiPolygon;
-            }
-
-            const preCalcArea = turf.area(turf.feature(finalGeometry));
-
-            if (preCalcArea >= MIN_TERRITORY_AREA_M2) {
-                const newId = `terr_${globalThis.crypto.randomUUID().replace(/-/g, '').substring(0, 24)}`;
-                // TODO[LBS-Sec]: 当前城市判定依赖 fallback。需引入区划边界多边形数据，改为 ST_Intersects(cities.geom, territory.geom) 进行后端强制判定。
-                const geojsonStr = JSON.stringify(finalGeometry);
-
-                const affectedRows = await tx.$executeRaw`
-                    WITH validated AS (
-                        SELECT ST_CollectionExtract(
-                            ST_MakeValid(ST_GeomFromGeoJSON(${geojsonStr}::text)),
-                            3
-                        ) AS geom
-                    ),
-                    calculated AS (
-                        -- 在此层进行 PostGIS 原生地理面积计算，确保与最终多边形绝对同源
-                        SELECT 
+                    const affectedRows = await tx.$executeRaw`
+                        WITH validated AS (
+                            SELECT ST_CollectionExtract(
+                                ST_MakeValid(ST_GeomFromGeoJSON(${geojsonStr}::text)),
+                                3
+                            ) AS geom
+                        ),
+                        calculated AS (
+                            SELECT 
+                                geom,
+                                ST_Area(geom::geography) AS real_area
+                            FROM validated
+                        )
+                        INSERT INTO territories (
+                            id, city_id, owner_id, owner_club_id, owner_faction, geojson, geojson_json,
+                            source_run_id, first_claimed_at, last_claimed_at,
+                            max_hp, current_hp, health, territory_type, score_weight, status,
+                            area_m2_exact
+                        )
+                        SELECT
+                            ${newId},
+                            ${cityId},
+                            CAST(${userId} AS UUID),
+                            CAST(${clubId ?? null} AS UUID),
+                            ${runnerFaction},
                             geom,
-                            ST_Area(geom::geography) AS real_area
-                        FROM validated
-                    )
-                    INSERT INTO territories (
-                        id, city_id, owner_id, owner_club_id, owner_faction, geojson, geojson_json,
-                        source_run_id, first_claimed_at, last_claimed_at,
-                        max_hp, current_hp, health, territory_type, score_weight, status,
-                        area_m2_exact
-                    )
-                    SELECT
-                        ${newId},
-                        ${cityId},
-                        CAST(${userId} AS UUID),
-                        CAST(${clubId ?? null} AS UUID),
-                        ${runnerFaction},
-                        geom,
-                        ST_AsGeoJSON(geom)::jsonb,
-                        CAST(${runId} AS UUID),
-                        NOW(), NOW(), 1000, 1000, 100,
-                        'NORMAL'::"TerritoryType",
-                        1.0,
-                        'ACTIVE'::"TerritoryStatus",
-                        real_area
-                    FROM calculated
-                    WHERE real_area >= ${MIN_TERRITORY_AREA_M2}
-                `;
+                            ST_AsGeoJSON(geom)::jsonb,
+                            CAST(${runId} AS UUID),
+                            NOW(), NOW(), 1000, 1000, 100,
+                            'NORMAL'::"TerritoryType",
+                            1.0,
+                            'ACTIVE'::"TerritoryStatus",
+                            real_area
+                        FROM calculated
+                        WHERE real_area >= 50
+                    `;
 
-                if (affectedRows > 0) {
+                    if (affectedRows > 0) {
+                        await tx.territory_events.create({
+                            data: {
+                                territory_id: newId,
+                                event_type: 'CREATED',
+                                event_type_old: 'CREATED',
+                                user_id: userId,
+                                old_owner_id: null,
+                                new_owner_id: userId,
+                                old_club_id: null,
+                                new_club_id: clubId ?? null,
+                                old_faction: null,
+                                new_faction: runnerFaction,
+                                source_run_id: runId
+                            }
+                        });
 
-                    await tx.territory_events.create({
-                        data: {
-                            territory_id: newId,
-                            event_type: 'CREATED',
-                            event_type_old: 'CREATED',
-                            user_id: userId,
-                            old_owner_id: null,
-                            new_owner_id: userId,
-                            old_club_id: null,
-                            new_club_id: clubId ?? null,
-                            old_faction: null,
-                            new_faction: runnerFaction,
-                            source_run_id: runId
-                        }
-                    });
-
-                    result.createdTerritories++;
+                        result.createdTerritories++;
+                    }
                 }
             }
         }
-        if (result.createdTerritories > 0 || result.reinforcedTerritories > 0) {
+
+        // 5. Connected network recursive CTE calculation (Chain & Decay)
+        const usersToRefresh = new Set<string>();
+        usersToRefresh.add(userId);
+        for (const existingTerr of overlappingTerritories) {
+            if (existingTerr.owner_id) {
+                usersToRefresh.add(existingTerr.owner_id);
+            }
+        }
+
+        const usersArray = Array.from(usersToRefresh);
+        for (const uid of usersArray) {
+            // Find base camp ID: level DESC, area_m2_exact DESC
+            const baseCampRows = await tx.$queryRaw<{ id: string }[]>`
+                SELECT id
+                FROM territories
+                WHERE owner_id = ${uid}::uuid
+                  AND city_id = ${cityId}
+                  AND status = 'ACTIVE'::"TerritoryStatus"
+                ORDER BY level DESC, area_m2_exact DESC
+                LIMIT 1
+            `;
+
+            if (baseCampRows.length > 0) {
+                const baseCampId = baseCampRows[0].id;
+                // Recursive CTE checking connectivity to baseCampId
+                await tx.$executeRaw`
+                    WITH RECURSIVE connected_nodes AS (
+                        -- Anchor
+                        SELECT id, geojson
+                        FROM territories
+                        WHERE id = ${baseCampId} 
+                          AND status = 'ACTIVE'::"TerritoryStatus"
+
+                        UNION
+
+                        -- Recursive step
+                        SELECT t.id, t.geojson
+                        FROM territories t
+                        INNER JOIN connected_nodes c ON ST_Intersects(t.geojson, c.geojson)
+                        WHERE t.owner_id = ${uid}::uuid
+                          AND t.city_id = ${cityId}
+                          AND t.status = 'ACTIVE'::"TerritoryStatus"
+                    )
+                    UPDATE territories
+                    SET is_isolated = CASE 
+                        WHEN id IN (SELECT id FROM connected_nodes) THEN false 
+                        ELSE true 
+                    END
+                    WHERE owner_id = ${uid}::uuid
+                      AND city_id = ${cityId}
+                      AND status = 'ACTIVE'::"TerritoryStatus"
+                `;
+            }
+        }
+
+        if (result.createdTerritories > 0 || result.reinforcedTerritories > 0 || result.destroyedTerritories > 0 || result.damagedTerritories > 0) {
             // Update User City Progress atomically inside the global block
             await tx.$executeRaw`
                 INSERT INTO public.user_city_progress (user_id, city_id, tiles_captured, area_controlled, last_active_at, joined_at)
@@ -681,12 +843,10 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                         FROM public.territories t
                         WHERE t.owner_club_id = ${clubId}::uuid
                           AND t.status = 'ACTIVE'::"TerritoryStatus"
-                    ), 0),
-                    updated_at = NOW()
+                    ), 0)
                     WHERE id = ${clubId}::uuid
                 `;
             }
-            // Faction Stats will be aggregated asynchronously by trigger jobs or periodic stats tasks
 
             // Update User Global Profile Stats
             await tx.$executeRaw`
@@ -703,19 +863,23 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
         }
 
         return { ...result, triggeredEventIds };
-    }, { timeout: 30000, maxWait: 10000 });
+    }, { isolationLevel: 'Serializable', timeout: 30000 });
 
     // Fire-and-forget gamification task
     if (finalSettledResult.success) {
-        const run = await prisma.runs.findUnique({ where: { id: runId }, select: { distance_km: true } });
+        const run = await prisma.runs.findUnique({ where: { id: runId }, select: { distance: true } });
         if (run) {
-            await tasks.trigger<typeof processPostRunRewards>("process-post-run-rewards", {
-                userId,
-                runId,
-                distanceKm: run.distance_km ?? 0,
-                createdTerritories: finalSettledResult.createdTerritories,
-                triggeredEventIds: (finalSettledResult as any).triggeredEventIds || [],
-            });
+            try {
+                await tasks.trigger<typeof processPostRunRewards>("process-post-run-rewards", {
+                    userId,
+                    runId,
+                    distanceKm: run.distance ? (run.distance / 1000) : 0,
+                    createdTerritories: finalSettledResult.createdTerritories,
+                    triggeredEventIds: (finalSettledResult as any).triggeredEventIds || [],
+                });
+            } catch (err: any) {
+                console.error('[processTerritorySettlement] Failed to trigger process-post-run-rewards task:', err.message);
+            }
         }
     }
 

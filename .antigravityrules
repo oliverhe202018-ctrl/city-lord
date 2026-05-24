@@ -43,3 +43,14 @@ Implementation Plan 输出格式固定为：
 - 如果存在系统限制，必须明确写出“可实现上限”，不能伪造一个做不到的方案。
 - 如果信息不足，先基于现有代码给最佳猜测，并列出假设前提，不要直接停住。
 - 没有我的批准，不要输出“已修改代码”“最终代码”“可直接替换代码”。
+
+## Android 打包环境规则
+1. **打包本地测试文件**:
+   - 加载地址: `http://10.0.2.2:3000`
+   - 同步指令: `npx cap sync android` 或 `npm run cap:sync:dev`
+   - 打包指令: `gradlew.bat assembleDebug`
+2. **打包发送到手机测试的 APK**:
+   - 加载地址: `https://cl1.4567666.xyz`
+   - 同步指令: `cross-env CAP_ENV=production npx cap sync android` 或 `npm run cap:sync:prod`
+   - 打包指令: `gradlew.bat assembleDebug`
+

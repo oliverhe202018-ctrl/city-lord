@@ -20,8 +20,7 @@ function useAuthorizedFetcher() {
 
     // ✅ 关键修复：r.status === 401 时保留跳转逻辑并 throw new Error('Unauthorized')
     if (r.status === 401) {
-      router.replace('/login');
-      router.refresh();
+      window.location.href = '/login';
       throw new Error('Unauthorized');
     }
 

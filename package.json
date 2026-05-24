@@ -194,6 +194,7 @@
     "patch-package": "^8.0.1",
     "postcss": "^8.5",
     "prisma": "5.22.0",
+    "ssh2": "^1.17.0",
     "supabase": "^2.76.6",
     "tailwindcss": "^4.1.9",
     "trigger.dev": "^4.4.3",

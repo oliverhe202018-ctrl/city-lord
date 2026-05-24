@@ -59,4 +59,22 @@ export const baseCities: BaseCity[] = [
   { name: "兰州", pinyin: "lanzhou", abbr: "lz", adcode: "620100", province: "甘肃", center: [103.834303, 36.061089] },
   { name: "南昌", pinyin: "nanchang", abbr: "nc", adcode: "360100", province: "江西", center: [115.857963, 28.683016] },
   { name: "海口", pinyin: "haikou", abbr: "hk", adcode: "460100", province: "海南", center: [110.329315, 20.017377] },
+  {
+    name: "乌鲁木齐",
+    pinyin: "wulumuqi",
+    abbr: "wlmq",
+    adcode: "650100",
+    province: "新疆维吾尔自治区",
+    center: [87.6168, 43.8236],
+    districts: [
+      { name: "天山区", pinyin: "tianshan", abbr: "ts", adcode: "650102", center: [87.63167, 43.7944] },
+      { name: "沙依巴克区", pinyin: "shayibake", abbr: "sybk", adcode: "650103", center: [87.5978, 43.8011] },
+      { name: "新市区", pinyin: "xinshi", abbr: "xs", adcode: "650104", center: [87.5744, 43.8441] },
+      { name: "水磨沟区", pinyin: "shuimogou", abbr: "smg", adcode: "650105", center: [87.6425, 43.8324] },
+      { name: "头屯河区", pinyin: "toutunhe", abbr: "tth", adcode: "650106", center: [87.4116, 43.8778] },
+      { name: "达坂城区", pinyin: "dabancheng", abbr: "dbc", adcode: "650107", center: [88.3073, 43.3568] },
+      { name: "米东区", pinyin: "midong", abbr: "md", adcode: "650109", center: [87.6853, 43.9482] },
+      { name: "乌鲁木齐县", pinyin: "wulumuqixian", abbr: "wlmqx", adcode: "650121", center: [87.4093, 43.4716] },
+    ]
+  },
 ];

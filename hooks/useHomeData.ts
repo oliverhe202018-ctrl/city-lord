@@ -14,8 +14,7 @@ export function useHomeData(scope: string = 'nearby') {
     const fetcher = useCallback((url: string) =>
         fetch(url, { credentials: 'include' }).then((r) => {
             if (r.status === 401) {
-                router.replace('/login')
-                router.refresh()
+                window.location.href = '/login';
                 throw new Error('Unauthorized');
             }
             return r.json();

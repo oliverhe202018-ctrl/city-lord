@@ -72,8 +72,8 @@ export class KalmanFilter1D {
             return measurement;
         }
 
-        // 计算时间间隔（秒）
-        const dt = Math.max(0.001, (timestamp - this.lastTimestamp) / 1000);
+        // 计算时间间隔（秒）— 限制最小步长为 0.1s 以阻断分母接近零导致的数值爆炸
+        const dt = Math.max(0.1, (timestamp - this.lastTimestamp) / 1000);
         this.lastTimestamp = timestamp;
 
         // 限制 dt 防止长时间暂停后的大跳跃
@@ -122,7 +122,15 @@ export class KalmanFilter1D {
 
         // 状态更新: x = x' + K * y
         this.x = xPred + k0 * y;
-        this.v = vPred + k1 * y;
+        
+        // 限制速度估计值在 [-15.0, 15.0] 范围内，防止直角拐弯处数值过冲或三角形折叠
+        const rawNextV = vPred + k1 * y;
+        if (Math.abs(rawNextV) > 15.0) {
+            console.log(`[Kalman-Stable] Velocity state clamped. Corner trajectory smoothed.`);
+            this.v = Math.max(-15.0, Math.min(15.0, rawNextV));
+        } else {
+            this.v = rawNextV;
+        }
 
         // 协方差更新: P = (I - K * H) * P'
         this.p00 = (1 - k0) * p00Pred;

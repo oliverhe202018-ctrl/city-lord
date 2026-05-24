@@ -65,14 +65,6 @@ export function useRewardSettlement(runId: string | undefined) {
     }
   }, [queryClient, runId])
 
-  // Fetch pending rewards when settlement completes
-  useEffect(() => {
-    if (data?.status === 'COMPLETED' && !hasPolledPendingRef.current) {
-      hasPolledPendingRef.current = true
-      fetchPendingRewards()
-    }
-  }, [data?.status, fetchPendingRewards])
-
   const { data, error, isLoading, isError } = useQuery<RewardSettlementResponse>({
     queryKey: ['run-rewards', runId],
     queryFn: async () => {
@@ -106,6 +98,14 @@ export function useRewardSettlement(runId: string | undefined) {
     staleTime: 0, // Always consider data stale for immediate refetch
     gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
   })
+
+  // Fetch pending rewards when settlement completes
+  useEffect(() => {
+    if (data?.status === 'COMPLETED' && !hasPolledPendingRef.current) {
+      hasPolledPendingRef.current = true
+      fetchPendingRewards()
+    }
+  }, [data?.status, fetchPendingRewards])
 
   return {
     data,

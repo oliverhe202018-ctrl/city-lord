@@ -144,11 +144,17 @@ export function UserMarkerLayer({ map, position, isTracking, instantSync = false
     if (markerRef.current) return;
     const AMap = window.AMap;
     const center = map.getCenter?.();
-    const initialPosition = position
-      ? [position.lng, position.lat]
-      : center
-        ? [center.lng, center.lat]
-        : [0, 0];
+    
+    // Guard against invalid/undefined coordinates in initialPosition
+    const isValidPos = position && typeof position.lng === 'number' && typeof position.lat === 'number' && !isNaN(position.lng) && !isNaN(position.lat);
+    const isValidCenter = center && typeof center.lng === 'number' && typeof center.lat === 'number' && !isNaN(center.lng) && !isNaN(center.lat);
+    
+    const initialPosition = isValidPos
+      ? new AMap.LngLat(position.lng, position.lat)
+      : isValidCenter
+        ? new AMap.LngLat(center.lng, center.lat)
+        : new AMap.LngLat(116.397428, 39.90923); // Default to Beijing if unavailable
+
     const el = document.createElement('div');
     el.className = 'user-location-marker';
     el.innerHTML = `
@@ -158,7 +164,6 @@ export function UserMarkerLayer({ map, position, isTracking, instantSync = false
       </div>
     `;
     markerRef.current = new AMap.Marker({
-// @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
       position: initialPosition,
       content: el,
       zIndex: 100,
@@ -180,8 +185,15 @@ export function UserMarkerLayer({ map, position, isTracking, instantSync = false
   }, [map]);
 
   useEffect(() => {
-    if (!markerRef.current || !position) return;
-    const newPos: [number, number] = [position.lng, position.lat];
+    if (!markerRef.current || !position || !window.AMap) return;
+    
+    // Guard against invalid/undefined coordinates on updates
+    if (typeof position.lng !== 'number' || typeof position.lat !== 'number' || isNaN(position.lng) || isNaN(position.lat)) {
+      return;
+    }
+    
+    const newPos = new window.AMap.LngLat(position.lng, position.lat);
+    
     if (instantSync) {
       markerRef.current.setPosition(newPos);
       return;

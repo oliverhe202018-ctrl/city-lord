@@ -227,6 +227,71 @@ export function GamePageContent({
     }
   }, [activeTab]);
 
+  // P0-4: Achievement Queue helpers (must be declared before the mount effect that uses them)
+  const ACHIEVEMENT_QUEUE_KEY = 'achievement_pending_queue';
+
+  const processAchievementQueue = useCallback(async () => {
+    if (isShowingAchievementRef.current) return;
+    if (achievementQueueRef.current.length === 0) {
+      // Try to load from Preferences
+      try {
+        const { Preferences } = await import('@capacitor/preferences');
+        const res = await Preferences.get({ key: ACHIEVEMENT_QUEUE_KEY });
+        if (res.value) {
+          achievementQueueRef.current = JSON.parse(res.value);
+        }
+      } catch {
+        // Ignore
+      }
+    }
+
+    if (achievementQueueRef.current.length === 0) return;
+
+    const nextId = achievementQueueRef.current.shift();
+    // Persist updated queue
+    try {
+      const { Preferences } = await import('@capacitor/preferences');
+      await Preferences.set({
+        key: ACHIEVEMENT_QUEUE_KEY,
+        value: JSON.stringify(achievementQueueRef.current),
+      });
+    } catch {
+      // Ignore
+    }
+
+    if (!nextId) return;
+
+    const def = ACHIEVEMENT_DEFINITIONS.find(a => a.id === nextId);
+    if (def) {
+      isShowingAchievementRef.current = true;
+      setCurrentUnlockedAchievement(def);
+      setShowAchievement(true);
+    }
+  }, []);
+
+  const enqueueAchievement = useCallback(async (achievementId: string) => {
+    achievementQueueRef.current.push(achievementId);
+    try {
+      const { Preferences } = await import('@capacitor/preferences');
+      await Preferences.set({
+        key: ACHIEVEMENT_QUEUE_KEY,
+        value: JSON.stringify(achievementQueueRef.current),
+      });
+    } catch {
+      // Ignore
+    }
+    // Try to show immediately if not already showing
+    processAchievementQueue();
+  }, [processAchievementQueue]);
+
+  // P0-4: On mount, process any pending achievements from the persistent queue
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      processAchievementQueue();
+    }, 1000); // Delay 1s to avoid interfering with initial page load
+    return () => clearTimeout(timer);
+  }, [processAchievementQueue]);
+
   // Realtime Battle Alerts
   // ⚠️ DESIGN NOTE: 这里订阅 notifications 表是有意的双通道设计。
   // 本处负责：触发本地通知 (Native) / Toast (Web)
@@ -439,6 +504,8 @@ export function GamePageContent({
   const [showChallengeInvite, setShowChallengeInvite] = useState(false)
   const [showAchievement, setShowAchievement] = useState(false)
   const [currentUnlockedAchievement, setCurrentUnlockedAchievement] = useState<any>(null)
+  const achievementQueueRef = useRef<string[]>([]); // P0-4: pending achievement IDs
+  const isShowingAchievementRef = useRef(false); // P0-4: lock to prevent concurrent popups
 
   // New onboarding states
   const [showWelcome, setShowWelcome] = useState(false)
@@ -863,7 +930,10 @@ export function GamePageContent({
     } else {
       claimAchievement('marathon-hero')
     }
-    setShowAchievement(false)
+    setShowAchievement(false);
+    isShowingAchievementRef.current = false;
+    // P0-4: Process next achievement in queue after current one is dismissed
+    setTimeout(() => processAchievementQueue(), 300);
   }, [currentUnlockedAchievement, claimAchievement]);
 
   // Share achievement — Web Share API → Clipboard fallback
@@ -962,27 +1032,22 @@ export function GamePageContent({
     toast.loading('正在结算跑步数据...', { id: settleToastId });
 
     const runEndTime = new Date().toISOString();
+    const rawPace = currentRunDistance > 0 ? durationSeconds / (currentRunDistance / 1000) : undefined;
     const payload = {
       distance: currentRunDistance,
       duration: durationSeconds || 0,
-      pace: pace || undefined,
+      pace: rawPace,
       endTime: runEndTime,
     };
 
     try {
       const result = await checkRunEndAchievements(payload);
 
-      if (result.success && result.awarded.length > 0) {
-        // Show each awarded achievement sequentially
+      if (result.success && result.awarded && result.awarded.length > 0) {
+        // P0-4: Enqueue achievements via persistent queue instead of direct setState
         for (const awarded of result.awarded) {
-          const def = ACHIEVEMENT_DEFINITIONS.find(a => a.id === awarded.badgeCode);
-          if (def) {
-            setCurrentUnlockedAchievement(def);
-            setShowAchievement(true);
-            // Brief pause between multiple achievements
-            if (result.awarded.length > 1) {
-              await new Promise(resolve => setTimeout(resolve, 1500));
-            }
+          if (awarded.badgeCode) {
+            await enqueueAchievement(awarded.badgeCode);
           }
         }
       }

@@ -32,7 +32,7 @@ import { useMapInteraction, MapInteractionProvider } from "@/components/map/MapI
 import { MapRoot } from "@/components/map/MapRoot"
 
 // ─── Timeout utility for promises that may hang after sleep ───
-const SAVE_TIMEOUT_MS = 15_000;
+const SAVE_TIMEOUT_MS = 45_000;
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return Promise.race([

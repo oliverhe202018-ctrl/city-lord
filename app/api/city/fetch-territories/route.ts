@@ -3,6 +3,9 @@ import { createClient } from '@/lib/supabase/server'
 import { fetchTerritories } from '@/app/actions/city'
 
 export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url)
+  const cityId = searchParams.get('cityId')
+  console.log(`📡 [GET /api/city/fetch-territories] Called with cityId: ${cityId}`);
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()

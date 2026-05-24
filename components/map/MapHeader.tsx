@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { useCity } from "@/contexts/CityContext";
 import { useRegion } from "@/contexts/RegionContext";
+import { useMap } from "@/components/map/AMapContext";
 import { useGameStore, useGameActions } from "@/store/useGameStore"
 import { useHydration } from "@/hooks/useHydration";
 import { ChevronDown, Calendar, Activity, MapPin, Navigation, User, Zap, Trophy, LogIn, X, Check, Users, Signal } from "lucide-react"
@@ -126,8 +127,9 @@ export function MapHeader({
   const [isExpanded, setIsExpanded] = useState(false)
   const router = useRouter()
   const { initializeLocationSystem } = useLocationContext()
-  const { region } = useRegion();
+  const { region, setRegion } = useRegion();
   const { currentCity, isLoading, leaderboard, currentCityProgress, totalPlayers } = useCity();
+  const { isLoaded } = useMap();
 
 
   const { gpsStatus, level, currentExp, maxExp, stamina, maxStamina, lastStaminaUpdate, activeDrawer, latitude, longitude, lastKnownLocation } = useGameStore();
@@ -194,15 +196,21 @@ export function MapHeader({
   // Also sync to Zustand store so HomeTopBar can display location
   const { setRegion: setStoreRegion } = useGameActions();
   useEffect(() => {
+    console.log(`🔮 [MapHeader Geocoder] Effect triggered. latitude: ${latitude}, longitude: ${longitude}, AMap defined: ${typeof window !== 'undefined' && !!(window as any).AMap}`);
     // Only run if we have valid coordinates and AMap is loaded
-    if (!latitude || !longitude || latitude === 0 || longitude === 0) return;
-    if (typeof window === 'undefined' || !window.AMap) return;
+    if (!isLoaded || !latitude || !longitude || latitude === 0 || longitude === 0) return;
+    if (typeof window === 'undefined' || !(window as any).AMap) return;
 
     // Load Geocoder plugin
-    window.AMap.plugin('AMap.Geocoder', () => {
-      const geocoder = new (window.AMap as any).Geocoder();
+    const AMap = (window as any).AMap;
+    console.log(`🔮 [MapHeader Geocoder] Loading AMap.Geocoder plugin...`);
+    AMap.plugin('AMap.Geocoder', () => {
+      console.log(`🔮 [MapHeader Geocoder] AMap.Geocoder loaded, instantiating...`);
+      const geocoder = new AMap.Geocoder();
 
+      console.log(`🔮 [MapHeader Geocoder] Calling getAddress for [${longitude}, ${latitude}]`);
       geocoder.getAddress([longitude, latitude], (status: string, result: any) => {
+        console.log(`🔮 [MapHeader Geocoder] getAddress returned. status: ${status}, info: ${result?.info}`);
         if (status === 'complete' && result.info === 'OK') {
           const addressComponent = result.regeocode?.addressComponent;
           if (addressComponent) {
@@ -210,6 +218,8 @@ export function MapHeader({
             const districtName = addressComponent.district || addressComponent.city || addressComponent.province || '未知区域';
             // More specific: township / street / neighborhood
             const streetOrTownship = addressComponent.township || addressComponent.street || addressComponent.neighborhood || '';
+
+            console.log(`🔮 [MapHeader Geocoder] Success: districtName=${districtName}, adcode=${addressComponent.adcode}, city=${addressComponent.city}`);
 
             // Only update UI + cache if value actually changed (prevents flicker)
             setCurrentDistrict(prev => {
@@ -227,6 +237,16 @@ export function MapHeader({
             const city = addressComponent.city || addressComponent.province || '';
             setStoreRegion(adcode, city, districtName);
 
+            // Sync to RegionContext so CityContext can update activeCity
+            setRegion({
+              regionType: 'county',
+              cityName: city,
+              countyName: districtName,
+              province: addressComponent.province,
+              adcode: adcode,
+              centerLngLat: [longitude, latitude],
+            });
+
             // Also set street-level name for more specific display
             if (streetOrTownship) {
               useGameStore.getState().setStreetName(streetOrTownship);
@@ -240,7 +260,7 @@ export function MapHeader({
         }
       });
     });
-  }, [latitude, longitude, setStoreRegion]);
+  }, [latitude, longitude, setStoreRegion, setRegion, isLoaded]);
 
   const [requestingLocation, setRequestingLocation] = useState(false);
 

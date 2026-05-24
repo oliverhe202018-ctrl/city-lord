@@ -7,6 +7,7 @@ import {
     ANTI_CHEAT_MOCK_PERCENT_THRESHOLD, 
     ANTI_CHEAT_RISK_THRESHOLDS 
 } from '@/lib/constants/anti-cheat';
+import { gcj02LngLatToWgs84 } from '@/lib/gis/coord-transform';
 
 export interface Point {
     lat: number;
@@ -56,7 +57,8 @@ export function validateRunAndRebuildTerritories(path: Point[]): AntiCheatValida
         const prev = path[i - 1];
         const curr = path[i];
 
-        if (curr.isMock) {
+        const isDev = process.env.NODE_ENV === 'development';
+        if (curr.isMock && !isDev) {
             mockCount++;
         }
 
@@ -107,8 +109,10 @@ export function validateRunAndRebuildTerritories(path: Point[]): AntiCheatValida
                 return;
             }
             
-            const coords = dedupedCoords.map((point) => [point.lng, point.lat] as [number, number]);
-            const poly = turf.polygon([coords]);
+            // P0-1 FIX: Convert GCJ02 → WGS84 before area calculation for accuracy
+            const gcj02Coords = dedupedCoords.map((point) => [point.lng, point.lat] as [number, number]);
+            const wgs84Coords = gcj02LngLatToWgs84(gcj02Coords);
+            const poly = turf.polygon([wgs84Coords]);
             const loopArea = turf.area(poly);
             if (loopArea >= MIN_TERRITORY_AREA_M2) {
                 validPolygons.push(loop);

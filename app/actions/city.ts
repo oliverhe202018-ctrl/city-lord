@@ -19,6 +19,7 @@ export interface CityLeaderboardEntry {
 }
 
 export async function fetchTerritories(cityId: string, bounds?: { minLng: number, minLat: number, maxLng: number, maxLat: number }): Promise<ExtTerritory[]> {
+  console.log(`📡 [fetchTerritories Action] Called for cityId: ${cityId}, hasBounds: ${!!bounds}`);
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   const currentUserId = user?.id

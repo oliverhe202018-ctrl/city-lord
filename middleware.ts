@@ -5,8 +5,8 @@ const ALLOWED_ORIGINS = [
   'capacitor://localhost',
   'http://localhost',
   'ionic://localhost',
-  'https://cl.4567666.xyz',
-  ...(process.env.NODE_ENV === 'development' ? ['http://localhost:3000'] : []),
+  'https://cl1.4567666.xyz',
+  ...(process.env.NODE_ENV === 'development' ? ['http://localhost:3000', 'http://10.0.2.2:3000'] : []),
 ];
 
 function setCorsHeaders(response: NextResponse, origin: string | null) {

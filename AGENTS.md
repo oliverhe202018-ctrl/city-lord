@@ -241,3 +241,16 @@ client.defineJob({
 Use SDK (`@trigger.dev/sdk`), check `result.ok` before accessing `result.output`
 
 <!-- TRIGGER.DEV basic END -->
+
+## Android 构建与打包环境规则 (Android Build & Packaging Rules)
+
+根据打包场景的不同，必须严格采用对应的同步指令与加载地址：
+
+1. **打包本地测试文件 (Local Test APK)**:
+   - **加载地址**: 本地模拟器回环地址 `http://10.0.2.2:3000`
+   - **同步指令**: `npx cap sync android`（或 `npm run cap:sync:dev`）
+   - **打包指令**: `gradlew.bat assembleDebug`
+2. **打包发送到手机上测试的 APK 文件 (Phone Test APK)**:
+   - **加载地址**: 远程生产地址 `https://cl1.4567666.xyz`
+   - **同步指令**: `cross-env CAP_ENV=production npx cap sync android`（或 `npm run cap:sync:prod`）
+   - **打包指令**: `gradlew.bat assembleDebug`

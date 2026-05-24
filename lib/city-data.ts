@@ -41,6 +41,12 @@ const cityOverrides: Record<string, Partial<City>> = {
     theme: { primary: "#0d9488", secondary: "#22c55e", accent: "#0ea5e9", glow: "#0d9488" },
     themeColors: { primary: "#0d9488", secondary: "#22c55e" },
   },
+  wulumuqi: {
+    description: "亚欧大陆中心，歌舞之乡",
+    icon: "🍇",
+    theme: { primary: "#a855f7", secondary: "#e9d5ff", accent: "#d8b4fe", glow: "#a855f7" },
+    themeColors: { primary: "#a855f7", secondary: "#e9d5ff" },
+  },
 };
 
 // Generate the full list of cities
@@ -62,6 +68,10 @@ export const getCityById = (id: string): City | undefined => {
 };
 
 export const getCityByAdcode = (adcode: string): City | undefined => {
+  // Test mapping override for emulator / mock location
+  if (adcode === '650402' || adcode === '650400' || adcode === '652101' || adcode === '652100') {
+    return cities.find(c => c.id === 'wulumuqi');
+  }
   for (const city of cities) {
     if (city.adcode === adcode) {
       return city;

@@ -60,6 +60,7 @@ export const ClaimedPolygonLayer = function ClaimedPolygonLayer({
 
     const mergedPolygonPaths = useMemo(() => {
         if (!polygons || polygons.length === 0) return [];
+        console.log('🔮 [ClaimedPolygonLayer] mergedPolygonPaths trigger, polygons count:', polygons.length);
         try {
             const turfPolys = polygons
                 .filter(p => p.length >= 3)
@@ -73,31 +74,15 @@ export const ClaimedPolygonLayer = function ClaimedPolygonLayer({
                     return turf.polygon([coords]);
                 });
 
+            console.log('🔮 [ClaimedPolygonLayer] turfPolys created count:', turfPolys.length);
             if (turfPolys.length === 0) return lastSuccessfulPathsRef.current;
 
-            const cleanedPolys = turfPolys.map(p => {
+            let merged = turfPolys[0] as Feature<Polygon | MultiPolygon>;
+            for (let i = 1; i < turfPolys.length; i++) {
                 try {
-                    const buffered = turf.buffer(p, 0.00001, { units: 'degrees' });
-                    return (buffered || p) as Feature<Polygon | MultiPolygon>;
-                } catch {
-                    return p;
-                }
-            });
-            
-            let merged = cleanedPolys[0] as Feature<Polygon | MultiPolygon>;
-            for (let i = 1; i < cleanedPolys.length; i++) {
-                try {
-                    const combined = turf.union(turf.featureCollection([merged, cleanedPolys[i]]));
+                    const combined = turf.union(turf.featureCollection([merged, turfPolys[i]]));
                     if (combined) {
                         merged = combined as Feature<Polygon | MultiPolygon>;
-                        try {
-                            const smoothed = turf.buffer(merged, 0.00001, { units: 'degrees' });
-                            if (smoothed) {
-                                merged = smoothed as Feature<Polygon | MultiPolygon>;
-                            }
-                        } catch {
-                            // skip smoothing if it fails
-                        }
                     }
                 } catch (e) {
                     console.warn('[Turf Error] 跳过非法多边形合并', e);
@@ -113,6 +98,7 @@ export const ClaimedPolygonLayer = function ClaimedPolygonLayer({
                 });
             }
 
+            console.log('🔮 [ClaimedPolygonLayer] amapPaths generated count:', amapPaths.length);
             if (amapPaths.length > 0) {
                 lastSuccessfulPathsRef.current = amapPaths;
             }
@@ -124,7 +110,11 @@ export const ClaimedPolygonLayer = function ClaimedPolygonLayer({
     }, [polygons.length]);
 
     useEffect(() => {
-        if (!map || !window.AMap) return;
+        if (!map || !window.AMap) {
+            console.log('🔮 [ClaimedPolygonLayer] useEffect early exit: map or window.AMap not ready');
+            return;
+        }
+        console.log('🔮 [ClaimedPolygonLayer] useEffect trigger, currentZoom:', currentZoom, 'mergedPolygonPaths count:', mergedPolygonPaths.length);
         
         // 优雅控制显隐：监听 currentZoom 的变化
         if (currentZoom < 10) {
@@ -133,8 +123,6 @@ export const ClaimedPolygonLayer = function ClaimedPolygonLayer({
             overlayPoolRef.current.forEach((overlay) => overlay.show?.());
         }
 
-        if (pathsAreEqual(prevPathsRef.current, mergedPolygonPaths)) return;
-        
         prevPathsRef.current = mergedPolygonPaths;
 
         const currentPaths = mergedPolygonPaths;
@@ -149,6 +137,7 @@ export const ClaimedPolygonLayer = function ClaimedPolygonLayer({
         overlayPoolRef.current.forEach((overlay, id) => {
             if (!currentIdSet.has(id)) {
                 try {
+                    console.log('🔮 [ClaimedPolygonLayer] Removing outdated polygon overlay:', id);
                     map?.remove?.(overlay);
                     overlay.destroy?.();
                     overlayPoolRef.current.delete(id);
@@ -161,21 +150,26 @@ export const ClaimedPolygonLayer = function ClaimedPolygonLayer({
         currentPaths.forEach((amapPath, index) => {
             const id = currentPathIds[index];
             
+            // Map coordinates from number[] to AMap.LngLat objects
+            const lngLatPath = amapPath.map(pt => new window.AMap.LngLat(pt[0], pt[1]));
+            console.log(`🔮 [ClaimedPolygonLayer] Rendering polygon ID: ${id}, points count: ${lngLatPath.length}`);
+            
             if (overlayPoolRef.current.has(id)) {
                 const existingOverlay = overlayPoolRef.current.get(id);
                 if (existingOverlay && existingOverlay.setPath) {
-                    existingOverlay.setPath(amapPath);
+                    existingOverlay.setPath(lngLatPath);
+                    console.log(`🔮 [ClaimedPolygonLayer] Updated existing polygon path for ID: ${id}`);
                 }
             } else {
                 // @ts-expect-error - Baseline exemption for pre-existing schema mismatch - [Ticket-202603-SchemaSync] baseline exemption
                 const poly = new window.AMap.Polygon({
-                    path: amapPath,
+                    path: lngLatPath,
                     fillColor,
                     fillOpacity,
                     strokeColor,
                     strokeWeight,
                     strokeOpacity: 0.6,
-                    zIndex: 40,
+                    zIndex: 130, // Render on top of FogLayer (zIndex: 100)
                 });
 
                 if (currentZoom < 10) {
@@ -184,6 +178,7 @@ export const ClaimedPolygonLayer = function ClaimedPolygonLayer({
 
                 map.add(poly);
                 overlayPoolRef.current.set(id, poly);
+                console.log(`🔮 [ClaimedPolygonLayer] Created new AMap.Polygon and added to map for ID: ${id}`);
             }
         });
 

@@ -98,6 +98,9 @@ public class LocationForegroundService extends Service implements AMapLocationLi
     // Broadcast action — 预热控制指令
     public static final String ACTION_PREWARM_CONTROL = "com.xiangfei.citylord.PREWARM_CONTROL";
 
+    // Broadcast action — 电池优化白名单引导
+    public static final String ACTION_BATTERY_OPT_NEEDED = "com.xiangfei.citylord.BATTERY_OPT_NEEDED";
+
 
 
     // AMap client
@@ -381,20 +384,18 @@ public class LocationForegroundService extends Service implements AMapLocationLi
     }
 
     /**
-     * 检测电池优化白名单状态，若未加入则通过 Broadcast 通知 JS 层弹窗引导用户。
+     * 检测电池优化白名单状态，若未加入则通过专用 Broadcast 通知 JS 层弹窗引导用户。
      * 这是所有运动类 App 的硬性标准，对抗 MIUI/EMUI 激进杀后台。
      */
     private void checkAndNotifyBatteryOptimization() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
             if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
-                Log.w(TAG, "App 不在电池优化白名单中，通知 JS 层引导用户");
-                // 通过 Broadcast 通知 JS 层
-                Intent intent = new Intent(ACTION_LOG_EVENT);
-                intent.putExtra(EXTRA_EVENT_NAME, "battery_optimization_needed");
-                intent.putExtra(EXTRA_EVENT_REASON, "app_not_in_whitelist");
+                Log.w(TAG, "App not in battery optimization whitelist, notifying JS layer");
+                // P1 #3 — 专用广播通知 JS 层引导用户加入白名单
+                Intent intent = new Intent(ACTION_BATTERY_OPT_NEEDED);
                 intent.putExtra("ts", System.currentTimeMillis());
-                LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
+                androidx.localbroadcastmanager.content.LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
             }
         }
     }

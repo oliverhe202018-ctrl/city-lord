@@ -7,7 +7,7 @@ import type { GeoPoint } from "@/hooks/useSafeGeolocation"
 import { toast } from "sonner"
 
 interface CountdownOverlayProps {
-  onComplete: (anchorPoint: GeoPoint) => void
+  onComplete: (anchorPoint?: GeoPoint) => void
 }
 
 /**
@@ -94,6 +94,9 @@ export function CountdownOverlay({ onComplete }: CountdownOverlayProps) {
             const currentLoc = useLocationStore.getState().location
             if (currentLoc) {
               onComplete(currentLoc)
+            } else {
+              // 强制放行但无任何定位，防止死锁
+              onComplete(undefined)
             }
           }
         }

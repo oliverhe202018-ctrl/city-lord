@@ -581,7 +581,7 @@ export const runSettlementTask = task({
 
         const userProfile = await prisma.profiles.findUnique({
             where: { id: userId },
-            select: { faction: true, stamina: true, max_stamina: true, last_stamina_update_at: true }
+            select: { faction: true, stamina: true, max_stamina: true }
         });
         const userFaction = userProfile?.faction ?? null;
         const currentStamina = userProfile?.stamina ?? 100;

@@ -101,6 +101,7 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
     const [isStartWarmupActive, setIsStartWarmupActiveState] = React.useState(false);
     const [isWatching, setIsWatching] = React.useState(false);
     const isWatchingRef = useRef(false);
+    const warmupTimerRef = useRef<NodeJS.Timeout | null>(null);
 
     // Keep ref in sync with React state
     useEffect(() => {
@@ -325,6 +326,15 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
                                 : 'none',
                 });
                 useLocationStore.getState().setLastLocationTimestamp(point.timestamp ?? Date.now());
+
+                // P0 #2 — Mock 虚拟定位拦截：不写入预热历史、不更新地图（开发环境放行以支持模拟器测试）
+                const isDev = process.env.NODE_ENV === 'development';
+                if (point.isMock === true && !isDev) {
+                    console.warn(`${TAG} [AntiCheat] Mock location rejected at bridge level`);
+                    useLocationStore.setState({ gpsSignalStrength: 'none' });
+                    return;
+                }
+
                 useLocationStore.getState().appendWarmupSample(point);
                 saveLocationToCache(point);
                 useGameStore.getState().updateLocation(point.lat, point.lng);
@@ -401,6 +411,7 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
 
         // --- App resume listener ---
         let appListenerHandle: { remove: () => void } | null = null;
+        let systemEventListenerHandle: { remove: () => void } | null = null;
         let isListenerMounted = true;
 
         (async () => {
@@ -446,10 +457,56 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
             }
         })();
 
+        // --- P1 #3 电池优化白名单引导监听 ---
+        (async () => {
+            try {
+                const { Capacitor } = await import('@capacitor/core');
+                if (Capacitor.isNativePlatform()) {
+                    const { AMapLocation } = await import('@/plugins/amap-location/definitions');
+                    const handle = await AMapLocation.addListener('systemEvent', (data) => {
+                        if (!mountedRef.current) return;
+                        if (data.eventName === 'battery_optimization_needed') {
+                            console.warn(`${TAG} [BatteryOpt] Native layer requests battery optimization whitelist`);
+                            // 通过 toast 引导用户加入电池优化白名单
+                            if (typeof window !== 'undefined') {
+                                const { toast } = require('sonner');
+                                toast.warning('为保持定位稳定，请将本应用加入电池优化白名单', {
+                                    duration: 10000,
+                                    action: {
+                                        label: '去设置',
+                                        onClick: async () => {
+                                            try {
+                                                // 通过原生插件打开电池优化设置页面
+                                                await Capacitor.Plugins.AMapLocation?.openBatteryOptimizationSettings?.();
+                                            } catch {
+                                                toast.error('无法打开设置页面');
+                                            }
+                                        },
+                                    },
+                                });
+                            }
+                        }
+                    });
+                    if (isListenerMounted) {
+                        systemEventListenerHandle = handle;
+                    } else {
+                        handle.remove();
+                    }
+                }
+            } catch {
+                // Not in Capacitor environment
+            }
+        })();
+
         // --- Cleanup ---
         return () => {
             mountedRef.current = false;
             isListenerMounted = false;
+
+            if (warmupTimerRef.current) {
+                clearTimeout(warmupTimerRef.current);
+                warmupTimerRef.current = null;
+            }
 
             console.log(`${TAG} Unmounting — destroying bridge`);
 
@@ -457,6 +514,10 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
 
             if (appListenerHandle) {
                 try { appListenerHandle.remove(); } catch { /* noop */ }
+            }
+
+            if (systemEventListenerHandle) {
+                try { systemEventListenerHandle.remove(); } catch { /* noop */ }
             }
 
             // Capture the bridge reference locally before nullifying it so that
@@ -517,6 +578,11 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
         setStartWarmupActive: async (active: boolean) => {
             setIsStartWarmupActiveState(active);
 
+            if (warmupTimerRef.current) {
+                clearTimeout(warmupTimerRef.current);
+                warmupTimerRef.current = null;
+            }
+
             const bridge = bridgeRef.current;
             if (!bridge || !permissionGranted) {
                 if (active) setPendingStartLocation(true);
@@ -531,6 +597,27 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
             const nextMode = active ? 'running' : 'browse';
             const nextInterval = active ? GPS_START_WARMUP_INTERVAL_MS : GPS_BROWSE_INTERVAL_MS;
             const nextDistanceFilter = active ? GPS_START_WARMUP_DISTANCE_FILTER_METERS : 5;
+
+            if (active) {
+                warmupTimerRef.current = setTimeout(async () => {
+                    const hasActiveRun = useLocationStore.getState().currentRunId !== null;
+                    if (!hasActiveRun && mountedRef.current && bridgeRef.current) {
+                        console.log(`${TAG} [SmartPrewarm] 3 minutes idle warmup on start tab, auto-throttling to browse mode to save battery`);
+                        try {
+                            await bridgeRef.current.switchWatchMode('browse', {
+                                interval: GPS_BROWSE_INTERVAL_MS,
+                                distanceFilter: 5,
+                            });
+                            setIsStartWarmupActiveState(false);
+                            import('sonner').then(({ toast }) => {
+                                toast.info("GPS 预热已自动降频以节省电量");
+                            });
+                        } catch (err) {
+                            console.warn(`${TAG} Failed to auto-throttle warmup mode:`, err);
+                        }
+                    }
+                }, 3 * 60 * 1000);
+            }
 
             if (bridge.currentWatchMode === nextMode) return;
 

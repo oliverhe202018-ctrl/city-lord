@@ -58,6 +58,7 @@ public class AMapLocationPlugin extends Plugin {
     private BroadcastReceiver trackingLocationReceiver = null;
     private BroadcastReceiver trackingErrorReceiver = null;
     private BroadcastReceiver trackingLogReceiver = null;
+    private BroadcastReceiver batteryOptReceiver = null;
     private boolean isTracking = false;
 
     // Room 数据库异步执行器
@@ -781,7 +782,21 @@ public class AMapLocationPlugin extends Plugin {
         lbm.registerReceiver(trackingLogReceiver,
                 new IntentFilter(LocationForegroundService.ACTION_LOG_EVENT));
 
-        Log.i(TAG, "Tracking BroadcastReceivers registered (Location, Error, Log)");
+        // P1 #3 — 电池优化白名单引导广播接收器
+        batteryOptReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                Log.i(TAG, "[BatteryOpt] Whitelist not granted, notifying JS layer");
+                JSObject data = new JSObject();
+                data.put("eventName", "battery_optimization_needed");
+                data.put("ts", intent.getLongExtra("ts", 0));
+                notifyListeners("systemEvent", data);
+            }
+        };
+        lbm.registerReceiver(batteryOptReceiver,
+                new IntentFilter(LocationForegroundService.ACTION_BATTERY_OPT_NEEDED));
+
+        Log.i(TAG, "Tracking BroadcastReceivers registered (Location, Error, Log, BatteryOpt)");
     }
 
     private void unregisterTrackingReceivers() {
@@ -812,6 +827,15 @@ public class AMapLocationPlugin extends Plugin {
                 Log.w(TAG, "Unregister log receiver error: " + e.getMessage());
             }
             trackingLogReceiver = null;
+        }
+
+        if (batteryOptReceiver != null) {
+            try {
+                lbm.unregisterReceiver(batteryOptReceiver);
+            } catch (Exception e) {
+                Log.w(TAG, "Unregister battery opt receiver error: " + e.getMessage());
+            }
+            batteryOptReceiver = null;
         }
 
         Log.i(TAG, "Tracking BroadcastReceivers unregistered");
@@ -922,6 +946,7 @@ public class AMapLocationPlugin extends Plugin {
             call.reject("OPEN_SETTINGS_FAILED", "无法打开任何设置页面: " + e.getMessage());
         }
     }
+
 
     private List<Intent> getManufacturerPermissionIntents() {
         List<Intent> intents = new ArrayList<>();

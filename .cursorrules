@@ -27,3 +27,13 @@ Tech Stack: Next.js + React + Capacitor + Android Native (Java) + AMap SDK (高�
 
 ### 5. Native Code Modification
 - When modifying Android `AMapLocationPlugin.java` or `LocationForegroundService.java`, ensure standard Java practices. Remember that High_Accuracy mode in AMap requires `setGpsFirst(false)` and `setLocationCacheEnable(true)` to achieve "instant first fix" (秒定位) in continuous tracking scenarios.
+
+### 6. Android Build & Packaging Environments (Scenario Isolation)
+- **Local Test Package (本地测试打包)**:
+  - Target URL: `http://10.0.2.2:3000` (Local emulator loopback)
+  - Sync command: `npx cap sync android` or `npm run cap:sync:dev`
+  - Build command: `gradlew.bat assembleDebug` in `android` directory
+- **Phone Test Package (发送手机测试打包)**:
+  - Target URL: `https://cl1.4567666.xyz` (Remote production URL)
+  - Sync command: `cross-env CAP_ENV=production npx cap sync android` or `npm run cap:sync:prod`
+  - Build command: `gradlew.bat assembleDebug` in `android` directory
