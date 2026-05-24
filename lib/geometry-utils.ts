@@ -291,7 +291,7 @@ export function extractValidLoops(
     const seen = new Set<string>();
 
     // 入口 DP 简化：剔除微小毛刺，保留完整元数据（含 timestamp）
-    const simplifiedPath = simplifyPathDP(path, 1.5);
+    const simplifiedPath = simplifyPathDP(path, 0.5);
 
     // 策略A: Snap闭合 - 检测首尾点距离是否在容差范围内
     const disableSnap = options?.disableSnap ?? false;

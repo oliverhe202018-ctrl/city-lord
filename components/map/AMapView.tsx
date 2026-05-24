@@ -13,6 +13,7 @@ import { MapControls } from './MapControls';
 import { useAuth } from '@/hooks/useAuth';
 import { useMapInteraction } from '@/components/map/MapInteractionContext';
 import { useGameStore } from '@/store/useGameStore';
+import { useMapInteractionStore } from '@/store/useMapInteractionStore';
 
 export type AMapViewHandle = {
   zoomIn: () => void;
@@ -96,6 +97,67 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
     const recenterTimerRef = useRef<number | null>(null);
     const isUserInteractingRef = useRef(false);
     const currentLocationRef = useRef(currentLocation);
+
+    const pendingCameraFocus = useMapInteractionStore((s) => s.pendingCameraFocus);
+    const setPendingCameraFocus = useMapInteractionStore((s) => s.setPendingCameraFocus);
+
+    // 🎯 社交排行联动底图自动飞越聚焦与 Bounds 自适应框选
+    useEffect(() => {
+      if (!map || !pendingCameraFocus) return;
+      
+      const { lng, lat, zoom = 17, territoryId, polygonPoints } = pendingCameraFocus;
+      const AMapGlobal = (window as any).AMap;
+
+      try {
+        if (polygonPoints && polygonPoints.length >= 3 && AMapGlobal) {
+          // 1. 自动计算多边形 BBox 并通过 map.setBounds 执行 80px 留白自适应框选
+          let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
+          for (const [ptLng, ptLat] of polygonPoints) {
+            if (ptLng < minLng) minLng = ptLng;
+            if (ptLng > maxLng) maxLng = ptLng;
+            if (ptLat < minLat) minLat = ptLat;
+            if (ptLat > maxLat) maxLat = ptLat;
+          }
+
+          if (minLng !== Infinity && maxLng !== -Infinity && minLat !== Infinity && maxLat !== -Infinity) {
+            console.log(`[Linkage-Flight] Smooth FitView/SetBounds to BBox bounds with 80px margins.`);
+            const sw = new AMapGlobal.LngLat(minLng, minLat);
+            const ne = new AMapGlobal.LngLat(maxLng, maxLat);
+            const bounds = new AMapGlobal.Bounds(sw, ne);
+            
+            // 使用高德底图原生的 setBounds 平滑过渡，设置四周 Padding 为 80
+            map.setBounds(bounds, false, [80, 80, 80, 80]);
+          } else {
+            // Fallback: 仅平滑飞行到中心点
+            if (map.setZoomAndCenter) {
+              map.setZoomAndCenter(zoom, [lng, lat], false, 800);
+            }
+          }
+        } else {
+          // 2. 仅平滑滑行到指定中心点和 zoom
+          console.log(`[Linkage-Flight] Smooth pan/zoom to coordinates: ${lng}, ${lat}`);
+          if (map.setZoomAndCenter) {
+            map.setZoomAndCenter(zoom, [lng, lat], false, 800);
+          } else {
+            map.setCenter([lng, lat]);
+            map.setZoom(zoom);
+          }
+        }
+
+        // 3. 同时激活 Canvas 高亮和详情抽屉
+        if (territoryId) {
+          setSelectedTerritoryId(territoryId);
+          // 在底图交互 Context 中同步打开详情
+          setSelectedTerritory?.({ id: territoryId } as any);
+          setIsDetailSheetOpen?.(true);
+        }
+      } catch (e) {
+        console.error('[Linkage-Flight] Map flight transition failed:', e);
+      } finally {
+        // 完成后重置飞行状态，防循环重入
+        setPendingCameraFocus(null);
+      }
+    }, [map, pendingCameraFocus, setSelectedTerritoryId, setSelectedTerritory, setIsDetailSheetOpen, setPendingCameraFocus]);
     const initialCenter = useMemo<[number, number]>(() => mapCenter || DEFAULT_CENTER, [mapCenter]);
 
     // Action 2: Zoom tracking with throttle (批示 2)

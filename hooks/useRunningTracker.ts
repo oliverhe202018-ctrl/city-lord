@@ -224,6 +224,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   const kalmanLatRef = useRef(new KalmanFilter1D(3.0, 25.0));
   const kalmanLngRef = useRef(new KalmanFilter1D(3.0, 25.0));
   const refLocationRef = useRef<Location | null>(null);
+  const lastSpeedRef = useRef<number | null>(null);
 
   // ─── Timestamp-based timer refs ───
   const startTimeRef = useRef<number | null>(null);
@@ -560,12 +561,17 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
   // ─── Kalman-based GPS Smoothing (replaces legacy EMA) ───
   const smoothLocation = (newLoc: Location, prevLoc: Location | null, accuracy?: number): Location => {
+    // 动态调整卡尔曼滤波的测定精度，消除高方差带来的滞后平滑惰性，让滤波轨迹响应更敏捷
+    const adaptiveAccuracy = accuracy != null 
+      ? Math.sqrt(Math.max(5.0, accuracy * 2.0)) 
+      : Math.sqrt(25.0);
+
     if (!prevLoc || !refLocationRef.current) {
       refLocationRef.current = newLoc;
       kalmanLatRef.current.reset();
       kalmanLngRef.current.reset();
-      kalmanLatRef.current.filter(0, newLoc.timestamp, accuracy);
-      kalmanLngRef.current.filter(0, newLoc.timestamp, accuracy);
+      kalmanLatRef.current.filter(0, newLoc.timestamp, adaptiveAccuracy);
+      kalmanLngRef.current.filter(0, newLoc.timestamp, adaptiveAccuracy);
       if (process.env.NODE_ENV === 'development') {
         lastLocationRef.current = newLoc;
       }
@@ -582,8 +588,8 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     const xMeters = (newLoc.lng - refLng) * 111320 * cosLat;
 
     // Filter in meters
-    const smoothedY = kalmanLatRef.current.filter(yMeters, newLoc.timestamp, accuracy);
-    const smoothedX = kalmanLngRef.current.filter(xMeters, newLoc.timestamp, accuracy);
+    const smoothedY = kalmanLatRef.current.filter(yMeters, newLoc.timestamp, adaptiveAccuracy);
+    const smoothedX = kalmanLngRef.current.filter(xMeters, newLoc.timestamp, adaptiveAccuracy);
 
     // Convert back to degrees
     const smoothedLat = refLat + smoothedY / 111320;
@@ -756,9 +762,28 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       }
     }
 
-    // --- Layer 2: Speed Filter ---
-    // Calculate speed between this point and last valid point
-    // If speed > 10 m/s (~36 km/h), this is signal drift, not human movement
+    // ========================================================================
+    // 🛡️ 窗口为 3 的【中值折返尖角滤波器】 (Median Spike Filter)
+    // 能够检测 A -> B -> C 折线跳跃，若发现上一时刻点 B 为突发漂移毛刺，直接执行自愈剔除
+    // ========================================================================
+    if (pathRef.current.length >= 2) {
+      const ptA = pathRef.current[pathRef.current.length - 2];
+      const ptB = pathRef.current[pathRef.current.length - 1];
+      const dAB = getDistanceFromLatLonInMeters(ptA.lat, ptA.lng, ptB.lat, ptB.lng);
+      const dBC = getDistanceFromLatLonInMeters(ptB.lat, ptB.lng, lat, lng);
+      const dAC = getDistanceFromLatLonInMeters(ptA.lat, ptA.lng, lat, lng);
+
+      if (dAB > 10.0 && dBC > 10.0 && dAC < (dAB + dBC) * 0.3) {
+        console.warn(`[GPS-Median] 🎯 Median Spike Filtered! Point B (${ptB.lat.toFixed(6)}, ${ptB.lng.toFixed(6)}) detected as spike. Removing from trajectory.`);
+        pathRef.current.pop();
+        lastLocationRef.current = ptA;
+        setDistance(prev => Math.max(0, prev - dAB));
+        // 重置 lastSpeedRef 以防加速度校验数值大跳变
+        lastSpeedRef.current = null;
+      }
+    }
+
+    // --- Layer 2: Speed & Accel Filter ---
     if (lastLocationRef.current) {
       const prevLoc = lastLocationRef.current;
       const distToPrev = getDistanceFromLatLonInMeters(prevLoc.lat, prevLoc.lng, lat, lng);
@@ -766,6 +791,8 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
       if (!isOfflineReplay && timeDiffSec > 0.5) {
         const speedMs = distToPrev / timeDiffSec;
+        
+        // 1. 速度校验
         if (speedMs > 10) {
           console.debug(
             `[GPS-Filter] ❌ Layer 2 REJECT: speed ${(speedMs * 3.6).toFixed(1)}km/h > 36km/h | ` +
@@ -773,8 +800,19 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           );
           return;
         }
-      }
 
+        // 2. 加速度约束 (a = dv / dt)，如果加速度绝对值 > 3.0 m/s²，熔断漂移点
+        if (lastSpeedRef.current !== null) {
+          const accel = Math.abs(speedMs - lastSpeedRef.current) / timeDiffSec;
+          if (accel > 3.0) {
+            console.debug(
+              `[GPS-Filter] ❌ Accel Constraint REJECT: accel ${accel.toFixed(2)}m/s² > 3.0m/s² | ` +
+              `speedMs=${speedMs.toFixed(1)} lastSpeed=${lastSpeedRef.current.toFixed(1)} dt=${timeDiffSec.toFixed(1)}s`
+            );
+            return;
+          }
+        }
+      }
     }
 
     // ================================================================
@@ -894,6 +932,10 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     // Point passed all filters! Update distance and set last location
     if (prevLoc) {
       setDistance(prev => prev + distFromLast);
+      const timeDiffSec = (now - prevLoc.timestamp) / 1000;
+      if (timeDiffSec > 0.1) {
+        lastSpeedRef.current = distFromLast / timeDiffSec;
+      }
     }
     lastLocationRef.current = finalLoc;
 
@@ -2057,23 +2099,31 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           
           if (isFinal) {
             clearRecovery();
-            setSessionClaims([]);
-            sessionClaimsRef.current = [];
+            // ⚠️ 体验精细化：此处严禁同步清空 sessionClaims 和 workingPolygons，以防异步结算完成前视觉闪烁
             setEventsHistory([]);
             setClientFlags([]);
             clientFlagsRef.current = [];
             
             mutate('/api/home/summary');
             mutate('/api/mission/fetch-user-missions');
-            mutate(
-              (key) => typeof key === 'string' && key.startsWith('/api/city/fetch-territories?cityId='),
-              undefined,
-              { revalidate: true }
-            );
-            if (typeof window !== 'undefined') {
-              window.dispatchEvent(new CustomEvent('citylord:refresh-territories'));
+
+            // 如果不是异步结算（即在接口调用中已完成同步结算），我们在此处同步刷新并清空
+            if (!result.data?.settlingAsync) {
+              mutate(
+                (key) => typeof key === 'string' && key.startsWith('/api/city/fetch-territories?cityId='),
+                undefined,
+                { revalidate: true }
+              ).then(() => {
+                // territories 刷新完毕，静默抹除 sessionClaims，实现无缝合并
+                setSessionClaims([]);
+                sessionClaimsRef.current = [];
+              });
+
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('citylord:refresh-territories'));
+              }
+              console.log('[useRunningTracker] Sync settlement complete. Cleared claims.');
             }
-            console.log('[useRunningTracker] Triggered SWR mutation for sync');
           }
           
           if (result.data?.runId) {
@@ -2131,6 +2181,22 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
                     setSettlementStatus('completed');
                     if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
                     setSettledTerritoriesCount(statusResult.data.newTerritories);
+
+                    // 异步结算完毕，触发最终刷新与合并
+                    console.log('[useRunningTracker] Async settlement poll finished successfully. Revalidating territories...');
+                    mutate(
+                      (key) => typeof key === 'string' && key.startsWith('/api/city/fetch-territories?cityId='),
+                      undefined,
+                      { revalidate: true }
+                    ).then(() => {
+                      // territories SWR 拉取更新成功后，静默抹去 sessionClaims
+                      setSessionClaims([]);
+                      sessionClaimsRef.current = [];
+                    });
+
+                    if (typeof window !== 'undefined') {
+                      window.dispatchEvent(new CustomEvent('citylord:refresh-territories'));
+                    }
                   }
                 }
               } catch (pollErr) {

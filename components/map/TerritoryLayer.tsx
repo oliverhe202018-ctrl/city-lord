@@ -14,6 +14,7 @@ import * as turf from "@turf/turf";
 import { useGameStore, useGameTerritoryAppearance } from "@/store/useGameStore";
 import { getTerritoryDisplayName } from "@/lib/territory-display";
 import { useMapDisplayStore, type MapDisplayMode } from "@/store/useMapDisplayStore";
+import { useMapInteractionStore } from "@/store/useMapInteractionStore";
 
 const CLUB_COLORS = {
   self: { fill: "#3b82f6", stroke: "#2563eb", fillOpacity: 0.35 },
@@ -381,7 +382,8 @@ function renderTerritoriesOnCanvas(
   territories: TerritoryWithRender[],
   canvasSizeRef: { current: { width: number; height: number } },
   onNeedRedraw?: () => void,
-  ownerProfileMap?: Map<string, { nickname: string; avatarUrl: string | null }>
+  ownerProfileMap?: Map<string, { nickname: string; avatarUrl: string | null }>,
+  selectedTerritoryId?: string | null
 ) {
   const size = map.getSize?.();
   if (!size) return;
@@ -426,7 +428,19 @@ function renderTerritoriesOnCanvas(
   const AMapGlobal = (window as typeof window & { AMap?: { LngLat: new (lng: number, lat: number) => unknown } }).AMap;
   if (!AMapGlobal?.LngLat) return;
 
-  for (const territory of territories) {
+  // 1. 过滤出被选中的聚焦领地以执行末尾叠加绘制，防止 Z-index 压盖
+  let focusedTerritory: TerritoryWithRender | null = null;
+  const normalTerritories: TerritoryWithRender[] = [];
+  
+  for (const t of territories) {
+    if (selectedTerritoryId && t.id === selectedTerritoryId) {
+      focusedTerritory = t;
+    } else {
+      normalTerritories.push(t);
+    }
+  }
+
+  for (const territory of normalTerritories) {
     // 快速跳出逻辑：如果多边形的 bbox 完全不在当前视口内，则直接跳过
     if (!territory.bbox) continue;
     const b = territory.bbox;
@@ -569,6 +583,136 @@ function renderTerritoriesOnCanvas(
     }
   }
 
+  // 🟢 2. 渲染聚焦高亮的领地，应用亮金色辉光和双层高对比度描边（乐观剔除、末尾叠加）
+  if (focusedTerritory) {
+    const outerRings = extractOuterRings(focusedTerritory.geojson_json);
+    if (outerRings.length > 0) {
+      for (const ring of outerRings) {
+        if (ring.length < 4) continue;
+        
+        // 聚焦高亮领地尽量保留高精边界，步长设为 1
+        const pixels = ring
+          .map(([lng, lat]) => {
+            const pixel = map.lngLatToContainer?.(new AMapGlobal.LngLat(lng, lat));
+            if (!pixel) return null;
+            return { x: Number(pixel.x), y: Number(pixel.y) };
+          })
+          .filter((pt): pt is { x: number; y: number } => pt !== null && Number.isFinite(pt.x) && Number.isFinite(pt.y));
+
+        if (pixels.length < 3) continue;
+
+        ctx.save();
+        
+        ctx.beginPath();
+        ctx.moveTo(pixels[0].x, pixels[0].y);
+        for (let i = 1; i < pixels.length; i += 1) {
+          ctx.lineTo(pixels[i].x, pixels[i].y);
+        }
+        ctx.closePath();
+
+        // 1. 金色辉光发光效果 (Glow Effect)
+        ctx.shadowColor = "rgba(245, 158, 11, 0.85)";
+        ctx.shadowBlur = 15;
+
+        // 2. 填充底色（稍微提高对比度和 globalAlpha 保证高亮）
+        ctx.fillStyle = focusedTerritory.fillColor || "rgba(251, 146, 60, 0.6)";
+        ctx.globalAlpha = Math.min(1.0, focusedTerritory.fillOpacity + 0.15);
+        ctx.fill();
+
+        // 3. 白色粗描边 (Outer boundary line)
+        ctx.globalAlpha = 1.0;
+        ctx.strokeStyle = "#FFFFFF";
+        ctx.lineWidth = 4.5;
+        ctx.stroke();
+
+        // 4. 辅助金色内边框线条 (Gold line)
+        ctx.shadowBlur = 0; // 关闭阴影保证内圈锐利
+        ctx.strokeStyle = "#F59E0B";
+        ctx.lineWidth = 2.0;
+        ctx.stroke();
+
+        ctx.restore();
+
+        // 同时渲染头像（如果俱乐部模式有头像的话，也以末尾叠加的方式画出来）
+        const hasAvatar = focusedTerritory.isClubMode && Boolean(focusedTerritory.clubAvatarUrl);
+        if (hasAvatar) {
+          const avatarUrl = focusedTerritory.clubAvatarUrl as string;
+          const cachedImg = getOrLoadImage(avatarUrl, () => {
+            onNeedRedraw?.();
+          });
+
+          if (cachedImg) {
+            const discreteSize: 32 | 48 = currentZoom >= 17 ? 32 : 48;
+            const avatarTile = getRoundedAvatarTile(avatarUrl, cachedImg, discreteSize);
+
+            const finalPointsToDraw: { x: number; y: number }[] = [];
+
+            if (currentZoom < 14) {
+              const p = map.lngLatToContainer?.(new AMapGlobal.LngLat(focusedTerritory.centerPoint[0], focusedTerritory.centerPoint[1]));
+              if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) {
+                finalPointsToDraw.push({ x: Number(p.x), y: Number(p.y) });
+              }
+            } else if (currentZoom < 17) {
+              const maxCandidates = currentZoom < 15 ? 3 : (currentZoom < 16 ? 6 : 9);
+              const shuffledGrid = deterministicShuffle(focusedTerritory.gridPoints, `${focusedTerritory.id}_${Math.floor(currentZoom)}`);
+              const candidatePoints = [focusedTerritory.centerPoint, ...shuffledGrid].slice(0, maxCandidates);
+
+              const minDistance = 2.5 * discreteSize;
+              for (const pt of candidatePoints) {
+                const p = map.lngLatToContainer?.(new AMapGlobal.LngLat(pt[0], pt[1]));
+                if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) {
+                  const x = Number(p.x);
+                  const y = Number(p.y);
+                  let tooClose = false;
+                  for (const cp of finalPointsToDraw) {
+                    const dx = x - cp.x;
+                    const dy = y - cp.y;
+                    if (Math.hypot(dx, dy) < minDistance) {
+                      tooClose = true;
+                      break;
+                    }
+                  }
+                  if (!tooClose) {
+                    finalPointsToDraw.push({ x, y });
+                  }
+                }
+              }
+            } else {
+              const allPoints = [focusedTerritory.centerPoint, ...focusedTerritory.gridPoints];
+              for (const pt of allPoints) {
+                const p = map.lngLatToContainer?.(new AMapGlobal.LngLat(pt[0], pt[1]));
+                if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) {
+                  finalPointsToDraw.push({ x: Number(p.x), y: Number(p.y) });
+                }
+              }
+            }
+
+            ctx.save();
+            // 在多边形内裁剪并绘制头像
+            ctx.beginPath();
+            ctx.moveTo(pixels[0].x, pixels[0].y);
+            for (let i = 1; i < pixels.length; i += 1) {
+              ctx.lineTo(pixels[i].x, pixels[i].y);
+            }
+            ctx.closePath();
+            ctx.clip();
+
+            for (const pt of finalPointsToDraw) {
+              ctx.drawImage(
+                avatarTile,
+                pt.x - discreteSize / 2,
+                pt.y - discreteSize / 2,
+                discreteSize,
+                discreteSize
+              );
+            }
+            ctx.restore();
+          }
+        }
+      }
+    }
+  }
+
   renderTerritoryLabels(ctx, map, territories, viewportMinLng, viewportMaxLng, viewportMinLat, viewportMaxLat, currentZoom, ownerProfileMap || new Map());
 }
 
@@ -587,11 +731,21 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
   const clubId = useGameStore((state) => state.clubId);
   const faction = useGameStore((state) => state.faction);
   const setSelectedTerritoryId = useGameStore((state) => state.setSelectedTerritoryId);
+  const selectedTerritoryId = useGameStore((state) => state.selectedTerritoryId);
   const { mapDisplayMode } = useMapDisplayStore();
 
+  const selectedTerritoryIdRef = useRef<string | null>(null);
   const customLayerRef = useRef<{ setMap: (target: unknown) => void; render?: () => void } | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const canvasSizeRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
+
+  // 监听选中领地 ID 的变化，实时更新 ref 并手动触发 Canvas 重绘，避免重建 CustomLayer 导致闪烁
+  useEffect(() => {
+    selectedTerritoryIdRef.current = selectedTerritoryId;
+    if (customLayerRef.current) {
+      customLayerRef.current.render?.();
+    }
+  }, [selectedTerritoryId]);
   const mapInteractingRef = useRef(false);
   const rawTerritoriesRef = useRef<ExtTerritory[]>([]);
   const territoriesDataRef = useRef<TerritoryWithRender[]>([]);
@@ -867,7 +1021,8 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
       const currentCenter = map.getCenter?.() || [0, 0];
       const territoriesHash = JSON.stringify({
         mode: mapDisplayMode,
-        ids: territoriesDataRef.current.map(t => t.id)
+        ids: territoriesDataRef.current.map(t => t.id),
+        selectedTerritoryId: selectedTerritoryIdRef.current
       });
       
       // Check cache validity (with small tolerances to avoid redundant draws)
@@ -892,7 +1047,8 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
         () => {
           redrawCanvas();
         },
-        ownerProfileMapRef.current
+        ownerProfileMapRef.current,
+        selectedTerritoryIdRef.current
       );
       
       // Update cache

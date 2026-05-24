@@ -56,7 +56,10 @@ import java.util.concurrent.Executors;
  *  - 动态更新通知内容（支持从 Plugin 端传入 title/body）
  *  - onDestroy 完整资源释放（防止内存泄漏 & 电量浪费）
  */
-public class LocationForegroundService extends Service implements AMapLocationListener, SensorEventListener {
+import android.speech.tts.TextToSpeech;
+import java.util.Locale;
+
+public class LocationForegroundService extends Service implements AMapLocationListener, SensorEventListener, TextToSpeech.OnInitListener {
 
     private static final String TAG = "LocationFgSvc";
 
@@ -168,6 +171,13 @@ public class LocationForegroundService extends Service implements AMapLocationLi
     /** CLOCK_DRIFT 容差：当 location.getTime() 与 elapsedRealtime 偏差超过此值时启用修正 */
     private static final long CLOCK_DRIFT_TOLERANCE_MS = 5000;
 
+    // ---- Foreground TTS & Distance Tracking (Lockscreen announcements) ----
+    private TextToSpeech tts = null;
+    private boolean isTtsInitialized = false;
+    private double totalDistanceTravelled = 0.0;
+    private int lastSpokenKm = 0;
+    private AMapLocation lastLoggedLocation = null;
+
     // ---- Daily motivational quotes (60 条，每天不重样) ----
     private static final String[] DAILY_QUOTES = {
         "今天也是元气满满的一天！",
@@ -274,6 +284,14 @@ public class LocationForegroundService extends Service implements AMapLocationLi
 
         // 7. 注册预热控制接收器
         registerPrewarmControlReceiver();
+
+        // 8. 初始化原生 TTS 语音播报引擎
+        try {
+            tts = new TextToSpeech(this, this);
+            Log.i(TAG, "TTS Engine initialization started");
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to start TTS Engine initialization", e);
+        }
     }
 
     /**
@@ -312,6 +330,13 @@ public class LocationForegroundService extends Service implements AMapLocationLi
             restoreFromPrefs();
             logEvent("fgs_null_intent_recovered", "sticky_restart");
         } else {
+            String newRunId = intent.getStringExtra(EXTRA_RUN_ID);
+            if (newRunId != null && !newRunId.equals(currentRunId)) {
+                Log.i(TAG, "Detected new runId: " + newRunId + ". Resetting mileage tracking.");
+                totalDistanceTravelled = 0.0;
+                lastSpokenKm = 0;
+                lastLoggedLocation = null;
+            }
             saveToPrefs(intent);
         }
 
@@ -468,6 +493,19 @@ public class LocationForegroundService extends Service implements AMapLocationLi
 
         // 7. 注销预热控制接收器
         unregisterPrewarmControlReceiver();
+
+        // 7.5 销毁 TTS 语音播报引擎
+        if (tts != null) {
+            try {
+                tts.stop();
+                tts.shutdown();
+                Log.i(TAG, "TTS Engine destroyed");
+            } catch (Exception e) {
+                Log.w(TAG, "Error destroying TTS Engine: " + e.getMessage());
+            }
+            tts = null;
+            isTtsInitialized = false;
+        }
 
         // 8. Stop foreground & remove notification
         stopForeground(true);
@@ -757,6 +795,48 @@ public class LocationForegroundService extends Service implements AMapLocationLi
             return;
         }
 
+        // ====== 后台锁屏里程累计与 TTS 原生语音播报 ======
+        try {
+            if (lastLoggedLocation != null) {
+                float[] results = new float[1];
+                android.location.Location.distanceBetween(
+                        lastLoggedLocation.getLatitude(), lastLoggedLocation.getLongitude(),
+                        location.getLatitude(), location.getLongitude(),
+                        results
+                );
+                float dist = results[0];
+                // 防单点大幅漂移（> 100米则不累计为跑步里程）
+                if (dist > 0.5f && dist < 100.0f) {
+                    totalDistanceTravelled += dist;
+                }
+            }
+            lastLoggedLocation = location.clone();
+
+            int currentKm = (int) (totalDistanceTravelled / 1000.0);
+            if (currentKm > 0 && currentKm > lastSpokenKm) {
+                lastSpokenKm = currentKm;
+                long elapsedSeconds = 0;
+                if (runStartedAt > 0) {
+                    elapsedSeconds = (System.currentTimeMillis() - runStartedAt) / 1000;
+                }
+                if (elapsedSeconds > 0) {
+                    double distanceKm = totalDistanceTravelled / 1000.0;
+                    long paceSeconds = (long) (elapsedSeconds / distanceKm);
+                    long m = paceSeconds / 60;
+                    long s = paceSeconds % 60;
+                    String paceStr = (m > 59) ? "59分59秒" : (m + "分" + s + "秒");
+                    String message = "领主，您已奔袭 " + currentKm + " 公里！当前后台配配速每公里 " + paceStr + "，势如破竹，请继续保持！";
+                    speakTts(message);
+                } else {
+                    String message = "领主，您已奔袭 " + currentKm + " 公里！势如破竹，请继续保持！";
+                    speakTts(message);
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Error in background milestone speech: " + e.getMessage());
+        }
+        // ===================================================
+
         // 1a. 时间戳防回拨修正（单调递增硬约束）
         long correctedTimestamp = correctTimestamp(location);
 
@@ -764,7 +844,7 @@ public class LocationForegroundService extends Service implements AMapLocationLi
         saveLocationToCache(location, correctedTimestamp);
 
         // 1c. 距离滤波前置：未通过过滤的点直接丢弃，不广播给JS层
-        final float BROADCAST_DISTANCE_FILTER_METERS = 5.0f;
+        final float BROADCAST_DISTANCE_FILTER_METERS = 2.0f;
         if (!passesDistanceFilter(location, BROADCAST_DISTANCE_FILTER_METERS)) {
             Log.d(TAG, "位置未通过距离滤波，跳过广播: lat=" + location.getLatitude() + " lng=" + location.getLongitude());
             // 仍写入 Room 数据库（黑匣子记录所有采样点）
@@ -1202,6 +1282,42 @@ public class LocationForegroundService extends Service implements AMapLocationLi
                 Log.w(TAG, "Failed to unregister prewarm control receiver: " + e.getMessage());
             }
             prewarmControlReceiver = null;
+        }
+    }
+
+    @Override
+    public void onInit(int status) {
+        if (status == TextToSpeech.SUCCESS) {
+            try {
+                int result = tts.setLanguage(Locale.CHINESE);
+                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    Log.e(TAG, "TTS Language Chinese is not supported or missing data");
+                } else {
+                    isTtsInitialized = true;
+                    Log.i(TAG, "TTS Engine successfully initialized for Chinese");
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error setting TTS language: " + e.getMessage());
+            }
+        } else {
+            Log.e(TAG, "TTS Initialization failed!");
+        }
+    }
+
+    private void speakTts(String text) {
+        if (isTtsInitialized && tts != null) {
+            Log.i(TAG, "[TTS Speak] speak: " + text);
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    tts.speak(text, TextToSpeech.QUEUE_ADD, null, "citylord_milestone_" + System.currentTimeMillis());
+                } else {
+                    tts.speak(text, TextToSpeech.QUEUE_ADD, null);
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error during TTS speak: " + e.getMessage());
+            }
+        } else {
+            Log.w(TAG, "TTS not initialized yet. Skipping: " + text);
         }
     }
 }

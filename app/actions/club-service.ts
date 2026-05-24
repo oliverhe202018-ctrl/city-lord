@@ -89,3 +89,151 @@ export async function getClubKingdom(userId: string): Promise<ClubKingdomData | 
         return null;
     }
 }
+
+import * as turf from '@turf/turf';
+
+export interface TopTerritoryCardData {
+    id: string;
+    customName: string;
+    area: number;
+    center: [number, number]; // [lng, lat]
+    health: number;
+    ownerName: string;
+    polygonPoints?: [number, number][]; // 边界多边形坐标，用于前台 FitView
+}
+
+/**
+ * getClubTopTerritories: 获取某个俱乐部面积最大的 Top N 活跃领地，服务于社交排行地图联动
+ */
+export async function getClubTopTerritories(clubId: string, limit: number = 5): Promise<TopTerritoryCardData[]> {
+    try {
+        const territories = await prisma.territories.findMany({
+            where: {
+                owner_club_id: clubId,
+                status: 'ACTIVE'
+            },
+            orderBy: { area_m2_exact: 'desc' },
+            take: limit,
+            select: {
+                id: true,
+                customName: true,
+                area_m2_exact: true,
+                health: true,
+                geojson_json: true,
+                profiles: {
+                    select: {
+                        nickname: true
+                    }
+                }
+            }
+        });
+
+        return territories.map(t => {
+            let center: [number, number] = [116.397428, 39.90923]; // 默认北京
+            let polygonPoints: [number, number][] = [];
+
+            try {
+                const geo = t.geojson_json as any;
+                let ring: [number, number][] = [];
+
+                if (geo && geo.type === 'Polygon') {
+                    ring = geo.coordinates[0];
+                } else if (geo && geo.type === 'MultiPolygon') {
+                    ring = geo.coordinates[0][0];
+                }
+
+                if (ring && ring.length >= 3) {
+                    polygonPoints = ring.map((pt: any) => [Number(pt[0]), Number(pt[1])]);
+                    const poly = turf.polygon([ring]);
+                    const centroid = turf.centroid(poly);
+                    if (centroid && centroid.geometry && centroid.geometry.coordinates) {
+                        center = centroid.geometry.coordinates as [number, number];
+                    }
+                }
+            } catch (e) {
+                console.error(`[getClubTopTerritories] Geometry parse error for territory ${t.id}:`, e);
+            }
+
+            return {
+                id: t.id,
+                customName: t.customName || '未命名领地',
+                area: Math.round(Number(t.area_m2_exact || 0)),
+                center,
+                health: t.health || 100,
+                ownerName: t.profiles?.nickname || '神秘领主',
+                polygonPoints
+            };
+        });
+    } catch (error) {
+        console.error('Failed to fetch club top territories:', error);
+        return [];
+    }
+}
+
+/**
+ * getUserTopTerritories: 获取某个用户面积最大的 Top N 活跃领地，服务于社交排行地图联动
+ */
+export async function getUserTopTerritories(userId: string, limit: number = 5): Promise<TopTerritoryCardData[]> {
+    try {
+        const territories = await prisma.territories.findMany({
+            where: {
+                owner_id: userId,
+                status: 'ACTIVE'
+            },
+            orderBy: { area_m2_exact: 'desc' },
+            take: limit,
+            select: {
+                id: true,
+                customName: true,
+                area_m2_exact: true,
+                health: true,
+                geojson_json: true,
+                profiles: {
+                    select: {
+                        nickname: true
+                    }
+                }
+            }
+        });
+
+        return territories.map(t => {
+            let center: [number, number] = [116.397428, 39.90923];
+            let polygonPoints: [number, number][] = [];
+
+            try {
+                const geo = t.geojson_json as any;
+                let ring: [number, number][] = [];
+
+                if (geo && geo.type === 'Polygon') {
+                    ring = geo.coordinates[0];
+                } else if (geo && geo.type === 'MultiPolygon') {
+                    ring = geo.coordinates[0][0];
+                }
+
+                if (ring && ring.length >= 3) {
+                    polygonPoints = ring.map((pt: any) => [Number(pt[0]), Number(pt[1])]);
+                    const poly = turf.polygon([ring]);
+                    const centroid = turf.centroid(poly);
+                    if (centroid && centroid.geometry && centroid.geometry.coordinates) {
+                        center = centroid.geometry.coordinates as [number, number];
+                    }
+                }
+            } catch (e) {
+                console.error(`[getUserTopTerritories] Geometry parse error for territory ${t.id}:`, e);
+            }
+
+            return {
+                id: t.id,
+                customName: t.customName || '未命名领地',
+                area: Math.round(Number(t.area_m2_exact || 0)),
+                center,
+                health: t.health || 100,
+                ownerName: t.profiles?.nickname || '神秘领主',
+                polygonPoints
+            };
+        });
+    } catch (error) {
+        console.error('Failed to fetch user top territories:', error);
+        return [];
+    }
+}

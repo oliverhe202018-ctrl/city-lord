@@ -62,6 +62,7 @@ export interface RankItem {
     avatar?: string;
     isMe: boolean;
     gapToTarget?: number;
+    userId?: string;
 }
 
 export interface ClubEvent {

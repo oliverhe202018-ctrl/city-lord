@@ -53,12 +53,15 @@ const fetchTopClubsByArea = async (limit?: number, province?: string) => {
 
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Trophy, Map, Users, Footprints, Loader2, MessageCircle, UserPlus, Award, BarChart3, ArrowLeft } from 'lucide-react'
+import { Trophy, Map, Users, Footprints, Loader2, MessageCircle, UserPlus, Award, BarChart3, ArrowLeft, MapPin } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { openUserProfile } from '@/lib/utils/nav'
 import { useGameStore } from '@/store/useGameStore'
 import { toast } from 'sonner'
 import { isNativePlatform, safeKeyboardAddListener } from "@/lib/capacitor/safe-plugins"
+import { useMapInteractionStore } from "@/store/useMapInteractionStore"
+import { getUserTopTerritories } from "@/app/actions/club-service"
+import { cn } from "@/lib/utils"
 
 // Lazy-load heavy sub-views
 const ClubChatView = lazy(() => import('./chat/ClubChatView').then(m => ({ default: m.ClubChatView })))
@@ -68,7 +71,7 @@ const AchievementWall = lazy(() => import('@/components/citylord/achievements/ac
 const LeaderboardView = lazy(() => import('@/components/citylord/social/leaderboard').then(m => ({ default: m.Leaderboard })))
 const TerritoryBattlePage = lazy(() => import('./TerritoryBattlePage').then(m => ({ default: m.TerritoryBattlePage })))
 
-type ClubSubView = 'none' | 'invite' | 'achievements' | 'leaderboard' | 'territory'
+type ClubSubView = 'none' | 'invite' | 'achievements' | 'leaderboard' | 'territory' | 'member-territories'
 
 
 
@@ -149,6 +152,9 @@ export function ClubDetailView({
 
   // Sub-view navigation state
   const [subView, setSubView] = useState<ClubSubView>('none');
+  const [focusedMember, setFocusedMember] = useState<{ id: string; name: string } | null>(null);
+  const [memberTerritories, setMemberTerritories] = useState<any[]>([]);
+  const [isLoadingMemberTerritories, setIsLoadingMemberTerritories] = useState(false);
 
   // ✅ 新增：键盘高度管理
   const [keyboardHeight, setKeyboardHeight] = useState(0)
@@ -391,6 +397,7 @@ export function ClubDetailView({
     achievements: '成就墙',
     leaderboard: '排行榜',
     territory: '领地争夺',
+    'member-territories': '领主领地',
   }
 
   if (subView !== 'none') {
@@ -401,7 +408,11 @@ export function ClubDetailView({
           <Button
             size="icon"
             variant="ghost"
-            onClick={() => setSubView('none')}
+            onClick={() => {
+              setSubView('none');
+              setFocusedMember(null);
+              setMemberTerritories([]);
+            }}
             className="h-8 w-8 rounded-full text-foreground hover:bg-muted"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -433,6 +444,97 @@ export function ClubDetailView({
             )}
             {subView === 'territory' && (
               <TerritoryBattlePage clubId={clubId} />
+            )}
+            {subView === 'member-territories' && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 bg-muted/20 border border-border p-3.5 rounded-2xl">
+                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-base shrink-0">
+                    {focusedMember?.name.slice(0, 1)}
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm text-foreground">{focusedMember?.name} 的领地</h3>
+                    <p className="text-xs text-muted-foreground">点击领地卡片，底图即可飞行定位与聚焦</p>
+                  </div>
+                </div>
+
+                {isLoadingMemberTerritories ? (
+                  <div className="flex flex-col items-center justify-center py-12 gap-3">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                    <span className="text-xs text-muted-foreground animate-pulse">正在拉取领主领地...</span>
+                  </div>
+                ) : memberTerritories.length === 0 ? (
+                  <div className="py-12 text-center text-muted-foreground text-sm bg-muted/20 rounded-2xl border border-border">
+                    该领主目前没有占领的领地
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {memberTerritories.map((t, idx) => (
+                      <div
+                        key={t.id}
+                        onClick={() => {
+                          // 1. Dispatch focus target with polygonPoints
+                          useMapInteractionStore.getState().setPendingCameraFocus({
+                            lng: t.center[0],
+                            lat: t.center[1],
+                            zoom: 17,
+                            territoryId: t.id,
+                            polygonPoints: t.polygonPoints
+                          });
+                          // 2. Close Club Drawer
+                          useGameStore.getState().closeDrawer();
+                          // 3. Dispatch custom event to switch to map view
+                          if (typeof window !== "undefined") {
+                            window.dispatchEvent(new CustomEvent("citylord:switch-tab", { detail: { tab: "play" } }));
+                          }
+                        }}
+                        className="group relative flex flex-col gap-2 rounded-2xl border border-border bg-card p-4 transition-all hover:bg-muted/50 active:scale-[0.98] cursor-pointer hover:border-primary/30"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="flex h-5 w-5 items-center justify-center rounded-lg bg-primary/10 text-[10px] font-bold text-primary">
+                              {idx + 1}
+                            </div>
+                            <span className="font-bold text-sm text-foreground group-hover:text-primary transition-colors">
+                              {t.customName || t.name}
+                            </span>
+                          </div>
+                          <span className="text-xs font-semibold text-foreground">
+                            {t.area.toLocaleString()} m²
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between text-xs mt-1">
+                          <div className="flex items-center gap-1 text-muted-foreground">
+                            <MapPin className="w-3.5 h-3.5 text-primary" />
+                            <span>定位聚焦此地</span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span className="text-muted-foreground">生命值:</span>
+                            <div className="flex items-center gap-1.5">
+                              <div className="h-1.5 w-16 bg-muted rounded-full overflow-hidden">
+                                <div 
+                                  className={cn(
+                                    "h-full rounded-full",
+                                    t.health > 50 ? "bg-emerald-500" : "bg-rose-500"
+                                  )} 
+                                  style={{ width: `${t.health}%` }}
+                                />
+                              </div>
+                              <span className={cn(
+                                "font-bold text-[10px]",
+                                t.health > 50 ? "text-emerald-500" : "text-rose-500"
+                              )}>
+                                {t.health}%
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
           </Suspense>
         </div>
@@ -625,7 +727,19 @@ export function ClubDetailView({
                       {displayMembers.map((member) => (
                         <div
                           key={member.id}
-                          onClick={() => openUserProfile(router, member.id, window.location.pathname + window.location.search)}
+                          onClick={async () => {
+                            setFocusedMember({ id: member.id, name: member.name });
+                            setSubView('member-territories');
+                            setIsLoadingMemberTerritories(true);
+                            try {
+                              const territories = await getUserTopTerritories(member.id);
+                              setMemberTerritories(territories);
+                            } catch (e) {
+                              console.error("Failed to load member territories:", e);
+                            } finally {
+                              setIsLoadingMemberTerritories(false);
+                            }
+                          }}
                           className="flex items-center justify-between rounded-xl border border-border bg-muted/30 px-3 py-2 min-h-[52px] cursor-pointer hover:bg-muted/50 transition-colors"
                         >
                           <div className="flex items-center gap-2.5">
