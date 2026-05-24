@@ -95,6 +95,9 @@ public class LocationForegroundService extends Service implements AMapLocationLi
     public static final String EXTRA_ERROR_CODE = "errorCode";
     public static final String EXTRA_ERROR_MSG = "errorMsg";
 
+    // Broadcast action — 预热控制指令
+    public static final String ACTION_PREWARM_CONTROL = "com.xiangfei.citylord.PREWARM_CONTROL";
+
 
 
     // AMap client
@@ -129,6 +132,22 @@ public class LocationForegroundService extends Service implements AMapLocationLi
     private long locationInterval = 1000;
     private String currentRunId = null;
     private long runStartedAt = 0;
+
+    // ---- 全生命周期预热机制 ----
+    /** 预热模式标志：App 启动即高频定位，未开始跑步时自动降频 */
+    private volatile boolean isPrewarmMode = true;
+    /** 预热启动时间戳，用于 3 分钟自动降频判断 */
+    private long prewarmStartedAt = 0;
+    /** 降频定时器 */
+    private Handler prewarmThrottleHandler = null;
+    /** 降频 Runnable */
+    private Runnable prewarmThrottleRunnable = null;
+    /** 高频间隔 (ms) */
+    private static final long PREWARM_HIGH_FREQ_INTERVAL = 1000L;
+    /** 降频间隔 (ms) */
+    private static final long PREWARM_LOW_FREQ_INTERVAL = 15000L;
+    /** 自动降频超时 (3 分钟) */
+    private static final long PREWARM_THROTTLE_TIMEOUT_MS = 3 * 60 * 1000L;
 
     // ---- Room 离线数据库 ----
     private AppDatabase appDatabase = null;
@@ -249,6 +268,9 @@ public class LocationForegroundService extends Service implements AMapLocationLi
 
         // 6. 初始化 Room 离线数据库 + 写入线程池
         initDatabase();
+
+        // 7. 注册预热控制接收器
+        registerPrewarmControlReceiver();
     }
 
     /**
@@ -332,6 +354,9 @@ public class LocationForegroundService extends Service implements AMapLocationLi
 
         // 5. 启动定位引擎
         startLocationTracking();
+
+        // 5.5 启动预热降频定时器（App 启动即开始）
+        startPrewarmThrottleTimer();
 
         // 6. 电池优化白名单检测（非阻塞，仅通知 JS 层引导用户）
         checkAndNotifyBatteryOptimization();
@@ -437,7 +462,13 @@ public class LocationForegroundService extends Service implements AMapLocationLi
         // 5. 关闭数据库写入线程池（等待当前排队任务完成）
         shutdownDbExecutor();
 
-        // 6. Stop foreground & remove notification
+        // 6. 取消预热降频定时器
+        cancelPrewarmThrottleTimer();
+
+        // 7. 注销预热控制接收器
+        unregisterPrewarmControlReceiver();
+
+        // 8. Stop foreground & remove notification
         stopForeground(true);
 
         super.onDestroy();
@@ -1053,5 +1084,123 @@ public class LocationForegroundService extends Service implements AMapLocationLi
         cal.set(java.util.Calendar.SECOND, 0);
         cal.set(java.util.Calendar.MILLISECOND, 0);
         todayMidnight = cal.getTimeInMillis();
+    }
+
+    // -------------------------------------------------------------------
+    // 全生命周期预热机制 (Full Lifecycle Prewarm)
+    // -------------------------------------------------------------------
+
+    /**
+     * 启动预热降频定时器：若 App 保持预热状态超过 3 分钟无交互，自动降频至 15s。
+     */
+    private void startPrewarmThrottleTimer() {
+        if (prewarmThrottleHandler != null) {
+            prewarmThrottleHandler.removeCallbacksAndMessages(null);
+        }
+        prewarmThrottleHandler = new Handler(android.os.Looper.getMainLooper());
+        prewarmStartedAt = System.currentTimeMillis();
+
+        prewarmThrottleRunnable = () -> {
+            if (isPrewarmMode && currentRunId == null) {
+                Log.i(TAG, "[SmartPrewarm] 3 min idle, throttling to low-freq mode");
+                updateLocationInterval(PREWARM_LOW_FREQ_INTERVAL);
+                logEvent("prewarm_throttled", "3min_idle");
+            }
+        };
+
+        prewarmThrottleHandler.postDelayed(prewarmThrottleRunnable, PREWARM_THROTTLE_TIMEOUT_MS);
+        Log.i(TAG, "[SmartPrewarm] Throttle timer started (3min timeout)");
+    }
+
+    /**
+     * 取消预热降频定时器（用户开始跑步时调用）。
+     */
+    private void cancelPrewarmThrottleTimer() {
+        if (prewarmThrottleHandler != null && prewarmThrottleRunnable != null) {
+            prewarmThrottleHandler.removeCallbacks(prewarmThrottleRunnable);
+            Log.i(TAG, "[SmartPrewarm] Throttle timer cancelled");
+        }
+    }
+
+    /**
+     * 恢复高频定位（用户点击开始跑步时调用）。
+     * 通过 Broadcast 接收来自 JS 层的指令。
+     */
+    private void resumeHighFreqPrewarm() {
+        isPrewarmMode = false;
+        cancelPrewarmThrottleTimer();
+        Log.i(TAG, "[SmartPrewarm] Resuming high-freq mode for running");
+        updateLocationInterval(PREWARM_HIGH_FREQ_INTERVAL);
+        logEvent("prewarm_resume_high_freq", "running_started");
+    }
+
+    /**
+     * 动态更新定位间隔（不重启定位客户端）。
+     */
+    private void updateLocationInterval(long newInterval) {
+        if (locationClient == null) {
+            locationInterval = newInterval;
+            return;
+        }
+
+        locationInterval = newInterval;
+        final long interval = newInterval;
+
+        if (locationHandler != null) {
+            locationHandler.post(() -> {
+                try {
+                    if (locationClient != null) {
+                        AMapLocationClientOption option = new AMapLocationClientOption();
+                        option.setInterval(interval);
+                        option.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);
+                        option.setSensorEnable(true);
+                        option.setNeedAddress(false);
+                        option.setLocationCacheEnable(false);
+                        option.setGpsFirst(true);
+                        option.setGpsFirstTimeout(5000);
+                        locationClient.setLocationOption(option);
+                        Log.i(TAG, "[SmartPrewarm] Location interval updated to " + interval + "ms");
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Failed to update location interval: " + e.getMessage(), e);
+                }
+            });
+        }
+    }
+
+    /**
+     * 处理来自 JS 层的预热控制指令。
+     * 通过 Broadcast 接收：action = "com.xiangfei.citylord.PREWARM_CONTROL"
+     * extra "command" = "resume_high_freq" | "start_prewarm"
+     */
+    private BroadcastReceiver prewarmControlReceiver = null;
+
+    private void registerPrewarmControlReceiver() {
+        prewarmControlReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(android.content.Context context, Intent intent) {
+                String command = intent.getStringExtra("command");
+                if ("resume_high_freq".equals(command)) {
+                    resumeHighFreqPrewarm();
+                } else if ("start_prewarm".equals(command)) {
+                    Log.i(TAG, "[SmartPrewarm] Received start_prewarm command");
+                    startPrewarmThrottleTimer();
+                }
+            }
+        };
+        IntentFilter filter = new IntentFilter("com.xiangfei.citylord.PREWARM_CONTROL");
+        LocalBroadcastManager.getInstance(this).registerReceiver(prewarmControlReceiver, filter);
+        Log.i(TAG, "[SmartPrewarm] Control receiver registered");
+    }
+
+    private void unregisterPrewarmControlReceiver() {
+        if (prewarmControlReceiver != null) {
+            try {
+                LocalBroadcastManager.getInstance(this).unregisterReceiver(prewarmControlReceiver);
+            } catch (Exception e) {
+                Log.w(TAG, "Failed to unregister prewarm control receiver: " + e.getMessage());
+            }
+            prewarmControlReceiver = null;
+        }
     }
 }

@@ -35,6 +35,10 @@ interface LocationContextValue {
     initializeLocationSystem: (options?: { onlyIfGranted?: boolean }) => Promise<void>;
     setStartWarmupActive: (active: boolean) => Promise<void>;
     clearWarmupState: () => void;
+    /** 全生命周期预热：通知原生层开始高频预热流 */
+    startPrewarm: () => void;
+    /** 全生命周期预热：通知原生层恢复高频（用户开始跑步时） */
+    resumeHighFreqPrewarm: () => void;
 }
 
 const LocationContext = createContext<LocationContextValue | null>(null);
@@ -55,6 +59,8 @@ export function useLocationContext(): LocationContextValue {
             initializeLocationSystem: async (options?: { onlyIfGranted?: boolean }) => console.warn('[useLocationContext] initializeLocationSystem called outside provider'),
             setStartWarmupActive: async (active: boolean) => console.warn('[useLocationContext] setStartWarmupActive called outside provider', active),
             clearWarmupState: () => console.warn('[useLocationContext] clearWarmupState called outside provider'),
+            startPrewarm: () => console.warn('[useLocationContext] startPrewarm called outside provider'),
+            resumeHighFreqPrewarm: () => console.warn('[useLocationContext] resumeHighFreqPrewarm called outside provider'),
         };
     }
     return ctx;
@@ -370,6 +376,20 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
 
         bridgeRef.current = bridge;
 
+        // --- 全生命周期预热：App 启动即通知原生层开始高频预热流 ---
+        const startPrewarmOnMount = () => {
+            if (typeof window !== 'undefined' && 'Capacitor' in window) {
+                try {
+                    const { Capacitor } = window as any;
+                    Capacitor.Plugins?.AMapLocationPlugin?.sendPrewarmCommand({ command: 'start_prewarm' });
+                    console.log(`${TAG} [SmartPrewarm] App mount — prewarm signal sent to native layer`);
+                } catch (err) {
+                    console.warn(`${TAG} [SmartPrewarm] Failed to send prewarm on mount:`, err);
+                }
+            }
+        };
+        startPrewarmOnMount();
+
         // --- Visibility Listener ---
         const handleVisibility = () => {
             if (mountedRef.current) {
@@ -525,6 +545,28 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
         },
         clearWarmupState: () => {
             useLocationStore.getState().clearWarmupState();
+        },
+        startPrewarm: () => {
+            console.log(`${TAG} [SmartPrewarm] Notifying native layer to start prewarm`);
+            if (typeof window !== 'undefined' && 'Capacitor' in window) {
+                try {
+                    const { Capacitor } = window as any;
+                    Capacitor.Plugins?.AMapLocationPlugin?.sendPrewarmCommand({ command: 'start_prewarm' });
+                } catch (err) {
+                    console.warn(`${TAG} Failed to send prewarm command:`, err);
+                }
+            }
+        },
+        resumeHighFreqPrewarm: () => {
+            console.log(`${TAG} [SmartPrewarm] Notifying native layer to resume high-freq`);
+            if (typeof window !== 'undefined' && 'Capacitor' in window) {
+                try {
+                    const { Capacitor } = window as any;
+                    Capacitor.Plugins?.AMapLocationPlugin?.sendPrewarmCommand({ command: 'resume_high_freq' });
+                } catch (err) {
+                    console.warn(`${TAG} Failed to send resume command:`, err);
+                }
+            }
         },
     }), [initializeLocationSystem, permissionGranted, isWatching]);
 

@@ -151,7 +151,7 @@ export function GamePageContent({
   const { isLoading: isCityLoading, currentCity } = useCity()
   const { checkStaminaRecovery, dismissGeolocationPrompt, claimAchievement, addTotalDistance, openDrawer, closeDrawer, startRunning, stopRunning } = useGameActions()
   const { achievements, totalDistance } = useGameUser()
-  const { initializeLocationSystem, setStartWarmupActive, clearWarmupState } = useLocationContext()
+  const { initializeLocationSystem, setStartWarmupActive, clearWarmupState, resumeHighFreqPrewarm } = useLocationContext()
   const hydrated = useHydration();
   const prefersReducedMotion = useReducedMotion();
   const mapViewRef = useRef<AMapViewHandle>(null);
@@ -330,6 +330,7 @@ export function GamePageContent({
     clearRecovery,
     finalize,
     addManualLocation,
+    setAnchorPoint,
     saveRun, // NEW: Persistence function
     // Raw data contract
     distanceMeters,
@@ -355,38 +356,66 @@ export function GamePageContent({
     if (hasCheckedRecovery) return;
     setHasCheckedRecovery(true);
 
-    const RECOVERY_KEY = 'CURRENT_RUN_RECOVERY';
-    const recoveryJson = localStorage.getItem(RECOVERY_KEY);
-    if (recoveryJson) {
+    const checkRecovery = async () => {
+      const RECOVERY_KEY = 'CURRENT_RUN_RECOVERY';
+      let recoveryJson: string | null = null;
       try {
-        const data = JSON.parse(recoveryJson);
-        
-        // 1. 基础有效性检查 (24h 超时 + 版本匹配)
-        const isSessionValid = data.startTime && 
-                             (Date.now() - data.startTime < 24 * 60 * 60 * 1000) && 
-                             data.isRunning && 
-                             data.sessionVersion === '2.0';
-
-        if (isSessionValid) {
-          console.log("[Recovery] Valid session found, restoring UI...", data.runId);
-          logEvent('run_session_found', { runId: data.runId });
-
-          setIsRunning(true);
-          startRunning();
-          setShowImmersiveMode(true);
-          setActiveTab('play'); 
-          
-          logEvent('run_session_restore_success', { runId: data.runId });
-        } else if (data.isRunning) {
-          console.log("[Recovery] Session expired or version mismatch, cleaning up...");
-          localStorage.removeItem(RECOVERY_KEY);
-          logEvent('run_session_restore_failed', { reason: 'expired_or_invalid_version', runId: data.runId });
-        }
+        const { Preferences } = await import('@capacitor/preferences');
+        const res = await Preferences.get({ key: RECOVERY_KEY });
+        recoveryJson = res.value;
       } catch (e) {
-        console.warn("[Recovery] Invalid data, cleaning up...", e);
-        localStorage.removeItem(RECOVERY_KEY);
+        console.warn("[Recovery] Failed to read from Preferences:", e);
       }
-    }
+
+      if (!recoveryJson && typeof window !== 'undefined') {
+        recoveryJson = localStorage.getItem(RECOVERY_KEY);
+      }
+
+      if (recoveryJson) {
+        try {
+          const data = JSON.parse(recoveryJson);
+          
+          // 1. 基础有效性检查 (24h 超时 + 版本匹配)
+          const isSessionValid = data.startTime && 
+                               (Date.now() - data.startTime < 24 * 60 * 60 * 1000) && 
+                               data.isRunning && 
+                               data.sessionVersion === '2.0';
+
+          if (isSessionValid) {
+            console.log("[Recovery] Valid session found, restoring UI...", data.runId);
+            logEvent('run_session_found', { runId: data.runId });
+
+            setIsRunning(true);
+            startRunning();
+            setShowImmersiveMode(true);
+            setActiveTab('play'); 
+            
+            logEvent('run_session_restore_success', { runId: data.runId });
+          } else {
+            console.log("[Recovery] Session expired or version mismatch, cleaning up...");
+            try {
+              const { Preferences } = await import('@capacitor/preferences');
+              await Preferences.remove({ key: RECOVERY_KEY });
+            } catch {}
+            if (typeof window !== 'undefined') {
+              localStorage.removeItem(RECOVERY_KEY);
+            }
+            logEvent('run_session_restore_failed', { reason: 'expired_or_invalid_version', runId: data.runId });
+          }
+        } catch (e) {
+          console.warn("[Recovery] Invalid data, cleaning up...", e);
+          try {
+            const { Preferences } = await import('@capacitor/preferences');
+            await Preferences.remove({ key: RECOVERY_KEY });
+          } catch {}
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem(RECOVERY_KEY);
+          }
+        }
+      }
+    };
+
+    checkRecovery();
   }, [hasCheckedRecovery, startRunning]);
 
   // Reset missionsInitialFilter when leaving missions tab
@@ -702,9 +731,10 @@ export function GamePageContent({
     }
 
     setActiveTab("play")
+    finalize()
     startCountdown()
     return true
-  }, [gpsError, gpsStatus, immersiveCurrentLocation, isAuthenticated, liveLocation, startCountdown])
+  }, [gpsError, gpsStatus, immersiveCurrentLocation, isAuthenticated, liveLocation, startCountdown, finalize])
 
   const handleQuickNavigate = useCallback((tab: string, options?: { initialFilter?: 'all' | 'daily' | 'weekly' }) => {
     if (options?.initialFilter) {
@@ -899,12 +929,14 @@ export function GamePageContent({
     setShowImmersiveMode(true)
     setActiveTab("play")
 
-    // If pre-warm converged on a high-quality anchor, inject it as the absolute start point
+    // 全生命周期预热：接收黄金起点，立即熔断 warmup 状态
     if (anchorPoint && typeof anchorPoint.lat === 'number' && typeof anchorPoint.lng === 'number') {
       console.log('[SmartPrewarm] Using converged anchor:', anchorPoint.lat.toFixed(6), anchorPoint.lng.toFixed(6), 'accuracy:', anchorPoint.accuracy)
-      setTimeout(() => addManualLocation(anchorPoint.lat, anchorPoint.lng), 50)
+      setAnchorPoint(anchorPoint)
+      // 通知原生层恢复高频定位
+      resumeHighFreqPrewarm()
     }
-  }, [clearWarmupState, startRunning, addManualLocation]);
+  }, [clearWarmupState, startRunning, setAnchorPoint, resumeHighFreqPrewarm]);
 
   // Complex stop handler
   const handleStopRun = useCallback(async () => {

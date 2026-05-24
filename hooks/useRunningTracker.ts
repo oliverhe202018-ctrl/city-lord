@@ -58,6 +58,9 @@ const MIN_WARMUP_POINTS = process.env.NODE_ENV === 'development' ? 1 : 1;
 const WARMUP_TIMEOUT_MS = process.env.NODE_ENV === 'development' ? 2000 : 3000;
 const CLOCK_DRIFT_TOLERANCE_MS = 5000;
 
+/** 全生命周期预热：黄金起点首次移动防抖阈值（米）— 固定 3 米 */
+const PREWARM_FIRST_MOVE_DEBOUNCE_M = 3;
+
 export interface Location {
   lat: number;
   lng: number;
@@ -83,6 +86,8 @@ interface RunningStats {
   closedPolygons: Location[][];
   sessionClaims: Location[][]; // Claimed polygons during this run session
   addManualLocation: (lat: number, lng: number) => void;
+  /** 全生命周期预热：接收黄金起点，立即熔断 warmup 状态 */
+  setAnchorPoint: (anchor: GeoPoint) => void;
   isSyncing: boolean;
   saveRun: (isFinal?: boolean) => Promise<{ settlingAsync?: boolean; isDuplicate?: boolean; runId?: string; territories?: { id: string }[] } | void>;
   // Raw data for UI calculations (preferred)
@@ -208,12 +213,15 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   const closedPolygonsRef = useRef(closedPolygons);
   const areaRef = useRef(area);
   const isWarmingUpRef = useRef(true);
+  /** 全生命周期预热：是否已接收黄金起点 */
+  const hasPrewarmAnchorRef = useRef(false);
   const realtimeLoopCheckCounterRef = useRef(0);
   const claimedLoopKeysRef = useRef<Set<string>>(new Set());
 
   // ─── Kalman Filters (replace legacy EMA smoothing) ───
   const kalmanLatRef = useRef(new KalmanFilter1D(3.0, 25.0));
   const kalmanLngRef = useRef(new KalmanFilter1D(3.0, 25.0));
+  const refLocationRef = useRef<Location | null>(null);
 
   // ─── Timestamp-based timer refs ───
   const startTimeRef = useRef<number | null>(null);
@@ -501,8 +509,14 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     const SIMPLIFY_TRIGGER_POINTS = 30;
 
     const scheduleSimplify = () => {
-      displayPathSimplifyRef.current.counter++;
-      if (displayPathSimplifyRef.current.counter < SIMPLIFY_TRIGGER_POINTS) return;
+      const rawPath = pathRef.current;
+      const isBulkUpdate = Math.abs(rawPath.length - displayPath.length) > 1;
+      const isStartOfRun = rawPath.length < SIMPLIFY_TRIGGER_POINTS;
+
+      if (!isBulkUpdate && !isStartOfRun) {
+        displayPathSimplifyRef.current.counter++;
+        if (displayPathSimplifyRef.current.counter < SIMPLIFY_TRIGGER_POINTS) return;
+      }
       displayPathSimplifyRef.current.counter = 0;
 
       if (displayPathSimplifyRef.current.pending) return;
@@ -544,17 +558,34 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
   // ─── Kalman-based GPS Smoothing (replaces legacy EMA) ───
   const smoothLocation = (newLoc: Location, prevLoc: Location | null, accuracy?: number): Location => {
-    if (!prevLoc) {
-      kalmanLatRef.current.filter(newLoc.lat, newLoc.timestamp, accuracy);
-      kalmanLngRef.current.filter(newLoc.lng, newLoc.timestamp, accuracy);
+    if (!prevLoc || !refLocationRef.current) {
+      refLocationRef.current = newLoc;
+      kalmanLatRef.current.reset();
+      kalmanLngRef.current.reset();
+      kalmanLatRef.current.filter(0, newLoc.timestamp, accuracy);
+      kalmanLngRef.current.filter(0, newLoc.timestamp, accuracy);
       if (process.env.NODE_ENV === 'development') {
         lastLocationRef.current = newLoc;
       }
       return newLoc;
     }
 
-    const smoothedLat = kalmanLatRef.current.filter(newLoc.lat, newLoc.timestamp, accuracy);
-    const smoothedLng = kalmanLngRef.current.filter(newLoc.lng, newLoc.timestamp, accuracy);
+    const refLat = refLocationRef.current.lat;
+    const refLng = refLocationRef.current.lng;
+    const latRad = (refLat * Math.PI) / 180;
+    const cosLat = Math.cos(latRad);
+
+    // Convert degrees to meters relative to anchor
+    const yMeters = (newLoc.lat - refLat) * 111320;
+    const xMeters = (newLoc.lng - refLng) * 111320 * cosLat;
+
+    // Filter in meters
+    const smoothedY = kalmanLatRef.current.filter(yMeters, newLoc.timestamp, accuracy);
+    const smoothedX = kalmanLngRef.current.filter(xMeters, newLoc.timestamp, accuracy);
+
+    // Convert back to degrees
+    const smoothedLat = refLat + smoothedY / 111320;
+    const smoothedLng = refLng + smoothedX / (111320 * cosLat);
 
     return {
       lat: smoothedLat,
@@ -562,6 +593,66 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       timestamp: newLoc.timestamp
     };
   };
+
+  const unionTwoLoops = useCallback((loop1: Location[], loop2: Location[]): Location[] => {
+    try {
+      const coords1 = loop1.map(p => [p.lng, p.lat]);
+      if (coords1[0][0] !== coords1[coords1.length - 1][0] || coords1[0][1] !== coords1[coords1.length - 1][1]) {
+        coords1.push([...coords1[0]]);
+      }
+      const coords2 = loop2.map(p => [p.lng, p.lat]);
+      if (coords2[0][0] !== coords2[coords2.length - 1][0] || coords2[0][1] !== coords2[coords2.length - 1][1]) {
+        coords2.push([...coords2[0]]);
+      }
+      const poly1 = turf.polygon([coords1]);
+      const poly2 = turf.polygon([coords2]);
+      const combined = turf.union(turf.featureCollection([poly1, poly2]));
+      if (combined) {
+        let extCoords: number[][] = [];
+        if (combined.geometry.type === 'Polygon') {
+          extCoords = combined.geometry.coordinates[0];
+        } else if (combined.geometry.type === 'MultiPolygon') {
+          let maxArea = -1;
+          combined.geometry.coordinates.forEach(polyCoords => {
+            try {
+              const p = turf.polygon(polyCoords);
+              const a = turf.area(p);
+              if (a > maxArea) {
+                maxArea = a;
+                extCoords = polyCoords[0];
+              }
+            } catch {}
+          });
+        }
+        if (extCoords.length > 0) {
+          return extCoords.map((coord, idx) => ({
+            lng: coord[0],
+            lat: coord[1],
+            timestamp: loop1[idx]?.timestamp || loop2[idx]?.timestamp || Date.now()
+          }));
+        }
+      }
+    } catch (e) {
+      console.warn('[unionTwoLoops] Failed to union loops, returning loop with larger area', e);
+    }
+    
+    // Fallback: compare area of loop1 and loop2, return the larger one
+    try {
+      const coords1 = loop1.map(p => [p.lng, p.lat]);
+      if (coords1[0][0] !== coords1[coords1.length - 1][0] || coords1[0][1] !== coords1[coords1.length - 1][1]) {
+        coords1.push([...coords1[0]]);
+      }
+      const coords2 = loop2.map(p => [p.lng, p.lat]);
+      if (coords2[0][0] !== coords2[coords2.length - 1][0] || coords2[0][1] !== coords2[coords2.length - 1][1]) {
+        coords2.push([...coords2[0]]);
+      }
+      const a1 = turf.area(turf.polygon([coords1]));
+      const a2 = turf.area(turf.polygon([coords2]));
+      return a1 >= a2 ? loop1 : loop2;
+    } catch {
+      return loop1;
+    }
+  }, []);
 
   const calculateArea = useCallback((polygons: Location[][]) => {
     if (!polygons || polygons.length === 0) return 0;
@@ -720,33 +811,16 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       }
     }
 
-    // --- Phase 3: Spatial Debounce (3m threshold) ---
+    // --- Phase 3: Spatial and Speed Filtering ---
     let distFromLast = 0;
-    if (lastLocationRef.current) {
-      distFromLast = getDistanceFromLatLonInMeters(
-        lastLocationRef.current.lat,
-        lastLocationRef.current.lng,
-        finalLoc.lat,
-        finalLoc.lng
-      );
-      // 距离累加与锚点更新必须原子绑定，防止后续校验拦截导致锚点未更新
-      setDistance(prev => prev + distFromLast);
-      lastLocationRef.current = finalLoc;
+    const prevLoc = lastLocationRef.current; // Cache actual previous valid location
 
-      if (distFromLast < 3.0) {
-        // Point is too close to last point, probably jitter while stationary
-        // 跳过点写入，但距离已累加，锚点已更新
-        setCurrentLocation(finalLoc);
-        console.log(`[Tracker] Point skipped (<3m), dist=${distFromLast.toFixed(1)}m, TotalDist=${(distanceRef.current + distFromLast).toFixed(1)}m`);
-        return;
-      }
-    }
-
+    // Run spatial filter first against actual previous point
     const spatialFilterResult = shouldAcceptPointByDistance(
-      lastLocationRef.current
-        ? { lat: lastLocationRef.current.lat, lng: lastLocationRef.current.lng }
+      prevLoc
+        ? { lat: prevLoc.lat, lng: prevLoc.lng, timestamp: prevLoc.timestamp }
         : null,
-      { lat: finalLoc.lat, lng: finalLoc.lng }
+      { lat: finalLoc.lat, lng: finalLoc.lng, accuracy, timestamp: now }
     );
 
     if (!spatialFilterResult.accept) {
@@ -754,11 +828,29 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       return;
     }
 
-    if (lastLocationRef.current && lastLocationRef.current.timestamp) {
+    // Run spatial debounce (3m threshold)
+    if (prevLoc) {
+      distFromLast = getDistanceFromLatLonInMeters(
+        prevLoc.lat,
+        prevLoc.lng,
+        finalLoc.lat,
+        finalLoc.lng
+      );
+
+      if (distFromLast < 3.0) {
+        // Point is too close to last point, probably jitter while stationary
+        setCurrentLocation(finalLoc);
+        console.log(`[Tracker] Point skipped (<3m), dist=${distFromLast.toFixed(1)}m, TotalDist=${distanceRef.current.toFixed(1)}m`);
+        return;
+      }
+    }
+
+    // Run segment speed validation
+    if (prevLoc && prevLoc.timestamp) {
       const speedResult = validateSegmentSpeed(
-        lastLocationRef.current.lat,
-        lastLocationRef.current.lng,
-        lastLocationRef.current.timestamp,
+        prevLoc.lat,
+        prevLoc.lng,
+        prevLoc.timestamp,
         finalLoc.lat,
         finalLoc.lng,
         now
@@ -790,6 +882,12 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         }
       }
     }
+
+    // Point passed all filters! Update distance and set last location
+    if (prevLoc) {
+      setDistance(prev => prev + distFromLast);
+    }
+    lastLocationRef.current = finalLoc;
 
     // ========================================================================
     // 🎯 SMART LOOP CLOSURE (智能吸附) - DUAL-TRACK DETECTION
@@ -835,7 +933,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         const latestPoint = turf.point([newLoc.lng, newLoc.lat]);
         let pShapeAnchorIndex = -1;
 
-        for (let i = currentPath.length - 1 - P_SHAPE_MIN_POINT_GAP; i >= windowStart; i--) {
+        for (let i = windowStart; i <= currentPath.length - 1 - P_SHAPE_MIN_POINT_GAP; i++) {
           const historical = currentPath[i];
           const historicalPoint = turf.point([historical.lng, historical.lat]);
           const gapMeters = turf.distance(latestPoint, historicalPoint, { units: 'kilometers' }) * 1000;
@@ -893,41 +991,47 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
           if (loopArea > 100) {
             // Check if the loop is a duplicate of any existing claimed loops
-            const isDup = sessionClaimsRef.current.some(existingLoop => 
+            const dupIndex = sessionClaimsRef.current.findIndex(existingLoop => 
               isDuplicatePolygon(loopForCalc!, existingLoop)
             );
-            if (isDup) {
-              console.log("[Smart Snap] ⏭️ Loop is a duplicate (overlap > 80%), skipping");
+            
+            let nextClaims: Location[][];
+            if (dupIndex !== -1) {
+              console.log("[Smart Snap] 🔄 Loop is a duplicate, merging into existing claim at index", dupIndex);
+              const mergedLoop = unionTwoLoops(sessionClaimsRef.current[dupIndex], loopForCalc!);
+              nextClaims = [...sessionClaimsRef.current];
+              nextClaims[dupIndex] = mergedLoop;
             } else {
-              const nextClaims = [...sessionClaimsRef.current, loopForCalc];
-              const newTotalArea = calculateArea(nextClaims);
-              
-              setSessionClaims(nextClaims);
-              setClosedPolygons(prevPolys => [...prevPolys, loopForCalc!]);
-              setArea(newTotalArea);
-              lastClaimAtRef.current = now;
+              nextClaims = [...sessionClaimsRef.current, loopForCalc!];
+            }
+            
+            const newTotalArea = calculateArea(nextClaims);
+            
+            setSessionClaims(nextClaims);
+            setClosedPolygons(nextClaims);
+            setArea(newTotalArea);
+            lastClaimAtRef.current = now;
 
-              // Record claimed segment for deduplication
-              claimedSegmentsRef.current.push({ start: loopAnchorStart, end: loopAnchorEnd });
+            // Record claimed segment for deduplication
+            claimedSegmentsRef.current.push({ start: loopAnchorStart, end: loopAnchorEnd });
 
-              const closingPoint = loopForCalc[loopForCalc.length - 1];
-              const currentPathForSync = pathRef.current;
-              const lastPoint = currentPathForSync[currentPathForSync.length - 1];
-              if (!lastPoint || closingPoint.lat !== lastPoint.lat || closingPoint.lng !== lastPoint.lng) {
-                const updatedPath = [...currentPathForSync, closingPoint];
-                pathRef.current = updatedPath;
-                setPath(updatedPath);
-              }
+            const closingPoint = loopForCalc[loopForCalc.length - 1];
+            const currentPathForSync = pathRef.current;
+            const lastPoint = currentPathForSync[currentPathForSync.length - 1];
+            if (!lastPoint || closingPoint.lat !== lastPoint.lat || closingPoint.lng !== lastPoint.lng) {
+              const updatedPath = [...currentPathForSync, closingPoint];
+              pathRef.current = updatedPath;
+              setPath(updatedPath);
+            }
 
-              const TOAST_AREA_INCREMENT_THRESHOLD = 50;
-              const incrementalArea = newTotalArea - lastToastAreaRef.current;
-              if (incrementalArea >= TOAST_AREA_INCREMENT_THRESHOLD) {
-                lastToastAreaRef.current = newTotalArea;
-                toast.success(`🎉 领地已捕获！新增面积: ${Math.round(incrementalArea)}m²`, {
-                  description: '跑步记录中... 继续前进占领更多领地！',
-                  duration: 3000
-                });
-              }
+            const TOAST_AREA_INCREMENT_THRESHOLD = 50;
+            const incrementalArea = newTotalArea - lastToastAreaRef.current;
+            if (incrementalArea >= TOAST_AREA_INCREMENT_THRESHOLD) {
+              lastToastAreaRef.current = newTotalArea;
+              toast.success(`🎉 领地已捕获！新增面积: ${Math.round(incrementalArea)}m²`, {
+                description: '跑步记录中... 继续前进占领更多领地！',
+                duration: 3000
+              });
             }
           }
         }
@@ -972,11 +1076,18 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         }
 
         // Check if the loop is a duplicate of any existing claimed loops
-        const isDup = sessionClaimsRef.current.some(existingLoop => 
+        const dupIndex = sessionClaimsRef.current.findIndex(existingLoop => 
           isDuplicatePolygon(loop, existingLoop)
         );
-        if (isDup) {
-          continue;
+        
+        let nextClaims: Location[][];
+        if (dupIndex !== -1) {
+          console.log("[Self-Intersect] 🔄 Loop is a duplicate, merging into existing claim at index", dupIndex);
+          const mergedLoop = unionTwoLoops(sessionClaimsRef.current[dupIndex], loop as Location[]);
+          nextClaims = [...sessionClaimsRef.current];
+          nextClaims[dupIndex] = mergedLoop;
+        } else {
+          nextClaims = [...sessionClaimsRef.current, loop as Location[]];
         }
         
         // 计算面积，过滤微小环
@@ -993,11 +1104,10 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           // 标记已处理 + 更新状态
           claimedLoopKeysRef.current.add(loopKey);
           
-          const nextClaims = [...sessionClaimsRef.current, loop as Location[]];
           const newTotalArea = calculateArea(nextClaims);
           
           setSessionClaims(nextClaims);
-          setClosedPolygons(prevPolys => [...prevPolys, loop as Location[]]);
+          setClosedPolygons(nextClaims);
           setArea(newTotalArea);
           lastClaimAtRef.current = now;
           
@@ -1147,6 +1257,60 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           const latestTimestamp = dedupedPath[dedupedPath.length - 1].timestamp;
           useLocationStore.getState().setLastLocationTimestamp(latestTimestamp);
 
+          // Run loop check on the newly hydrated path to capture any closed loops
+          const snapLoops = extractValidLoops(dedupedPath, undefined, undefined, { disableIntersect: true });
+          const scanPath = dedupedPath.length > 1000 ? dedupedPath.slice(-1000) : dedupedPath;
+          const intersectLoops = extractValidLoops(scanPath, undefined, undefined, { disableSnap: true });
+          const detectedLoops = [...snapLoops, ...intersectLoops];
+          
+          let nextClaims = [...sessionClaimsRef.current];
+          let polysAdded = false;
+
+          for (const loop of detectedLoops) {
+            if (loop.length < 4) continue;
+            
+            const firstPt = loop[0];
+            const loopKey = `${firstPt.lat.toFixed(6)}-${firstPt.lng.toFixed(6)}-${firstPt.timestamp}`;
+            if (claimedLoopKeysRef.current.has(loopKey)) continue;
+
+            const dupIndex = nextClaims.findIndex(existingLoop => 
+              isDuplicatePolygon(loop as Location[], existingLoop)
+            );
+            
+            if (dupIndex !== -1) {
+              console.log("[Hydrate] 🔄 Loop is a duplicate, merging into existing claim at index", dupIndex);
+              const mergedLoop = unionTwoLoops(nextClaims[dupIndex], loop as Location[]);
+              nextClaims[dupIndex] = mergedLoop;
+              polysAdded = true;
+            } else {
+              nextClaims.push(loop as Location[]);
+              polysAdded = true;
+            }
+
+            const coords = loop.map(pt => [pt.lng, pt.lat]);
+            if (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1]) {
+              coords.push([...coords[0]]);
+            }
+
+            try {
+              const poly = turf.polygon([coords]);
+              const loopArea = turf.area(poly);
+              if (loopArea < 100) continue;
+
+              claimedLoopKeysRef.current.add(loopKey);
+            } catch (e) {
+              console.warn("[useRunningTracker] Hydrate loop polygon invalid", e);
+            }
+          }
+
+          if (polysAdded) {
+            const newTotalArea = calculateArea(nextClaims);
+            setSessionClaims(nextClaims);
+            setClosedPolygons(nextClaims);
+            setArea(newTotalArea);
+            lastClaimAtRef.current = Date.now();
+          }
+
           clearTimeout(hydrateTimeout);
           isHydratingRef.current = false;
 
@@ -1255,8 +1419,32 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   }, [gpsLocation, isRunning, locationSource, handleLocationUpdate]);
 
   const addManualLocation = useCallback((lat: number, lng: number) => {
+    // Injecting a manual location (from pre-warm anchor) ends warm-up phase immediately
+    isWarmingUpRef.current = false;
+    setIsWarmingUp(false);
     handleLocationUpdate(lat, lng, 0, Date.now());
   }, [handleLocationUpdate]);
+
+  /**
+   * 全生命周期预热：接收黄金起点，立即熔断 warmup 状态。
+   * 该点作为跑步多边形的绝对起点，跳过传统热身等待。
+   */
+  const setAnchorPoint = useCallback((anchor: GeoPoint) => {
+    console.log(
+      `[SmartPrewarm] Anchor point received: ${anchor.lat.toFixed(6)}, ${anchor.lng.toFixed(6)} (accuracy: ${anchor.accuracy?.toFixed(1)}m)`
+    );
+    hasPrewarmAnchorRef.current = true;
+    isWarmingUpRef.current = false;
+    setIsWarmingUp(false);
+
+    // 将黄金起点注入为上一个有效位置，后续移动将基于此点计算位移
+    lastLocationRef.current = {
+      lat: anchor.lat,
+      lng: anchor.lng,
+      timestamp: anchor.timestamp ?? Date.now(),
+    };
+    setCurrentLocation(lastLocationRef.current);
+  }, []);
 
   // Wake Lock (keep screen on during run)
   useEffect(() => {
@@ -1416,6 +1604,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
               setSavedRunId(data.runId || null);
               savedRunIdRef.current = data.runId || null;
               setPath(safePath);
+              setDisplayPath(safePath);
               setDistance(data.distance || 0);
               const restoredDuration = data.duration || 0;
               setDuration(restoredDuration);
@@ -1457,6 +1646,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
               restoreSource = 'storage';
               kalmanLatRef.current.reset();
               kalmanLngRef.current.reset();
+              refLocationRef.current = null;
             }
           } catch (e) {
             console.error("[useRunningTracker] LocalStorage recovery failed", e);
@@ -1478,6 +1668,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
                 restoreSource = 'native';
                 kalmanLatRef.current.reset();
                 kalmanLngRef.current.reset();
+                refLocationRef.current = null;
                 toast.success('已从原生服务恢复后台跑步会话');
               }
             }
@@ -1509,6 +1700,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           // Reset Kalman filters for clean start
           kalmanLatRef.current.reset();
           kalmanLngRef.current.reset();
+          refLocationRef.current = null;
           // ⚠️ CRITICAL: Recovery effect runs AFTER the Timer effect (both on [isRunning]).
           // Timer effect set startTimeRef.current = Date.now(), but then recovery
           // reset it to null — causing all timer ticks to bail out (stale-clock bug).
@@ -1574,11 +1766,13 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     validPointsCountRef.current = 0;
     firstPointAtRef.current = null;
     isWarmingUpRef.current = true;
+    hasPrewarmAnchorRef.current = false;
     isHydratingRef.current = false;
     realtimeLoopCheckCounterRef.current = 0;
     claimedLoopKeysRef.current = new Set();
     kalmanLatRef.current.reset();
     kalmanLngRef.current.reset();
+    refLocationRef.current = null;
     // 清理 currentRunId，防止下次跑步追帧时拉取旧数据
     useLocationStore.getState().setCurrentRunId(null);
     console.log('[DEBUG:RunningTracker] finalize (Store Reset) FINISHED. distance resets to 0');
@@ -1966,6 +2160,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     closedPolygons,
     sessionClaims,
     addManualLocation,
+    setAnchorPoint,
     isSyncing: isSaving,
     saveRun, // Expose for manual final save
     finalize, // Phase B cleanup

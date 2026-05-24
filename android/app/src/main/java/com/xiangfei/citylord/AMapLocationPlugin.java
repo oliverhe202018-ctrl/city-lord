@@ -456,15 +456,10 @@ public class AMapLocationPlugin extends Plugin {
             // network.
             option.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);
             option.setSensorEnable(true);
-            if ("running".equals(mode)) {
-                option.setGpsFirst(true);
-                option.setGpsFirstTimeout(5000);
-                option.setLocationCacheEnable(false);
-            } else {
-                // browse模式：禁用缓存，杜绝陈旧缓存导致的跳点
-                option.setLocationCacheEnable(false);
-                option.setGpsFirst(false);
-            }
+            // 无论是 running 还是 browse 模式，均开启高精度 GPS 优先并禁用缓存，确保从启动起就持续高精度定位
+            option.setLocationCacheEnable(false);
+            option.setGpsFirst(true);
+            option.setGpsFirstTimeout(5000);
 
             option.setInterval(interval);
             option.setNeedAddress(false);
@@ -686,6 +681,21 @@ public class AMapLocationPlugin extends Plugin {
         // Cannot directly access the service instance here, so we send a broadcast
         Intent intent = new Intent("com.xiangfei.citylord.UPDATE_STEPS");
         intent.putExtra("steps", steps);
+        androidx.localbroadcastmanager.content.LocalBroadcastManager.getInstance(getContext()).sendBroadcast(intent);
+        call.resolve();
+    }
+
+    /**
+     * 全生命周期预热控制：通知 LocationForegroundService 切换预热模式。
+     * @param command "start_prewarm" | "resume_high_freq"
+     */
+    @PluginMethod()
+    public void sendPrewarmCommand(PluginCall call) {
+        String command = call.getString("command", "");
+        Log.i(TAG, "[SmartPrewarm] sendPrewarmCommand: " + command);
+
+        Intent intent = new Intent(LocationForegroundService.ACTION_PREWARM_CONTROL);
+        intent.putExtra("command", command);
         androidx.localbroadcastmanager.content.LocalBroadcastManager.getInstance(getContext()).sendBroadcast(intent);
         call.resolve();
     }

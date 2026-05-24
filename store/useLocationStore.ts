@@ -26,6 +26,12 @@ export type GeoErrorType = 'PERMISSION_DENIED' | 'TIMEOUT' | 'UNAVAILABLE' | 'UN
 /** 缓存最大有效期（ms） */
 export const CACHE_MAX_AGE_MS = 10 * 60 * 1000; // 10 min
 
+/** 预热历史缓冲区最大长度（FIFO 队列上限） */
+const PREWARM_HISTORY_MAX_LENGTH = 30;
+
+/** 预热历史检索时间窗口（ms） */
+const PREWARM_HISTORY_WINDOW_MS = 30 * 1000; // 30 seconds
+
 const STORAGE_KEY = 'last_known_location';
 
 export interface LocationStoreState {
@@ -67,11 +73,21 @@ export interface LocationStoreState {
     /** 当前跑步会话 ID，用于 Room DB 查询补帧 */
     currentRunId: string | null;
 
+    /** 全生命周期预热历史缓冲区（FIFO 队列，最多 30 个点） */
+    prewarmHistory: GeoPoint[];
+
     appendWarmupSample: (point: GeoPoint) => void;
     clearWarmupState: () => void;
     setLastLocationTimestamp: (ts: number) => void;
     setCurrentRunId: (id: string | null) => void;
     injectOfflinePoint: (point: GeoPoint) => void;
+
+    /**
+     * 从预热历史中筛选黄金坐标点。
+     * @param maxAccuracy 最大允许精度（米）
+     * @returns 精度最高（accuracy 数值最小）且满足条件的点，若无则返回 null
+     */
+    getBestAccuracySample: (maxAccuracy: number) => GeoPoint | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -133,17 +149,21 @@ export const useLocationStore = create<LocationStoreState>()((set) => ({
     status: initial.status,
     gpsSignalStrength: 'none',
     warmupSamples: [],
+    prewarmHistory: [],
     locationMeta: null,
     lastLocationTimestamp: initial.location?.timestamp ?? 0,
     currentRunId: null,
-    appendWarmupSample: (point) => set((state) => ({
-        warmupSamples: [...state.warmupSamples.slice(-(WARMUP_BUFFER_LIMIT - 1)), point],
-    })),
+    appendWarmupSample: (point) => set((state) => {
+        const newHistory = [...state.prewarmHistory.slice(-(PREWARM_HISTORY_MAX_LENGTH - 1)), point];
+        return {
+            warmupSamples: [...state.warmupSamples.slice(-(WARMUP_BUFFER_LIMIT - 1)), point],
+            prewarmHistory: newHistory,
+        };
+    }),
     clearWarmupState: () => set({
-        location: null,
-        locationSource: null,
         locationMeta: null,
         warmupSamples: [],
+        prewarmHistory: [],
     }),
     setLastLocationTimestamp: (ts) => set({ lastLocationTimestamp: ts }),
     setCurrentRunId: (id) => set({ currentRunId: id }),
@@ -154,6 +174,35 @@ export const useLocationStore = create<LocationStoreState>()((set) => ({
         loading: false,
         status: 'locked',
     }),
+    getBestAccuracySample: (maxAccuracy: number): GeoPoint | null => {
+        const state = useLocationStore.getState();
+        const now = Date.now();
+        const cutoff = now - PREWARM_HISTORY_WINDOW_MS;
+
+        // Filter: within time window AND accuracy <= maxAccuracy
+        const validSamples = state.prewarmHistory.filter(
+            (p: GeoPoint) => {
+                const ts = p.timestamp ?? 0;
+                const acc = p.accuracy ?? Infinity;
+                return ts >= cutoff && acc <= maxAccuracy;
+            }
+        );
+
+        if (validSamples.length === 0) return null;
+
+        // Return the one with minimum accuracy (most precise)
+        let best: GeoPoint = validSamples[0];
+        for (let i = 1; i < validSamples.length; i++) {
+            if ((validSamples[i].accuracy ?? Infinity) < (best.accuracy ?? Infinity)) {
+                best = validSamples[i];
+            }
+        }
+
+        console.log(
+            `[SmartPrewarm] Anchor successfully bound to hot high-accuracy sample (Accuracy: ${best.accuracy?.toFixed(1)}m)`
+        );
+        return best;
+    },
 }));
 
 // ---------------------------------------------------------------------------
