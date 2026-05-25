@@ -412,6 +412,7 @@ export function GamePageContent({
     eventsHistory,
     activeRandomEvent,
     randomEventCountdownSeconds,
+    lastAnnouncedKm,
   } = useRunningTracker(isRunning, user?.id)
 
   // Crash Recovery Check
@@ -1431,6 +1432,7 @@ export function GamePageContent({
             randomEventCountdownSeconds={randomEventCountdownSeconds}
             finalize={finalize}
             clearRecovery={clearRecovery}
+            lastAnnouncedKm={lastAnnouncedKm}
           />
         </div>
       ) : null}

@@ -110,6 +110,7 @@ interface RunningStats {
   activeRandomEvent: ActiveRandomEvent | null;
   randomEventCountdownSeconds: number;
   isGPSWeak: boolean;
+  lastAnnouncedKm: number;
 }
 
 // Haversine formula — now imported from @/lib/geometry-utils
@@ -239,8 +240,19 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   useEffect(() => { closedPolygonsRef.current = closedPolygons; }, [closedPolygons]);
   useEffect(() => { areaRef.current = area; }, [area]);
 
+  // Keep lastAnnouncedKmRef updated with distance in the foreground
+  useEffect(() => {
+    if (isRunning && !isPaused) {
+      const currentKm = Math.floor(distance / 1000);
+      if (currentKm > lastAnnouncedKmRef.current) {
+        lastAnnouncedKmRef.current = currentKm;
+      }
+    }
+  }, [distance, isRunning, isPaused]);
+
   // Idempotency key for the current run
   const runIdempotencyKeyRef = useRef<string>(uuidv4());
+  const lastAnnouncedKmRef = useRef<number>(0);
 
   // --- Persistence & Sync State (Moved up to avoid TDZ) ---
   const [isSaving, setIsSaving] = useState(false);
@@ -463,6 +475,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         idempotencyKey: runIdempotencyKeyRef.current,
         path: recentPath,
         distance: distanceRef.current,
+        lastAnnouncedKm: lastAnnouncedKmRef.current,
         duration: durationRef.current,
         pausedAccumulator: pausedAccumulatorRef.current,
         isRunning: isRunning,
@@ -1334,7 +1347,10 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         if (lastRef) {
           const dist = getDistanceFromLatLonInMeters(lastRef.lat, lastRef.lng, pt.lat, pt.lng);
           const dt = Math.max((pt.timestamp - lastRef.timestamp) / 1000, 0.1);
-          if (dist / dt > SPEED_LIMIT_MS) continue;
+          if (dist / dt > SPEED_LIMIT_MS) {
+            lastRef = pt;
+            continue;
+          }
         }
         validOffline.push(pt);
         lastRef = pt;
@@ -1370,12 +1386,98 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
       console.log(`[Hydrate] 去重合并法: currentPath=${currentPath.length} 点, validOffline=${validOffline.length} 点, dedupedPath=${dedupedPath.length} 点, 共 ${totalChunks} 个批次`);
 
+      const preOfflineDistance = distanceRef.current;
+
       const processChunk = async () => {
         if (chunkIndex >= totalChunks) {
           if (totalDistDelta > 0) {
             setDistance(prev => prev + totalDistDelta);
           }
           console.log(`[Hydrate] 批量合入完成: ${dedupedPath.length} 个轨迹点, 新增距离 ${totalDistDelta.toFixed(1)}m`);
+
+          // ─── 关屏语音播报里程碑事件回放 ───
+          const postOfflineDistance = preOfflineDistance + totalDistDelta;
+          const startKm = Math.floor(preOfflineDistance / 1000) + 1;
+          const endKm = Math.floor(postOfflineDistance / 1000);
+
+          const missedMilestones: number[] = [];
+          for (let k = startKm; k <= endKm; k++) {
+            if (k > lastAnnouncedKmRef.current) {
+              missedMilestones.push(k);
+            }
+          }
+
+          if (missedMilestones.length > 0) {
+            let cumulativeDistance = 0;
+            const pathWithDistance: { distance: number; timestamp: number }[] = [];
+            if (dedupedPath.length > 0) {
+              pathWithDistance.push({ distance: 0, timestamp: dedupedPath[0].timestamp });
+              for (let i = 1; i < dedupedPath.length; i++) {
+                const dist = getDistanceFromLatLonInMeters(
+                  dedupedPath[i - 1].lat,
+                  dedupedPath[i - 1].lng,
+                  dedupedPath[i].lat,
+                  dedupedPath[i].lng
+                );
+                cumulativeDistance += dist;
+                pathWithDistance.push({ distance: cumulativeDistance, timestamp: dedupedPath[i].timestamp });
+              }
+            }
+
+            const getTimestampAtDistance = (targetDist: number): number => {
+              if (pathWithDistance.length === 0) return 0;
+              if (targetDist <= 0) return pathWithDistance[0].timestamp;
+              if (targetDist >= cumulativeDistance) return pathWithDistance[pathWithDistance.length - 1].timestamp;
+              for (let i = 1; i < pathWithDistance.length; i++) {
+                const prev = pathWithDistance[i - 1];
+                const curr = pathWithDistance[i];
+                if (targetDist >= prev.distance && targetDist <= curr.distance) {
+                  if (curr.distance === prev.distance) return prev.timestamp;
+                  const ratio = (targetDist - prev.distance) / (curr.distance - prev.distance);
+                  return prev.timestamp + ratio * (curr.timestamp - prev.timestamp);
+                }
+              }
+              return pathWithDistance[pathWithDistance.length - 1].timestamp;
+            };
+
+            const speakAnnouncement = async (text: string) => {
+              const voiceReportingEnabled = useGameStore.getState().appSettings?.voiceReportingEnabled ?? true;
+              if (!voiceReportingEnabled) return;
+              try {
+                if (await isNativePlatform()) {
+                  const { TextToSpeech } = await import('@capacitor-community/text-to-speech');
+                  await TextToSpeech.speak({
+                    text,
+                    lang: 'zh-CN',
+                    rate: 1.0,
+                    pitch: 1.0,
+                    volume: 1.0,
+                    category: 'playback',
+                  });
+                } else {
+                  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.lang = 'zh-CN';
+                    utterance.rate = 1.0;
+                    window.speechSynthesis.speak(utterance);
+                  }
+                }
+              } catch (e) {
+                console.warn('[useRunningTracker] Replay TTS error:', e);
+              }
+            };
+
+            for (const k of missedMilestones) {
+              const t_start = getTimestampAtDistance((k - 1) * 1000);
+              const t_end = getTimestampAtDistance(k * 1000);
+              const dt = Math.max((t_end - t_start) / 1000, 0.1);
+              const segmentPaceStr = formatPace(dt, 1);
+              const msg = `领主，您已奔袭 ${k} 公里！当前配速 ${segmentPaceStr}，势如破竹，请继续保持！`;
+              console.log(`[Hydrate] Replaying missed milestone ${k}km: ${msg}`);
+              speakAnnouncement(msg);
+              lastAnnouncedKmRef.current = k;
+            }
+          }
 
           const latestTimestamp = dedupedPath[dedupedPath.length - 1].timestamp;
           useLocationStore.getState().setLastLocationTimestamp(latestTimestamp);
@@ -1762,6 +1864,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
               setRunIsValid(data.runIsValid ?? true);
               setAntiCheatLog(data.antiCheatLog ?? null);
               setArea(data.area || 0);
+              lastAnnouncedKmRef.current = data.lastAnnouncedKm !== undefined ? data.lastAnnouncedKm : Math.floor((data.distance || 0) / 1000);
               
               const isPausedNow = data.status === 'paused';
               setIsPaused(isPausedNow);
@@ -1817,6 +1920,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
                 kalmanLatRef.current.reset();
                 kalmanLngRef.current.reset();
                 refLocationRef.current = null;
+                lastAnnouncedKmRef.current = 0;
                 toast.success('已从原生服务恢复后台跑步会话');
               }
             }
@@ -1845,6 +1949,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           pathRef.current = [];
           pausedAccumulatorRef.current = 0;
           runIdempotencyKeyRef.current = uuidv4();
+          lastAnnouncedKmRef.current = 0;
           // Reset Kalman filters for clean start
           kalmanLatRef.current.reset();
           kalmanLngRef.current.reset();
@@ -1908,6 +2013,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     pausedAccumulatorRef.current = 0;
     startTimeRef.current = null;
     runIdempotencyKeyRef.current = uuidv4();
+    lastAnnouncedKmRef.current = 0;
     pedometerBaselineRef.current = null;
     lastToastAreaRef.current = 0;
     lastClaimAtRef.current = 0;
@@ -2354,5 +2460,6 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     activeRandomEvent: activeEvent,
     randomEventCountdownSeconds: countdownSeconds,
     isGPSWeak,
+    lastAnnouncedKm: lastAnnouncedKmRef.current,
   };
 }

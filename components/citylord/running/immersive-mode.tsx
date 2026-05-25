@@ -85,6 +85,7 @@ interface ImmersiveModeProps {
   randomEventCountdownSeconds?: number
   finalize?: () => void
   clearRecovery?: () => void
+  lastAnnouncedKm?: number
 }
 
 const springTransition = { type: "spring", stiffness: 300, damping: 30 } as const
@@ -340,7 +341,8 @@ function ImmersiveRunningModeInner({
   activeRandomEvent,
   randomEventCountdownSeconds = 0,
   finalize,
-  clearRecovery
+  clearRecovery,
+  lastAnnouncedKm
 }: ImmersiveModeProps) {
   const router = useRouter()
   const [isPaused, setIsPaused] = useState(initialIsPaused)
@@ -404,7 +406,8 @@ function ImmersiveRunningModeInner({
     pace: typeof pace === 'number' ? `${Math.floor(pace)}'${Math.round((pace % 1) * 60)}"` : (pace ?? '--\'--"'),
     factionName: faction,
     runId: idempotencyKey ?? null,
-    isRunning: !showSummary && !isSubmitting
+    isRunning: !showSummary && !isSubmitting,
+    lastAnnouncedKm
   })
 
 

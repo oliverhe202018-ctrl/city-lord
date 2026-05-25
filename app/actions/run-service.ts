@@ -32,6 +32,7 @@ import { cleanAndSplitTrajectory } from '@/lib/gis/geometry-cleaner';
 import { isLoopClosed, LOOP_CLOSURE_THRESHOLD_M, extractValidLoops, type Coord, simplifyPathDP } from '@/lib/geometry-utils';
 import { isTester } from '@/lib/constants/anti-cheat';
 import { reverseGeocodeCity } from '@/lib/map/server-geocode';
+import { v4 as uuidv4 } from 'uuid';
 
 // ─── 动态城市识别：基于轨迹首点坐标匹配最近城市 ───
 async function resolveRunCityId(runData: any): Promise<string | null> {
@@ -1073,6 +1074,12 @@ export async function saveRunActivity(
 
         // 5. Transaction: Save Run + Process Rewards + Audit Logs
         const result = await prisma.$transaction(async (tx: any) => {
+            const runnerProfile = await tx.profiles.findUnique({
+                where: { id: userId },
+                select: { faction: true }
+            });
+            const runnerFaction = runnerProfile?.faction ?? null;
+
             // A. Create Run Record (Always saved, even if flagged)
             const runEventsWithDiag = [
                 ...eventsHistory,
@@ -1126,6 +1133,88 @@ export async function saveRunActivity(
                     antiCheatLog: isUserTester ? null : pedometerAntiCheatLog,
                 },
             });
+
+            // B. Write new territory records directly if they exist
+            if (polygonsForSettlement.length > 0 && !isBlockedByAntiCheat && !isGeometryInvalid) {
+                const territoryRecords = polygonsForSettlement.map((polyPts: any) => {
+                    const coords = polyPts.map((p: any) => [p.lng, p.lat]);
+                    if (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1]) {
+                        coords.push([...coords[0]]);
+                    }
+                    const geojsonJson = {
+                        type: 'Polygon',
+                        coordinates: [coords]
+                    };
+                    let areaM2 = 0;
+                    try {
+                        const poly = turfPolygon([coords]);
+                        areaM2 = turfArea(poly);
+                    } catch (e) {
+                        console.warn('[saveRunActivity] Failed to compute turf area for direct write:', e);
+                    }
+
+                    const newId = `terr_${uuidv4().replace(/-/g, '').substring(0, 24)}`;
+                    return {
+                        id: newId,
+                        city_id: safeCityId || 'unknown_city',
+                        owner_id: userId,
+                        owner_club_id: runnerClubId,
+                        owner_faction: runnerFaction,
+                        geojson_json: geojsonJson as any,
+                        source_run_id: run.id,
+                        first_claimed_at: new Date(),
+                        last_claimed_at: new Date(),
+                        captured_at: new Date(),
+                        last_maintained_at: new Date(),
+                        max_hp: 1000,
+                        current_hp: 1000,
+                        health: 100,
+                        territory_type: 'NORMAL' as any,
+                        score_weight: 1.0,
+                        status: 'ACTIVE' as any,
+                        area_m2_exact: areaM2,
+                    };
+                });
+
+                if (territoryRecords.length > 0) {
+                    await tx.territories.createMany({
+                        data: territoryRecords,
+                        skipDuplicates: true,
+                    });
+
+                    // Update the PostGIS geojson geometry column from geojson_json for the newly created territories
+                    await tx.$executeRaw`
+                        UPDATE territories 
+                        SET geojson = ST_SetSRID(ST_GeomFromGeoJSON(geojson_json::text), 4326) 
+                        WHERE source_run_id = CAST(${run.id} AS UUID) AND geojson IS NULL;
+                    `;
+
+                    // Generate CREATED events for each territory
+                    const territoryEvents = territoryRecords.map((t) => ({
+                        territory_id: t.id,
+                        event_type_old: 'CREATED',
+                        user_id: userId,
+                        old_owner_id: null,
+                        new_owner_id: userId,
+                        old_club_id: null,
+                        new_club_id: runnerClubId,
+                        old_faction: null,
+                        new_faction: runnerFaction,
+                        source_request_id: null,
+                        action_id: `direct_run_${run.id}`,
+                        processed_for_stats: false,
+                        processed_at: new Date(),
+                        source_run_id: run.id,
+                        source_type: 'RUN' as any,
+                        event_type: 'CREATED' as any,
+                    }));
+
+                    await tx.territory_events.createMany({
+                        data: territoryEvents,
+                        skipDuplicates: true,
+                    });
+                }
+            }
 
             // Audit logging for suspicious runs
             if (isBlockedByAntiCheat || pathValidation.riskLevel !== 'LOW') {

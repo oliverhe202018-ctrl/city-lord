@@ -17,13 +17,14 @@ interface BattleCasterProps {
   factionName?: string | null;
   runId?: string | null;
   isRunning: boolean;
+  lastAnnouncedKm?: number;
 }
 
 function ts() {
   return new Date().toISOString().slice(11, 23);
 }
 
-export function useBattleCaster({ distanceMeters, hexesCaptured, pace, factionName, runId, isRunning }: BattleCasterProps) {
+export function useBattleCaster({ distanceMeters, hexesCaptured, pace, factionName, runId, isRunning, lastAnnouncedKm }: BattleCasterProps) {
   const { voiceReportingEnabled } = useGameStore(s => s.appSettings);
   
   const lastSpokenKm = useRef<number>(0);
@@ -123,6 +124,13 @@ export function useBattleCaster({ distanceMeters, hexesCaptured, pace, factionNa
       console.log(`[${ts()}] [BattleCaster] isRunning=false: cancelled speech queue, released lock`);
     }
   }, [isRunning]);
+
+  useEffect(() => {
+    if (lastAnnouncedKm !== undefined && lastAnnouncedKm > lastSpokenKm.current) {
+      console.log(`[BattleCaster] Syncing lastSpokenKm from lastAnnouncedKm: ${lastSpokenKm.current} -> ${lastAnnouncedKm}`);
+      lastSpokenKm.current = lastAnnouncedKm;
+    }
+  }, [lastAnnouncedKm]);
 
   useEffect(() => {
     console.log(`[${ts()}] [DEBUG:BattleCaster] Checking announcement: isRunning=${isRunning}, dist=${distanceMeters}, lastSpokenKm=${lastSpokenKm.current}`);
