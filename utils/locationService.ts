@@ -2,7 +2,7 @@ import { isCapacitorAvailable, safeAMapStartTracking, safeAMapStopTracking } fro
 
 export const LocationService = {
   // 启动跑步记录
-  startTracking: async (userId?: string, runId?: string) => {
+  startTracking: async (userId?: string, runId?: string, voiceEnabled?: boolean) => {
     try {
       // Capacitor logic skipped in Web View to prevent console spam
       // We only use this in native app context
@@ -19,6 +19,7 @@ export const LocationService = {
           interval: 2000,
           startedAt: Date.now(),
           runId: runId || undefined,
+          voiceEnabled: voiceEnabled ?? true,
       });
 
       if (!result.success) {

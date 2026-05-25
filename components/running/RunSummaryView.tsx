@@ -67,6 +67,61 @@ interface RunSummaryViewProps {
   hasSettlementTimeout?: boolean;
 }
 
+// Client-side image compression helper
+const compressImage = (file: File, maxWidth = 1200, maxHeight = 1200, quality = 0.8): Promise<Blob> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new window.Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(file); // fallback to original file if canvas context is not available
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              resolve(blob);
+            } else {
+              resolve(file);
+            }
+          },
+          'image/jpeg',
+          quality
+        );
+      };
+      img.onerror = (err) => {
+        reject(err);
+      };
+    };
+    reader.onerror = (err) => {
+      reject(err);
+    };
+  });
+};
+
 export function RunSummaryView({
   distanceMeters,
   durationSeconds,
@@ -249,7 +304,18 @@ export function RunSummaryView({
     if (!file || !userId) return;
 
     setIsUploading(true);
-    const fileExt = file.name.split('.').pop();
+
+    // Compress the image client-side to maximum 1200px dimension and 80% JPEG quality
+    let uploadFile: Blob | File = file;
+    try {
+      console.log(`[Upload] Starting image compression: original size = ${(file.size / 1024 / 1024).toFixed(2)}MB`);
+      uploadFile = await compressImage(file);
+      console.log(`[Upload] Image compression complete: new size = ${(uploadFile.size / 1024 / 1024).toFixed(2)}MB`);
+    } catch (compressErr) {
+      console.warn('[Upload] Image compression failed, falling back to original file', compressErr);
+    }
+
+    const fileExt = 'jpg'; // Always upload as JPEG jpg
     const filePath = `${userId}/${Date.now()}.${fileExt}`;
     const startTime = Date.now();
     let attempt = 0;
@@ -270,7 +336,7 @@ export function RunSummaryView({
           
           uploadResult = await Promise.race([
             // Use standard fetch options for signals in V2 client
-            supabase.storage.from('run-photos').upload(filePath, file, { 
+            supabase.storage.from('run-photos').upload(filePath, uploadFile, { 
               cacheControl: '3600',
               upsert: true,
               ...( { signal: abortController.signal } as any )

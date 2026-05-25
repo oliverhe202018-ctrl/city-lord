@@ -1319,10 +1319,10 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         .map(pt => ({ lat: pt.lat, lng: pt.lng, timestamp: pt.timestamp }));
 
       // ─── 时间戳单位归一化（防止原生层秒级 vs JS 毫秒级漂移）───
-      // 若 timestamp < 2e12（小于 2033年对应的毫秒时间戳），则视为秒级，乘以 1000 转换
+      // 若 timestamp < 1e11（小于 100亿，代表秒级时间戳），则视为秒级，乘以 1000 转换
       const normalizedOffline = sortedOffline.map(pt => ({
         ...pt,
-        timestamp: pt.timestamp < 2e12 ? pt.timestamp * 1000 : pt.timestamp,
+        timestamp: pt.timestamp < 1e11 ? pt.timestamp * 1000 : pt.timestamp,
       }));
 
       // 2. 速度异常值滤波（使用归一化后的时间戳）
@@ -1629,7 +1629,8 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       if (isRunning && !isPaused && !isStoppingRef.current) {
         // Start Background Service
         console.log('[useRunningTracker] Starting Background Service...');
-        activeWatcherId = await LocationService.startTracking(userId, runIdempotencyKeyRef.current);
+        const voiceEnabled = useGameStore.getState().appSettings?.voiceReportingEnabled ?? true;
+        activeWatcherId = await LocationService.startTracking(userId, runIdempotencyKeyRef.current, voiceEnabled);
         watcherIdRef.current = activeWatcherId;
       } else {
         // Stop Background Service

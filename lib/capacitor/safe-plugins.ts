@@ -502,6 +502,7 @@ export async function safeAMapStartTracking(options: {
     interval?: number;
     runId?: string;
     startedAt?: number;
+    voiceEnabled?: boolean;
 }): Promise<{ success: boolean; error?: string; reason?: string }> {
     try {
         if (!(await isNativePlatform())) return { success: false, reason: 'web_platform' };

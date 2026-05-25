@@ -174,6 +174,7 @@ public class LocationForegroundService extends Service implements AMapLocationLi
     // ---- Foreground TTS & Distance Tracking (Lockscreen announcements) ----
     private TextToSpeech tts = null;
     private boolean isTtsInitialized = false;
+    private boolean isVoiceEnabled = true;
     private double totalDistanceTravelled = 0.0;
     private int lastSpokenKm = 0;
     private AMapLocation lastLoggedLocation = null;
@@ -434,6 +435,7 @@ public class LocationForegroundService extends Service implements AMapLocationLi
         locationInterval = intent.getLongExtra(EXTRA_INTERVAL, 1000L);
         currentRunId = intent.getStringExtra(EXTRA_RUN_ID);
         runStartedAt = intent.getLongExtra(EXTRA_STARTED_AT, System.currentTimeMillis());
+        isVoiceEnabled = intent.getBooleanExtra("voiceEnabled", true);
 
         getSharedPreferences("citylord_service_config", MODE_PRIVATE).edit()
             .putString("title", notificationTitle)
@@ -441,6 +443,7 @@ public class LocationForegroundService extends Service implements AMapLocationLi
             .putLong("interval", locationInterval)
             .putString("run_id", currentRunId)
             .putLong("started_at", runStartedAt)
+            .putBoolean("voice_enabled", isVoiceEnabled)
             .apply();
     }
 
@@ -451,6 +454,7 @@ public class LocationForegroundService extends Service implements AMapLocationLi
         locationInterval = sp.getLong("interval", 1000);
         currentRunId = sp.getString("run_id", null);
         runStartedAt = sp.getLong("started_at", 0);
+        isVoiceEnabled = sp.getBoolean("voice_enabled", true);
     }
 
     private void logEvent(String name, String reason) {
@@ -1289,12 +1293,32 @@ public class LocationForegroundService extends Service implements AMapLocationLi
     public void onInit(int status) {
         if (status == TextToSpeech.SUCCESS) {
             try {
-                int result = tts.setLanguage(Locale.CHINESE);
+                // Try setting language to CHINA, CHINESE, SIMPLIFIED_CHINESE, or fallback to default
+                int result = tts.setLanguage(Locale.CHINA);
+                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    result = tts.setLanguage(Locale.CHINESE);
+                }
+                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    result = tts.setLanguage(Locale.SIMPLIFIED_CHINESE);
+                }
+                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    result = tts.setLanguage(Locale.getDefault());
+                }
+
                 if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
                     Log.e(TAG, "TTS Language Chinese is not supported or missing data");
                 } else {
                     isTtsInitialized = true;
-                    Log.i(TAG, "TTS Engine successfully initialized for Chinese");
+                    Log.i(TAG, "TTS Engine successfully initialized");
+                    
+                    // Set Audio Attributes for Android 5.0+ to configure stream type
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                        android.media.AudioAttributes audioAttributes = new android.media.AudioAttributes.Builder()
+                                .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
+                                .build();
+                        tts.setAudioAttributes(audioAttributes);
+                    }
                 }
             } catch (Exception e) {
                 Log.e(TAG, "Error setting TTS language: " + e.getMessage());
@@ -1305,9 +1329,30 @@ public class LocationForegroundService extends Service implements AMapLocationLi
     }
 
     private void speakTts(String text) {
+        if (!isVoiceEnabled) {
+            Log.d(TAG, "Voice reporting disabled. Skip TTS: " + text);
+            return;
+        }
+
         if (isTtsInitialized && tts != null) {
             Log.i(TAG, "[TTS Speak] speak: " + text);
             try {
+                // Request transient audio focus to make sure TTS plays cleanly
+                android.media.AudioManager audioManager = (android.media.AudioManager) getSystemService(android.content.Context.AUDIO_SERVICE);
+                if (audioManager != null) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        android.media.AudioFocusRequest focusRequest = new android.media.AudioFocusRequest.Builder(android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+                                .setAudioAttributes(new android.media.AudioAttributes.Builder()
+                                        .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                                        .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
+                                        .build())
+                                .build();
+                        audioManager.requestAudioFocus(focusRequest);
+                    } else {
+                        audioManager.requestAudioFocus(null, android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK);
+                    }
+                }
+
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                     tts.speak(text, TextToSpeech.QUEUE_ADD, null, "citylord_milestone_" + System.currentTimeMillis());
                 } else {

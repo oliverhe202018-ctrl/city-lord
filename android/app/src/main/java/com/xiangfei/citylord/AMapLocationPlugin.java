@@ -634,12 +634,14 @@ public class AMapLocationPlugin extends Plugin {
         String body = call.getString("notificationBody", "正在追踪您的位置…");
         String runId = call.getString("runId");
         long startedAt = call.getLong("startedAt", System.currentTimeMillis());
+        boolean voiceEnabled = call.getBoolean("voiceEnabled", true);
 
         serviceIntent.putExtra(LocationForegroundService.EXTRA_NOTIFICATION_TITLE, title);
         serviceIntent.putExtra(LocationForegroundService.EXTRA_NOTIFICATION_BODY, body);
         serviceIntent.putExtra(LocationForegroundService.EXTRA_RUN_ID, runId);
         serviceIntent.putExtra(LocationForegroundService.EXTRA_STARTED_AT, startedAt);
         serviceIntent.putExtra(LocationForegroundService.EXTRA_INTERVAL, (long) call.getInt("interval", 1000));
+        serviceIntent.putExtra("voiceEnabled", voiceEnabled);
 
         // Android O+ requires startForegroundService
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
