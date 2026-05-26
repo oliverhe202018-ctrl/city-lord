@@ -572,12 +572,23 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       const doSimplify = () => {
         try {
           const rawPath = pathRef.current;
-          const simplified = simplifyPathDP(rawPath, 1.5);
+          
+          // Cap display simplification to last 1500 points.
+          // pathRef is never truncated — full data is used for territory/area calc.
+          // 1500 points @ 2s interval = ~50 minutes of running.
+          const DISPLAY_PATH_WINDOW = 1500;
+          const pathForDisplay = rawPath.length > DISPLAY_PATH_WINDOW
+            ? rawPath.slice(-DISPLAY_PATH_WINDOW)
+            : rawPath;
+          
+          const simplified = simplifyPathDP(pathForDisplay, 2.0);
+          
           const displayPoints: Location[] = simplified.map(pt => ({
             lat: pt.lat,
             lng: pt.lng,
             timestamp: pt.timestamp ?? Date.now(),
           }));
+          
           setDisplayPath(displayPoints);
         } finally {
           displayPathSimplifyRef.current.pending = false;
