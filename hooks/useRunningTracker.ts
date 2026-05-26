@@ -2027,10 +2027,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
   const finalize = useCallback(() => {
     console.log('[DEBUG:RunningTracker] finalize (Store Reset) STARTED');
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
-    }
+    // Note: Do NOT clear pollingIntervalRef here to keep backend settlement polling alive after run exit.
     Preferences.remove({ key: RECOVERY_KEY }).catch(console.warn);
     setPath([]);
     setDistance(0);
@@ -2316,11 +2313,17 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
             setSettlementStatus('pending');
             let pollCount = 0;
             const runIdToPoll = result.data.runId;
+            if (pollingIntervalRef.current) {
+              clearInterval(pollingIntervalRef.current);
+            }
             pollingIntervalRef.current = setInterval(async () => {
               pollCount++;
               if (pollCount > 30) {
                 setSettlementStatus('timeout');
-                if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+                if (pollingIntervalRef.current) {
+                  clearInterval(pollingIntervalRef.current);
+                  pollingIntervalRef.current = null;
+                }
                 return;
               }
               try {
@@ -2328,7 +2331,10 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
                 if (statusResult.success && statusResult.data) {
                   if (statusResult.data.isSettled) {
                     setSettlementStatus('completed');
-                    if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+                    if (pollingIntervalRef.current) {
+                      clearInterval(pollingIntervalRef.current);
+                      pollingIntervalRef.current = null;
+                    }
                     setSettledTerritoriesCount(statusResult.data.newTerritories);
 
                     // 异步结算完毕，触发最终刷新与合并
@@ -2458,6 +2464,16 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       setLastSavedClaimsCount(sessionClaims.length);
     }
   }, [sessionClaims.length, lastSavedClaimsCount, saveState]);
+
+  // Clean up polling interval on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, []);
 
   // Estimated steps: 1.3 steps per meter (average walking/running cadence)
   const estimatedSteps = Math.floor(distance * 1.3); // distance is in meters here

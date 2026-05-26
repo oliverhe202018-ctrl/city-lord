@@ -483,6 +483,10 @@ function ImmersiveRunningModeInner({
           setIsPollingSettlement(false);
           clearInterval(intervalId);
 
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('citylord:refresh-territories'));
+          }
+
           // Atomic Swap Logic with Safety Defenses
           // 1. Safety Delay (Main-Replica Sync)
           await new Promise(resolve => setTimeout(resolve, 500));
