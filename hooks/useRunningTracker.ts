@@ -606,7 +606,26 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
             lng: pt.lng,
             timestamp: pt.timestamp ?? Date.now(),
           }));
-          setDisplayPath(displayPoints);
+          
+          setDisplayPath(prev => {
+            // If there's a gap between the last rendered point and start of new simplified
+            // window, bridge it by including the last prev point as the anchor.
+            if (
+              prev.length > 0 &&
+              displayPoints.length > 0 &&
+              (prev[prev.length - 1].lat !== displayPoints[0].lat ||
+               prev[prev.length - 1].lng !== displayPoints[0].lng)
+            ) {
+              // Only bridge if the prev tail is NOT already inside the new window
+              // (i.e., it predates the oldest point in displayPoints)
+              const prevTailTs = prev[prev.length - 1].timestamp ?? 0;
+              const windowStartTs = displayPoints[0].timestamp ?? Infinity;
+              if (prevTailTs < windowStartTs) {
+                return [prev[prev.length - 1], ...displayPoints];
+              }
+            }
+            return displayPoints;
+          });
         } finally {
           displayPathSimplifyRef.current.pending = false;
         }
@@ -614,7 +633,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
       // 弃用 requestIdleCallback，确保移动端 WebView 立即调度
       if (simplifyDebounceRef.current) clearTimeout(simplifyDebounceRef.current);
-      simplifyDebounceRef.current = setTimeout(doSimplify, 500);
+      simplifyDebounceRef.current = setTimeout(doSimplify, 0);
     };
 
     scheduleSimplify();
