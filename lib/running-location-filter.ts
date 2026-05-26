@@ -23,14 +23,14 @@ const TAG = '[RunningFilter]';
 const RUNNING_ACCURACY_THRESHOLD = 80;
 /** 冷启动精度门槛（略宽松，允许首次 fix 快速写入）— 放宽至 150m */
 const COLD_START_ACCURACY_THRESHOLD = 150;
-/** 最小更新距离（米）— 降至 1m */
-const MIN_UPDATE_DISTANCE_M = 1;
+/** 最小更新距离（米）— 降至 0.3m */
+const MIN_UPDATE_DISTANCE_M = 0.3;
 /** 最大合理跑步速度（m/s）— 约 36km/h，防交通工具及信号漂移 */
 const MAX_RUNNING_SPEED_MS = 10;
 /** 最大合理加速度（m/s²）— 调至 99 实际关闭加速度过滤 */
 const MAX_ACCELERATION_MS2 = 99;
-/** 静止抖动半径（米）— 降至 0.8m */
-const JITTER_RADIUS_M = 0.8;
+/** 静止抖动半径（米）— 降至 0.3m */
+const JITTER_RADIUS_M = 0.3;
 
 // ---------------------------------------------------------------------------
 // Types

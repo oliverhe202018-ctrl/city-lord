@@ -1297,6 +1297,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
             
             setSessionClaims(nextClaims);
             setClosedPolygons(nextClaims);
+            useGameStore.getState().incrementLoopClosed(); // 广播断流归档信号
             setArea(newTotalArea);
             lastClaimAtRef.current = now;
 
@@ -1455,6 +1456,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           
           setSessionClaims(nextClaims);
           setClosedPolygons(nextClaims);
+          useGameStore.getState().incrementLoopClosed(); // 广播断流归档信号
           setArea(newTotalArea);
           lastClaimAtRef.current = now;
           

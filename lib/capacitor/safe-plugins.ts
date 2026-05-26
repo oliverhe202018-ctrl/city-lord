@@ -500,6 +500,7 @@ export async function safeAMapStartTracking(options: {
     notificationTitle?: string;
     notificationBody?: string;
     interval?: number;
+    distanceInterval?: number;
     runId?: string;
     startedAt?: number;
     voiceEnabled?: boolean;

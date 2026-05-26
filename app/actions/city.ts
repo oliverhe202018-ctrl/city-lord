@@ -450,6 +450,12 @@ export async function getCityDetailsFromDb(cityId: string): Promise<any | null> 
   const city = await prisma.cities.findUnique({
     where: { id: cityId }
   });
-  return city;
+  if (!city) return null;
+  return {
+    ...city,
+    radius_km: city.radius_km ? Number(city.radius_km) : null,
+    created_at: city.created_at ? city.created_at.toISOString() : null,
+    updated_at: city.updated_at ? city.updated_at.toISOString() : null,
+  };
 }
 

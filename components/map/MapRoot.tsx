@@ -49,7 +49,18 @@ export function MapRoot({ children }: { children: ReactNode }) {
   const DEFAULT_CENTER: [number, number] = [116.397428, 39.90923];
 
   const [userPosition, setUserPosition] = useState<GeoPoint | null>(null);
-  const [userPath, setUserPath] = useState<GeoPoint[]>([]); // GPS trajectory (source of truth)
+  const [currentSegment, setCurrentSegment] = useState<GeoPoint[]>([]);
+  const [completedSegments, setCompletedSegments] = useState<GeoPoint[][]>([]);
+
+  const userPath = useMemo(() => {
+    return [...completedSegments.flat(), ...currentSegment];
+  }, [completedSegments, currentSegment]);
+
+  const currentSegmentRef = useRef<GeoPoint[]>([]);
+  useEffect(() => {
+    currentSegmentRef.current = currentSegment;
+  }, [currentSegment]);
+
   const userPathLengthRef = useRef(0); // 跟踪路径长度变化，用于稀疏化触发
   
   // 路径简化函数：过滤掉距离过近的点，控制数组体积
@@ -414,6 +425,64 @@ export function MapRoot({ children }: { children: ReactNode }) {
     executeFocus();
   }, [pendingFocusId, map, isLoaded, setSelectedTerritoryIdFromStore, clearFocus]);
 
+  // 工业级防御流：统一位置注入网关
+  const injectLocationPoints = useCallback((points: GeoPoint | GeoPoint[]) => {
+    const incomingPoints = Array.isArray(points) ? points : [points];
+    if (incomingPoints.length === 0) return;
+
+    // 场景 A：单点正常流入（前台开屏跑步中），直接同步注入，保证 1s 实时性
+    if (incomingPoints.length <= 50) {
+      processBatch(incomingPoints);
+      return;
+    }
+
+    // 场景 B：海量离线点涌入（关屏再开屏复苏），启动异步时间切片（Chunking）防止阻塞UI
+    let remainingPoints = [...incomingPoints];
+    const CHUNK_SIZE = 50; // 每帧只允许高德地图渲染 50 个点
+
+    const renderChunk = () => {
+      if (remainingPoints.length === 0) return;
+      const chunk = remainingPoints.splice(0, CHUNK_SIZE);
+      processBatch(chunk);
+      // 挂载到下一帧，给 UI 线程留出喘息和响应时间
+      requestAnimationFrame(renderChunk);
+    };
+    
+    requestAnimationFrame(renderChunk);
+
+    // 内部公共清洗与状态追加逻辑
+    function processBatch(batch: GeoPoint[]) {
+      setCurrentSegment(prev => {
+        let updatedSegment = [...prev];
+        for (const point of batch) {
+          if (updatedSegment.length > 0) {
+            const last = updatedSegment[updatedSegment.length - 1];
+            // 快速经纬度距离计算（过滤完全重合的漂移点）
+            const dist = Math.sqrt(
+              Math.pow((point.lat - last.lat) * 111000, 2) +
+              Math.pow((point.lng - last.lng) * 111000 * Math.cos(point.lat * Math.PI / 180), 2)
+            );
+            if (dist < 0.5) continue; 
+          }
+          updatedSegment.push(point);
+        }
+        return updatedSegment;
+      });
+    }
+  }, []);
+
+  // Expose injectLocationPoints to window global
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).__injectLocationPoints = injectLocationPoints;
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        delete (window as any).__injectLocationPoints;
+      }
+    };
+  }, [injectLocationPoints]);
+
   // Update user position (always) and trajectory (only when running)
   useEffect(() => {
     if (location && location.lat !== 0 && location.lng !== 0) {
@@ -425,42 +494,27 @@ export function MapRoot({ children }: { children: ReactNode }) {
       // CRITICAL: Only accumulate trajectory when actively running
       // This prevents ghost polylines on cold start / initial GPS lock
       if (isRunningRef.current) { // 用 ref，无需 isRunning 在依赖数组
-        setUserPath(prev => {
-          // Prevent duplicate points (within 1m)
-          if (prev.length > 0) {
-            const last = prev[prev.length - 1];
-            const dist = Math.sqrt(
-              Math.pow((location.lat - last.lat) * 111000, 2) +
-              Math.pow((location.lng - last.lng) * 111000 * Math.cos(location.lat * Math.PI / 180), 2)
-            );
-            if (dist < 1) return prev; // Skip if too close
-          }
-          
-          // 优化：使用 push 替代展开操作符，减少 GC 压力
-          const newPath = prev.slice(); // 浅拷贝
-          newPath.push(location);
-          
-          // 性能优化：路径稀疏化控制
-          // 当路径长度每增加50个点时，触发一次简化
-          if (newPath.length - userPathLengthRef.current >= 50) {
-            const simplified = simplifyPath(newPath, 3); // 3米阈值
-            userPathLengthRef.current = simplified.length;
-            return simplified;
-          }
-          
-          return newPath;
-        });
+        injectLocationPoints(location);
       }
     }
-  }, [location, simplifyPath]); // 移除 isRunning 和 map（map 不影响此逻辑）
+  }, [location, injectLocationPoints]); // 移除 isRunning 和 map（map 不影响此逻辑）
 
   // Clear trajectory when run stops
   useEffect(() => {
     if (!isRunning) {
-      setUserPath([]);
+      setCurrentSegment([]);
+      setCompletedSegments([]);
       userPathLengthRef.current = 0; // 重置路径长度计数器
     }
   }, [isRunning]);
+
+  // 领地闭合断流信号：归档当前圈，开启全新一圈
+  const loopClosedCount = useGameStore(s => s.loopClosedCount);
+  useEffect(() => {
+    if (loopClosedCount === 0) return;
+    setCompletedSegments(prev => [...prev, currentSegmentRef.current]);
+    setCurrentSegment([]);
+  }, [loopClosedCount]);
 
   // Stage-based Locating and FlyTo Animation Control
   useEffect(() => {
@@ -808,6 +862,8 @@ export function MapRoot({ children }: { children: ReactNode }) {
       // ✅ 临时恢复高频字段以修复 AMapView.tsx 白屏问题
       currentLocation: userPosition,
       userPath,
+      currentSegment,
+      completedSegments,
       mapCenter,
       isTracking,
       setIsTracking,
@@ -822,7 +878,7 @@ export function MapRoot({ children }: { children: ReactNode }) {
       map, isLoaded, viewMode, locationState,
       initLocation, centerMap,
       handleMapMoveEnd,
-      userPosition, userPath, mapCenter, isTracking, setIsTracking, status, gpsSignalStrength,
+      userPosition, userPath, currentSegment, completedSegments, mapCenter, isTracking, setIsTracking, status, gpsSignalStrength,
       // 已移除重复的UI控制状态依赖
     ]);
 

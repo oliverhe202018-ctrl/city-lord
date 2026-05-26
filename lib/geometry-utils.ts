@@ -92,7 +92,7 @@ export const ABSOLUTE_SPEED_LIMIT_KMH = 100;
  */
 export function simplifyPathDP<T extends Coord>(
     points: T[],
-    toleranceMeters: number = 3
+    toleranceMeters: number = 1.5
 ): T[] {
     if (points.length <= 2) return [...points];
 
@@ -139,7 +139,7 @@ export function simplifyPathDP<T extends Coord>(
  */
 export async function simplifyPathDPAsync<T extends Coord>(
     points: T[],
-    toleranceMeters: number = 3,
+    toleranceMeters: number = 1.5,
     chunkSize: number = 200
 ): Promise<T[]> {
     if (points.length <= 2) return [...points];

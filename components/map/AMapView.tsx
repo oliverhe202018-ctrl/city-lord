@@ -58,6 +58,8 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
       map, // Added map instance
       currentLocation, // User GPS position
       userPath, // GPS trajectory history (source of truth)
+      currentSegment,
+      completedSegments,
       mapCenter, // Map viewport center
       isTracking, // Auto-follow mode
       mapLayerRef, // Ref to MapLayer
@@ -413,13 +415,26 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
             )}
 
             {/* Layer 2b: GPS Trajectory (Real-time Polyline - z-index 50) */}
-            {isRunTakeoverActive && activeTrajectoryPath && activeTrajectoryPath.length > 0 && (
-              <TrajectoryLayer
-                map={map as any}
-                path={activeTrajectoryPath}
-                strokeColor="#3B82F6"
-                strokeWeight={6}
-              />
+            {isRunTakeoverActive && (
+              <>
+                {completedSegments && completedSegments.map((segment, idx) => (
+                  <TrajectoryLayer
+                    key={`completed-seg-${idx}`}
+                    map={map as any}
+                    path={segment}
+                    strokeColor="#3B82F6"
+                    strokeWeight={5}
+                  />
+                ))}
+                {currentSegment && currentSegment.length > 0 && (
+                  <TrajectoryLayer
+                    map={map as any}
+                    path={currentSegment}
+                    strokeColor="#3B82F6"
+                    strokeWeight={6}
+                  />
+                )}
+              </>
             )}
 
             {ghostPath && ghostPath.length > 1 && (

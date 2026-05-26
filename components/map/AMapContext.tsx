@@ -47,6 +47,8 @@ export interface AMapContextProps {
 
   // Running game state (Phase 1)
   userPath?: GeoPoint[]; // GPS trajectory history (source of truth)
+  currentSegment?: GeoPoint[];
+  completedSegments?: GeoPoint[][];
   mapCenter?: [number, number]; // Map viewport center
   isTracking?: boolean; // Auto-follow mode
   setIsTracking?: (tracking: boolean) => void;

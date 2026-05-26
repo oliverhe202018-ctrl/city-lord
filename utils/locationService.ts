@@ -16,7 +16,8 @@ export const LocationService = {
       const result = await safeAMapStartTracking({
           notificationTitle: "City Lord 跑步中",
           notificationBody: "正在记录您的领地征程...",
-          interval: 2000,
+          interval: 1000,        // 提升至 1s 采样
+          distanceInterval: 0,   // 必须为 0，关闭高德底层硬过滤，交由上层算法处理
           startedAt: Date.now(),
           runId: runId || undefined,
           voiceEnabled: voiceEnabled ?? true,

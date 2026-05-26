@@ -64,8 +64,9 @@ export interface LocationState {
   savedRunId: string | null;
   /** [NEW] 鍏ㄥ眬鏉冮檺璇锋眰鐘舵€侀攣锛岀敤浜庨槻姝㈢櫥褰曞脊绐楀啿绐?*/
   isPermissionRequesting: boolean;
-  /** [NEW] 鏍囪瘑瀹氫綅绯荤粺鏄惁宸茬粡灏濊瘯杩囪嚦灏戜竴杞垵濮嬪寲锛堟棤璁烘潈闄愮粨鏋滃浣曪級 */
+  /** [NEW] 标识定位系统是否已经尝试过至少一轮初始化（无论权限结果如何） */
   locationInitialized: boolean;
+  loopClosedCount: number;
 }
 
 export interface InventoryItem {
@@ -232,6 +233,7 @@ export interface LocationActions {
   setLastKnownLocation: (location: { lat: number; lng: number; timestamp?: number } | null) => void;
   setIsPermissionRequesting: (requesting: boolean) => void;
   setLocationInitialized: (initialized: boolean) => void;
+  incrementLoopClosed: () => void;
 }
 
 export interface InventoryActions {
@@ -336,6 +338,7 @@ const initialLocationState: LocationState = {
   savedRunId: null,
   isPermissionRequesting: false,
   locationInitialized: false,
+  loopClosedCount: 0,
 };
 
 const initialShowFaction = false;
@@ -719,6 +722,7 @@ const createLocationSlice: StateCreator<GameStore, [], [], LocationActions> = (s
   },
   setIsPermissionRequesting: (requesting) => set({ isPermissionRequesting: requesting }),
   setLocationInitialized: (initialized: boolean) => set({ locationInitialized: initialized }),
+  incrementLoopClosed: () => set(s => ({ loopClosedCount: (s.loopClosedCount ?? 0) + 1 })),
   setCountdownState: (state) => {}, // Stub pending implementation
   finalizeRunCleanup: (isConfirmedSaved: boolean = false) => set((state) => {
     // 双重守卫：不仅依赖入参 isConfirmedSaved，还强制检查内部状态 savedRunId
@@ -1005,6 +1009,7 @@ export const useGameActions = () => {
       setGhostPath: state.setGhostPath,
       setStreetName: state.setStreetName,
       setIsPermissionRequesting: state.setIsPermissionRequesting,
+      incrementLoopClosed: state.incrementLoopClosed,
 
       // Inventory Actions
       addItem: state.addItem,
