@@ -9,114 +9,131 @@ interface TrajectoryLayerProps {
     strokeWeight?: number;
 }
 
-/**
- * TrajectoryLayer: Real-time GPS trajectory polyline with tracking-gap splitting
- * 
- * Renders outline-styled polylines as the user runs. Updates in real-time.
- * If a large gap (e.g. time gap > 30s AND distance gap > 50m) occurs,
- * it splits the polyline to avoid rendering visual diagonal lines across the map.
- */
-export function TrajectoryLayer({
-    map,
-    path,
-    strokeColor = '#3B82F6',
-    strokeWeight = 6
-}: TrajectoryLayerProps) {
-    const polylinesRef = useRef<AMap.Polyline[]>([]);
+const TELEPORT_DISTANCE_M = 100; // gap threshold to start a new segment
+
+function haversineMeters(a: GeoPoint, b: GeoPoint): number {
+    const R = 6371000;
+    const dLat = (b.lat - a.lat) * Math.PI / 180;
+    const dLng = (b.lng - a.lng) * Math.PI / 180;
+    const sinDLat = Math.sin(dLat / 2);
+    const sinDLng = Math.sin(dLng / 2);
+    const c = sinDLat * sinDLat + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * sinDLng * sinDLng;
+    return R * 2 * Math.atan2(Math.sqrt(c), Math.sqrt(1 - c));
+}
+
+export function TrajectoryLayer({ map, path, strokeColor = '#3B82F6', strokeWeight = 6 }: TrajectoryLayerProps) {
+    // Each "segment" is a Polyline plus a mutable raw-point array (for setPath updates)
+    const segmentsRef = useRef<{ polyline: AMap.Polyline; rawPoints: GeoPoint[] }[]>([]);
+    // Track how many path points we have already rendered
+    const renderedCountRef = useRef(0);
+    // Track last rendered color/weight to detect prop changes
+    const styleRef = useRef({ strokeColor, strokeWeight });
+
+    // Full rebuild when map instance changes or style changes
+    const fullRebuildNeeded = useRef(false);
+    if (styleRef.current.strokeColor !== strokeColor || styleRef.current.strokeWeight !== strokeWeight) {
+        styleRef.current = { strokeColor, strokeWeight };
+        fullRebuildNeeded.current = true;
+    }
 
     useEffect(() => {
         if (!map || !window.AMap) return;
+        // Full rebuild: happens on map mount, unmount, or style change
+        const destroy = () => {
+            segmentsRef.current.forEach(({ polyline }) => {
+                try { map.remove(polyline); polyline.destroy?.(); } catch (_) {}
+            });
+            segmentsRef.current = [];
+            renderedCountRef.current = 0;
+        };
+        destroy();
+        fullRebuildNeeded.current = false;
+        return destroy;
+    }, [map, strokeColor, strokeWeight]);
 
-        // Clear existing polylines
-        polylinesRef.current.forEach(p => {
-            try {
-                map.remove(p);
-                p.destroy?.();
-            } catch (e) {
-                console.warn('[TrajectoryLayer] Failed to remove polyline:', e);
-            }
-        });
-        polylinesRef.current = [];
-
+    useEffect(() => {
+        if (!map || !window.AMap) return;
         if (!path || path.length === 0) return;
 
-        // Split path into segments based on gap thresholds
-        const segments: AMap.LngLat[][] = [];
-        let currentSegment: AMap.LngLat[] = [];
-        let lastValidPt: GeoPoint | null = null;
-
-        for (let i = 0; i < path.length; i++) {
-            const pt = path[i];
-            if (!pt || !Number.isFinite(pt.lat) || !Number.isFinite(pt.lng)) continue;
-
-            const amapPt = new window.AMap.LngLat(pt.lng, pt.lat);
-
-            if (lastValidPt !== null && currentSegment.length > 0) {
-                let distance = 0;
-                if (window.AMap?.GeometryUtil?.distance) {
-                    distance = window.AMap.GeometryUtil.distance(
-                        [lastValidPt.lng, lastValidPt.lat],
-                        [pt.lng, pt.lat]
-                    );
-                } else {
-                    distance = Math.sqrt(
-                        Math.pow((pt.lat - lastValidPt.lat) * 111000, 2) +
-                        Math.pow((pt.lng - lastValidPt.lng) * 111000 * Math.cos(pt.lat * Math.PI / 180), 2)
-                    );
-                }
-
-                // If gap is large (teleport-level gap, not a normal corner), split
-                if (distance > 100) {
-                    if (currentSegment.length > 0) {
-                        segments.push(currentSegment);
-                        currentSegment = [];
-                    }
-                }
-            }
-            currentSegment.push(amapPt);
-            lastValidPt = pt;
-        }
-        if (currentSegment.length > 0) {
-            segments.push(currentSegment);
-        }
-
-        // Create and add polylines for each segment
-        const polylineOptions: any = {
+        const polylineOptions = {
             strokeColor,
             strokeWeight,
             borderWeight: 1,
             isOutline: true,
             outlineColor: '#ffffff',
-            lineJoin: 'round',
-            lineCap: 'round',
+            lineJoin: 'round' as const,
+            lineCap: 'round' as const,
         };
 
-        const newPolylines = segments
-            .filter(seg => seg.length > 0)
-            .map(seg => {
-                const p = new window.AMap.Polyline({
-                    ...polylineOptions,
-                    path: seg
-                });
-                map.add(p);
-                return p;
-            });
+        const alreadyRendered = renderedCountRef.current;
 
-        polylinesRef.current = newPolylines;
-
-        return () => {
-            newPolylines.forEach(p => {
-                if (map) {
-                    try {
-                        map.remove(p);
-                        p.destroy?.();
-                    } catch (e) {
-                        // ignore
-                    }
+        if (alreadyRendered === 0) {
+            // First render — build all segments from scratch
+            const segments: GeoPoint[][] = [];
+            let cur: GeoPoint[] = [];
+            for (const pt of path) {
+                if (!pt || !Number.isFinite(pt.lat) || !Number.isFinite(pt.lng)) continue;
+                if (cur.length > 0) {
+                    const dist = haversineMeters(cur[cur.length - 1], pt);
+                    if (dist > TELEPORT_DISTANCE_M) { segments.push(cur); cur = []; }
                 }
+                cur.push(pt);
+            }
+            if (cur.length > 0) segments.push(cur);
+
+            segmentsRef.current = segments.map(rawPoints => {
+                const polyline = new window.AMap.Polyline({
+                    ...polylineOptions,
+                    path: rawPoints.map(p => new window.AMap.LngLat(p.lng, p.lat)),
+                });
+                map.add(polyline);
+                return { polyline, rawPoints };
             });
-            polylinesRef.current = [];
-        };
+            renderedCountRef.current = path.length;
+            return;
+        }
+
+        // Incremental append — only process new points
+        const newPoints = path.slice(alreadyRendered);
+        if (newPoints.length === 0) return;
+
+        for (const pt of newPoints) {
+            if (!pt || !Number.isFinite(pt.lat) || !Number.isFinite(pt.lng)) continue;
+
+            const segs = segmentsRef.current;
+            if (segs.length === 0) {
+                // No segments yet — create first
+                const polyline = new window.AMap.Polyline({
+                    ...polylineOptions,
+                    path: [new window.AMap.LngLat(pt.lng, pt.lat)],
+                });
+                map.add(polyline);
+                segmentsRef.current = [{ polyline, rawPoints: [pt] }];
+                continue;
+            }
+
+            const lastSeg = segs[segs.length - 1];
+            const lastPt = lastSeg.rawPoints[lastSeg.rawPoints.length - 1];
+            const dist = haversineMeters(lastPt, pt);
+
+            if (dist > TELEPORT_DISTANCE_M) {
+                // Large gap — start a new segment
+                const polyline = new window.AMap.Polyline({
+                    ...polylineOptions,
+                    path: [new window.AMap.LngLat(pt.lng, pt.lat)],
+                });
+                map.add(polyline);
+                segmentsRef.current.push({ polyline, rawPoints: [pt] });
+            } else {
+                // Append to existing last segment
+                lastSeg.rawPoints.push(pt);
+                lastSeg.polyline.setPath(
+                    lastSeg.rawPoints.map(p => new window.AMap.LngLat(p.lng, p.lat))
+                );
+            }
+        }
+        renderedCountRef.current = path.length;
+
     }, [map, path, strokeColor, strokeWeight]);
 
     return null;

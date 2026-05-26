@@ -26,7 +26,7 @@ const DEFAULT_ACCURACY_THRESHOLD = 100;
 /** 冷启动时允许的精度门槛（更宽松） */
 const COLD_START_ACCURACY_THRESHOLD = 1500;
 /** stale watchdog 超时（ms） */
-const STALE_WATCHDOG_TIMEOUT_MS = 15_000;
+const STALE_WATCHDOG_TIMEOUT_MS = 30_000;
 /** 去重：两点之间最小时间差（ms） */
 const DEDUP_MIN_TIME_DIFF_MS = 300;
 /** 去重：两点之间最小距离差（米） */
@@ -1037,10 +1037,15 @@ export class AMapLocationBridge {
             if (this.destroyed || !this.isWatching) return;
 
             const elapsed = Date.now() - this.lastAcceptedTime;
-            if (elapsed >= STALE_WATCHDOG_TIMEOUT_MS) {
+            // In running mode, only trigger if elapsed is truly long (2x threshold)
+            // to avoid interrupting normal GPS in open-sky outdoor running
+            const effectiveThreshold = this.watchMode === 'running'
+                ? STALE_WATCHDOG_TIMEOUT_MS * 2   // 60s for running
+                : STALE_WATCHDOG_TIMEOUT_MS;        // 30s for browse
+            if (elapsed >= effectiveThreshold) {
                 logWarn({
                     phase: 'stale-watchdog-triggered',
-                    reason: `${elapsed}ms since last accepted update (threshold: ${STALE_WATCHDOG_TIMEOUT_MS}ms)`,
+                    reason: `${elapsed}ms since last accepted update (threshold: ${effectiveThreshold}ms)`,
                 });
 
                 this.handleStaleWatchdog();
@@ -1073,6 +1078,17 @@ export class AMapLocationBridge {
         }
 
         const wasRunning = this.watchMode === 'running';
+
+        if (wasRunning && this.watchMode === 'running') {
+            // DO NOT restart the watch. Just attempt a one-shot fastFix.
+            // The existing foreground service will continue providing updates.
+            const result = await this.getCurrentPositionFast({ timeout: 8000 });
+            if (result) {
+                this.callbacks.onLocationUpdate(result, { source: 'gps-precise' });
+            }
+            return; // Do not proceed to switchWatchMode
+        }
+
         const requestId = makeRequestId();
 
         // 1. 先尝试 fastFix
@@ -1345,6 +1361,10 @@ export class AMapLocationBridge {
     // =========================================================================
     // forceFastFix（供 app resume 等场景调用）
     // =========================================================================
+
+    private getCurrentPositionFast(options: { timeout?: number }): Promise<GeoPoint | null> {
+        return this.getCurrentPosition({ mode: 'fast', timeout: options.timeout, cacheMaxAge: 3000 });
+    }
 
     async forceFastFix(): Promise<GeoPoint | null> {
         logInfo({ phase: 'forceFastFix', reason: 'Triggered by app resume or manual retry' });
