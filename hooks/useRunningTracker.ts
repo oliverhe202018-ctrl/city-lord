@@ -543,7 +543,16 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         return;
       }
 
-      const isBulkUpdate = Math.abs(rawPath.length - displayPath.length) > 1;
+      const DISPLAY_PATH_WINDOW = 1500;
+
+      // Compare against the windowed slice length, not raw path length
+      const pathForWindow = rawPath.length > DISPLAY_PATH_WINDOW
+        ? rawPath.slice(-DISPLAY_PATH_WINDOW)
+        : rawPath;
+
+      // isBulkUpdate: detect hydration/bulk replay vs normal 1-point increment
+      // Compare windowed source length vs current displayPath length
+      const isBulkUpdate = Math.abs(pathForWindow.length - displayPath.length) > 20;
 
       if (!isBulkUpdate) {
         displayPathSimplifyRef.current.counter++;
@@ -571,17 +580,8 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
       const doSimplify = () => {
         try {
-          const rawPath = pathRef.current;
-          
-          // Cap display simplification to last 1500 points.
-          // pathRef is never truncated — full data is used for territory/area calc.
-          // 1500 points @ 2s interval = ~50 minutes of running.
-          const DISPLAY_PATH_WINDOW = 1500;
-          const pathForDisplay = rawPath.length > DISPLAY_PATH_WINDOW
-            ? rawPath.slice(-DISPLAY_PATH_WINDOW)
-            : rawPath;
-          
-          const simplified = simplifyPathDP(pathForDisplay, 2.0);
+          // Use pathForWindow already computed above (closure) 
+          const simplified = simplifyPathDP(pathForWindow, 2.0);
           
           const displayPoints: Location[] = simplified.map(pt => ({
             lat: pt.lat,
