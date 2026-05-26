@@ -593,7 +593,6 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
   // ─── Kalman-based GPS Smoothing (replaces legacy EMA) ───
   const smoothLocation = (newLoc: Location, prevLoc: Location | null, accuracy?: number): Location => {
-    // 动态调整卡尔曼滤波的测定精度，消除高方差带来的滞后平滑惰性，让滤波轨迹响应更敏捷
     const adaptiveAccuracy = accuracy != null 
       ? Math.sqrt(Math.max(5.0, accuracy * 2.0)) 
       : Math.sqrt(25.0);
@@ -610,20 +609,49 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       return newLoc;
     }
 
+    // ── Corner Detection: bypass Kalman on sharp turns ──────────────────
+    // If we have at least 2 previous points, compute the heading change.
+    // If heading delta > 60°, this is a corner — reset Kalman and return raw point.
+    if (pathRef.current.length >= 2) {
+      const ptA = pathRef.current[pathRef.current.length - 2];
+      const ptB = pathRef.current[pathRef.current.length - 1]; // = prevLoc after writing
+      
+      const h1x = ptB.lng - ptA.lng;
+      const h1y = ptB.lat - ptA.lat;
+      const h2x = newLoc.lng - ptB.lng;
+      const h2y = newLoc.lat - ptB.lat;
+      const len1 = Math.sqrt(h1x * h1x + h1y * h1y);
+      const len2 = Math.sqrt(h2x * h2x + h2y * h2y);
+      
+      if (len1 > 0 && len2 > 0) {
+        const cosTheta = (h1x * h2x + h1y * h2y) / (len1 * len2);
+        const thetaDeg = Math.acos(Math.max(-1, Math.min(1, cosTheta))) * (180 / Math.PI);
+        
+        if (thetaDeg > 60) {
+          // Sharp corner detected — reset Kalman to prevent lag-induced diagonal lines
+          refLocationRef.current = newLoc;
+          kalmanLatRef.current.reset();
+          kalmanLngRef.current.reset();
+          kalmanLatRef.current.filter(0, newLoc.timestamp, adaptiveAccuracy);
+          kalmanLngRef.current.filter(0, newLoc.timestamp, adaptiveAccuracy);
+          console.debug(`[Kalman] Corner bypass: heading delta ${thetaDeg.toFixed(1)}°, reset filter`);
+          return newLoc; // Return raw GPS point, skip smoothing
+        }
+      }
+    }
+    // ────────────────────────────────────────────────────────────────────
+
     const refLat = refLocationRef.current.lat;
     const refLng = refLocationRef.current.lng;
     const latRad = (refLat * Math.PI) / 180;
     const cosLat = Math.cos(latRad);
 
-    // Convert degrees to meters relative to anchor
     const yMeters = (newLoc.lat - refLat) * 111320;
     const xMeters = (newLoc.lng - refLng) * 111320 * cosLat;
 
-    // Filter in meters
     const smoothedY = kalmanLatRef.current.filter(yMeters, newLoc.timestamp, adaptiveAccuracy);
     const smoothedX = kalmanLngRef.current.filter(xMeters, newLoc.timestamp, adaptiveAccuracy);
 
-    // Convert back to degrees
     const smoothedLat = refLat + smoothedY / 111320;
     const smoothedLng = refLng + smoothedX / (111320 * cosLat);
 
