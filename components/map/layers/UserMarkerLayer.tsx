@@ -198,14 +198,26 @@ export function UserMarkerLayer({ map, position, isTracking, instantSync = false
       markerRef.current.setPosition(newPos);
       return;
     }
-    if (markerRef.current.moveTo) {
-      markerRef.current.moveTo(newPos, {
-        duration: 800,
-        delay: 0
-      });
-      return;
+    
+    const currentPos = markerRef.current.getPosition();
+    const distance = currentPos ? currentPos.distance(newPos) : 0;
+    
+    if (!currentPos || distance > 500) {
+      // 首次加载或跨度过大 → 直接定位
+      markerRef.current.setPosition(newPos);
+    } else if (distance > 0.5) {
+      if (markerRef.current.moveTo) {
+        if (typeof markerRef.current.stopMove === 'function') {
+          markerRef.current.stopMove();
+        }
+        markerRef.current.moveTo(newPos, {
+          duration: 800,
+          delay: 0
+        });
+      } else {
+        markerRef.current.setPosition(newPos);
+      }
     }
-    markerRef.current.setPosition(newPos);
   }, [instantSync, position]);
 
   // 监听信号强度变化，更新标记样式
