@@ -1157,6 +1157,7 @@ function ImmersiveRunningModeInner({
             onLocationUpdate={onManualLocation}
             recenterTrigger={recenterTrigger}
             showKingdom={showKingdom}
+            closedPolygons={closedPolygons}
           />
           {viewMode === 'dashboard' && (
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-none" />

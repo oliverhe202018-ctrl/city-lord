@@ -316,26 +316,23 @@ export function extractValidLoops(
     const disableIntersect = options?.disableIntersect ?? false;
     if (!disableIntersect && simplifiedPath.length >= 6) {
         const n = simplifiedPath.length;
-        // 记录已提取为闭合环的区间列表 [start, end]
-        const intervals: TopologyInterval[] = [];
+        
+        interface CandidateLoop {
+            i: number;
+            j: number;
+            ring: Coord[];
+            area: number;
+        }
+        const candidates: CandidateLoop[] = [];
 
         for (let i = 0; i < n - 3; i++) {
-            // 检查 i 是否落在已提取环的内部（允许在端点处重合）
-            if (isIndexConsumed(i, intervals)) continue;
-
             for (let j = i + 2; j < n - 1; j++) {
-                if (isIndexConsumed(j, intervals)) continue;
-
-                // 检查当前候选区间 [i, j] 与已有区间是否发生重叠
-                if (isIntervalOverlap(i, j, intervals)) continue;
-
                 const intersectPoint = findLineSegmentIntersection(
                     simplifiedPath[i], simplifiedPath[i + 1],
                     simplifiedPath[j], simplifiedPath[j + 1]
                 );
 
                 if (intersectPoint) {
-                    // 时间戳线性插值：根据交点在两条线段上的物理距离比例计算
                     const interpolatedTimestamp = interpolateTimestampAtIntersection(
                         simplifiedPath[i], simplifiedPath[i + 1],
                         simplifiedPath[j], simplifiedPath[j + 1],
@@ -348,7 +345,6 @@ export function extractValidLoops(
                         timestamp: interpolatedTimestamp
                     };
 
-                    // 提取闭合环：从交点出发，沿路径走到 j，再回到交点
                     const ring: Coord[] = [
                         intersectPointWithTimestamp,
                         ...simplifiedPath.slice(i + 1, j + 1),
@@ -356,14 +352,37 @@ export function extractValidLoops(
                     ];
 
                     if (isValidPolygon(ring)) {
-                        const segKey = `${i}-${j}`;
-                        if (!seen.has(segKey)) {
-                            seen.add(segKey);
-                            intervals.push({ start: i, end: j });
-                            loops.push(ring);
+                        // 计算环的近似 Turf 面积用于排序
+                        const coords = ring.map(p => [p.lng, p.lat]);
+                        if (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1]) {
+                            coords.push([...coords[0]]);
                         }
+                        let area = 0;
+                        try {
+                            area = turf.area(turf.polygon([coords]));
+                        } catch {}
+
+                        candidates.push({ i, j, ring, area });
                     }
                 }
+            }
+        }
+
+        // 核心优化：按面积从大到小排序，优先提取大环，防止角落微小抖动/自交环抢先占领区间，阻塞大环生成
+        candidates.sort((a, b) => b.area - a.area);
+
+        const intervals: TopologyInterval[] = [];
+        for (const cand of candidates) {
+            // 检查区间是否被已处理的大环占用
+            if (isIndexConsumed(cand.i, intervals)) continue;
+            if (isIndexConsumed(cand.j, intervals)) continue;
+            if (isIntervalOverlap(cand.i, cand.j, intervals)) continue;
+
+            const segKey = `${cand.i}-${cand.j}`;
+            if (!seen.has(segKey)) {
+                seen.add(segKey);
+                intervals.push({ start: cand.i, end: cand.j });
+                loops.push(cand.ring);
             }
         }
     }

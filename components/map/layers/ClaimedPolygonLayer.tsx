@@ -107,7 +107,7 @@ export const ClaimedPolygonLayer = function ClaimedPolygonLayer({
             console.error('[ClaimedPolygonLayer] Error during turf.union', e);
             return lastSuccessfulPathsRef.current;
         }
-    }, [polygons.length]);
+    }, [polygons]);
 
     useEffect(() => {
         if (!map || !window.AMap) {
