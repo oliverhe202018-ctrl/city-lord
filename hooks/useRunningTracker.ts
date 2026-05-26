@@ -439,32 +439,37 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
   // Timer effect — timestamp-based (immune to JS thread suspension during sleep)
   useEffect(() => {
-    if (isRunning && !isPaused && !isStoppingRef.current) {
-      // Start (or resume) the clock
-      if (startTimeRef.current === null) {
-        startTimeRef.current = Date.now();
-      }
-      
-      const tick = () => {
-        if (startTimeRef.current === null) return;
+    if (!isRunning || isPaused) {
+      if (isPaused && startTimeRef.current !== null) {
         const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
-        const totalDuration = pausedAccumulatorRef.current + elapsed;
-        setDuration(totalDuration);
-      };
-
-      tick(); // Immediate first tick (reconciles after sleep)
-      const interval = setInterval(tick, 1000);
-      return () => clearInterval(interval);
-    } else if (isPaused && startTimeRef.current !== null) {
-      // Freeze: accumulate elapsed time into the accumulator
-      const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
-      pausedAccumulatorRef.current += elapsed;
-      startTimeRef.current = null;
-      
-      // Sync state immediately on pause
-      setDuration(pausedAccumulatorRef.current);
+        pausedAccumulatorRef.current += elapsed;
+        startTimeRef.current = null;
+        setDuration(pausedAccumulatorRef.current);
+      }
+      return;
     }
-    return undefined;
+
+    if (startTimeRef.current === null) {
+      startTimeRef.current = Date.now();
+    }
+
+    let rafId: number;
+    let lastSecond = -1;
+
+    const tick = () => {
+      const elapsed = Math.floor((Date.now() - startTimeRef.current!) / 1000);
+      const totalDuration = pausedAccumulatorRef.current + elapsed;
+      // Only call setDuration when the second actually changes to avoid 
+      // unnecessary re-renders
+      if (totalDuration !== lastSecond) {
+        lastSecond = totalDuration;
+        setDuration(totalDuration);
+      }
+      rafId = requestAnimationFrame(tick);
+    };
+
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
   }, [isRunning, isPaused]);
 
 
