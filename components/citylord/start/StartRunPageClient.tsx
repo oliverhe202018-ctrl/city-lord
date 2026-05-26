@@ -15,14 +15,9 @@ import { App } from "@capacitor/app"
 import { toast } from "sonner"
 import type { PlannerRoute } from "@/types/route-list"
 
-type BatteryOptimizationResult = {
-  ignoring?: boolean
-  isIgnoring?: boolean
-  value?: boolean
-}
-
 type BatteryOptimizationPlugin = {
-  isIgnoringBatteryOptimizations?: () => Promise<BatteryOptimizationResult | boolean>
+  isBatteryOptimizationIgnored?: () => Promise<{ isIgnored: boolean }>
+  openBatteryOptimizationSettings?: () => Promise<{ opened: boolean }>
 }
 
 const BATTERY_GUIDE: Array<{ brand: string; steps: string[] }> = [
@@ -97,15 +92,11 @@ export function StartRunOverlay({ onBack, onBeginRun }: StartRunOverlayProps) {
     let restricted = true
     try {
       const AMapLocation = registerPlugin<BatteryOptimizationPlugin>("AMapLocation")
-      if (typeof AMapLocation.isIgnoringBatteryOptimizations === "function") {
-        const result = await AMapLocation.isIgnoringBatteryOptimizations()
-        const ignoring = typeof result === "boolean"
-          ? result
-          : Boolean(result.ignoring ?? result.isIgnoring ?? result.value)
-        restricted = !ignoring
+      if (typeof AMapLocation.isBatteryOptimizationIgnored === "function") {
+        const { isIgnored } = await AMapLocation.isBatteryOptimizationIgnored()
+        restricted = !isIgnored
       }
     } catch {
-      // 容错处理：如果 API 失败，保守起见在某些 ROM 上不反复弹窗干扰，此处若 API 异常可考虑放行
       restricted = false
     }
 
@@ -249,7 +240,28 @@ export function StartRunOverlay({ onBack, onBeginRun }: StartRunOverlayProps) {
               ? 'cursor-not-allowed bg-slate-400 text-slate-200 hover:bg-slate-400 dark:bg-slate-600 dark:text-slate-400'
               : 'bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100'
           }`}
-          onClick={onBeginRun}
+          onClick={async () => {
+            const native = await isNativePlatform()
+            if (native) {
+              const { Capacitor, registerPlugin } = await import("@capacitor/core")
+              if (Capacitor.getPlatform() === "android") {
+                const AMapLocation = registerPlugin<BatteryOptimizationPlugin>("AMapLocation")
+                if (typeof AMapLocation.isBatteryOptimizationIgnored === "function") {
+                  try {
+                    const { isIgnored } = await AMapLocation.isBatteryOptimizationIgnored()
+                    if (!isIgnored) {
+                      setShowBatteryModal(true)
+                      toast.error("必须关闭电池优化限制，才能启动跑步记录！")
+                      return
+                    }
+                  } catch (e) {
+                    console.error("Battery check failed:", e)
+                  }
+                }
+              }
+            }
+            onBeginRun()
+          }}
         >
           {isLowStamina ? '体力不足' : '开始跑步'}
         </Button>
@@ -257,54 +269,75 @@ export function StartRunOverlay({ onBack, onBeginRun }: StartRunOverlayProps) {
 
       {showBatteryModal && (
         <div
-          className="pointer-events-auto fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          className="pointer-events-auto fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-md animate-in fade-in duration-300"
           onClick={() => setShowBatteryModal(false)}
         >
           <div
-            className="pointer-events-auto w-[90%] max-w-sm overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900"
+            className="pointer-events-auto w-[90%] max-w-sm overflow-hidden rounded-3xl border border-white/20 bg-white/90 shadow-2xl backdrop-blur-2xl dark:border-white/10 dark:bg-slate-900/90 transform scale-100 transition-all duration-300 animate-in zoom-in-95 duration-200"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex items-center justify-between bg-rose-500 px-5 py-3 text-white">
-              <h2 className="text-base font-extrabold">检测到电池优化限制</h2>
-              <button
-                type="button"
-                onClick={() => setShowBatteryModal(false)}
-                className="rounded-md p-1 text-white/90 hover:bg-white/20"
-              >
-                <X className="h-4 w-4" />
-              </button>
+            <div className="bg-gradient-to-r from-red-600 via-rose-500 to-amber-500 px-6 py-4 text-white">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Signal className="h-5 w-5 animate-pulse text-amber-200" />
+                  <h2 className="text-lg font-black tracking-wide">锁屏防断连强力引导</h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowBatteryModal(false)}
+                  className="rounded-full p-1 text-white/90 transition-all hover:bg-white/20"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
             </div>
             <div className="p-6">
-              <p className="text-sm leading-7 text-rose-900 dark:text-rose-100">
-                电池优化会在锁屏时中断 GPS 轨迹记录，导致跑步距离和占领结果异常。建议立即将 City Lord 设置为“不受限制”或“允许后台运行”。
+              <p className="text-sm font-semibold leading-7 text-rose-950 dark:text-rose-200 bg-rose-500/10 dark:bg-rose-500/5 rounded-2xl p-4 border border-rose-500/20">
+                ⚠️ <strong className="font-extrabold text-rose-700 dark:text-rose-400">极重要提醒：</strong> 
+                MIUI / EMUI 等厂商系统默认会强杀后台进程。如果不关闭“电池优化”，您的轨迹与领地面积计算在息屏后将<strong className="underline decoration-wavy decoration-red-500">被无情中断</strong>导致崩毁！
               </p>
-              <div className="mt-5 space-y-3">
+              <p className="mt-3 text-xs leading-5 text-muted-foreground">
+                请立即选择“无限制/不受限制”，给《城市领主》后台持续常驻授权。
+              </p>
+              <div className="mt-6 space-y-3">
                 <Button
                   type="button"
-                  className="h-12 w-full rounded-xl bg-slate-900 text-white hover:bg-slate-800"
+                  className="h-12 w-full rounded-2xl bg-gradient-to-r from-slate-900 to-slate-800 text-sm font-bold text-white hover:opacity-95 shadow-md shadow-slate-900/10 dark:from-white dark:to-slate-100 dark:text-slate-900 dark:shadow-none"
                   onClick={async () => {
-                    const opened = await safeOpenAppSettings()
-                    if (!opened) toast.info("请手动前往系统设置关闭电池优化")
+                    const { registerPlugin } = await import("@capacitor/core")
+                    const AMapLocation = registerPlugin<BatteryOptimizationPlugin>("AMapLocation")
+                    if (typeof AMapLocation.openBatteryOptimizationSettings === "function") {
+                      try {
+                        const { opened } = await AMapLocation.openBatteryOptimizationSettings()
+                        if (!opened) {
+                          const fallbackOpened = await safeOpenAppSettings()
+                          if (!fallbackOpened) toast.info("请手动前往系统设置关闭电池优化")
+                        }
+                      } catch (e) {
+                        console.error("Open settings failed:", e)
+                        const fallbackOpened = await safeOpenAppSettings()
+                        if (!fallbackOpened) toast.info("请手动前往系统设置关闭电池优化")
+                      }
+                    } else {
+                      const fallbackOpened = await safeOpenAppSettings()
+                      if (!fallbackOpened) toast.info("请手动前往系统设置关闭电池优化")
+                    }
                   }}
                 >
-                  打开设置 (Open settings)
+                  去忽略电池优化 (Ignore Battery Optimizations)
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
-                  className="h-12 w-full rounded-xl border-rose-300 bg-white text-rose-700 hover:bg-rose-50"
-                  onClick={() => {
-                    localStorage.setItem("city-lord-skip-battery-warning", "true")
-                    setShowBatteryModal(false)
-                    toast.success("已设置不再提醒")
-                  }}
+                  className="h-12 w-full rounded-2xl border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                  onClick={() => setShowBatteryModal(false)}
                 >
-                  不再提醒 (Don&apos;t remind again)
+                  暂不设置 (Cancel)
                 </Button>
                 <Button
                   type="button"
                   variant="ghost"
-                  className="h-10 w-full text-xs text-muted-foreground underline-offset-4 hover:underline"
+                  className="h-10 w-full text-xs text-slate-500 hover:text-slate-900 dark:hover:text-white underline-offset-4 hover:underline"
                   onClick={() => setShowGuideModal(true)}
                 >
                   阅读关闭指南 (Read guide article)

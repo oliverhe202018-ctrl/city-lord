@@ -218,6 +218,8 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   const isHydratingRef = useRef(false);
   /** 缓冲队列：追帧期间拦截的实时 GPS 点，追帧完成后统一消费 */
   const pendingLivePointsRef = useRef<Location[]>([]);
+  /** 全局时间戳去重滑动窗口队列 */
+  const recentTimestampsRef = useRef<number[]>([]);
 
   // ─── Live-snapshot refs (always current, immune to stale closures) ───
   const distanceRef = useRef(distance);
@@ -852,6 +854,22 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     const now = timestamp || Date.now();
 
     // ================================================================
+    // 🛡️ TIMESTAMP SLIDING WINDOW FILTER (全局 5 秒滑动窗口去重与回拨拦截)
+    // ================================================================
+    recentTimestampsRef.current = recentTimestampsRef.current.filter(t => t >= now - 5000);
+    const maxTs = recentTimestampsRef.current.length > 0 ? Math.max(...recentTimestampsRef.current) : 0;
+    const isOverlap = recentTimestampsRef.current.includes(now);
+    const isRegressive = now < maxTs;
+
+    if (isOverlap || isRegressive) {
+      console.debug(
+        `[Timestamp Sliding Window Filter] ❌ useRunningTracker 拦截重叠/回拨点: ts=${now}, maxTs=${maxTs}, isOverlap=${isOverlap}, isRegressive=${isRegressive}`
+      );
+      return;
+    }
+    recentTimestampsRef.current.push(now);
+
+    // ================================================================
     // 🛡️ TIMESTAMP DEDUP (防后台缓存点重复注入)
     // 后台定位插件可能在唤醒时补发历史缓存点，若时间戳不晚于已处理点则丢弃
     // 增加 CLOCK_DRIFT_TOLERANCE_MS 容忍窗口，防止 NTP 同步/跨时区导致的时钟回拨误杀
@@ -1304,14 +1322,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
             // Record claimed segment for deduplication
             claimedSegmentsRef.current.push({ start: loopAnchorStart, end: loopAnchorEnd });
 
-            const closingPoint = loopForCalc[loopForCalc.length - 1];
-            const currentPathForSync = pathRef.current;
-            const lastPoint = currentPathForSync[currentPathForSync.length - 1];
-            if (!lastPoint || closingPoint.lat !== lastPoint.lat || closingPoint.lng !== lastPoint.lng) {
-              const updatedPath = [...currentPathForSync, closingPoint];
-              pathRef.current = updatedPath;
-              setPath(updatedPath);
-            }
+            // 核心自愈：清空当前圈轨迹缓存，防止第二圈与第一圈产生伪自交
+            pathRef.current = [];
+            setPath([]);
 
             const TOAST_AREA_INCREMENT_THRESHOLD = 50;
             const incrementalArea = newTotalArea - lastToastAreaRef.current;
@@ -1332,6 +1345,10 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     pathRef.current.push(finalLoc);
     if (pathRef.current.length % 10 === 0) {
       saveState();
+    }
+
+    if (typeof window !== 'undefined' && (window as any).__injectLocationPoints) {
+      (window as any).__injectLocationPoints(finalLoc);
     }
  
     // 后台线性插值算法 (Linear Interpolation Back-Smoothing)
@@ -1380,6 +1397,10 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
             distanceRef.current = newTotalDist;
             setDistance(newTotalDist);
             console.log(`[GPS-Repair] ✅ Back-smoothing completed. Recalculated cumulative distance: ${newTotalDist.toFixed(1)}m`);
+
+            if (typeof window !== 'undefined' && (window as any).__injectLocationPoints) {
+              (window as any).__injectLocationPoints(pathRef.current, true);
+            }
           }
         }
       }
@@ -1460,6 +1481,10 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           setArea(newTotalArea);
           lastClaimAtRef.current = now;
           
+          // 核心自愈：清空当前圈轨迹缓存，防止第二圈与第一圈产生伪自交
+          pathRef.current = [];
+          setPath([]);
+          
           const TOAST_AREA_INCREMENT_THRESHOLD = 50;
           const incrementalArea = newTotalArea - lastToastAreaRef.current;
           if (incrementalArea >= TOAST_AREA_INCREMENT_THRESHOLD) {
@@ -1528,7 +1553,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         sessionId,
         sinceTimestamp: sinceTimestamp > 0 ? sinceTimestamp : 0,
       });
-      const offlinePoints = res?.points || [];
+      let offlinePoints = res?.points || [];
 
       if (offlinePoints.length === 0) {
         console.log('[Hydrate] 无离线记录需要追帧');
@@ -1539,12 +1564,12 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
       console.log(`[Hydrate] 拉取到 ${offlinePoints.length} 条离线定位记录 (capped=${res.capped}), sessionId=${sessionId}`);
 
-      // Cap offline replay to last 600 points (~20 min at 2s interval) to prevent
-      // UI thread saturation after long background sessions.
-      const MAX_OFFLINE_REPLAY_POINTS = 600;
-      const offlineToProcess = offlinePoints.length > MAX_OFFLINE_REPLAY_POINTS
-        ? offlinePoints.slice(-MAX_OFFLINE_REPLAY_POINTS)
-        : offlinePoints;
+      // ─── 离线追帧前置几何压缩 (Douglas-Peucker Compression) ───
+      if (offlinePoints.length > 500) {
+        const originalCount = offlinePoints.length;
+        offlinePoints = simplifyPath(offlinePoints, 0.00003) as typeof offlinePoints;
+        console.log(`[Hydrate] 离线点集超过 500 点，使用 Douglas-Peucker 前置几何压缩: ${originalCount} -> ${offlinePoints.length} 点`);
+      }
 
       // 1. Process all points to build full path (for distance & loops)
       const sortedOfflineFull: Location[] = [...offlinePoints]
@@ -1586,48 +1611,10 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         }
       }
 
-      // 2. Process capped replay points
-      const sortedOffline: Location[] = [...offlineToProcess]
-        .sort((a, b) => a.timestamp - b.timestamp)
-        .map(pt => ({
-          lat: pt.lat,
-          lng: pt.lng,
-          timestamp: pt.timestamp < 1e11 ? pt.timestamp * 1000 : pt.timestamp,
-        }));
-
-      const validOffline: Location[] = [];
-      let lastRef: Location | null = pathRef.current.length > 0 ? pathRef.current[pathRef.current.length - 1] : null;
-
-      for (const pt of sortedOffline) {
-        if (lastRef) {
-          const dist = getDistanceFromLatLonInMeters(lastRef.lat, lastRef.lng, pt.lat, pt.lng);
-          const dt = Math.max((pt.timestamp - lastRef.timestamp) / 1000, 0.1);
-          if (dist / dt > SPEED_LIMIT_MS) {
-            lastRef = pt;
-            continue;
-          }
-        }
-        validOffline.push(pt);
-        lastRef = pt;
-      }
-
-      const validOfflineSkipped = validOfflineFull.slice(0, Math.max(0, validOfflineFull.length - validOffline.length));
-
-      const mergedPre = [...currentPath, ...validOfflineSkipped];
-      mergedPre.sort((a, b) => a.timestamp - b.timestamp);
-
-      const preReplayPath: Location[] = [];
-      const seenTimestampsPre = new Set<number>();
-      for (let i = mergedPre.length - 1; i >= 0; i--) {
-        const pt = mergedPre[i];
-        if (!seenTimestampsPre.has(pt.timestamp)) {
-          seenTimestampsPre.add(pt.timestamp);
-          preReplayPath.unshift(pt);
-        }
-      }
-
-      const replayPoints = validOffline;
-      const CHUNK_SIZE = 30;
+      // 2. Set up chunk queue processing
+      // We directly stream validOfflineFull (already DP-compressed if large) without capped replay constraints.
+      const replayPoints = validOfflineFull;
+      const CHUNK_SIZE = 200;
       let chunkIndex = 0;
       const totalChunks = Math.ceil(replayPoints.length / CHUNK_SIZE);
       
@@ -1645,16 +1632,25 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       }
 
       const preOfflineDistance = distanceRef.current;
+      const preReplayPath = currentPath;
 
       // Initialize pathRef.current and path state with preReplayPath to prevent shrinking
       pathRef.current = preReplayPath;
       setPath([...preReplayPath]);
+
+      if (typeof window !== 'undefined' && (window as any).__injectLocationPoints) {
+        (window as any).__injectLocationPoints(preReplayPath, true);
+      }
 
       const processChunk = async () => {
         if (chunkIndex >= totalChunks) {
           // Finalize with full path
           pathRef.current = dedupedPathFull;
           setPath([...dedupedPathFull]);
+
+          if (typeof window !== 'undefined' && (window as any).__injectLocationPoints) {
+            (window as any).__injectLocationPoints(dedupedPathFull, true);
+          }
 
           if (totalDistDelta > 0) {
             setDistance(prev => prev + totalDistDelta);
@@ -1826,8 +1822,12 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         lastLocationRef.current = latestPoint;
         setCurrentLocation(latestPoint);
 
+        if (typeof window !== 'undefined' && (window as any).__injectLocationPoints) {
+          (window as any).__injectLocationPoints(chunk);
+        }
+
         chunkIndex++;
-        requestAnimationFrame(() => setTimeout(processChunk, 16));
+        setTimeout(processChunk, 100);
       };
 
       processChunk();
@@ -1945,6 +1945,10 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     pathRef.current = [startLoc];
     setPath([startLoc]);
     setDisplayPath([startLoc]);
+
+    if (typeof window !== 'undefined' && (window as any).__injectLocationPoints) {
+      (window as any).__injectLocationPoints([startLoc], true);
+    }
   }, []);
 
   // Wake Lock (keep screen on during run)

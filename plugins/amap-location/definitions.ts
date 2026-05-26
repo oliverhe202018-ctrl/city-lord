@@ -204,10 +204,15 @@ export interface AMapLocationPlugin {
     }>;
 
     /**
+     * 查询 App 是否已在电池优化白名单中。
+     */
+    isBatteryOptimizationIgnored(): Promise<{ isIgnored: boolean }>;
+
+    /**
      * 跳转至系统的电池优化设置页面。
      * 用于引导用户将应用加入电池优化白名单，防止后台被系统杀死。
      */
-    openBatteryOptimizationSettings(): Promise<void>;
+    openBatteryOptimizationSettings(): Promise<{ opened: boolean }>;
 
     // ---- Room 黑匣子持久化 (SQLite) ----
 

@@ -25,6 +25,8 @@ export interface AMapInstance {
   on: (event: string, handler: (...args: unknown[]) => void) => void;
   off: (event: string, handler: (...args: unknown[]) => void) => void;
   setZoomAndCenter: (zoom: number, center: [number, number], immediately?: boolean, duration?: number) => void;
+  setBounds: (bounds: any, immediately?: boolean, avoid?: number[], maxZoom?: number) => void;
+  setFitView: (overlays?: any[], immediately?: boolean, avoid?: number[], maxZoom?: number) => void;
 }
 
 // MapLayer handle interface

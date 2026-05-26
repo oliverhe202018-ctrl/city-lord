@@ -170,6 +170,7 @@ export class AMapLocationBridge {
 
     // 去重
     private lastAcceptedPoint: { lat: number; lng: number; timestamp: number } | null = null;
+    private recentTimestamps: number[] = [];
 
     // 冷启动标志
     private hasFreshFix = false;
@@ -1016,9 +1017,27 @@ export class AMapLocationBridge {
     }
 
     private isDuplicate(point: GeoPoint): boolean {
+        const ts = point.timestamp ?? Date.now();
+
+        // 1. 清理超过 5 秒的过期时间戳
+        this.recentTimestamps = this.recentTimestamps.filter(t => t >= ts - 5000);
+
+        // 2. 检查 5 秒滑动窗口内的重叠与回拨
+        const maxTs = this.recentTimestamps.length > 0 ? Math.max(...this.recentTimestamps) : 0;
+        const isOverlap = this.recentTimestamps.includes(ts);
+        const isRegressive = ts < maxTs;
+
+        if (isOverlap || isRegressive) {
+            console.debug(`[AMapBridge] [Timestamp Sliding Window Filter] ❌ 丢弃重叠/回拨点: ts=${ts}, maxTs=${maxTs}, isOverlap=${isOverlap}, isRegressive=${isRegressive}`);
+            return true;
+        }
+
+        this.recentTimestamps.push(ts);
+
+        // 保留原有基于空间和极短时间差的防抖逻辑
         if (!this.lastAcceptedPoint) return false;
 
-        const timeDiff = Math.abs((point.timestamp ?? Date.now()) - this.lastAcceptedPoint.timestamp);
+        const timeDiff = Math.abs(ts - this.lastAcceptedPoint.timestamp);
         if (timeDiff < DEDUP_MIN_TIME_DIFF_MS) {
             const dist = haversineDistance(
                 this.lastAcceptedPoint.lat,

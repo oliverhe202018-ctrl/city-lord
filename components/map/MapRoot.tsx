@@ -57,9 +57,7 @@ export function MapRoot({ children }: { children: ReactNode }) {
   }, [completedSegments, currentSegment]);
 
   const currentSegmentRef = useRef<GeoPoint[]>([]);
-  useEffect(() => {
-    currentSegmentRef.current = currentSegment;
-  }, [currentSegment]);
+  currentSegmentRef.current = currentSegment;
 
   const userPathLengthRef = useRef(0); // 跟踪路径长度变化，用于稀疏化触发
   
@@ -426,9 +424,17 @@ export function MapRoot({ children }: { children: ReactNode }) {
   }, [pendingFocusId, map, isLoaded, setSelectedTerritoryIdFromStore, clearFocus]);
 
   // 工业级防御流：统一位置注入网关
-  const injectLocationPoints = useCallback((points: GeoPoint | GeoPoint[]) => {
+  const injectLocationPoints = useCallback((points: GeoPoint | GeoPoint[], overwrite = false) => {
     const incomingPoints = Array.isArray(points) ? points : [points];
-    if (incomingPoints.length === 0) return;
+    if (incomingPoints.length === 0) {
+      if (overwrite) setCurrentSegment([]);
+      return;
+    }
+
+    if (overwrite) {
+      setCurrentSegment(incomingPoints);
+      return;
+    }
 
     // 场景 A：单点正常流入（前台开屏跑步中），直接同步注入，保证 1s 实时性
     if (incomingPoints.length <= 50) {
@@ -483,21 +489,12 @@ export function MapRoot({ children }: { children: ReactNode }) {
     };
   }, [injectLocationPoints]);
 
-  // Update user position (always) and trajectory (only when running)
+  // Update user position (always)
   useEffect(() => {
     if (location && location.lat !== 0 && location.lng !== 0) {
       setUserPosition(location);
-
-      // ❌ 删除重复的异步移动代码，统一由 Stage-based FlyTo 逻辑控制
-      // 避免双重 setCenter 调用导致的抖动和额外 GL 渲染压力
-
-      // CRITICAL: Only accumulate trajectory when actively running
-      // This prevents ghost polylines on cold start / initial GPS lock
-      if (isRunningRef.current) { // 用 ref，无需 isRunning 在依赖数组
-        injectLocationPoints(location);
-      }
     }
-  }, [location, injectLocationPoints]); // 移除 isRunning 和 map（map 不影响此逻辑）
+  }, [location]);
 
   // Clear trajectory when run stops
   useEffect(() => {
@@ -512,7 +509,12 @@ export function MapRoot({ children }: { children: ReactNode }) {
   const loopClosedCount = useGameStore(s => s.loopClosedCount);
   useEffect(() => {
     if (loopClosedCount === 0) return;
-    setCompletedSegments(prev => [...prev, currentSegmentRef.current]);
+    const curSeg = currentSegmentRef.current;
+    if (curSeg && curSeg.length > 0) {
+      // 强制取当前段的第一个点（起点）作为闭合终点追加到末尾，消除物理断口
+      const closedSegment = [...curSeg, curSeg[0]];
+      setCompletedSegments(prev => [...prev, closedSegment]);
+    }
     setCurrentSegment([]);
   }, [loopClosedCount]);
 
