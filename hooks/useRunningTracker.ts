@@ -533,7 +533,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   // TrajectoryLayer 仅绑定 displayPath，避免全量原始点 GPU 渲染压力。
   // 超过 30 点后，每新增 5 个点触发一次 simplifyPath，其余时间同步追加
   const displayPathSimplifyRef = useRef<{ pending: boolean; counter: number }>({ pending: false, counter: 0 });
-  const simplifyDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const simplifyDebounceRef = useRef<any>(null);
   useEffect(() => {
     if (!isRunning || isStoppingRef.current) return;
 
@@ -609,6 +609,12 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     };
 
     scheduleSimplify();
+
+    return () => {
+      if (simplifyDebounceRef.current) {
+        clearTimeout(simplifyDebounceRef.current);
+      }
+    };
   }, [isRunning, path]);
 
   // ─── Kalman-based GPS Smoothing (replaces legacy EMA) ───
