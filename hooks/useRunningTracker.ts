@@ -18,7 +18,7 @@ import {
   GPS_TRACKING_ACCURACY_METERS,
   GPS_DISPLAY_ACCURACY_METERS,
 } from '@/store/useLocationStore';
-import { getDistanceFromLatLonInMeters, LOOP_CLOSURE_THRESHOLD_M, LOOP_CLOSURE_SNAP_M, isLoopClosed, MIN_LOOP_POINTS, extractValidLoops, isDuplicatePolygon } from '@/lib/geometry-utils';
+import { getDistanceFromLatLonInMeters, LOOP_CLOSURE_THRESHOLD_M, LOOP_CLOSURE_SNAP_M, isLoopClosed, MIN_LOOP_POINTS, extractValidLoops, isDuplicatePolygon, simplifyPathDP } from '@/lib/geometry-utils';
 import { shouldAcceptPointByDistance } from '@/lib/location/gps-spatial-filter';
 import { validateSegmentSpeed } from '@/lib/location/gps-speed-validator';
 import { ActiveRandomEvent, useRandomEvents } from '@/hooks/useRandomEvents';
@@ -513,25 +513,46 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     return () => clearInterval(interval);
   }, [isRunning, saveState]);
 
-  // ─── Display Path Simplification (requestIdleCallback) ───
+  // ─── Display Path Simplification ───
   // 渲染抽稀：使用 Douglas-Peucker 算法异步计算简化路径，
   // TrajectoryLayer 仅绑定 displayPath，避免全量原始点 GPU 渲染压力。
-  // 每 30 个 GPS 点或路径变化时触发抽稀，容差 0.00005 ≈ 5m
+  // 超过 30 点后，每新增 5 个点触发一次 simplifyPath，其余时间同步追加
   const displayPathSimplifyRef = useRef<{ pending: boolean; counter: number }>({ pending: false, counter: 0 });
   useEffect(() => {
     if (!isRunning || isStoppingRef.current) return;
 
     const SIMPLIFY_TOLERANCE = 0.00005;
-    const SIMPLIFY_TRIGGER_POINTS = 30;
+    const SIMPLIFY_TRIGGER_POINTS = 5;
 
     const scheduleSimplify = () => {
       const rawPath = pathRef.current;
-      const isBulkUpdate = Math.abs(rawPath.length - displayPath.length) > 1;
-      const isStartOfRun = rawPath.length < SIMPLIFY_TRIGGER_POINTS;
+      
+      // 点数 <= 30，直接同步执行 setDisplayPath 保证首段秒级无延迟渲染
+      if (rawPath.length <= 30) {
+        setDisplayPath([...rawPath]);
+        return;
+      }
 
-      if (!isBulkUpdate && !isStartOfRun) {
+      const isBulkUpdate = Math.abs(rawPath.length - displayPath.length) > 1;
+
+      if (!isBulkUpdate) {
         displayPathSimplifyRef.current.counter++;
-        if (displayPathSimplifyRef.current.counter < SIMPLIFY_TRIGGER_POINTS) return;
+        if (displayPathSimplifyRef.current.counter < SIMPLIFY_TRIGGER_POINTS) {
+          // 在 5 个点的步长间隔内，同步追加最新点，避免等待
+          if (rawPath.length > 0) {
+            const lastPt = rawPath[rawPath.length - 1];
+            setDisplayPath(prev => {
+              if (prev.length > 0) {
+                const prevLast = prev[prev.length - 1];
+                if (prevLast.lat === lastPt.lat && prevLast.lng === lastPt.lng) {
+                  return prev;
+                }
+              }
+              return [...prev, lastPt];
+            });
+          }
+          return;
+        }
       }
       displayPathSimplifyRef.current.counter = 0;
 
@@ -541,32 +562,25 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       const doSimplify = () => {
         try {
           const rawPath = pathRef.current;
-          if (rawPath.length <= 10) {
-            setDisplayPath(rawPath);
-          } else {
-            const simplified = simplifyPath(rawPath, SIMPLIFY_TOLERANCE);
-            // simplifyPath 返回 { lat, lng } 无 timestamp，需要从原始路径映射回 Location[]
-            const timestampMap = new Map<string, number>();
-            rawPath.forEach(pt => {
-              timestampMap.set(`${pt.lat.toFixed(7)},${pt.lng.toFixed(7)}`, pt.timestamp);
-            });
-            const displayPoints: Location[] = simplified.map(pt => ({
-              lat: pt.lat,
-              lng: pt.lng,
-              timestamp: timestampMap.get(`${pt.lat.toFixed(7)},${pt.lng.toFixed(7)}`) ?? Date.now(),
-            }));
-            setDisplayPath(displayPoints);
-          }
+          const simplified = simplifyPath(rawPath, SIMPLIFY_TOLERANCE);
+          // simplifyPath 返回 { lat, lng } 无 timestamp，需要从原始路径映射回 Location[]
+          const timestampMap = new Map<string, number>();
+          rawPath.forEach(pt => {
+            timestampMap.set(`${pt.lat.toFixed(7)},${pt.lng.toFixed(7)}`, pt.timestamp);
+          });
+          const displayPoints: Location[] = simplified.map(pt => ({
+            lat: pt.lat,
+            lng: pt.lng,
+            timestamp: timestampMap.get(`${pt.lat.toFixed(7)},${pt.lng.toFixed(7)}`) ?? Date.now(),
+          }));
+          setDisplayPath(displayPoints);
         } finally {
           displayPathSimplifyRef.current.pending = false;
         }
       };
 
-      if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-        (window as any).requestIdleCallback(doSimplify, { timeout: 2000 });
-      } else {
-        setTimeout(doSimplify, 100);
-      }
+      // 弃用 requestIdleCallback，确保移动端 WebView 立即调度
+      setTimeout(doSimplify, 0);
     };
 
     scheduleSimplify();
@@ -627,8 +641,11 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       }
       const poly1 = turf.polygon([coords1]);
       const poly2 = turf.polygon([coords2]);
-      const combined = turf.union(turf.featureCollection([poly1, poly2]));
+      let combined = turf.union(turf.featureCollection([poly1, poly2]));
       if (combined) {
+        // [优化] 第二层微量卡边：利用 turf.simplify 消除 double 浮点运算缝隙，保持拓扑，严禁过度削角
+        combined = turf.simplify(combined, { tolerance: 0.000005, highQuality: true });
+        
         let extCoords: number[][] = [];
         if (combined.geometry.type === 'Polygon') {
           extCoords = combined.geometry.coordinates[0];
@@ -775,10 +792,6 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       }
     }
 
-    // ========================================================================
-    // 🛡️ 窗口为 3 的【中值折返尖角滤波器】 (Median Spike Filter)
-    // 能够检测 A -> B -> C 折线跳跃，若发现上一时刻点 B 为突发漂移毛刺，直接执行自愈剔除
-    // ========================================================================
     if (pathRef.current.length >= 2) {
       const ptA = pathRef.current[pathRef.current.length - 2];
       const ptB = pathRef.current[pathRef.current.length - 1];
@@ -786,13 +799,34 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       const dBC = getDistanceFromLatLonInMeters(ptB.lat, ptB.lng, lat, lng);
       const dAC = getDistanceFromLatLonInMeters(ptA.lat, ptA.lng, lat, lng);
 
-      if (dAB > 10.0 && dBC > 10.0 && dAC < (dAB + dBC) * 0.3) {
-        console.warn(`[GPS-Median] 🎯 Median Spike Filtered! Point B (${ptB.lat.toFixed(6)}, ${ptB.lng.toFixed(6)}) detected as spike. Removing from trajectory.`);
-        pathRef.current.pop();
-        lastLocationRef.current = ptA;
-        setDistance(prev => Math.max(0, prev - dAB));
-        // 重置 lastSpeedRef 以防加速度校验数值大跳变
-        lastSpeedRef.current = null;
+      // 1. 提升距离门槛至 20m，防止短边矩形误触
+      if (dAB > 20.0 && dBC > 20.0 && dAC > 0) {
+        // 2. 计算横向偏离距 (Lateral Offset)
+        const lateralOffset = Math.abs((dAB * dAB - dBC * dBC) / (2 * dAC));
+        
+        // 3. 计算方向夹角 (Heading Filter)
+        const ux = ptB.lng - ptA.lng;
+        const uy = ptB.lat - ptA.lat;
+        const vx = lng - ptB.lng;
+        const vy = lat - ptB.lat;
+        const dot = ux * vx + uy * vy;
+        const lenU = Math.sqrt(ux * ux + uy * uy);
+        const lenV = Math.sqrt(vx * vx + vy * vy);
+        let thetaDeg = 0;
+        if (lenU > 0 && lenV > 0) {
+          const cosTheta = dot / (lenU * lenV);
+          thetaDeg = (Math.acos(Math.max(-1, Math.min(1, cosTheta))) * 180) / Math.PI;
+        }
+
+        // 仅当横向偏离距 > 10m 且方向角 > 150° 时才判定为极端回头漂移尖角并过滤
+        if (lateralOffset > 10.0 && thetaDeg > 150.0) {
+          console.warn(`[GPS-Median] 🎯 Median Spike Filtered! Point B (${ptB.lat.toFixed(6)}, ${ptB.lng.toFixed(6)}) detected as spike. Removing from trajectory. Lateral: ${lateralOffset.toFixed(1)}m, Angle: ${thetaDeg.toFixed(1)}°`);
+          pathRef.current.pop();
+          lastLocationRef.current = ptA;
+          setDistance(prev => Math.max(0, prev - dAB));
+          // 重置 lastSpeedRef 以防加速度校验数值大跳变
+          lastSpeedRef.current = null;
+        }
       }
     }
 
@@ -859,8 +893,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         // 必须同步更新 ref，不能只 setIsWarmingUp（Effect 异步，有失同步窗口）
         isWarmingUpRef.current = false;
         setIsWarmingUp(false);
-        // 重置 lastLocationRef，防止 warm-up 末点作为基准导致正式追踪首点被 3m 防抖过滤
-        lastLocationRef.current = null;
+        // [优化] 注释/删除此行，必须保留 finalLoc 作为后续轨迹过滤参考点，防止首点丢失与位移防抖误杀
+        // lastLocationRef.current = null;
+        lastLocationRef.current = finalLoc;
         console.log(`[GPS-Filter] ✅ Warm-up complete (${validPointsCountRef.current} points, ${now - firstPointAtRef.current}ms). Starting track.`);
       } else {
         // Still warming up: update current location for UI but don't record to path
@@ -1213,7 +1248,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
         // Check if the loop is a duplicate of any existing claimed loops
         const dupIndex = sessionClaimsRef.current.findIndex(existingLoop => 
-          isDuplicatePolygon(loop, existingLoop)
+          isDuplicatePolygon(loop as Location[], existingLoop)
         );
         
         let nextClaims: Location[][];
