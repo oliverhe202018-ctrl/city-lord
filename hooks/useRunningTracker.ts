@@ -533,6 +533,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   // TrajectoryLayer 仅绑定 displayPath，避免全量原始点 GPU 渲染压力。
   // 超过 30 点后，每新增 5 个点触发一次 simplifyPath，其余时间同步追加
   const displayPathSimplifyRef = useRef<{ pending: boolean; counter: number }>({ pending: false, counter: 0 });
+  const simplifyDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!isRunning || isStoppingRef.current) return;
 
@@ -590,7 +591,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           const latestForDisplay = latestRaw.length > DISPLAY_PATH_WINDOW
             ? latestRaw.slice(-DISPLAY_PATH_WINDOW)
             : latestRaw;
-          const simplified = simplifyPathDP(latestForDisplay, 2.0);
+          const simplified = simplifyPathDP(latestForDisplay, 0.5);
           const displayPoints: Location[] = simplified.map(pt => ({
             lat: pt.lat,
             lng: pt.lng,
@@ -603,7 +604,8 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       };
 
       // 弃用 requestIdleCallback，确保移动端 WebView 立即调度
-      setTimeout(doSimplify, 0);
+      if (simplifyDebounceRef.current) clearTimeout(simplifyDebounceRef.current);
+      simplifyDebounceRef.current = setTimeout(doSimplify, 500);
     };
 
     scheduleSimplify();
