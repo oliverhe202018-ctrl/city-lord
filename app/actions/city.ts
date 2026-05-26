@@ -391,3 +391,65 @@ export async function initUserCityProgress(cityId: string) {
   if (error) throw error
   return data
 }
+
+export async function getOrCreateCityByAdcode(
+  adcode: string,
+  cityName: string,
+  centerLng?: number,
+  centerLat?: number
+): Promise<string> {
+  if (!adcode) {
+    throw new Error('adcode is required');
+  }
+
+  // 城市名归一化
+  const normalizedCityName = cityName
+    ? cityName.replace(/市$/, '').replace(/省$/, '').trim()
+    : '';
+
+  // 1. 查询 cities 表是否有匹配的 adcode 或者归一化后的城市名
+  let existingCity = await prisma.cities.findFirst({
+    where: {
+      OR: [
+        { adcode: adcode },
+        { name: normalizedCityName }
+      ]
+    }
+  });
+
+  if (existingCity) {
+    // 如果存在，且 adcode 不匹配，更新一下 adcode 保证一致性
+    if (!existingCity.adcode) {
+      await prisma.cities.update({
+        where: { id: existingCity.id },
+        data: { adcode }
+      });
+    }
+    return existingCity.id;
+  }
+
+  // 2. 如果不存在，现场 INSERT 一条新记录
+  const newCity = await prisma.cities.create({
+    data: {
+      name: normalizedCityName || cityName,
+      adcode: adcode,
+      pinyin: normalizedCityName || cityName,
+      center_lng: centerLng ?? null,
+      center_lat: centerLat ?? null,
+      is_active: true,
+      created_at: new Date(),
+      updated_at: new Date()
+    }
+  });
+
+  return newCity.id;
+}
+
+export async function getCityDetailsFromDb(cityId: string): Promise<any | null> {
+  if (!cityId) return null;
+  const city = await prisma.cities.findUnique({
+    where: { id: cityId }
+  });
+  return city;
+}
+

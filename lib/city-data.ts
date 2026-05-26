@@ -68,10 +68,6 @@ export const getCityById = (id: string): City | undefined => {
 };
 
 export const getCityByAdcode = (adcode: string): City | undefined => {
-  // Test mapping override for emulator / mock location
-  if (adcode === '650402' || adcode === '650400' || adcode === '652101' || adcode === '652100') {
-    return cities.find(c => c.id === 'wulumuqi');
-  }
   for (const city of cities) {
     if (city.adcode === adcode) {
       return city;

@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRegion } from "@/contexts/RegionContext";
 import type { City, UserCityProgress, CitySwitchHistory } from "@/types/city"
 import { getCityById, getAllCities, getCityByAdcode } from "@/lib/city-data"
-import { fetchCityStats, fetchCityLeaderboard, getUserCityProgress, type CityLeaderboardEntry } from "@/app/actions/city"
+import { fetchCityStats, fetchCityLeaderboard, getUserCityProgress, type CityLeaderboardEntry, getOrCreateCityByAdcode, getCityDetailsFromDb } from "@/app/actions/city"
 
 /**
  * CityContext 接口定义
@@ -120,6 +120,48 @@ const fetchCityFromAMap = async (adcode: string): Promise<City | null> => {
 };
 
 /**
+ * Helper: Convert Database city data to City object
+ */
+const convertDbCityToCity = (dbCity: any): City => {
+  const centerLng = dbCity.center_lng || 116.407526;
+  const centerLat = dbCity.center_lat || 39.904030;
+
+  return {
+    id: dbCity.id,
+    adcode: dbCity.adcode || '',
+    name: dbCity.name,
+    pinyin: dbCity.pinyin || '',
+    abbr: dbCity.pinyin || '',
+    coordinates: {
+      lng: centerLng,
+      lat: centerLat
+    },
+    bounds: {
+      north: centerLat + 0.1,
+      south: centerLat - 0.1,
+      east: centerLng + 0.1,
+      west: centerLng - 0.1
+    },
+    theme: { primary: "#3b82f6", secondary: "#06b6d4", accent: "#8b5cf6", glow: "#3b82f6" },
+    themeColors: { primary: "#3b82f6", secondary: "#06b6d4" },
+    seasonStatus: {
+      currentSeason: 1,
+      startDate: new Date().toISOString(),
+      endDate: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
+      isActive: true
+    },
+    stats: {
+      totalArea: 0,
+      totalPlayers: 0,
+      activePlayers: 0,
+      totalTiles: 0,
+      capturedTiles: 0
+    },
+    description: `${dbCity.name}欢迎你！`
+  };
+};
+
+/**
  * CityContext Provider 组件
  */
 export function CityProvider({ children }: { children: React.ReactNode }) {
@@ -193,12 +235,68 @@ export function CityProvider({ children }: { children: React.ReactNode }) {
    * 切换城市的方法
    */
   const switchCity = useCallback(
-    async (adcode: string) => {
-      let targetCityBase = getCityByAdcode(adcode)
-      
-      // If not found in static data, try fetching dynamically
+    async (adcode: string, cityName?: string) => {
+      // 1. Resolve cityName if possible
+      let nameToUse = cityName;
+      if (!nameToUse && region?.adcode === adcode) {
+        nameToUse = region.cityName;
+      }
+
+      // If we don't have cityName, and it's a known static city, we can find its name
+      const staticCity = getCityByAdcode(adcode);
+      if (staticCity) {
+        nameToUse = nameToUse || staticCity.name;
+      }
+
+      console.log(`[switchCity] Switching to adcode: ${adcode}, cityName: ${nameToUse}`);
+
+      let targetCityBase: City | null = null;
+
+      // 2. Fetch/create from backend dynamically
+      if (adcode && nameToUse) {
+        try {
+          // Use center coordinates if available in region
+          const centerLng = (region?.adcode === adcode && region.centerLngLat) ? region.centerLngLat[0] : undefined;
+          const centerLat = (region?.adcode === adcode && region.centerLngLat) ? region.centerLngLat[1] : undefined;
+
+          // Call Server Action
+          const cityUuid = await getOrCreateCityByAdcode(adcode, nameToUse, centerLng, centerLat);
+          
+          // Fetch complete city details from DB
+          const dbCity = await getCityDetailsFromDb(cityUuid);
+          if (dbCity) {
+            targetCityBase = convertDbCityToCity(dbCity);
+            // Copy theme/icon from static overrides if matched by name/adcode
+            const staticMatch = getCityByAdcode(adcode);
+            if (staticMatch) {
+              targetCityBase.theme = staticMatch.theme;
+              targetCityBase.themeColors = staticMatch.themeColors;
+              targetCityBase.icon = staticMatch.icon;
+              targetCityBase.description = staticMatch.description;
+            } else if (adcode.startsWith('6528') || nameToUse.includes('巴音') || nameToUse.includes('库尔勒')) {
+              // Custom defaults for Korla to make it look nice!
+              targetCityBase.theme = { primary: "#a855f7", secondary: "#e9d5ff", accent: "#d8b4fe", glow: "#a855f7" };
+              targetCityBase.themeColors = { primary: "#a855f7", secondary: "#e9d5ff" };
+              targetCityBase.icon = "🍇";
+              targetCityBase.description = "亚欧大陆中心，歌舞之乡，美丽库尔勒！";
+            }
+          }
+        } catch (err) {
+          console.error('[switchCity] Error fetching/creating dynamic city from DB:', err);
+        }
+      }
+
+      // 3. Fallback to static getCityByAdcode
       if (!targetCityBase) {
-        console.log(`City ${adcode} not found in static data, fetching from AMap...`);
+        const staticCity = getCityByAdcode(adcode);
+        if (staticCity) {
+          targetCityBase = staticCity;
+        }
+      }
+
+      // 4. Fallback to dynamic AMap fetch (if any)
+      if (!targetCityBase) {
+        console.log(`City ${adcode} not found in static data or DB, fetching from AMap...`);
         try {
           const dynamicCity = await fetchCityFromAMap(adcode);
           if (dynamicCity) {
@@ -209,14 +307,13 @@ export function CityProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // Fallback Logic: Try parent city (xx00) if specific district/county not found
+      // 5. Fallback: Try parent city (xx00) if specific district/county not found
       if (!targetCityBase && adcode.length === 6) {
           const parentAdcode = adcode.substring(0, 4) + '00';
           console.log(`City ${adcode} not found, trying parent city ${parentAdcode}...`);
           
-          targetCityBase = getCityByAdcode(parentAdcode);
+          targetCityBase = getCityByAdcode(parentAdcode) || null;
           
-          // Try fetching parent dynamic if static failed
           if (!targetCityBase) {
               try {
                   const dynamicParent = await fetchCityFromAMap(parentAdcode);
@@ -259,7 +356,7 @@ export function CityProvider({ children }: { children: React.ReactNode }) {
       // 本地存储当前城市 ID
       localStorage.setItem("currentCityId", targetCityBase.id)
     },
-    [setRegion]
+    [setRegion, region]
   )
 
   /**
@@ -279,7 +376,36 @@ export function CityProvider({ children }: { children: React.ReactNode }) {
       try {
         const savedCityId = localStorage.getItem("currentCityId")
         const cityId = savedCityId || "beijing" // 默认选择北京
-        const city = getCityById(cityId)
+        
+        let city = getCityById(cityId)
+        
+        // If not in static cities, check DB (since it could be a UUID!)
+        if (!city && savedCityId) {
+          console.log(`[initializeCity] City ID ${savedCityId} not in static list, checking DB...`);
+          try {
+            const dbCity = await getCityDetailsFromDb(savedCityId);
+            if (dbCity) {
+              city = convertDbCityToCity(dbCity);
+              // Copy theme/icon from static overrides if matched by adcode
+              if (city.adcode) {
+                const staticMatch = getCityByAdcode(city.adcode);
+                if (staticMatch) {
+                  city.theme = staticMatch.theme;
+                  city.themeColors = staticMatch.themeColors;
+                  city.icon = staticMatch.icon;
+                  city.description = staticMatch.description;
+                } else if (city.adcode.startsWith('6528') || city.name.includes('巴音') || city.name.includes('库尔勒')) {
+                  city.theme = { primary: "#a855f7", secondary: "#e9d5ff", accent: "#d8b4fe", glow: "#a855f7" };
+                  city.themeColors = { primary: "#a855f7", secondary: "#e9d5ff" };
+                  city.icon = "🍇";
+                  city.description = "亚欧大陆中心，歌舞之乡，美丽库尔勒！";
+                }
+              }
+            }
+          } catch (dbErr) {
+            console.error('[initializeCity] Failed to fetch city from DB:', dbErr);
+          }
+        }
         
         if (!city) {
              const defaultCity = getCityById("beijing")

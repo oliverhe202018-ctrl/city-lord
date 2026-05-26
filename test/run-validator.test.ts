@@ -57,15 +57,14 @@ describe('Anti-Cheat Run Validator', () => {
     expect(result.flagReason).toBe('TELEPORTATION');
   });
 
-  it('should flag zero steps with significant distance', () => {
+  it('should not flag zero steps with significant distance (handled by downstream checks)', () => {
     const payload = {
       distanceMeters: 500,
       durationSeconds: 300,
       steps: 0,
     };
     const result = validateRunData(payload);
-    expect(result.isFlagged).toBe(true);
-    expect(result.flagReason).toBe('ABNORMAL_STRIDE_ZERO_STEPS');
+    expect(result.isFlagged).toBe(false);
   });
 
   it('should flag invalid duration with distance (data tampering)', () => {

@@ -14,8 +14,6 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     }
 
-    const { searchParams } = new URL(request.url)
-    const cityId = searchParams.get('cityId')
     const minLng = searchParams.get('minLng')
     const minLat = searchParams.get('minLat')
     const maxLng = searchParams.get('maxLng')
@@ -39,6 +37,6 @@ export async function GET(request: Request) {
     return NextResponse.json(territories || [])
   } catch (error: any) {
     console.error('fetchTerritories error:', error)
-    return NextResponse.json([], { status: 200 })
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
