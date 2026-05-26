@@ -378,7 +378,7 @@ function ImmersiveRunningModeInner({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [effectiveRunId, setEffectiveRunId] = useState<string | null>(null)
   // Local kingdom toggle — independent of MapRoot context (avoids useMap crash)
-  const [showKingdom, setShowKingdom] = useState(false)
+  const [showKingdom, setShowKingdom] = useState(true)
   const [floatingBanner, setFloatingBanner] = useState<{ id: number; text: string; tone: "capture" | "shield" } | null>(null)
   const [showEventResolveFx, setShowEventResolveFx] = useState(false)
   

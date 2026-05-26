@@ -43,6 +43,7 @@ export function TrajectoryLayer({
         // Split path into segments based on gap thresholds
         const segments: AMap.LngLat[][] = [];
         let currentSegment: AMap.LngLat[] = [];
+        let lastValidPt: GeoPoint | null = null;
 
         for (let i = 0; i < path.length; i++) {
             const pt = path[i];
@@ -50,20 +51,19 @@ export function TrajectoryLayer({
 
             const amapPt = new window.AMap.LngLat(pt.lng, pt.lat);
 
-            if (currentSegment.length > 0) {
-                const prevPt = path[i - 1];
-                const timeDiff = ((pt.timestamp || 0) - (prevPt.timestamp || 0)) / 1000; // in seconds
+            if (lastValidPt !== null && currentSegment.length > 0) {
+                const timeDiff = ((pt.timestamp || 0) - (lastValidPt.timestamp || 0)) / 1000; // in seconds
                 
                 let distance = 0;
                 if (window.AMap?.GeometryUtil?.distance) {
                     distance = window.AMap.GeometryUtil.distance(
-                        [prevPt.lng, prevPt.lat],
+                        [lastValidPt.lng, lastValidPt.lat],
                         [pt.lng, pt.lat]
                     );
                 } else {
                     distance = Math.sqrt(
-                        Math.pow((pt.lat - prevPt.lat) * 111000, 2) +
-                        Math.pow((pt.lng - prevPt.lng) * 111000 * Math.cos(pt.lat * Math.PI / 180), 2)
+                        Math.pow((pt.lat - lastValidPt.lat) * 111000, 2) +
+                        Math.pow((pt.lng - lastValidPt.lng) * 111000 * Math.cos(pt.lat * Math.PI / 180), 2)
                     );
                 }
 
@@ -76,6 +76,7 @@ export function TrajectoryLayer({
                 }
             }
             currentSegment.push(amapPt);
+            lastValidPt = pt;
         }
         if (currentSegment.length > 0) {
             segments.push(currentSegment);

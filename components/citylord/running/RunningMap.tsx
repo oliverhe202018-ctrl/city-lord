@@ -8,6 +8,7 @@ import { Location } from "@/hooks/useRunningTracker"
 import { useTheme } from "next-themes"
 import { useSmoothMapCamera } from "@/hooks/useSmoothMapCamera"
 import { useLocationStore } from "@/store/useLocationStore"
+import { TrajectoryLayer } from "@/components/map/layers/TrajectoryLayer"
 
 // Security Config
 const AMAP_KEY = process.env.NEXT_PUBLIC_AMAP_KEY || ""
@@ -37,7 +38,6 @@ export function RunningMap({
 
   // Refs for map elements
   const userMarkerRef = useRef<AMap.Marker | null>(null)
-  const polylineRef = useRef<AMap.Polyline | null>(null)
   const polygonRefs = useRef<AMap.Polygon[]>([]) // Store polygon instances
   const kmMarkersRef = useRef<AMap.Marker[]>([])
   const locationCircleRef = useRef<AMap.Circle | null>(null) // Accuracy circle
@@ -336,10 +336,11 @@ export function RunningMap({
           zIndex: 40
         });
         map.add(polygon);
+        if (!showKingdom) polygon.hide(); // Apply current visibility immediately on creation
         polygonRefs.current.push(polygon);
       });
     }
-  }, [closedPolygons])
+  }, [closedPolygons, showKingdom])
 
   // 5. Toggle polygon visibility when showKingdom changes
   useEffect(() => {
@@ -422,6 +423,7 @@ export function RunningMap({
     <div className="w-full h-full relative bg-slate-900">
       <div ref={mapContainerRef} className="w-full h-full absolute inset-0 z-0" />
       {/* Optional: Add gradient overlay if needed, but Smart Planner usually has clean map */}
+      <TrajectoryLayer map={mapInstanceRef.current} path={path} strokeColor="#3B82F6" strokeWeight={6} />
     </div>
   )
 }
