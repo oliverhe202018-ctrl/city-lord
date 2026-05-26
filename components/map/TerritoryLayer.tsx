@@ -739,6 +739,13 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const canvasSizeRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
 
+  const isVisibleRef = useRef(isVisible);
+  const pendingRefreshRef = useRef(false);
+
+  useEffect(() => {
+    isVisibleRef.current = isVisible;
+  }, [isVisible]);
+
   // 监听选中领地 ID 的变化，实时更新 ref 并手动触发 Canvas 重绘，避免重建 CustomLayer 导致闪烁
   useEffect(() => {
     selectedTerritoryIdRef.current = selectedTerritoryId;
@@ -1051,8 +1058,8 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
             canvasSize.width === canvasSizeRef.current.width && 
             canvasSize.height === canvasSizeRef.current.height &&
             Math.abs(mapZoom - currentZoom) < 0.005 &&
-            Math.abs(mapCenter[0] - centerLng) < 0.00001 &&
-            Math.abs(mapCenter[1] - centerLat) < 0.00001) {
+            Math.abs(mapCenter[0] - centerLng) < 0.0005 &&
+            Math.abs(mapCenter[1] - centerLat) < 0.0005) {
           return;
         }
       }
@@ -1151,6 +1158,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
 
       clubAvatarMapRef.current = new Map(clubs.map((c: { id: string; avatar_url: string | null }) => [c.id, c.avatar_url]));
 
+      lastRenderDataRef.current = null;
       decorateTerritories(rawTerritoriesRef.current);
       customLayerRef.current?.render?.();
       recomputeViewportKing();
@@ -1198,7 +1206,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
     const customLayer = new AMapGlobal.CustomLayer(canvas, { zIndex: 120, opacity: 1 });
 
     customLayer.render = () => {
-      redrawCanvas();
+      redrawCanvasRef.current();
     };
 
     customLayer.setMap(isVisible ? map : null);
@@ -1235,11 +1243,28 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
   }, [isVisible, map, redrawCanvas]);
 
   useEffect(() => {
-    if (!map || !isVisible) return;
-
+    if (!map) return;
     const handleRefresh = () => {
-      loadTerritoriesRef.current();
+      if (isVisibleRef.current) {
+        loadTerritoriesRef.current();
+      } else {
+        pendingRefreshRef.current = true; // 处于后台/隐藏状态时，标记延迟刷新
+      }
     };
+    window.addEventListener("citylord:refresh-territories", handleRefresh);
+    return () => window.removeEventListener("citylord:refresh-territories", handleRefresh);
+  }, [map]);
+
+  useEffect(() => {
+    if (!isVisible) return;
+    if (pendingRefreshRef.current) {
+      pendingRefreshRef.current = false;
+      loadTerritoriesRef.current(); // 瞬间补发刷新
+    }
+  }, [isVisible]);
+
+  useEffect(() => {
+    if (!map || !isVisible) return;
 
     const handleMoveStart = () => {
       mapInteractingRef.current = true;
@@ -1262,8 +1287,6 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
     map.on("zoomend", handleMoveEnd);
     map.on("zoomchange", handleZoomChange);
 
-    window.addEventListener("citylord:refresh-territories", handleRefresh);
-
     return () => {
       map.off("movestart", handleMoveStart);
       map.off("zoomstart", handleMoveStart);
@@ -1271,7 +1294,6 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
       map.off("moveend", handleMoveEnd);
       map.off("zoomend", handleMoveEnd);
       map.off("zoomchange", handleZoomChange);
-      window.removeEventListener("citylord:refresh-territories", handleRefresh);
     };
   }, [map, isVisible]);
 

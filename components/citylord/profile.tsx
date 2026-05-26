@@ -35,6 +35,7 @@ import { ThemeSwitcher } from "@/components/citylord/theme/ThemeSwitcher"
 
 import { ReportButton } from '@/components/report/ReportButton'
 import { AccountManager } from '@/components/citylord/profile/AccountManager'
+import { formatShanghaiDate } from '@/lib/format/running'
 
 interface ProfileProps {
   onOpenSettings: () => void
@@ -549,7 +550,7 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
                           </span>
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          {new Date(run.created_at).toLocaleDateString()} · {new Date(run.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {formatShanghaiDate(run.created_at, 'toLocale')}
                         </div>
                       </div>
                     </div>

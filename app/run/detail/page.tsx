@@ -13,6 +13,7 @@ const StaticTrajectoryMap = dynamic(
 import { getRunDetail } from "@/app/actions/activities"
 import { Loader2, ChevronLeft, Zap, TrendingUp } from "lucide-react"
 import { format } from "date-fns"
+import { formatShanghaiDate } from "@/lib/format/running"
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 
 /** Safe number formatting — prevents infinite decimals and NaN/undefined */
@@ -55,12 +56,8 @@ function RunDetailContent() {
 
    const avgSpeed = safeNum(run.distance_km / (run.duration / 3600), 1)
    const maxSpeed = safeNum(parseFloat(avgSpeed !== '--' ? avgSpeed : '0') * 1.2, 1)
-   const dateStr = (() => {
-      try { return format(new Date(run.created_at), 'yyyy年MM月dd日 HH:mm') } catch { return '--' }
-   })()
-   const shortDate = (() => {
-      try { return format(new Date(run.created_at), 'MM月dd日') } catch { return '--' }
-   })()
+   const dateStr = formatShanghaiDate(run.created_at, 'yyyy年MM月dd日 HH:mm')
+   const shortDate = formatShanghaiDate(run.created_at, 'MM月dd日')
 
    return (
       <div className="h-screen bg-black text-white overflow-y-auto">

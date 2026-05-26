@@ -10,7 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { MapPin, Calendar, Trash2, Edit2, Play, Loader2 } from "lucide-react";
-import { format } from 'date-fns';
+import { formatShanghaiDate } from '@/lib/format/running';
 import { useToast } from "@/hooks/use-toast";
 import type { PlannerRoute } from "@/types/route-list";
 
@@ -125,7 +125,7 @@ export function MyRoutesSheet({
                           </h3>
                           <div className="flex items-center text-xs text-white/50 mt-1">
                             <Calendar className="h-3 w-3 mr-1" />
-                            {format(new Date(route.created_at), 'yyyy年M月d日')}
+                            {formatShanghaiDate(route.created_at, 'yyyy年M月d日')}
                           </div>
                         </div>
                         <div className="bg-cyan-500/20 text-cyan-400 text-xs font-bold px-2 py-1 rounded">

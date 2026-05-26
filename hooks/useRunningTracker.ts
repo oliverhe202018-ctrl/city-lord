@@ -2444,6 +2444,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
               if (typeof window !== 'undefined') {
                 window.dispatchEvent(new CustomEvent('citylord:refresh-territories'));
+                setTimeout(() => {
+                  window.dispatchEvent(new CustomEvent('citylord:refresh-territories'));
+                }, 800);
               }
               console.log('[useRunningTracker] Sync settlement complete. Cleared claims.');
             }
@@ -2528,6 +2531,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
                     if (typeof window !== 'undefined') {
                       window.dispatchEvent(new CustomEvent('citylord:refresh-territories'));
+                      setTimeout(() => {
+                        window.dispatchEvent(new CustomEvent('citylord:refresh-territories'));
+                      }, 800);
                     }
                   }
                 }

@@ -19,18 +19,18 @@ import type { GeoPoint } from '@/hooks/useSafeGeolocation';
 
 const TAG = '[RunningFilter]';
 
-/** 跑步精度门槛（米）— 30m 硬门槛，与 useRunningTracker 一致 */
-const RUNNING_ACCURACY_THRESHOLD = 30;
-/** 冷启动精度门槛（略宽松，允许首次 fix 快速写入） */
-const COLD_START_ACCURACY_THRESHOLD = 50;
-/** 最小更新距离（米） */
-const MIN_UPDATE_DISTANCE_M = 2;
+/** 跑步精度门槛（米）— 放宽至 80m */
+const RUNNING_ACCURACY_THRESHOLD = 80;
+/** 冷启动精度门槛（略宽松，允许首次 fix 快速写入）— 放宽至 150m */
+const COLD_START_ACCURACY_THRESHOLD = 150;
+/** 最小更新距离（米）— 降至 1m */
+const MIN_UPDATE_DISTANCE_M = 1;
 /** 最大合理跑步速度（m/s）— 约 36km/h，防交通工具及信号漂移 */
 const MAX_RUNNING_SPEED_MS = 10;
-/** 最大合理加速度（m/s²）— 人类极限约 5m/s²，留余量 */
-const MAX_ACCELERATION_MS2 = 8.0;
-/** 静止抖动半径（米）— 低于此距离视为 GPS 抖动 */
-const JITTER_RADIUS_M = 1.5;
+/** 最大合理加速度（m/s²）— 调至 99 实际关闭加速度过滤 */
+const MAX_ACCELERATION_MS2 = 99;
+/** 静止抖动半径（米）— 降至 0.8m */
+const JITTER_RADIUS_M = 0.8;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -282,7 +282,7 @@ export class RunningLocationFilter {
         }
 
         // --- 3. 速度异常检测 ---
-        if (timeDiffS > 0.5) {
+        if (timeDiffS > 0.3) {
             const speed = dist / timeDiffS;
 
             if (speed > MAX_RUNNING_SPEED_MS) {
@@ -291,7 +291,7 @@ export class RunningLocationFilter {
             }
 
             // --- 4. 加速度异常检测 ---
-            if (this.state.lastSpeed > 0 && timeDiffS > 0.5) {
+            if (this.state.lastSpeed > 0 && timeDiffS > 0.3) {
                 const acceleration = Math.abs(speed - this.state.lastSpeed) / timeDiffS;
                 if (acceleration > MAX_ACCELERATION_MS2) {
                     return this.reject(point, 'acceleration',
@@ -361,6 +361,12 @@ export class RunningLocationFilter {
         reason: string,
     ): FilteredPoint {
         this.state.rejectedCount++;
+
+        // 防止时间差累积导致连锁拒绝
+        if (weakType === 'speed' || weakType === 'acceleration') {
+            this.state.lastAcceptedTime = point.timestamp ?? Date.now();
+            this.state.lastSpeed = 0; // 重置速度，下次从零开始计算
+        }
 
         emitLog({
             tag: TAG,

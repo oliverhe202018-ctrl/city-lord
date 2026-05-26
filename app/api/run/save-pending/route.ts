@@ -87,6 +87,7 @@ export async function POST(req: NextRequest) {
                 club_id: body.clubId ?? null,
                 totalSteps: body.totalSteps,
                 eventsLog: body.eventsHistory || [],
+                created_at: new Date(body.timestamp || Date.now()),
             }
         });
 
