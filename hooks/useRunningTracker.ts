@@ -1264,29 +1264,30 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         }
 
         // Check if the loop is a duplicate of any existing claimed loops
-        const dupIndex = sessionClaimsRef.current.findIndex(existingLoop => 
-          isDuplicatePolygon(loop as Location[], existingLoop)
-        );
-        
-        let nextClaims: Location[][];
-        if (dupIndex !== -1) {
-          console.log("[Self-Intersect] 🔄 Loop is a duplicate, merging into existing claim at index", dupIndex);
-          const mergedLoop = unionTwoLoops(sessionClaimsRef.current[dupIndex], loop as Location[]);
-          nextClaims = [...sessionClaimsRef.current];
-          nextClaims[dupIndex] = mergedLoop;
-        } else {
-          nextClaims = [...sessionClaimsRef.current, loop as Location[]];
-        }
-        
-        // 标记已处理 + 更新状态
-        claimedLoopKeysRef.current.add(loopKey);
-        
-        const newTotalArea = calculateArea(nextClaims);
-        
-        setSessionClaims(nextClaims);
-        setClosedPolygons(nextClaims);
-        setArea(newTotalArea);
-        lastClaimAtRef.current = now;
+        try {
+          const dupIndex = sessionClaimsRef.current.findIndex(existingLoop => 
+            isDuplicatePolygon(loop as Location[], existingLoop)
+          );
+          
+          let nextClaims: Location[][];
+          if (dupIndex !== -1) {
+            console.log("[Self-Intersect] 🔄 Loop is a duplicate, merging into existing claim at index", dupIndex);
+            const mergedLoop = unionTwoLoops(sessionClaimsRef.current[dupIndex], loop as Location[]);
+            nextClaims = [...sessionClaimsRef.current];
+            nextClaims[dupIndex] = mergedLoop;
+          } else {
+            nextClaims = [...sessionClaimsRef.current, loop as Location[]];
+          }
+          
+          // 标记已处理 + 更新状态
+          claimedLoopKeysRef.current.add(loopKey);
+          
+          const newTotalArea = calculateArea(nextClaims);
+          
+          setSessionClaims(nextClaims);
+          setClosedPolygons(nextClaims);
+          setArea(newTotalArea);
+          lastClaimAtRef.current = now;
           
           const TOAST_AREA_INCREMENT_THRESHOLD = 50;
           const incrementalArea = newTotalArea - lastToastAreaRef.current;
