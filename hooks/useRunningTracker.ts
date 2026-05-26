@@ -457,10 +457,19 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     let lastSecond = -1;
 
     const tick = () => {
-      const elapsed = Math.floor((Date.now() - startTimeRef.current!) / 1000);
+      if (startTimeRef.current === null || startTimeRef.current === 0) {
+        rafId = requestAnimationFrame(tick);
+        return;
+      }
+      const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+      // Guard: elapsed must be non-negative and less than 24 hours
+      if (elapsed < 0 || elapsed > 86400) {
+        // startTimeRef is corrupt — reset it to now so timer continues correctly
+        startTimeRef.current = Date.now();
+        rafId = requestAnimationFrame(tick);
+        return;
+      }
       const totalDuration = pausedAccumulatorRef.current + elapsed;
-      // Only call setDuration when the second actually changes to avoid 
-      // unnecessary re-renders
       if (totalDuration !== lastSecond) {
         lastSecond = totalDuration;
         setDuration(totalDuration);
