@@ -18,7 +18,7 @@ import {
   GPS_TRACKING_ACCURACY_METERS,
   GPS_DISPLAY_ACCURACY_METERS,
 } from '@/store/useLocationStore';
-import { getDistanceFromLatLonInMeters, LOOP_CLOSURE_THRESHOLD_M, LOOP_CLOSURE_SNAP_M, isLoopClosed, MIN_LOOP_POINTS, extractValidLoops, isDuplicatePolygon, simplifyPathDP } from '@/lib/geometry-utils';
+import { getDistanceFromLatLonInMeters, LOOP_CLOSURE_THRESHOLD_M, LOOP_CLOSURE_SNAP_M, isLoopClosed, MIN_LOOP_POINTS, extractValidLoops, isDuplicatePolygon } from '@/lib/geometry-utils';
 import { shouldAcceptPointByDistance } from '@/lib/location/gps-spatial-filter';
 import { validateSegmentSpeed } from '@/lib/location/gps-speed-validator';
 import { ActiveRandomEvent, useRandomEvents } from '@/hooks/useRandomEvents';
@@ -1232,16 +1232,33 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         ? pathRef.current.slice(-MAX_LOOP_SCAN_POINTS)
         : pathRef.current;
       
-      const snapLoops = extractValidLoops(pathRef.current, undefined, undefined, { disableIntersect: true });
-      const intersectLoops = extractValidLoops(scanPath, undefined, undefined, { disableSnap: true });
-      const detectedLoops = [...snapLoops, ...intersectLoops];
+      const detectedLoops = extractValidLoops(scanPath);
       
       for (const loop of detectedLoops) {
         if (loop.length < 4) continue;
         
-        // 去重 key：使用环首点的 lat/lng/timestamp 三元组，比 index 更稳定
-        const firstPt = loop[0];
-        const loopKey = `${firstPt.lat.toFixed(6)}-${firstPt.lng.toFixed(6)}-${firstPt.timestamp}`;
+        // 计算环的质心 (Centroid) 用于去重
+        const centerLat = loop.reduce((s, p) => s + p.lat, 0) / loop.length;
+        const centerLng = loop.reduce((s, p) => s + p.lng, 0) / loop.length;
+        
+        // 计算环的 Turf 面积
+        const coords = loop.map(pt => [pt.lng, pt.lat]);
+        if (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1]) {
+          coords.push([...coords[0]]);
+        }
+        
+        let loopArea = 0;
+        try {
+          const poly = turf.polygon([coords]);
+          loopArea = turf.area(poly);
+        } catch (e) {
+          console.warn("[useRunningTracker] Pre-loop polygon area calc failed", e);
+        }
+        
+        if (loopArea < 100) continue;
+        
+        // key = 质心精确到 4 位小数 (约 11 米精度) + 面积取整，同一个环重复检测时 key 不变，8字两环由于质心/面积不同故 key 不同
+        const loopKey = `${centerLat.toFixed(4)}-${centerLng.toFixed(4)}-${Math.round(loopArea)}`;
         if (claimedLoopKeysRef.current.has(loopKey)) {
           continue;
         }
@@ -1261,26 +1278,15 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           nextClaims = [...sessionClaimsRef.current, loop as Location[]];
         }
         
-        // 计算面积，过滤微小环
-        const coords = loop.map(pt => [pt.lng, pt.lat]);
-        if (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1]) {
-          coords.push([...coords[0]]);
-        }
+        // 标记已处理 + 更新状态
+        claimedLoopKeysRef.current.add(loopKey);
         
-        try {
-          const poly = turf.polygon([coords]);
-          const loopArea = turf.area(poly);
-          if (loopArea < 100) continue;
-          
-          // 标记已处理 + 更新状态
-          claimedLoopKeysRef.current.add(loopKey);
-          
-          const newTotalArea = calculateArea(nextClaims);
-          
-          setSessionClaims(nextClaims);
-          setClosedPolygons(nextClaims);
-          setArea(newTotalArea);
-          lastClaimAtRef.current = now;
+        const newTotalArea = calculateArea(nextClaims);
+        
+        setSessionClaims(nextClaims);
+        setClosedPolygons(nextClaims);
+        setArea(newTotalArea);
+        lastClaimAtRef.current = now;
           
           const TOAST_AREA_INCREMENT_THRESHOLD = 50;
           const incrementalArea = newTotalArea - lastToastAreaRef.current;
