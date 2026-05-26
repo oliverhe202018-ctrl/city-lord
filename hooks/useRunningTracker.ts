@@ -557,7 +557,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
       // Compare windowed length vs displayPath, with generous threshold to account 
       // for DP compression ratio (1500 raw → 50-300 simplified points)
-      const isBulkUpdate = Math.abs(pathForDisplay.length - displayPath.length) > 50;
+      const isBulkUpdate = Math.abs(pathForDisplay.length - displayPath.length) > 1200;
 
       if (!isBulkUpdate) {
         displayPathSimplifyRef.current.counter++;
@@ -585,15 +585,17 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
       const doSimplify = () => {
         try {
-          // pathForDisplay is already sliced above — no need to re-slice inside
-          const simplified = simplifyPathDP(pathForDisplay, 2.0);
-          
+          // Re-read pathRef.current at execution time to avoid stale closure
+          const latestRaw = pathRef.current;
+          const latestForDisplay = latestRaw.length > DISPLAY_PATH_WINDOW
+            ? latestRaw.slice(-DISPLAY_PATH_WINDOW)
+            : latestRaw;
+          const simplified = simplifyPathDP(latestForDisplay, 2.0);
           const displayPoints: Location[] = simplified.map(pt => ({
             lat: pt.lat,
             lng: pt.lng,
             timestamp: pt.timestamp ?? Date.now(),
           }));
-          
           setDisplayPath(displayPoints);
         } finally {
           displayPathSimplifyRef.current.pending = false;

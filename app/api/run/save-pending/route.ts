@@ -59,6 +59,22 @@ export async function POST(req: NextRequest) {
             }
         }
 
+        if (body.idempotencyKey) {
+            const existingRun = await prisma.runs.findUnique({
+                where: { idempotency_key: body.idempotencyKey }
+            });
+
+            if (existingRun) {
+                console.warn(`[/api/run/save-pending] Run with idempotencyKey ${body.idempotencyKey} already exists. Returning success.`);
+                return NextResponse.json({
+                    success: true,
+                    runId: existingRun.id,
+                    settlingAsync: true,
+                    duplicate: true
+                });
+            }
+        }
+
         const run = await prisma.runs.create({
             data: {
                 user_id: user.id,
