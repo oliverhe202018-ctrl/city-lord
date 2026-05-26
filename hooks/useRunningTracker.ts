@@ -551,13 +551,13 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       const DISPLAY_PATH_WINDOW = 1500;
 
       // Compare against the windowed slice length, not raw path length
-      const pathForWindow = rawPath.length > DISPLAY_PATH_WINDOW
+      const pathForDisplay = rawPath.length > DISPLAY_PATH_WINDOW
         ? rawPath.slice(-DISPLAY_PATH_WINDOW)
         : rawPath;
 
-      // isBulkUpdate: detect hydration/bulk replay vs normal 1-point increment
-      // Compare windowed source length vs current displayPath length
-      const isBulkUpdate = Math.abs(pathForWindow.length - displayPath.length) > 20;
+      // Compare windowed length vs displayPath, with generous threshold to account 
+      // for DP compression ratio (1500 raw → 50-300 simplified points)
+      const isBulkUpdate = Math.abs(pathForDisplay.length - displayPath.length) > 50;
 
       if (!isBulkUpdate) {
         displayPathSimplifyRef.current.counter++;
@@ -585,8 +585,8 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
       const doSimplify = () => {
         try {
-          // Use pathForWindow already computed above (closure) 
-          const simplified = simplifyPathDP(pathForWindow, 2.0);
+          // pathForDisplay is already sliced above — no need to re-slice inside
+          const simplified = simplifyPathDP(pathForDisplay, 2.0);
           
           const displayPoints: Location[] = simplified.map(pt => ({
             lat: pt.lat,

@@ -52,8 +52,6 @@ export function TrajectoryLayer({
             const amapPt = new window.AMap.LngLat(pt.lng, pt.lat);
 
             if (lastValidPt !== null && currentSegment.length > 0) {
-                const timeDiff = ((pt.timestamp || 0) - (lastValidPt.timestamp || 0)) / 1000; // in seconds
-                
                 let distance = 0;
                 if (window.AMap?.GeometryUtil?.distance) {
                     distance = window.AMap.GeometryUtil.distance(
@@ -67,8 +65,8 @@ export function TrajectoryLayer({
                     );
                 }
 
-                // If gap is large (e.g. time gap > 30s AND distance gap > 50m), split
-                if (timeDiff > 30 && distance > 50) {
+                // If gap is large (teleport-level gap, not a normal corner), split
+                if (distance > 100) {
                     if (currentSegment.length > 0) {
                         segments.push(currentSegment);
                         currentSegment = [];
