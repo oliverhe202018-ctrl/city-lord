@@ -825,6 +825,8 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
     if (isPausedRef.current || isStoppingRef.current) return;
 
+    console.log(`[useRunningTracker] Location update received: lat=${lat}, lng=${lng}, accuracy=${accuracy}, timestamp=${timestamp}, isOfflineReplay=${isOfflineReplay}`);
+
     const now = timestamp || Date.now();
 
     // ================================================================

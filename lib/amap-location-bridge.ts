@@ -608,7 +608,7 @@ export class AMapLocationBridge {
             await this.stopWatch();
         }
 
-        const interval = options.interval ?? 1000;
+        const interval = options.interval ?? (options.mode === 'running' ? 1000 : 5000);
         const distanceFilter = options.distanceFilter ?? (options.mode === 'browse' ? 5 : 3);
 
         logInfo({
@@ -635,7 +635,7 @@ export class AMapLocationBridge {
                         this.isUsingForegroundService = false;
                     }
                 } else {
-                    this.startWebWatch(interval);
+                    this.startWebWatch(interval, options.mode);
                     this.isUsingForegroundService = false;
                 }
 
@@ -765,7 +765,7 @@ export class AMapLocationBridge {
     // ---- Web watch fallback ----
     private webWatchId: number | null = null;
 
-    private startWebWatch(interval: number) {
+    private startWebWatch(interval: number, mode?: string) {
         this.stopWebWatch();
         if (typeof navigator === 'undefined' || !navigator.geolocation) return;
 
@@ -797,7 +797,11 @@ export class AMapLocationBridge {
             (err) => {
                 this.callbacks.onError({ code: 'UNAVAILABLE', message: err.message });
             },
-            { enableHighAccuracy: true, timeout: 15000, maximumAge: interval },
+            { 
+                enableHighAccuracy: true, 
+                timeout: 15000, 
+                maximumAge: mode === 'running' ? 0 : interval 
+            },
         );
     }
 
@@ -860,9 +864,11 @@ export class AMapLocationBridge {
     // =========================================================================
 
     private handleWatchUpdate(point: GeoPoint, locationType?: number) {
-        // 精度门槛
+        // In running mode, use a much more lenient threshold so simulator
+        // (which reports accuracy ~20-65m) and web GPS are not rejected.
+        // DEFAULT_ACCURACY_THRESHOLD (100m) is for browse; running uses 200m.
         const accuracyThreshold = this.hasFreshFix
-            ? DEFAULT_ACCURACY_THRESHOLD
+            ? (this.watchMode === 'running' ? 200 : DEFAULT_ACCURACY_THRESHOLD)
             : COLD_START_ACCURACY_THRESHOLD;
 
         if (point.accuracy && point.accuracy > accuracyThreshold) {
@@ -931,9 +937,11 @@ export class AMapLocationBridge {
                 point.lat,
                 point.lng,
             );
-            const minDist = this.watchMode === 'running' ? 5 : 5;
+            // running mode: accept points as close as 1m to support simulator
+            // and slow-walking GPS patterns; browse mode: 5m to reduce noise
+            const minDist = this.watchMode === 'running' ? 1 : 5;
             if (dist < minDist) {
-                return; // 距离过近，静默跳过
+                return;
             }
         }
 
