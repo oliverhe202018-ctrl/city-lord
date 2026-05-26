@@ -1102,7 +1102,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       for (const claimed of claimedSegmentsRef.current) {
         if (
           loopAnchorStart >= claimed.start && loopAnchorStart <= claimed.end &&
-          loopAnchorEnd >= claimed.start && loopAnchorEnd <= claimed.end
+          loopAnchorEnd >= claimed.start && loopAnchorEnd <= (claimed.end + P_SHAPE_MIN_POINT_GAP)
         ) {
           shouldProcessLoop = false;
           console.log(`[Smart Snap] ⏭️ Loop segment [${loopAnchorStart}-${loopAnchorEnd}] already claimed, skipping`);
