@@ -18,7 +18,7 @@ import {
   GPS_TRACKING_ACCURACY_METERS,
   GPS_DISPLAY_ACCURACY_METERS,
 } from '@/store/useLocationStore';
-import { getDistanceFromLatLonInMeters, LOOP_CLOSURE_THRESHOLD_M, LOOP_CLOSURE_SNAP_M, isLoopClosed, MIN_LOOP_POINTS, extractValidLoops, isDuplicatePolygon } from '@/lib/geometry-utils';
+import { getDistanceFromLatLonInMeters, LOOP_CLOSURE_THRESHOLD_M, LOOP_CLOSURE_SNAP_M, isLoopClosed, MIN_LOOP_POINTS, extractValidLoops, isDuplicatePolygon, simplifyPathDP } from '@/lib/geometry-utils';
 import { shouldAcceptPointByDistance } from '@/lib/location/gps-spatial-filter';
 import { validateSegmentSpeed } from '@/lib/location/gps-speed-validator';
 import { ActiveRandomEvent, useRandomEvents } from '@/hooks/useRandomEvents';
@@ -531,7 +531,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   useEffect(() => {
     if (!isRunning || isStoppingRef.current) return;
 
-    const SIMPLIFY_TOLERANCE = 0.00005;
+    const SIMPLIFY_TOLERANCE = 0.00003;
     const SIMPLIFY_TRIGGER_POINTS = 5;
 
     const scheduleSimplify = () => {
@@ -572,16 +572,11 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       const doSimplify = () => {
         try {
           const rawPath = pathRef.current;
-          const simplified = simplifyPath(rawPath, SIMPLIFY_TOLERANCE);
-          // simplifyPath 返回 { lat, lng } 无 timestamp，需要从原始路径映射回 Location[]
-          const timestampMap = new Map<string, number>();
-          rawPath.forEach(pt => {
-            timestampMap.set(`${pt.lat.toFixed(7)},${pt.lng.toFixed(7)}`, pt.timestamp);
-          });
+          const simplified = simplifyPathDP(rawPath, 1.5);
           const displayPoints: Location[] = simplified.map(pt => ({
             lat: pt.lat,
             lng: pt.lng,
-            timestamp: timestampMap.get(`${pt.lat.toFixed(7)},${pt.lng.toFixed(7)}`) ?? Date.now(),
+            timestamp: pt.timestamp ?? Date.now(),
           }));
           setDisplayPath(displayPoints);
         } finally {
@@ -858,17 +853,35 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           return;
         }
 
-        // 2. 加速度约束 (a = dv / dt)，如果加速度绝对值 > 3.0 m/s²，熔断漂移点
-        if (lastSpeedRef.current !== null) {
+        // 2. 加速度约束 (a = dv / dt)，如果速度变化异常，熔断漂移点
+        if (lastSpeedRef.current !== null && timeDiffSec > 0 && timeDiffSec <= 3.0) {
           const accel = Math.abs(speedMs - lastSpeedRef.current) / timeDiffSec;
-          if (accel > 3.0) {
+          
+          // Detect potential corner: heading change > 45° from last two points
+          let isCornerCandidate = false;
+          if (pathRef.current.length >= 2) {
+            const ptA = pathRef.current[pathRef.current.length - 2];
+            const ptB = pathRef.current[pathRef.current.length - 1];
+            const heading1 = Math.atan2(ptB.lng - ptA.lng, ptB.lat - ptA.lat);
+            const heading2 = Math.atan2(lng - ptB.lng, lat - ptB.lat);
+            let headingDelta = Math.abs(heading1 - heading2) * (180 / Math.PI);
+            if (headingDelta > 180) headingDelta = 360 - headingDelta;
+            isCornerCandidate = headingDelta > 45;
+          }
+          
+          // Use relaxed threshold at corners (5.0 m/s²) vs straight lines (3.5 m/s²)
+          const accelThreshold = isCornerCandidate ? 5.0 : 3.5;
+          
+          if (accel > accelThreshold) {
             console.debug(
-              `[GPS-Filter] ❌ Accel Constraint REJECT: accel ${accel.toFixed(2)}m/s² > 3.0m/s² | ` +
-              `speedMs=${speedMs.toFixed(1)} lastSpeed=${lastSpeedRef.current.toFixed(1)} dt=${timeDiffSec.toFixed(1)}s`
+              `[GPS-Filter] ❌ Accel REJECT: ${accel.toFixed(2)}m/s² > ${accelThreshold}m/s²` +
+              ` | corner=${isCornerCandidate} speedMs=${speedMs.toFixed(1)}`
             );
             return;
           }
         }
+        // Reset lastSpeedRef on near-stop to prevent stale baseline
+        lastSpeedRef.current = speedMs < 0.3 ? null : speedMs;
       }
     }
 
@@ -932,7 +945,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       return;
     }
 
-    // Run spatial debounce (3m threshold)
+    // Run spatial debounce (3m threshold, relaxed to 1m at corners)
     if (prevLoc) {
       distFromLast = getDistanceFromLatLonInMeters(
         prevLoc.lat,
@@ -941,10 +954,25 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         finalLoc.lng
       );
 
-      if (distFromLast < 3.0) {
+      // Preserve corner points regardless of displacement
+      const isSignificantTurn = ((): boolean => {
+        if (pathRef.current.length < 2) return false;
+        const ptA = pathRef.current[pathRef.current.length - 2];
+        const ptB = pathRef.current[pathRef.current.length - 1];
+        const h1 = Math.atan2(ptB.lng - ptA.lng, ptB.lat - ptA.lat);
+        const h2 = Math.atan2(lat - ptB.lat, lng - ptB.lng);
+        let delta = Math.abs(h1 - h2) * (180 / Math.PI);
+        if (delta > 180) delta = 360 - delta;
+        return delta > 60; // 60° heading change = corner
+      })();
+
+      // Use 1m threshold at corners, 3m on straights
+      const MIN_MOVE_METERS = isSignificantTurn ? 1.0 : 3.0;
+
+      if (distFromLast < MIN_MOVE_METERS) {
         // Point is too close to last point, probably jitter while stationary
         setCurrentLocation(finalLoc);
-        console.log(`[Tracker] Point skipped (<3m), dist=${distFromLast.toFixed(1)}m, TotalDist=${distanceRef.current.toFixed(1)}m`);
+        console.log(`[Tracker] Point skipped (<${MIN_MOVE_METERS}m), dist=${distFromLast.toFixed(1)}m, TotalDist=${distanceRef.current.toFixed(1)}m`);
         return;
       }
     }
@@ -1383,24 +1411,66 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
       console.log(`[Hydrate] 拉取到 ${offlinePoints.length} 条离线定位记录 (capped=${res.capped}), sessionId=${sessionId}`);
 
-      // 1. 对所有离线点进行时间戳排序
-      const sortedOffline: Location[] = [...offlinePoints]
+      // Cap offline replay to last 600 points (~20 min at 2s interval) to prevent
+      // UI thread saturation after long background sessions.
+      const MAX_OFFLINE_REPLAY_POINTS = 600;
+      const offlineToProcess = offlinePoints.length > MAX_OFFLINE_REPLAY_POINTS
+        ? offlinePoints.slice(-MAX_OFFLINE_REPLAY_POINTS)
+        : offlinePoints;
+
+      // 1. Process all points to build full path (for distance & loops)
+      const sortedOfflineFull: Location[] = [...offlinePoints]
         .sort((a, b) => a.timestamp - b.timestamp)
-        .map(pt => ({ lat: pt.lat, lng: pt.lng, timestamp: pt.timestamp }));
+        .map(pt => ({
+          lat: pt.lat,
+          lng: pt.lng,
+          timestamp: pt.timestamp < 1e11 ? pt.timestamp * 1000 : pt.timestamp,
+        }));
 
-      // ─── 时间戳单位归一化（防止原生层秒级 vs JS 毫秒级漂移）───
-      // 若 timestamp < 1e11（小于 100亿，代表秒级时间戳），则视为秒级，乘以 1000 转换
-      const normalizedOffline = sortedOffline.map(pt => ({
-        ...pt,
-        timestamp: pt.timestamp < 1e11 ? pt.timestamp * 1000 : pt.timestamp,
-      }));
-
-      // 2. 速度异常值滤波（使用归一化后的时间戳）
       const SPEED_LIMIT_MS = 15;
+      const validOfflineFull: Location[] = [];
+      let lastRefFull: Location | null = pathRef.current.length > 0 ? pathRef.current[pathRef.current.length - 1] : null;
+
+      for (const pt of sortedOfflineFull) {
+        if (lastRefFull) {
+          const dist = getDistanceFromLatLonInMeters(lastRefFull.lat, lastRefFull.lng, pt.lat, pt.lng);
+          const dt = Math.max((pt.timestamp - lastRefFull.timestamp) / 1000, 0.1);
+          if (dist / dt > SPEED_LIMIT_MS) {
+            lastRefFull = pt;
+            continue;
+          }
+        }
+        validOfflineFull.push(pt);
+        lastRefFull = pt;
+      }
+
+      const currentPath = pathRef.current;
+      const mergedAllFull = [...currentPath, ...validOfflineFull];
+      mergedAllFull.sort((a, b) => a.timestamp - b.timestamp);
+
+      const dedupedPathFull: Location[] = [];
+      const seenTimestampsFull = new Set<number>();
+      for (let i = mergedAllFull.length - 1; i >= 0; i--) {
+        const pt = mergedAllFull[i];
+        if (!seenTimestampsFull.has(pt.timestamp)) {
+          seenTimestampsFull.add(pt.timestamp);
+          dedupedPathFull.unshift(pt);
+        }
+      }
+
+      // 2. Process capped replay points
+      const sortedOffline: Location[] = [...offlineToProcess]
+        .sort((a, b) => a.timestamp - b.timestamp)
+        .map(pt => ({
+          lat: pt.lat,
+          lng: pt.lng,
+          timestamp: pt.timestamp < 1e11 ? pt.timestamp * 1000 : pt.timestamp,
+        }));
+
       const validOffline: Location[] = [];
       let lastRef: Location | null = pathRef.current.length > 0 ? pathRef.current[pathRef.current.length - 1] : null;
 
-      for (const pt of normalizedOffline) {
+      for (const pt of sortedOffline) {
         if (lastRef) {
           const dist = getDistanceFromLatLonInMeters(lastRef.lat, lastRef.lng, pt.lat, pt.lng);
           const dt = Math.max((pt.timestamp - lastRef.timestamp) / 1000, 0.1);
@@ -1413,44 +1483,55 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         lastRef = pt;
       }
 
-      if (validOffline.length === 0) {
-        console.log('[Hydrate] 所有离线点均为异常漂移点，已剔除');
-        clearTimeout(hydrateTimeout);
-        isHydratingRef.current = false;
-        return;
-      }
+      const validOfflineSkipped = validOfflineFull.slice(0, Math.max(0, validOfflineFull.length - validOffline.length));
 
-      // 3. 去重合并法：将 offlinePoints 与 currentPath 合并，按 timestamp 排序后去重
-      const currentPath = pathRef.current;
-      const mergedAll = [...currentPath, ...validOffline];
-      mergedAll.sort((a, b) => a.timestamp - b.timestamp);
+      const mergedPre = [...currentPath, ...validOfflineSkipped];
+      mergedPre.sort((a, b) => a.timestamp - b.timestamp);
 
-      // 去重：相同 timestamp 保留后者（离线点优先，因为它们来自原生层更精确）
-      const dedupedPath: Location[] = [];
-      const seenTimestamps = new Set<number>();
-      for (let i = mergedAll.length - 1; i >= 0; i--) {
-        const pt = mergedAll[i];
-        if (!seenTimestamps.has(pt.timestamp)) {
-          seenTimestamps.add(pt.timestamp);
-          dedupedPath.unshift(pt);
+      const preReplayPath: Location[] = [];
+      const seenTimestampsPre = new Set<number>();
+      for (let i = mergedPre.length - 1; i >= 0; i--) {
+        const pt = mergedPre[i];
+        if (!seenTimestampsPre.has(pt.timestamp)) {
+          seenTimestampsPre.add(pt.timestamp);
+          preReplayPath.unshift(pt);
         }
       }
 
+      const replayPoints = validOffline;
       const CHUNK_SIZE = 30;
       let chunkIndex = 0;
-      const totalChunks = Math.ceil(dedupedPath.length / CHUNK_SIZE);
+      const totalChunks = Math.ceil(replayPoints.length / CHUNK_SIZE);
+      
       let totalDistDelta = 0;
-
-      console.log(`[Hydrate] 去重合并法: currentPath=${currentPath.length} 点, validOffline=${validOffline.length} 点, dedupedPath=${dedupedPath.length} 点, 共 ${totalChunks} 个批次`);
+      if (dedupedPathFull.length > 0) {
+        let fullDist = 0;
+        for (let i = 1; i < dedupedPathFull.length; i++) {
+          fullDist += getDistanceFromLatLonInMeters(dedupedPathFull[i - 1].lat, dedupedPathFull[i - 1].lng, dedupedPathFull[i].lat, dedupedPathFull[i].lng);
+        }
+        let curDist = 0;
+        for (let i = 1; i < currentPath.length; i++) {
+          curDist += getDistanceFromLatLonInMeters(currentPath[i - 1].lat, currentPath[i - 1].lng, currentPath[i].lat, currentPath[i].lng);
+        }
+        totalDistDelta = Math.max(0, fullDist - curDist);
+      }
 
       const preOfflineDistance = distanceRef.current;
 
+      // Initialize pathRef.current and path state with preReplayPath to prevent shrinking
+      pathRef.current = preReplayPath;
+      setPath([...preReplayPath]);
+
       const processChunk = async () => {
         if (chunkIndex >= totalChunks) {
+          // Finalize with full path
+          pathRef.current = dedupedPathFull;
+          setPath([...dedupedPathFull]);
+
           if (totalDistDelta > 0) {
             setDistance(prev => prev + totalDistDelta);
           }
-          console.log(`[Hydrate] 批量合入完成: ${dedupedPath.length} 个轨迹点, 新增距离 ${totalDistDelta.toFixed(1)}m`);
+          console.log(`[Hydrate] 批量合入完成: ${dedupedPathFull.length} 个轨迹点, 新增距离 ${totalDistDelta.toFixed(1)}m`);
 
           // ─── 关屏语音播报里程碑事件回放 ───
           const postOfflineDistance = preOfflineDistance + totalDistDelta;
@@ -1467,17 +1548,17 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           if (missedMilestones.length > 0) {
             let cumulativeDistance = 0;
             const pathWithDistance: { distance: number; timestamp: number }[] = [];
-            if (dedupedPath.length > 0) {
-              pathWithDistance.push({ distance: 0, timestamp: dedupedPath[0].timestamp });
-              for (let i = 1; i < dedupedPath.length; i++) {
+            if (dedupedPathFull.length > 0) {
+              pathWithDistance.push({ distance: 0, timestamp: dedupedPathFull[0].timestamp });
+              for (let i = 1; i < dedupedPathFull.length; i++) {
                 const dist = getDistanceFromLatLonInMeters(
-                  dedupedPath[i - 1].lat,
-                  dedupedPath[i - 1].lng,
-                  dedupedPath[i].lat,
-                  dedupedPath[i].lng
+                  dedupedPathFull[i - 1].lat,
+                  dedupedPathFull[i - 1].lng,
+                  dedupedPathFull[i].lat,
+                  dedupedPathFull[i].lng
                 );
                 cumulativeDistance += dist;
-                pathWithDistance.push({ distance: cumulativeDistance, timestamp: dedupedPath[i].timestamp });
+                pathWithDistance.push({ distance: cumulativeDistance, timestamp: dedupedPathFull[i].timestamp });
               }
             }
 
@@ -1536,12 +1617,12 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
             }
           }
 
-          const latestTimestamp = dedupedPath[dedupedPath.length - 1].timestamp;
+          const latestTimestamp = dedupedPathFull[dedupedPathFull.length - 1].timestamp;
           useLocationStore.getState().setLastLocationTimestamp(latestTimestamp);
 
-          // Run loop check on the newly hydrated path to capture any closed loops
-          const snapLoops = extractValidLoops(dedupedPath, undefined, undefined, { disableIntersect: true });
-          const scanPath = dedupedPath.length > 1000 ? dedupedPath.slice(-1000) : dedupedPath;
+          // Run loop check on the newly hydrated path to capture any closed loops (using dedupedPathFull)
+          const snapLoops = extractValidLoops(dedupedPathFull, undefined, undefined, { disableIntersect: true });
+          const scanPath = dedupedPathFull.length > 1000 ? dedupedPathFull.slice(-1000) : dedupedPathFull;
           const intersectLoops = extractValidLoops(scanPath, undefined, undefined, { disableSnap: true });
           const detectedLoops = [...snapLoops, ...intersectLoops];
           
@@ -1608,26 +1689,12 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         }
 
         const currentLimit = (chunkIndex + 1) * CHUNK_SIZE;
-        const chunk = dedupedPath.slice(chunkIndex * CHUNK_SIZE, currentLimit);
+        const chunk = replayPoints.slice(chunkIndex * CHUNK_SIZE, currentLimit);
 
-        let chunkDistDelta = 0;
-        const firstPointInChunk = chunk[0];
-        const refForChunk = chunkIndex === 0 && pathRef.current.length > 0
-          ? pathRef.current[pathRef.current.length - 1]
-          : (chunkIndex > 0 ? dedupedPath[chunkIndex * CHUNK_SIZE - 1] : null);
-
-        if (refForChunk) {
-          chunkDistDelta += getDistanceFromLatLonInMeters(refForChunk.lat, refForChunk.lng, firstPointInChunk.lat, firstPointInChunk.lng);
-        }
-        for (let i = 1; i < chunk.length; i++) {
-          chunkDistDelta += getDistanceFromLatLonInMeters(chunk[i - 1].lat, chunk[i - 1].lng, chunk[i].lat, chunk[i].lng);
-        }
-        totalDistDelta += chunkDistDelta;
-
-        pathRef.current = dedupedPath.slice(0, currentLimit);
+        pathRef.current = [...preReplayPath, ...replayPoints.slice(0, currentLimit)];
         setPath([...pathRef.current]);
 
-        const latestPoint = dedupedPath[Math.min(currentLimit, dedupedPath.length) - 1];
+        const latestPoint = chunk[chunk.length - 1];
         lastLocationRef.current = latestPoint;
         setCurrentLocation(latestPoint);
 
