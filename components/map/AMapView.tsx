@@ -349,7 +349,7 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
     const markerPosition = (isRunTakeoverActive && activeTrajectoryPath.length > 0)
       ? activeTrajectoryPath[activeTrajectoryPath.length - 1]
       : currentLocation;
-    const shouldShowTerritoryLayers = showTerritory && !isRunTakeoverActive;
+    const shouldShowTerritoryLayers = showTerritory;
     const resolvedViewMode = mapViewMode;
 
     const isMapReady = !!map;

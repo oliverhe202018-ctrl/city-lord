@@ -91,7 +91,16 @@ interface RunningStats {
   /** 全生命周期预热：接收黄金起点，立即熔断 warmup 状态 */
   setAnchorPoint: (anchor: GeoPoint) => void;
   isSyncing: boolean;
-  saveRun: (isFinal?: boolean) => Promise<{ settlingAsync?: boolean; isDuplicate?: boolean; runId?: string; territories?: { id: string }[] } | void>;
+  saveRun: (isFinal?: boolean) => Promise<{
+    settlingAsync?: boolean;
+    isDuplicate?: boolean;
+    runId?: string;
+    runNumber?: number;
+    damageSummary?: any[];
+    maintenanceSummary?: any[];
+    settledTerritoriesCount?: number;
+    territories?: { id: string }[];
+  } | void>;
   // Raw data for UI calculations (preferred)
   distanceMeters: number; // meters — use this for display/calculations
   durationSeconds: number; // seconds — use this for speed/pace calculations
@@ -253,6 +262,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   // Idempotency key for the current run
   const runIdempotencyKeyRef = useRef<string>(uuidv4());
   const lastAnnouncedKmRef = useRef<number>(0);
+  const justRecoveredRef = useRef<boolean>(false);
 
   // --- Persistence & Sync State (Moved up to avoid TDZ) ---
   const [isSaving, setIsSaving] = useState(false);
@@ -799,8 +809,8 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       const dBC = getDistanceFromLatLonInMeters(ptB.lat, ptB.lng, lat, lng);
       const dAC = getDistanceFromLatLonInMeters(ptA.lat, ptA.lng, lat, lng);
 
-      // 1. 提升距离门槛至 20m，防止短边矩形误触
-      if (dAB > 20.0 && dBC > 20.0 && dAC > 0) {
+      // 1. 提升距离门槛至 3m（与位移防抖对齐），防止长线段限制误杀小幅毛刺
+      if (dAB > 3.0 && dBC > 3.0 && dAC > 0) {
         // 2. 计算横向偏离距 (Lateral Offset)
         const lateralOffset = Math.abs((dAB * dAB - dBC * dBC) / (2 * dAC));
         
@@ -818,8 +828,8 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           thetaDeg = (Math.acos(Math.max(-1, Math.min(1, cosTheta))) * 180) / Math.PI;
         }
 
-        // 仅当横向偏离距 > 10m 且方向角 > 150° 时才判定为极端回头漂移尖角并过滤
-        if (lateralOffset > 10.0 && thetaDeg > 150.0) {
+        // 仅当横向偏离距 > 3.0m 且方向角 > 135° 时才判定为极端回头漂移尖角并过滤
+        if (lateralOffset > 3.0 && thetaDeg > 135.0) {
           console.warn(`[GPS-Median] 🎯 Median Spike Filtered! Point B (${ptB.lat.toFixed(6)}, ${ptB.lng.toFixed(6)}) detected as spike. Removing from trajectory. Lateral: ${lateralOffset.toFixed(1)}m, Angle: ${thetaDeg.toFixed(1)}°`);
           pathRef.current.pop();
           lastLocationRef.current = ptA;
@@ -979,7 +989,12 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
     // Point passed all filters! Update distance and set last location
     if (prevLoc) {
-      setDistance(prev => prev + distFromLast);
+      if (justRecoveredRef.current) {
+        console.log(`[useRunningTracker] Skipping distance accumulation for first point after recovery. Jump distance: ${distFromLast.toFixed(1)}m`);
+        justRecoveredRef.current = false;
+      } else {
+        setDistance(prev => prev + distFromLast);
+      }
       const timeDiffSec = (now - prevLoc.timestamp) / 1000;
       if (timeDiffSec > 0.1) {
         lastSpeedRef.current = distFromLast / timeDiffSec;
@@ -1972,6 +1987,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         }
 
         console.log(`[Session] restored: ${recovered} | source: ${restoreSource}`);
+        if (recovered) {
+          justRecoveredRef.current = true;
+        }
 
         if (!recovered) {
           // Force-reset ALL state for a clean start
@@ -2360,7 +2378,16 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
             }, 2000);
           }
           
-          return { settlingAsync: result.data?.settlingAsync, isDuplicate: result.data?.isDuplicate, runId: result.data?.runId };
+          return {
+            settlingAsync: result.data?.settlingAsync,
+            isDuplicate: result.data?.isDuplicate,
+            runId: result.data?.runId,
+            runNumber: result.data?.runNumber,
+            damageSummary: result.data?.damageSummary,
+            maintenanceSummary: result.data?.maintenanceSummary,
+            settledTerritoriesCount: result.data?.settledTerritoriesCount,
+            territories: result.data?.territories,
+          };
         } else {
           console.error("Save failed:", result.error);
           if (isFinal) {

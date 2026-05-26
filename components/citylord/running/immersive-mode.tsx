@@ -71,7 +71,16 @@ interface ImmersiveModeProps {
   closedPolygons?: Location[][]
   onHexClaimed?: () => void
   onManualLocation?: (lat: number, lng: number) => void
-  saveRun?: (isFinal?: boolean) => Promise<{ settlingAsync?: boolean; isDuplicate?: boolean; runId?: string; territories?: { id: string }[] } | void>
+  saveRun?: (isFinal?: boolean) => Promise<{
+    settlingAsync?: boolean;
+    isDuplicate?: boolean;
+    runId?: string;
+    runNumber?: number;
+    damageSummary?: any[];
+    maintenanceSummary?: any[];
+    settledTerritoriesCount?: number;
+    territories?: { id: string }[];
+  } | void>
   savedRunId?: string | null
   runNumber?: number
   damageSummary?: any[]
@@ -794,6 +803,12 @@ function ImmersiveRunningModeInner({
       audio.play().catch(() => { });
     } catch { }
 
+    // 🏆 Instant Transition: Build and show the settlement screen immediately
+    const initialSnapshot = buildSummarySnapshot(finalSnapshotHexes, undefined);
+    setSummarySnapshot(initialSnapshot);
+    setShowSummary(true);
+    setIsSettlementLoading(true);
+
     try {
       const res = await withTimeout(saveRun(true), SAVE_TIMEOUT_MS);
       
@@ -816,10 +831,25 @@ function ImmersiveRunningModeInner({
         setEffectiveRunId(resolvedRunId);
       }
 
+      // Update the summary snapshot with the actual runId and returned data
+      setSummarySnapshot(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          runId: resolvedRunId,
+          runNumber: res?.runNumber || prev.runNumber,
+          damageSummary: res?.damageSummary || prev.damageSummary,
+          maintenanceSummary: res?.maintenanceSummary || prev.maintenanceSummary,
+          hexesCaptured: res?.settledTerritoriesCount !== undefined ? res.settledTerritoriesCount : prev.hexesCaptured,
+        };
+      });
+
       if (res?.settlingAsync) {
         toast.success("跑步记录已保存，领地正在后台极速结算中...", { duration: 5000 });
         setIsPollingSettlement(true);
-        setIsSettlementLoading(true);
+        // Polling will manage isSettlementLoading
+      } else {
+        setIsSettlementLoading(false);
       }
 
       // 🏆 ID 瞬移切换 (Patch 1): 切换为正式产生的第一个领地 ID
@@ -830,16 +860,12 @@ function ImmersiveRunningModeInner({
         console.log(`[ImmersiveMode] Triggered ID swap: ${firstTerrId}`);
       }
 
-      // 验证通过，合法弹出结算面板
-      const snapshot = buildSummarySnapshot(finalSnapshotHexes, resolvedRunId);
-      setSummarySnapshot(snapshot);
-      setShowSummary(true);
-      
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('citylord:refresh-territories'));
       }
 
     } catch (saveError) {
+      setIsSettlementLoading(false);
       const errorMsg = saveError instanceof Error ? saveError.message : '网络不可用';
       console.error('[executeFinalSave] saveRun failed:', saveError);
       
@@ -990,6 +1016,9 @@ function ImmersiveRunningModeInner({
           maintenanceSummary={summarySnapshot.maintenanceSummary}
           hexesCaptured={summarySnapshot.hexesCaptured}
           runTrajectory={summarySnapshot.runTrajectory}
+          isSettlementLoading={isSettlementLoading}
+          settlementStats={settlementStats}
+          hasSettlementTimeout={hasSettlementTimeout}
           onShare={() => {
             toast.success("分享图片已生成 (模拟)")
           }}

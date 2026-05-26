@@ -1182,7 +1182,7 @@ export function GamePageContent({
                   <>
                     <MemoizedAMapView
                       ref={mapViewRef}
-                      showTerritory={showTerritory && activeTab !== "start" && !isRunTakeoverActive}
+                      showTerritory={showTerritory && activeTab !== "start"}
                       showControls={shouldShowPlayChrome}
                       onMapLoad={handleMapLoad}
                       sessionClaims={sessionClaims}
