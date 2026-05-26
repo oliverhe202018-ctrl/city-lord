@@ -600,7 +600,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           const latestForDisplay = latestRaw.length > DISPLAY_PATH_WINDOW
             ? latestRaw.slice(-DISPLAY_PATH_WINDOW)
             : latestRaw;
-          const simplified = simplifyPathDP(latestForDisplay, 0.5);
+          const simplified = simplifyPathDP(latestForDisplay, SIMPLIFY_TOLERANCE);
           const displayPoints: Location[] = simplified.map(pt => ({
             lat: pt.lat,
             lng: pt.lng,
@@ -905,9 +905,16 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           thetaDeg = (Math.acos(Math.max(-1, Math.min(1, cosTheta))) * 180) / Math.PI;
         }
 
-        // 仅当横向偏离距 > 3.0m 且方向角 > 135° 时才判定为极端回头漂移尖角并过滤
-        if (lateralOffset > 3.0 && thetaDeg > 135.0) {
-          console.warn(`[GPS-Median] 🎯 Median Spike Filtered! Point B (${ptB.lat.toFixed(6)}, ${ptB.lng.toFixed(6)}) detected as spike. Removing from trajectory. Lateral: ${lateralOffset.toFixed(1)}m, Angle: ${thetaDeg.toFixed(1)}°`);
+        // Calculate segment speeds to distinguish real turns from high-speed GPS drift spikes
+        const tAB = (ptB.timestamp - ptA.timestamp) / 1000;
+        const tBC = (now - ptB.timestamp) / 1000;
+        const speedAB = tAB > 0 ? dAB / tAB : 0;
+        const speedBC = tBC > 0 ? dBC / tBC : 0;
+        const isSuspiciousSpeed = speedAB > 7.0 || speedBC > 7.0;
+
+        // 仅当横向偏离距 > 3.0m 且方向角 > 135°，且伴随速度异常（如单段 > 7.0 m/s）时，才判定为极端回头漂移尖角并过滤
+        if (lateralOffset > 3.0 && thetaDeg > 135.0 && isSuspiciousSpeed) {
+          console.warn(`[GPS-Median] 🎯 Median Spike Filtered! Point B (${ptB.lat.toFixed(6)}, ${ptB.lng.toFixed(6)}) detected as spike. Removing from trajectory. Lateral: ${lateralOffset.toFixed(1)}m, Angle: ${thetaDeg.toFixed(1)}°, speedAB=${speedAB.toFixed(1)}m/s, speedBC=${speedBC.toFixed(1)}m/s`);
           pathRef.current.pop();
           lastLocationRef.current = ptA;
           setDistance(prev => Math.max(0, prev - dAB));
@@ -951,8 +958,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
             isCornerCandidate = headingDelta > 45;
           }
           
-          // Use relaxed threshold at corners (5.0 m/s²) vs straight lines (3.5 m/s²)
-          const accelThreshold = isCornerCandidate ? 5.0 : 3.5;
+          // Use relaxed threshold at corners (12.0 m/s²) vs straight lines (8.0 m/s²)
+          // to prevent GPS jitter and sharp turns from being falsely rejected.
+          const accelThreshold = isCornerCandidate ? 12.0 : 8.0;
           
           if (accel > accelThreshold) {
             console.debug(
@@ -1048,8 +1056,8 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         return delta > 60; // 60° heading change = corner
       })();
 
-      // Use 1m threshold at corners, 3m on straights
-      const MIN_MOVE_METERS = isSignificantTurn ? 1.0 : 3.0;
+      // Use 1.0m threshold at corners, 1.5m on straights
+      const MIN_MOVE_METERS = isSignificantTurn ? 1.0 : 1.5;
 
       if (distFromLast < MIN_MOVE_METERS) {
         // Point is too close to last point, probably jitter while stationary

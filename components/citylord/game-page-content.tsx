@@ -1416,7 +1416,8 @@ export function GamePageContent({
             onManualLocation={handleManualLocationUpdate}
             onExpand={handleExpand}
             currentLocation={immersiveCurrentLocation}
-            path={displayPath}
+            path={path}
+            displayPath={displayPath}
             closedPolygons={closedPolygons}
             onHexClaimed={handleHexClaimed}
             saveRun={saveRun}

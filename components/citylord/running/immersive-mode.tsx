@@ -68,6 +68,7 @@ interface ImmersiveModeProps {
   onExpand: () => void
   currentLocation?: { lat: number; lng: number }
   path?: Location[]
+  displayPath?: Location[]
   closedPolygons?: Location[][]
   onHexClaimed?: () => void
   onManualLocation?: (lat: number, lng: number) => void
@@ -334,6 +335,7 @@ function ImmersiveRunningModeInner({
   onExpand,
   currentLocation,
   path = [],
+  displayPath = [],
   closedPolygons = [],
   onHexClaimed,
   onManualLocation,
@@ -1186,7 +1188,7 @@ function ImmersiveRunningModeInner({
         <div className={`absolute inset-0 z-0 ${isPaused && viewMode === 'dashboard' ? 'pointer-events-none' : 'pointer-events-auto'}`}>
           <RunningMap
             userLocation={runningMapUserLocation}
-            path={path}
+            path={displayPath.length > 0 ? displayPath : path}
             onLocationUpdate={onManualLocation}
             recenterTrigger={recenterTrigger}
             showKingdom={showKingdom}

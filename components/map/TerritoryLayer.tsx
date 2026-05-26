@@ -769,6 +769,8 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
   // P0-2 FIX: RAF ref
   const redrawRAFRef = useRef<number | null>(null);
 
+
+
   const resolveFactionColor = useCallback((ownerFaction: string | null | undefined): string => {
     if (!ownerFaction) return "#64748b";
     if (ownerFaction === "Red" || ownerFaction === "RED") return "#ef4444";
@@ -1018,7 +1020,23 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
       redrawRAFRef.current = null;
       
       const currentZoom = map.getZoom?.() || 0;
-      const currentCenter = map.getCenter?.() || [0, 0];
+      const currentCenter = map.getCenter?.();
+      const centerLng = currentCenter
+        ? (typeof currentCenter.getLng === 'function'
+            ? currentCenter.getLng()
+            : (typeof currentCenter.lng === 'number'
+                ? currentCenter.lng
+                : (Array.isArray(currentCenter) ? currentCenter[0] : 0)))
+        : 0;
+
+      const centerLat = currentCenter
+        ? (typeof currentCenter.getLat === 'function'
+            ? currentCenter.getLat()
+            : (typeof currentCenter.lat === 'number'
+                ? currentCenter.lat
+                : (Array.isArray(currentCenter) ? currentCenter[1] : 0)))
+        : 0;
+      
       const territoriesHash = JSON.stringify({
         mode: mapDisplayMode,
         ids: territoriesDataRef.current.map(t => t.id),
@@ -1033,8 +1051,8 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
             canvasSize.width === canvasSizeRef.current.width && 
             canvasSize.height === canvasSizeRef.current.height &&
             Math.abs(mapZoom - currentZoom) < 0.005 &&
-            Math.abs(mapCenter[0] - currentCenter[0]) < 0.00001 &&
-            Math.abs(mapCenter[1] - currentCenter[1]) < 0.00001) {
+            Math.abs(mapCenter[0] - centerLng) < 0.00001 &&
+            Math.abs(mapCenter[1] - centerLat) < 0.00001) {
           return;
         }
       }
@@ -1056,7 +1074,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
         territoriesHash,
         canvasSize: { ...canvasSizeRef.current },
         mapZoom: currentZoom,
-        mapCenter: [currentCenter[0], currentCenter[1]] as [number, number]
+        mapCenter: [centerLng, centerLat] as [number, number]
       };
     });
   }, [isVisible, map, mapDisplayMode]);
@@ -1151,6 +1169,16 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
     }
   }, [city, decorateTerritories, map, recomputeViewportKing]);
 
+  const loadTerritoriesRef = useRef<() => Promise<void>>(loadTerritories);
+  const redrawCanvasRef = useRef<() => void>(redrawCanvas);
+  const recomputeViewportKingRef = useRef<() => void>(recomputeViewportKing);
+
+  useEffect(() => {
+    loadTerritoriesRef.current = loadTerritories;
+    redrawCanvasRef.current = redrawCanvas;
+    recomputeViewportKingRef.current = recomputeViewportKing;
+  });
+
   useEffect(() => {
     if (!map) return;
 
@@ -1207,10 +1235,10 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
   }, [isVisible, map, redrawCanvas]);
 
   useEffect(() => {
-    if (!map) return;
+    if (!map || !isVisible) return;
 
     const handleRefresh = () => {
-      loadTerritories();
+      loadTerritoriesRef.current();
     };
 
     const handleMoveStart = () => {
@@ -1220,7 +1248,11 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
     const handleMoveEnd = () => {
       mapInteractingRef.current = false;
       customLayerRef.current?.render?.();
-      recomputeViewportKing();
+      recomputeViewportKingRef.current();
+    };
+
+    const handleZoomChange = () => {
+      redrawCanvasRef.current();
     };
 
     map.on("movestart", handleMoveStart);
@@ -1228,30 +1260,35 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
     map.on("dragstart", handleMoveStart);
     map.on("moveend", handleMoveEnd);
     map.on("zoomend", handleMoveEnd);
-    map.on("zoomchange", redrawCanvas);
-    map.on("mapmove", redrawCanvas);
+    map.on("zoomchange", handleZoomChange);
 
     window.addEventListener("citylord:refresh-territories", handleRefresh);
-    loadTerritories();
 
     return () => {
-      // 清理悬挂的网络请求
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-        abortControllerRef.current = null;
-      }
-      isLoadingRef.current = false;
-      
       map.off("movestart", handleMoveStart);
       map.off("zoomstart", handleMoveStart);
       map.off("dragstart", handleMoveStart);
       map.off("moveend", handleMoveEnd);
       map.off("zoomend", handleMoveEnd);
-      map.off("zoomchange", redrawCanvas);
-      map.off("mapmove", redrawCanvas);
+      map.off("zoomchange", handleZoomChange);
       window.removeEventListener("citylord:refresh-territories", handleRefresh);
     };
-  }, [loadTerritories, map, recomputeViewportKing, redrawCanvas]);
+  }, [map, isVisible]);
+
+  useEffect(() => {
+    if (!map || !city?.id || !isVisible) return;
+
+    loadTerritoriesRef.current();
+
+    return () => {
+      // Only abort when cityId changes or component unmounts
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+      isLoadingRef.current = false;
+    };
+  }, [map, city?.id, isVisible]);
 
   useEffect(() => {
     decorateTerritories(rawTerritoriesRef.current);
