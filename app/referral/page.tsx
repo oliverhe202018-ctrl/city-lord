@@ -23,6 +23,7 @@ import { useGameStore } from '@/store/useGameStore';
 import { getReferralData, ReferralData, RoomInfo } from '@/app/actions/referral';
 import { getUserClub } from '@/app/actions/club';
 import { cn } from '@/lib/utils';
+import { formatCST } from '@/lib/date-utils';
 import {
   Select,
   SelectContent,
@@ -347,7 +348,7 @@ export default function ReferralPage() {
                   <div className="flex-1">
                     <div className="text-sm font-medium">{user.nickname}</div>
                     <div className="text-xs text-muted-foreground">
-                      加入时间: {new Date(user.joined_at).toLocaleDateString()}
+                      加入时间: {formatCST(user.joined_at, 'YYYY-MM-DD')}
                     </div>
                   </div>
                 </div>

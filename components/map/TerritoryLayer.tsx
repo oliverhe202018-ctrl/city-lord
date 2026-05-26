@@ -741,6 +741,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
 
   const isVisibleRef = useRef(isVisible);
   const pendingRefreshRef = useRef(false);
+  const processingBatchIdRef = useRef<number>(0);
 
   useEffect(() => {
     isVisibleRef.current = isVisible;
@@ -851,116 +852,6 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
     };
   }, [clubId, faction, mapDisplayMode, resolvedViewMode, resolveFactionColor, territoryAppearance.fillColor, territoryAppearance.fillOpacity, territoryAppearance.strokeColor, user?.id]);
 
-  const decorateTerritories = useCallback((items: ExtTerritory[]) => {
-    territoriesDataRef.current = items
-      .filter((item) => item.id && item.ownerId && item.geojson_json)
-      .map((item) => {
-        const presentation = buildPolygonPresentation(item);
-        const rings = extractOuterRings(item.geojson_json);
-        let bbox = { minLng: 0, maxLng: 0, minLat: 0, maxLat: 0 };
-        let areaM2 = 0;
-        let centerPoint: [number, number] = [0, 0];
-        let gridPoints: [number, number][] = [];
-
-        if (rings.length > 0) {
-          const ring = rings[0];
-          bbox = computeRingBBox(ring);
-          try {
-            const poly = turf.polygon([ring]);
-            areaM2 = turf.area(poly);
-
-            // 1. Calculate centroid and validate inside polygon
-            let centroid: any;
-            let centerVal: [number, number] | null = null;
-            try {
-              centroid = turf.centroid(poly);
-              if (centroid && centroid.geometry && centroid.geometry.coordinates) {
-                const coords = centroid.geometry.coordinates as [number, number];
-                if (turf.booleanPointInPolygon(centroid, poly)) {
-                  centerVal = coords;
-                }
-              }
-            } catch (e) {
-              console.error("Centroid calculation failed", e);
-            }
-
-            // 2. Fallback to centerOfMass if centroid is outside
-            if (!centerVal) {
-              try {
-                const com = turf.centerOfMass(poly);
-                if (com && com.geometry && com.geometry.coordinates) {
-                  const coords = com.geometry.coordinates as [number, number];
-                  if (turf.booleanPointInPolygon(com, poly)) {
-                    centerVal = coords;
-                  }
-                }
-              } catch (e) {
-                console.error("Center of mass calculation failed", e);
-              }
-            }
-
-            // 3. Fallback to first coordinate of outer ring if both are outside (safest fallback)
-            if (!centerVal) {
-              centerVal = [ring[0][0], ring[0][1]];
-            }
-
-            centerPoint = centerVal;
-
-            // Generate deterministic grid points inside BBox
-            const candidates: [number, number][] = [];
-            const steps = 5; // 5x5 grid
-            const dLng = (bbox.maxLng - bbox.minLng) / (steps + 1);
-            const dLat = (bbox.maxLat - bbox.minLat) / (steps + 1);
-
-            for (let i = 1; i <= steps; i++) {
-              for (let j = 1; j <= steps; j++) {
-                const lng = bbox.minLng + i * dLng;
-                const lat = bbox.minLat + j * dLat;
-                const pt = turf.point([lng, lat]);
-                try {
-                  if (turf.booleanPointInPolygon(pt, poly)) {
-                    // Check that it doesn't duplicate the centerPoint exactly
-                    const distToCenterSq = Math.pow(lng - centerPoint[0], 2) + Math.pow(lat - centerPoint[1], 2);
-                    if (distToCenterSq > 1e-12) {
-                      candidates.push([lng, lat]);
-                    }
-                  }
-                } catch {}
-              }
-            }
-
-            // Sort candidates by distance to centerPoint to render from center outward
-            candidates.sort((a, b) => {
-              const distA = Math.pow(a[0] - centerPoint[0], 2) + Math.pow(a[1] - centerPoint[1], 2);
-              const distB = Math.pow(b[0] - centerPoint[0], 2) + Math.pow(b[1] - centerPoint[1], 2);
-              return distA - distB;
-            });
-
-            gridPoints = candidates.slice(0, 12);
-          } catch (e) {
-            console.error("Territory geometry processing failed", e);
-            areaM2 = 0;
-            centerPoint = [(bbox.minLng + bbox.maxLng) / 2, (bbox.minLat + bbox.maxLat) / 2];
-            gridPoints = [];
-          }
-        }
-
-        return {
-          ...item,
-          fillColor: safeColor(presentation.fillColor, DEFAULT_FILL),
-          strokeColor: safeColor(presentation.strokeColor, DEFAULT_STROKE),
-          fillOpacity: presentation.fillOpacity,
-          strokeWeight: presentation.strokeWeight,
-          areaM2,
-          bbox,
-          centerPoint,
-          gridPoints,
-          clubAvatarUrl: item.ownerClubId ? (clubAvatarMapRef.current.get(item.ownerClubId) ?? null) : null,
-          isClubMode: mapDisplayMode === "club",
-        };
-      });
-  }, [buildPolygonPresentation, mapDisplayMode]);
-
   const recomputeViewportKing = useCallback(() => {
     if (!map || !onViewportKingChange) return;
     const bounds = map.getBounds?.();
@@ -1017,6 +908,127 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
     });
   }, [map, onViewportKingChange]);
 
+  const decorateTerritoriesAsync = useCallback(async (items: ExtTerritory[]) => {
+    const batchId = ++processingBatchIdRef.current;
+    const filteredItems = items.filter((item) => item.id && item.ownerId && item.geojson_json);
+    const result: TerritoryWithRender[] = [];
+    const chunkSize = 20;
+
+    for (let index = 0; index < filteredItems.length; index += chunkSize) {
+      if (batchId !== processingBatchIdRef.current) return;
+
+      const chunk = filteredItems.slice(index, index + chunkSize);
+      const decoratedChunk = chunk.map((item) => {
+        const presentation = buildPolygonPresentation(item);
+        const rings = extractOuterRings(item.geojson_json);
+        let bbox = { minLng: 0, maxLng: 0, minLat: 0, maxLat: 0 };
+        let areaM2 = 0;
+        let centerPoint: [number, number] = [0, 0];
+        let gridPoints: [number, number][] = [];
+
+        if (rings.length > 0) {
+          const ring = rings[0];
+          bbox = computeRingBBox(ring);
+          try {
+            const poly = turf.polygon([ring]);
+            areaM2 = turf.area(poly);
+
+            // 1. Calculate centroid without booleanPointInPolygon check
+            let centroid: any;
+            let centerVal: [number, number] | null = null;
+            try {
+              centroid = turf.centroid(poly);
+              if (centroid && centroid.geometry && centroid.geometry.coordinates) {
+                centerVal = centroid.geometry.coordinates as [number, number];
+              }
+            } catch (e) {
+              console.error("Centroid calculation failed", e);
+            }
+
+            // 2. Fallback to centerOfMass
+            if (!centerVal) {
+              try {
+                const com = turf.centerOfMass(poly);
+                if (com && com.geometry && com.geometry.coordinates) {
+                  centerVal = com.geometry.coordinates as [number, number];
+                }
+              } catch (e) {
+                console.error("Center of mass calculation failed", e);
+              }
+            }
+
+            // 3. Fallback to first coordinate of outer ring
+            if (!centerVal) {
+              centerVal = [ring[0][0], ring[0][1]];
+            }
+
+            centerPoint = centerVal;
+
+            // Generate deterministic grid points inside BBox without running PIP (booleanPointInPolygon)
+            const candidates: [number, number][] = [];
+            const steps = 5; // 5x5 grid
+            const dLng = (bbox.maxLng - bbox.minLng) / (steps + 1);
+            const dLat = (bbox.maxLat - bbox.minLat) / (steps + 1);
+
+            for (let i = 1; i <= steps; i++) {
+              for (let j = 1; j <= steps; j++) {
+                const lng = bbox.minLng + i * dLng;
+                const lat = bbox.minLat + j * dLat;
+                const distToCenterSq = Math.pow(lng - centerPoint[0], 2) + Math.pow(lat - centerPoint[1], 2);
+                if (distToCenterSq > 1e-12) {
+                  candidates.push([lng, lat]);
+                }
+              }
+            }
+
+            // Sort candidates by distance to centerPoint
+            candidates.sort((a, b) => {
+              const distA = Math.pow(a[0] - centerPoint[0], 2) + Math.pow(a[1] - centerPoint[1], 2);
+              const distB = Math.pow(b[0] - centerPoint[0], 2) + Math.pow(b[1] - centerPoint[1], 2);
+              return distA - distB;
+            });
+
+            gridPoints = candidates.slice(0, 12);
+          } catch (e) {
+            console.error("Territory geometry processing failed", e);
+            areaM2 = 0;
+            centerPoint = [(bbox.minLng + bbox.maxLng) / 2, (bbox.minLat + bbox.maxLat) / 2];
+            gridPoints = [];
+          }
+        }
+
+        return {
+          ...item,
+          fillColor: safeColor(presentation.fillColor, DEFAULT_FILL),
+          strokeColor: safeColor(presentation.strokeColor, DEFAULT_STROKE),
+          fillOpacity: presentation.fillOpacity,
+          strokeWeight: presentation.strokeWeight,
+          areaM2,
+          bbox,
+          centerPoint,
+          gridPoints,
+          clubAvatarUrl: item.ownerClubId ? (clubAvatarMapRef.current.get(item.ownerClubId) ?? null) : null,
+          isClubMode: mapDisplayMode === "club",
+        };
+      });
+
+      result.push(...decoratedChunk);
+
+      // Yield main thread using requestAnimationFrame
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => resolve());
+      });
+    }
+
+    if (batchId === processingBatchIdRef.current) {
+      territoriesDataRef.current = result;
+      // Triggers redraw
+      lastRenderDataRef.current = null;
+      customLayerRef.current?.render?.();
+      recomputeViewportKing();
+    }
+  }, [buildPolygonPresentation, mapDisplayMode, recomputeViewportKing]);
+
   const redrawCanvas = useCallback(() => {
     if (!map || !canvasRef.current || !isVisible) return;
     
@@ -1050,16 +1062,16 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
         selectedTerritoryId: selectedTerritoryIdRef.current
       });
       
-      // Check cache validity (with small tolerances to avoid redundant draws)
+      // Check cache validity (with 0 center tolerance to immediately redraw on center change)
       if (lastRenderDataRef.current) {
         const { territoriesHash: lastHash, canvasSize, mapZoom, mapCenter } = lastRenderDataRef.current;
         
         if (territoriesHash === lastHash && 
             canvasSize.width === canvasSizeRef.current.width && 
             canvasSize.height === canvasSizeRef.current.height &&
-            Math.abs(mapZoom - currentZoom) < 0.005 &&
-            Math.abs(mapCenter[0] - centerLng) < 0.0005 &&
-            Math.abs(mapCenter[1] - centerLat) < 0.0005) {
+            mapZoom === currentZoom &&
+            mapCenter[0] === centerLng &&
+            mapCenter[1] === centerLat) {
           return;
         }
       }
@@ -1159,10 +1171,17 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
       clubAvatarMapRef.current = new Map(clubs.map((c: { id: string; avatar_url: string | null }) => [c.id, c.avatar_url]));
 
       lastRenderDataRef.current = null;
-      decorateTerritories(rawTerritoriesRef.current);
+      await decorateTerritoriesAsync(rawTerritoriesRef.current);
       customLayerRef.current?.render?.();
       recomputeViewportKing();
       logEvent("territory_render_success", { cityId: city.id, count: territoriesDataRef.current.length });
+      requestAnimationFrame(() => {
+        if (customLayerRef.current) {
+          customLayerRef.current.render?.();
+        } else {
+          redrawCanvasRef.current();
+        }
+      });
     } catch (error: unknown) {
       // 忽略取消请求的错误
       if (error instanceof Error && error.name === 'AbortError') {
@@ -1175,7 +1194,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
     } finally {
       isLoadingRef.current = false;
     }
-  }, [city, decorateTerritories, map, recomputeViewportKing]);
+  }, [city, decorateTerritoriesAsync, map, recomputeViewportKing]);
 
   const loadTerritoriesRef = useRef<() => Promise<void>>(loadTerritories);
   const redrawCanvasRef = useRef<() => void>(redrawCanvas);
@@ -1257,10 +1276,14 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
 
   useEffect(() => {
     if (!isVisible) return;
-    if (pendingRefreshRef.current) {
-      pendingRefreshRef.current = false;
-      loadTerritoriesRef.current(); // 瞬间补发刷新
+    
+    // Force a redraw when becoming visible to ensure the canvas is up to date immediately
+    lastRenderDataRef.current = null;
+    loadTerritoriesRef.current();
+    if (customLayerRef.current) {
+      customLayerRef.current.render?.();
     }
+    pendingRefreshRef.current = false;
   }, [isVisible]);
 
   useEffect(() => {
@@ -1313,10 +1336,8 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
   }, [map, city?.id, isVisible]);
 
   useEffect(() => {
-    decorateTerritories(rawTerritoriesRef.current);
-    customLayerRef.current?.render?.();
-    recomputeViewportKing();
-  }, [decorateTerritories, recomputeViewportKing]);
+    decorateTerritoriesAsync(rawTerritoriesRef.current);
+  }, [decorateTerritoriesAsync]);
 
   useEffect(() => {
     if (!map) return;

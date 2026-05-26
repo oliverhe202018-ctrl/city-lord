@@ -17,6 +17,7 @@ import { calculateLevel } from "@/lib/game-logic/level-system"
 import { useUserBadges } from "@/hooks/useGameData"
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { toast } from "sonner"
+import { formatCST } from "@/lib/date-utils"
 
 export default function LordCenterPage() {
    const router = useRouter()
@@ -56,7 +57,7 @@ export default function LordCenterPage() {
    // Weekly Data from real activities
    const weeklyData = activities.length > 0
      ? activities.slice(0, 12).map((a: any) => ({
-         day: new Date(a.created_at).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }),
+         day: formatCST(a.created_at, 'MM月DD日'),
          val: a.distance_km || 0
        }))
      : []
@@ -248,7 +249,7 @@ export default function LordCenterPage() {
                            </div>
                         </div>
                         <div className="px-4 pb-3 text-xs text-white/30 border-t border-white/5 pt-2">
-                           {new Date(run.created_at).toLocaleDateString()}
+                           {formatCST(run.created_at, 'YYYY-MM-DD')}
                         </div>
                      </Link>
                   ))

@@ -413,6 +413,7 @@ export function GamePageContent({
     activeRandomEvent,
     randomEventCountdownSeconds,
     lastAnnouncedKm,
+    recoverUnfinishedSession,
   } = useRunningTracker(isRunning, user?.id)
 
   // Crash Recovery Check
@@ -423,66 +424,22 @@ export function GamePageContent({
     setHasCheckedRecovery(true);
 
     const checkRecovery = async () => {
-      const RECOVERY_KEY = 'CURRENT_RUN_RECOVERY';
-      let recoveryJson: string | null = null;
       try {
-        const { Preferences } = await import('@capacitor/preferences');
-        const res = await Preferences.get({ key: RECOVERY_KEY });
-        recoveryJson = res.value;
-      } catch (e) {
-        console.warn("[Recovery] Failed to read from Preferences:", e);
-      }
-
-      if (!recoveryJson && typeof window !== 'undefined') {
-        recoveryJson = localStorage.getItem(RECOVERY_KEY);
-      }
-
-      if (recoveryJson) {
-        try {
-          const data = JSON.parse(recoveryJson);
-          
-          // 1. 基础有效性检查 (24h 超时 + 版本匹配)
-          const isSessionValid = data.startTime && 
-                               (Date.now() - data.startTime < 24 * 60 * 60 * 1000) && 
-                               data.isRunning && 
-                               data.sessionVersion === '2.0';
-
-          if (isSessionValid) {
-            console.log("[Recovery] Valid session found, restoring UI...", data.runId);
-            logEvent('run_session_found', { runId: data.runId });
-
-            setIsRunning(true);
-            startRunning();
-            setShowImmersiveMode(true);
-            setActiveTab('play'); 
-            
-            logEvent('run_session_restore_success', { runId: data.runId });
-          } else {
-            console.log("[Recovery] Session expired or version mismatch, cleaning up...");
-            try {
-              const { Preferences } = await import('@capacitor/preferences');
-              await Preferences.remove({ key: RECOVERY_KEY });
-            } catch {}
-            if (typeof window !== 'undefined') {
-              localStorage.removeItem(RECOVERY_KEY);
-            }
-            logEvent('run_session_restore_failed', { reason: 'expired_or_invalid_version', runId: data.runId });
-          }
-        } catch (e) {
-          console.warn("[Recovery] Invalid data, cleaning up...", e);
-          try {
-            const { Preferences } = await import('@capacitor/preferences');
-            await Preferences.remove({ key: RECOVERY_KEY });
-          } catch {}
-          if (typeof window !== 'undefined') {
-            localStorage.removeItem(RECOVERY_KEY);
-          }
+        const data = await recoverUnfinishedSession();
+        if (data) {
+          console.log("[Recovery] Valid session recovered, restoring UI...", data.runId);
+          setIsRunning(true);
+          startRunning();
+          setShowImmersiveMode(true);
+          setActiveTab('play'); 
         }
+      } catch (e) {
+        console.warn("[Recovery] Failed to recover unfinished session:", e);
       }
     };
 
     checkRecovery();
-  }, [hasCheckedRecovery, startRunning]);
+  }, [hasCheckedRecovery, startRunning, recoverUnfinishedSession]);
 
   // Reset missionsInitialFilter when leaving missions tab
   useEffect(() => {

@@ -18,7 +18,7 @@ import {
   GPS_TRACKING_ACCURACY_METERS,
   GPS_DISPLAY_ACCURACY_METERS,
 } from '@/store/useLocationStore';
-import { getDistanceFromLatLonInMeters, LOOP_CLOSURE_THRESHOLD_M, LOOP_CLOSURE_SNAP_M, isLoopClosed, MIN_LOOP_POINTS, extractValidLoops, isDuplicatePolygon, simplifyPathDP } from '@/lib/geometry-utils';
+import { getDistanceFromLatLonInMeters, LOOP_CLOSURE_THRESHOLD_M, LOOP_CLOSURE_SNAP_M, isLoopClosed, MIN_LOOP_POINTS, extractValidLoops, isDuplicatePolygon, simplifyPathDP, simplifyPathDPAsync } from '@/lib/geometry-utils';
 import { shouldAcceptPointByDistance } from '@/lib/location/gps-spatial-filter';
 import { validateSegmentSpeed } from '@/lib/location/gps-speed-validator';
 import { ActiveRandomEvent, useRandomEvents } from '@/hooks/useRandomEvents';
@@ -120,6 +120,7 @@ interface RunningStats {
   randomEventCountdownSeconds: number;
   isGPSWeak: boolean;
   lastAnnouncedKm: number;
+  recoverUnfinishedSession: () => Promise<any>;
 }
 
 // Haversine formula — now imported from @/lib/geometry-utils
@@ -310,8 +311,13 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   const gpsLocation = useLocationStore(s => s.location);
   const locationSource = useLocationStore(s => s.locationSource);
 
-  // Network Listener
+  // Network Listener & Initial Flush
   useEffect(() => {
+    // Proactively flush pending settlements on startup/mount if currently online
+    if (typeof navigator !== 'undefined' && navigator.onLine) {
+      settlementRetryQueue.flushPendingSettlements().catch(console.error);
+    }
+
     const handleOnline = () => {
       setIsOnline(true);
       settlementRetryQueue.flushPendingSettlements().catch(console.error);
@@ -489,7 +495,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   const saveState = useCallback(() => {
     if (!isRunning || isStoppingRef.current) return;
     try {
-      const RECENT_POINTS_LIMIT = 100;
+      const RECENT_POINTS_LIMIT = 500;
       const recentPath = pathRef.current.length > RECENT_POINTS_LIMIT
         ? pathRef.current.slice(-RECENT_POINTS_LIMIT)
         : pathRef.current;
@@ -505,6 +511,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         isRunning: isRunning,
         status: isPausedRef.current ? 'paused' : 'running',
         startTime: startTimeRef.current,
+        startedAt: startTimeRef.current || Date.now(),
         lastLocationAt: lastLocationRef.current?.timestamp || Date.now(),
         sessionVersion: '2.0', 
         closedPolygons: closedPolygonsRef.current || [],
@@ -593,14 +600,21 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       if (displayPathSimplifyRef.current.pending) return;
       displayPathSimplifyRef.current.pending = true;
 
-      const doSimplify = () => {
+      const doSimplify = async () => {
         try {
           // Re-read pathRef.current at execution time to avoid stale closure
           const latestRaw = pathRef.current;
           const latestForDisplay = latestRaw.length > DISPLAY_PATH_WINDOW
             ? latestRaw.slice(-DISPLAY_PATH_WINDOW)
             : latestRaw;
-          const simplified = simplifyPathDP(latestForDisplay, SIMPLIFY_TOLERANCE);
+            
+          let simplified;
+          if (latestForDisplay.length > 100) {
+            simplified = await simplifyPathDPAsync(latestForDisplay, SIMPLIFY_TOLERANCE);
+          } else {
+            simplified = simplifyPathDP(latestForDisplay, SIMPLIFY_TOLERANCE);
+          }
+          
           const displayPoints: Location[] = simplified.map(pt => ({
             lat: pt.lat,
             lng: pt.lng,
@@ -731,7 +745,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       let combined = turf.union(turf.featureCollection([poly1, poly2]));
       if (combined) {
         // [优化] 第二层微量卡边：利用 turf.simplify 消除 double 浮点运算缝隙，保持拓扑，严禁过度削角
-        combined = turf.simplify(combined, { tolerance: 0.000005, highQuality: true });
+        combined = turf.simplify(combined, { tolerance: 0.000003, highQuality: true });
         
         let extCoords: number[][] = [];
         if (combined.geometry.type === 'Polygon') {
@@ -807,6 +821,14 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         if (combined) {
           merged = combined as Feature<Polygon | MultiPolygon>;
         }
+      }
+      
+      // Apply topology-preserving micro-simplification (within 0.3 meters, i.e., 0.000003 degrees)
+      // to heal float gaps and compress redundant vertices.
+      try {
+        merged = turf.simplify(merged, { tolerance: 0.000003, highQuality: true });
+      } catch (simplifyErr) {
+        console.warn("[useRunningTracker] Failed to simplify merged polygon", simplifyErr);
       }
       
       return turf.area(merged);
@@ -890,8 +912,17 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
       // 1. 提升距离门槛至 3m（与位移防抖对齐），防止长线段限制误杀小幅毛刺
       if (dAB > 3.0 && dBC > 3.0 && dAC > 0) {
-        // 2. 计算横向偏离距 (Lateral Offset)
-        const lateralOffset = Math.abs((dAB * dAB - dBC * dBC) / (2 * dAC));
+        // 2. 计算精确的横向偏离距 (Perpendicular distance from C to line AB in meters)
+        const avgLat = (ptA.lat + lat) / 2;
+        const cosLat = Math.cos((avgLat * Math.PI) / 180);
+        const dx_AB = (ptB.lng - ptA.lng) * 111320 * cosLat;
+        const dy_AB = (ptB.lat - ptA.lat) * 111320;
+        const dx_AC = (lng - ptA.lng) * 111320 * cosLat;
+        const dy_AC = (lat - ptA.lat) * 111320;
+        
+        const lenAB = Math.hypot(dx_AB, dy_AB);
+        const cross = dx_AB * dy_AC - dy_AB * dx_AC;
+        const lateralOffset = lenAB > 0.1 ? Math.abs(cross) / lenAB : 0;
         
         // 3. 计算方向夹角 (Heading Filter)
         const ux = ptB.lng - ptA.lng;
@@ -1298,6 +1329,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     }
 
     pathRef.current.push(finalLoc);
+    if (pathRef.current.length % 10 === 0) {
+      saveState();
+    }
  
     // 后台线性插值算法 (Linear Interpolation Back-Smoothing)
     if (accuracy != null && accuracy <= GPS_TRACKING_ACCURACY_METERS) {
@@ -2045,6 +2079,11 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       isStoppingRef.current = false;
 
       const performRecovery = async () => {
+        if (justRecoveredRef.current) {
+          console.log('[Session] already recovered on mount, skipping double recovery');
+          return;
+        }
+
         let recoveryJson: string | null = null;
         try {
           const res = await Preferences.get({ key: RECOVERY_KEY });
@@ -2057,6 +2096,16 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         if (recoveryJson) {
           try {
             const data = JSON.parse(recoveryJson);
+            const lastSaveTime = data.timestamp || Date.now();
+            const elapsedMs = Date.now() - lastSaveTime;
+
+            // Enforce 4 hours limit
+            if (elapsedMs >= 4 * 60 * 60 * 1000) {
+              console.log("[Session] Found session in Preferences but older than 4 hours. Cleaning up.");
+              Preferences.remove({ key: RECOVERY_KEY }).catch(console.warn);
+              return;
+            }
+
             const rawPath = Array.isArray(data.path) ? data.path : [];
             const safePath = rawPath.filter(
               (p: any) => p && typeof p.lat === 'number' && typeof p.lng === 'number' && Number.isFinite(p.lat) && Number.isFinite(p.lng)
@@ -2667,6 +2716,80 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     };
   }, []);
 
+  const recoverUnfinishedSession = useCallback(async () => {
+    try {
+      const res = await Preferences.get({ key: RECOVERY_KEY });
+      if (!res.value) return null;
+      const data = JSON.parse(res.value);
+      const lastSaveTime = data.timestamp || Date.now();
+      const elapsedMs = Date.now() - lastSaveTime;
+
+      // 4小时（14400000ms）内未结算的 Session 自愈
+      if (elapsedMs < 4 * 60 * 60 * 1000) {
+        console.log(`[recoverUnfinishedSession] Found valid session from ${new Date(lastSaveTime).toISOString()}`);
+        
+        const rawPath = Array.isArray(data.path) ? data.path : [];
+        const safePath = rawPath.filter(
+          (p: any) => p && typeof p.lat === 'number' && typeof p.lng === 'number' && Number.isFinite(p.lat) && Number.isFinite(p.lng)
+        );
+
+        runIdempotencyKeyRef.current = data.idempotencyKey || uuidv4();
+        setSavedRunId(data.runId || null);
+        savedRunIdRef.current = data.runId || null;
+        setPath(safePath);
+        setDisplayPath(safePath);
+        setDistance(data.distance || 0);
+        distanceRef.current = data.distance || 0;
+        
+        const restoredDuration = data.duration || 0;
+        setDuration(restoredDuration);
+        durationRef.current = restoredDuration;
+        
+        setClosedPolygons(data.closedPolygons || []);
+        closedPolygonsRef.current = data.closedPolygons || [];
+        
+        setEventsHistory(Array.isArray(data.eventsHistory) ? data.eventsHistory : []);
+        eventsHistoryRef.current = Array.isArray(data.eventsHistory) ? data.eventsHistory : [];
+        
+        setCurrentSteps(Number(data.totalSteps || 0));
+        currentStepsRef.current = Number(data.totalSteps || 0);
+        
+        setRunIsValid(data.runIsValid ?? true);
+        setAntiCheatLog(data.antiCheatLog ?? null);
+        setArea(data.area || 0);
+        areaRef.current = data.area || 0;
+        
+        lastAnnouncedKmRef.current = data.lastAnnouncedKm !== undefined ? data.lastAnnouncedKm : Math.floor((data.distance || 0) / 1000);
+        
+        const isPausedNow = data.status === 'paused';
+        setIsPaused(isPausedNow);
+        isPausedRef.current = isPausedNow;
+        
+        pausedAccumulatorRef.current = data.pausedAccumulator ?? restoredDuration;
+        startTimeRef.current = data.startTime || data.startedAt || null;
+        
+        if (safePath.length > 0) {
+          const lastLoc = safePath[safePath.length - 1];
+          lastLocationRef.current = lastLoc;
+          pathRef.current = safePath;
+          setCurrentLocation(lastLoc);
+        }
+        
+        justRecoveredRef.current = true;
+        useLocationStore.getState().setCurrentRunId(runIdempotencyKeyRef.current);
+        
+        toast.success("已自动恢复 4 小时内未结算的跑步记录！");
+        return data;
+      } else {
+        console.log("[recoverUnfinishedSession] Discarding session older than 4 hours");
+        await Preferences.remove({ key: RECOVERY_KEY }).catch(console.warn);
+      }
+    } catch (e) {
+      console.error("[recoverUnfinishedSession] Failed to recover session:", e);
+    }
+    return null;
+  }, []);
+
   // Estimated steps: 1.3 steps per meter (average walking/running cadence)
   const estimatedSteps = Math.floor(distance * 1.3); // distance is in meters here
   const finalSteps = currentSteps > 0 ? currentSteps : estimatedSteps;
@@ -2711,5 +2834,6 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     randomEventCountdownSeconds: countdownSeconds,
     isGPSWeak,
     lastAnnouncedKm: lastAnnouncedKmRef.current,
+    recoverUnfinishedSession,
   };
 }

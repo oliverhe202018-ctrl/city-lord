@@ -52,6 +52,8 @@ export interface FilterState {
     hasFreshFix: boolean;
     /** 上一个被接受的点 */
     lastAcceptedPoint: GeoPoint | null;
+    /** 上上个被接受的点 */
+    secondLastAcceptedPoint: GeoPoint | null;
     /** 上一个被接受点的时间戳 */
     lastAcceptedTime: number;
     /** 上一个计算速度 */
@@ -239,6 +241,7 @@ export class RunningLocationFilter {
     private state: FilterState = {
         hasFreshFix: false,
         lastAcceptedPoint: null,
+        secondLastAcceptedPoint: null,
         lastAcceptedTime: 0,
         lastSpeed: 0,
         acceptedCount: 0,
@@ -285,12 +288,56 @@ export class RunningLocationFilter {
         if (timeDiffS > 0.3) {
             const speed = dist / timeDiffS;
 
-            if (speed > MAX_RUNNING_SPEED_MS) {
+            // 动态速度门槛：精度差时限制最大速度为5m/s以滤除大幅跳点；同时加入基于上一次速度的倍率限制
+            const accuracyLimit = (point.accuracy != null && point.accuracy > 30) ? 5.0 : MAX_RUNNING_SPEED_MS;
+            const accelerationLimit = this.state.lastSpeed > 0 ? Math.max(5.0, this.state.lastSpeed * 1.8) : MAX_RUNNING_SPEED_MS;
+            const dynamicSpeedLimit = Math.min(accuracyLimit, accelerationLimit);
+
+            if (speed > dynamicSpeedLimit) {
                 return this.reject(point, 'speed',
-                    `speed ${(speed * 3.6).toFixed(1)}km/h > ${(MAX_RUNNING_SPEED_MS * 3.6).toFixed(1)}km/h max`);
+                    `speed ${(speed * 3.6).toFixed(1)}km/h > ${(dynamicSpeedLimit * 3.6).toFixed(1)}km/h dynamic limit`);
             }
 
-            // --- 4. 加速度异常检测 ---
+            // --- 4. 方向夹角（Heading Filter）与横向偏离距（Lateral Offset）校验 ---
+            if (this.state.secondLastAcceptedPoint) {
+                const secondLast = this.state.secondLastAcceptedPoint;
+
+                const avgLat = (lastPt.lat + point.lat) / 2;
+                const cosLat = Math.cos((avgLat * Math.PI) / 180);
+
+                // 向量 A (secondLast -> last) 转换成米
+                const ax = (lastPt.lng - secondLast.lng) * 111320 * cosLat;
+                const ay = (lastPt.lat - secondLast.lat) * 111320;
+
+                // 向量 B (last -> current) 转换成米
+                const bx = (point.lng - lastPt.lng) * 111320 * cosLat;
+                const by = (point.lat - lastPt.lat) * 111320;
+
+                const lenA = Math.hypot(ax, ay);
+                const lenB = Math.hypot(bx, by);
+
+                if (lenA > 0.1 && lenB > 0.1) {
+                    const dot = ax * bx + ay * by;
+                    const cosTheta = dot / (lenA * lenB);
+                    const thetaDeg = Math.acos(Math.max(-1, Math.min(1, cosTheta))) * (180 / Math.PI);
+
+                    // 当前点 C 到线段 AB 延长线的垂直投影高度 (Perpendicular distance)
+                    const proj = dot / lenA;
+                    const lateralOffset = Math.sqrt(Math.max(0, lenB * lenB - proj * proj));
+
+                    // 夹角过滤：仅当夹角变化 > 135° 且精度和速度异常时过滤
+                    if (thetaDeg > 135.0 && (point.accuracy ?? 0) > 15 && speed > 5.0) {
+                        return this.reject(point, 'jitter', `heading turnback jitter angle: ${thetaDeg.toFixed(1)}°`);
+                    }
+
+                    // 横向偏离距过滤：大于 15 米且精度较差时过滤
+                    if (lateralOffset > 15.0 && (point.accuracy ?? 0) > 20) {
+                        return this.reject(point, 'jitter', `perpendicular lateral offset jump: ${lateralOffset.toFixed(1)}m`);
+                    }
+                }
+            }
+
+            // --- 5. 加速度异常检测 ---
             if (this.state.lastSpeed > 0 && timeDiffS > 0.3) {
                 const acceleration = Math.abs(speed - this.state.lastSpeed) / timeDiffS;
                 if (acceleration > MAX_ACCELERATION_MS2) {
@@ -312,6 +359,7 @@ export class RunningLocationFilter {
         this.state = {
             hasFreshFix: false,
             lastAcceptedPoint: null,
+            secondLastAcceptedPoint: null,
             lastAcceptedTime: 0,
             lastSpeed: 0,
             acceptedCount: 0,
@@ -329,6 +377,7 @@ export class RunningLocationFilter {
 
     private accept(point: GeoPoint, timestamp: number, dist?: number, speed?: number): FilteredPoint {
         this.state.hasFreshFix = true;
+        this.state.secondLastAcceptedPoint = this.state.lastAcceptedPoint;
         this.state.lastAcceptedPoint = point;
         this.state.lastAcceptedTime = timestamp;
         this.state.acceptedCount++;

@@ -1167,10 +1167,10 @@ export async function getClubTerritoriesReal(clubId: string, sortBy: 'date' | 'a
     id: run.id,
     name: `Run ${run.id.substring(0, 6)}`,
     area: run.area,
-    date: new Date(run.created_at).toLocaleDateString(),
+    date: new Date(run.created_at).toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai' }),
     member: run.profiles?.avatar_url,
     memberName: run.profiles?.nickname,
-    lastTime: new Date(run.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    lastTime: new Date(run.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Shanghai' }),
     location: run.province || 'Unknown',
     totalTime: `${Math.floor(run.duration / 60)}:${(run.duration % 60).toString().padStart(2, '0')}`,
     totalDistance: 'N/A',
@@ -1202,12 +1202,12 @@ export async function getClubHistory(clubId: string) {
   for (let i = 29; i >= 0; i--) {
     const d = new Date()
     d.setDate(d.getDate() - i)
-    const key = d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' })
+    const key = d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', timeZone: 'Asia/Shanghai' })
     historyMap.set(key, 0)
   }
 
   (data || []).forEach((run: any) => {
-    const date = new Date(run.created_at).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' })
+    const date = new Date(run.created_at).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', timeZone: 'Asia/Shanghai' })
     if (historyMap.has(date)) {
       historyMap.set(date, (historyMap.get(date) || 0) + Number(run.area))
     }

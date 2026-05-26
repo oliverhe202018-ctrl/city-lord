@@ -396,7 +396,7 @@ export function ClubManageDrawer({ isOpen, onClose, club }: ClubManageDrawerProp
                 </Avatar>
                 <div>
                   <div className="font-medium">{req.user?.nickname || '未知用户'}</div>
-                  <div className="text-xs text-muted-foreground">Lv.{req.user?.level || 1} • {new Date(req.appliedAt).toLocaleDateString()}</div>
+                  <div className="text-xs text-muted-foreground">Lv.{req.user?.level || 1} • {new Date(req.appliedAt).toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai' })}</div>
                 </div>
               </div>
               <div className="flex gap-2">
@@ -433,7 +433,7 @@ export function ClubManageDrawer({ isOpen, onClose, club }: ClubManageDrawerProp
                     {member.role === 'owner' && <Badge variant="secondary" className="text-xs">会长</Badge>}
                     {member.role === 'admin' && <Badge variant="outline" className="text-xs">管理员</Badge>}
                   </div>
-                  <div className="text-xs text-muted-foreground">加入于 {new Date(member.joinedAt).toLocaleDateString()}</div>
+                  <div className="text-xs text-muted-foreground">加入于 {new Date(member.joinedAt).toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai' })}</div>
                 </div>
               </div>
               {member.role !== 'owner' && (

@@ -106,7 +106,7 @@ export function PosterModal({ post, onClose }: PosterModalProps) {
                         <img src={avatar} className="w-12 h-12 rounded-full border-2 border-primary" crossOrigin="anonymous" />
                         <div>
                             <div className="font-bold text-lg">{post.user?.nickname || "City Lord"}</div>
-                            <div className="text-sm text-gray-400">Lv.{post.user?.level || 1} • {new Date(post.created_at).toLocaleDateString()}</div>
+                            <div className="text-sm text-gray-400">Lv.{post.user?.level || 1} • {new Date(post.created_at).toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai' })}</div>
                         </div>
                     </div>
                     <div className="mb-4">

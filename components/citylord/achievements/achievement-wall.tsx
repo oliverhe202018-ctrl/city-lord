@@ -20,6 +20,7 @@ import {
 import { formatArea, getAreaEquivalent } from "@/lib/citylord/area-utils"
 import { ACHIEVEMENT_DEFINITIONS, AchievementCategory, AchievementRarity } from "@/lib/achievements"
 import Image from "next/image"
+import { formatCST } from "@/lib/date-utils"
 
 const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
   const controller = new AbortController()
@@ -208,7 +209,7 @@ function AchievementCard({ achievement, onSelect }: AchievementCardProps) {
             {/* Unlocked date */}
             {achievement.unlocked && achievement.unlockedAt && (
               <p className="mt-1 text-[10px] text-white/30">
-                解锁于 {new Date(achievement.unlockedAt).toLocaleDateString()}
+                解锁于 {formatCST(achievement.unlockedAt, 'YYYY-MM-DD')}
               </p>
             )}
           </div>

@@ -375,61 +375,78 @@ export function CityProvider({ children }: { children: React.ReactNode }) {
     const initializeCity = async () => {
       try {
         const savedCityId = localStorage.getItem("currentCityId")
-        const cityId = savedCityId || "beijing" // 默认选择北京
-        
-        let city = getCityById(cityId)
-        
-        // If not in static cities, check DB (since it could be a UUID!)
-        if (!city && savedCityId) {
-          console.log(`[initializeCity] City ID ${savedCityId} not in static list, checking DB...`);
-          try {
-            const dbCity = await getCityDetailsFromDb(savedCityId);
-            if (dbCity) {
-              city = convertDbCityToCity(dbCity);
-              // Copy theme/icon from static overrides if matched by adcode
-              if (city.adcode) {
-                const staticMatch = getCityByAdcode(city.adcode);
-                if (staticMatch) {
-                  city.theme = staticMatch.theme;
-                  city.themeColors = staticMatch.themeColors;
-                  city.icon = staticMatch.icon;
-                  city.description = staticMatch.description;
-                } else if (city.adcode.startsWith('6528') || city.name.includes('巴音') || city.name.includes('库尔勒')) {
-                  city.theme = { primary: "#a855f7", secondary: "#e9d5ff", accent: "#d8b4fe", glow: "#a855f7" };
-                  city.themeColors = { primary: "#a855f7", secondary: "#e9d5ff" };
-                  city.icon = "🍇";
-                  city.description = "亚欧大陆中心，歌舞之乡，美丽库尔勒！";
+        let city: City | null = null
+
+        if (savedCityId) {
+          city = getCityById(savedCityId) || null
+          
+          // If not in static cities, check DB (since it could be a UUID!)
+          if (!city) {
+            console.log(`[initializeCity] City ID ${savedCityId} not in static list, checking DB...`);
+            try {
+              const dbCity = await getCityDetailsFromDb(savedCityId);
+              if (dbCity) {
+                city = convertDbCityToCity(dbCity);
+                // Copy theme/icon from static overrides if matched by adcode
+                if (city.adcode) {
+                  const staticMatch = getCityByAdcode(city.adcode);
+                  if (staticMatch) {
+                    city.theme = staticMatch.theme;
+                    city.themeColors = staticMatch.themeColors;
+                    city.icon = staticMatch.icon;
+                    city.description = staticMatch.description;
+                  } else if (city.adcode.startsWith('6528') || city.name.includes('巴音') || city.name.includes('库尔勒')) {
+                    city.theme = { primary: "#a855f7", secondary: "#e9d5ff", accent: "#d8b4fe", glow: "#a855f7" };
+                    city.themeColors = { primary: "#a855f7", secondary: "#e9d5ff" };
+                    city.icon = "🍇";
+                    city.description = "亚欧大陆中心，歌舞之乡，美丽库尔勒！";
+                  }
                 }
               }
+            } catch (dbErr) {
+              console.error('[initializeCity] Failed to fetch city from DB:', dbErr);
             }
-          } catch (dbErr) {
-            console.error('[initializeCity] Failed to fetch city from DB:', dbErr);
           }
         }
-        
+
+        // If no city loaded, dynamically resolve/register the default city (Beijing) from database
         if (!city) {
-             const defaultCity = getCityById("beijing")
-             if(defaultCity && mounted) {
-                 setActiveBaseCity(defaultCity)
-                 localStorage.setItem("currentCityId", "beijing")
-             }
-             return
+          const defaultAdcode = "110000";
+          const defaultName = "北京";
+          try {
+            console.log(`[initializeCity] No saved city, dynamically fetching/registering default: ${defaultName} (${defaultAdcode})...`);
+            const cityUuid = await getOrCreateCityByAdcode(defaultAdcode, defaultName);
+            const dbCity = await getCityDetailsFromDb(cityUuid);
+            if (dbCity) {
+              city = convertDbCityToCity(dbCity);
+              const staticMatch = getCityByAdcode(defaultAdcode);
+              if (staticMatch) {
+                city.theme = staticMatch.theme;
+                city.themeColors = staticMatch.themeColors;
+                city.icon = staticMatch.icon;
+                city.description = staticMatch.description;
+              }
+            }
+          } catch (createErr) {
+            console.error('[initializeCity] Failed to dynamically create default city in DB:', createErr);
+          }
         }
 
-        if (mounted) {
-           setActiveBaseCity(city)
-           if (!savedCityId) {
-             localStorage.setItem("currentCityId", city.id)
-           }
+        // Final fallback to first static city
+        if (!city && allCities.length > 0) {
+          city = allCities[0];
+        }
+
+        if (city && mounted) {
+          setActiveBaseCity(city);
+          localStorage.setItem("currentCityId", city.id);
         }
       } catch (error) {
-        console.error("Failed to initialize city:", error)
-        if (mounted) {
-            const defaultCity = getCityById("beijing")
-            if (defaultCity) {
-                setActiveBaseCity(defaultCity)
-                localStorage.setItem("currentCityId", "beijing")
-            }
+        console.error("Failed to initialize city:", error);
+        if (mounted && allCities.length > 0) {
+          const defaultCity = allCities[0];
+          setActiveBaseCity(defaultCity);
+          localStorage.setItem("currentCityId", defaultCity.id);
         }
       }
     }

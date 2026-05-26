@@ -9,6 +9,7 @@ import { Database } from '@/types/supabase'
 import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import type { ExtendedPrismaClient } from '@/lib/prisma'
+import { formatCST } from '@/lib/date-utils'
 
 
 type Profile = Database['public']['Tables']['profiles']['Row']
@@ -98,7 +99,7 @@ export async function fetchFriends(): Promise<Friend[]> {
         ? `${Math.floor(diffMinutes)}分钟前`
         : diffMinutes < 1440
           ? `${Math.floor(diffMinutes / 60)}小时前`
-          : new Date(friendProfile.updated_at).toLocaleDateString(),
+          : formatCST(friendProfile.updated_at, 'YYYY-MM-DD'),
       lastActiveAt: friendProfile.updated_at,
       hexCount: friendProfile.total_area || 0,
       totalKm: friendProfile.total_distance_km || 0,

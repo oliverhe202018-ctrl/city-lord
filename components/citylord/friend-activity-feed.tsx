@@ -312,7 +312,7 @@ export function ActivityCard({ post, onLike, onComment, isNew }: ActivityCardPro
                 <span className={`${config.color}`}>{config.label}</span>
                 <span>|</span>
                 <Clock className="h-3 w-3" />
-                <span>{new Date(post.created_at).toLocaleDateString()} {new Date(post.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                <span>{new Date(post.created_at).toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai' })} {new Date(post.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Shanghai' })}</span>
               </div>
             </div>
           </div>
@@ -446,7 +446,7 @@ export function ActivityCard({ post, onLike, onComment, isNew }: ActivityCardPro
                             >
                               {comment.user?.nickname || '用户'}
                             </span>
-                            <span className="text-[10px] text-muted-foreground/60">{comment.created_at ? `${new Date(comment.created_at).toLocaleDateString()} ${new Date(comment.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}` : ''}</span>
+                            <span className="text-[10px] text-muted-foreground/60">{comment.created_at ? `${new Date(comment.created_at).toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai' })} ${new Date(comment.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Shanghai' })}` : ''}</span>
                           </div>
                           {isMine && (
                             <button onClick={() => handleDeleteComment(comment.id)} className="text-[10px] text-red-400 hover:text-red-500 transition-colors shrink-0">删除</button>

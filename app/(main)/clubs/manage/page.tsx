@@ -290,7 +290,7 @@ function ManageContent() {
                                         </div>
                                         <div>
                                             <div className="text-sm font-medium text-white">{req.name}</div>
-                                            <div className="text-[10px] text-white/30">Lv.{req.level} · {new Date(req.appliedAt).toLocaleDateString()}</div>
+                                            <div className="text-[10px] text-white/30">Lv.{req.level} · {new Date(req.appliedAt).toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai' })}</div>
                                         </div>
                                     </div>
                                     <div className="flex gap-1.5">

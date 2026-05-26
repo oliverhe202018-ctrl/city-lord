@@ -1042,8 +1042,13 @@ export async function saveRunActivity(
                 try {
                     let merged = validPolys[0] as Feature<Polygon | MultiPolygon>;
                     for (let i = 1; i < validPolys.length; i++) {
-                        const combined = turfUnion(turfFeatureCollection([merged, validPolys[i]]));
+                        let combined = turfUnion(turfFeatureCollection([merged, validPolys[i]]));
                         if (combined) {
+                            try {
+                                combined = turfSimplify(combined, { tolerance: 0.000003, highQuality: true });
+                            } catch (simplifyErr) {
+                                console.warn('[GIS] Failed to simplify combined polygon:', simplifyErr);
+                            }
                             merged = combined as Feature<Polygon | MultiPolygon>;
                         }
                     }

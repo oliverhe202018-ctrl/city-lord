@@ -8,6 +8,7 @@ import { getTerritoryDetail } from '@/app/actions/territory-detail'
 import { Loader2, MapPin, Clock, Medal, Flag, Timer, User, Pencil, RotateCcw } from 'lucide-react'
 import { TerritoryMoreMenu } from './TerritoryMoreMenu'
 import dayjs from 'dayjs'
+import { formatCST } from '@/lib/date-utils'
 import Link from 'next/link'
 import { TerritoryReportDialog } from './TerritoryReportDialog'
 import { useGameStore } from '@/store/useGameStore'
@@ -74,7 +75,7 @@ export function TerritoryDetailSheet() {
 
             if (!result.success) {
                 if (result.code === 'COOLDOWN') {
-                    toast.error(`改名冷却期还剩 ${result.remainingDays} 天`)
+                    toast.error(`改名冷却期还剩 ${(result as any).remainingDays} 天`)
                 } else if (result.code === 'SENSITIVE_WORD') {
                     toast.error('名称包含敏感词汇，请修改后重试')
                 } else if (result.code === 'INVALID_LENGTH') {
@@ -248,7 +249,7 @@ export function TerritoryDetailSheet() {
                                                 {displayDetail.lastAttackedAt && (
                                                     <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
                                                         <span>⚔️</span>
-                                                        <span>上次遇袭: {new Date(displayDetail.lastAttackedAt).toLocaleString()}</span>
+                                                        <span>上次遇袭: {formatCST(displayDetail.lastAttackedAt, 'YYYY-MM-DD HH:mm')}</span>
                                                     </div>
                                                 )}
                                             </div>

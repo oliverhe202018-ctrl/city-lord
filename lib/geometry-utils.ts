@@ -135,6 +135,70 @@ export function simplifyPathDP<T extends Coord>(
 }
 
 /**
+ * 轻量级异步 Douglas-Peucker 算法实现，通过分帧（chunked）执行避免阻塞 JavaScript 主线程。
+ */
+export async function simplifyPathDPAsync<T extends Coord>(
+    points: T[],
+    toleranceMeters: number = 3,
+    chunkSize: number = 200
+): Promise<T[]> {
+    if (points.length <= 2) return [...points];
+
+    const keptIndices = new Set<number>();
+    keptIndices.add(0);
+    keptIndices.add(points.length - 1);
+
+    // 使用非递归的双段队列进行分块处理
+    const queue: [number, number][] = [[0, points.length - 1]];
+
+    const run = (): Promise<void> => {
+        return new Promise((resolve) => {
+            const processChunk = () => {
+                let count = 0;
+                while (queue.length > 0 && count < chunkSize) {
+                    const [start, end] = queue.pop()!;
+                    if (end - start <= 1) continue;
+
+                    let maxDist = 0;
+                    let maxIndex = -1;
+
+                    const pStart = points[start];
+                    const pEnd = points[end];
+
+                    for (let i = start + 1; i < end; i++) {
+                        const dist = perpendicularDistance(points[i], pStart, pEnd);
+                        if (dist > maxDist) {
+                            maxDist = dist;
+                            maxIndex = i;
+                        }
+                    }
+
+                    count += (end - start);
+
+                    if (maxDist > toleranceMeters) {
+                        keptIndices.add(maxIndex);
+                        queue.push([start, maxIndex]);
+                        queue.push([maxIndex, end]);
+                    }
+                }
+
+                if (queue.length > 0) {
+                    setTimeout(processChunk, 0); // 挂起并释放主线程
+                } else {
+                    resolve();
+                }
+            };
+            processChunk();
+        });
+    };
+
+    await run();
+
+    const sortedIndices = Array.from(keptIndices).sort((a, b) => a - b);
+    return sortedIndices.map(i => points[i]);
+}
+
+/**
  * 计算点到线段 p1-p2 的垂直距离（米）。
  */
 function perpendicularDistance(point: Coord, p1: Coord, p2: Coord): number {

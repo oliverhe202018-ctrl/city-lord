@@ -80,12 +80,17 @@ export const ClaimedPolygonLayer = function ClaimedPolygonLayer({
             let merged = turfPolys[0] as Feature<Polygon | MultiPolygon>;
             for (let i = 1; i < turfPolys.length; i++) {
                 try {
-                    const combined = turf.union(turf.featureCollection([merged, turfPolys[i]]));
+                    let combined = turf.union(turf.featureCollection([merged, turfPolys[i]]));
                     if (combined) {
+                        try {
+                            combined = turf.simplify(combined, { tolerance: 0.000003, highQuality: true });
+                        } catch (err) {
+                            console.warn('[ClaimedPolygonLayer] Failed to simplify merged polygon', err);
+                        }
                         merged = combined as Feature<Polygon | MultiPolygon>;
                     }
                 } catch (e) {
-                    console.warn('[Turf Error] 跳过非法多边形合并', e);
+                    console.warn('[ClaimedPolygonLayer] 跳过非法多边形合并', e);
                 }
             }
 
