@@ -87,11 +87,17 @@ export interface LocationStoreState {
     /** 全生命周期预热历史缓冲区（FIFO 队列，最多 30 个点） */
     prewarmHistory: GeoPoint[];
 
+    /** 电池优化白名单引导相关状态 */
+    batteryOptModalVisible: boolean;
+    batteryOptSkipped: boolean;
+
     appendWarmupSample: (point: GeoPoint) => void;
     clearWarmupState: () => void;
     setLastLocationTimestamp: (ts: number) => void;
     setCurrentRunId: (id: string | null) => void;
     injectOfflinePoint: (point: GeoPoint) => void;
+    setBatteryOptModalVisible: (visible: boolean) => void;
+    setBatteryOptSkipped: (skipped: boolean) => void;
 
     /**
      * 从预热历史中筛选黄金坐标点。
@@ -164,6 +170,8 @@ export const useLocationStore = create<LocationStoreState>()((set) => ({
     locationMeta: null,
     lastLocationTimestamp: initial.location?.timestamp ?? 0,
     currentRunId: null,
+    batteryOptModalVisible: false,
+    batteryOptSkipped: false,
     appendWarmupSample: (point) => set((state) => {
         // P0 #2 — Mock 虚拟定位拦截：不推入预热历史（开发环境放行以支持模拟器测试）
         const isDev = process.env.NODE_ENV === 'development';
@@ -202,6 +210,8 @@ export const useLocationStore = create<LocationStoreState>()((set) => ({
         loading: false,
         status: 'locked',
     }),
+    setBatteryOptModalVisible: (visible) => set({ batteryOptModalVisible: visible }),
+    setBatteryOptSkipped: (skipped) => set({ batteryOptSkipped: skipped }),
     getBestAccuracySample: (maxAccuracy: number): GeoPoint | null => {
         const state = useLocationStore.getState();
         const now = Date.now();

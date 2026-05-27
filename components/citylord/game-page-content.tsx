@@ -49,7 +49,8 @@ import { CountdownOverlay } from "@/components/running/CountdownOverlay"
 import { StartRunOverlay } from "@/components/citylord/start/StartRunPageClient"
 import { MyRoutesSheet } from "@/components/citylord/map/MyRoutesSheet"
 // OneSignal removed
-import { isNativePlatform, safeRequestGeolocationPermission, safeRequestLocalNotificationPermission, safeScheduleLocalNotification } from "@/lib/capacitor/safe-plugins"
+import { isNativePlatform, safeRequestGeolocationPermission, safeRequestLocalNotificationPermission, safeScheduleLocalNotification, safeAMapGetRomInfo, safeAMapIsBatteryOptimizationIgnored } from "@/lib/capacitor/safe-plugins"
+import { BatteryOptimizationModal } from "@/components/BatteryOptimizationModal"
 import { safeLoadAMap } from '@/lib/map/safe-amap';
 import { ImmersiveSkeleton } from "@/components/citylord/running/ImmersiveSkeleton";
 import { MapSkeleton } from "@/components/map/MapSkeleton";
@@ -739,7 +740,7 @@ export function GamePageContent({
     setIsCountingDown(true)
   }, [])
 
-  const beginRunStart = useCallback(() => {
+  const beginRunStart = useCallback(async (forceSkipCheck = false) => {
     if (!isAuthenticated) {
       toast.warning('请先登录才能开始占领领地！')
       return false
@@ -753,6 +754,23 @@ export function GamePageContent({
     if (isGpsFailed || isMissingLocation) {
       toast.error('定位不准或定位失败，请检查设备定位设置或移动到开阔地带')
       return false
+    }
+
+    // 真机激进省电策略厂商拦截检查
+    if (!forceSkipCheck) {
+      const native = await isNativePlatform();
+      if (native) {
+        const romInfo = await safeAMapGetRomInfo();
+        const isAggressive = romInfo?.isAggressive ?? false;
+        const isIgnored = await safeAMapIsBatteryOptimizationIgnored();
+        const skipped = useLocationStore.getState().batteryOptSkipped;
+
+        if (isAggressive && !isIgnored && !skipped) {
+          // 拦截起跑并唤起弹窗
+          useLocationStore.getState().setBatteryOptModalVisible(true);
+          return false;
+        }
+      }
     }
 
     setActiveTab("play")
@@ -1451,6 +1469,16 @@ export function GamePageContent({
         onClose={closeDrawer}
       />
       <MemoizedLeaderboardDrawer />
+
+      <BatteryOptimizationModal
+        onConfirm={() => {
+          beginRunStart(true);
+        }}
+        onSkip={() => {
+          useLocationStore.getState().setBatteryOptSkipped(true);
+          beginRunStart(true);
+        }}
+      />
     </div>
   )
 }

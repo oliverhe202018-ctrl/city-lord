@@ -678,7 +678,7 @@ export function MapRoot({ children }: { children: ReactNode }) {
         }
       }
     }
-  }, [userPosition]); // ✅ 移除 map 依赖，仅在 userPosition 变化时触发
+  }, [userPosition, map]); // ✅ 包含 map 依赖，确保地图实例加载完成后触发首次定位与飞跃
 
   // GPS Timeout: silently use cached position if no fix within 15s
   // Non-critical status messages are suppressed per UX policy.

@@ -589,3 +589,41 @@ export async function safeAMapStopTracking(): Promise<boolean> {
         return false;
     }
 }
+
+export async function safeAMapGetRomInfo(): Promise<{ manufacturer: string; brand: string; isAggressive: boolean } | null> {
+    try {
+        if (!(await isNativePlatform())) return null;
+        const { registerPlugin } = await import('@capacitor/core');
+        const AMapLocation = registerPlugin<any>('AMapLocation');
+        return await AMapLocation.getRomInfo();
+    } catch (e) {
+        console.warn('AMapLocation.getRomInfo failed', e);
+        return null;
+    }
+}
+
+export async function safeAMapIsBatteryOptimizationIgnored(): Promise<boolean> {
+    try {
+        if (!(await isNativePlatform())) return true;
+        const { registerPlugin } = await import('@capacitor/core');
+        const AMapLocation = registerPlugin<any>('AMapLocation');
+        const res = await AMapLocation.isBatteryOptimizationIgnored();
+        return !!res?.isIgnored;
+    } catch (e) {
+        console.warn('AMapLocation.isBatteryOptimizationIgnored failed', e);
+        return true;
+    }
+}
+
+export async function safeAMapOpenBatteryOptimizationSettings(): Promise<boolean> {
+    try {
+        if (!(await isNativePlatform())) return false;
+        const { registerPlugin } = await import('@capacitor/core');
+        const AMapLocation = registerPlugin<any>('AMapLocation');
+        const res = await AMapLocation.openBatteryOptimizationSettings();
+        return !!res?.opened;
+    } catch (e) {
+        console.warn('AMapLocation.openBatteryOptimizationSettings failed', e);
+        return false;
+    }
+}

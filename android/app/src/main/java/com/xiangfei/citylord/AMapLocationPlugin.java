@@ -1056,36 +1056,95 @@ public class AMapLocationPlugin extends Plugin {
     }
 
     /**
-     * 跳转电池优化白名单设置页（REQUEST_IGNORE_BATTERY_OPTIMIZATIONS）。
-     * 这是所有运动类 App 的硬性标准，用于对抗 MIUI/EMUI 激进杀后台。
-     *
-     * 返回:
-     * - opened: boolean，是否成功跳转
+     * 获取当前系统 ROM 信息，判定是否为激进省电策略厂商
+     */
+    @PluginMethod()
+    public void getRomInfo(PluginCall call) {
+        String manufacturer = Build.MANUFACTURER.toLowerCase(Locale.ROOT);
+        String brand = Build.BRAND.toLowerCase(Locale.ROOT);
+        boolean isAggressive = false;
+
+        if (manufacturer.contains("xiaomi") || brand.contains("xiaomi") || brand.contains("redmi") || brand.contains("poco") ||
+            manufacturer.contains("huawei") || brand.contains("huawei") || brand.contains("honor") ||
+            manufacturer.contains("oppo") || brand.contains("oppo") || brand.contains("realme") || brand.contains("oneplus") ||
+            manufacturer.contains("vivo") || brand.contains("vivo") || brand.contains("iqoo")) {
+            isAggressive = true;
+        }
+
+        JSObject ret = new JSObject();
+        ret.put("manufacturer", Build.MANUFACTURER);
+        ret.put("brand", Build.BRAND);
+        ret.put("isAggressive", isAggressive);
+        call.resolve(ret);
+    }
+
+    /**
+     * 跳转电池优化白名单设置页。
+     * 为了规避 Google Play 审核风险，禁止在清单中使用强引导权限 ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS。
+     * 针对小米设备提供特殊适配，优先跳转到应用省电策略页面；通用情况跳转到 ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS 列表。
      */
     @PluginMethod()
     public void openBatteryOptimizationSettings(PluginCall call) {
         boolean opened = false;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        String manufacturer = Build.MANUFACTURER.toLowerCase(Locale.ROOT);
+        String brand = Build.BRAND.toLowerCase(Locale.ROOT);
+
+        // 小米/红米/POCO 特殊适配：跳转到小米私有“应用省电策略”
+        if (manufacturer.contains("xiaomi") || brand.contains("xiaomi") || brand.contains("redmi") || brand.contains("poco")) {
             try {
-                Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
-                intent.setData(Uri.parse("package:" + getContext().getPackageName()));
+                Intent intent = new Intent();
+                intent.setComponent(new ComponentName("com.miui.powerkeeper", "com.miui.powerkeeper.ui.HiddenAppsConfigActivity"));
+                intent.putExtra("package_name", getContext().getPackageName());
+                intent.putExtra("package_log", getContext().getPackageName());
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 getContext().startActivity(intent);
                 opened = true;
-                Log.i(TAG, "Battery optimization settings opened");
+                Log.i(TAG, "Opened Xiaomi HiddenAppsConfigActivity successfully");
+            } catch (ActivityNotFoundException | SecurityException e) {
+                Log.w(TAG, "Activity not found or security exception for Xiaomi HiddenAppsConfigActivity, trying generic: " + e.getMessage());
             } catch (Exception e) {
-                Log.e(TAG, "Failed to open battery optimization settings: " + e.getMessage());
-                // 兜底：跳转应用详情页
+                Log.w(TAG, "Failed to open Xiaomi HiddenAppsConfigActivity: " + e.getMessage());
+            }
+        }
+
+        // 通用流程：尝试 ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS
+        if (!opened && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            try {
+                Intent intent = new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(intent);
+                opened = true;
+                Log.i(TAG, "Opened generic battery optimization settings");
+            } catch (ActivityNotFoundException | SecurityException e) {
+                Log.e(TAG, "Activity not found or security exception for generic battery settings: " + e.getMessage());
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to open generic battery optimization settings: " + e.getMessage());
+            }
+        }
+
+        // 强力兜底：如果前述均未成功，跳转应用详情页 (ACTION_APPLICATION_DETAILS_SETTINGS)
+        if (!opened) {
+            try {
+                Intent fallback = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                fallback.setData(Uri.parse("package:" + getContext().getPackageName()));
+                fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(fallback);
+                opened = true;
+                Log.i(TAG, "Fallback to app details settings successfully");
+            } catch (ActivityNotFoundException | SecurityException e) {
+                Log.e(TAG, "App details settings not found: " + e.getMessage());
+                // 终极兜底：系统设置首页
                 try {
-                    Intent fallback = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-                    fallback.setData(Uri.parse("package:" + getContext().getPackageName()));
-                    fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    getContext().startActivity(fallback);
+                    Intent settings = new Intent(Settings.ACTION_SETTINGS);
+                    settings.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    getContext().startActivity(settings);
                     opened = true;
-                    Log.i(TAG, "Fallback to app details settings");
-                } catch (Exception e2) {
-                    Log.e(TAG, "Fallback also failed: " + e2.getMessage());
+                    Log.i(TAG, "Opened system settings home");
+                } catch (Exception ex) {
+                    Log.e(TAG, "Ultimate fallback to system settings failed: " + ex.getMessage());
                 }
+            } catch (Exception e) {
+                Log.e(TAG, "Fallback to app details failed: " + e.getMessage());
             }
         }
 

@@ -214,6 +214,11 @@ export interface AMapLocationPlugin {
      */
     openBatteryOptimizationSettings(): Promise<{ opened: boolean }>;
 
+    /**
+     * 获取当前系统 ROM 信息，判定是否为激进省电策略厂商。
+     */
+    getRomInfo(): Promise<{ manufacturer: string; brand: string; isAggressive: boolean }>;
+
     // ---- Room 黑匣子持久化 (SQLite) ----
 
     /**

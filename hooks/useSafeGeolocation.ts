@@ -326,13 +326,29 @@ export function useSafeGeolocation(options: UseSafeGeolocationOptions = {}): Use
       } else {
         // Standard Web API flow
         permission = await new Promise<string>((resolve) => {
-          navigator.geolocation.getCurrentPosition(
-            () => resolve('granted'),
-            (err) => {
-              if (err.code === err.PERMISSION_DENIED) resolve('denied');
-              else resolve('prompt'); // Or handle other errors
+     navigator.geolocation.getCurrentPosition(
+        (position) => {
+          // Position 对象有 coords 属性，需要解构
+          if (position.coords.latitude && position.coords.longitude) {
+            const coarsePos: GeoPoint = {
+              lat: position.coords.latitude,
+              lng: position.coords.longitude,
+              accuracy: position.coords.accuracy || 9999,
+              heading: position.coords.heading,
+              speed: position.coords.speed,
+              timestamp: position.timestamp,
+              source: 'network-coarse'
+            };
+            if (coarsePos && isMounted.current) {
+              processPosition(coarsePos, 'network-coarse');
             }
-          );
+          }
+        },
+        (err) => {
+          if (err.code === err.PERMISSION_DENIED) resolve('denied');
+          else resolve('prompt'); // Or handle other errors
+        }
+      );
         });
       }
 
