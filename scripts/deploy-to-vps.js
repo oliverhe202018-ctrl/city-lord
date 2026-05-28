@@ -8,7 +8,7 @@ const CONFIG = {
     host: '66.63.168.31',
     port: 22,
     username: 'root',
-    password: 'R67PQUyiceW0rC85q1',
+    password: 'fL3CR5brL91sI0b7Vs',
     domain: 'cl1.4567666.xyz',
     remotePath: '/var/www/city-lord'
 };
