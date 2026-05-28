@@ -677,7 +677,7 @@ public class LocationForegroundService extends Service implements AMapLocationLi
         if (wakeLock != null && wakeLock.isHeld()) {
             try {
                 wakeLock.release();
-                Log.i(TAG, "WakeLock released");
+                Log.i(TAG, "⚡ [WakeLock] Safely released upon tracking stop.");
             } catch (Exception e) {
                 Log.w(TAG, "WakeLock release error: " + e.getMessage());
             }
@@ -743,6 +743,8 @@ public class LocationForegroundService extends Service implements AMapLocationLi
     }
 
     private void stopLocationTracking() {
+        // Force release WakeLock immediately upon stopping tracking
+        releaseWakeLock();
         if (locationClient != null) {
             // 在定位线程上停止 client，确保线程安全
             if (locationHandler != null) {

@@ -1343,6 +1343,32 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     }
 
     pathRef.current.push(finalLoc);
+
+    // --- Marathon Ultra-Long Track Memory Protection Limit (P0) ---
+    const MAX_PATH_POINTS = 30000;
+    if (pathRef.current.length >= MAX_PATH_POINTS) {
+      console.warn(`[useRunningTracker] Marathon memory protection triggered: path length ${pathRef.current.length} >= ${MAX_PATH_POINTS}. Performing topology-preserving decimation.`);
+      const N = pathRef.current.length;
+      const keepStartCount = Math.floor(N * 0.1);
+      const keepEndCount = Math.floor(N * 0.1);
+      const middleStart = keepStartCount;
+      const middleEnd = N - keepEndCount;
+
+      const decimatedMiddle: Location[] = [];
+      for (let i = middleStart; i < middleEnd; i += 2) {
+        decimatedMiddle.push(pathRef.current[i]);
+      }
+
+      const decimatedPath = [
+        ...pathRef.current.slice(0, middleStart),
+        ...decimatedMiddle,
+        ...pathRef.current.slice(middleEnd)
+      ];
+
+      pathRef.current = decimatedPath;
+      console.log(`[useRunningTracker] Decimation complete. New path length: ${pathRef.current.length}`);
+    }
+
     if (pathRef.current.length % 10 === 0) {
       saveState();
     }

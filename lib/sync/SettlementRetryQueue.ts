@@ -63,6 +63,27 @@ class SettlementRetryQueue {
     if (!this.dbPromise) return false;
     try {
       const db = await this.dbPromise;
+
+      // 前置唯一性校验：使用当前结算请求的 payload.idempotencyKey 检索队列
+      if (payload.idempotencyKey) {
+        const tx = db.transaction('pending_settlements', 'readonly');
+        const store = tx.objectStore('pending_settlements');
+        let cursor = await store.openCursor();
+        let exists = false;
+        while (cursor) {
+          if (cursor.value.payload.idempotencyKey === payload.idempotencyKey) {
+            exists = true;
+            break;
+          }
+          cursor = await cursor.continue();
+        }
+        await tx.done;
+        if (exists) {
+          console.warn(`[SettlementRetryQueue] Duplicate settlement detected with idempotencyKey: ${payload.idempotencyKey}`);
+          return false;
+        }
+      }
+
       const count = await db.count('pending_settlements');
       if (count >= MAX_QUEUE_SIZE) {
         console.warn(`[SettlementRetryQueue] Queue full (${count}/${MAX_QUEUE_SIZE}), evicting oldest entries`);
@@ -175,7 +196,7 @@ class SettlementRetryQueue {
       for (const settlement of settlements) {
         try {
           const { userId, ...runPayload } = settlement.payload;
-          const result = await saveRunActivity(userId, runPayload);
+          const result = await saveRunActivity(userId, runPayload as any);
 
           if (result.success) {
             await this.ackSettlement(settlement.id!);
