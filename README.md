@@ -141,6 +141,19 @@ npm test
 
 ## 📅 近期更新日志 (Changelog)
 
+### 2026-05-29: ⚙️ 全局计划任务（Cron Jobs）重构与 VPS 自动部署加固
+
+- **高频调度升级（VPS解禁）**: 随着项目向自托管 VPS 环境迁移，全面释放原有受免费平台额度限制的计划任务执行频率，显著提升核心玩法与数据的实时性：
+  - `stamina-recovery`（体力自动恢复）：从每日低频调用升级为每 5 分钟自动恢复 10 点（`*/5 * * * *`）。
+  - `update-faction-stats`（阵营总面积快照缓存）：从每日夜间更新优化为每 5 分钟计算一次。
+  - `territory-stats-worker`（领地事件消息队列消费）：调整为高频每 1 分钟消费一次（`* * * * *`）。
+  - `update-province`（省市层级排行聚合）：从每日零点聚合提速为每小时自动汇总计算（`0 * * * *`）。
+  - `npc-invasion`（幽灵NPC暗影入侵）：从每日一次提升为每 12 小时高频清洗未维护地块（`0 */12 * * *`）。
+- **PostgreSQL 咨询锁安全防护**: 针对高频的队列消费 Worker（`territory-stats-worker`），在 `TerritoryStatsAggregatorService.processNextBatch()` 内部引入了 PostgreSQL 的**独占式咨询锁机制（Advisory Lock ID: 10088）**。确保在高频并发或多实例重启场景下，同一个队列游标不会被并发执行，从根本上杜绝了排行榜总瓦片数和面积在数据库 Upsert 中被重复相加的并发双刷风险。
+- **自动构建部署流集成（SSH & PM2）**: 重构并扩展了 [deploy-to-vps.js](file:///d:/project/city-lord/scripts/deploy-to-vps.js) 自动化部署流水线，加入了 `Step 6.5` 自动挂载机制。在推送代码并由 PM2 载入后，服务器会自动运行一键挂载脚本。
+- **VPS 级原生 Crontab 部署脚本**: 新增了自研 Linux-native 部署工具 [deploy-crons.sh](file:///d:/project/city-lord/deploy-crons.sh)。支持传入自定义 `CRON_SECRET`（已设置为强密钥 `aaa021300`）和 `APP_URL`，具备标签清除、软隔离、安全日志归档（重定向到 `~/.citylord/logs/crons.log`）等工业级部署防护能力。
+- **Windows 本地 Cron 守护模拟器**: 新增 [run-local-crons.ps1](file:///d:/project/city-lord/run-local-crons.ps1) 终端守护脚本。以 PowerShell 无限循环机制在本地开发机完美仿真 VPS Crontab 的多频触发效果，免去配置 Windows 任务计划程序的繁琐，极大地改善了本地 LBS 数据的调试体验。
+
 ### 2026-05-09: 🏷️ 领地默认命名规范化重构
 
 - **View 层格式化模块**: 新增 `lib/territory-display.ts`，实现 `getTerritoryDisplayName()` 统一工具函数，封装四级展示名称 Fallback 链：`customName(10字符)` → `clubName(8字符)` → `ownerNickname(6字符)+'的领地'` → `领地_XXXXX`（哈希短码兜底）。
