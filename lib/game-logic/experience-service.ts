@@ -3,6 +3,24 @@ import { Prisma } from '@prisma/client'
 import { calculateLevel, getTitle } from '@/lib/game-logic/level-system'
 import { eventBus } from '@/lib/game-logic/event-bus'
 
+const DAILY_BONUS_XP = 50
+const DAILY_BONUS_TASK_ID = 'daily_bonus'
+
+const STREAK_BONUS_MAP: Record<number, number> = {
+  3: 30,
+  7: 100,
+  14: 200,
+  30: 500,
+}
+
+function getPeriodKey(date: Date = new Date()): string {
+  return date.toISOString().split('T')[0]
+}
+
+function getUTCDateStart(date: Date = new Date()): Date {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
+}
+
 /**
  * 缁熶竴缁忛獙绠＄悊鏈嶅姟
  *
@@ -91,4 +109,198 @@ export async function addExperienceUnified(
     newLevel: result.newLevel,
     levelUp: result.levelUp
   }
+}
+
+export async function claimDailyBonus(
+  userId: string
+): Promise<{ success: boolean; xpGranted: number; streak: number; alreadyClaimed: boolean; levelUp: boolean }> {
+  const periodKey = getPeriodKey()
+
+  const result = await prisma.$transaction(
+    async (tx) => {
+      const existing = await tx.userTaskLogs.findUnique({
+        where: {
+          userId_taskId_periodKey: {
+            userId,
+            taskId: DAILY_BONUS_TASK_ID,
+            periodKey
+          }
+        }
+      })
+
+      if (existing) {
+        return { alreadyClaimed: true, xpGranted: 0, streak: 0, levelUp: false }
+      }
+
+      const keysToCheck: string[] = []
+      for (let i = 1; i <= 30; i++) {
+        keysToCheck.push(getPeriodKey(new Date(Date.now() - i * 86_400_000)))
+      }
+
+      const recentLogs = await tx.userTaskLogs.findMany({
+        where: {
+          userId,
+          taskId: DAILY_BONUS_TASK_ID,
+          periodKey: { in: keysToCheck }
+        },
+        select: { periodKey: true }
+      })
+
+      const logSet = new Set(recentLogs.map((l) => l.periodKey))
+
+      let streak = 0
+      for (const key of keysToCheck) {
+        if (logSet.has(key)) {
+          streak++
+        } else {
+          break
+        }
+      }
+      streak += 1
+
+      const profile = await tx.profiles.findUniqueOrThrow({
+        where: { id: userId },
+        select: { level: true, xp: true, max_stamina: true }
+      })
+
+      const currentExp = profile.xp || 0
+      const currentLevel = profile.level || 1
+      const maxStamina = profile.max_stamina ?? 100
+
+      let streakBonus = 0
+      for (const [threshold, bonus] of Object.entries(STREAK_BONUS_MAP)) {
+        if (streak >= Number(threshold)) {
+          streakBonus = Math.max(streakBonus, bonus)
+        }
+      }
+
+      const totalXp = DAILY_BONUS_XP + streakBonus
+      const newExp = currentExp + totalXp
+      const newLevel = calculateLevel(newExp)
+      const levelUp = newLevel > currentLevel
+
+      await tx.profiles.update({
+        where: { id: userId },
+        data: {
+          xp: newExp,
+          level: newLevel,
+          ...(levelUp ? { stamina: maxStamina } : {}),
+          updated_at: new Date()
+        }
+      })
+
+      await tx.userTaskLogs.create({
+        data: {
+          userId,
+          taskId: DAILY_BONUS_TASK_ID,
+          type: 'daily',
+          periodKey,
+          rewardCoins: 0,
+          rewardXp: totalXp,
+          completed_at: new Date()
+        }
+      })
+
+      await tx.expLog.create({
+        data: {
+          userId,
+          amount: totalXp,
+          oldExp: currentExp,
+          newExp,
+          source: 'daily_bonus'
+        }
+      })
+
+      return { alreadyClaimed: false, xpGranted: totalXp, streak, levelUp, newLevel, oldLevel: currentLevel }
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+  )
+
+  if (result.levelUp) {
+    try {
+      await eventBus.emit({
+        type: 'LEVEL_UP',
+        userId,
+        oldLevel: result.oldLevel,
+        newLevel: result.newLevel,
+        newTitle: getTitle(result.newLevel)
+      })
+    } catch (err) {
+      console.error('[claimDailyBonus] LEVEL_UP emit failed:', err)
+    }
+  }
+
+  return {
+    success: true,
+    xpGranted: result.xpGranted,
+    streak: result.streak,
+    alreadyClaimed: result.alreadyClaimed,
+    levelUp: result.levelUp
+  }
+}
+
+export async function getDailyBonusStatus(userId: string): Promise<{ claimed: boolean; streak: number; streakBonus: number }> {
+  const periodKey = getPeriodKey()
+
+  const existing = await prisma.userTaskLogs.findUnique({
+    where: {
+      userId_taskId_periodKey: {
+        userId,
+        taskId: DAILY_BONUS_TASK_ID,
+        periodKey
+      }
+    }
+  })
+
+  if (existing) {
+    return { claimed: true, streak: 0, streakBonus: 0 }
+  }
+
+  const yesterdayKey = getPeriodKey(new Date(Date.now() - 86_400_000))
+  const yesterdayLog = await prisma.userTaskLogs.findUnique({
+    where: {
+      userId_taskId_periodKey: {
+        userId,
+        taskId: DAILY_BONUS_TASK_ID,
+        periodKey: yesterdayKey
+      }
+    }
+  })
+
+  if (!yesterdayLog) {
+    return { claimed: false, streak: 0, streakBonus: 0 }
+  }
+
+  const lastWeekKeys: string[] = []
+  for (let i = 1; i <= 30; i++) {
+    lastWeekKeys.push(getPeriodKey(new Date(Date.now() - i * 86_400_000)))
+  }
+
+  const logs = await prisma.userTaskLogs.findMany({
+    where: {
+      userId,
+      taskId: DAILY_BONUS_TASK_ID,
+      periodKey: { in: lastWeekKeys }
+    },
+    orderBy: { periodKey: 'desc' }
+  })
+
+  let streak = 1
+  for (let i = 0; i < lastWeekKeys.length; i++) {
+    const found = logs.some((l) => l.periodKey === lastWeekKeys[i])
+    if (found) {
+      streak++
+    } else {
+      break
+    }
+  }
+
+  let streakBonus = 0
+  for (const [threshold, bonus] of Object.entries(STREAK_BONUS_MAP)) {
+    if (streak >= Number(threshold)) {
+      streakBonus = Math.max(streakBonus, bonus)
+    }
+  }
+
+  return { claimed: false, streak, streakBonus }
 }
