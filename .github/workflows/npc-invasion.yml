@@ -2,8 +2,8 @@ name: Ghost NPC Invasion
 
 on:
   schedule:
-    # 每天 UTC 19:00 (北京时间凌晨 3:00)
-    - cron: '0 19 * * *'
+    # 每 12 小时执行一次 (如 UTC 0:00 与 12:00，北京时间 8:00 与 20:00)
+    - cron: '0 */12 * * *'
   workflow_dispatch: # 允许手动触发测试
 
 jobs:

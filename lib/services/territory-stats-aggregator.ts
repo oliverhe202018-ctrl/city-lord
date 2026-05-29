@@ -8,9 +8,19 @@ export class TerritoryStatsAggregatorService {
      * Processes a batch of territory events and updates the stats aggregation tables.
      * Ensures idempotency through the worker_cursors table.
      */
-    static async processNextBatch(): Promise<{ processed: number; lastEventId: number }> {
-        // We use a transaction to ensure cursor advancement and stats updates are atomic
-        return await prisma.$transaction(async (tx) => {
+    static async processNextBatch(): Promise<{ processed: number; lastEventId: number; skipped?: boolean; reason?: string }> {
+        // 1. Try to get PG Advisory Lock (10088 is our magic number for stats worker)
+        const lockResult = await prisma.$queryRaw<any[]>`
+            SELECT pg_try_advisory_lock(10088) AS locked
+        `
+        if (!lockResult || !lockResult[0]?.locked) {
+            console.log('[Territory Stats Aggregator] Could not obtain lock 10088, another worker instance is processing.')
+            return { processed: 0, lastEventId: 0, skipped: true, reason: 'LOCKED' }
+        }
+
+        try {
+            // We use a transaction to ensure cursor advancement and stats updates are atomic
+            return await prisma.$transaction(async (tx) => {
             // 1. Get the current cursor
             const cursorRows = await tx.$queryRaw<any[]>`
                 SELECT * FROM public.worker_cursors WHERE consumer_name = ${CONSUMER_NAME}
@@ -136,5 +146,9 @@ export class TerritoryStatsAggregatorService {
 
             return { processed: events.length, lastEventId: Number(maxProcessedId) }
         })
+        } finally {
+            // Release lock
+            await prisma.$executeRaw`SELECT pg_advisory_unlock(10088)`
+        }
     }
 }

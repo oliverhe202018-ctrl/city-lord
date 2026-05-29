@@ -230,6 +230,11 @@ async function main() {
             console.log('PM2 startup setup completed or skipped (non-fatal).');
         }
 
+        // 6.5. Deploy Cron Jobs
+        console.log('--- Step 6.5: Deploying Cron Jobs on VPS ---');
+        await runRemoteCommand(conn, `chmod +x ${CONFIG.remotePath}/deploy-crons.sh`);
+        await runRemoteCommand(conn, `APP_URL="https://${CONFIG.domain}" CRON_SECRET="aaa021300" bash ${CONFIG.remotePath}/deploy-crons.sh`);
+
         // 7. Nginx Proxy Configuration
         console.log('--- Step 7: Configuring Nginx Reverse Proxy ---');
         const nginxConfig = `

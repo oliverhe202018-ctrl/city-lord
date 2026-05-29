@@ -1,5 +1,59 @@
 {
   "regions": [
     "pdx1"
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/stamina-recovery",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/territory-stats-worker",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/update-faction-stats",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/update-province",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/activity-reminder",
+      "schedule": "30 * * * *"
+    },
+    {
+      "path": "/api/cron/npc-invasion",
+      "schedule": "0 */12 * * *"
+    },
+    {
+      "path": "/api/cron/leaderboard-snapshot",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/reset-missions",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/faction-settlement",
+      "schedule": "5 0 * * *"
+    },
+    {
+      "path": "/api/cron/daily-stats",
+      "schedule": "10 0 * * *"
+    },
+    {
+      "path": "/api/cron/territory-decay-monitor",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/territory-reconcile",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/cleanup-invitations",
+      "schedule": "0 4 * * *"
+    }
   ]
 }

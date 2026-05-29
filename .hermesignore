@@ -1,0 +1,55 @@
+# ==========================================
+# CITY-LORD PROJECT OMNI-IGNORE SPECIFICATION
+# ==========================================
+
+# 1. 物理屏蔽所有巨型依赖包（重灾区）
+node_modules/
+bower_components/
+.npm/
+.yarn/
+
+# 2. 物理屏蔽所有构建输出与打包产物（动辄几万行）
+dist/
+build/
+.next/
+.nuxt/
+out/
+.cache/
+.parcel-cache/
+
+# 3. 物理屏蔽版本控制与 IDE 隐藏庞大目录
+.git/
+.svn/
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# 4. 物理屏蔽所有多媒体、静态资源、字体（Agent 无法阅读但极吃索引）
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.ico
+*.apk
+*.mp3
+*.mp4
+*.wav
+*.ttf
+*.woff
+*.woff2
+public/
+assets/
+
+# 5. 物理屏蔽日志、数据库本地缓存与临时文件
+*.log
+logs/
+*.sqlite
+*.db
+.env
+.env.*
+.tmp

@@ -2067,3 +2067,32 @@ enum one_time_token_type {
 
   @@schema("auth")
 }
+
+
+/// 功能门控表 — 定义哪些功能需要多少级解锁
+model feature_gates {
+  id          String   @id @db.Uuid @default(dbgenerated("gen_random_uuid()"))
+  feature_key String    @unique @db.VarChar(100) // 功能标识符，如 "map_zoom", "night_mode", "weekly_report"
+  description String    @db.VarChar(200) // 功能描述
+  min_level   Int       @default(1)    // 解锁所需最低等级
+  is_active   Boolean   @default(true) // 是否启用
+  sort_order  Int       @default(0)    // 排序权重
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @default(now()) @updatedAt
+
+  @@index([is_active])
+  @@map("feature_gates")
+  @@schema("public")
+}
+
+/// 用户功能访问记录表 — 缓存用户已解锁的功能（用于审计和快速查询）
+model user_feature_accesses {
+  id          String   @id @db.Uuid @default(dbgenerated("gen_random_uuid()"))
+  user_id     String    @db.Uuid
+  feature_key String
+  unlocked_at DateTime  @default(now())
+  @@unique([user_id, feature_key])
+  @@index([user_id])
+  @@map("user_feature_accesses")
+  @@schema("public")
+}
