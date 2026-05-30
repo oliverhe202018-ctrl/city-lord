@@ -415,7 +415,15 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
             )}
 
             {/* Layer 2b: GPS Trajectory (Real-time Polyline - z-index 50) */}
-            {isRunTakeoverActive && (
+            {isRunTakeoverActive && runPath && runPath.length > 0 && (
+              <TrajectoryLayer
+                map={map as any}
+                path={runPath}
+                strokeColor="#3B82F6"
+                strokeWeight={6}
+              />
+            )}
+            {isRunTakeoverActive && (!runPath || runPath.length === 0) && (
               <>
                 {completedSegments && completedSegments.map((segment, idx) => (
                   <TrajectoryLayer
