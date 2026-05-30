@@ -940,12 +940,14 @@ export async function saveRunActivity(
                                 if (isoRatio < MIN_ISO_RATIO) return false;
                             } catch { return false; }
                             // 凸包面积比校验：拒绝L形/U形等高凹度伪多边形
+                            // 放宽至 0.30 以接纳 P 字型等含长条状茎部的非凸多边形
+                            // P 字型经过 turf.unkinkPolygon 解缠后，圆圈部分仍保持较高凸度
                             try {
                                 const hull = turfConvex(f);
                                 if (hull) {
                                     const hullArea = turfArea(hull);
                                     const convexityRatio = hullArea > 0 ? (area / hullArea) : 1;
-                                    if (convexityRatio < 0.55) return false;
+                                    if (convexityRatio < 0.30) return false;
                                 }
                             } catch { /* 无法计算凸包时保留 */  }
                             return true;

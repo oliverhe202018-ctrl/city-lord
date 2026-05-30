@@ -511,20 +511,45 @@ function safeTimestamp(point: Coord): number | null {
 
 /**
  * 检测两条线段是否相交，返回交点坐标
+ * 
+ * 增加浮点精度垫片：当线段端点距离另一条线段极近（<= EPSILON_M）时，
+ * 将该端点视为"准交点"返回。这防止 GPS 漂移导致 P 字型茎部与环部
+ * "若即若离"而漏检交叉。
  */
 function findLineSegmentIntersection(
     p1: Coord, p2: Coord, p3: Coord, p4: Coord
 ): Coord | null {
+    const EPSILON_M = 1.0; // 1米精度垫片，容许 GPS 微小漂移
+
     // 转换为Turf.js线段
     const line1 = turf.lineString([[p1.lng, p1.lat], [p2.lng, p2.lat]]);
     const line2 = turf.lineString([[p3.lng, p3.lat], [p4.lng, p4.lat]]);
     
-    // 检测线段交叉
+    // 精确交叉检测
     const intersection = turf.lineIntersect(line1, line2);
     
     if (intersection.features.length > 0) {
         const point = intersection.features[0].geometry.coordinates;
         return { lat: point[1], lng: point[0] };
+    }
+    
+    // 精度垫片：检查线段端点是否极其接近另一条线段
+    const endpoints: { point: Coord; lineStart: Coord; lineEnd: Coord }[] = [
+        { point: p1, lineStart: p3, lineEnd: p4 },
+        { point: p2, lineStart: p3, lineEnd: p4 },
+        { point: p3, lineStart: p1, lineEnd: p2 },
+        { point: p4, lineStart: p1, lineEnd: p2 },
+    ];
+
+    for (const { point, lineStart, lineEnd } of endpoints) {
+        const distToStart = haversineDistance(point.lat, point.lng, lineStart.lat, lineStart.lng);
+        if (distToStart <= EPSILON_M) {
+            return { lat: lineStart.lat, lng: lineStart.lng };
+        }
+        const distToEnd = haversineDistance(point.lat, point.lng, lineEnd.lat, lineEnd.lng);
+        if (distToEnd <= EPSILON_M) {
+            return { lat: lineEnd.lat, lng: lineEnd.lng };
+        }
     }
     
     return null;

@@ -781,12 +781,12 @@ function ImmersiveRunningModeInner({
   useEffect(() => {
     if (typeof window === 'undefined') return
     const injectFn = (window as any).__injectLocationPoints as
-      | ((points: any[], overwrite: boolean) => void)
+      | ((points: any | any[], overwrite: boolean) => void)
       | undefined
     if (!injectFn) return
 
     const pointsToInject = displayPath.length > 0 ? displayPath : path
-    if (pointsToInject.length === 0) return
+    if (!pointsToInject || pointsToInject.length === 0) return
 
     injectFn(pointsToInject, false)
   }, [displayPath, path])
