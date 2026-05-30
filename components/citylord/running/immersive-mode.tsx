@@ -30,6 +30,7 @@ import { LOOP_CLOSURE_SNAP_M, getDistanceFromLatLonInMeters } from "@/lib/geomet
 import { getRunSettlementStatus, getTerritoriesByRunId } from "@/app/actions/run-service"
 import { useMapInteraction, MapInteractionProvider } from "@/components/map/MapInteractionContext"
 import { MapRoot } from "@/components/map/MapRoot"
+import { useMap } from "@/components/map/AMapContext"
 
 // ─── Timeout utility for promises that may hang after sleep ───
 const SAVE_TIMEOUT_MS = 45_000;
@@ -774,6 +775,21 @@ function ImmersiveRunningModeInner({
     () => (currentLocation ? [currentLocation.lng, currentLocation.lat] as [number, number] : undefined),
     [currentLocation]
   )
+
+  // ── Inject running tracker path into MapRoot's currentSegment ──
+  const mapContext = useMap()
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const injectFn = (window as any).__injectLocationPoints as
+      | ((points: any[], overwrite: boolean) => void)
+      | undefined
+    if (!injectFn) return
+
+    const pointsToInject = displayPath.length > 0 ? displayPath : path
+    if (pointsToInject.length === 0) return
+
+    injectFn(pointsToInject, false)
+  }, [displayPath, path])
 
   // const handleStop = useCallback(() => {
   //   // Logic moved to handleAttemptStop
