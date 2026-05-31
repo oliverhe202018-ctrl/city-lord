@@ -456,3 +456,44 @@ export async function getBackgrounds(filter: 'all' | 'mine' | 'available' | 'exp
 
     return { backgrounds: filtered, currentBg }
 }
+
+// ─── adminSetDeveloperRole (P0: 开发账号白名单管理) ───────────────
+export async function adminSetDeveloperRole(targetUserId: string, setAsDeveloper: boolean) {
+    const supabase = await createClient()
+    const { data: { user: adminUser } } = await supabase.auth.getUser()
+    if (!adminUser) return { success: false, error: '未登录' }
+
+    // 验证管理员权限
+    const adminProfile = await prisma.profiles.findUnique({
+        where: { id: adminUser.id },
+        select: { role: true }
+    })
+    if (adminProfile?.role !== 'ADMIN') {
+        return { success: false, error: '权限不足：仅管理员可操作' }
+    }
+
+    // 验证目标用户存在
+    const targetProfile = await prisma.profiles.findUnique({
+        where: { id: targetUserId },
+        select: { id: true, nickname: true }
+    })
+    if (!targetProfile) {
+        return { success: false, error: '目标用户不存在' }
+    }
+
+    try {
+        await prisma.profiles.update({
+            where: { id: targetUserId },
+            data: { role: setAsDeveloper ? 'DEVELOPER' : 'USER' }
+        })
+        return {
+            success: true,
+            message: setAsDeveloper
+                ? `已将 ${targetProfile.nickname || targetUserId} 设为开发账号`
+                : `已移除 ${targetProfile.nickname || targetUserId} 的开发权限`
+        }
+    } catch (e: any) {
+        console.error('adminSetDeveloperRole error:', e)
+        return { success: false, error: e.message }
+    }
+}

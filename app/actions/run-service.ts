@@ -594,7 +594,11 @@ export async function saveRunActivity(
     try {
         if (!userId) throw new Error('User ID is required');
 
-        // ─── P4 服务端 800 点抽稀防爆 (Downsampling) ───
+        // ─── P0 Whitelist: Development mode or DEVELOPER role bypass ───
+        const isDevEnv = process.env.NODE_ENV === 'development';
+        const isWhitelisted = isDevEnv; // Will be refined after fetching profile.role
+
+        // ── P4 服务端 800 点抽稀防爆 (Downsampling) ───
         const MAX_SERVER_RAW_POINTS = 800;
         let pathPoints = (runData.path as any[]) || [];
         if (pathPoints.length > MAX_SERVER_RAW_POINTS) {
@@ -1061,6 +1065,10 @@ export async function saveRunActivity(
             }
         }
 
+        // ─── P0: 奖励值变量提升到事务外部作用域，供 Trigger.dev 失败补偿使用 ───
+        let capturedTotalCoins = 0;
+        let capturedTotalXp = 0;
+
         let finalRunStatus = isBlockedByAntiCheat ? 'flagged' : 'settling';
         let customFlagReason = flagReason;
         
@@ -1281,6 +1289,10 @@ export async function saveRunActivity(
             totalCoins = Math.floor(totalCoins * penaltyMultiplier);
             totalXp = Math.floor(totalXp * penaltyMultiplier) + eventReward.xp;
 
+            // P0: 捕获奖励值到外部作用域，供 Trigger.dev 失败补偿使用
+            capturedTotalCoins = totalCoins;
+            capturedTotalXp = totalXp;
+
             // D. Update City Progress — accurateAreaKm2 pre-computed outside tx
             if (!isFlagged && safeCityId) {
                 await tx.user_city_progress.upsert({
@@ -1307,11 +1319,33 @@ export async function saveRunActivity(
 
             if (!isFlagged) {
                 // safeCityId 允许为 null：run 与领地照常入库，仅跳过城市维度统计
-                // ─── Phase 3C: 跑后体力扣减（边界保护）───
+                // ─── P0: 防作弊拦截 + 白名单豁免 + 经济审计 ───
                 const userProfile = await tx.profiles.findUniqueOrThrow({
                     where: { id: userId },
-                    select: { stamina: true, max_stamina: true }
+                    select: { stamina: true, max_stamina: true, role: true, coins: true }
                 });
+
+                // 白名单检查：开发环境或 DEVELOPER 角色免疫所有防作弊拦截
+                const isWhitelisted = process.env.NODE_ENV === 'development' || userProfile.role === 'DEVELOPER';
+                
+                // 非白名单用户：防作弊标记直接熔断发奖
+                if (!isWhitelisted && effectiveRiskLevel !== 'LOW') {
+                    await tx.runs.update({
+                        where: { id: run.id },
+                        data: { reward_status: 'REJECTED_BY_CHEAT' }
+                    });
+                    console.warn(`[Anti-Cheat] Rewards rejected for user ${userId}. riskLevel=${effectiveRiskLevel}`);
+                    return {
+                        runId: run.id,
+                        runNumber: (await tx.profiles.findUnique({ where: { id: userId } }))?.total_runs_count || 0,
+                        totalReward: { coins: 0, xp: 0 },
+                        isValid: false,
+                        antiCheatLog: antiCheatResult,
+                        totalSteps: submittedTotalSteps,
+                        isFlagged: true,
+                        rejectionReason: 'CHEAT_DETECTED'
+                    };
+                }
 
                 const distanceKm = pathValidation.serverDistance / 1000;
                 const staminaCost = Math.max(0, Math.floor(10 + distanceKm * 10));
@@ -1324,17 +1358,37 @@ export async function saveRunActivity(
                     Math.max(0, currentStamina - staminaCost + rewardStamina)
                 );
 
+                // ─── P0: 原子事务写入 profiles + WalletTransaction 审计流水 ───
+                const newCoins = (userProfile.coins || 0) + totalCoins;
+                const newXp = ((await tx.profiles.findUnique({ where: { id: userId }, select: { xp: true } }))?.xp || 0) + totalXp;
+
                 const updatedProfile = await tx.profiles.update({
                     where: { id: userId },
                     data: {
-                        coins: { increment: totalCoins },
-                        xp: { increment: totalXp },
+                        coins: newCoins,
+                        xp: newXp,
                         stamina: finalStamina,
                         total_distance_km: { increment: pathValidation.serverDistance / 1000 },
                         total_runs_count: { increment: 1 },
                         updated_at: new Date()
                     }
                 });
+
+                // 写入金币审计流水
+                if (totalCoins > 0) {
+                    await tx.walletTransaction.create({
+                        data: {
+                            user_id: userId,
+                            currency_type: 'COIN',
+                            amount: totalCoins,
+                            transaction_type: 'RUN_REWARD',
+                            description: `跑步奖励 - ${Math.round(pathValidation.serverDistance / 1000 * 10) / 10}km`,
+                            balance: newCoins,
+                            reference_id: run.id,
+                            reference_type: 'run'
+                        }
+                    });
+                }
 
                 return {
                     runId: run.id,
@@ -1384,13 +1438,19 @@ export async function saveRunActivity(
                 }
                 console.log(`[Trigger.dev] ✅ Task enqueued. Handle: ${(handle as any).id}`);
             } catch (err: any) {
-                // 关键容错：打印详细错误但绝不向上抛出，确保用户跑步记录正常返回
+                // P0: 关键容错 — 写入 pending_rewards 补偿表，绝不让奖励丢失
                 console.error('[Trigger.dev] 派发结算任务失败:', err);
                 console.error(`[Trigger.dev] ❌ FAILED to enqueue 'settle-territories': ${err?.message ?? err}`);
-                console.error(`[Trigger.dev] Full error:`, err);
-                console.error(`[Trigger.dev] Error stack:`, err?.stack);
-                console.warn(`[Trigger.dev] 领地结算任务派发失败，但不影响跑步记录保存。用户 runId=${result.runId}，可通过定时任务或手动重试补算领地。`);
-                // 错误隔离：只打印日志，绝不向上抛出，主流程继续正常返回
+                console.warn(`[Trigger.dev] 领地结算任务派发失败，写入补偿表等待二次对账。用户 runId=${result.runId}`);
+                
+                try {
+                    await prisma.$executeRaw`
+                        INSERT INTO pending_rewards (id, user_id, run_id, coins, xp, reason, created_at)
+                        VALUES (gen_random_uuid(), ${userId}::uuid, ${result.runId}::uuid, ${capturedTotalCoins}, ${capturedTotalXp}, 'TRIGGER_DEV_FAILED', NOW())
+                    `;
+                } catch (compErr) {
+                    console.error('[PendingRewards] 写入补偿表失败:', compErr);
+                }
             }
         } else if (!isBlockedByAntiCheat && !isGeometryInvalid && polygonsForSettlement.length === 0) {
             console.log('[Territory-Diag] polygonsForSettlement 为空，跳过城市Trigger');

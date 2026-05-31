@@ -464,15 +464,85 @@ export async function claimMissionReward(
       return { success: false, error: 'DUPLICATE_CLAIM' }
     }
 
-    // Grant rewards in same transaction context
-    await db.profiles.update({
-      where: { id: userId },
-      data: {
-        coins: { increment: coins },
-        xp: { increment: xp },
-        updated_at: new Date(),
+    // P0: 原子事务 — 任务状态更新与奖励发放在同一事务中
+    // 防止出现 status=completed 但奖励未到账的半悬挂状态
+    if (!tx) {
+      // 未传入外部事务时，使用 prisma.$transaction 确保原子性
+      await prisma.$transaction(async (atomicTx) => {
+        // 重新验证状态（防止并发窗口）
+        const recheck = await atomicTx.user_missions.findUnique({
+          where: { id: userMission.id },
+          select: { status: true }
+        })
+        if (recheck?.status === 'completed') {
+          throw new Error('MISSION_ALREADY_CLAIMED')
+        }
+
+        await atomicTx.user_missions.update({
+          where: { id: userMission.id },
+          data: { status: 'completed', claimed_at: new Date() }
+        })
+
+        const newCoins = (await atomicTx.profiles.findUnique({
+          where: { id: userId },
+          select: { coins: true }
+        }))?.coins ?? 0
+
+        await atomicTx.profiles.update({
+          where: { id: userId },
+          data: {
+            coins: newCoins + coins,
+            xp: { increment: xp },
+            updated_at: new Date(),
+          }
+        })
+
+        // 写入金币审计流水
+        if (coins > 0) {
+          await atomicTx.walletTransaction.create({
+            data: {
+              user_id: userId,
+              currency_type: 'COIN',
+              amount: coins,
+              transaction_type: 'MISSION_COMPLETED',
+              description: `任务完成奖励: ${userMission.missions.title || missionId}`,
+              balance: newCoins + coins,
+              reference_id: missionId,
+              reference_type: 'mission'
+            }
+          })
+        }
+      })
+    } else {
+      // 已传入外部事务，直接在事务中执行
+      await db.profiles.update({
+        where: { id: userId },
+        data: {
+          coins: { increment: coins },
+          xp: { increment: xp },
+          updated_at: new Date(),
+        }
+      })
+
+      if (coins > 0) {
+        const profile = await db.profiles.findUnique({
+          where: { id: userId },
+          select: { coins: true }
+        })
+        await db.walletTransaction.create({
+          data: {
+            user_id: userId,
+            currency_type: 'COIN',
+            amount: coins,
+            transaction_type: 'MISSION_COMPLETED',
+            description: `任务完成奖励: ${userMission.missions.title || missionId}`,
+            balance: (profile?.coins ?? 0) + coins,
+            reference_id: missionId,
+            reference_type: 'mission'
+          }
+        })
       }
-    })
+    }
 
     return { success: true, coins, xp }
   } catch (error) {
