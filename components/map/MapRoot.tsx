@@ -424,8 +424,21 @@ export function MapRoot({ children }: { children: ReactNode }) {
   }, [pendingFocusId, map, isLoaded, setSelectedTerritoryIdFromStore, clearFocus]);
 
   // 工业级防御流：统一位置注入网关
-  const injectLocationPoints = useCallback((points: GeoPoint | GeoPoint[], overwrite = false) => {
-    const incomingPoints = Array.isArray(points) ? points : [points];
+  const injectLocationPoints = useCallback((points: any, overwrite = false) => {
+    if (!points) return;
+
+    let incomingPoints: GeoPoint[] = [];
+    if (Array.isArray(points)) {
+      incomingPoints = points.filter(
+        (p) => p && typeof p === 'object' && typeof p.lat === 'number' && typeof p.lng === 'number'
+      );
+    } else if (typeof points === 'object' && typeof points.lat === 'number' && typeof points.lng === 'number') {
+      incomingPoints = [points as GeoPoint];
+    } else {
+      console.warn('[MapRoot] injectLocationPoints: Invalid points shape:', points);
+      return;
+    }
+
     if (incomingPoints.length === 0) {
       if (overwrite) setCurrentSegment([]);
       return;
@@ -872,16 +885,13 @@ export function MapRoot({ children }: { children: ReactNode }) {
       // ✅ 双重防御：确保写入 Context 的值永远是合法字符串
       gpsSignalStrength: (gpsSignalStrength ?? 'none') as 'none' | 'weak' | 'good',
       locationStatus: status ?? 'initializing',
-      // 以下字段已迁移到 useMapInteraction()，不再保留在 contextValue 中
-      // showKingdom, toggleKingdom, kingdomMode, setKingdomMode,
-      // showFog, toggleFog, showFactionColors, toggleFactionColors,
-      // selectedTerritory, setSelectedTerritory,
+      injectLocationPoints,
     }), [
       map, isLoaded, viewMode, locationState,
       initLocation, centerMap,
       handleMapMoveEnd,
       userPosition, userPath, currentSegment, completedSegments, mapCenter, isTracking, setIsTracking, status, gpsSignalStrength,
-      // 已移除重复的UI控制状态依赖
+      injectLocationPoints,
     ]);
 
     return (

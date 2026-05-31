@@ -354,8 +354,8 @@ export function extractValidLoops(
     const loops: Coord[][] = [];
     const seen = new Set<string>();
 
-    // 入口 DP 简化：剔除微小毛刺，保留完整元数据（含 timestamp）
-    const simplifiedPath = simplifyPathDP(path, 0.5);
+    // 入口 DP 简化：剔除微小毛刺，保留完整元数据（含 timestamp），容差控制在严格的 0.3m 以内，保持微小转角
+    const simplifiedPath = simplifyPathDP(path, 0.3);
 
     // 策略A: Snap闭合 - 检测首尾点距离是否在容差范围内
     const disableSnap = options?.disableSnap ?? false;
@@ -509,15 +509,39 @@ function safeTimestamp(point: Coord): number | null {
     return null;
 }
 
+function extendSegment(pA: Coord, pB: Coord, shim: number = 2e-6): [Coord, Coord] {
+    const dLng = pB.lng - pA.lng;
+    const dLat = pB.lat - pA.lat;
+    const len = Math.sqrt(dLng * dLng + dLat * dLat);
+    if (len === 0) return [pA, pB];
+    
+    // Extrapolate both ends outward
+    const pA_extended: Coord = {
+        lng: pA.lng - (dLng / len) * shim,
+        lat: pA.lat - (dLat / len) * shim,
+        timestamp: pA.timestamp
+    };
+    const pB_extended: Coord = {
+        lng: pB.lng + (dLng / len) * shim,
+        lat: pB.lat + (dLat / len) * shim,
+        timestamp: pB.timestamp
+    };
+    return [pA_extended, pB_extended];
+}
+
 /**
- * 检测两条线段是否相交，返回交点坐标
+ * 检测两条线段是否相交，返回交点坐标。
+ * 引入浮点数精度微量垫片（约0.2m），防止GPS漂移导致相交点若即若离而漏检。
  */
 function findLineSegmentIntersection(
     p1: Coord, p2: Coord, p3: Coord, p4: Coord
 ): Coord | null {
-    // 转换为Turf.js线段
-    const line1 = turf.lineString([[p1.lng, p1.lat], [p2.lng, p2.lat]]);
-    const line2 = turf.lineString([[p3.lng, p3.lat], [p4.lng, p4.lat]]);
+    // 引入 2e-6 度的微量垫片进行线段外延
+    const [e1, e2] = extendSegment(p1, p2, 2e-6);
+    const [e3, e4] = extendSegment(p3, p4, 2e-6);
+
+    const line1 = turf.lineString([[e1.lng, e1.lat], [e2.lng, e2.lat]]);
+    const line2 = turf.lineString([[e3.lng, e3.lat], [e4.lng, e4.lat]]);
     
     // 检测线段交叉
     const intersection = turf.lineIntersect(line1, line2);

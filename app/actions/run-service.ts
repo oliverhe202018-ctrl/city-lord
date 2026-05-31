@@ -945,7 +945,7 @@ export async function saveRunActivity(
                                 if (hull) {
                                     const hullArea = turfArea(hull);
                                     const convexityRatio = hullArea > 0 ? (area / hullArea) : 1;
-                                    if (convexityRatio < 0.55) return false;
+                                    if (convexityRatio < 0.30) return false;
                                 }
                             } catch { /* 无法计算凸包时保留 */  }
                             return true;

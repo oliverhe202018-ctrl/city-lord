@@ -27,6 +27,7 @@ export interface AMapViewProps {
   viewMode?: 'user' | 'club';
   sessionClaims?: { lat: number; lng: number; timestamp: number }[][]; // Claimed polygons during run
   runPath?: { lat: number; lng: number; timestamp: number }[];
+  path?: { lat: number; lng: number; timestamp: number }[];
   ghostPath?: [number, number][] | null;
   onViewportKingChange?: (king: ViewportKingData | null) => void;
   isRunTakeoverActive?: boolean;
@@ -53,7 +54,7 @@ const DEFAULT_CENTER: [number, number] = [116.397428, 39.90923];
  * State flows from MapRoot downward via context.
  */
 const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
-  ({ showTerritory, showControls = true, onMapLoad, viewMode, sessionClaims = [], runPath = [], ghostPath = null, onViewportKingChange, isRunTakeoverActive = false }, ref) => {
+  ({ showTerritory, showControls = true, onMapLoad, viewMode, sessionClaims = [], runPath = [], path = [], ghostPath = null, onViewportKingChange, isRunTakeoverActive = false }, ref) => {
     const {
       map, // Added map instance
       currentLocation, // User GPS position
@@ -70,6 +71,7 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
       setIsTracking,
       centerMap,
       gpsSignalStrength = 'none', // GPS signal strength with default value
+      injectLocationPoints,
     } = useMap();
 
     const [mapLoadError, setMapLoadError] = useState(false);
@@ -316,6 +318,16 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
       if (!isRunTakeoverActive || !centerMap) return;
       centerMap();
     }, [isRunTakeoverActive, centerMap]);
+
+    useEffect(() => {
+      if (isRunTakeoverActive && injectLocationPoints) {
+        if (runPath && runPath.length > 0) {
+          injectLocationPoints(runPath, true);
+        } else if (path && path.length > 0) {
+          injectLocationPoints(path, true);
+        }
+      }
+    }, [isRunTakeoverActive, runPath, path, injectLocationPoints]);
 
     useEffect(() => {
       if (!isRunTakeoverActive) return;

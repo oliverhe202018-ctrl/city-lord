@@ -70,6 +70,9 @@ export interface AMapContextProps {
   // Territory selection (individual view detail interaction)
   selectedTerritory?: ExtTerritory | null;
   setSelectedTerritory?: (t: ExtTerritory | null) => void;
+
+  // Real-time location point injection gateway
+  injectLocationPoints?: (points: any, overwrite?: boolean) => void;
 }
 
 export const AMapContext = createContext<AMapContextProps | undefined>(undefined);

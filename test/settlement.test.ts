@@ -45,7 +45,7 @@ const {
         mockQueryRaw,
         mockExecuteRaw,
         mockTerritoriesUpdate,
-        mockTerroryEventsCreate: mockTerritoryEventsCreate,
+        mockTerritoryEventsCreate: mockTerritoryEventsCreate,
     };
 });
 

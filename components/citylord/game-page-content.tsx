@@ -1162,6 +1162,7 @@ export function GamePageContent({
                       onMapLoad={handleMapLoad}
                       sessionClaims={sessionClaims}
                       runPath={isRunTakeoverActive ? displayPath : undefined}
+                      path={isRunTakeoverActive ? path : undefined}
                       ghostPath={ghostPath}
                       onViewportKingChange={setViewportKing}
                       isRunTakeoverActive={isRunTakeoverActive}
@@ -1316,7 +1317,7 @@ export function GamePageContent({
           {!isRunTakeoverActive && activeTab === "mode" && (
             <div className="relative h-dvh w-full overflow-hidden">
               {isAuthenticated ? (
-                <MemoizedAMapView ref={mapViewRef} showTerritory={showTerritory} showControls={shouldShowPlayChrome} sessionClaims={sessionClaims} ghostPath={ghostPath} isRunTakeoverActive={isRunTakeoverActive}>
+                <MemoizedAMapView ref={mapViewRef} showTerritory={showTerritory} showControls={shouldShowPlayChrome} sessionClaims={sessionClaims} runPath={isRunTakeoverActive ? displayPath : undefined} path={isRunTakeoverActive ? path : undefined} ghostPath={ghostPath} isRunTakeoverActive={isRunTakeoverActive}>
                   <div className="pointer-events-auto">
                     <MemoizedMapHeader
                       setShowThemeSwitcher={setShowThemeSwitcher}
