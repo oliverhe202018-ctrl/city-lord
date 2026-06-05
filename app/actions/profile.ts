@@ -65,9 +65,11 @@ export type ProfileDataResult =
 
 
 // ─── getProfileData ──────────────────────────────────────
-export async function getProfileData(targetUserId: string): Promise<ProfileDataResult> {
+export async function getProfileData(targetUserId: string, token?: string): Promise<ProfileDataResult> {
     const supabase = await createClient()
-    const { data: { user: currentUser } } = await supabase.auth.getUser()
+    const { data: { user: currentUser } } = token 
+        ? await supabase.auth.getUser(token) 
+        : await supabase.auth.getUser()
     const currentUserId = currentUser?.id ?? null
     const isSelf = currentUserId === targetUserId
 

@@ -306,10 +306,10 @@ export async function rejectClub(clubId: string, reason: string) {
 }
 
 
-export async function getClubs() {
+export async function getClubs(token?: string) {
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { user } } = token ? await supabase.auth.getUser(token) : await supabase.auth.getUser()
 
     // Use Supabase Admin to fetch clubs (Bypassing RLS)
     const { data: clubs, error } = await getSupabaseAdmin()
@@ -363,10 +363,10 @@ export async function getClubs() {
   }
 }
 
-export async function getUserClub() {
+export async function getUserClub(token?: string) {
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { user } } = token ? await supabase.auth.getUser(token) : await supabase.auth.getUser()
     if (!user) return null
 
     return cachedFetch(`user_club:${user.id}`, 120, async () => {

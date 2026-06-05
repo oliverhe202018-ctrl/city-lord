@@ -14,8 +14,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { format } from 'date-fns'
-import { Search, AlertCircle, Eye } from 'lucide-react'
-import { getAdminUsers, toggleUserAntiCheatBypass } from '@/app/actions/admin'
+import { Search, AlertCircle, Eye, ShieldAlert, Activity, Award, CheckCircle2, XCircle } from 'lucide-react'
+import { getAdminUsers, toggleUserAntiCheatBypass, toggleUserActiveStatus } from '@/app/actions/admin'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   Dialog,
@@ -27,6 +27,8 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Badge } from '@/components/ui/badge'
 
 interface Profile {
   id: string
@@ -34,6 +36,17 @@ interface Profile {
   avatar_url: string | null
   created_at: string | null
   bypass_anti_cheat?: boolean
+  level?: number
+  total_area?: number
+  xp?: number
+  total_distance_km?: number
+  coins?: number
+  faction?: string | null
+  is_active?: boolean
+  total_runs_count?: number
+  club_id?: string | null
+  stamina?: number
+  max_stamina?: number
 }
 
 interface AdminUsersPageClientProps {
@@ -57,6 +70,7 @@ export default function AdminUsersPageClient({
   const [selectedUser, setSelectedUser] = useState<Profile | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isTogglingBypass, setIsTogglingBypass] = useState(false)
+  const [isTogglingActive, setIsTogglingActive] = useState(false)
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -113,6 +127,27 @@ export default function AdminUsersPageClient({
       toast.error('请求失败: ' + err.message)
     } finally {
       setIsTogglingBypass(false)
+    }
+  }
+
+  const handleToggleActive = async (checked: boolean) => {
+    if (!selectedUser) return
+    setIsTogglingActive(true)
+    try {
+      const res = await toggleUserActiveStatus(selectedUser.id, checked)
+      if (res.success) {
+        toast.success(`该账号已${checked ? '解封 (正常状态)' : '封禁 (禁止登录)'}`)
+        setSelectedUser((prev) => prev ? { ...prev, is_active: checked } : null)
+        setProfiles((prev) =>
+          prev.map((p) => (p.id === selectedUser.id ? { ...p, is_active: checked } : p))
+        )
+      } else {
+        toast.error('操作失败: ' + res.error)
+      }
+    } catch (err: any) {
+      toast.error('请求失败: ' + err.message)
+    } finally {
+      setIsTogglingActive(false)
     }
   }
 
@@ -208,7 +243,7 @@ export default function AdminUsersPageClient({
       </Card>
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>用户详情</DialogTitle>
             <DialogDescription>
@@ -216,30 +251,115 @@ export default function AdminUsersPageClient({
             </DialogDescription>
           </DialogHeader>
           {selectedUser && (
-            <div className="grid gap-4 py-4">
-              <div className="flex items-center gap-4">
+            <div className="flex flex-col gap-4 py-2">
+              <div className="flex items-center gap-4 border-b pb-4">
                 <Avatar className="h-16 w-16">
                   <AvatarImage src={selectedUser.avatar_url || undefined} />
                   <AvatarFallback>{(selectedUser.nickname || 'U').substring(0, 2).toUpperCase()}</AvatarFallback>
                 </Avatar>
-                <div className="flex flex-col">
-                  <span className="text-lg font-semibold">{selectedUser.nickname || '未设置昵称'}</span>
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg font-semibold">{selectedUser.nickname || '未设置昵称'}</span>
+                    {selectedUser.is_active === false ? (
+                      <Badge variant="destructive" className="flex items-center gap-1"><XCircle className="h-3 w-3" />已封禁</Badge>
+                    ) : (
+                      <Badge variant="secondary" className="flex items-center gap-1 text-green-600 bg-green-100 hover:bg-green-100"><CheckCircle2 className="h-3 w-3" />正常</Badge>
+                    )}
+                    {selectedUser.faction && (
+                      <Badge variant="outline" className={selectedUser.faction === 'Red' ? 'text-red-500 border-red-200 bg-red-50' : 'text-blue-500 border-blue-200 bg-blue-50'}>
+                        {selectedUser.faction === 'Red' ? '红方阵营' : '蓝方阵营'}
+                      </Badge>
+                    )}
+                  </div>
                   <span className="text-sm font-mono text-muted-foreground">{selectedUser.id}</span>
                 </div>
               </div>
-              <div className="flex items-center justify-between rounded-lg border p-4">
-                <div className="space-y-0.5">
-                  <Label className="text-base">开发者账号防作弊豁免</Label>
-                  <p className="text-sm text-muted-foreground">
-                    开启后，该账号提交的记录将跳过所有反作弊检测。
-                  </p>
-                </div>
-                <Switch
-                  checked={selectedUser.bypass_anti_cheat || false}
-                  onCheckedChange={handleToggleBypass}
-                  disabled={isTogglingBypass}
-                />
-              </div>
+
+              <Tabs defaultValue="stats" className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="stats">数据统计</TabsTrigger>
+                  <TabsTrigger value="settings">账号设置</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="stats" className="mt-4 space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="rounded-lg border p-3 flex flex-col items-start gap-1">
+                      <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">等级/经验</span>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-2xl font-bold">{selectedUser.level || 1}</span>
+                        <span className="text-sm text-muted-foreground">级 ({selectedUser.xp || 0} XP)</span>
+                      </div>
+                    </div>
+                    <div className="rounded-lg border p-3 flex flex-col items-start gap-1">
+                      <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">金币</span>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-2xl font-bold">{selectedUser.coins || 0}</span>
+                      </div>
+                    </div>
+                    <div className="rounded-lg border p-3 flex flex-col items-start gap-1">
+                      <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">总占领面积</span>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-2xl font-bold">{((selectedUser.total_area || 0) / 1000000).toFixed(2)}</span>
+                        <span className="text-sm text-muted-foreground">km²</span>
+                      </div>
+                    </div>
+                    <div className="rounded-lg border p-3 flex flex-col items-start gap-1">
+                      <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">总运动里程</span>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-2xl font-bold">{(selectedUser.total_distance_km || 0).toFixed(2)}</span>
+                        <span className="text-sm text-muted-foreground">km</span>
+                      </div>
+                    </div>
+                    <div className="rounded-lg border p-3 flex flex-col items-start gap-1">
+                      <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">体力值</span>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-2xl font-bold">{selectedUser.stamina || 0}</span>
+                        <span className="text-sm text-muted-foreground">/ {selectedUser.max_stamina || 100}</span>
+                      </div>
+                    </div>
+                    <div className="rounded-lg border p-3 flex flex-col items-start gap-1">
+                      <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">总运动次数</span>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-2xl font-bold">{selectedUser.total_runs_count || 0}</span>
+                        <span className="text-sm text-muted-foreground">次</span>
+                      </div>
+                    </div>
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="settings" className="mt-4 space-y-4">
+                  <div className="flex flex-col gap-4">
+                    <div className="flex items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <Label className="text-base flex items-center gap-2"><Award className="h-4 w-4" />开发者账号防作弊豁免</Label>
+                        <p className="text-sm text-muted-foreground">
+                          开启后，该账号提交的记录将跳过所有反作弊检测逻辑。
+                        </p>
+                      </div>
+                      <Switch
+                        checked={selectedUser.bypass_anti_cheat || false}
+                        onCheckedChange={handleToggleBypass}
+                        disabled={isTogglingBypass}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-lg border border-destructive/20 bg-destructive/5 p-4">
+                      <div className="space-y-0.5">
+                        <Label className="text-base flex items-center gap-2 text-destructive"><ShieldAlert className="h-4 w-4" />账号可用状态</Label>
+                        <p className="text-sm text-muted-foreground">
+                          关闭后将禁止该用户登录、拒绝任何 API 请求。
+                        </p>
+                      </div>
+                      <Switch
+                        checked={selectedUser.is_active !== false} // Default to true if undefined
+                        onCheckedChange={handleToggleActive}
+                        disabled={isTogglingActive}
+                        className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-destructive"
+                      />
+                    </div>
+                  </div>
+                </TabsContent>
+              </Tabs>
             </div>
           )}
         </DialogContent>

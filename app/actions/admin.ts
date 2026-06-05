@@ -81,7 +81,7 @@ export async function getAdminUsers(searchQuery?: string) {
         let query = getSupabaseAdmin()
 
             .from('profiles')
-            .select('id, nickname, avatar_url, created_at, bypass_anti_cheat')
+            .select('id, nickname, avatar_url, created_at, bypass_anti_cheat, level, total_area, xp, total_distance_km, coins, faction, is_active, total_runs_count, club_id, stamina, max_stamina')
             .order('created_at', { ascending: false })
             .limit(100)
 
@@ -125,6 +125,35 @@ export async function toggleUserAntiCheatBypass(userId: string, bypass: boolean)
         return { success: true }
     } catch (error: any) {
         console.error('toggleUserAntiCheatBypass error:', error)
+        return { success: false, error: error.message }
+    }
+}
+
+export async function toggleUserActiveStatus(userId: string, isActive: boolean) {
+    try {
+        await requireAdminSession()
+
+        const { error } = await getSupabaseAdmin()
+            .from('profiles')
+            .update({ is_active: isActive })
+            .eq('id', userId)
+
+        if (error) throw error
+
+        // Also add an admin log
+        const { data: userData } = await getSupabaseAdmin().auth.getUser()
+        if (userData?.user) {
+            await getSupabaseAdmin().from('admin_logs').insert({
+                admin_id: userData.user.id,
+                action: isActive ? 'UNBAN_USER' : 'BAN_USER',
+                target_id: userId,
+                details: `Set is_active to ${isActive}`
+            })
+        }
+
+        return { success: true }
+    } catch (error: any) {
+        console.error('toggleUserActiveStatus error:', error)
         return { success: false, error: error.message }
     }
 }

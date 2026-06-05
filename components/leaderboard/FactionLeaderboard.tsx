@@ -96,12 +96,18 @@ export function FactionLeaderboard({
                   </span>
 
                   <span
-                    className="text-sm font-semibold tabular-nums"
+                    className="text-sm font-semibold tabular-nums flex items-center gap-1.5"
                     style={{ color: entry.color }}
                   >
                     {formatArea(entry.totalArea)}
                   </span>
                 </div>
+
+                {entry.bonusPercent > 0 && (
+                  <div className="mb-2 text-xs font-medium px-2 py-0.5 rounded inline-flex items-center gap-1 bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                    👑 弱势保护加成 +{entry.bonusPercent}%
+                  </div>
+                )}
 
                 <div
                   className="h-2 w-full overflow-hidden rounded-full bg-muted"

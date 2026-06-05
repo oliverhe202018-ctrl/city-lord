@@ -18,10 +18,10 @@ export interface CityLeaderboardEntry {
   reputation: number
 }
 
-export async function fetchTerritories(cityId: string, bounds?: { minLng: number, minLat: number, maxLng: number, maxLat: number }): Promise<ExtTerritory[]> {
+export async function fetchTerritories(cityId: string, bounds?: { minLng: number, minLat: number, maxLng: number, maxLat: number }, token?: string): Promise<ExtTerritory[]> {
   console.log(`📡 [fetchTerritories Action] Called for cityId: ${cityId}, hasBounds: ${!!bounds}`);
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user } } = token ? await supabase.auth.getUser(token) : await supabase.auth.getUser()
   const currentUserId = user?.id
 
   try {

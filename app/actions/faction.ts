@@ -222,7 +222,9 @@ export type FactionLeaderboardEntry = {
   faction: string          // 'Red' | 'Blue'
   displayName: string      // '赤焰军' | '苍龙营'
   color: string            // hex color for UI rendering
-  totalArea: number        // m²
+  totalArea: number        // m² (after bonus applied)
+  baseArea: number         // m² (before bonus)
+  bonusPercent: number     // e.g. 50 for +50% bonus
   memberCount: number
   rank: number
 }
@@ -260,17 +262,65 @@ export async function getFactionLeaderboard(): Promise<FactionLeaderboardEntry[]
       memberRows.map((r) => [r.faction!, r._count.id])
     )
 
-    // 3. 合并并按面积降序排列
+    // 3. 计算阵营平衡系数 (Calculate Faction Balance Bonus)
+    const redCount = memberMap.get('Red') || 0
+    const blueCount = memberMap.get('Blue') || 0
+
+    let balanceConfig = {
+      imbalance_threshold: 20,
+      underdog_multiplier: 1.5,
+      auto_balance_enabled: true
+    }
+    try {
+      const configSnapshot = await prisma.faction_balance_configs.findFirst({
+        orderBy: { id: 'asc' }
+      })
+      if (configSnapshot) {
+        balanceConfig = {
+          imbalance_threshold: configSnapshot.imbalance_threshold ? Number(configSnapshot.imbalance_threshold) : 20,
+          underdog_multiplier: configSnapshot.underdog_multiplier ? Number(configSnapshot.underdog_multiplier) : 1.5,
+          auto_balance_enabled: configSnapshot.auto_balance_enabled ?? true
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to fetch faction_balance_configs, using defaults', e)
+    }
+
+    const balanceResult = calculateFactionBalance(
+      redCount,
+      blueCount,
+      balanceConfig.auto_balance_enabled,
+      balanceConfig.imbalance_threshold,
+      balanceConfig.underdog_multiplier
+    )
+
+    let redBonusPercent = 0
+    let blueBonusPercent = 0
+
+    if (balanceResult.underdog === 'red') {
+      redBonusPercent = Math.round((balanceResult.multiplier - 1.0) * 100)
+    } else if (balanceResult.underdog === 'blue') {
+      blueBonusPercent = Math.round((balanceResult.multiplier - 1.0) * 100)
+    }
+
+    // 4. 合并并按面积降序排列
     const entries: Omit<FactionLeaderboardEntry, 'rank'>[] = areaRows
       .filter((r) => r.owner_faction && r.owner_faction in FACTION_META)
       .map((r) => {
         const key = r.owner_faction!
         const meta = FACTION_META[key]
+        
+        const baseArea = r._sum.area_m2_exact ?? 0
+        const bonusPercent = key === 'Red' ? redBonusPercent : (key === 'Blue' ? blueBonusPercent : 0)
+        const totalArea = baseArea * (1 + bonusPercent / 100)
+        
         return {
           faction:     key,
           displayName: meta.displayName,
           color:       meta.color,
-          totalArea:   r._sum.area_m2_exact ?? 0,
+          totalArea:   totalArea,
+          baseArea:    baseArea,
+          bonusPercent: bonusPercent,
           memberCount: memberMap.get(key) ?? 0,
         }
       })

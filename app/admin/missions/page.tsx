@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/dialog"
 
 // Import default missions to use for seeding
-import { SEED_DEFAULT_MISSIONS } from '@/lib/game-logic/mission-service'
+import { SEED_DEFAULT_MISSIONS } from '@/lib/constants/missions'
 
 type Mission = {
   id: string

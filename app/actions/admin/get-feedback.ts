@@ -2,6 +2,8 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
+import { requireAdminSession } from '@/lib/admin/auth'
+import { getSupabaseAdmin } from '@/lib/supabase/admin'
 
 export type UnifiedFeedbackSource = 'feedback' | 'report' | 'territory_report'
 
@@ -30,24 +32,12 @@ export async function getAdminFeedbackData(): Promise<{ data: UnifiedFeedback[] 
         const supabase = await createClient()
 
         // 1. Verify admin session
-        const { data: { session }, error: authError } = await supabase.auth.getSession()
-        if (authError || !session?.user) {
-            return { data: null, error: 'Unauthorized' }
-        }
-
-        // Role check using Prisma (app_admins PK = user uuid)
-        const adminRole = await prisma.app_admins.findUnique({
-            where: { id: session.user.id },
-            select: { role: true }
-        })
-
-        if (!adminRole) {
-            return { data: null, error: 'Forbidden' }
-        }
+        await requireAdminSession()
 
         // 2. Use Prisma for territory_reports; Supabase (with explicit casts) for feedback/post_reports
-        const feedbackResult = await (supabase.from('feedback' as any).select('*, profiles:user_id (nickname)').order('created_at', { ascending: false })) as { data: any[] | null, error: any }
-        const postReportResult = await supabase.from('post_reports').select('*, reporter:profiles!post_reports_user_id_fkey (nickname), post:posts!post_reports_post_id_fkey (content, media_urls)').order('created_at', { ascending: false }) as { data: any[] | null, error: any }
+        const supabaseAdmin = getSupabaseAdmin()
+        const feedbackResult = await (supabaseAdmin.from('feedback' as any).select('*, profiles:user_id (nickname)').order('created_at', { ascending: false })) as { data: any[] | null, error: any }
+        const postReportResult = await supabaseAdmin.from('post_reports').select('*, reporter:profiles!post_reports_user_id_fkey (nickname), post:posts!post_reports_post_id_fkey (content, media_urls)').order('created_at', { ascending: false }) as { data: any[] | null, error: any }
         const territoryReports = await prisma.territory_reports.findMany({
                 include: {
                     profiles_territory_reports_reporter_idToprofiles: { select: { nickname: true } },

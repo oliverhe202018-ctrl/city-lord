@@ -2,19 +2,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 
-// 管理员鉴权复用 get-feedback.ts 的模式
-async function verifyAdmin(): Promise<string> {
-    const supabase = await createClient()
-    const { data: { session }, error: authError } = await supabase.auth.getSession()
-    if (authError || !session?.user) throw new Error('Unauthorized')
+import { requireAdminSession } from '@/lib/admin/auth'
 
-    const adminRole = await prisma.app_admins.findUnique({
-        where: { id: session.user.id },
-        select: { role: true }
-    })
-
-    if (!adminRole) throw new Error('Forbidden')
-    return session.user.id
+// 管理员鉴权复用 requireAdminSession 的模式
+async function verifyAdmin(): Promise<void> {
+    await requireAdminSession()
 }
 
 // ─── 版本 CRUD ────────────────────────────────────────────────────────────────

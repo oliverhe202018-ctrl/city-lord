@@ -6,7 +6,7 @@ const ALLOWED_ORIGINS = [
   'http://localhost',
   'ionic://localhost',
   'https://cl1.4567666.xyz',
-  ...(process.env.NODE_ENV === 'development' ? ['http://localhost:3000', 'http://10.0.2.2:3000'] : []),
+  ...(process.env.NODE_ENV === 'development' ? ['http://localhost:3000', 'http://10.0.2.2:3000', 'http://localhost:5173', 'http://localhost:5174'] : []),
 ];
 
 function setCorsHeaders(response: NextResponse, origin: string | null) {
