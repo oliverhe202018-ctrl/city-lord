@@ -45,6 +45,9 @@ try {
 
 console.log(`\n\x1b[33m[2/3] Connecting to VPS (${vpsUser}@${vpsHost})...\x1b[0m`);
 
+const envContent = fs.existsSync(envLocalPath) ? fs.readFileSync(envLocalPath, 'utf8') : fs.readFileSync(envPath, 'utf8');
+const envBase64 = Buffer.from(envContent).toString('base64');
+
 const deployCommands = `
 set -e
 if [ ! -d "${vpsProjectPath}" ]; then
@@ -60,14 +63,8 @@ else
     git pull origin main
 fi
 
-if [ ! -f ".env" ]; then
-    echo "=================================================="
-    echo "WARNING: .env file is missing in ${vpsProjectPath}!"
-    echo "Please create the .env file with your database"
-    echo "and Supabase credentials before running the app."
-    echo "=================================================="
-    [ -f ".env.example" ] && cp .env.example .env
-fi
+echo 'Syncing .env file to VPS...'
+echo "${envBase64}" | base64 -d > .env
 
 echo 'Installing dependencies and building...'
 npm install
