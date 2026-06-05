@@ -48,9 +48,6 @@ const withPWA = withPWAInit({
 });
 
 const nextConfig: NextConfig = {
-  // Capacitor WebView 兼容配置
-  trailingSlash: true,
-  
   serverExternalPackages: ['ioredis', '@prisma/client'],
   typescript: { ignoreBuildErrors: true },
   eslint: { ignoreDuringBuilds: true },
