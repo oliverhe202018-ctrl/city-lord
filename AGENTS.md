@@ -255,4 +255,10 @@ Use SDK (`@trigger.dev/sdk`), check `result.ok` before accessing `result.output`
 2. **打包发送到手机上测试的 APK 文件 (Phone Test APK)**:
    - **加载策略**: **纯净原生化（Nativeized）离线包，绝对禁止打壳子应用！**
    - **加载地址**: App 本地直接加载打包好的 `dist` 静态资源（前端接口会自动请求 `https://cl1.4567666.xyz/api/v1`）。生产环境下 `capacitor.config.ts` **禁止**配置 `server.url`。
-   - **构建流程**: **必须先执行 `npm run build`** 静态化前端界面，再执行 `cross-env CAP_ENV=production npx cap sync android`（或 `npm run cap:sync:prod`）进行底层同步，最后执行 `gradlew.bat assembleDebug` 打包出脱机可用、性能极致的原生安装包。
+   - **构建流程**: **必须先执行 `npm run build`** 静态化前端界面，再执行 `cross-env CAP_ENV=production npx cap sync android`（或 `npm run cap:sync:prod`）进行底层同步，最后执行 `gradlew.bat assembleDebug` 打包出脱机可用、性能极致的原生安装包。
+
+## 自动化服务器部署 (VPS Automated Deployment)
+
+- **全自动化要求**：任何涉及后端的修改，Agent 必须**主动、全自动**地执行 `.\deploy-vps.ps1` 将代码部署到线上 VPS，严禁要求人类手动去执行部署脚本。
+- **免密通信设定**：为实现全自动化，Agent 和 VPS 之间必须配置 SSH 免密登录 (SSH Keys)。
+- **初始干预原则**：如果 Agent 在自动部署时发现当前环境未配置 SSH 公钥，**必须在第一时间为用户生成 SSH Key**，并提供一条简单的命令要求用户执行（输入一次密码将公钥传至服务器）。完成此初始设定后，未来的所有部署动作必须完全静默和自动。
