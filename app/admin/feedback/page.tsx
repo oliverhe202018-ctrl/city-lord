@@ -8,8 +8,8 @@ export const dynamic = 'force-dynamic'
 export default async function AdminFeedbackPage() {
   const { data: items, error } = await getAdminFeedbackData()
 
-  if (error === 'Unauthorized' || error === 'Forbidden') {
-    redirect('/login')
+  if (error?.includes('Unauthorized') || error?.includes('Forbidden')) {
+    redirect('/admin/login')
   }
 
   return (

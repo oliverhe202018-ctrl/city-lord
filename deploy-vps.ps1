@@ -14,16 +14,44 @@ $vpsHost = "root@cl1.4567666.xyz"
 $vpsProjectPath = "/root/city-lord" 
 
 $deployCommands = @"
-cd $vpsProjectPath || exit 1
-echo 'Pulling latest code...'
-git pull origin main
+if [ ! -d "$vpsProjectPath" ]; then
+    echo "=================================================="
+    echo "First time deployment detected!"
+    echo "Cloning repository into $vpsProjectPath..."
+    echo "=================================================="
+    git clone https://github.com/oliverhe202018-ctrl/city-lord.git $vpsProjectPath || exit 1
+    cd $vpsProjectPath
+else
+    cd $vpsProjectPath || exit 1
+    echo 'Pulling latest code...'
+    git pull origin main
+fi
+
+if [ ! -f ".env" ]; then
+    echo "=================================================="
+    echo "WARNING: .env file is missing in $vpsProjectPath!"
+    echo "Please create the .env file with your database"
+    echo "and Supabase credentials before running the app."
+    echo "=================================================="
+    # We copy .env.example to .env if it exists, to be helpful
+    [ -f ".env.example" ] && cp .env.example .env
+fi
 
 echo 'Installing dependencies and building...'
 npm install
+npx prisma generate
 npm run build
 
 echo 'Restarting PM2 service...'
-pm2 restart city-lord || pm2 restart all
+# Check if pm2 process exists
+pm2 describe city-lord > /dev/null
+if [ $? -eq 0 ]; then
+    pm2 restart city-lord
+else
+    echo 'Starting new PM2 instance...'
+    pm2 start npm --name "city-lord" -- run start
+    pm2 save
+fi
 
 echo 'Deployment complete!'
 "@

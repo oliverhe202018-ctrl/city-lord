@@ -18,6 +18,7 @@ export function FactionBattleStatusCard() {
         blue_user_count?: number;
         red_faction?: number;
         blue_faction?: number;
+        bonus?: { RED: number; BLUE: number };
     } | null>(null);
 
     const [dailyStat, setDailyStat] = useState<{
@@ -44,9 +45,17 @@ export function FactionBattleStatusCard() {
     const redMemberPercent = totalMembers > 0 ? (redMembers / totalMembers) * 100 : 50;
     const blueMemberPercent = 100 - redMemberPercent;
 
-    // Area stats
-    const redArea = factionStats?.redArea ?? factionStats?.red_area ?? 0;
-    const blueArea = factionStats?.blueArea ?? factionStats?.blue_area ?? 0;
+    // Base Area
+    const baseRedArea = factionStats?.redArea ?? factionStats?.red_area ?? 0;
+    const baseBlueArea = factionStats?.blueArea ?? factionStats?.blue_area ?? 0;
+    
+    // Apply Bonus Multipliers
+    const redBonus = factionStats?.bonus?.RED ?? 0;
+    const blueBonus = factionStats?.bonus?.BLUE ?? 0;
+    
+    const redArea = baseRedArea * (1 + redBonus / 100);
+    const blueArea = baseBlueArea * (1 + blueBonus / 100);
+
     const totalArea = redArea + blueArea;
     const redAreaPercent = totalArea > 0 ? (redArea / totalArea) * 100 : 50;
     const blueAreaPercent = 100 - redAreaPercent;
@@ -58,7 +67,7 @@ export function FactionBattleStatusCard() {
     const isRedUser = userFaction?.toLowerCase() === 'red';
 
     return (
-        <div className="mx-4 overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-md shadow-lg">
+        <div className="mx-4 overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-md shadow-lg relative">
             {/* Header */}
             <div className="mb-4 flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -70,6 +79,14 @@ export function FactionBattleStatusCard() {
                     <ChevronRight className="h-2.5 w-2.5" />
                 </button>
             </div>
+
+            {/* Bonus Announcement Banner */}
+            {(redBonus > 0 || blueBonus > 0) && (
+                <div className={`mb-3 flex items-center justify-center gap-1.5 rounded-lg border py-1.5 px-3 text-xs font-medium backdrop-blur-sm ${redBonus > 0 ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-blue-500/10 border-blue-500/20 text-blue-400'}`}>
+                    <Shield className="w-3.5 h-3.5" />
+                    <span>弱势加成生效中：{redBonus > 0 ? `赤焰军领地面积 x${1 + redBonus/100}` : `苍龙营领地面积 x${1 + blueBonus/100}`}</span>
+                </div>
+            )}
 
             {/* Section 1: Faction Battle Status (Members) */}
             <div className="mb-4">
@@ -103,7 +120,7 @@ export function FactionBattleStatusCard() {
                             <span className="text-lg font-bold leading-none">{redMembers}</span>
                         </div>
                         <span className="text-[10px] text-red-500/60 font-medium">
-                            赤红先锋 {redMemberPercent.toFixed(1)}%
+                            赤焰军 {redMemberPercent.toFixed(1)}%
                             {isRedUser && <span className="ml-1 text-red-400">(我)</span>}
                         </span>
                     </div>
@@ -113,7 +130,7 @@ export function FactionBattleStatusCard() {
                             <Hexagon className="w-3.5 h-3.5 fill-current" />
                         </div>
                         <span className="text-[10px] text-blue-400/60 font-medium">
-                            蔚蓝联盟 {blueMemberPercent.toFixed(1)}%
+                            苍龙营 {blueMemberPercent.toFixed(1)}%
                             {!isRedUser && userFaction && <span className="ml-1 text-blue-300">(我)</span>}
                         </span>
                     </div>
@@ -144,19 +161,25 @@ export function FactionBattleStatusCard() {
 
                 {/* Stats Row */}
                 <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-1.5 text-red-500/80">
-                        <Hexagon className="w-3 h-3" />
-                        <span className="text-xs font-medium">{redAreaFormatted}</span>
+                    <div className="flex flex-col items-start gap-1">
+                        <div className="flex items-center gap-1.5 text-red-500/80">
+                            <Hexagon className="w-3 h-3" />
+                            <span className="text-xs font-medium">{redAreaFormatted}</span>
+                        </div>
+                        {redBonus > 0 && <span className="text-[9px] text-red-500/50 bg-red-500/10 px-1.5 py-0.5 rounded">原始: {new Intl.NumberFormat('en-US').format(Math.round(baseRedArea))}</span>}
                     </div>
-                    <div className="flex items-center gap-1.5 text-blue-400/80">
-                        <span className="text-xs font-medium">{blueAreaFormatted}</span>
-                        <Hexagon className="w-3 h-3" />
+                    <div className="flex flex-col items-end gap-1">
+                        <div className="flex items-center gap-1.5 text-blue-400/80">
+                            <span className="text-xs font-medium">{blueAreaFormatted}</span>
+                            <Hexagon className="w-3 h-3" />
+                        </div>
+                        {blueBonus > 0 && <span className="text-[9px] text-blue-400/50 bg-blue-500/10 px-1.5 py-0.5 rounded">原始: {new Intl.NumberFormat('en-US').format(Math.round(baseBlueArea))}</span>}
                     </div>
                 </div>
             </div>
 
             {/* Glassmorphism accent */}
-            <div className="absolute -right-4 -top-4 h-16 w-16 rounded-full bg-primary/20 blur-2xl" />
+            <div className="absolute -right-4 -top-4 h-16 w-16 rounded-full bg-primary/20 blur-2xl pointer-events-none" />
         </div>
     );
 }

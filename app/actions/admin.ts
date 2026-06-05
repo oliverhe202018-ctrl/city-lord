@@ -188,16 +188,31 @@ export async function getAdminMissions() {
     try {
         await requireAdminSession()
 
-        const { data, error } = await getSupabaseAdmin()
+        // Use Prisma to fetch missions to avoid Supabase schema/RLS mismatch errors
+        const { prisma } = await import('@/lib/prisma')
+        const data = await prisma.missions.findMany({
+            select: {
+                id: true,
+                title: true,
+                description: true,
+                type: true,
+                target: true,
+                frequency: true,
+                reward_coins: true,
+                reward_experience: true,
+                created_at: true,
+            },
+            orderBy: { created_at: 'desc' },
+            take: 100,
+        })
 
-            .from('missions')
-            .select('id, title, description, type, target, frequency, reward_coins, reward_experience, created_at')
-            .order('created_at', { ascending: false })
-            .limit(100)
+        // Format dates to string to match Supabase response format for the frontend
+        const formattedData = data.map(m => ({
+            ...m,
+            created_at: m.created_at?.toISOString()
+        }))
 
-        if (error) throw error
-
-        return { success: true, data }
+        return { success: true, data: formattedData }
     } catch (error: any) {
         console.error('getAdminMissions error:', error)
         return { success: false, error: error.message }
