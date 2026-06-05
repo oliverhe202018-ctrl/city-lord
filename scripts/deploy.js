@@ -72,6 +72,7 @@ fi
 echo 'Installing dependencies and building...'
 npm install
 npx prisma generate
+export NODE_OPTIONS="--max-old-space-size=4096"
 npm run build
 
 echo 'Restarting PM2 service...'
