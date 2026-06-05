@@ -165,17 +165,17 @@ function LoginPageContent() {
     setLoading(true)
     logEvent('auth_code_request', { type, medium: 'email' });
     try {
-      const { sendAuthCode } = await import('@/app/actions/auth')
-      let res
+      const { apiClient } = await import('@/lib/api/client')
+      let res: any
       if (type === 'register') {
         if (!password) {
           toast.error("请先输入密码")
           setLoading(false)
           return
         }
-        res = await sendAuthCode(email, 'register', password)
+        res = await apiClient.post('/api/v1/auth/send-code', { email, type: 'register', password })
       } else {
-        res = await sendAuthCode(email, 'login')
+        res = await apiClient.post('/api/v1/auth/send-code', { email, type: 'login' })
       }
 
       if (!res.success) {
@@ -247,8 +247,12 @@ function LoginPageContent() {
     setLoading(true)
     logEvent('auth_code_request', { type, medium: 'sms' });
     try {
-      const { sendSmsCode } = await import('@/app/actions/sms-auth')
-      const res = await sendSmsCode(phone, type, type === 'register' ? password : undefined)
+      const { apiClient } = await import('@/lib/api/client')
+      const res = await apiClient.post('/api/v1/auth/send-code', { 
+        phone, 
+        type, 
+        password: type === 'register' ? password : undefined 
+      })
       if (!res.success) {
         toast.error(res.message)
         return
@@ -271,8 +275,13 @@ function LoginPageContent() {
     }
     setLoading(true)
     try {
-      const { verifySmsCode } = await import('@/app/actions/sms-auth')
-      const res = await verifySmsCode(phone, verificationCode, 'login', window.location.origin)
+      const { apiClient } = await import('@/lib/api/client')
+      const res = await apiClient.post('/api/v1/auth/verify', {
+        phone,
+        code: verificationCode,
+        type: 'login',
+        origin: window.location.origin
+      })
       if (!res.success) throw new Error(res.message)
       if (res.tokenHash) {
         await supabase.auth.verifyOtp({ token_hash: res.tokenHash, type: 'magiclink' })
@@ -312,8 +321,12 @@ function LoginPageContent() {
     setLoading(true)
     logEvent('register_attempt', { method: 'sms' });
     try {
-      const { verifySmsCode } = await import('@/app/actions/sms-auth')
-      const res = await verifySmsCode(phone, verificationCode, 'register')
+      const { apiClient } = await import('@/lib/api/client')
+      const res = await apiClient.post('/api/v1/auth/verify', {
+        phone,
+        code: verificationCode,
+        type: 'register'
+      })
       if (!res.success) throw new Error(res.message)
       const virtualEmail = `${phone.replace(/\s+/g, '')}@sms.citylord.local`
       const { error } = await supabase.auth.signInWithPassword({ email: virtualEmail, password })

@@ -38,31 +38,9 @@ export async function POST(request: Request) {
         }
       })
     } else if (phone) {
-      // Phone SMS Verification (Returns tokenHash)
       const result = await verifySmsCode(phone, code, type as 'login' | 'register', origin)
       
-      if (!result.success || !result.tokenHash) {
-        return NextResponse.json(result) // Pass through the error from sms-auth
-      }
-
-      // Exchange tokenHash for actual JWT Session
-      const { data, error } = await supabase.auth.verifyOtp({
-        token_hash: result.tokenHash,
-        type: 'magiclink'
-      })
-
-      if (error) {
-        return NextResponse.json({ success: false, message: '登录会话获取失败', error: error.message })
-      }
-
-      return NextResponse.json({
-        success: true,
-        message: '验证成功',
-        data: {
-          token: data.session?.access_token,
-          userId: data.user?.id
-        }
-      })
+      return NextResponse.json(result)
     }
   } catch (error: any) {
     console.error('[API] /api/v1/auth/verify Error:', error)
