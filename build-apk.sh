@@ -2,8 +2,8 @@
 
 # 指令式核心：固化 WSL2 项目根路径
 PROJECT_PATH="/mnt/d/project/city-lord"
-CONFIG_FILE="$PROJECT_PATH/capacitor.config.json"
-NEXT_CONFIG="$PROJECT_PATH/next.config.js"
+CONFIG_FILE="$PROJECT_PATH/capacitor.config.ts"
+NEXT_CONFIG="$PROJECT_PATH/next.config.ts"
 
 echo "=================================================="
 echo "🚀 息壤引擎自动化编译流水线：静态大导出+生产环境版"
@@ -19,12 +19,13 @@ echo "⚙️ 正在动态修改配置文件，切换为室外路测远程环境.
 if [ -f "$CONFIG_FILE" ]; then
     cp "$CONFIG_FILE" "${CONFIG_FILE}.local.bak"
     
-    # 彻底抹除 server 节点，禁止 APK 寻找任何本地或远程端口，强制其读取本地打包进去的 dist 资源
+    # 彻底抹除 server 节点
     node -e "
 const fs = require('fs');
-const config = require('$CONFIG_FILE');
-if (config.server) { delete config.server; }
-fs.writeFileSync('$CONFIG_FILE', JSON.stringify(config, null, 2));
+let content = fs.readFileSync('$CONFIG_FILE', 'utf8');
+content = content.replace(/server:\s*\{[\s\S]*?\},/g, '');
+content = content.replace(/server:\s*\{[\s\S]*?\}/g, '');
+fs.writeFileSync('$CONFIG_FILE', content);
 "
     echo "🟩 已物理清洗本地 server 调试节点"
 fi
@@ -36,12 +37,12 @@ echo "🔧 正在拦截并强行注入 Next.js 静态导出策略..."
 if [ -f "$NEXT_CONFIG" ]; then
     cp "$NEXT_CONFIG" "${NEXT_CONFIG}.local.bak"
     
-    # 用 Node 脚本物理强灌 output: 'export' 进 next.config.js，确保不走任何本地端口服务
+    # 用 Node 脚本物理强灌 output: 'export' 进 next.config.ts，确保不走任何本地端口服务
     node -e "
 const fs = require('fs');
 let content = fs.readFileSync('$NEXT_CONFIG', 'utf8');
 if (!content.includes('output:')) {
-    content = content.replace('module.exports = {', \"module.exports = {\n  output: 'export',\n  images: { unoptimized: true },\");
+    content = content.replace(/const nextConfig: NextConfig = \{/, \"const nextConfig: NextConfig = {\n  output: 'export',\n  images: { unoptimized: true },\");
 } else {
     content = content.replace(/output:\s*['\"].*?['\"]/, \"output: 'export'\");
 }
