@@ -227,6 +227,8 @@ export function RunningMap({
       }
       safeDestroyMap(mapInstanceRef.current);
       mapInstanceRef.current = null;
+      if (userMarkerRef.current) userMarkerRef.current = null;
+      if (locationCircleRef.current) locationCircleRef.current = null;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // Init ONCE only — location updates handled by separate effects

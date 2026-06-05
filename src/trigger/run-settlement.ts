@@ -335,7 +335,7 @@ export const runSettlementTask = task({
             pathPointsCount: pathPoints.length
         });
 
-        const isUserTester = isTester(userId);
+        const isUserTester = await isTester(userId);
         if (isUserTester) {
             (legitimacyCheck as any).isValid = true;
         }

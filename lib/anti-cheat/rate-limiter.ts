@@ -26,9 +26,9 @@ const MAX_MAP_SIZE = 10000;
  * 驱逐策略说明：当前使用 FIFO 驱逐（按插入顺序），非真正的 LRU。
  * 由于 Map.keys() 返回插入顺序迭代器，slice + delete 实现的是先进先出。
  */
-export function checkRunRateLimit(userId: string): { allowed: boolean; retryAfter?: number } {
+export async function checkRunRateLimit(userId: string): Promise<{ allowed: boolean; retryAfter?: number }> {
     // [God Mode] Tester Whitelist Bypass
-    if (isTester(userId)) {
+    if (await isTester(userId)) {
         return { allowed: true };
     }
 

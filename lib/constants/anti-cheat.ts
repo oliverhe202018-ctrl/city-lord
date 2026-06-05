@@ -20,18 +20,32 @@ export const ANTI_CHEAT_RISK_THRESHOLDS = {
 } as const;
 
 
+import { prisma } from '@/lib/prisma';
+
 /**
  * Checks if a user is in the tester whitelist using an O(1) Set lookup.
- * Reads TESTER_WHITELIST_UUIDS from the environment on every call (no module-level cache).
+ * Reads TESTER_WHITELIST_UUIDS from the environment.
+ * Also checks the `bypass_anti_cheat` flag in the `profiles` table.
  *
  * @param userId - The UUID of the user to check.
- * @returns True if the user is a whitelisted tester.
+ * @returns True if the user is a whitelisted tester or has bypass enabled.
  */
-export function isTester(userId: string): boolean {
+export async function isTester(userId: string): Promise<boolean> {
     if (!userId) return false;
     const envStr = process.env.TESTER_WHITELIST_UUIDS || "";
     const whitelist = new Set(
         envStr.split(',').map(id => id.trim()).filter(Boolean)
     );
-    return whitelist.has(userId);
+    if (whitelist.has(userId)) return true;
+
+    try {
+        const profile = await prisma.profiles.findUnique({
+            where: { id: userId },
+            select: { bypass_anti_cheat: true }
+        });
+        return profile?.bypass_anti_cheat ?? false;
+    } catch (e) {
+        console.error("isTester db check failed", e);
+        return false;
+    }
 }

@@ -48,6 +48,7 @@ model profiles {
   total_runs_count                                               Int                           @default(0)
   fill_opacity                                                   Float?                        @default(0.35)
   crit_rate                                                      Float                         @default(0)
+  bypass_anti_cheat                                              Boolean                       @default(false)
   wallet                                                         UserWallet?
   activity_comments                                              activity_comments[]
   activity_likes                                                 activity_likes[]

@@ -692,7 +692,7 @@ export async function saveRunActivity(
         console.log(`[saveRunActivity] 最终 cityId=${safeCityId} (来源: ${resolveSource})`);
 
         // Rate Limiting
-        const rateLimitResult = checkRunRateLimit(userId);
+        const rateLimitResult = await checkRunRateLimit(userId);
         if (!rateLimitResult.allowed) {
             console.warn(`[saveRunActivity] Rate limit exceeded for user: ${userId}`);
             return {
@@ -771,7 +771,7 @@ export async function saveRunActivity(
         });
 
         // [God Mode] Bypass P0 legit check for white-listed testers
-        const isUserTester = isTester(userId);
+        const isUserTester = await isTester(userId);
         if (isUserTester) {
             (legitimacyCheck as any).isValid = true;
             console.log(`[God Mode] P0 Legitimacy check bypassed for tester: ${userId}`);

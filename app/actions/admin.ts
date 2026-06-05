@@ -81,7 +81,7 @@ export async function getAdminUsers(searchQuery?: string) {
         let query = getSupabaseAdmin()
 
             .from('profiles')
-            .select('id, nickname, avatar_url, created_at')
+            .select('id, nickname, avatar_url, created_at, bypass_anti_cheat')
             .order('created_at', { ascending: false })
             .limit(100)
 
@@ -96,6 +96,35 @@ export async function getAdminUsers(searchQuery?: string) {
         return { success: true, data }
     } catch (error: any) {
         console.error('getAdminUsers error:', error)
+        return { success: false, error: error.message }
+    }
+}
+
+export async function toggleUserAntiCheatBypass(userId: string, bypass: boolean) {
+    try {
+        await requireAdminSession()
+
+        const { error } = await getSupabaseAdmin()
+            .from('profiles')
+            .update({ bypass_anti_cheat: bypass })
+            .eq('id', userId)
+
+        if (error) throw error
+
+        // Also add an admin log
+        const { data: userData } = await getSupabaseAdmin().auth.getUser()
+        if (userData?.user) {
+            await getSupabaseAdmin().from('admin_logs').insert({
+                admin_id: userData.user.id,
+                action: 'UPDATE_ANTI_CHEAT_BYPASS',
+                target_id: userId,
+                details: `Set bypass_anti_cheat to ${bypass}`
+            })
+        }
+
+        return { success: true }
+    } catch (error: any) {
+        console.error('toggleUserAntiCheatBypass error:', error)
         return { success: false, error: error.message }
     }
 }

@@ -963,14 +963,25 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         const speedBC = tBC > 0 ? dBC / tBC : 0;
         const isSuspiciousSpeed = speedAB > 7.0 || speedBC > 7.0;
 
+        // Catch background drift spikes (slow speed due to long background time, but spatial shape is a sharp spike)
+        const isBackgroundSpike = (tAB > 5.0 && dAB > 20.0 && dBC > 20.0 && dAC < 15.0);
+
         // 仅当横向偏离距 > 3.0m 且方向角 > 135°，且伴随速度异常（如单段 > 7.0 m/s）时，才判定为极端回头漂移尖角并过滤
-        if (lateralOffset > 3.0 && thetaDeg > 135.0 && isSuspiciousSpeed) {
-          console.warn(`[GPS-Median] 🎯 Median Spike Filtered! Point B (${ptB.lat.toFixed(6)}, ${ptB.lng.toFixed(6)}) detected as spike. Removing from trajectory. Lateral: ${lateralOffset.toFixed(1)}m, Angle: ${thetaDeg.toFixed(1)}°, speedAB=${speedAB.toFixed(1)}m/s, speedBC=${speedBC.toFixed(1)}m/s`);
+        if ((lateralOffset > 3.0 && thetaDeg > 135.0 && isSuspiciousSpeed) || isBackgroundSpike) {
+          console.warn(`[GPS-Median] 🎯 Median Spike Filtered! Point B (${ptB.lat.toFixed(6)}, ${ptB.lng.toFixed(6)}) detected as spike. Removing from trajectory. Lateral: ${lateralOffset.toFixed(1)}m, Angle: ${thetaDeg.toFixed(1)}°, speedAB=${speedAB.toFixed(1)}m/s, speedBC=${speedBC.toFixed(1)}m/s, isBackgroundSpike=${isBackgroundSpike}`);
           pathRef.current.pop();
           lastLocationRef.current = ptA;
           setDistance(prev => Math.max(0, prev - dAB));
           // 重置 lastSpeedRef 以防加速度校验数值大跳变
           lastSpeedRef.current = null;
+          
+          // 立即更新展示轨迹，把屏幕上的那条尖刺线擦除
+          setDisplayPath(prev => {
+            if (prev.length > 0 && prev[prev.length - 1].timestamp === ptB.timestamp) {
+              return prev.slice(0, -1);
+            }
+            return prev;
+          });
         }
       }
     }

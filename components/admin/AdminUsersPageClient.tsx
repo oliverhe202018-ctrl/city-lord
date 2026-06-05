@@ -15,14 +15,25 @@ import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { format } from 'date-fns'
 import { Search, AlertCircle, Eye } from 'lucide-react'
-import { getAdminUsers } from '@/app/actions/admin'
+import { getAdminUsers, toggleUserAntiCheatBypass } from '@/app/actions/admin'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
+import { toast } from 'sonner'
 
 interface Profile {
   id: string
   nickname: string | null
   avatar_url: string | null
   created_at: string | null
+  bypass_anti_cheat?: boolean
 }
 
 interface AdminUsersPageClientProps {
@@ -42,6 +53,10 @@ export default function AdminUsersPageClient({
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery)
   const [debouncedSearch, setDebouncedSearch] = useState(initialSearchQuery)
   const hasMountedRef = useRef(false)
+
+  const [selectedUser, setSelectedUser] = useState<Profile | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isTogglingBypass, setIsTogglingBypass] = useState(false)
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -73,6 +88,33 @@ export default function AdminUsersPageClient({
 
     fetchProfiles()
   }, [fetchProfiles])
+
+  const handleViewDetails = (profile: Profile) => {
+    console.log('handleViewDetails clicked', profile)
+    setSelectedUser(profile)
+    setIsModalOpen(true)
+  }
+
+  const handleToggleBypass = async (checked: boolean) => {
+    if (!selectedUser) return
+    setIsTogglingBypass(true)
+    try {
+      const res = await toggleUserAntiCheatBypass(selectedUser.id, checked)
+      if (res.success) {
+        toast.success(`已${checked ? '开启' : '关闭'}防作弊豁免`)
+        setSelectedUser((prev) => prev ? { ...prev, bypass_anti_cheat: checked } : null)
+        setProfiles((prev) =>
+          prev.map((p) => (p.id === selectedUser.id ? { ...p, bypass_anti_cheat: checked } : p))
+        )
+      } else {
+        toast.error('设置失败: ' + res.error)
+      }
+    } catch (err: any) {
+      toast.error('请求失败: ' + err.message)
+    } finally {
+      setIsTogglingBypass(false)
+    }
+  }
 
   if (loading && profiles.length === 0) {
     return (
@@ -152,7 +194,7 @@ export default function AdminUsersPageClient({
                       {profile.created_at ? format(new Date(profile.created_at), 'yyyy-MM-dd HH:mm') : '-'}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="sm">
+                      <Button variant="ghost" size="sm" onClick={() => handleViewDetails(profile)}>
                         <Eye className="mr-2 h-4 w-4" />
                         查看详情
                       </Button>
@@ -164,6 +206,45 @@ export default function AdminUsersPageClient({
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>用户详情</DialogTitle>
+            <DialogDescription>
+              查看和管理用户 {selectedUser?.nickname || '未设置昵称'} 的详细信息。
+            </DialogDescription>
+          </DialogHeader>
+          {selectedUser && (
+            <div className="grid gap-4 py-4">
+              <div className="flex items-center gap-4">
+                <Avatar className="h-16 w-16">
+                  <AvatarImage src={selectedUser.avatar_url || undefined} />
+                  <AvatarFallback>{(selectedUser.nickname || 'U').substring(0, 2).toUpperCase()}</AvatarFallback>
+                </Avatar>
+                <div className="flex flex-col">
+                  <span className="text-lg font-semibold">{selectedUser.nickname || '未设置昵称'}</span>
+                  <span className="text-sm font-mono text-muted-foreground">{selectedUser.id}</span>
+                </div>
+              </div>
+              <div className="flex items-center justify-between rounded-lg border p-4">
+                <div className="space-y-0.5">
+                  <Label className="text-base">开发者账号防作弊豁免</Label>
+                  <p className="text-sm text-muted-foreground">
+                    开启后，该账号提交的记录将跳过所有反作弊检测。
+                  </p>
+                </div>
+                <Switch
+                  checked={selectedUser.bypass_anti_cheat || false}
+                  onCheckedChange={handleToggleBypass}
+                  disabled={isTogglingBypass}
+                />
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
+
