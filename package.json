@@ -25,7 +25,8 @@
     "test:coverage": "vitest run --coverage",
     "gen:types": "node scripts/gen-types.js",
     "cap:sync:dev": "npx cap sync android",
-    "cap:sync:prod": "cross-env CAP_ENV=production npx cap sync android"
+    "cap:sync:prod": "cross-env CAP_ENV=production npx cap sync android",
+    "deploy": "node scripts/deploy.js"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx}": [
