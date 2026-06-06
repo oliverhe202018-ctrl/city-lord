@@ -12,14 +12,8 @@ import BottomNav from './components/BottomNav';
 
 import { GameLayout } from './components/game/GameLayout';
 import { ClientShell } from './components/ClientShell';
-import { swrFetcher, injectStoreDependencies } from './lib/fetch-shim';
+import { swrFetcher } from './lib/fetch-shim';
 import { SWRConfig } from 'swr';
-
-// Inject dependencies into fetch-shim to break circular imports
-injectStoreDependencies(
-  () => useStore.getState().token,
-  (token: string) => useStore.setState({ token })
-);
 
 // Protected Route wrapper
 const ProtectedRoute = () => {

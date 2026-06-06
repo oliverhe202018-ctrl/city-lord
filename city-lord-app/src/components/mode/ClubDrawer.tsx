@@ -58,7 +58,7 @@ export function ClubDrawer({ isOpen, onClose, onOpenCreate }: ClubDrawerProps) {
   // Navigation
   const navigate = useNavigate();
 
-  const searchParams = useSearchParams();
+  const [searchParams] = useSearchParams();
 
   // Context & Store Hooks
   const { region } = useRegion();

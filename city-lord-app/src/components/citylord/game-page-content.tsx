@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { Suspense, lazy } from 'react';
 const nextDynamic = (importFunc, options = {}) => {
@@ -156,7 +156,7 @@ export function GamePageContent({
   initialFriendRequests = [],
   initialUser
 }: GamePageContentProps) {
-  const searchParams = useSearchParams()
+  const [searchParams] = useSearchParams()
   const { user, isAuthenticated, loading: isAuthLoading } = useAuth(initialUser)
   const { isLoading: isCityLoading, currentCity } = useCity()
   const { checkStaminaRecovery, dismissGeolocationPrompt, claimAchievement, addTotalDistance, openDrawer, closeDrawer, startRunning, stopRunning } = useGameActions()

@@ -29,7 +29,7 @@ const getReferrerProfile = async (referralCode: string) => {
 
 
 export function ReferralWelcome() {
-  const searchParams = useSearchParams()
+  const [searchParams] = useSearchParams()
   const [isOpen, setIsOpen] = useState(false)
   const [referrer, setReferrer] = useState<{ nickname: string | null, avatar_url: string | null } | null>(null)
 

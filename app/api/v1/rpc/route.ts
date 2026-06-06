@@ -4,7 +4,6 @@ import * as accountActions from '@/app/actions/account'
 import * as achievementActions from '@/app/actions/achievement'
 import * as activitiesActions from '@/app/actions/activities'
 import * as authcheckActions from '@/app/actions/auth-check'
-import * as authActions from '@/app/actions/auth'
 import * as badgeactionsActions from '@/app/actions/badge.actions'
 import * as badgeActions from '@/app/actions/badge'
 import * as challengeserviceActions from '@/app/actions/challenge-service'
@@ -26,7 +25,6 @@ import * as referralActions from '@/app/actions/referral'
 import * as reportActions from '@/app/actions/report'
 import * as roomActions from '@/app/actions/room'
 import * as runserviceActions from '@/app/actions/run-service'
-import * as smsauthActions from '@/app/actions/sms-auth'
 import * as socialhubActions from '@/app/actions/social-hub'
 import * as socialserviceActions from '@/app/actions/social-service'
 import * as socialActions from '@/app/actions/social'
@@ -48,7 +46,6 @@ const modules: Record<string, any> = {
   'achievement': achievementActions,
   'activities': activitiesActions,
   'auth-check': authcheckActions,
-  'auth': authActions,
   'badge.actions': badgeactionsActions,
   'badge': badgeActions,
   'challenge-service': challengeserviceActions,
@@ -70,7 +67,6 @@ const modules: Record<string, any> = {
   'report': reportActions,
   'room': roomActions,
   'run-service': runserviceActions,
-  'sms-auth': smsauthActions,
   'social-hub': socialhubActions,
   'social-service': socialserviceActions,
   'social': socialActions,
@@ -127,10 +123,11 @@ export async function POST(request: Request) {
 
     console.log(`[RPC] Executing ${module}.${action} with ${args.length} args`)
     
-    // Security 4: Pass token as the last argument so action functions can optionally use it
-    // if native headers() extraction fails or is unavailable in the execution context.
-    const finalArgs = token ? [...args, token] : args;
-    const result = await (typeof targetFunction === 'function' ? targetFunction(...finalArgs) : targetFunction.apply(null, finalArgs))
+    // Execute target function directly using business arguments.
+    // Auth token is automatically resolved server-side from request headers.
+    const result = await (typeof targetFunction === 'function'
+      ? (targetFunction as Function)(...args)
+      : (targetFunction as any).apply(null, args))
     
     return NextResponse.json({ success: true, data: result })
 

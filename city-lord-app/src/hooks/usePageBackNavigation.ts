@@ -13,8 +13,8 @@ import { useBackNavigationContext } from '@/contexts/BackNavigationContext'
  * @returns { goBack: () => void }
  */
 export function usePageBackNavigation(fallbackUrl: string = '/social') {
-    const router      = useNavigate()
-    const searchParams = useSearchParams()
+    const navigate = useNavigate()
+    const [searchParams] = useSearchParams()
     const { registerHandler, unregisterHandler } = useBackNavigationContext()
 
     // 每个 hook 实例的稳定 ID，不随 render 变化

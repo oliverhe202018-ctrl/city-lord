@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -92,7 +92,7 @@ export default function PlannerClientView({ onClose }: PlannerClientViewProps) {
 
   const currentPath = points.length > 0 ? points : [];
 
-  const searchParams = useSearchParams();
+  const [searchParams] = useSearchParams();
   const editId = searchParams?.get('editId');
   const openRouteList = useRouteListStore((state) => state.openRouteList);
   const closeRouteList = useRouteListStore((state) => state.closeRouteList);
