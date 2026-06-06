@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server'
 import * as accountActions from '@/app/actions/account'
 import * as achievementActions from '@/app/actions/achievement'
 import * as activitiesActions from '@/app/actions/activities'
-import * as authcheckActions from '@/app/actions/auth-check'
 import * as badgeactionsActions from '@/app/actions/badge.actions'
 import * as badgeActions from '@/app/actions/badge'
 import * as challengeserviceActions from '@/app/actions/challenge-service'
@@ -45,7 +44,6 @@ const modules: Record<string, any> = {
   'account': accountActions,
   'achievement': achievementActions,
   'activities': activitiesActions,
-  'auth-check': authcheckActions,
   'badge.actions': badgeactionsActions,
   'badge': badgeActions,
   'challenge-service': challengeserviceActions,
@@ -87,9 +85,16 @@ const ALLOWED_MODULES = new Set(Object.keys(modules))
 
 export async function POST(request: Request) {
   try {
-    // Extract token for injection
+    // Extract and verify token presence to secure the RPC gateway
     const authHeader = request.headers.get('Authorization')
     const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
+
+    if (!token) {
+      return NextResponse.json(
+        { success: false, error: 'Authorization required' },
+        { status: 401 }
+      )
+    }
 
     const body = await request.json()
     const { module, action, args = [] } = body
