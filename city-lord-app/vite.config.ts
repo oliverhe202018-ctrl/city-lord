@@ -5,7 +5,10 @@ import path from 'path'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '')
+  const env = {
+    ...loadEnv(mode, path.resolve(__dirname, '..'), ''),
+    ...loadEnv(mode, process.cwd(), '')
+  }
   return {
     plugins: [
       react(),

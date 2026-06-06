@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 /**
  * TrajectoryPreview
@@ -27,7 +27,7 @@ interface TrajectoryPreviewProps {
 // AMap Loader
 // ============================================================
 
-const AMAP_KEY = process.env.NEXT_PUBLIC_AMAP_KEY || '';
+const AMAP_KEY = process.env.NEXT_PUBLIC_AMAP_KEY || 'e7c09f023c10603e1fa8877e796965e9';
 
 function loadAMapScript(): Promise<void> {
     return new Promise((resolve, reject) => {

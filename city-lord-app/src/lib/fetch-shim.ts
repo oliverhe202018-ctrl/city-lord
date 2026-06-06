@@ -67,7 +67,7 @@ export async function apiFetch(input: RequestInfo | URL, init?: CustomRequestIni
   let response = await fetch(url, customInit);
 
   // Global 401 handling & Silent Refresh
-  if (response.status === 401 && !init?.skipAuthEvent) {
+  if (response.status === 401 && !init?.skipAuthEvent && token) {
     const prefRefresh = await Preferences.get({ key: 'refreshToken' });
     const refreshToken = prefRefresh.value;
     

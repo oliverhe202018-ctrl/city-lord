@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import React, { createContext, useState, useCallback, useEffect, useContext, useMemo } from "react";
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -6,6 +6,7 @@ import { useRegion } from '@/contexts/RegionContext';
 import type { City, UserCityProgress, CitySwitchHistory } from "@/types/city"
 import { getCityById, getAllCities, getCityByAdcode } from '@/lib/city-data'
 import { fetchCityStats, fetchCityLeaderboard, getUserCityProgress, type CityLeaderboardEntry, getOrCreateCityByAdcode, getCityDetailsFromDb } from '@/app/actions/city'
+import { useStore } from '@/store/useStore'
 
 /**
  * CityContext 接口定义
@@ -169,6 +170,7 @@ export function CityProvider({ children }: { children: React.ReactNode }) {
   const [switchHistory, setSwitchHistory] = useState<CitySwitchHistory[]>([])
   const { region, setRegion } = useRegion()
   const queryClient = useQueryClient()
+  const isAuthenticated = useStore((state) => state.isAuthenticated)
 
   // 使用 useMemo for allCities since it's derived data
   const allCities = React.useMemo(() => getAllCities(), [])
@@ -177,7 +179,7 @@ export function CityProvider({ children }: { children: React.ReactNode }) {
   const { data: cityStats, isLoading: isStatsLoading } = useQuery({
     queryKey: ['cityStats', activeBaseCity?.id],
     queryFn: () => fetchCityStats(activeBaseCity!.id),
-    enabled: !!activeBaseCity?.id,
+    enabled: !!activeBaseCity?.id && isAuthenticated,
     staleTime: 5 * 60 * 1000, // 5 minutes
   })
 
@@ -185,7 +187,7 @@ export function CityProvider({ children }: { children: React.ReactNode }) {
   const { data: leaderboardData, isLoading: isLeaderboardLoading } = useQuery({
     queryKey: ['cityLeaderboard', activeBaseCity?.id],
     queryFn: () => fetchCityLeaderboard(activeBaseCity!.id),
-    enabled: !!activeBaseCity?.id,
+    enabled: !!activeBaseCity?.id && isAuthenticated,
     staleTime: 5 * 60 * 1000,
   })
 
@@ -193,7 +195,7 @@ export function CityProvider({ children }: { children: React.ReactNode }) {
   const { data: userProgress, isLoading: isProgressLoading } = useQuery({
     queryKey: ['userCityProgress', activeBaseCity?.id],
     queryFn: () => getUserCityProgress(activeBaseCity!.id),
-    enabled: !!activeBaseCity?.id,
+    enabled: !!activeBaseCity?.id && isAuthenticated,
     staleTime: 5 * 60 * 1000,
   })
 
@@ -370,6 +372,8 @@ export function CityProvider({ children }: { children: React.ReactNode }) {
    * 初始化：从本地存储恢复上次选择的城市，如果没有则选择默认城市
    */
   useEffect(() => {
+    if (!isAuthenticated) return;
+
     let mounted = true
 
     const initializeCity = async () => {
@@ -456,12 +460,13 @@ export function CityProvider({ children }: { children: React.ReactNode }) {
     return () => {
         mounted = false
     }
-  }, []) 
+  }, [isAuthenticated, allCities]) 
 
   /**
    * 同步 RegionContext 的 adcode 到 CityContext
    */
   useEffect(() => {
+    if (!isAuthenticated) return;
     if (isLoading) {
       return;
     }
@@ -479,7 +484,7 @@ export function CityProvider({ children }: { children: React.ReactNode }) {
 
       return () => clearTimeout(timer);
     }
-  }, [region?.adcode, currentCity?.adcode, isLoading, switchCity, activeBaseCity?.adcode])
+  }, [region?.adcode, currentCity?.adcode, isLoading, switchCity, activeBaseCity?.adcode, isAuthenticated])
 
   // 创建稳定的 context value
   const contextValue: CityContextType = React.useMemo(() => ({

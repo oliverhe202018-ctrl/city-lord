@@ -73,13 +73,16 @@ export function SelfLocationMarker({ position }: SelfLocationMarkerProps) {
     // Transform WGS84 to GCJ02 (hook already does this)
     const targetPos = new window.AMap.LngLat(position.lng, position.lat);
 
-    // Fix 2c: 1 米位置缓存守卫 — 静态 GPS 噪声不触发动画
+    // Fix 2c: 自适应速度噪声门限 — 静态 GPS 噪声不触发动画
     const lastPos = lastPosRef.current;
     if (lastPos) {
       const dx = (position.lat - lastPos.lat) * 111000;
       const dy = (position.lng - lastPos.lng) * 111000 * Math.cos(position.lat * Math.PI / 180);
       const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < 1) return; // 位移不足 1 米，忽略
+      
+      const speed = position.speed ?? 0;
+      const noiseGate = speed < 0.5 ? 5.0 : 1.5; // 静止时 5m 门限防抖，运动时 1.5m 保持灵敏
+      if (dist < noiseGate) return; // 忽略微小抖动
     }
     lastPosRef.current = { lat: position.lat, lng: position.lng };
 

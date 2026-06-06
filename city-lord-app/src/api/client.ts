@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { useStore } from '../store/useStore';
+import { Preferences } from '@capacitor/preferences';
 
 // Determine base URL based on environment
 // For production Capacitor apps, this points to the live server
@@ -13,9 +14,17 @@ export const apiClient = axios.create({
 
 // Request interceptor to attach JWT
 apiClient.interceptors.request.use(
-  (config) => {
+  async (config) => {
     // We can pull the token from Zustand store
-    const token = useStore.getState().token;
+    let token = useStore.getState().token;
+    if (!token) {
+      try {
+        const { value } = await Preferences.get({ key: 'authToken' });
+        token = value;
+      } catch (e) {
+        // Ignore preferences errors
+      }
+    }
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -29,7 +38,10 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      useStore.getState().logout();
+      const { isAuthenticated } = useStore.getState();
+      if (isAuthenticated) {
+        useStore.getState().logout();
+      }
     }
     return Promise.reject(error);
   }

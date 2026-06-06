@@ -164,6 +164,13 @@ public class MainActivity extends BridgeActivity {
     private void showBatteryOptimizationDisclosure() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return;
 
+        // Guard: check if foreground location permission is granted first.
+        // If not, skip to prevent dialog collision with Capacitor's startup request.
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            Log.i(TAG, "Location permission not granted yet, skipping battery optimization disclosure for now.");
+            return;
+        }
+
         PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
         if (pm == null || pm.isIgnoringBatteryOptimizations(getPackageName())) return;
 

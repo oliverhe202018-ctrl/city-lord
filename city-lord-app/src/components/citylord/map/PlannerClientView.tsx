@@ -19,7 +19,7 @@ import { apiFetch } from '@/lib/fetch-shim';
 
 
 // Security Config
-const AMAP_KEY = process.env.NEXT_PUBLIC_AMAP_KEY || "";
+const AMAP_KEY = process.env.NEXT_PUBLIC_AMAP_KEY || "e7c09f023c10603e1fa8877e796965e9";
 
 interface PlannerState {
   waypoints: RoutePoint[];

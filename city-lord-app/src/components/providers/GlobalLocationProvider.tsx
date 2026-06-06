@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
 import { useLocationStore, saveLocationToCache, GPS_START_ANCHOR_ACCURACY_METERS, GPS_TRACKING_ACCURACY_METERS, GPS_DISPLAY_ACCURACY_METERS, GPS_COLD_START_ACCURACY_METERS, GPS_START_WARMUP_DISTANCE_FILTER_METERS, GPS_START_WARMUP_INTERVAL_MS, GPS_BROWSE_INTERVAL_MS,  } from '@/store/useLocationStore';
@@ -347,6 +347,19 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
                     console.warn(`[GlobalLocationProvider] Suppressed error in onError:`, err);
                     useLocationStore.setState({ gpsSignalStrength: 'none', loading: false });
                     useGameStore.getState().setGpsStatus('weak');
+
+                    // 如果是海外IP或授权失败(Code 7)，弹Toast引导用户关闭代理/VPN
+                    const isAbroadError = err.code === '7' || 
+                                          String(err.code) === '7' || 
+                                          String(err.message ?? '').includes('INSUFFICIENT_ABROAD_PRIVILEGES');
+                    if (isAbroadError) {
+                        import('sonner').then(({ toast }) => {
+                            toast.error('高德定位授权失败(Code 7)。如果开启了代理或 VPN，请关闭后重试。', {
+                                id: 'amap-abroad-error-toast',
+                                duration: 8000
+                            });
+                        }).catch(() => {});
+                    }
                     return;
                 }
 

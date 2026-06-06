@@ -3,9 +3,15 @@ import { RunningTrackerContext } from '@/contexts/RunningTrackerContext';
 
 import { Suspense, lazy } from 'react';
 const nextDynamic = (importFunc: () => Promise<any>, options: any = {}) => {
-  const LazyComponent = lazy(() => importFunc().then((mod: any) => ({
-    default: mod.default || Object.values(mod)[0]
-  })));
+  const LazyComponent = lazy(() => importFunc().then((mod: any) => {
+    if (!mod) return { default: () => null };
+    if (typeof mod === 'function' || (typeof mod === 'object' && mod.$$typeof)) {
+      return { default: mod };
+    }
+    return {
+      default: mod.default || Object.values(mod)[0] || mod
+    };
+  }));
   return (props: any) => (
     <Suspense fallback={options.loading ? options.loading() : null}>
       <LazyComponent {...props} />
@@ -381,6 +387,7 @@ export function GameLayout({
   const isImmersiveActive = showImmersiveMode || isRunning
 
   // Running Tracker
+  const trackerValue = useRunningTracker(isRunning, user?.id)
   const {
     distance,
     pace,
@@ -416,7 +423,7 @@ export function GameLayout({
     randomEventCountdownSeconds,
     lastAnnouncedKm,
     recoverUnfinishedSession,
-  } = useRunningTracker(isRunning, user?.id)
+  } = trackerValue
 
   // Crash Recovery Check
   const [hasCheckedRecovery, setHasCheckedRecovery] = useState(false);
@@ -1075,7 +1082,40 @@ export function GameLayout({
     unlockedAt: new Date().toLocaleDateString('zh-CN'),
   }), [])
 
+  const contextValue = useMemo(() => ({
+    ...trackerValue,
+    isRunning,
+    isRunTakeoverActive,
+    activeTab,
+    setActiveTab,
+    immersiveCurrentLocation,
+    sessionHexes,
+    handleTrackerPause,
+    handleStopRun,
+    handleManualLocationUpdate,
+    handleExpand,
+    handleHexClaimed,
+    beginRunStart,
+    handlePlannerOpen,
+  }), [
+    trackerValue,
+    isRunning,
+    isRunTakeoverActive,
+    activeTab,
+    setActiveTab,
+    immersiveCurrentLocation,
+    sessionHexes,
+    handleTrackerPause,
+    handleStopRun,
+    handleManualLocationUpdate,
+    handleExpand,
+    handleHexClaimed,
+    beginRunStart,
+    handlePlannerOpen,
+  ]);
+
   return (
+    <RunningTrackerContext.Provider value={contextValue}>
     <div className="relative w-full h-[100dvh] max-w-md mx-auto bg-[#0f172a] overflow-hidden flex flex-col">
       {!hydrated && <LoadingScreen message="正在初始化..." />}
       {(isCityLoading || !currentCity) && hydrated && <LoadingScreen message="正在加载城市数据..." />}
@@ -1482,5 +1522,6 @@ export function GameLayout({
         }}
       />
     </div>
+    </RunningTrackerContext.Provider>
   )
 }

@@ -2,9 +2,15 @@
 
 import { Suspense, lazy } from 'react';
 const nextDynamic = (importFunc, options = {}) => {
-  const LazyComponent = lazy(() => importFunc().then((mod) => ({
-    default: mod.default || Object.values(mod)[0]
-  })));
+  const LazyComponent = lazy(() => importFunc().then((mod: any) => {
+    if (!mod) return { default: () => null };
+    if (typeof mod === 'function' || (typeof mod === 'object' && mod.$$typeof)) {
+      return { default: mod };
+    }
+    return {
+      default: mod.default || Object.values(mod)[0] || mod
+    };
+  }));
   return (props) => (
     <Suspense fallback={options.loading ? options.loading() : null}>
       <LazyComponent {...props} />

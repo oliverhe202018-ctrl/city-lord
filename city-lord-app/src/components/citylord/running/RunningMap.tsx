@@ -1,7 +1,7 @@
 /// <reference types="@amap/amap-jsapi-types" />
 "use client"
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
 import { safeLoadAMap, safeDestroyMap } from '@/lib/map/safe-amap';
 import MapManager from "@/lib/mapManager"
 import { type Location } from '@/hooks/useRunningTracker'
@@ -11,7 +11,7 @@ import { useLocationStore } from '@/store/useLocationStore'
 import { TrajectoryLayer } from '@/components/map/layers/TrajectoryLayer'
 
 // Security Config
-const AMAP_KEY = process.env.NEXT_PUBLIC_AMAP_KEY || ""
+const AMAP_KEY = process.env.NEXT_PUBLIC_AMAP_KEY || "e7c09f023c10603e1fa8877e796965e9"
 
 interface RunningMapProps {
   userLocation?: [number, number]
@@ -41,6 +41,8 @@ export function RunningMap({
   const polygonRefs = useRef<AMap.Polygon[]>([]) // Store polygon instances
   const kmMarkersRef = useRef<AMap.Marker[]>([])
   const locationCircleRef = useRef<AMap.Circle | null>(null) // Accuracy circle
+  const lastPosRef = useRef<{ lat: number; lng: number } | null>(null)
+  const lastSourceRef = useRef<string | undefined>(undefined)
 
   const { smoothPanTo, onUserZoomChange } = useSmoothMapCamera(mapInstanceRef.current);
   const globalLocation = useLocationStore(s => s.location);
@@ -233,68 +235,98 @@ export function RunningMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // Init ONCE only — location updates handled by separate effects
 
-  // 1.5 Handle global store location updates — ALWAYS sync marker to latest GPS
-  // ===== BUG FIX: Removed `!userLocation` guard =====
-  // Previously this only fired when userLocation prop was missing.
-  // Now it always runs, so the map follows real-time GPS even during running.
-  useEffect(() => {
-    if (globalLocation && mapInstanceRef.current && userMarkerRef.current) {
-      const pos = [globalLocation.lng, globalLocation.lat] as [number, number];
-      userMarkerRef.current.setPosition(pos);
-      userMarkerRef.current.show();
-
-      if (!isUserInteractingRef.current) {
-        smoothPanTo(pos);
-      }
-
-      if (onLocationUpdate) {
-        onLocationUpdate(globalLocation.lat, globalLocation.lng);
-      }
+  // Unified activeLocation selecting userLocation if provided, otherwise globalLocation
+  const activeLocation = useMemo(() => {
+    if (userLocation) {
+      return {
+        lng: userLocation[0],
+        lat: userLocation[1],
+        speed: globalLocation?.speed,
+        source: locationSource || undefined,
+        accuracy: globalLocation?.accuracy,
+        heading: globalLocation?.heading,
+      };
     }
-  }, [globalLocation, onLocationUpdate, smoothPanTo]);
+    return globalLocation;
+  }, [userLocation, globalLocation, locationSource]);
 
-  // 2. Update User Location & Center
+  // 2. Update Position — adaptive speed noise gate and smooth moveTo animation
   useEffect(() => {
-    if (!mapInstanceRef.current || !userMarkerRef.current || !userLocation) return
+    if (!mapInstanceRef.current || !userMarkerRef.current || !activeLocation) return;
     const AMap = amapRef.current;
+    if (!AMap) return;
 
-    // Update marker
-    userMarkerRef.current.setPosition(userLocation)
-    userMarkerRef.current.show()
+    const targetPos = new AMap.LngLat(activeLocation.lng, activeLocation.lat);
 
-    // Smooth Pan to user using the new hook (only if not interacting)
+    // Adaptive speed noise gate
+    const lastPos = lastPosRef.current;
+    if (lastPos) {
+      const dx = (activeLocation.lat - lastPos.lat) * 111000;
+      const dy = (activeLocation.lng - lastPos.lng) * 111000 * Math.cos(activeLocation.lat * Math.PI / 180);
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      
+      const speed = activeLocation.speed ?? 0;
+      const noiseGate = speed < 0.5 ? 5.0 : 1.5; // 5.0m threshold if stationary, 1.5m if moving
+      if (dist < noiseGate) return; // Ignore small drift
+    }
+    lastPosRef.current = { lat: activeLocation.lat, lng: activeLocation.lng };
+
+    const currentPos = userMarkerRef.current.getPosition();
+    const distance = currentPos ? currentPos.distance(targetPos) : 0;
+
+    userMarkerRef.current.show();
+
+    if (!currentPos || distance > 500) {
+      // First load or huge jump -> set position immediately
+      userMarkerRef.current.setPosition(targetPos);
+    } else if (distance > 0.5) {
+      // Smooth transition - stop current animation first
+      if (typeof userMarkerRef.current.stopMove === 'function') {
+        userMarkerRef.current.stopMove();
+      }
+
+      const targetDurationSec = 0.8;
+      const animSpeed = Math.max(1, (distance / 1000) / (targetDurationSec / 3600));
+
+      userMarkerRef.current.moveTo(targetPos, {
+        duration: 800,
+        speed: animSpeed,
+        autoRotation: false,
+      });
+    }
+
+    // Smooth Pan to user using the hook (only if not interacting)
     if (!isUserInteractingRef.current) {
-      smoothPanTo(userLocation)
+      smoothPanTo([activeLocation.lng, activeLocation.lat]);
     }
 
     // Accuracy Circle
-    // Assuming 50m default if accuracy not passed, or we should pass accuracy from parent
-    // For now, draw a small circle to indicate "range"
-    if (!locationCircleRef.current && AMap) {
+    const radius = activeLocation.accuracy || 30;
+    if (!locationCircleRef.current) {
       locationCircleRef.current = new AMap.Circle({
-        center: userLocation,
-        radius: 30, // Default 30m range? Or use real accuracy if passed
+        center: targetPos,
+        radius: radius,
         strokeColor: "#3B82F6",
         strokeOpacity: 0.2,
         strokeWeight: 1,
         fillColor: "#3B82F6",
         fillOpacity: 0.1,
         zIndex: 90
-      })
-
-      // 确保 mapInstanceRef.current 有效再添加
-      if (mapInstanceRef.current && typeof mapInstanceRef.current.add === 'function') {
-        mapInstanceRef.current.add(locationCircleRef.current);
-      }
-    } else if (locationCircleRef.current) {
-      locationCircleRef.current.setCenter(userLocation)
-      // 如果之前没有添加到地图（比如初始化时失败），这里再试一次
-      if (!locationCircleRef.current.getMap() && mapInstanceRef.current) {
+      });
+      mapInstanceRef.current.add(locationCircleRef.current);
+    } else {
+      locationCircleRef.current.setCenter(targetPos);
+      locationCircleRef.current.setRadius(radius);
+      if (!locationCircleRef.current.getMap()) {
         mapInstanceRef.current.add(locationCircleRef.current);
       }
     }
 
-  }, [userLocation])
+    if (onLocationUpdate) {
+      onLocationUpdate(activeLocation.lat, activeLocation.lng);
+    }
+
+  }, [activeLocation, smoothPanTo, onLocationUpdate]);
 
   // Recenter Trigger Effect
   useEffect(() => {
