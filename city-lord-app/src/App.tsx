@@ -17,7 +17,8 @@ import { SWRConfig } from 'swr';
 
 // Protected Route wrapper
 const ProtectedRoute = () => {
-  const { isAuthenticated } = useStore();
+  const { isAuthenticated, isHydrating } = useStore();
+  if (isHydrating) return <div className="flex items-center justify-center h-[100dvh] bg-black text-white">Loading...</div>;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   return (
     <div className="flex flex-col h-[100dvh] bg-black text-white overflow-hidden">
@@ -35,10 +36,17 @@ function App() {
 
   useEffect(() => {
     checkAuth();
+    
+    // Listen for global logout events (e.g. from 401 interceptor)
+    const handleLogout = () => {
+      useStore.getState().logout();
+    };
+    window.addEventListener('auth:logout', handleLogout);
+    return () => window.removeEventListener('auth:logout', handleLogout);
   }, [checkAuth]);
 
   return (
-    <SWRConfig value={{ fetcher: swrFetcher }}>
+    <SWRConfig value={{ fetcher: swrFetcher, revalidateOnFocus: false, revalidateOnReconnect: true }}>
       <BrowserRouter>
         <ClientShell>
           <Routes>

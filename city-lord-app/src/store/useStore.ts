@@ -3,6 +3,7 @@ import { Preferences } from '@capacitor/preferences';
 import { apiFetch } from '@/lib/fetch-shim';
 
 interface UserState {
+  isHydrating: boolean;
   isAuthenticated: boolean;
   userId: string | null;
   token: string | null;
@@ -22,6 +23,7 @@ interface UserState {
 }
 
 export const useStore = create<UserState>((set) => ({
+  isHydrating: true,
   isAuthenticated: false,
   userId: null,
   token: null,
@@ -125,7 +127,8 @@ export const useStore = create<UserState>((set) => ({
               isAuthenticated: true, 
               token, 
               userId: userId || data.data.id,
-              profile: data.data 
+              profile: data.data,
+              isHydrating: false
             });
             return;
           }
@@ -136,6 +139,6 @@ export const useStore = create<UserState>((set) => ({
     }
     
     // Clear invalid session
-    set({ isAuthenticated: false, userId: null, token: null, profile: null });
+    set({ isAuthenticated: false, userId: null, token: null, profile: null, isHydrating: false });
   }
 }));

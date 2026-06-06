@@ -21,8 +21,7 @@ export default defineConfig(({ mode }) => {
       'process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY': JSON.stringify(env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
       'process.env.NEXT_PUBLIC_AMAP_KEY': JSON.stringify(env.NEXT_PUBLIC_AMAP_KEY),
       'process.env.NEXT_PUBLIC_AMAP_SECURITY_CODE': JSON.stringify(env.NEXT_PUBLIC_AMAP_SECURITY_CODE),
-      'process.env.NEXT_PUBLIC_API_SERVER': JSON.stringify(env.NEXT_PUBLIC_API_SERVER || 'https://cl1.4567666.xyz'),
-      'process.env': {}
+      'process.env.NEXT_PUBLIC_API_SERVER': JSON.stringify(env.NEXT_PUBLIC_API_SERVER || 'https://cl1.4567666.xyz')
     },
     build: {
       minify: false,

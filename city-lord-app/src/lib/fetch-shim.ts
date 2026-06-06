@@ -2,6 +2,8 @@ import { Preferences } from '@capacitor/preferences';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://cl1.4567666.xyz';
 
+import { useStore } from '@/store/useStore';
+
 /**
  * Ensures a URL is absolute by prefixing BASE_URL if it starts with /
  */
@@ -24,13 +26,19 @@ export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Pr
   // Re-construct the input if it was a Request object, but usually it's a string
   const customInit: RequestInit = {
     ...init,
-    // VERY IMPORTANT: Include credentials so cookies are sent/received
-    // and CapacitorHttp handles them.
-    credentials: 'include',
+    // Omit credentials since we use Bearer tokens to avoid CORS preflight issues
+    credentials: 'omit',
   };
 
-  // Allow optional token injection if we still have fallback tokens
-  const { value: token } = await Preferences.get({ key: 'authToken' });
+  // 1. Try to get token synchronously from memory store first
+  let token = useStore.getState().token;
+  
+  // 2. Fallback to async Preferences check if store is empty (e.g., during hydration or direct fetch call)
+  if (!token) {
+    const pref = await Preferences.get({ key: 'authToken' });
+    token = pref.value;
+  }
+
   if (token) {
     customInit.headers = {
       ...customInit.headers,
@@ -41,10 +49,10 @@ export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Pr
   // CapacitorHttp automatically bridges fetch requests on native apps
   const response = await fetch(url, customInit);
 
-  // Global 401 handling (we can emit an event or call store method)
+  // Global 401 handling
   if (response.status === 401) {
-    console.warn('API returned 401 Unauthorized');
-    // We will handle this in the UI via SWR or interceptors
+    console.warn('API returned 401 Unauthorized. Dispatching logout event.');
+    window.dispatchEvent(new CustomEvent('auth:logout'));
   }
 
   return response;

@@ -121,6 +121,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: '缺少 module 或 action 参数' }, { status: 400 })
     }
 
+    // Security: Block administrative and seed modules from public RPC access
+    if (module.startsWith('admin') || module === 'seed') {
+      return NextResponse.json({ success: false, error: 'Access denied to restricted modules' }, { status: 403 })
+    }
+
+    // Security: Prevent prototype pollution by validating action name
+    if (!/^[a-zA-Z_]\w*$/.test(action)) {
+      return NextResponse.json({ success: false, error: 'Invalid action name' }, { status: 400 })
+    }
+
     const targetModule = modules[module]
     if (!targetModule) {
       return NextResponse.json({ success: false, error: '未找到模块: ' + module }, { status: 404 })
