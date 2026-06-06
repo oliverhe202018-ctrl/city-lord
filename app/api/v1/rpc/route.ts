@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+ï»¿import { NextResponse } from 'next/server'
 
 import * as accountActions from '@/app/actions/account'
 import * as achievementActions from '@/app/actions/achievement'
@@ -118,17 +118,17 @@ export async function POST(request: Request) {
     const { module, action, args = [] } = body
 
     if (!module || !action) {
-      return NextResponse.json({ success: false, error: 'È±ÉÙ module »ò action ²ÎÊı' }, { status: 400 })
+      return NextResponse.json({ success: false, error: 'ç¼ºå°‘ module æˆ– action å‚æ•°' }, { status: 400 })
     }
 
     const targetModule = modules[module]
     if (!targetModule) {
-      return NextResponse.json({ success: false, error: 'Î´ÕÒµ½Ä£¿é: ' + module }, { status: 404 })
+      return NextResponse.json({ success: false, error: 'æœªæ‰¾åˆ°æ¨¡å—: ' + module }, { status: 404 })
     }
 
     const targetFunction = targetModule[action]
     if (!targetFunction || typeof targetFunction !== 'function') {
-      return NextResponse.json({ success: false, error: 'ÔÚÄ£¿é ' + module + ' ÖĞÎ´ÕÒµ½·½·¨: ' + action }, { status: 404 })
+      return NextResponse.json({ success: false, error: 'åœ¨æ¨¡å— ' + module + ' ä¸­æœªæ‰¾åˆ°æ–¹æ³•: ' + action }, { status: 404 })
     }
 
     const finalArgs = [...args, token]
@@ -140,7 +140,7 @@ export async function POST(request: Request) {
   } catch (error: any) {
     console.error([RPC Error], error)
     return NextResponse.json(
-      { success: false, error: error.message || 'ÄÚ²¿·şÎñÆ÷´íÎó' },
+      { success: false, error: error.message || 'å†…éƒ¨æœåŠ¡å™¨é”™è¯¯' },
       { status: 500 }
     )
   }
