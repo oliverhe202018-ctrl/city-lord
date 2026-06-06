@@ -13,7 +13,8 @@ Write-Host "[OK] Code pushed to remote repository" -ForegroundColor Green
 $vpsHost = "root@cl1.4567666.xyz"
 $vpsProjectPath = "/root/city-lord" 
 
-$deployCommands = @"
+$deployCommands = @'
+vpsProjectPath="/root/city-lord"
 if [ ! -d "$vpsProjectPath" ]; then
     echo "=================================================="
     echo "First time deployment detected!"
@@ -54,7 +55,7 @@ else
 fi
 
 echo 'Deployment complete!'
-"@
+'@
 
 Write-Host "`n[2/3] Connecting to VPS..." -ForegroundColor Yellow
 Write-Host "Note: If prompted, please enter your VPS SSH password." -ForegroundColor Gray
