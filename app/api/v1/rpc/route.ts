@@ -1,4 +1,4 @@
-﻿import { NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 
 import * as accountActions from '@/app/actions/account'
 import * as achievementActions from '@/app/actions/achievement'
@@ -138,7 +138,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, data: result })
 
   } catch (error: any) {
-    console.error([RPC Error], error)
+    console.error(`[RPC Error]`, error)
     return NextResponse.json(
       { success: false, error: error.message || '内部服务器错误' },
       { status: 500 }
