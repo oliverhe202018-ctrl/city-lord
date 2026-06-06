@@ -56,6 +56,7 @@ fi
 
 echo 'Deployment complete!'
 '@
+$deployCommands = $deployCommands -replace "`r`n", "`n"
 
 Write-Host "`n[2/3] Connecting to VPS..." -ForegroundColor Yellow
 Write-Host "Note: If prompted, please enter your VPS SSH password." -ForegroundColor Gray
