@@ -12,9 +12,9 @@ import { fetchUserProfileStats } from '@/lib/game-logic/user-core'
 import { checkAndAwardBadges } from '@/lib/game-logic/achievement-core'
 import { eventBus } from '@/lib/game-logic/event-bus'
 
-export async function stopRunningAction(context: RunContext) {
+export async function stopRunningAction(context: RunContext, token?: string) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user } } = token ? await supabase.auth.getUser(token) : await supabase.auth.getUser()
 
   if (!user) return { success: false, error: 'Not authenticated' }
 
@@ -230,9 +230,9 @@ export async function stopRunningAction(context: RunContext) {
   }
 }
 
-export async function getUserProfileStats() {
+export async function getUserProfileStats(token?: string) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user } } = token ? await supabase.auth.getUser(token) : await supabase.auth.getUser()
 
   if (!user) {
     return {
@@ -251,9 +251,9 @@ export async function getUserProfileStats() {
   return await fetchUserProfileStats(user.id)
 }
 
-export async function touchUserActivity() {
+export async function touchUserActivity(token?: string) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user } } = token ? await supabase.auth.getUser(token) : await supabase.auth.getUser()
 
   if (!user) return
 
@@ -268,7 +268,7 @@ export async function touchUserActivity() {
 }
 
 // Internal cached function
-const _ensureUserProfile = cache(async (userId: string) => {
+const _ensureUserProfile = cache(async (userId: string, token?: string) => {
   const supabase = await createClient()
 
   // 🚀 Fast Path: Check ID existence only (<50ms)
@@ -287,7 +287,7 @@ const _ensureUserProfile = cache(async (userId: string) => {
   console.log('[UserProfile] Creating new profile for:', userId)
 
   // We assume the user is authenticated in auth.users
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user } } = token ? await supabase.auth.getUser(token) : await supabase.auth.getUser()
 
   if (!user || user.id !== userId) {
     return { success: false, error: 'Unauthorized or ID mismatch' }
@@ -316,8 +316,8 @@ const _ensureUserProfile = cache(async (userId: string) => {
 })
 
 // Export as async function for Server Action compatibility
-export async function ensureUserProfile(userId: string) {
-  return _ensureUserProfile(userId)
+export async function ensureUserProfile(userId: string, token?: string) {
+  return _ensureUserProfile(userId, token)
 }
 
 
@@ -326,9 +326,9 @@ export async function ensureUserProfile(userId: string) {
  * @deprecated This standalone function is deprecated. 
  * Please use `grantRewards` in `lib/game-logic/reward-service.ts` instead to ensure unified transactional experience and coin reward processing.
  */
-export async function addCoins(amount: number) {
+export async function addCoins(amount: number, token?: string) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user } } = token ? await supabase.auth.getUser(token) : await supabase.auth.getUser()
 
   if (!user) return { success: false, error: 'Not authenticated' }
 
@@ -355,9 +355,9 @@ export async function addCoins(amount: number) {
   return { success: true, newCoins }
 }
 
-export async function getUserTitles() {
+export async function getUserTitles(token?: string) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user } } = token ? await supabase.auth.getUser(token) : await supabase.auth.getUser()
   if (!user) return { titles: [], currentTitle: null }
 
   const profile = await prisma.profiles.findUnique({
@@ -381,9 +381,9 @@ export async function getUserTitles() {
   return { titles, currentTitle: profile?.current_title ?? null }
 }
 
-export async function updateUserTitle(title: string) {
+export async function updateUserTitle(title: string, token?: string) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user } } = token ? await supabase.auth.getUser(token) : await supabase.auth.getUser()
   if (!user) return { success: false, error: 'UNAUTHORIZED' }
 
   const earnedBadges = await prisma.user_badges.findMany({

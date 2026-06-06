@@ -238,10 +238,11 @@ export async function getProfileData(targetUserId: string, token?: string): Prom
 export async function getRuns(
     userId: string,
     cursor?: string,
-    limit: number = 10
+    limit: number = 10,
+    token?: string
 ): Promise<{ runs: RunRecord[]; nextCursor: string | null }> {
     const supabase = await createClient()
-    const { data: { user: currentUser } } = await supabase.auth.getUser()
+    const { data: { user: currentUser } } = token ? await supabase.auth.getUser(token) : await supabase.auth.getUser()
     const isSelf = currentUser?.id === userId
 
     // Server-side privacy check
@@ -300,9 +301,9 @@ export async function getRuns(
 }
 
 // ─── toggleProfilePrivacy ────────────────────────────────
-export async function toggleProfilePrivacy(isPublic: boolean) {
+export async function toggleProfilePrivacy(isPublic: boolean, token?: string) {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { user } } = token ? await supabase.auth.getUser(token) : await supabase.auth.getUser()
     if (!user) return { success: false, error: '未登录' }
 
     try {
@@ -318,9 +319,9 @@ export async function toggleProfilePrivacy(isPublic: boolean) {
 }
 
 // ─── updateProfileBackground ─────────────────────────────
-export async function updateProfileBackground(bgId: string) {
+export async function updateProfileBackground(bgId: string, token?: string) {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { user } } = token ? await supabase.auth.getUser(token) : await supabase.auth.getUser()
     if (!user) return { success: false, error: '未登录' }
 
     try {
@@ -359,9 +360,9 @@ export async function updateProfileBackground(bgId: string) {
 }
 
 // ─── toggleUserLike ──────────────────────────────────────
-export async function toggleUserLike(targetUserId: string) {
+export async function toggleUserLike(targetUserId: string, token?: string) {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { user } } = token ? await supabase.auth.getUser(token) : await supabase.auth.getUser()
     if (!user) return { success: false, error: '未登录' }
     if (user.id === targetUserId) return { success: false, error: '不能给自己点赞' }
 
@@ -392,9 +393,9 @@ export async function toggleUserLike(targetUserId: string) {
 }
 
 // ─── blockUser ───────────────────────────────────────────
-export async function blockUser(targetUserId: string) {
+export async function blockUser(targetUserId: string, token?: string) {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { user } } = token ? await supabase.auth.getUser(token) : await supabase.auth.getUser()
     if (!user) return { success: false, error: '未登录' }
     if (user.id === targetUserId) return { success: false, error: '不能屏蔽自己' }
 
@@ -414,9 +415,9 @@ export async function blockUser(targetUserId: string) {
 }
 
 // ─── getBackgrounds ──────────────────────────────────────
-export async function getBackgrounds(filter: 'all' | 'mine' | 'available' | 'expired' = 'all') {
+export async function getBackgrounds(filter: 'all' | 'mine' | 'available' | 'expired' = 'all', token?: string) {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { user } } = token ? await supabase.auth.getUser(token) : await supabase.auth.getUser()
     if (!user) return { backgrounds: [], currentBg: null }
 
     const [allBgs, userBgs, profile] = await Promise.all([

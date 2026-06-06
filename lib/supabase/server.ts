@@ -16,12 +16,14 @@ if (typeof process !== "undefined" && process.release?.name === "node") {
   }
 }
 
+import { headers } from 'next/headers'
+
 export const createClient = async (
   cookieStore?: Awaited<ReturnType<typeof cookies>>,
 ) => {
   const resolvedCookieStore = cookieStore ?? (await cookies())
 
-  return createServerClient<Database>(
+  const supabase = createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
@@ -36,11 +38,30 @@ export const createClient = async (
             )
           } catch {
             // The `setAll` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing
-            // user sessions.
           }
         },
       },
     }
   )
+
+  // 🚀 Native Migration Patch: Automatically support Bearer token from Headers
+  // This allows Native Vite apps to communicate via REST API without refactoring all 44 Server Actions.
+  try {
+    const reqHeaders = await headers()
+    const authHeader = reqHeaders.get('authorization') || reqHeaders.get('Authorization')
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.replace('Bearer ', '')
+      // We set the Auth headers manually for this instance
+      supabase.realtime.setAuth(token) // For realtime
+      // Overwrite the getUser function to automatically use the token
+      const originalGetUser = supabase.auth.getUser.bind(supabase.auth)
+      supabase.auth.getUser = async (jwt?: string) => {
+        return originalGetUser(jwt || token)
+      }
+    }
+  } catch (e) {
+    // Ignore header extraction errors in non-request contexts
+  }
+
+  return supabase
 }

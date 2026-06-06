@@ -246,16 +246,21 @@ Use SDK (`@trigger.dev/sdk`), check `result.ok` before accessing `result.output`
 
 所有移动端的开发、前端构建和打包动作**必须**在 `city-lord-app` 目录下进行，绝对禁止在 `city-lord` 后端/根目录中执行。
 
-根据打包场景的不同，必须严格采用对应的构建策略，推荐统一使用 `city-lord-app/build-apk.bat` 脚本实现自动化打包：
+**【关于“壳子App”与“原生化”的规则修正】**
+由于原有的 5 个栏目（首页、地图、开始、社交、个人）以及核心业务逻辑（定位、录音、保活等）均深度耦合在 Next.js 服务端渲染（SSR）及服务端组件（RSC）架构中，将其瞬间转化为纯静态的原生离线包（Vite SPA）是不可能的，这也是导致目前“只有两个栏目且打不开”的原因（仅搭建了脚手架）。
+
+因此，**在完全重构为前端纯静态应用之前，必须恢复使用“壳子应用”架构（WebView 壳）**，以确保功能和页面布局与之前花费大功夫定下来的版本保持**100%完全一致**。
+
+根据打包场景的不同，统一使用 `city-lord-app/build-apk.bat` 脚本实现自动化打包：
 
 1. **打包本地测试文件 (Local Test APK)**:
-   - **加载策略**: WebView 壳子模式，实时加载本地开发服务器，支持前端热重载（HMR）。
-   - **加载地址**: 本地模拟器回环地址 `http://10.0.2.2:3000`（通过 `capacitor.config.ts` 的 `server.url` 指定）。
-   - **构建流程**: 执行 `npx cap sync android`（或 `npm run cap:sync:dev`）后执行 `gradlew.bat assembleDebug`。
+   - **加载策略**: 壳子模式，实时加载本地开发服务器。
+   - **加载地址**: `http://10.0.2.2:3000`
+   - **构建流程**: `capacitor.config.ts` 设置 `server.url` 为本地地址。执行 `npx cap sync android` 后打包。
 2. **打包发送到手机上测试的 APK 文件 (Phone Test APK)**:
-   - **加载策略**: **纯净原生化（Nativeized）离线包，绝对禁止打壳子应用！**
-   - **加载地址**: App 本地直接加载打包好的 `dist` 静态资源（前端接口会自动请求 `https://cl1.4567666.xyz/api/v1`）。生产环境下 `capacitor.config.ts` **禁止**配置 `server.url`。
-   - **构建流程**: **必须先执行 `npm run build`** 静态化前端界面，再执行 `cross-env CAP_ENV=production npx cap sync android`（或 `npm run cap:sync:prod`）进行底层同步，最后执行 `gradlew.bat assembleDebug` 打包出脱机可用、性能极致的原生安装包。
+   - **加载策略**: **壳子模式（线上版）**。通过 Capacitor 直接加载线上 VPS 的 Next.js 前端，结合 PWA 缓存实现极速体验。
+   - **加载地址**: 必须在 `capacitor.config.ts` 中配置 `server.url` 为 `https://cl1.4567666.xyz`，并配置 `allowNavigation`。
+   - **构建流程**: 执行 `cross-env CAP_ENV=production npx cap sync android`（或 `npm run cap:sync:prod`）同步线上 URL，最后执行 `gradlew.bat assembleDebug` 进行打包。
 
 ## 自动化服务器部署 (VPS Automated Deployment)
 
