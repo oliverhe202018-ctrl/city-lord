@@ -91,6 +91,10 @@ const ALLOWED_MODULES = new Set(Object.keys(modules))
 
 export async function POST(request: Request) {
   try {
+    // Extract token for injection
+    const authHeader = request.headers.get('Authorization')
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
+
     const body = await request.json()
     const { module, action, args = [] } = body
 
@@ -114,16 +118,20 @@ export async function POST(request: Request) {
     }
 
     const targetModule = modules[module]
-    const targetFunction = targetModule[action]
-    if (!targetFunction || typeof targetFunction !== 'function') {
+    const targetFunction = targetModule?.[action]
+    
+    // Check if targetFunction exists (Next.js Server Actions might be wrapped, so we allow function or object if it's a reference)
+    if (!targetFunction) {
       return NextResponse.json({ success: false, error: '在模块 ' + module + ' 中未找到方法: ' + action }, { status: 404 })
     }
 
     console.log(`[RPC] Executing ${module}.${action} with ${args.length} args`)
     
-    // Security 4: Direct execution without appending token.
-    // The target functions use `createClient()` which automatically extracts Bearer token from headers.
-    const result = await targetFunction(...args)
+    // Security 4: Pass token as the last argument so action functions can optionally use it
+    // if native headers() extraction fails or is unavailable in the execution context.
+    const finalArgs = token ? [...args, token] : args;
+    const result = await (typeof targetFunction === 'function' ? targetFunction(...finalArgs) : targetFunction.apply(null, finalArgs))
+    
     return NextResponse.json({ success: true, data: result })
 
   } catch (error: any) {

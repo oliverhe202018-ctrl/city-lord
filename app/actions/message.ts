@@ -126,10 +126,14 @@ export async function markAsRead(messageId: string) {
   return { success: true }
 }
 
-export async function getUnreadMessageCount() {
+export async function getUnreadMessageCount(token?: string) {
   const supabase = await createClient()
 
-  const { data: { user } } = await supabase.auth.getUser()
+  // Prioritize Bearer token (from RPC gateway) over Cookie (from SSR)
+  const { data: { user } } = token 
+    ? await supabase.auth.getUser(token)
+    : await supabase.auth.getUser()
+    
   if (!user) return 0
 
   const { count, error } = await supabase
