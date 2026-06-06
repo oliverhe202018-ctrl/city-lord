@@ -1980,7 +1980,10 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     if (!isRunning || !gpsLocation || isStoppingRef.current) return;
 
     // P0 #2 — Mock 虚拟定位防御纵深：Store 层已拦截，Tracker 层再次校验（开发环境放行以支持模拟器测试）
-    const isDev = process.env.NODE_ENV === 'development';
+    const isDev = process.env.NODE_ENV === 'development' ||
+                  import.meta.env?.DEV ||
+                  (gpsLocation as any).isDebug === true ||
+                  (gpsLocation as any).isEmulator === true;
     if ((gpsLocation as any).isMock === true && !isDev) {
       console.warn('[AntiCheat] Mock location detected at tracker level, rejecting');
       setClientFlags(prev => {

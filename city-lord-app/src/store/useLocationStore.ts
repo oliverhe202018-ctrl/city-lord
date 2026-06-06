@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { create } from 'zustand';
 import type { GeoPoint, LocationStatus } from '@/hooks/useSafeGeolocation';
@@ -174,7 +174,10 @@ export const useLocationStore = create<LocationStoreState>()((set) => ({
     batteryOptSkipped: false,
     appendWarmupSample: (point) => set((state) => {
         // P0 #2 — Mock 虚拟定位拦截：不推入预热历史（开发环境放行以支持模拟器测试）
-        const isDev = process.env.NODE_ENV === 'development';
+        const isDev = process.env.NODE_ENV === 'development' ||
+                      import.meta.env?.DEV ||
+                      point.isDebug === true ||
+                      point.isEmulator === true;
         if (point.isMock === true && !isDev) {
             console.warn('[Store] Mock location detected, rejecting from prewarm history');
             return {};

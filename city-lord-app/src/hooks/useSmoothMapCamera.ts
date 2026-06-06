@@ -21,17 +21,20 @@ export function useSmoothMapCamera(mapInstance: AMap.Map | null) {
         try {
             const center = mapInstance.getCenter();
             if (!center) {
-                mapInstance.setZoomAndCenter(targetZoom, userLocation, false, 800);
+                mapInstance.setZoomAndCenter(targetZoom, userLocation, true);
                 return;
             }
 
             const dist = window.AMap.GeometryUtil.distance([center.lng, center.lat], userLocation);
 
-            if (dist > thresholdMeters) {
+            if (dist > 500) {
+                // Relocation: switch immediately
+                mapInstance.setZoomAndCenter(targetZoom, userLocation, true);
+            } else if (dist > thresholdMeters) {
                 if (isOverrideActive) {
                     mapInstance.setCenter(userLocation);
                 } else {
-                    mapInstance.setZoomAndCenter(targetZoom, userLocation, false, 800);
+                    mapInstance.setZoomAndCenter(targetZoom, userLocation, false, 300);
                 }
             }
         } catch (e) {

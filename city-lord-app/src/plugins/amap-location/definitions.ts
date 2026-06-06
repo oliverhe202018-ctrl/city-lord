@@ -1,4 +1,4 @@
-﻿/**
+/**
  * AMapLocation Capacitor Plugin — TypeScript 接口声明
  *
  * 主力定位源：Android 高德定位 SDK（原生 GCJ-02 坐标，直接写入 store）。
@@ -44,6 +44,8 @@ export interface AMapPosition {
     provider?: string;
     /** 是否可能为模拟设备或伪造位置信号（反作弊特征） */
     isMock?: boolean;
+    isEmulator?: boolean;
+    isDebug?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -114,6 +116,8 @@ export interface OfflineLocationRecord {
     timestamp: number;
     /** 是否为模拟定位 */
     isMock: boolean;
+    isEmulator?: boolean;
+    isDebug?: boolean;
     /** 坐标系（固定为 'gcj02'） */
     coordSystem: 'gcj02';
 }

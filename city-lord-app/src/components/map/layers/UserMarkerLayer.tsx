@@ -21,6 +21,7 @@ interface UserMarkerLayerProps {
 export function UserMarkerLayer({ map, position, isTracking, instantSync = false, accuracy, signalStrength = 'none' }: UserMarkerLayerProps) {
   const markerRef = useRef<any>(null);
   const styleInjectedRef = useRef(false);
+  const lastPosRef = useRef<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
     if (!map || !window.AMap) return;
@@ -191,6 +192,19 @@ export function UserMarkerLayer({ map, position, isTracking, instantSync = false
     if (typeof position.lng !== 'number' || typeof position.lat !== 'number' || isNaN(position.lng) || isNaN(position.lat)) {
       return;
     }
+    
+    // Adaptive speed noise gate - suppress static jitter
+    const lastPos = lastPosRef.current;
+    if (lastPos) {
+      const dx = (position.lat - lastPos.lat) * 111000;
+      const dy = (position.lng - lastPos.lng) * 111000 * Math.cos(position.lat * Math.PI / 180);
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      
+      const speed = position.speed ?? 0;
+      const noiseGate = speed < 0.5 ? 5.0 : 1.5; // 5m threshold for stationary, 1.5m during movement
+      if (dist < noiseGate) return;
+    }
+    lastPosRef.current = { lat: position.lat, lng: position.lng };
     
     const newPos = new window.AMap.LngLat(position.lng, position.lat);
     

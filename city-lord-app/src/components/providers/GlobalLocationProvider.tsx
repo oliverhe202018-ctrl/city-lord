@@ -318,7 +318,10 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
                 useLocationStore.getState().setLastLocationTimestamp(point.timestamp ?? Date.now());
 
                 // P0 #2 — Mock 虚拟定位拦截：不写入预热历史、不更新地图（开发环境放行以支持模拟器测试）
-                const isDev = process.env.NODE_ENV === 'development';
+                const isDev = process.env.NODE_ENV === 'development' ||
+                              import.meta.env?.DEV ||
+                              point.isDebug === true ||
+                              point.isEmulator === true;
                 if (point.isMock === true && !isDev) {
                     console.warn(`${TAG} [AntiCheat] Mock location rejected at bridge level`);
                     useLocationStore.setState({ gpsSignalStrength: 'none' });

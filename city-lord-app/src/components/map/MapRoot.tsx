@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useEffect, ReactNode, useCallback, useRef, useMemo } from 'react';
 import { toast } from 'sonner';
@@ -648,10 +648,10 @@ export function MapRoot({ children }: { children: ReactNode }) {
           // 强制飞跃，打破 isTracking 约束
           userInteracted.current = false;
           setIsTracking(true);
-          executeFly(userPosition.lng, userPosition.lat, 600, 'network-relocation-force');
+          executeFly(userPosition.lng, userPosition.lat, 0, 'network-relocation-force');
         } else if (dist > 30 && currentIsTracking) {
           // 原有的小幅基站修正逻辑
-          doFlyTo(500, false, 'network-correction');
+          doFlyTo(300, false, 'network-correction');
         }
       }
     }
@@ -659,14 +659,22 @@ export function MapRoot({ children }: { children: ReactNode }) {
       positionStage.current = 'gps-precise';
       const dist = getDistance();
 
+      // Large relocation jump (e.g. emulator mock position swap)
+      if (dist > 500) {
+        userInteracted.current = false;
+        setIsTracking(true);
+        executeFly(userPosition.lng, userPosition.lat, 0, 'gps-relocation-force');
+        return;
+      }
+
       // [P0+] first-fix 无条件起动飞跃与弱信号兜底降级处理
       if (!hasDoneFirstFlyRef.current) {
         hasDoneFirstFlyRef.current = true;
         if (accuracy > 200) {
-          executeFly(userPosition.lng, userPosition.lat, 1000, 'first-gps-fix-weak');
+          executeFly(userPosition.lng, userPosition.lat, 300, 'first-gps-fix-weak');
           try { mapInstance.setZoom(14); } catch {} // 使用偏弱 14 级宏观比例
         } else {
-          doFlyTo(1000, true, 'first-gps-fix');
+          doFlyTo(300, true, 'first-gps-fix');
         }
         return;
       }
@@ -676,18 +684,18 @@ export function MapRoot({ children }: { children: ReactNode }) {
         // Fallback rule for unknown accuracy: only jump if VERY far
         if (dist > 200) {
           if (currentIsTracking) {
-            doFlyTo(1000, false, 'gps-fallback-correction');
+            doFlyTo(300, false, 'gps-fallback-correction');
           }
         }
       } else if (dist > 150 && accuracy <= 200) {
         // Force correction (high priority)
         if (currentIsTracking) {
-          doFlyTo(1000, false, 'gps-high-priority-correction');
+          doFlyTo(300, false, 'gps-high-priority-correction');
         }
       } else if (dist > 50 && accuracy <= 80) {
         // Normal correction (only if tracking)
         if (currentIsTracking) {
-          doFlyTo(1000, false, 'gps-normal-correction');
+          doFlyTo(300, false, 'gps-normal-correction');
         }
       }
     }

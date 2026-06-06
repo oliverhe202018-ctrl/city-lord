@@ -12,6 +12,8 @@ export interface GeoPoint {
   source?: 'cache' | 'network-coarse' | 'gps-precise' | 'amap-native' | 'amap-native-cache' | 'web-fallback';
   coordSystem?: string;
   isMock?: boolean;
+  isEmulator?: boolean;
+  isDebug?: boolean;
 }
 
 // State machine for location status

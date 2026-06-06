@@ -9,6 +9,8 @@ export interface Point {
     lng: number;
     timestamp: number;
     isMock?: boolean;
+    isEmulator?: boolean;
+    isDebug?: boolean;
 }
 
 export interface AntiCheatValidationResult {
@@ -52,7 +54,9 @@ export function validateRunAndRebuildTerritories(path: Point[]): AntiCheatValida
         const prev = path[i - 1];
         const curr = path[i];
 
-        const isDev = process.env.NODE_ENV === 'development';
+        const isDev = process.env.NODE_ENV === 'development' ||
+                      curr.isDebug === true ||
+                      curr.isEmulator === true;
         if (curr.isMock && !isDev) {
             mockCount++;
         }

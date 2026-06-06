@@ -744,6 +744,8 @@ public class AMapLocationPlugin extends Plugin {
 
                 // Anti-cheat mock detection
                 result.put("isMock", intent.getBooleanExtra(LocationForegroundService.EXTRA_IS_MOCK, false));
+                result.put("isEmulator", isEmulator());
+                result.put("isDebug", isDebugBuild());
 
                 String provider = intent.getStringExtra(LocationForegroundService.EXTRA_PROVIDER);
                 if (provider != null && !provider.isEmpty()) {
@@ -873,6 +875,8 @@ public class AMapLocationPlugin extends Plugin {
 
         // Anti-cheat mock detection
         obj.put("isMock", location.isMock());
+        obj.put("isEmulator", isEmulator());
+        obj.put("isDebug", isDebugBuild());
 
         String address = location.getAddress();
         if (address != null && !address.isEmpty()) {
@@ -885,6 +889,26 @@ public class AMapLocationPlugin extends Plugin {
         }
 
         return obj;
+    }
+
+    private boolean isEmulator() {
+        String fingerprint = android.os.Build.FINGERPRINT;
+        String model = android.os.Build.MODEL;
+        String manufacturer = android.os.Build.MANUFACTURER;
+        String brand = android.os.Build.BRAND;
+        String device = android.os.Build.DEVICE;
+        String product = android.os.Build.PRODUCT;
+
+        return (fingerprint != null && (fingerprint.startsWith("generic") || fingerprint.startsWith("unknown")))
+                || (model != null && (model.contains("google_sdk") || model.contains("Emulator") || model.contains("Android SDK built for x86")))
+                || (manufacturer != null && manufacturer.contains("Genymotion"))
+                || (brand != null && brand.startsWith("generic") && device != null && device.startsWith("generic"))
+                || "google_sdk".equals(product);
+    }
+
+    private boolean isDebugBuild() {
+        return getContext() != null &&
+               (getContext().getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0;
     }
 
     // -----------------------------------------------------------------------
