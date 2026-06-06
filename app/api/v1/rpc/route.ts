@@ -132,7 +132,7 @@ export async function POST(request: Request) {
     }
 
     const finalArgs = [...args, token]
-    console.log([RPC] Executing $module.$action with $args.length args)
+    console.log(`[RPC] Executing ${module}.${action} with ${args.length} args`)
     
     const result = await targetFunction(...finalArgs)
     return NextResponse.json({ success: true, data: result })
