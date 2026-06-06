@@ -1,0 +1,1091 @@
+import { create, type StateCreator } from 'zustand';
+import { persist, type StateStorage, createJSONStorage } from 'zustand/middleware';
+import { useShallow } from 'zustand/react/shallow';
+import { type Room } from '@/types/room';
+
+import { toast } from 'sonner';
+import { createClient } from '@/lib/supabase/client';
+import { touchUserActivity } from '@/app/actions/user';
+import { resetGlobalHydration } from '@/hooks/useHydration';
+
+// ==================== Module-level Concurrency Lock ====================
+/** 单调递增时钟：用于 setLastKnownLocation 的同步拦截，绕过 Zustand set 回调中的快照竞态 */
+let _lastAcceptedLocationTimestamp = 0;
+
+// ==================== Types ====================
+
+export type GameMode = 'map' | 'single' | 'private' | 'club';
+export type DrawerType = 'none' | 'city' | 'club' | 'room' | 'createClub' | 'manageClub' | 'mode' | 'runHistory' | 'settings' | 'theme' | 'leaderboard';
+
+export interface UserState {
+  userId: string;
+  nickname: string;
+  faction: string | null;
+  role: string | null;
+  level: number;
+  currentExp: number;
+  maxExp: number;
+  coins: number;
+  stamina: number;
+  maxStamina: number;
+  lastStaminaUpdate: number;
+  totalArea: number;
+  totalDistance: number; // in meters
+  avatar: string;
+  achievements: Record<string, boolean>; // id -> claimed
+  unreadMessageCount: number;
+  unreadNotificationCount: number;
+  unreadSocialCount: number;
+  clubId: string | null; // 鏂板锛氬綋鍓嶄勘涔愰儴ID
+  backgroundUrl?: string | null;
+  totalRunsCount: number;
+  critRate: number; // 暴击率 (0-1 multiplier)
+}
+
+export interface LocationState {
+  latitude: number | null;
+  longitude: number | null;
+  adcode: string | null;
+  countyName: string | null;
+  cityName: string | null;
+  streetName: string | null;
+  isRunning: boolean;
+  lastUpdate: number | null;
+  speed: number;
+  distance: number;
+  duration: number;
+  gpsStatus: 'locating' | 'success' | 'error' | 'weak';
+  gpsError?: string;
+  hasDismissedGeolocationPrompt: boolean;
+  runStartTime: number | null;
+  currentRunPath: [number, number][];
+  ghostPath: [number, number][] | null;
+  lastKnownLocation: { lat: number; lng: number; timestamp?: number } | null;
+  savedRunId: string | null;
+  /** [NEW] 鍏ㄥ眬鏉冮檺璇锋眰鐘舵€侀攣锛岀敤浜庨槻姝㈢櫥褰曞脊绐楀啿绐?*/
+  isPermissionRequesting: boolean;
+  /** [NEW] 标识定位系统是否已经尝试过至少一轮初始化（无论权限结果如何） */
+  locationInitialized: boolean;
+  loopClosedCount: number;
+}
+
+export interface InventoryItem {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  quantity: number;
+  type: 'stamina' | 'exp' | 'area' | 'special';
+  effect: {
+    value: number;
+    duration?: number;
+  };
+}
+
+export interface InventoryState {
+  items: Map<string, InventoryItem>;
+  totalItems: number;
+}
+
+export interface TerritoryState {
+  id: string;
+  status: 'owned' | 'enemy' | 'neutral' | 'contested' | 'fog';
+  level: number;
+  ownerName?: string;
+  lastActivity?: string;
+}
+
+export interface WorldState {
+  territories: Map<string, TerritoryState>;
+}
+
+export interface AppSettings {
+  soundEnabled: boolean;
+  hapticEnabled: boolean;
+  theme: 'light' | 'dark' | 'system';
+  gpsCorrectionEnabled: boolean;
+  keepAliveEnabled: boolean;
+  shakeVoiceEnabled: boolean;
+  metronomeEnabled: boolean;
+  keepScreenOn: boolean;
+  voiceReportingEnabled: boolean;
+}
+
+export interface TerritoryAppearance {
+  strokeColor: string;
+  fillColor: string;
+  fillOpacity: number;
+  ownerUserId: string | null;
+  lastSyncedAt: number | null;
+}
+
+export interface MyClub {
+  id: string;
+  name: string;
+  role: 'owner' | 'admin' | 'member';
+  level: string;
+  description?: string | null;
+  avatar_url?: string | null;
+  status?: 'active' | 'pending' | 'rejected';
+  audit_reason?: string | null;
+}
+
+export interface RoomState {
+  currentRoom: Room | null;
+  joinedRooms: Room[];
+}
+
+export type CelebrationEventType = 'LEVEL_UP' | 'BADGE' | 'NEW_TITLE';
+
+export interface CelebrationEvent {
+  id: string;
+  type: CelebrationEventType;
+  payload: Record<string, unknown>;
+}
+
+// ==================== Actions ====================
+
+export interface ModeActions {
+  setGameMode: (mode: GameMode) => void;
+  // UI Actions
+  openDrawer: (drawer: DrawerType) => void;
+  closeDrawer: () => void;
+  setSelectedTerritoryId: (id: string | null) => void;
+
+  setMyClub: (club: MyClub | null) => void;
+  updateMyClubInfo: (info: Partial<MyClub>) => void;
+  updateAppSettings: (settings: Partial<AppSettings>) => void;
+
+  // Settings Actions
+  setSoundEnabled: (enabled: boolean) => void;
+  setHapticEnabled: (enabled: boolean) => void;
+  setTheme: (theme: 'light' | 'dark' | 'system') => void;
+  setGpsCorrectionEnabled: (enabled: boolean) => void;
+  setShowFaction: (show: boolean) => void;
+
+  // Room Actions
+  setCurrentRoom: (room: Room | null) => void;
+  setJoinedRooms: (rooms: Room[]) => void;
+  addJoinedRoom: (room: Room) => void;
+  removeJoinedRoom: (roomId: string) => void;
+  syncCurrentRoom: () => Promise<void>;
+
+  // Celebration Queue Actions
+  enqueueCelebrations: (events: CelebrationEvent[]) => void;
+  dequeueCelebration: () => void;
+}
+
+export interface UserActions {
+  setNickname: (nickname: string) => void;
+  updateClubId: (clubId: string | null) => void;
+  setUnreadMessageCount: (count: number) => void;
+  setUnreadNotificationCount: (count: number) => void;
+  setUnreadSocialCount: (count: number) => void;
+  addExperience: (amount: number) => void;
+  addCoins: (amount: number) => void;
+  levelUp: () => void;
+  consumeStamina: (amount: number) => void;
+  restoreStamina: (amount: number) => void;
+  checkStaminaRecovery: () => void;
+  addTotalArea: (amount: number) => void;
+  addTotalDistance: (amount: number) => void;
+  setAvatar: (avatar: string) => void;
+  claimAchievement: (id: string) => void;
+  resetUser: () => void;
+  syncUserProfile: () => Promise<void>;
+  touchActivity: () => Promise<void>;
+  setTotalRunsCount: (count: number) => void;
+  setTerritoryAppearance: (appearance: Partial<TerritoryAppearance>) => void;
+  hydrateTerritoryAppearance: (appearance: Partial<TerritoryAppearance>) => void;
+  resetTerritoryAppearance: () => void;
+  /**
+   * hydrateUserAppearance: 登录/鉴权完成后，将服务端下发的用户外观数据
+   * (path_color, fill_color, fill_opacity) 一次性原子化写入 store。
+   * 与 hydrateTerritoryAppearance 的区别：此方法同时接受 userId 参数，
+   * 用于绑定 ownerUserId，防止出现颜色与用户不对应的错位渲染。
+   */
+  hydrateUserAppearance: (params: {
+    userId: string;
+    strokeColor?: string | null;
+    fillColor?: string | null;
+    fillOpacity?: number | null;
+  }) => void;
+}
+
+export interface LocationActions {
+  updateLocation: (lat: number, lng: number) => void;
+  setRegion: (adcode: string, cityName: string, countyName: string) => void;
+  setStreetName: (streetName: string | null) => void;
+  setCountdownState: (state: number) => void;
+  startRunning: (sessionId?: string) => void;
+  stopRunning: () => void;
+  finalizeRunCleanup: (isConfirmedSaved?: boolean) => void;
+  recoverRunFromNative: () => Promise<void>;
+  updateSpeed: (speed: number) => void;
+  addDistance: (distance: number) => void;
+  updateDuration: () => void;
+  resetLocation: () => void;
+  setGpsStatus: (status: 'locating' | 'success' | 'error' | 'weak', error?: string) => void;
+  clearGpsError: () => void;
+  dismissGeolocationPrompt: () => void;
+  resetRunState: () => void;
+  setGhostPath: (path: [number, number][] | null) => void;
+  setLastKnownLocation: (location: { lat: number; lng: number; timestamp?: number } | null) => void;
+  setIsPermissionRequesting: (requesting: boolean) => void;
+  setLocationInitialized: (initialized: boolean) => void;
+  incrementLoopClosed: () => void;
+}
+
+export interface InventoryActions {
+  addItem: (item: InventoryItem) => void;
+  removeItem: (itemId: string, quantity?: number) => void;
+  useItem: (itemId: string) => void;
+  getItemCount: (itemId: string) => number;
+  resetInventory: () => void;
+}
+
+export interface WorldActions {
+  occupyTerritory: (territoryId: string) => void;
+  attackTerritory: (territoryId: string) => void;
+  updateTerritory: (territoryId: string, data: Partial<TerritoryState>) => void;
+}
+
+// Combined State and Actions
+export interface GameState extends UserState, LocationState, InventoryState, WorldState, RoomState {
+  gameMode: GameMode;
+  activeDrawer: DrawerType;
+  myClub: MyClub | null;
+  appSettings: AppSettings;
+  territoryAppearance: TerritoryAppearance;
+  /** Ephemeral: currently selected territory ID on the map (not persisted) */
+  selectedTerritoryId: string | null;
+  /** Whether to show faction colors instead of custom ones in personal mode */
+  showFaction: boolean;
+  /** Celebration Queue for sequential playback of global effects */
+  celebrationQueue: CelebrationEvent[];
+  isPlayingCelebration: boolean;
+}
+
+export interface GameActions extends ModeActions, UserActions, LocationActions, InventoryActions, WorldActions { }
+
+export type GameStore = GameState & GameActions;
+
+// ==================== Initial State ====================
+
+const initialAppSettings: AppSettings = {
+  soundEnabled: true,
+  hapticEnabled: true,
+  theme: 'system',
+  gpsCorrectionEnabled: false,
+  keepAliveEnabled: false,
+  shakeVoiceEnabled: true,
+  metronomeEnabled: false,
+  keepScreenOn: true,
+  voiceReportingEnabled: true,
+};
+
+const initialUserState: UserState = {
+  userId: 'user_' + Date.now(),
+  nickname: '鐜╁',
+  faction: null,
+  role: null,
+  level: 1,
+  currentExp: 0,
+  maxExp: 1000,
+  coins: 0,
+  stamina: 100,
+  maxStamina: 100,
+  lastStaminaUpdate: Date.now(),
+  totalArea: 0,
+  totalDistance: 0,
+  avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=default',
+  achievements: {},
+  unreadMessageCount: 0,
+  unreadNotificationCount: 0,
+  unreadSocialCount: 0,
+  clubId: null,
+  backgroundUrl: null,
+  totalRunsCount: 0,
+  critRate: 0,
+};
+
+const initialTerritoryAppearance: TerritoryAppearance = {
+  strokeColor: '#3B82F6',
+  fillColor: '#3B82F6',
+  fillOpacity: 0.35,
+  ownerUserId: null,
+  lastSyncedAt: null,
+};
+
+const initialLocationState: LocationState = {
+  latitude: null,
+  longitude: null,
+  adcode: null,
+  cityName: null,
+  countyName: null,
+  streetName: null,
+  isRunning: false,
+  lastUpdate: null,
+  speed: 0,
+  distance: 0,
+  duration: 0,
+  gpsStatus: 'locating',
+  hasDismissedGeolocationPrompt: false,
+  runStartTime: null,
+  currentRunPath: [],
+  ghostPath: null,
+  lastKnownLocation: null,
+  savedRunId: null,
+  isPermissionRequesting: false,
+  locationInitialized: false,
+  loopClosedCount: 0,
+};
+
+const initialShowFaction = false;
+
+const initialInventoryState: InventoryState = {
+  items: new Map(),
+  totalItems: 0,
+};
+
+const initialWorldState: WorldState = {
+  territories: new Map(),
+};
+
+// ==================== Slices ====================
+
+const createModeSlice: StateCreator<GameStore, [], [], ModeActions> = (set, get) => ({
+  setGameMode: (mode) => set({ gameMode: mode }),
+  openDrawer: (drawer) => set({ activeDrawer: drawer }),
+  closeDrawer: () => set({ activeDrawer: 'none' }),
+  setSelectedTerritoryId: (id) => set({ selectedTerritoryId: id }),
+  setMyClub: (club) => set({ myClub: club }),
+  updateMyClubInfo: (info) =>
+    set((state) => ({
+      myClub: state.myClub ? { ...state.myClub, ...info } : null,
+    })),
+  updateAppSettings: (settings) =>
+    set((state) => ({ appSettings: { ...state.appSettings, ...settings } })),
+
+  // Settings Actions
+  setSoundEnabled: (enabled) => set((state) => ({ appSettings: { ...state.appSettings, soundEnabled: enabled } })),
+  setHapticEnabled: (enabled) => set((state) => ({ appSettings: { ...state.appSettings, hapticEnabled: enabled } })),
+  setTheme: (theme) => set((state) => ({ appSettings: { ...state.appSettings, theme } })),
+  setGpsCorrectionEnabled: (enabled) => set((state) => ({ appSettings: { ...state.appSettings, gpsCorrectionEnabled: enabled } })),
+  setShowFaction: (show) => set({ showFaction: show }),
+
+  // Room Actions Implementation
+  setCurrentRoom: (room) => set({ currentRoom: room }),
+  setJoinedRooms: (rooms) => set({ joinedRooms: rooms }),
+  addJoinedRoom: (room) => set((state) => {
+    // Avoid duplicates
+    if (state.joinedRooms.some(r => r.id === room.id)) return state;
+    return { joinedRooms: [...state.joinedRooms, room] };
+  }),
+  removeJoinedRoom: (roomId) => set((state) => ({
+    joinedRooms: state.joinedRooms.filter(r => r.id !== roomId),
+    // If we are currently in the room being removed, leave it
+    currentRoom: state.currentRoom?.id === roomId ? null : state.currentRoom
+  })),
+
+  // Celebration Queue Actions Implementation
+  enqueueCelebrations: (events) => set((state) => ({
+    celebrationQueue: [...state.celebrationQueue, ...events]
+  })),
+  dequeueCelebration: () => set((state) => ({
+    celebrationQueue: state.celebrationQueue.slice(1),
+    isPlayingCelebration: false
+  })),
+
+  syncCurrentRoom: async () => {
+    const { currentRoom } = get();
+    if (!currentRoom?.id) return;
+
+    try {
+      const supabase = createClient();
+
+      // 2. Query Room Details
+      const { data: room, error } = await supabase
+        .from('rooms')
+        .select(`
+          *,
+          host:profiles!host_id(nickname),
+          participants:room_participants(
+            user_id,
+            joined_at,
+            total_score,
+            territory_area,
+            territory_ratio,
+            stolen_lands,
+            lost_lands,
+            rivals_defeated,
+            growth_rate,
+            status,
+            profile:profiles!user_id(nickname, avatar_url, level)
+          )
+        `)
+        .eq('id', currentRoom.id)
+        .single();
+
+      // 3. Handle Result
+      if (error || !room) {
+        // Safe check for error code using optional chaining
+        if (!room || (error as any)?.code === 'PGRST116') {
+          // Room not found (PGRST116 is JSON/Single row error, often means 0 rows)
+          console.warn('Sync Room: Room not found, clearing state');
+          set({ currentRoom: null });
+          toast.error('房间已解散');
+        } else {
+          console.error('Sync Room Error:', error);
+          // Do not clear state on network error
+        }
+        return;
+      }
+
+      // Transform participants
+      const roomData = room as any;
+      const participants = roomData.participants.map((p: any) => ({
+        id: p.user_id,
+        nickname: p.profile?.nickname || 'Unknown',
+        avatar_url: p.profile?.avatar_url,
+        level: p.profile?.level || 1,
+        joined_at: p.joined_at,
+        total_score: p.total_score || 0,
+        territory_area: p.territory_area || 0,
+        territory_ratio: p.territory_ratio || 0,
+        stolen_lands: p.stolen_lands || 0,
+        lost_lands: p.lost_lands || 0,
+        rivals_defeated: p.rivals_defeated || 0,
+        growth_rate: p.growth_rate || 0,
+        status: p.status || 'active'
+      }));
+
+      // Update State
+      set({
+        currentRoom: {
+          id: roomData.id,
+          name: roomData.name,
+          host_id: roomData.host_id,
+          host_name: roomData.host?.nickname || 'Unknown',
+          target_distance_km: roomData.target_distance_km,
+          target_duration_minutes: roomData.target_duration_minutes,
+          max_participants: roomData.max_participants,
+          participants_count: participants.length,
+          is_private: roomData.is_private,
+          is_locked: roomData.is_private,
+          status: roomData.status,
+          created_at: roomData.created_at,
+          participants: participants,
+          invite_code: roomData.invite_code,
+          allow_chat: roomData.allow_chat,
+          allow_imports: roomData.allow_imports,
+          avatar_url: roomData.avatar_url
+        } as Room
+      });
+      console.log('Sync Room: Success', roomData.name);
+
+    } catch (e) {
+      console.error('Sync Room Exception:', e);
+    }
+  }
+});
+
+const createUserSlice: StateCreator<GameStore, [], [], UserActions> = (set, get) => ({
+  setNickname: (nickname) => set({ nickname }),
+  updateClubId: (clubId) => set({ clubId }),
+  setUnreadMessageCount: (count) => set({ unreadMessageCount: count }),
+  setUnreadNotificationCount: (count) => set({ unreadNotificationCount: count }),
+  setUnreadSocialCount: (count) => set({ unreadSocialCount: count }),
+  addExperience: (amount) => set((state) => {
+    const newExp = state.currentExp + amount;
+    const newLevel = Math.floor(newExp / 1000) + 1; // Simplified leveling
+
+    if (newLevel > state.level) {
+      get().levelUp();
+    }
+
+    return { currentExp: newExp, level: newLevel };
+  }),
+  addCoins: (amount) => set((state) => ({ coins: (state.coins || 0) + amount })),
+  levelUp: () => {
+    const state = get();
+    const newLevel = state.level + 1;
+    // Level benefits: +10 max stamina, +20 bonus stamina, +0.5% crit rate per level
+    const critRateBonus = 0.005; // 0.5% per level
+    const newCritRate = Math.min((state.critRate || 0) + critRateBonus, 0.3); // Cap at 30%
+
+    toast.success(`鍗囩骇鍟︼紒杈惧埌绛夌骇 ${newLevel}`, {
+      description: "鑾峰緱浣撳姏涓婇檺 +10, 鏆村嚮鐜?+0.5%",
+      icon: "馃帀"
+    });
+
+    set({
+      level: newLevel,
+      maxStamina: 100 + (newLevel * 10),
+      stamina: state.stamina + 20, // Bonus stamina on level up
+      critRate: newCritRate,
+    });
+  },
+  consumeStamina: (amount) => set((state) => {
+    if (state.stamina < amount) return state;
+    return { stamina: state.stamina - amount };
+  }),
+  restoreStamina: (amount) => set((state) => ({
+    stamina: Math.min(state.stamina + amount, state.maxStamina)
+  })),
+  checkStaminaRecovery: () => set((state) => {
+    const now = Date.now();
+    const timeDiff = now - state.lastStaminaUpdate;
+    const recoveryInterval = 1 * 60 * 1000; // 1 minute (aligned with backend: 1 stamina/min)
+
+    if (timeDiff >= recoveryInterval && state.stamina < state.maxStamina) {
+      const recoveredAmount = Math.floor(timeDiff / recoveryInterval);
+      const newStamina = Math.min(state.stamina + recoveredAmount, state.maxStamina);
+
+      return {
+        stamina: newStamina,
+        lastStaminaUpdate: now - (timeDiff % recoveryInterval)
+      };
+    }
+    return state;
+  }),
+  addTotalArea: (amount) => set((state) => ({
+    totalArea: state.totalArea + amount
+  })),
+  addTotalDistance: (amount) => set((state) => ({
+    totalDistance: (state.totalDistance || 0) + amount
+  })),
+  setAvatar: (avatar) => set({ avatar }),
+  claimAchievement: (id) => set((state) => ({
+    achievements: { ...state.achievements, [id]: true }
+  })),
+  resetUser: () => {
+    set({ ...initialUserState, territoryAppearance: initialTerritoryAppearance });
+    resetGlobalHydration();
+  },
+  setTerritoryAppearance: (appearance) =>
+    set((state) => ({
+      territoryAppearance: {
+        ...state.territoryAppearance,
+        ...appearance,
+      },
+    })),
+  hydrateTerritoryAppearance: (appearance) =>
+    set((state) => ({
+      territoryAppearance: {
+        ...state.territoryAppearance,
+        ...appearance,
+        fillOpacity: typeof appearance.fillOpacity === 'number'
+          ? appearance.fillOpacity
+          : state.territoryAppearance.fillOpacity,
+        lastSyncedAt: Date.now(),
+      },
+    })),
+  resetTerritoryAppearance: () => set({ territoryAppearance: initialTerritoryAppearance }),
+  hydrateUserAppearance: ({ userId, strokeColor, fillColor, fillOpacity }) =>
+    set((state) => ({
+      territoryAppearance: {
+        ...state.territoryAppearance,
+        // 只覆盖服务端有明确值的字段，避免用 null 清空本地有效设定
+        ...(strokeColor ? { strokeColor } : {}),
+        ...(fillColor ? { fillColor } : {}),
+        ...(typeof fillOpacity === 'number' ? { fillOpacity } : {}),
+        ownerUserId: userId,
+        lastSyncedAt: Date.now(),
+      },
+    })),
+  syncUserProfile: async () => {
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const [profileResult, adminResult, badgesResult] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', user.id).single(),
+        supabase.from('app_admins').select('role').eq('id', user.id).maybeSingle(),
+        supabase.from('user_badges').select('badge_id').eq('user_id', user.id),
+      ]);
+
+      const profile = profileResult.data;
+      const adminData = adminResult.data;
+      const userBadges = badgesResult.data || [];
+
+      // Build achievements map from server: badge_id -> true
+      const achievementsMap: Record<string, boolean> = {};
+      for (const ub of userBadges) {
+        achievementsMap[String(ub.badge_id)] = true;
+      }
+
+      if (profile) {
+        const profileData = profile as any;
+        set((state) => ({
+          userId: user.id,
+          level: profileData.level,
+          currentExp: profileData.xp || state.currentExp,
+          coins: profileData.coins || state.coins,
+          totalArea: profileData.total_area || state.totalArea,
+          totalDistance: (profileData.total_distance_km * 1000) || state.totalDistance,
+          faction: profileData.faction ?? state.faction ?? null,
+          role: adminData?.role ?? null,
+          backgroundUrl: profileData.background_url ?? state.backgroundUrl ?? null,
+          totalRunsCount: profileData.total_runs_count || 0,
+          critRate: typeof profileData.crit_rate === 'number' ? profileData.crit_rate : (state.critRate || 0),
+          achievements: { ...state.achievements, ...achievementsMap },
+          territoryAppearance: {
+            ...state.territoryAppearance,
+            strokeColor: profileData.path_color || state.territoryAppearance.strokeColor,
+            fillColor: profileData.fill_color || state.territoryAppearance.fillColor,
+            fillOpacity: typeof profileData.fill_opacity === 'number'
+              ? profileData.fill_opacity
+              : state.territoryAppearance.fillOpacity,
+            ownerUserId: user.id,
+            lastSyncedAt: Date.now(),
+          },
+        }));
+      }
+    } catch (error) {
+      console.error("Failed to sync user profile:", error);
+    }
+  },
+  touchActivity: async () => {
+    try {
+      await touchUserActivity();
+    } catch (error: any) {
+      if (error?.name !== 'AbortError' && error?.digest !== 'NEXT_REDIRECT') {
+        console.error('Failed to touch user activity:', error);
+      }
+    }
+  },
+  setTotalRunsCount: (count: number) => set({ totalRunsCount: count }),
+});
+
+
+
+const createLocationSlice: StateCreator<GameStore, [], [], LocationActions> = (set, get) => ({
+  updateLocation: (lat, lng) => set((state) => {
+    const newPath = state.isRunning ? [...state.currentRunPath, [lat, lng] as [number, number]] : state.currentRunPath;
+    // Limit to 1000 points to prevent storage issues
+    if (newPath.length > 1000) {
+      newPath.splice(0, newPath.length - 1000);
+    }
+    return {
+      latitude: lat,
+      longitude: lng,
+      lastUpdate: Date.now(),
+      currentRunPath: newPath
+    };
+  }),
+  setRegion: (adcode, cityName, countyName) => set({ adcode, cityName, countyName }),
+  setStreetName: (streetName: string | null) => set({ streetName }),
+  startRunning: () => set({ isRunning: true, lastUpdate: Date.now(), runStartTime: Date.now(), currentRunPath: [] }),
+  stopRunning: () => set({ isRunning: false, speed: 0 }),
+  updateSpeed: (speed) => set({ speed }),
+  addDistance: (distance) => {
+    const state = get();
+    set({ distance: state.distance + distance });
+  },
+  updateDuration: () => {
+    const state = get();
+    if (!state.lastUpdate) return;
+    const now = Date.now();
+    const elapsed = (now - state.lastUpdate) / 1000;
+    set({ duration: state.duration + elapsed, lastUpdate: now });
+  },
+  resetLocation: () => {
+    const state = get();
+    set({ ...initialLocationState, hasDismissedGeolocationPrompt: state.hasDismissedGeolocationPrompt });
+  },
+  setGpsStatus: (status, error) => set({ gpsStatus: status, gpsError: error }),
+  clearGpsError: () => set({ gpsError: undefined }),
+  dismissGeolocationPrompt: () => set({ hasDismissedGeolocationPrompt: true, gpsError: undefined }),
+  resetRunState: () => set({
+    isRunning: false,
+    runStartTime: null,
+    distance: 0,
+    duration: 0,
+    currentRunPath: [],
+    speed: 0,
+  }),
+  setGhostPath: (path) => set({ ghostPath: path }),
+  setLastKnownLocation: (location: { lat: number; lng: number; timestamp?: number } | null) => {
+    if (!location) {
+      _lastAcceptedLocationTimestamp = 0;
+      return set({ lastKnownLocation: null });
+    }
+    const ts = location.timestamp ?? Date.now();
+    if (ts <= _lastAcceptedLocationTimestamp) {
+      console.debug('[useGameStore] setLastKnownLocation: sync-rejected stale point, timestamp', ts, '<=', _lastAcceptedLocationTimestamp);
+      return;
+    }
+    _lastAcceptedLocationTimestamp = ts;
+    set({ lastKnownLocation: { ...location, timestamp: ts } });
+  },
+  setIsPermissionRequesting: (requesting) => set({ isPermissionRequesting: requesting }),
+  setLocationInitialized: (initialized: boolean) => set({ locationInitialized: initialized }),
+  incrementLoopClosed: () => set(s => ({ loopClosedCount: (s.loopClosedCount ?? 0) + 1 })),
+  setCountdownState: (state) => {}, // Stub pending implementation
+  finalizeRunCleanup: (isConfirmedSaved: boolean = false) => set((state) => {
+    // 双重守卫：不仅依赖入参 isConfirmedSaved，还强制检查内部状态 savedRunId
+    // 防止在数据未真正持久化时误清空轨迹
+    const safeToClean = isConfirmedSaved && !!state.savedRunId;
+    
+    if (!safeToClean) {
+      console.warn('[useGameStore] finalizeRunCleanup: safeToClean=false (isConfirmedSaved=' + isConfirmedSaved + ', savedRunId=' + state.savedRunId + '), preserving run state');
+      return {
+        isRunning: false,
+        runStartTime: null,
+        distance: 0,
+        duration: 0,
+        speed: 0,
+        ghostPath: null,
+        currentRunPath: state.currentRunPath, // 保留轨迹数据
+      };
+    }
+    
+    return {
+      isRunning: false,
+      runStartTime: null,
+      distance: 0,
+      duration: 0,
+      currentRunPath: [],
+      speed: 0,
+      ghostPath: null,
+    };
+  }),
+  recoverRunFromNative: async () => {}, // Stub pending implementation
+});
+
+const createInventorySlice: StateCreator<GameStore, [], [], InventoryActions> = (set, get) => ({
+  addItem: (item) => {
+    const state = get();
+    const newItems = new Map(state.items);
+    const existing = newItems.get(item.id);
+    if (existing) {
+      newItems.set(item.id, { ...existing, quantity: existing.quantity + item.quantity });
+    } else {
+      newItems.set(item.id, item);
+    }
+    set({ items: newItems, totalItems: state.totalItems + item.quantity });
+  },
+  removeItem: (itemId, quantity = 1) => {
+    const state = get();
+    const newItems = new Map(state.items);
+    const item = newItems.get(itemId);
+    if (!item) return;
+
+    const removeCount = Math.min(item.quantity, quantity);
+    if (item.quantity <= removeCount) {
+      newItems.delete(itemId);
+    } else {
+      newItems.set(itemId, { ...item, quantity: item.quantity - removeCount });
+    }
+    set({ items: newItems, totalItems: state.totalItems - removeCount });
+  },
+  useItem: (itemId) => {
+    const item = get().items.get(itemId);
+    if (!item || item.quantity <= 0) return;
+    switch (item.type) {
+      case 'stamina':
+        get().restoreStamina(item.effect.value);
+        break;
+      case 'exp':
+        get().addExperience(item.effect.value);
+        break;
+      case 'area':
+        get().addTotalArea(item.effect.value);
+        break;
+      case 'special':
+        break;
+    }
+    get().removeItem(itemId, 1);
+  },
+  getItemCount: (itemId) => get().items.get(itemId)?.quantity ?? 0,
+  resetInventory: () => set(initialInventoryState),
+});
+
+const createWorldSlice: StateCreator<GameStore, [], [], WorldActions> = (set, get) => ({
+  occupyTerritory: (territoryId) => {
+    const { territories, stamina, nickname } = get();
+    if (territories.get(territoryId)?.status === 'owned' || stamina < 10) return;
+
+    get().consumeStamina(10);
+    get().addTotalArea(1);
+    get().addExperience(50);
+
+    const newterritories = new Map(territories);
+    newterritories.set(territoryId, {
+      id: territoryId,
+      status: 'owned',
+      level: 1,
+      ownerName: nickname,
+      lastActivity: new Date().toISOString(),
+    });
+    set({ territories: newterritories });
+  },
+  attackTerritory: (territoryId) => {
+    /* ... */
+  },
+  updateTerritory: (territoryId, data) => {
+    const state = get();
+    const newterritories = new Map(state.territories);
+    const existing = newterritories.get(territoryId);
+    if (existing) {
+      newterritories.set(territoryId, { ...existing, ...data });
+      set({ territories: newterritories });
+    }
+  },
+});
+
+// ==================== Store ====================
+
+const ssrSafeLocalStorage: StateStorage = {
+  getItem: (name: string): string | Promise<string | null> | null => {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+    return localStorage.getItem(name);
+  },
+  setItem: (name: string, value: string): void | Promise<void> => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    localStorage.setItem(name, value);
+  },
+  removeItem: (name: string): void | Promise<void> => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    localStorage.removeItem(name);
+  },
+};
+
+export const useGameStore = create<GameStore>()(
+  persist(
+    (set, get, api) => ({
+      // Initial State
+      gameMode: 'map',
+      activeDrawer: 'none',
+      myClub: null,
+      currentRoom: null,
+      joinedRooms: [],
+      appSettings: initialAppSettings,
+      selectedTerritoryId: null,
+      territoryAppearance: initialTerritoryAppearance,
+      showFaction: initialShowFaction,
+      celebrationQueue: [],
+      isPlayingCelebration: false,
+      ...initialUserState,
+      ...initialLocationState,
+      ...initialInventoryState,
+      ...initialWorldState,
+
+      // Actions
+      ...createModeSlice(set, get, api),
+      ...createUserSlice(set, get, api),
+      ...createLocationSlice(set, get, api),
+      ...createInventorySlice(set, get, api),
+      ...createWorldSlice(set, get, api),
+    }),
+    {
+      name: 'city-lord-storage',
+      storage: createJSONStorage(() => ssrSafeLocalStorage, {
+        reviver: (key, value) => {
+          if (key === 'items' || key === 'territories') {
+            if (!Array.isArray(value)) {
+              return new Map();
+            }
+            try {
+              return new Map(value as [string, any][]);
+            } catch {
+              return new Map();
+            }
+          }
+          return value;
+        },
+        replacer: (key, value) => {
+          if (value instanceof Map) {
+            return Array.from(value.entries());
+          }
+          return value;
+        },
+      }),
+      partialize: (state) => ({
+        // User Profile
+        userId: state.userId,
+        nickname: state.nickname,
+        faction: state.faction,
+        role: state.role,
+        level: state.level,
+        currentExp: state.currentExp,
+        maxExp: state.maxExp,
+        coins: state.coins,
+        stamina: state.stamina,
+        maxStamina: state.maxStamina,
+        lastStaminaUpdate: state.lastStaminaUpdate,
+        totalArea: state.totalArea,
+        totalDistance: state.totalDistance,
+        avatar: state.avatar,
+        achievements: state.achievements,
+        unreadMessageCount: state.unreadMessageCount,
+        unreadNotificationCount: state.unreadNotificationCount,
+        totalRunsCount: state.totalRunsCount,
+        // My Club
+        myClub: state.myClub,
+        
+        showFaction: state.showFaction,
+        // Current Room
+        currentRoom: state.currentRoom,
+        joinedRooms: state.joinedRooms,
+        // App Settings
+        appSettings: state.appSettings,
+        territoryAppearance: state.territoryAppearance,
+        // Running Session Recovery
+        isRunning: state.isRunning,
+        runStartTime: state.runStartTime,
+        distance: state.distance,
+        duration: state.duration,
+        currentRunPath: state.currentRunPath,
+        latitude: state.latitude,
+        longitude: state.longitude,
+        hasDismissedGeolocationPrompt: state.hasDismissedGeolocationPrompt,
+      } as unknown as GameStore),
+    },
+  ),
+);
+
+// Hooks for specific parts of the state - use stable references to avoid infinite loops
+export const useGameActions = () => {
+  return useGameStore(
+    useShallow((state) => ({
+      // Mode Actions
+      setGameMode: state.setGameMode,
+      openDrawer: state.openDrawer,
+      closeDrawer: state.closeDrawer,
+      setMyClub: state.setMyClub,
+      updateMyClubInfo: state.updateMyClubInfo,
+      updateAppSettings: state.updateAppSettings,
+      setSelectedTerritoryId: state.setSelectedTerritoryId,
+      setCurrentRoom: state.setCurrentRoom,
+      setJoinedRooms: state.setJoinedRooms,
+      addJoinedRoom: state.addJoinedRoom,
+      removeJoinedRoom: state.removeJoinedRoom,
+      syncCurrentRoom: state.syncCurrentRoom,
+
+      // User Actions
+      setNickname: state.setNickname,
+      updateClubId: state.updateClubId,
+      setUnreadMessageCount: state.setUnreadMessageCount,
+      setUnreadNotificationCount: state.setUnreadNotificationCount,
+      addExperience: state.addExperience,
+      addCoins: state.addCoins,
+      levelUp: state.levelUp,
+      consumeStamina: state.consumeStamina,
+      restoreStamina: state.restoreStamina,
+      checkStaminaRecovery: state.checkStaminaRecovery,
+      addTotalArea: state.addTotalArea,
+      addTotalDistance: state.addTotalDistance,
+      setAvatar: state.setAvatar,
+      claimAchievement: state.claimAchievement,
+      syncUserProfile: state.syncUserProfile,
+      resetUser: state.resetUser,
+      setTerritoryAppearance: state.setTerritoryAppearance,
+      hydrateTerritoryAppearance: state.hydrateTerritoryAppearance,
+      resetTerritoryAppearance: state.resetTerritoryAppearance,
+      hydrateUserAppearance: state.hydrateUserAppearance,
+
+      // Location Actions
+      updateLocation: state.updateLocation,
+      setRegion: state.setRegion,
+      startRunning: state.startRunning,
+      stopRunning: state.stopRunning,
+      updateSpeed: state.updateSpeed,
+      addDistance: state.addDistance,
+      updateDuration: state.updateDuration,
+      resetLocation: state.resetLocation,
+      setGpsStatus: state.setGpsStatus,
+      clearGpsError: state.clearGpsError,
+      dismissGeolocationPrompt: state.dismissGeolocationPrompt,
+      resetRunState: state.resetRunState,
+      setGhostPath: state.setGhostPath,
+      setStreetName: state.setStreetName,
+      setIsPermissionRequesting: state.setIsPermissionRequesting,
+      incrementLoopClosed: state.incrementLoopClosed,
+
+      // Inventory Actions
+      addItem: state.addItem,
+      removeItem: state.removeItem,
+      useItem: state.useItem,
+      getItemCount: state.getItemCount,
+      resetInventory: state.resetInventory,
+
+      // World Actions
+      occupyTerritory: state.occupyTerritory,
+      attackTerritory: state.attackTerritory,
+      updateTerritory: state.updateTerritory,
+    }))
+  );
+};
+
+// Global helper for hard reset (logout, clear store, dev reset)
+export const clearGameStore = () => {
+  useGameStore.persist.clearStorage();
+  resetGlobalHydration();
+  useGameStore.getState().resetUser();
+  useGameStore.getState().resetLocation();
+  useGameStore.getState().resetInventory();
+};
+
+if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+  (window as any).clearGameStore = clearGameStore;
+}
+
+export const useGameUser = () =>
+  useGameStore(
+    useShallow((state) => ({
+      userId: state.userId,
+      nickname: state.nickname,
+      faction: state.faction,
+      role: state.role,
+      level: state.level,
+      currentExp: state.currentExp,
+      maxExp: state.maxExp,
+      stamina: state.stamina,
+      maxStamina: state.maxStamina,
+      lastStaminaUpdate: state.lastStaminaUpdate,
+      totalArea: state.totalArea,
+      totalDistance: state.totalDistance,
+      avatar: state.avatar,
+      achievements: state.achievements,
+      unreadMessageCount: state.unreadMessageCount,
+      backgroundUrl: state.backgroundUrl,
+    })),
+  );
+export const useGameLocation = () =>
+  useGameStore(
+    useShallow((state) => ({
+      latitude: state.latitude,
+      longitude: state.longitude,
+      adcode: state.adcode,
+      countyName: state.countyName,
+      cityName: state.cityName,
+      streetName: state.streetName,
+      isRunning: state.isRunning,
+      lastUpdate: state.lastUpdate,
+      speed: state.speed,
+      distance: state.distance,
+      duration: state.duration,
+      gpsStatus: state.gpsStatus,
+      gpsError: state.gpsError,
+      hasDismissedGeolocationPrompt: state.hasDismissedGeolocationPrompt,
+      ghostPath: state.ghostPath,
+      lastKnownLocation: state.lastKnownLocation,
+    })),
+  );
+export const useGameInventory = () => useGameStore(useShallow((state) => ({ items: state.items, totalItems: state.totalItems })));
+export const useGameWorld = () => useGameStore(useShallow((state) => ({ territories: state.territories })));
+export const useGameTerritoryAppearance = () =>
+  useGameStore(
+    useShallow((state) => ({
+      territoryAppearance: state.territoryAppearance,
+    })),
+  );

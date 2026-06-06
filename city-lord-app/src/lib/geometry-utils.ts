@@ -1,0 +1,766 @@
+/**
+ * geometry-utils.ts
+ * 
+ * SINGLE SOURCE OF TRUTH for all geographic/geometric calculations.
+ * Used by both phone (useRunningTracker) and smartwatch (ActivityService) paths.
+ * 
+ * Extracts logic previously duplicated in:
+ * - hooks/useRunningTracker.ts (getDistanceFromLatLonInMeters, deg2rad)
+ * - app/actions/sync.ts (getDistanceFromLatLonInKm, deg2rad)
+ */
+
+import * as turf from '@turf/turf';
+
+// ============================================================
+// Types
+// ============================================================
+
+export interface GeoPoint {
+    lat: number;
+    lng: number;
+    timestamp: number;
+}
+
+export interface Coord {
+    lat: number;
+    lng: number;
+    timestamp?: number;
+}
+
+export interface LoopCheckResult {
+    isClosed: boolean;
+    /** Distance between start and end points in meters */
+    gapDistance: number;
+}
+
+export interface DriftFilterResult {
+    /** Cleaned points with drift removed */
+    cleanedPoints: GeoPoint[];
+    /** Number of points removed due to drift */
+    removedCount: number;
+    /** Warnings about removed points */
+    warnings: string[];
+}
+
+// ============================================================
+// Constants (shared thresholds for phone + watch consistency)
+// ============================================================
+
+/** Maximum distance (meters) between start/end to consider loop closed */
+export const LOOP_CLOSURE_THRESHOLD_M = 30;
+
+/** Snap distance for automatic loop closure */
+export const LOOP_CLOSURE_SNAP_M = 30;
+
+/** Minimum number of GPS points required for a valid loop.
+ * Set to 4 (minimum for a valid polygon: 3 unique vertices + 1 closing point).
+ * Allows small square trajectories to be captured without needing 10+ GPS points. */
+export const MIN_LOOP_POINTS = 4;
+
+/**
+ * Minimum polygon area (m²) to qualify for territory.
+ * Single source of truth is now: lib/constants/territory.ts -> MIN_TERRITORY_AREA_M2
+ * @deprecated Use import { MIN_TERRITORY_AREA_M2 } from '@/lib/constants/territory' instead
+ */
+export const MIN_TERRITORY_AREA_M2 = 50;
+
+/** Maximum plausible running speed (km/h) for drift filtering */
+export const MAX_RUNNING_SPEED_KMH = 35;
+
+/** Maximum plausible human heart rate (bpm) */
+export const MAX_HEART_RATE_BPM = 250;
+
+/** Minimum plausible human heart rate (bpm) */
+export const MIN_HEART_RATE_BPM = 30;
+
+/** Absolute speed limit for rejecting data (km/h) — beyond any human activity */
+export const ABSOLUTE_SPEED_LIMIT_KMH = 100;
+
+// ============================================================
+// Douglas-Peucker Path Simplification (with full metadata preservation)
+// ============================================================
+
+/**
+ * 轻量级 Douglas-Peucker 算法实现，用于剔除 GPS 漂移产生的"微小毛刺折线"。
+ *
+ * ⚠️ 红线约束：简化后必须保留原始点的全部元数据（timestamp, accuracy, speed 等），
+ * 仅从数组中移除几何上冗余的点，绝不修改保留点的任何属性。
+ *
+ * @param points 原始 GPS 点数组
+ * @param toleranceMeters 简化容差（米），小于此值的偏移点将被剔除
+ * @returns 简化后的点数组，保留完整元数据
+ */
+export function simplifyPathDP<T extends Coord>(
+    points: T[],
+    toleranceMeters: number = 1.5
+): T[] {
+    if (points.length <= 2) return [...points];
+
+    // 递归 DP 算法：找到距离首尾连线最远的点
+    function dpReduce(pts: T[], start: number, end: number, result: Set<number>): void {
+        if (end - start <= 1) return;
+
+        let maxDist = 0;
+        let maxIndex = -1;
+
+        const pStart = pts[start];
+        const pEnd = pts[end];
+
+        for (let i = start + 1; i < end; i++) {
+            const dist = perpendicularDistance(pts[i], pStart, pEnd);
+            if (dist > maxDist) {
+                maxDist = dist;
+                maxIndex = i;
+            }
+        }
+
+        if (maxDist > toleranceMeters) {
+            result.add(maxIndex);
+            // 递归处理两个子段
+            dpReduce(pts, start, maxIndex, result);
+            dpReduce(pts, maxIndex, end, result);
+        }
+    }
+
+    // 首尾点永远保留
+    const keptIndices = new Set<number>();
+    keptIndices.add(0);
+    keptIndices.add(points.length - 1);
+
+    dpReduce(points, 0, points.length - 1, keptIndices);
+
+    // 按原始顺序输出，保留完整元数据
+    const sortedIndices = Array.from(keptIndices).sort((a, b) => a - b);
+    return sortedIndices.map(i => points[i]);
+}
+
+/**
+ * 轻量级异步 Douglas-Peucker 算法实现，通过分帧（chunked）执行避免阻塞 JavaScript 主线程。
+ */
+export async function simplifyPathDPAsync<T extends Coord>(
+    points: T[],
+    toleranceMeters: number = 1.5,
+    chunkSize: number = 200
+): Promise<T[]> {
+    if (points.length <= 2) return [...points];
+
+    const keptIndices = new Set<number>();
+    keptIndices.add(0);
+    keptIndices.add(points.length - 1);
+
+    // 使用非递归的双段队列进行分块处理
+    const queue: [number, number][] = [[0, points.length - 1]];
+
+    const run = (): Promise<void> => {
+        return new Promise((resolve) => {
+            const processChunk = () => {
+                let count = 0;
+                while (queue.length > 0 && count < chunkSize) {
+                    const [start, end] = queue.pop()!;
+                    if (end - start <= 1) continue;
+
+                    let maxDist = 0;
+                    let maxIndex = -1;
+
+                    const pStart = points[start];
+                    const pEnd = points[end];
+
+                    for (let i = start + 1; i < end; i++) {
+                        const dist = perpendicularDistance(points[i], pStart, pEnd);
+                        if (dist > maxDist) {
+                            maxDist = dist;
+                            maxIndex = i;
+                        }
+                    }
+
+                    count += (end - start);
+
+                    if (maxDist > toleranceMeters) {
+                        keptIndices.add(maxIndex);
+                        queue.push([start, maxIndex]);
+                        queue.push([maxIndex, end]);
+                    }
+                }
+
+                if (queue.length > 0) {
+                    setTimeout(processChunk, 0); // 挂起并释放主线程
+                } else {
+                    resolve();
+                }
+            };
+            processChunk();
+        });
+    };
+
+    await run();
+
+    const sortedIndices = Array.from(keptIndices).sort((a, b) => a - b);
+    return sortedIndices.map(i => points[i]);
+}
+
+/**
+ * 计算点到线段 p1-p2 的垂直距离（米）。
+ */
+function perpendicularDistance(point: Coord, p1: Coord, p2: Coord): number {
+    const latRad = deg2rad((p1.lat + p2.lat) / 2);
+    const cosLat = Math.cos(latRad);
+    const dx = (p2.lng - p1.lng) * cosLat;
+    const dy = p2.lat - p1.lat;
+    const lenSq = dx * dx + dy * dy;
+
+    if (lenSq === 0) {
+        // 线段退化为点，返回点到点的距离
+        return haversineDistance(point.lat, point.lng, p1.lat, p1.lng);
+    }
+
+    // 投影参数 t
+    const pDx = (point.lng - p1.lng) * cosLat;
+    const pDy = point.lat - p1.lat;
+    const t = (pDx * dx + pDy * dy) / lenSq;
+    const clampedT = Math.max(0, Math.min(1, t));
+
+    // 投影点坐标
+    const projLat = p1.lat + clampedT * (p2.lat - p1.lat);
+    const projLng = p1.lng + clampedT * (p2.lng - p1.lng);
+
+    return haversineDistance(point.lat, point.lng, projLat, projLng);
+}
+
+// ============================================================
+// Core Math
+// ============================================================
+
+function deg2rad(deg: number): number {
+    return deg * (Math.PI / 180);
+}
+
+/**
+ * Calculate the Haversine distance between two geographic points.
+ * @returns Distance in meters
+ */
+export function haversineDistance(
+    lat1: number,
+    lng1: number,
+    lat2: number,
+    lng2: number
+): number {
+    const R = 6371e3; // Earth radius in meters
+    const dLat = deg2rad(lat2 - lat1);
+    const dLng = deg2rad(lng2 - lng1);
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+        Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+}
+
+/**
+ * Haversine distance in kilometers (convenience wrapper).
+ */
+export function haversineDistanceKm(
+    lat1: number,
+    lng1: number,
+    lat2: number,
+    lng2: number
+): number {
+    return haversineDistance(lat1, lng1, lat2, lng2) / 1000;
+}
+
+// ============================================================
+// Path Analysis
+// ============================================================
+
+/**
+ * Calculate the total path distance from an array of GPS points.
+ * @returns Total distance in meters
+ */
+export function calculatePathDistance(points: GeoPoint[]): number {
+    if (points.length < 2) return 0;
+
+    let total = 0;
+    for (let i = 1; i < points.length; i++) {
+        total += haversineDistance(
+            points[i - 1].lat, points[i - 1].lng,
+            points[i].lat, points[i].lng
+        );
+    }
+    return total;
+}
+
+/**
+ * Check whether a trajectory forms a closed loop.
+ * Compares the distance between first and last points against threshold.
+ */
+export function isLoopClosed(
+    points: GeoPoint[],
+    thresholdMeters: number = LOOP_CLOSURE_THRESHOLD_M
+): LoopCheckResult {
+    if (points.length < MIN_LOOP_POINTS) {
+        return { isClosed: false, gapDistance: Infinity };
+    }
+
+    const first = points[0];
+    const last = points[points.length - 1];
+    const gapDistance = haversineDistance(first.lat, first.lng, last.lat, last.lng);
+
+    return {
+        isClosed: gapDistance <= thresholdMeters,
+        gapDistance,
+    };
+}
+
+interface TopologyInterval {
+    start: number;
+    end: number;
+}
+
+function isIndexConsumed(idx: number, intervals: TopologyInterval[]): boolean {
+    return intervals.some(iv => {
+        const margin = iv.end - iv.start >= 4 ? 2 : 0;
+        return idx >= iv.start + margin && idx <= iv.end - margin;
+    });
+}
+
+function isIntervalOverlap(i: number, j: number, intervals: TopologyInterval[]): boolean {
+    const margin = j - i >= 4 ? 2 : 0;
+    return intervals.some(iv => {
+        const ivMargin = iv.end - iv.start >= 4 ? 2 : 0;
+        return (i + margin) <= (iv.end - ivMargin) && (j - margin) >= (iv.start + ivMargin);
+    });
+}
+
+/**
+ * 双策略闭合算法：使用Turf.js实现智能领地闭合
+ * 策略A (Snap)：当最新点距起点 <= 30m时自动闭合
+ * 策略B (Intersect)：检测最新线段与历史轨迹的交叉，提取闭合环
+ *
+ * 重构要点：
+ *  - 入口执行 DP 简化，保留完整元数据（含 timestamp）
+ *  - P 型环使用精确交叉点 + 时间戳线性插值
+ *  - 支持 8 字型等多环拓扑提取，无 break 截断
+ *  - Set<string> 记录已提取线段区间，防污染
+ */
+export function extractValidLoops(
+    path: Coord[],
+    snapThreshold: number = LOOP_CLOSURE_SNAP_M,
+    intersectThreshold: number = LOOP_CLOSURE_THRESHOLD_M,
+    options?: { disableSnap?: boolean; disableIntersect?: boolean }
+): Coord[][] {
+    if (!Array.isArray(path) || path.length < 4) {
+        return [];
+    }
+
+    const loops: Coord[][] = [];
+    const seen = new Set<string>();
+
+    // 入口 DP 简化：剔除微小毛刺，保留完整元数据（含 timestamp），容差控制在严格的 0.3m 以内，保持微小转角
+    const simplifiedPath = simplifyPathDP(path, 0.3);
+
+    // 策略A: Snap闭合 - 检测首尾点距离是否在容差范围内
+    const disableSnap = options?.disableSnap ?? false;
+    if (!disableSnap) {
+        const firstPoint = simplifiedPath[0];
+        const lastPoint = simplifiedPath[simplifiedPath.length - 1];
+        const snapDistance = haversineDistance(firstPoint.lat, firstPoint.lng, lastPoint.lat, lastPoint.lng);
+        
+        if (snapDistance <= snapThreshold) {
+            const loop = [...simplifiedPath];
+            if (loop[loop.length - 1].lat !== firstPoint.lat || loop[loop.length - 1].lng !== firstPoint.lng) {
+                loop.push({ lat: firstPoint.lat, lng: firstPoint.lng, timestamp: firstPoint.timestamp });
+            }
+            
+            if (isValidPolygon(loop)) {
+                loops.push(loop);
+            }
+        }
+    }
+
+    // 策略B: 自交闭合 — 扫描全部线段，提取所有有效闭合环
+    const disableIntersect = options?.disableIntersect ?? false;
+    if (!disableIntersect && simplifiedPath.length >= 6) {
+        const n = simplifiedPath.length;
+        
+        interface CandidateLoop {
+            i: number;
+            j: number;
+            ring: Coord[];
+            area: number;
+        }
+        const candidates: CandidateLoop[] = [];
+
+        for (let i = 0; i < n - 3; i++) {
+            for (let j = i + 2; j < n - 1; j++) {
+                const intersectPoint = findLineSegmentIntersection(
+                    simplifiedPath[i], simplifiedPath[i + 1],
+                    simplifiedPath[j], simplifiedPath[j + 1]
+                );
+
+                if (intersectPoint) {
+                    const interpolatedTimestamp = interpolateTimestampAtIntersection(
+                        simplifiedPath[i], simplifiedPath[i + 1],
+                        simplifiedPath[j], simplifiedPath[j + 1],
+                        intersectPoint
+                    );
+
+                    const intersectPointWithTimestamp: Coord = {
+                        lat: intersectPoint.lat,
+                        lng: intersectPoint.lng,
+                        timestamp: interpolatedTimestamp
+                    };
+
+                    const ring: Coord[] = [
+                        intersectPointWithTimestamp,
+                        ...simplifiedPath.slice(i + 1, j + 1),
+                        intersectPointWithTimestamp,
+                    ];
+
+                    if (isValidPolygon(ring)) {
+                        // 计算环的近似 Turf 面积用于排序
+                        const coords = ring.map(p => [p.lng, p.lat]);
+                        if (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1]) {
+                            coords.push([...coords[0]]);
+                        }
+                        let area = 0;
+                        try {
+                            area = turf.area(turf.polygon([coords]));
+                        } catch {}
+
+                        candidates.push({ i, j, ring, area });
+                    }
+                }
+            }
+        }
+
+        // 核心优化：按面积从大到小排序，优先提取大环，防止角落微小抖动/自交环抢先占领区间，阻塞大环生成
+        candidates.sort((a, b) => b.area - a.area);
+
+        const intervals: TopologyInterval[] = [];
+        for (const cand of candidates) {
+            // 检查区间是否被已处理的大环占用
+            if (isIndexConsumed(cand.i, intervals)) continue;
+            if (isIndexConsumed(cand.j, intervals)) continue;
+            if (isIntervalOverlap(cand.i, cand.j, intervals)) continue;
+
+            const segKey = `${cand.i}-${cand.j}`;
+            if (!seen.has(segKey)) {
+                seen.add(segKey);
+                intervals.push({ start: cand.i, end: cand.j });
+                loops.push(cand.ring);
+            }
+        }
+    }
+
+    return loops;
+}
+
+/**
+ * 在两条线段的交点处进行时间戳线性插值。
+ *
+ * 根据交点到线段两端点的物理距离比例，对时间戳进行加权平均。
+ * 取两条线段插值结果的平均值，确保时间戳尽可能准确。
+ *
+ * @returns 插值后的时间戳（毫秒），若无法插值则返回 undefined
+ */
+function interpolateTimestampAtIntersection(
+    p1: Coord, p2: Coord,
+    p3: Coord, p4: Coord,
+    intersection: Coord
+): number | undefined {
+    const t1 = safeTimestamp(p1);
+    const t2 = safeTimestamp(p2);
+    const t3 = safeTimestamp(p3);
+    const t4 = safeTimestamp(p4);
+
+    const results: number[] = [];
+
+    // 线段1的插值
+    if (t1 !== null && t2 !== null) {
+        const dist1 = haversineDistance(p1.lat, p1.lng, p2.lat, p2.lng);
+        if (dist1 > 0) {
+            const distToP1 = haversineDistance(p1.lat, p1.lng, intersection.lat, intersection.lng);
+            const ratio = Math.max(0, Math.min(1, distToP1 / dist1));
+            results.push(t1 + ratio * (t2 - t1));
+        }
+    }
+
+    // 线段2的插值
+    if (t3 !== null && t4 !== null) {
+        const dist2 = haversineDistance(p3.lat, p3.lng, p4.lat, p4.lng);
+        if (dist2 > 0) {
+            const distToP3 = haversineDistance(p3.lat, p3.lng, intersection.lat, intersection.lng);
+            const ratio = Math.max(0, Math.min(1, distToP3 / dist2));
+            results.push(t3 + ratio * (t4 - t3));
+        }
+    }
+
+    if (results.length === 0) return undefined;
+    // 取所有可用插值的平均值
+    return Math.round(results.reduce((a, b) => a + b, 0) / results.length);
+}
+
+/**
+ * 安全获取时间戳，排除 NaN/undefined/Infinity。
+ */
+function safeTimestamp(point: Coord): number | null {
+    if (typeof point.timestamp === 'number' && isFinite(point.timestamp!)) {
+        return point.timestamp!;
+    }
+    return null;
+}
+
+function extendSegment(pA: Coord, pB: Coord, shim: number = 2e-6): [Coord, Coord] {
+    const dLng = pB.lng - pA.lng;
+    const dLat = pB.lat - pA.lat;
+    const len = Math.sqrt(dLng * dLng + dLat * dLat);
+    if (len === 0) return [pA, pB];
+    
+    // Extrapolate both ends outward
+    const pA_extended: Coord = {
+        lng: pA.lng - (dLng / len) * shim,
+        lat: pA.lat - (dLat / len) * shim,
+        timestamp: pA.timestamp
+    };
+    const pB_extended: Coord = {
+        lng: pB.lng + (dLng / len) * shim,
+        lat: pB.lat + (dLat / len) * shim,
+        timestamp: pB.timestamp
+    };
+    return [pA_extended, pB_extended];
+}
+
+/**
+ * 检测两条线段是否相交，返回交点坐标。
+ * 引入浮点数精度微量垫片（约0.2m），防止GPS漂移导致相交点若即若离而漏检。
+ */
+function findLineSegmentIntersection(
+    p1: Coord, p2: Coord, p3: Coord, p4: Coord
+): Coord | null {
+    // 引入 2e-6 度的微量垫片进行线段外延
+    const [e1, e2] = extendSegment(p1, p2, 2e-6);
+    const [e3, e4] = extendSegment(p3, p4, 2e-6);
+
+    const line1 = turf.lineString([[e1.lng, e1.lat], [e2.lng, e2.lat]]);
+    const line2 = turf.lineString([[e3.lng, e3.lat], [e4.lng, e4.lat]]);
+    
+    // 检测线段交叉
+    const intersection = turf.lineIntersect(line1, line2);
+    
+    if (intersection.features.length > 0) {
+        const point = intersection.features[0].geometry.coordinates;
+        return { lat: point[1], lng: point[0] };
+    }
+    
+    return null;
+}
+
+/**
+ * 验证多边形是否有效（面积 >= MIN_TERRITORY_AREA_M2）
+ */
+function isValidPolygon(points: Coord[]): boolean {
+    if (points.length < 4) return false; // GeoJSON规范要求首尾闭合
+    
+    // 转换为Turf.js多边形
+    const coordinates = points.map(p => [p.lng, p.lat]);
+    // 确保闭合
+    if (coordinates[0][0] !== coordinates[coordinates.length - 1][0] || 
+        coordinates[0][1] !== coordinates[coordinates.length - 1][1]) {
+        coordinates.push([coordinates[0][0], coordinates[0][1]]);
+    }
+    
+    try {
+        const polygon = turf.polygon([coordinates]);
+        const area = turf.area(polygon);
+        return area >= MIN_TERRITORY_AREA_M2;
+    } catch (error) {
+        // 无效的几何形状
+        return false;
+    }
+}
+
+/**
+ * Check if two polygons overlap by more than 80%.
+ * Overlap Ratio = turf.area(intersection) / Math.min(turf.area(poly1), turf.area(poly2))
+ * Uses turf.intersect(turf.featureCollection([poly1, poly2])) under Turf.js v7.x.
+ */
+export function isDuplicatePolygon(
+    polyCoords1: Coord[],
+    polyCoords2: Coord[]
+): boolean {
+    if (polyCoords1.length < 4 || polyCoords2.length < 4) return false;
+
+    // P2: Compute BBox bounds for both coordinate arrays for O(1) early rejection
+    let minLngA = Infinity, maxLngA = -Infinity, minLatA = Infinity, maxLatA = -Infinity;
+    for (let idx = 0; idx < polyCoords1.length; idx++) {
+        const p = polyCoords1[idx];
+        if (p.lng < minLngA) minLngA = p.lng;
+        if (p.lng > maxLngA) maxLngA = p.lng;
+        if (p.lat < minLatA) minLatA = p.lat;
+        if (p.lat > maxLatA) maxLatA = p.lat;
+    }
+
+    let minLngB = Infinity, maxLngB = -Infinity, minLatB = Infinity, maxLatB = -Infinity;
+    for (let idx = 0; idx < polyCoords2.length; idx++) {
+        const p = polyCoords2[idx];
+        if (p.lng < minLngB) minLngB = p.lng;
+        if (p.lng > maxLngB) maxLngB = p.lng;
+        if (p.lat < minLatB) minLatB = p.lat;
+        if (p.lat > maxLatB) maxLatB = p.lat;
+    }
+
+    const isNotOverlapping =
+        minLngA > maxLngB || // A 在 B 右侧
+        maxLngA < minLngB || // A 在 B 左侧
+        minLatA > maxLatB || // A 在 B 上侧（Lat 递增通常向上）
+        maxLatA < minLatB;   // A 在 B 下侧
+
+    if (isNotOverlapping) return false;
+
+    // Convert to Turf.js polygon coordinates (lng, lat)
+    const coords1 = polyCoords1.map(p => [p.lng, p.lat]);
+    if (coords1[0][0] !== coords1[coords1.length - 1][0] || coords1[0][1] !== coords1[coords1.length - 1][1]) {
+        coords1.push([...coords1[0]]);
+    }
+
+    const coords2 = polyCoords2.map(p => [p.lng, p.lat]);
+    if (coords2[0][0] !== coords2[coords2.length - 1][0] || coords2[0][1] !== coords2[coords2.length - 1][1]) {
+        coords2.push([...coords2[0]]);
+    }
+
+    try {
+        const poly1 = turf.polygon([coords1]);
+        const poly2 = turf.polygon([coords2]);
+
+        const area1 = turf.area(poly1);
+        const area2 = turf.area(poly2);
+        
+        if (area1 <= 0 || area2 <= 0) return false;
+
+        // Turf v7.x intersect takes a FeatureCollection
+        const intersection = turf.intersect(turf.featureCollection([poly1, poly2]));
+        if (!intersection) return false;
+
+        const intersectArea = turf.area(intersection);
+        const minArea = Math.min(area1, area2);
+        const overlapRatio = intersectArea / minArea;
+
+        return overlapRatio > 0.80;
+    } catch (error) {
+        console.warn("[isDuplicatePolygon] Error checking intersection:", error);
+        return false;
+    }
+}
+
+// ============================================================
+// Data Cleaning
+// ============================================================
+
+/**
+ * Filter GPS drift points based on speed between consecutive points.
+ * Points that imply a speed exceeding `maxSpeedKmh` are considered drift and removed.
+ */
+export function filterDriftPoints(
+    points: GeoPoint[],
+    maxSpeedKmh: number = MAX_RUNNING_SPEED_KMH
+): DriftFilterResult {
+    if (points.length <= 1) {
+        return { cleanedPoints: [...points], removedCount: 0, warnings: [] };
+    }
+
+    const cleanedPoints: GeoPoint[] = [points[0]];
+    const warnings: string[] = [];
+    let removedCount = 0;
+
+    for (let i = 1; i < points.length; i++) {
+        const prev = cleanedPoints[cleanedPoints.length - 1];
+        const curr = points[i];
+
+        const distMeters = haversineDistance(prev.lat, prev.lng, curr.lat, curr.lng);
+        const timeDiffSec = Math.abs(curr.timestamp - prev.timestamp) / 1000;
+
+        if (timeDiffSec <= 0) {
+            // Duplicate timestamp — skip
+            removedCount++;
+            continue;
+        }
+
+        const speedKmh = (distMeters / timeDiffSec) * 3.6;
+
+        if (speedKmh > maxSpeedKmh) {
+            removedCount++;
+            warnings.push(
+                `第${i}个点因瞬移被剔除（速度: ${speedKmh.toFixed(1)}km/h, 距离: ${distMeters.toFixed(0)}m）`
+            );
+            continue;
+        }
+
+        cleanedPoints.push(curr);
+    }
+
+    return { cleanedPoints, removedCount, warnings };
+}
+
+// ============================================================
+// Validation
+// ============================================================
+
+export interface HumanLimitCheck {
+    valid: boolean;
+    reason?: string;
+}
+
+/**
+ * Validate that physiological data is within human limits.
+ */
+export function validateHumanLimits(
+    heartRate?: number,
+    paceKmh?: number
+): HumanLimitCheck {
+    if (heartRate !== undefined && heartRate !== null) {
+        if (heartRate < MIN_HEART_RATE_BPM || heartRate > MAX_HEART_RATE_BPM) {
+            return {
+                valid: false,
+                reason: `心率 ${heartRate}bpm 超出人体极限范围 (${MIN_HEART_RATE_BPM}-${MAX_HEART_RATE_BPM}bpm)`,
+            };
+        }
+    }
+
+    if (paceKmh !== undefined && paceKmh !== null) {
+        if (paceKmh > ABSOLUTE_SPEED_LIMIT_KMH) {
+            return {
+                valid: false,
+                reason: `配速 ${paceKmh.toFixed(1)}km/h 超出人体极限 (>${ABSOLUTE_SPEED_LIMIT_KMH}km/h)`,
+            };
+        }
+    }
+
+    return { valid: true };
+}
+
+// ============================================================
+// Legacy-compatible wrappers
+// ============================================================
+
+/**
+ * Drop-in replacement for the function previously in useRunningTracker.ts
+ */
+export function getDistanceFromLatLonInMeters(
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number
+): number {
+    return haversineDistance(lat1, lon1, lat2, lon2);
+}
+
+/**
+ * Drop-in replacement for the function previously in sync.ts
+ */
+export function getDistanceFromLatLonInKm(
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number
+): number {
+    return haversineDistanceKm(lat1, lon1, lat2, lon2);
+}

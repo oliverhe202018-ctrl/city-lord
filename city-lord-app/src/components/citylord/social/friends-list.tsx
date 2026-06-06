@@ -1,0 +1,435 @@
+﻿"use client"
+
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { openUserProfile } from '@/lib/utils/nav'
+import useSWR from 'swr'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Search, UserPlus, MoreHorizontal, MapPin, Trophy, Zap, MessageCircle, Swords, Clock, Loader2, Check, X } from 'lucide-react'
+import { formatAreaFromHexCount } from '@/lib/citylord/area-utils'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import type { Friend, FriendRequest } from "@/types/social"
+
+import { toast } from 'sonner'
+import { apiFetch } from '@/lib/fetch-shim';
+
+
+const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    let url = input
+    if (typeof url === 'string' && url.startsWith('/api')) {
+      url = `${process.env.NEXT_PUBLIC_API_SERVER || ''}${url}`
+    }
+    return await fetch(url, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const fetchFriends = async (): Promise<Friend[]> => {
+  const res = await fetchWithTimeout('/api/social/friends', { credentials: 'include' })
+  if (!res.ok) throw new Error('Failed to fetch friends')
+  return await res.json()
+}
+
+const getFriendRequests = async (): Promise<FriendRequest[]> => {
+  const res = await fetchWithTimeout('/api/social/friend-requests', { credentials: 'include' })
+  if (!res.ok) throw new Error('Failed to fetch friend requests')
+  return await res.json()
+}
+
+const respondToFriendRequest = async (userId: string, action: 'accept' | 'reject') => {
+  const res = await fetchWithTimeout('/api/social/friend-request/respond', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, action }),
+    credentials: 'include'
+  })
+  if (!res.ok) throw new Error('Failed to respond')
+  return await res.json()
+}
+
+
+interface FriendsListProps {
+  onSelectFriend?: (friend: Friend) => void
+  onChallenge?: (friend: Friend) => void
+  onMessage?: (friend: Friend) => void
+  onDiscoverFriends?: () => void
+  initialFriends?: Friend[]
+  initialRequests?: FriendRequest[]
+}
+
+export function FriendsList({
+  onSelectFriend,
+  onChallenge,
+  onMessage,
+  onDiscoverFriends,
+  initialFriends = [],
+  initialRequests = []
+}: FriendsListProps) {
+  const [searchQuery, setSearchQuery] = useState("")
+  const [filter, setFilter] = useState<"all" | "online" | "nearby">("all")
+  const [selectedFriend, setSelectedFriend] = useState<string | null>(null)
+  const queryClient = useQueryClient()
+  const navigate = useNavigate()
+
+  const { data: friends = [], isLoading: isFriendsLoading, mutate: mutateFriends } = useSWR(
+    'friends',
+    fetchFriends,
+    {
+      fallbackData: initialFriends,
+      revalidateOnFocus: true
+    }
+  )
+
+  const { data: requests = [], isLoading: isRequestsLoading, mutate: mutateRequests } = useSWR(
+    'friendRequests',
+    getFriendRequests,
+    {
+      fallbackData: initialRequests,
+      revalidateOnFocus: true
+    }
+  )
+
+  const respondMutation = useMutation({
+    mutationFn: ({ userId, action }: { userId: string, action: 'accept' | 'reject' }) =>
+      respondToFriendRequest(userId, action),
+    onSuccess: (result, { action }) => {
+      if (result.success) {
+        toast.success(action === 'accept' ? "已接受好友请求" : "已拒绝好友请求")
+        // SWR mutation
+        mutateFriends()
+        mutateRequests()
+      } else {
+        toast.error("操作失败")
+      }
+    },
+    onError: () => {
+      toast.error("操作出错")
+    }
+  })
+
+  const handleResponse = (userId: string, action: 'accept' | 'reject') => {
+    respondMutation.mutate({ userId, action })
+  }
+
+  const handleAssist = async (friendId: string) => {
+    try {
+      const res = await apiFetch(`/api/social/assist`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ friendId }),
+      })
+      if (!res.ok) throw new Error("Failed to assist")
+      toast.success("助力成功，已赠送体力！", {
+        icon: "⚡"
+      })
+    } catch {
+      toast.error("助力失败，请重试")
+    }
+  }
+
+  const [now, setNow] = useState(Date.now())
+
+  // Update 'now' every minute to refresh relative time and online status
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') setNow(Date.now())
+    }, 60000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const filteredFriends = friends.filter(friend => {
+    const matchesSearch = friend.name.toLowerCase().includes(searchQuery.toLowerCase())
+    const matchesFilter =
+      filter === "all" ||
+      (filter === "online" && (friend.status === "online" || friend.status === "running")) ||
+      (filter === "nearby" && friend.nearbyDistance !== undefined)
+    return matchesSearch && matchesFilter
+  })
+
+  const statusConfig = {
+    online: { color: "bg-[#22c55e]", label: "在线", animate: false },
+    running: { color: "bg-cyan-400", label: "跑步中", animate: true },
+    offline: { color: "bg-muted-foreground/30", label: "离线", animate: false },
+  }
+
+  // Helper to determine real-time status
+  const getFriendStatus = (friend: Friend) => {
+    if (friend.status === 'running') return 'running'
+    if (!friend.lastActiveAt) return friend.status // Fallback to server status
+
+    const diffMinutes = (now - new Date(friend.lastActiveAt).getTime()) / (1000 * 60)
+    return diffMinutes < 5 ? 'online' : 'offline'
+  }
+
+  if (isFriendsLoading || isRequestsLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="mt-2 text-sm text-muted-foreground">正在加载好友列表...</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col">
+      {/* Search and Filter */}
+      <div className="mb-4 space-y-3">
+        {/* Search Input */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="搜索好友..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full rounded-xl border border-border bg-muted/50 py-2.5 pl-10 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/50"
+          />
+        </div>
+
+        {/* Filter Tabs */}
+        <div className="flex gap-2 rounded-xl bg-muted/50 p-1">
+          {(["all", "online", "nearby"] as const).map((f) => {
+            const labels = { all: "全部", online: "在线", nearby: "附近" }
+            const counts = {
+              all: friends.length,
+              online: friends.filter(fr => fr.status !== "offline").length,
+              nearby: friends.filter(fr => fr.nearbyDistance !== undefined).length,
+            }
+            return (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-all ${filter === f
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+                  }`}
+              >
+                {labels[f]} ({counts[f]})
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Add Friend Button */}
+      <button
+        onClick={onDiscoverFriends}
+        className="mb-4 flex items-center justify-center gap-2 rounded-xl border border-dashed border-primary/30 bg-primary/5 py-3 text-primary transition-all hover:bg-primary/10"
+      >
+        <UserPlus className="h-5 w-5" />
+        <span className="font-medium">添加新好友</span>
+      </button>
+
+      {/* Friend Requests Section */}
+      {requests.length > 0 && (
+        <div className="mb-6 space-y-2">
+          <h3 className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            好友请求 ({requests.length})
+          </h3>
+          {requests.map((req) => (
+            <div key={req.id} className="flex items-center justify-between rounded-xl border border-primary/20 bg-primary/5 p-3">
+              <div className="flex items-center gap-3">
+                <Avatar className="h-10 w-10">
+                  <AvatarImage src={req.avatar?.startsWith('http') ? req.avatar : ''} alt={req.name} className="object-cover" />
+                  <AvatarFallback className="bg-gradient-to-br from-primary/30 to-cyan-500/30 text-sm font-bold text-foreground">
+                    {req.name?.[0]?.toUpperCase() || '?'}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <div
+                    className="font-semibold text-foreground cursor-pointer hover:underline"
+                    onClick={(e) => { e.stopPropagation(); openUserProfile(navigate, req.userId, window.location.pathname + window.location.search) }}
+                  >
+                    {req.name}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Lv.{req.level} • 请求添加好友</div>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleResponse(req.userId, 'reject')}
+                  className="rounded-lg bg-muted p-2 text-muted-foreground hover:bg-destructive/20 hover:text-destructive"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => handleResponse(req.userId, 'accept')}
+                  className="rounded-lg bg-primary p-2 text-primary-foreground hover:bg-primary/90"
+                >
+                  <Check className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Friends List */}
+      <div className="space-y-2">
+        {filteredFriends.map((friend) => {
+          const computedStatus = getFriendStatus(friend)
+          const status = statusConfig[computedStatus as keyof typeof statusConfig]
+          const isSelected = selectedFriend === friend.id
+
+          return (
+            <div
+              key={friend.id}
+              className={`overflow-hidden rounded-2xl border transition-all duration-300 ${isSelected
+                ? "border-primary/50 bg-primary/10"
+                : "border-border bg-card/50 hover:bg-muted/50"
+                }`}
+            >
+              {/* Main Row */}
+              <button
+                onClick={() => {
+                  setSelectedFriend(isSelected ? null : friend.id)
+                  onSelectFriend?.(friend)
+                }}
+                className="flex w-full items-center gap-3 p-3"
+              >
+                {/* Avatar */}
+                <div
+                  className="relative cursor-pointer"
+                  onClick={(e) => { e.stopPropagation(); openUserProfile(navigate, friend.id, window.location.pathname + window.location.search) }}
+                >
+                  <Avatar className="h-12 w-12 hover:ring-2 ring-primary/50 transition-all cursor-pointer">
+                    <AvatarImage src={friend.avatar?.startsWith('http') ? friend.avatar : ''} alt={friend.name} className="object-cover" />
+                    <AvatarFallback className="bg-gradient-to-br from-primary/30 to-cyan-500/30 text-lg font-bold text-foreground">
+                      {friend.name?.[0]?.toUpperCase() || '?'}
+                    </AvatarFallback>
+                  </Avatar>
+                  {/* Status Dot */}
+                  <div
+                    className={`absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-background ${status.color} ${status.animate ? "animate-pulse" : ""}`}
+                  />
+                </div>
+
+                {/* Info */}
+                <div className="flex-1 text-left">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="font-semibold text-foreground cursor-pointer hover:text-primary transition-colors"
+                      onClick={(e) => { e.stopPropagation(); openUserProfile(navigate, friend.id, window.location.pathname + window.location.search) }}
+                    >
+                      {friend.name}
+                    </span>
+                    <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                      Lv.{friend.level}
+                    </span>
+                    {friend.clan && (
+                      <span
+                        className="rounded px-1.5 py-0.5 text-[10px] font-medium"
+                        style={{
+                          backgroundColor: `${friend.clanColor}20`,
+                          color: friend.clanColor
+                        }}
+                      >
+                        {friend.clan}
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <MapPin className="h-3 w-3" />
+                      {formatAreaFromHexCount(friend.hexCount).fullText}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Zap className="h-3 w-3" />
+                      {Number(friend.totalKm ?? 0).toFixed(2)}km
+                    </span>
+                    {friend.nearbyDistance !== undefined && (
+                      <span className="flex items-center gap-1 text-primary">
+                        <MapPin className="h-3 w-3" />
+                        {Number(friend.nearbyDistance).toFixed(2)}m
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Status / Last Active */}
+                <div className="text-right">
+                  {computedStatus === "running" ? (
+                    <span className="flex items-center gap-1 text-xs text-cyan-400">
+                      <span className="relative flex h-2 w-2">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-cyan-400" />
+                      </span>
+                      跑步中
+                    </span>
+                  ) : computedStatus === "online" ? (
+                    <span className="text-xs text-primary">在线</span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Clock className="h-3 w-3" />
+                      {friend.lastActive}
+                    </span>
+                  )}
+                </div>
+
+                <MoreHorizontal className="h-5 w-5 text-muted-foreground" />
+              </button>
+
+              {/* Expanded Actions */}
+              {isSelected && (
+                <div className="flex gap-2 border-t border-border p-3">
+                  <button
+                    onClick={() => onChallenge?.(friend)}
+                    className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary/20 py-2.5 text-sm font-medium text-primary transition-all hover:bg-primary/30"
+                  >
+                    <Swords className="h-4 w-4" />
+                    发起挑战
+                  </button>
+                  <button
+                    onClick={() => onMessage?.(friend)}
+                    className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-muted py-2.5 text-sm font-medium text-foreground transition-all hover:bg-muted/80"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    发消息
+                  </button>
+                  <button
+                    onClick={() => handleAssist(friend.id)}
+                    className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-green-500/20 py-2.5 text-sm font-medium text-green-500 transition-all hover:bg-green-500/30"
+                  >
+                    <Zap className="h-4 w-4" />
+                    助力
+                  </button>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Empty State */}
+      {filteredFriends.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-16 text-center bg-card/30 rounded-2xl border border-dashed border-border mt-4">
+          <div className="mb-4 rounded-full bg-primary/10 p-5">
+            <UserPlus className="h-10 w-10 text-primary" />
+          </div>
+          <h3 className="text-lg font-bold text-foreground mb-2">
+            {filter === "nearby" ? "附近暂无好友在跑步" : "还没有添加好友"}
+          </h3>
+          <p className="text-sm text-muted-foreground mb-6 max-w-[240px]">
+            {filter === "nearby"
+              ? "稍后再来看看，或者去发现新的跑友吧！"
+              : "添加好友，一起探索城市领地，比拼运动排行！"}
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={onDiscoverFriends}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-2 rounded-xl font-bold transition-all active:scale-95 shadow-sm"
+            >
+              发现跑友
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+
