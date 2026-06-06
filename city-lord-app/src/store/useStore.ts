@@ -63,8 +63,9 @@ export const useStore = create<UserState>((set) => ({
     }
 
     if (data.data?.token) {
-      const { token, userId } = data.data;
+      const { token, refreshToken, userId } = data.data;
       await Preferences.set({ key: 'authToken', value: token });
+      if (refreshToken) await Preferences.set({ key: 'refreshToken', value: refreshToken });
       await Preferences.set({ key: 'userId', value: userId });
       set({ isAuthenticated: true, token, userId });
       
@@ -87,8 +88,9 @@ export const useStore = create<UserState>((set) => ({
     }
 
     if (data.data?.token) {
-      const { token, userId } = data.data;
+      const { token, refreshToken, userId } = data.data;
       await Preferences.set({ key: 'authToken', value: token });
+      if (refreshToken) await Preferences.set({ key: 'refreshToken', value: refreshToken });
       await Preferences.set({ key: 'userId', value: userId });
       set({ isAuthenticated: true, token, userId });
       
@@ -100,6 +102,7 @@ export const useStore = create<UserState>((set) => ({
 
   logout: async () => {
     await Preferences.remove({ key: 'authToken' });
+    await Preferences.remove({ key: 'refreshToken' });
     await Preferences.remove({ key: 'userId' });
     set({ isAuthenticated: false, userId: null, token: null, profile: null });
   },
@@ -119,7 +122,7 @@ export const useStore = create<UserState>((set) => ({
 
       if (token) {
         // Verify with backend
-        const res = await apiFetch('/api/v1/user/profile');
+        const res = await apiFetch('/api/v1/user/profile', { skipAuthEvent: true });
         if (res.ok) {
           const data = await res.json();
           if (data.success && data.data) {

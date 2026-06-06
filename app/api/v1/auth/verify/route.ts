@@ -34,12 +34,32 @@ export async function POST(request: Request) {
         message: '验证成功',
         data: {
           token: data.session?.access_token,
+          refreshToken: data.session?.refresh_token,
           userId: data.user?.id
         }
       })
     } else if (phone) {
       const result = await verifySmsCode(phone, code, type as 'login' | 'register', origin)
       
+      if (result.success && result.tokenHash) {
+          const { data, error } = await supabase.auth.verifyOtp({
+              email: `${phone.replace(/\s+/g, '')}@sms.citylord.local`,
+              token: result.tokenHash,
+              type: 'magiclink'
+          })
+          if (!error && data.session) {
+              return NextResponse.json({
+                  success: true,
+                  message: '验证成功',
+                  data: {
+                      token: data.session.access_token,
+                      refreshToken: data.session.refresh_token,
+                      userId: data.user?.id
+                  }
+              })
+          }
+      }
+
       return NextResponse.json(result)
     }
   } catch (error: any) {

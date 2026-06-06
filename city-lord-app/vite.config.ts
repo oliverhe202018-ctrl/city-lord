@@ -24,8 +24,8 @@ export default defineConfig(({ mode }) => {
       'process.env.NEXT_PUBLIC_API_SERVER': JSON.stringify(env.NEXT_PUBLIC_API_SERVER || 'https://cl1.4567666.xyz')
     },
     build: {
-      minify: false,
-      sourcemap: true,
+      minify: 'esbuild',
+      sourcemap: false,
       rolldownOptions: {
         external: [
           '@capacitor/sensors',

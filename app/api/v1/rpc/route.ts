@@ -3,8 +3,6 @@ import { NextResponse } from 'next/server'
 import * as accountActions from '@/app/actions/account'
 import * as achievementActions from '@/app/actions/achievement'
 import * as activitiesActions from '@/app/actions/activities'
-import * as adminauthActions from '@/app/actions/admin-auth'
-import * as adminActions from '@/app/actions/admin'
 import * as authcheckActions from '@/app/actions/auth-check'
 import * as authActions from '@/app/actions/auth'
 import * as badgeactionsActions from '@/app/actions/badge.actions'
@@ -28,7 +26,6 @@ import * as referralActions from '@/app/actions/referral'
 import * as reportActions from '@/app/actions/report'
 import * as roomActions from '@/app/actions/room'
 import * as runserviceActions from '@/app/actions/run-service'
-import * as seedActions from '@/app/actions/seed'
 import * as smsauthActions from '@/app/actions/sms-auth'
 import * as socialhubActions from '@/app/actions/social-hub'
 import * as socialserviceActions from '@/app/actions/social-service'
@@ -44,22 +41,12 @@ import * as userinvitationsActions from '@/app/actions/user-invitations'
 import * as userActions from '@/app/actions/user'
 import * as voicetranscribeActions from '@/app/actions/voice-transcribe'
 import * as watchsyncActions from '@/app/actions/watch-sync'
-import * as adminbackgroundsActions from '@/app/actions/admin/backgrounds'
-import * as adminchangelogactionsActions from '@/app/actions/admin/changelog-actions'
-import * as adminfeedbackActions from '@/app/actions/admin/feedback'
-import * as admingetfeedbackActions from '@/app/actions/admin/get-feedback'
-import * as adminstoreitemsActions from '@/app/actions/admin/store-items'
-import * as adminterritoriesActions from '@/app/actions/admin/territories'
-import * as changeloggetchangelogsActions from '@/app/actions/changelog/get-changelogs'
-import * as changelogunreadactionsActions from '@/app/actions/changelog/unread-actions'
 
-// Aggregate all Action modules
+// Aggregate all Allowed Action modules (Strict Whitelist)
 const modules: Record<string, any> = {
   'account': accountActions,
   'achievement': achievementActions,
   'activities': activitiesActions,
-  'admin-auth': adminauthActions,
-  'admin': adminActions,
   'auth-check': authcheckActions,
   'auth': authActions,
   'badge.actions': badgeactionsActions,
@@ -83,7 +70,6 @@ const modules: Record<string, any> = {
   'report': reportActions,
   'room': roomActions,
   'run-service': runserviceActions,
-  'seed': seedActions,
   'sms-auth': smsauthActions,
   'social-hub': socialhubActions,
   'social-service': socialserviceActions,
@@ -99,21 +85,12 @@ const modules: Record<string, any> = {
   'user': userActions,
   'voice-transcribe': voicetranscribeActions,
   'watch-sync': watchsyncActions,
-  'admin/backgrounds': adminbackgroundsActions,
-  'admin/changelog-actions': adminchangelogactionsActions,
-  'admin/feedback': adminfeedbackActions,
-  'admin/get-feedback': admingetfeedbackActions,
-  'admin/store-items': adminstoreitemsActions,
-  'admin/territories': adminterritoriesActions,
-  'changelog/get-changelogs': changeloggetchangelogsActions,
-  'changelog/unread-actions': changelogunreadactionsActions
 }
+
+const ALLOWED_MODULES = new Set(Object.keys(modules))
 
 export async function POST(request: Request) {
   try {
-    const authHeader = request.headers.get('Authorization')
-    const token = authHeader?.startsWith('Bearer ') ? authHeader.replace('Bearer ', '') : undefined
-
     const body = await request.json()
     const { module, action, args = [] } = body
 
@@ -121,30 +98,32 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: '缺少 module 或 action 参数' }, { status: 400 })
     }
 
-    // Security: Block administrative and seed modules from public RPC access
-    if (module.startsWith('admin') || module === 'seed') {
-      return NextResponse.json({ success: false, error: 'Access denied to restricted modules' }, { status: 403 })
+    // Security 1: Strict Args Length & Type check
+    if (!Array.isArray(args) || args.length > 20) {
+      return NextResponse.json({ success: false, error: 'Invalid args payload' }, { status: 400 })
     }
 
-    // Security: Prevent prototype pollution by validating action name
+    // Security 2: Strict Module Whitelist
+    if (!ALLOWED_MODULES.has(module)) {
+      return NextResponse.json({ success: false, error: 'Access denied to restricted module' }, { status: 403 })
+    }
+
+    // Security 3: Prevent prototype pollution
     if (!/^[a-zA-Z_]\w*$/.test(action)) {
       return NextResponse.json({ success: false, error: 'Invalid action name' }, { status: 400 })
     }
 
     const targetModule = modules[module]
-    if (!targetModule) {
-      return NextResponse.json({ success: false, error: '未找到模块: ' + module }, { status: 404 })
-    }
-
     const targetFunction = targetModule[action]
     if (!targetFunction || typeof targetFunction !== 'function') {
       return NextResponse.json({ success: false, error: '在模块 ' + module + ' 中未找到方法: ' + action }, { status: 404 })
     }
 
-    const finalArgs = [...args, token]
     console.log(`[RPC] Executing ${module}.${action} with ${args.length} args`)
     
-    const result = await targetFunction(...finalArgs)
+    // Security 4: Direct execution without appending token.
+    // The target functions use `createClient()` which automatically extracts Bearer token from headers.
+    const result = await targetFunction(...args)
     return NextResponse.json({ success: true, data: result })
 
   } catch (error: any) {

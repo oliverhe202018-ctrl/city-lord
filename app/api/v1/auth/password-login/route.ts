@@ -49,6 +49,7 @@ export async function POST(request: Request) {
       message: '登录成功',
       data: {
         token: data.session?.access_token,
+        refreshToken: data.session?.refresh_token,
         userId: data.user?.id
       }
     })
