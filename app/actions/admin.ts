@@ -78,22 +78,36 @@ export async function getAdminUsers(searchQuery?: string) {
     try {
         await requireAdminSession()
 
-        let query = getSupabaseAdmin()
-
-            .from('profiles')
-            .select('id, nickname, avatar_url, created_at, bypass_anti_cheat, level, total_area, xp, total_distance_km, coins, faction, is_active, total_runs_count, club_id, stamina, max_stamina')
-            .order('created_at', { ascending: false })
-            .limit(100)
-
+        const { prisma } = await import('@/lib/prisma')
+        
+        let sql = `
+            SELECT 
+                p.id, p.nickname, p.avatar_url, p.created_at, p.bypass_anti_cheat, 
+                p.level, p.total_area, p.xp, p.total_distance_km, p.coins, 
+                p.faction, p.is_active, p.total_runs_count, p.club_id, p.stamina, p.max_stamina,
+                u.email, u.phone
+            FROM public.profiles p
+            LEFT JOIN auth.users u ON p.id = u.id
+        `
+        
+        const params: any[] = []
         if (searchQuery) {
-            query = query.ilike('nickname', `%${searchQuery}%`)
+            sql += ` WHERE p.nickname ILIKE $1 OR u.email ILIKE $1 OR u.phone ILIKE $1`
+            params.push(`%${searchQuery}%`)
         }
+        
+        sql += ` ORDER BY p.created_at DESC LIMIT 100`
+        
+        const data = await prisma.$queryRawUnsafe<any[]>(sql, ...params)
+        
+        const formattedData = data.map(u => ({
+            ...u,
+            created_at: u.created_at instanceof Date ? u.created_at.toISOString() : u.created_at,
+            total_area: u.total_area != null ? Number(u.total_area) : 0,
+            total_distance_km: u.total_distance_km != null ? Number(u.total_distance_km) : 0,
+        }))
 
-        const { data, error } = await query
-
-        if (error) throw error
-
-        return { success: true, data }
+        return { success: true, data: formattedData }
     } catch (error: any) {
         console.error('getAdminUsers error:', error)
         return { success: false, error: error.message }

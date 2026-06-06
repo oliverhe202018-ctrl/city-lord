@@ -47,6 +47,8 @@ interface Profile {
   club_id?: string | null
   stamina?: number
   max_stamina?: number
+  email?: string
+  phone?: string
 }
 
 interface AdminUsersPageClientProps {
@@ -272,6 +274,17 @@ export default function AdminUsersPageClient({
                     )}
                   </div>
                   <span className="text-sm font-mono text-muted-foreground">{selectedUser.id}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-xs bg-muted/40 p-3 rounded-lg border">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-muted-foreground font-medium">绑定邮箱</span>
+                  <span className="font-mono text-foreground break-all">{selectedUser.email || '未绑定'}</span>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-muted-foreground font-medium">绑定手机</span>
+                  <span className="font-mono text-foreground">{selectedUser.phone || '未绑定'}</span>
                 </div>
               </div>
 

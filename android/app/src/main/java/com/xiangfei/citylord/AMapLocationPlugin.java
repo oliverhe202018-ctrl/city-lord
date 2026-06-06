@@ -898,12 +898,15 @@ public class AMapLocationPlugin extends Plugin {
         String brand = android.os.Build.BRAND;
         String device = android.os.Build.DEVICE;
         String product = android.os.Build.PRODUCT;
+        String hardware = android.os.Build.HARDWARE;
 
-        return (fingerprint != null && (fingerprint.startsWith("generic") || fingerprint.startsWith("unknown")))
-                || (model != null && (model.contains("google_sdk") || model.contains("Emulator") || model.contains("Android SDK built for x86")))
-                || (manufacturer != null && manufacturer.contains("Genymotion"))
-                || (brand != null && brand.startsWith("generic") && device != null && device.startsWith("generic"))
-                || "google_sdk".equals(product);
+        return (fingerprint != null && (fingerprint.startsWith("generic") || fingerprint.startsWith("unknown") || fingerprint.toLowerCase().contains("emulator") || fingerprint.toLowerCase().contains("sdk_gphone")))
+                || (model != null && (model.toLowerCase().contains("google_sdk") || model.toLowerCase().contains("emulator") || model.toLowerCase().contains("android sdk built for x86") || model.toLowerCase().contains("sdk_gphone")))
+                || (hardware != null && (hardware.toLowerCase().contains("goldfish") || hardware.toLowerCase().contains("ranchu")))
+                || (manufacturer != null && manufacturer.toLowerCase().contains("genymotion"))
+                || (brand != null && brand.toLowerCase().startsWith("generic") && device != null && device.toLowerCase().startsWith("generic"))
+                || "google_sdk".equals(product)
+                || (product != null && product.toLowerCase().contains("sdk_gphone"));
     }
 
     private boolean isDebugBuild() {

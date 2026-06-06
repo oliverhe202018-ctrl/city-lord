@@ -10,9 +10,8 @@ import { useMapInteractionStore } from '@/store/useMapInteractionStore'
 import { useNavigate } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
-
-import { import { apiFetch } from '@/lib/fetch-shim';
-
+import { apiFetch } from '@/lib/fetch-shim';
+import {
   X,
   Trophy,
   Swords,

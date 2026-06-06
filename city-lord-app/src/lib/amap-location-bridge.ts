@@ -1,4 +1,4 @@
-﻿/**
+/**
  * AMapLocationBridge — 核心定位桥接层
  *
  * 职责：
@@ -1431,6 +1431,8 @@ export class AMapLocationBridge {
             source,
             coordSystem: 'gcj02', // AMap 原生固定 GCJ-02，禁止再转换
             isMock: pos.isMock,
+            isEmulator: (pos as any).isEmulator,
+            isDebug: (pos as any).isDebug,
         };
     }
 
