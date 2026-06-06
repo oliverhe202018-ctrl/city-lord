@@ -29,7 +29,7 @@ export class KalmanFilter1D {
     private p11: number = 1000; // velocity variance
 
     /** 过程噪声功率谱密度 — 控制对加速度变化的容忍度 */
-    private readonly processNoisePSD: number;
+    private processNoisePSD: number;
 
     /** 测量噪声方差（米²） — GPS 精度的期望值 */
     private readonly measurementNoiseVar: number;
@@ -52,14 +52,35 @@ export class KalmanFilter1D {
     }
 
     /**
+     * 动态设置过程噪声功率谱密度
+     */
+    setProcessNoisePSD(psd: number): void {
+        this.processNoisePSD = psd;
+    }
+
+    /**
+     * 信号恢复时重置位置与协方差，清空速度估计
+     */
+    resetToPosition(newPosition: number, accuracy: number = 50): void {
+        this.x = newPosition;
+        this.v = 0;
+        this.p00 = accuracy * accuracy;
+        this.p01 = 0;
+        this.p10 = 0;
+        this.p11 = 1000;
+        this.initialized = true;
+    }
+
+    /**
      * 输入一个新的测量值，返回滤波后的位置估计。
      *
      * @param measurement 原始测量值（纬度或经度）
      * @param timestamp   测量时间戳（ms）
      * @param accuracy    可选：GPS 精度（米），用于动态调整测量噪声
+     * @param isStationary 是否处于静止锁定（ZUPT）状态
      * @returns 滤波后的位置估计值
      */
-    filter(measurement: number, timestamp: number, accuracy?: number): number {
+    filter(measurement: number, timestamp: number, accuracy?: number, isStationary: boolean = false): number {
         if (!this.initialized) {
             this.x = measurement;
             this.v = 0;
@@ -103,12 +124,14 @@ export class KalmanFilter1D {
         const p10Pred = this.p10 + dtClamped * this.p11 + q10;
         const p11Pred = this.p11 + q11;
 
-        // ====== UPDATE 阶段 ======
-
-        // 动态测量噪声：如果提供了 GPS accuracy，使用 accuracy² 
-        const R = accuracy != null && accuracy > 0
+        // 动态测量噪声：如果提供了 GPS accuracy，使用 accuracy²；如果是静止锁定状态，放大 R 以抑制 GPS 测量更新
+        let R = accuracy != null && accuracy > 0
             ? accuracy * accuracy
             : this.measurementNoiseVar;
+
+        if (isStationary) {
+            R *= 4.0; // 放大测量误差，高度信任预测值（自身状态），压制噪声输入
+        }
 
         // 创新（residual）
         const y = measurement - xPred;
@@ -125,7 +148,9 @@ export class KalmanFilter1D {
         
         // 限制速度估计值在 [-15.0, 15.0] 范围内，防止直角拐弯处数值过冲或三角形折叠
         const rawNextV = vPred + k1 * y;
-        if (Math.abs(rawNextV) > 15.0) {
+        if (isStationary) {
+            this.v = 0; // 静止时强制速度估计为 0
+        } else if (Math.abs(rawNextV) > 15.0) {
             console.log(`[Kalman-Stable] Velocity state clamped. Corner trajectory smoothed.`);
             this.v = Math.max(-15.0, Math.min(15.0, rawNextV));
         } else {

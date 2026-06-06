@@ -123,7 +123,8 @@ export const kalmanUpdate = (
 
 export const shouldAcceptPointByDistance = (
   prevPoint: LatLngPoint | null,
-  nextPoint: LatLngPoint & { accuracy?: number }
+  nextPoint: LatLngPoint & { accuracy?: number },
+  stepDelta: number = 0
 ): SpatialFilterDecision => {
   if (!prevPoint) {
     return { accept: true, reason: 'first-point', distanceMeters: 0 };
@@ -131,6 +132,25 @@ export const shouldAcceptPointByDistance = (
 
   const distanceMeters = distanceMetersBetween(prevPoint, nextPoint);
   const accuracy = nextPoint.accuracy ?? 9999;
+
+  // --- 0. Dead Reckoning Outlier Rejection (Signal Recovery Check) ---
+  if (prevPoint.timestamp && nextPoint.timestamp) {
+    const timeDiffMs = nextPoint.timestamp - prevPoint.timestamp;
+    if (timeDiffMs > 5000) {
+      const timeDiffS = timeDiffMs / 1000;
+      const stepHz = stepDelta / timeDiffS;
+      const maxSpeed = stepHz > 0 ? stepHz * 0.75 : 8.0; // Stride length 0.75m, default running limit 8.0 m/s
+      const maxPhysicalDist = Math.max(maxSpeed * timeDiffS * 1.5, 30.0); // 1.5x buffer, min 30m tolerance
+      
+      if (distanceMeters > maxPhysicalDist) {
+        return {
+          accept: false,
+          reason: 'speed-anomaly', // reuse speed-anomaly
+          distanceMeters,
+        };
+      }
+    }
+  }
 
   // --- 1. 低精度漂移过滤 ---
   // 当 GPS 信号差（accuracy > 50m，即室内/基站定位）时：
