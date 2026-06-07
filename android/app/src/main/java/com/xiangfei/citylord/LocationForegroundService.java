@@ -550,28 +550,18 @@ public class LocationForegroundService extends Service implements AMapLocationLi
      */
     @Override
     public void onTaskRemoved(Intent rootIntent) {
-        Log.w(TAG, "onTaskRemoved — user swiped app from recents, scheduling restart");
+        Log.w(TAG, "onTaskRemoved — user swiped app from recents, scheduling restart via WorkManager");
 
-        // Schedule restart via AlarmManager (1 second delay)
-        Intent restartIntent = new Intent(getApplicationContext(), LocationForegroundService.class);
-        restartIntent.putExtra(EXTRA_NOTIFICATION_TITLE, notificationTitle);
-        restartIntent.putExtra(EXTRA_NOTIFICATION_BODY, notificationBody);
+        androidx.work.Data inputData = new androidx.work.Data.Builder()
+                .putString("run_id", currentRunId)
+                .build();
 
-        int pendingFlags = PendingIntent.FLAG_ONE_SHOT;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            pendingFlags |= PendingIntent.FLAG_IMMUTABLE;
-        }
-        PendingIntent restartPendingIntent = PendingIntent.getService(
-                getApplicationContext(), 1, restartIntent, pendingFlags);
+        androidx.work.OneTimeWorkRequest request = new androidx.work.OneTimeWorkRequest.Builder(LocationRestartWorker.class)
+                .setInitialDelay(1, java.util.concurrent.TimeUnit.SECONDS)
+                .setInputData(inputData)
+                .build();
 
-        AlarmManager alarmManager = (AlarmManager) getSystemService(ALARM_SERVICE);
-        if (alarmManager != null) {
-            alarmManager.set(
-                    AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                    android.os.SystemClock.elapsedRealtime() + 1000,
-                    restartPendingIntent);
-            Log.i(TAG, "Restart alarm scheduled for 1 second later");
-        }
+        androidx.work.WorkManager.getInstance(getApplicationContext()).enqueue(request);
 
         super.onTaskRemoved(rootIntent);
     }
@@ -680,14 +670,16 @@ public class LocationForegroundService extends Service implements AMapLocationLi
     }
 
     private void releaseWakeLock() {
-        if (wakeLock != null && wakeLock.isHeld()) {
+        PowerManager.WakeLock lock = wakeLock;
+        if (lock != null && lock.isHeld()) {
             try {
-                wakeLock.release();
+                lock.release();
                 Log.i(TAG, "⚡ [WakeLock] Safely released upon tracking stop.");
-            } catch (Exception e) {
+            } catch (RuntimeException e) {
                 Log.w(TAG, "WakeLock release error: " + e.getMessage());
+            } finally {
+                wakeLock = null;
             }
-            wakeLock = null;
         }
     }
 

@@ -214,11 +214,12 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   const validPointsCountRef = useRef(0);
   const firstPointAtRef = useRef<number | null>(null);
   /** 防重入锁：防止多次 appStateChange 触发重复分帧注入 */
-  const isHydratingRef = useRef(false);
+  const hydrationLockRef = useRef<Promise<void> | null>(null);
   /** 缓冲队列：追帧期间拦截的实时 GPS 点，追帧完成后统一消费 */
   const pendingLivePointsRef = useRef<Location[]>([]);
   /** 全局时间戳去重滑动窗口队列 */
   const recentTimestampsRef = useRef<number[]>([]);
+  const warmupPointsRef = useRef<Location[]>([]);
   const stepWindowRef = useRef<{ ts: number; steps: number }[]>([]);
   const lastStepCountRef = useRef<number>(0);
 
@@ -908,12 +909,20 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     isOfflineReplay: boolean = false
   ) => {
     // 如果当前正在进行异步追帧，将实时点推入缓冲队列并立刻返回
-    if (isHydratingRef.current) {
+    if (hydrationLockRef.current) {
       pendingLivePointsRef.current.push({ lat, lng, timestamp: timestamp || Date.now() });
       return;
     }
 
-    if (isPausedRef.current || isStoppingRef.current) return;
+    if (isStoppingRef.current) return;
+    
+    // 暂停状态下，仅更新蓝点位置（供地图实时跟随展示），不计入轨迹和距离
+    if (isPausedRef.current) {
+      if (accuracy == null || accuracy <= GPS_DISPLAY_ACCURACY_METERS) {
+        setCurrentLocation({ lat, lng });
+      }
+      return;
+    }
 
     console.log(`[useRunningTracker] Location update received: lat=${lat}, lng=${lng}, accuracy=${accuracy}, timestamp=${timestamp}, isOfflineReplay=${isOfflineReplay}`);
 
@@ -969,6 +978,21 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           `[GPS-Filter] ❌ Anchor REJECT: accuracy ${typeof accuracy === 'number' ? accuracy.toFixed(0) : 'unknown'}m > ${GPS_START_ANCHOR_ACCURACY_METERS}m threshold`
         );
         return;
+      }
+      
+      // 3-point density check for cold start stabilization
+      warmupPointsRef.current.push({ lat, lng, timestamp: now });
+      if (warmupPointsRef.current.length >= 3) {
+        const p1 = warmupPointsRef.current[0];
+        const p3 = warmupPointsRef.current[warmupPointsRef.current.length - 1];
+        if (getDistanceFromLatLonInMeters(p1.lat, p1.lng, p3.lat, p3.lng) <= 20) {
+          warmupPointsRef.current = []; // Stable, proceed
+        } else {
+          warmupPointsRef.current.shift(); // Unstable, wait for next point
+          return;
+        }
+      } else {
+        return; // Wait for at least 3 points
       }
     } else if (accuracy != null && accuracy > GPS_TRACKING_ACCURACY_METERS) {
       // 起跑初期（前 20 个点）允许放行精度在展示门槛（100m）内的点，以便立即渲染轨迹，并在后台平滑修复
@@ -1674,14 +1698,14 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   // 三入口复用：appStateChange / 启动强制补帧 / 兜底轮询
   // ========================================================================
   const hydrateOfflinePoints = useCallback(async (sessionId: string) => {
-    if (isHydratingRef.current) {
+    if (hydrationLockRef.current) {
       console.warn('[Hydrate] CAS锁已占用，跳过本次触发（防竞态）');
       return;
     }
 
     isHydratingRef.current = true;
     const hydrateTimeout = setTimeout(() => {
-      if (isHydratingRef.current) {
+      if (hydrationLockRef.current) {
         console.warn('[Hydrate] ⚠️ 追帧锁超时（10s），强制释放');
         isHydratingRef.current = false;
       }
@@ -1712,7 +1736,10 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       if (offlinePoints.length === 0) {
         console.log('[Hydrate] 无离线记录需要追帧');
         clearTimeout(hydrateTimeout);
-        isHydratingRef.current = false;
+        if (hydrationLockRef.current) {
+          resolveLock();
+          hydrationLockRef.current = null;
+        }
         return;
       }
 
@@ -1982,7 +2009,10 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           }
 
           clearTimeout(hydrateTimeout);
-          isHydratingRef.current = false;
+          if (hydrationLockRef.current) {
+            resolveLock();
+            hydrationLockRef.current = null;
+          }
 
           if (pendingLivePointsRef.current.length > 0) {
             const pendingPoints = [...pendingLivePointsRef.current];
@@ -2016,7 +2046,10 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       processChunk();
     } catch (e) {
       clearTimeout(hydrateTimeout);
-      isHydratingRef.current = false;
+      if (hydrationLockRef.current) {
+        resolveLock();
+        hydrationLockRef.current = null;
+      }
       console.warn('[Hydrate] 从 Room 黑匣子追帧失败（可能在 Web 环境）:', e);
     }
   }, [handleLocationUpdate]);
@@ -2446,6 +2479,15 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       if (prev && !next) {
         resumePendingRef.current = true;
         console.log('[useRunningTracker] Resume triggered, resumePendingRef set to true');
+        
+        // 注入断点哨兵 (NaN) 切断拉扯线
+        if (pathRef.current.length > 0) {
+          const lastPt = pathRef.current[pathRef.current.length - 1];
+          if (!Number.isNaN(lastPt.timestamp)) {
+            pathRef.current.push({ lat: Number.NaN, lng: Number.NaN, timestamp: Number.NaN });
+            setPath([...pathRef.current]);
+          }
+        }
       }
       setTimeout(saveState, 0); // 低优先同步落盘
       return next;

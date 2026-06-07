@@ -60,6 +60,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 }
 
 interface ImmersiveModeProps {
+  fullPath?: Location[]
   isActive: boolean
   useSharedMapBase?: boolean
   userId?: string
@@ -351,6 +352,7 @@ function ImmersiveRunningModeInner({
   onExpand,
   currentLocation,
   path = [],
+  fullPath = [],
   displayPath = [],
   closedPolygons = [],
   onHexClaimed,
@@ -891,7 +893,7 @@ function ImmersiveRunningModeInner({
       try {
         const fallbackData = {
           idempotencyKey: idempotencyKey || uuidv4(),
-          path: path || [],
+          path: fullPath.length > 0 ? fullPath : (path || []),
           distance: distanceMeters || 0,
           duration: durationSeconds || 0,
           area: area || 0,

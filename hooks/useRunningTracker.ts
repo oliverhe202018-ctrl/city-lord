@@ -10,19 +10,14 @@ import { syncManager } from '@/lib/sync/SyncManager';
 import { uploadTrajectoryBatch } from '@/app/actions/sync';
 import { saveRunActivity } from '@/app/actions/run-service';
 import { v4 as uuidv4 } from 'uuid';
-import { isNativePlatform, safeGetBatteryInfo } from "@/lib/capacitor/safe-plugins";
+import { isNativePlatform, safeGetBatteryInfo } from '@/lib/capacitor/safe-plugins';
 import type { GeoPoint } from '@/hooks/useSafeGeolocation';
-import {
-  useLocationStore,
-  GPS_START_ANCHOR_ACCURACY_METERS,
-  GPS_TRACKING_ACCURACY_METERS,
-  GPS_DISPLAY_ACCURACY_METERS,
-} from '@/store/useLocationStore';
+import { useLocationStore, GPS_START_ANCHOR_ACCURACY_METERS, GPS_TRACKING_ACCURACY_METERS, GPS_DISPLAY_ACCURACY_METERS,  } from '@/store/useLocationStore';
 import { getDistanceFromLatLonInMeters, LOOP_CLOSURE_THRESHOLD_M, LOOP_CLOSURE_SNAP_M, isLoopClosed, MIN_LOOP_POINTS, extractValidLoops, isDuplicatePolygon, simplifyPathDP, simplifyPathDPAsync } from '@/lib/geometry-utils';
 import { shouldAcceptPointByDistance } from '@/lib/location/gps-spatial-filter';
 import { validateSegmentSpeed } from '@/lib/location/gps-speed-validator';
-import { ActiveRandomEvent, useRandomEvents } from '@/hooks/useRandomEvents';
-import { RunEventLog } from '@/types/run-sync';
+import { type ActiveRandomEvent, useRandomEvents } from '@/hooks/useRandomEvents';
+import { type RunEventLog } from '@/types/run-sync';
 import type { CapacitorPedometerPlugin } from '@capgo/capacitor-pedometer';
 import { useGameStore } from '@/store/useGameStore';
 import { Preferences } from '@capacitor/preferences';
@@ -219,11 +214,14 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   const validPointsCountRef = useRef(0);
   const firstPointAtRef = useRef<number | null>(null);
   /** 防重入锁：防止多次 appStateChange 触发重复分帧注入 */
-  const isHydratingRef = useRef(false);
+  const hydrationLockRef = useRef<Promise<void> | null>(null);
   /** 缓冲队列：追帧期间拦截的实时 GPS 点，追帧完成后统一消费 */
   const pendingLivePointsRef = useRef<Location[]>([]);
   /** 全局时间戳去重滑动窗口队列 */
   const recentTimestampsRef = useRef<number[]>([]);
+  const warmupPointsRef = useRef<Location[]>([]);
+  const stepWindowRef = useRef<{ ts: number; steps: number }[]>([]);
+  const lastStepCountRef = useRef<number>(0);
 
   // ─── Live-snapshot refs (always current, immune to stale closures) ───
   const distanceRef = useRef(distance);
@@ -429,7 +427,14 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           if (pedometerBaselineRef.current === null) {
             pedometerBaselineRef.current = rawSteps;
           }
-          setCurrentSteps(Math.max(0, rawSteps - baseline));
+          const stepsDelta = Math.max(0, rawSteps - baseline);
+          setCurrentSteps(stepsDelta);
+          
+          // Record step count to ZUPT window
+          const nowMs = Date.now();
+          stepWindowRef.current.push({ ts: nowMs, steps: stepsDelta });
+          // Only keep past 4 seconds in the window
+          stepWindowRef.current = stepWindowRef.current.filter(e => e.ts >= nowMs - 4000);
         });
 
         await CapacitorPedometer.startMeasurementUpdates();
@@ -635,7 +640,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           const latestForDisplay = latestRaw.length > DISPLAY_PATH_WINDOW
             ? latestRaw.slice(-DISPLAY_PATH_WINDOW)
             : latestRaw;
-            
+
           const rawSegments = splitPathByGaps(latestForDisplay);
           const processedSegments = await Promise.all(rawSegments.map(async (segment) => {
             if (segment.length === 0) return [];
@@ -662,7 +667,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           }));
 
           const displayPoints = processedSegments.flat();
-          
+
           setDisplayPath(prev => {
             // If there's a gap between the last rendered point and start of new simplified
             // window, bridge it by including the last prev point as the anchor.
@@ -702,17 +707,33 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   }, [isRunning, path]);
 
   // ─── Kalman-based GPS Smoothing (replaces legacy EMA) ───
-  const smoothLocation = (newLoc: Location, prevLoc: Location | null, accuracy?: number): Location => {
+  // ─── Kalman-based GPS Smoothing with ZUPT Adaptive Q/R ───
+  const smoothLocation = (newLoc: Location, prevLoc: Location | null, accuracy?: number, gpsSpeed: number = 0, isStationary: boolean = false): Location => {
     const adaptiveAccuracy = accuracy != null 
       ? Math.sqrt(Math.max(5.0, accuracy * 2.0)) 
       : Math.sqrt(25.0);
+
+    // Apply adaptive process noise (Q) to Kalman Filter instances
+    let qValue = 3.0; // Default Standard Q
+    if (isStationary) {
+      qValue = 0.01; // Lock filter: Q -> 0
+    } else if (gpsSpeed < 1.0) {
+      qValue = 0.5; // Walking/Slow
+    } else if (gpsSpeed < 4.0) {
+      qValue = 3.0; // Running
+    } else {
+      qValue = 8.0; // Sprinting / High speed
+    }
+
+    kalmanLatRef.current.setProcessNoisePSD(qValue);
+    kalmanLngRef.current.setProcessNoisePSD(qValue);
 
     if (!prevLoc || !refLocationRef.current) {
       refLocationRef.current = newLoc;
       kalmanLatRef.current.reset();
       kalmanLngRef.current.reset();
-      kalmanLatRef.current.filter(0, newLoc.timestamp, adaptiveAccuracy);
-      kalmanLngRef.current.filter(0, newLoc.timestamp, adaptiveAccuracy);
+      kalmanLatRef.current.filter(0, newLoc.timestamp, adaptiveAccuracy, isStationary);
+      kalmanLngRef.current.filter(0, newLoc.timestamp, adaptiveAccuracy, isStationary);
       if (process.env.NODE_ENV === 'development') {
         lastLocationRef.current = newLoc;
       }
@@ -738,13 +759,11 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         const thetaDeg = Math.acos(Math.max(-1, Math.min(1, cosTheta))) * (180 / Math.PI);
         
         if (thetaDeg > 60) {
-          // Sharp corner detected — reset Kalman to prevent lag-induced diagonal lines
+          // Sharp corner detected — reset Kalman velocity & covariances but preserve position
           refLocationRef.current = newLoc;
-          kalmanLatRef.current.reset();
-          kalmanLngRef.current.reset();
-          kalmanLatRef.current.filter(0, newLoc.timestamp, adaptiveAccuracy);
-          kalmanLngRef.current.filter(0, newLoc.timestamp, adaptiveAccuracy);
-          console.debug(`[Kalman] Corner bypass: heading delta ${thetaDeg.toFixed(1)}°, reset filter`);
+          kalmanLatRef.current.resetToPosition(0, adaptiveAccuracy);
+          kalmanLngRef.current.resetToPosition(0, adaptiveAccuracy);
+          console.debug(`[Kalman] Corner bypass: heading delta ${thetaDeg.toFixed(1)}°, reset filter velocity`);
           return newLoc; // Return raw GPS point, skip smoothing
         }
       }
@@ -759,8 +778,8 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     const yMeters = (newLoc.lat - refLat) * 111320;
     const xMeters = (newLoc.lng - refLng) * 111320 * cosLat;
 
-    const smoothedY = kalmanLatRef.current.filter(yMeters, newLoc.timestamp, adaptiveAccuracy);
-    const smoothedX = kalmanLngRef.current.filter(xMeters, newLoc.timestamp, adaptiveAccuracy);
+    const smoothedY = kalmanLatRef.current.filter(yMeters, newLoc.timestamp, adaptiveAccuracy, isStationary);
+    const smoothedX = kalmanLngRef.current.filter(xMeters, newLoc.timestamp, adaptiveAccuracy, isStationary);
 
     const smoothedLat = refLat + smoothedY / 111320;
     const smoothedLng = refLng + smoothedX / (111320 * cosLat);
@@ -880,14 +899,30 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     }
   }, []);
 
-  const handleLocationUpdate = useCallback((lat: number, lng: number, accuracy?: number, timestamp?: number, isOfflineReplay: boolean = false) => {
+  const handleLocationUpdate = useCallback((
+    lat: number,
+    lng: number,
+    accuracy?: number,
+    timestamp?: number,
+    speed?: number,
+    heading?: number,
+    isOfflineReplay: boolean = false
+  ) => {
     // 如果当前正在进行异步追帧，将实时点推入缓冲队列并立刻返回
-    if (isHydratingRef.current) {
+    if (hydrationLockRef.current) {
       pendingLivePointsRef.current.push({ lat, lng, timestamp: timestamp || Date.now() });
       return;
     }
 
-    if (isPausedRef.current || isStoppingRef.current) return;
+    if (isStoppingRef.current) return;
+    
+    // 暂停状态下，仅更新蓝点位置（供地图实时跟随展示），不计入轨迹和距离
+    if (isPausedRef.current) {
+      if (accuracy == null || accuracy <= GPS_DISPLAY_ACCURACY_METERS) {
+        setCurrentLocation({ lat, lng });
+      }
+      return;
+    }
 
     console.log(`[useRunningTracker] Location update received: lat=${lat}, lng=${lng}, accuracy=${accuracy}, timestamp=${timestamp}, isOfflineReplay=${isOfflineReplay}`);
 
@@ -943,6 +978,21 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           `[GPS-Filter] ❌ Anchor REJECT: accuracy ${typeof accuracy === 'number' ? accuracy.toFixed(0) : 'unknown'}m > ${GPS_START_ANCHOR_ACCURACY_METERS}m threshold`
         );
         return;
+      }
+      
+      // 3-point density check for cold start stabilization
+      warmupPointsRef.current.push({ lat, lng, timestamp: now });
+      if (warmupPointsRef.current.length >= 3) {
+        const p1 = warmupPointsRef.current[0];
+        const p3 = warmupPointsRef.current[warmupPointsRef.current.length - 1];
+        if (getDistanceFromLatLonInMeters(p1.lat, p1.lng, p3.lat, p3.lng) <= 20) {
+          warmupPointsRef.current = []; // Stable, proceed
+        } else {
+          warmupPointsRef.current.shift(); // Unstable, wait for next point
+          return;
+        }
+      } else {
+        return; // Wait for at least 3 points
       }
     } else if (accuracy != null && accuracy > GPS_TRACKING_ACCURACY_METERS) {
       // 起跑初期（前 20 个点）允许放行精度在展示门槛（100m）内的点，以便立即渲染轨迹，并在后台平滑修复
@@ -1026,15 +1076,21 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       }
     }
 
-    // --- Layer 2: Speed & Accel Filter ---
+    // --- Layer 2: Speed & Accel Filter & ZUPT ---
+    let speedMs = speed ?? 0;
+    let distToPrev = 0;
+    let timeDiffSec = 0;
+    
     if (lastLocationRef.current) {
       const prevLoc = lastLocationRef.current;
-      const distToPrev = getDistanceFromLatLonInMeters(prevLoc.lat, prevLoc.lng, lat, lng);
-      const timeDiffSec = (now - prevLoc.timestamp) / 1000;
+      distToPrev = getDistanceFromLatLonInMeters(prevLoc.lat, prevLoc.lng, lat, lng);
+      timeDiffSec = (now - prevLoc.timestamp) / 1000;
+      
+      if (speedMs <= 0 && timeDiffSec > 0) {
+        speedMs = distToPrev / timeDiffSec;
+      }
 
       if (!isOfflineReplay && timeDiffSec > 0.5) {
-        const speedMs = distToPrev / timeDiffSec;
-        
         // 1. 速度校验
         if (speedMs > 10) {
           console.debug(
@@ -1077,6 +1133,18 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       }
     }
 
+    // ZUPT (Zero Velocity Update) Detection
+    const nowMs = Date.now();
+    stepWindowRef.current = stepWindowRef.current.filter(e => e.ts >= nowMs - 4000);
+    const stepsInWindow = stepWindowRef.current.length >= 2
+      ? stepWindowRef.current[stepWindowRef.current.length - 1].steps - stepWindowRef.current[0].steps
+      : 0;
+      
+    const hasPedometer = stepWindowRef.current.length >= 1;
+    const isStationary = hasPedometer
+      ? (stepsInWindow === 0 && speedMs < 0.5)
+      : (speedMs < 0.3);
+
     // ================================================================
     // Filters passed — this is a valid GPS point candidate
     // ================================================================
@@ -1088,10 +1156,15 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
     let newLoc: Location = { lat, lng, timestamp: now };
 
-    // Apply Kalman Smoothing (pass accuracy for dynamic R adjustment)
-    newLoc = smoothLocation(newLoc, lastLocationRef.current, accuracy);
+    // Apply Kalman Smoothing (pass accuracy and ZUPT status)
+    newLoc = smoothLocation(newLoc, lastLocationRef.current, accuracy, speedMs, isStationary);
 
     const finalLoc = { ...newLoc, accuracy };
+
+    if (isStationary) {
+      console.log(`[ZUPT] Stationary locked. Jitter suppressed (stepsInWindow=${stepsInWindow}, speed=${speedMs.toFixed(2)}m/s).`);
+      return; // Stop update flow early to freeze display location
+    }
 
     // --- Phase 2: Warm-up & Jitter Filter ---
     // 展示流与记录流分离核心逻辑：
@@ -1111,11 +1184,13 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         // [优化] 注释/删除此行，必须保留 finalLoc 作为后续轨迹过滤参考点，防止首点丢失与位移防抖误杀
         // lastLocationRef.current = null;
         lastLocationRef.current = finalLoc;
+        lastStepCountRef.current = currentSteps;
         console.log(`[GPS-Filter] ✅ Warm-up complete (${validPointsCountRef.current} points, ${now - firstPointAtRef.current}ms). Starting track.`);
       } else {
         // Still warming up: update current location for UI but don't record to path
         lastLocationRef.current = finalLoc;
         setCurrentLocation(finalLoc);
+        lastStepCountRef.current = currentSteps;
         return;
       }
     }
@@ -1136,6 +1211,11 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
     if (!spatialFilterResult.accept) {
       console.debug('[GPS Filter] Dropped point:', spatialFilterResult.reason);
+      if (spatialFilterResult.reason === 'speed-anomaly' && prevLoc) {
+        console.warn(`[DR-Gate] Resetting Kalman filters to raw position ${lat}, ${lng} due to speed anomaly / outage recovery.`);
+        kalmanLatRef.current.resetToPosition(lat, accuracy || 50);
+        kalmanLngRef.current.resetToPosition(lng, accuracy || 50);
+      }
       return;
     }
 
@@ -1596,6 +1676,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
     lastLocationRef.current = finalLoc;
     setCurrentLocation(finalLoc);
+    lastStepCountRef.current = currentSteps;
 
     console.log(`[Tracker] ✅ Point Processed: dist=${distFromLast.toFixed(1)}m | TotalDist=${distanceRef.current.toFixed(1)}m | path.length=${pathRef.current.length} | warmUp=${isWarmingUpRef.current}`);
 
@@ -1617,14 +1698,14 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   // 三入口复用：appStateChange / 启动强制补帧 / 兜底轮询
   // ========================================================================
   const hydrateOfflinePoints = useCallback(async (sessionId: string) => {
-    if (isHydratingRef.current) {
+    if (hydrationLockRef.current) {
       console.warn('[Hydrate] CAS锁已占用，跳过本次触发（防竞态）');
       return;
     }
 
     isHydratingRef.current = true;
     const hydrateTimeout = setTimeout(() => {
-      if (isHydratingRef.current) {
+      if (hydrationLockRef.current) {
         console.warn('[Hydrate] ⚠️ 追帧锁超时（10s），强制释放');
         isHydratingRef.current = false;
       }
@@ -1655,7 +1736,10 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       if (offlinePoints.length === 0) {
         console.log('[Hydrate] 无离线记录需要追帧');
         clearTimeout(hydrateTimeout);
-        isHydratingRef.current = false;
+        if (hydrationLockRef.current) {
+          resolveLock();
+          hydrationLockRef.current = null;
+        }
         return;
       }
 
@@ -1925,7 +2009,10 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           }
 
           clearTimeout(hydrateTimeout);
-          isHydratingRef.current = false;
+          if (hydrationLockRef.current) {
+            resolveLock();
+            hydrationLockRef.current = null;
+          }
 
           if (pendingLivePointsRef.current.length > 0) {
             const pendingPoints = [...pendingLivePointsRef.current];
@@ -1959,7 +2046,10 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       processChunk();
     } catch (e) {
       clearTimeout(hydrateTimeout);
-      isHydratingRef.current = false;
+      if (hydrationLockRef.current) {
+        resolveLock();
+        hydrationLockRef.current = null;
+      }
       console.warn('[Hydrate] 从 Room 黑匣子追帧失败（可能在 Web 环境）:', e);
     }
   }, [handleLocationUpdate]);
@@ -2007,7 +2097,10 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     if (!isRunning || !gpsLocation || isStoppingRef.current) return;
 
     // P0 #2 — Mock 虚拟定位防御纵深：Store 层已拦截，Tracker 层再次校验（开发环境放行以支持模拟器测试）
-    const isDev = process.env.NODE_ENV === 'development';
+    const isDev = process.env.NODE_ENV === 'development' ||
+                  import.meta.env?.DEV ||
+                  (gpsLocation as any).isDebug === true ||
+                  (gpsLocation as any).isEmulator === true;
     if ((gpsLocation as any).isMock === true && !isDev) {
       console.warn('[AntiCheat] Mock location detected at tracker level, rejecting');
       setClientFlags(prev => {
@@ -2029,7 +2122,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       gpsLocation.lat,
       gpsLocation.lng,
       gpsLocation.accuracy,
-      gpsLocation.timestamp
+      gpsLocation.timestamp,
+      gpsLocation.speed,
+      gpsLocation.heading
     );
   }, [gpsLocation, isRunning, locationSource, handleLocationUpdate]);
 
@@ -2384,6 +2479,15 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       if (prev && !next) {
         resumePendingRef.current = true;
         console.log('[useRunningTracker] Resume triggered, resumePendingRef set to true');
+        
+        // 注入断点哨兵 (NaN) 切断拉扯线
+        if (pathRef.current.length > 0) {
+          const lastPt = pathRef.current[pathRef.current.length - 1];
+          if (!Number.isNaN(lastPt.timestamp)) {
+            pathRef.current.push({ lat: Number.NaN, lng: Number.NaN, timestamp: Number.NaN });
+            setPath([...pathRef.current]);
+          }
+        }
       }
       setTimeout(saveState, 0); // 低优先同步落盘
       return next;
@@ -2985,3 +3089,37 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     recoverUnfinishedSession,
   };
 }
+
+function chaikinSmooth(points: Location[], iterations: number = 2): Location[] {
+  if (points.length < 3) return points;
+
+  let result = [...points];
+
+  for (let iter = 0; iter < iterations; iter++) {
+    const smoothed: Location[] = [{ ...result[0] }];
+
+    for (let i = 0; i < result.length - 1; i++) {
+      const p0 = result[i];
+      const p1 = result[i + 1];
+
+      smoothed.push({
+        lat: 0.75 * p0.lat + 0.25 * p1.lat,
+        lng: 0.75 * p0.lng + 0.25 * p1.lng,
+        timestamp: Math.round(0.75 * p0.timestamp + 0.25 * (p1.timestamp ?? Date.now())),
+      });
+
+      smoothed.push({
+        lat: 0.25 * p0.lat + 0.75 * p1.lat,
+        lng: 0.25 * p0.lng + 0.75 * p1.lng,
+        timestamp: Math.round(0.25 * p0.timestamp + 0.75 * (p1.timestamp ?? Date.now())),
+      });
+    }
+
+    smoothed.push({ ...result[result.length - 1] });
+    result = smoothed;
+  }
+
+  return result;
+}
+
+

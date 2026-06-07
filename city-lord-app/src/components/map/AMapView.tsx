@@ -418,6 +418,7 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
             {/* Layer 2a: Claimed Polygons (BEFORE TrajectoryLayer - z-index 40) */}
             {sessionClaims && sessionClaims.length > 0 && (
               <ClaimedPolygonLayer
+                key={sessionClaims.map(p => p.length).join('-')}
                 map={map}
                 polygons={sessionClaims}
                 fillOpacity={0.3}

@@ -925,7 +925,7 @@ function ImmersiveRunningModeInner({
       try {
         const fallbackData = {
           idempotencyKey: idempotencyKey || uuidv4(),
-          path: path || [],
+          path: fullPath.length > 0 ? fullPath : (path || []),
           distance: distanceMeters || 0,
           duration: durationSeconds || 0,
           area: area || 0,
