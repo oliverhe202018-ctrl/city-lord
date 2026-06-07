@@ -56,9 +56,8 @@ if [ ! -f ".env" ]; then
     [ -f ".env.example" ] && cp .env.example .env
 fi
 
-export http_proxy="socks5h://127.0.0.1:10808"
-export https_proxy="socks5h://127.0.0.1:10808"
-export ALL_PROXY="socks5h://127.0.0.1:10808"
+export npm_config_sharp_binary_host="https://npmmirror.com/mirrors/sharp"
+export npm_config_sharp_libvips_binary_host="https://npmmirror.com/mirrors/sharp-libvips"
 
 echo 'Installing dependencies and building...'
 npm install
