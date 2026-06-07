@@ -6,14 +6,33 @@ Write-Host "========================================" -ForegroundColor Cyan
 
 Write-Host "`n[1/3] Pushing latest code to GitHub..." -ForegroundColor Yellow
 git add .
-git commit -m "Auto-deploy: Update API endpoints and mobile auth support"
+git commit -m "Auto-deploy: Update VPS configuration"
 git push origin main
 Write-Host "[OK] Code pushed to remote repository" -ForegroundColor Green
 
-$vpsHost = "root@cl1.4567666.xyz"
+$vpsHost = "root@180.97.221.225"
 $vpsProjectPath = "/root/city-lord" 
 
 $deployCommands = @'
+export NVM_DIR="$HOME/.nvm"
+if [ ! -d "$NVM_DIR" ]; then
+    echo "Installing NVM..."
+    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+fi
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+nvm install 20
+nvm use 20
+
+if ! command -v pm2 > /dev/null; then
+    echo "Installing PM2..."
+    npm install -g pm2
+fi
+
+if ! command -v git > /dev/null; then
+    echo "Installing Git..."
+    apt-get update && apt-get install -y git
+fi
+
 vpsProjectPath="/root/city-lord"
 if [ ! -d "$vpsProjectPath" ]; then
     echo "=================================================="
@@ -34,7 +53,6 @@ if [ ! -f ".env" ]; then
     echo "Please create the .env file with your database"
     echo "and Supabase credentials before running the app."
     echo "=================================================="
-    # We copy .env.example to .env if it exists, to be helpful
     [ -f ".env.example" ] && cp .env.example .env
 fi
 
@@ -44,7 +62,6 @@ npx prisma generate
 npm run build
 
 echo 'Restarting PM2 service...'
-# Check if pm2 process exists
 pm2 describe city-lord > /dev/null
 if [ $? -eq 0 ]; then
     pm2 restart city-lord

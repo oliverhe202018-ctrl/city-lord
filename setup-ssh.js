@@ -20,7 +20,7 @@ conn.on('ready', () => {
     });
   });
 }).connect({
-  host: 'cl1.4567666.xyz',
+  host: '180.97.221.225',
   port: 22,
   username: 'root',
   password: process.argv[2]

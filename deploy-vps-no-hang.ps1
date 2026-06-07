@@ -10,7 +10,7 @@ git commit -m "Auto-deploy: Update API endpoints and mobile auth support"
 git push origin main
 Write-Host "[OK] Code pushed to remote repository" -ForegroundColor Green
 
-$vpsHost = "root@cl1.4567666.xyz"
+$vpsHost = "root@180.97.221.225"
 $vpsProjectPath = "/root/city-lord" 
 
 $deployCommands = @'
