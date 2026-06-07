@@ -14,13 +14,9 @@ import { toast } from 'sonner'
 import { AchievementPopup } from '../achievement-popup'
 import { Suspense, lazy } from 'react';
 const dynamic = (importFunc, options = {}) => {
-  const LazyComponent = lazy(() => importFunc().then((mod) => {
-    if (!mod) return { default: undefined };
-    if (typeof mod === 'function' || (typeof mod === 'object' && (mod.$typeof || mod.render))) {
-      return { default: mod };
-    }
-    return { default: mod.default || Object.values(mod)[0] };
-  }));
+  const LazyComponent = lazy(() => importFunc().then((mod) => ({
+    default: mod.default || Object.values(mod)[0]
+  })));
   return (props) => (
     <Suspense fallback={options.loading ? options.loading() : null}>
       <LazyComponent {...props} />
@@ -60,7 +56,6 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 }
 
 interface ImmersiveModeProps {
-  fullPath?: Location[]
   isActive: boolean
   useSharedMapBase?: boolean
   userId?: string
@@ -352,7 +347,6 @@ function ImmersiveRunningModeInner({
   onExpand,
   currentLocation,
   path = [],
-  fullPath = [],
   displayPath = [],
   closedPolygons = [],
   onHexClaimed,
@@ -893,7 +887,7 @@ function ImmersiveRunningModeInner({
       try {
         const fallbackData = {
           idempotencyKey: idempotencyKey || uuidv4(),
-          path: fullPath.length > 0 ? fullPath : (path || []),
+          path: path || [],
           distance: distanceMeters || 0,
           duration: durationSeconds || 0,
           area: area || 0,

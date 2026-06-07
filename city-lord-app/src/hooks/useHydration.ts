@@ -1,19 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useGameStore } from '@/store/useGameStore';
-
-// 模块级变量，保证热重载和重渲染时状态不丢失
-let globalHydrated = false;
-
-// 对外暴露重置函数，用于登出、切号、清空缓存等场景
-export const resetGlobalHydration = () => {
-  globalHydrated = false;
-};
+import { globalHydrated, setGlobalHydrated } from '@/store/hydrationState';
 
 export const useHydration = () => {
   // 同步初始化 state，防止任何组件重新挂载时出现 1 帧的 false 闪烁
   const [hydrated, setHydrated] = useState(() => {
     if (globalHydrated || useGameStore.persist.hasHydrated()) {
-      globalHydrated = true;
+      setGlobalHydrated();
       return true;
     }
     return false;
@@ -24,14 +17,14 @@ export const useHydration = () => {
 
     // 如果已经 hydrated，直接同步
     if (globalHydrated || useGameStore.persist.hasHydrated()) {
-      globalHydrated = true;
+      setGlobalHydrated();
       if (mounted && !hydrated) setHydrated(true);
       return;
     }
 
     // 监听正常 hydration 完成事件
     const unsub = useGameStore.persist.onFinishHydration(() => {
-      globalHydrated = true;
+      setGlobalHydrated();
       if (mounted) setHydrated(true);
     });
 
@@ -43,7 +36,7 @@ export const useHydration = () => {
     const fallbackTimer = setTimeout(() => {
       if (mounted && !globalHydrated) {
         console.warn('[useHydration] Hydration timeout fallback triggered — forcing hydrated=true');
-        globalHydrated = true;
+        setGlobalHydrated();
         if (mounted) setHydrated(true);
       }
     }, 500);

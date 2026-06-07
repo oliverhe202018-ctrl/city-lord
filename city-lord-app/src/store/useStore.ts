@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { Preferences } from '@capacitor/preferences';
 import { apiFetch } from '@/lib/fetch-shim';
+import { createClient } from '@/lib/supabase/client';
 
 interface UserState {
   isHydrating: boolean;
@@ -67,6 +68,17 @@ export const useStore = create<UserState>((set) => ({
       await Preferences.set({ key: 'authToken', value: token });
       if (refreshToken) await Preferences.set({ key: 'refreshToken', value: refreshToken });
       await Preferences.set({ key: 'userId', value: userId });
+      
+      try {
+        const supabase = createClient();
+        await supabase.auth.setSession({
+          access_token: token,
+          refresh_token: refreshToken || '',
+        });
+      } catch (err) {
+        console.warn('Failed to set Supabase session in loginWithCode:', err);
+      }
+
       set({ isAuthenticated: true, token, userId });
       
       // Fetch profile data
@@ -92,6 +104,17 @@ export const useStore = create<UserState>((set) => ({
       await Preferences.set({ key: 'authToken', value: token });
       if (refreshToken) await Preferences.set({ key: 'refreshToken', value: refreshToken });
       await Preferences.set({ key: 'userId', value: userId });
+
+      try {
+        const supabase = createClient();
+        await supabase.auth.setSession({
+          access_token: token,
+          refresh_token: refreshToken || '',
+        });
+      } catch (err) {
+        console.warn('Failed to set Supabase session in loginWithPassword:', err);
+      }
+
       set({ isAuthenticated: true, token, userId });
       
       // Fetch profile data
@@ -101,6 +124,12 @@ export const useStore = create<UserState>((set) => ({
   },
 
   logout: async () => {
+    try {
+      const supabase = createClient();
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.warn('Failed to sign out from Supabase in logout:', err);
+    }
     await Preferences.remove({ key: 'authToken' });
     await Preferences.remove({ key: 'refreshToken' });
     await Preferences.remove({ key: 'userId' });
@@ -126,6 +155,17 @@ export const useStore = create<UserState>((set) => ({
         if (res.ok) {
           const data = await res.json();
           if (data.success && data.data) {
+            const { value: refreshToken } = await Preferences.get({ key: 'refreshToken' });
+            try {
+              const supabase = createClient();
+              await supabase.auth.setSession({
+                access_token: token,
+                refresh_token: refreshToken || '',
+              });
+            } catch (err) {
+              console.warn('Failed to set Supabase session in checkAuth:', err);
+            }
+
             set({ 
               isAuthenticated: true, 
               token, 

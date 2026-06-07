@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { useEffect, useRef } from 'react';
+import { HashRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { useStore } from './store/useStore';
 import LoginPage from './pages/LoginPage';
 import HomePage from './pages/HomePage';
@@ -14,11 +14,36 @@ import { GameLayout } from './components/game/GameLayout';
 import { ClientShell } from './components/ClientShell';
 import { swrFetcher } from './lib/fetch-shim';
 import { SWRConfig } from 'swr';
+import { Loader2 } from 'lucide-react';
+import { safeGetCurrentPosition } from '@/lib/capacitor/safe-plugins';
+
+// Loading Fallback with GPS Warmup
+const LoadingFallback = () => {
+  const hasRequestedGps = useRef(false);
+
+  useEffect(() => {
+    // Fire and forget GPS warmup when this loading screen mounts
+    if (!hasRequestedGps.current) {
+      hasRequestedGps.current = true;
+      safeGetCurrentPosition({ enableHighAccuracy: true, timeout: 10000, maximumAge: 0 })
+        .catch(() => {
+          // Ignore warmup errors silently
+        });
+    }
+  }, []);
+
+  return (
+    <div className="flex flex-col items-center justify-center h-[100dvh] bg-black text-white">
+      <Loader2 className="w-8 h-8 animate-spin text-emerald-500 mb-4" />
+      <span className="text-white/60 text-sm">正在加载并定位...</span>
+    </div>
+  );
+};
 
 // Protected Route wrapper
 const ProtectedRoute = () => {
   const { isAuthenticated, isHydrating } = useStore();
-  if (isHydrating) return <div className="flex items-center justify-center h-[100dvh] bg-black text-white">Loading...</div>;
+  if (isHydrating) return <LoadingFallback />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   return (
     <div className="flex flex-col h-[100dvh] bg-black text-white overflow-hidden">
@@ -55,7 +80,7 @@ function App() {
         console.error('SWR Error:', error);
       }
     }}>
-      <BrowserRouter>
+      <HashRouter>
         <ClientShell>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
@@ -70,7 +95,7 @@ function App() {
             </Route>
           </Routes>
         </ClientShell>
-      </BrowserRouter>
+      </HashRouter>
     </SWRConfig>
   );
 }

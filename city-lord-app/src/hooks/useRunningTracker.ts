@@ -50,7 +50,7 @@ import { getRunSettlementStatus } from '@/app/actions/run-service';
 
 const RECOVERY_KEY = 'CURRENT_RUN_RECOVERY';
 
-const MIN_WARMUP_POINTS = 3;
+const MIN_WARMUP_POINTS = process.env.NODE_ENV === 'development' ? 1 : 1;
 const WARMUP_TIMEOUT_MS = process.env.NODE_ENV === 'development' ? 2000 : 3000;
 const CLOCK_DRIFT_TOLERANCE_MS = 5000;
 
@@ -62,7 +62,6 @@ export interface Location {
   lng: number;
   timestamp: number;
   accuracy?: number;
-  gap?: boolean;
 }
 
 interface RunningStats {
@@ -72,7 +71,6 @@ interface RunningStats {
   duration: string; // "HH:MM:SS"
   calories: number;
   path: Location[];
-  fullPath: Location[];
   displayPath: Location[];
   currentLocation: { lat: number; lng: number } | null;
   isPaused: boolean;
@@ -214,12 +212,11 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   const validPointsCountRef = useRef(0);
   const firstPointAtRef = useRef<number | null>(null);
   /** 防重入锁：防止多次 appStateChange 触发重复分帧注入 */
-  const hydrationLockRef = useRef<Promise<void> | null>(null);
+  const isHydratingRef = useRef(false);
   /** 缓冲队列：追帧期间拦截的实时 GPS 点，追帧完成后统一消费 */
   const pendingLivePointsRef = useRef<Location[]>([]);
   /** 全局时间戳去重滑动窗口队列 */
   const recentTimestampsRef = useRef<number[]>([]);
-  const warmupPointsRef = useRef<Location[]>([]);
   const stepWindowRef = useRef<{ ts: number; steps: number }[]>([]);
   const lastStepCountRef = useRef<number>(0);
 
@@ -268,7 +265,6 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   const runIdempotencyKeyRef = useRef<string>(uuidv4());
   const lastAnnouncedKmRef = useRef<number>(0);
   const justRecoveredRef = useRef<boolean>(false);
-  const resumePendingRef = useRef<boolean>(false);
 
   // --- Persistence & Sync State (Moved up to avoid TDZ) ---
   const [isSaving, setIsSaving] = useState(false);
@@ -511,9 +507,8 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       const recentPath = pathRef.current.length > RECENT_POINTS_LIMIT
         ? pathRef.current.slice(-RECENT_POINTS_LIMIT)
         : pathRef.current;
-
-      const recentFullPath = fullPathRef.current.length > RECENT_POINTS_LIMIT * 2
-        ? fullPathRef.current.slice(-RECENT_POINTS_LIMIT * 2)
+      const recentFullPath = fullPathRef.current.length > RECENT_POINTS_LIMIT
+        ? fullPathRef.current.slice(-RECENT_POINTS_LIMIT)
         : fullPathRef.current;
 
       const stateToSave = {
@@ -574,7 +569,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     const SIMPLIFY_TRIGGER_POINTS = 5;
 
     const scheduleSimplify = () => {
-      const rawPath = pathRef.current;
+      const rawPath = fullPathRef.current;
       
       // 点数 <= 30，直接同步执行 setDisplayPath 保证首段秒级无延迟渲染
       if (rawPath.length <= 30) {
@@ -617,57 +612,30 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       if (displayPathSimplifyRef.current.pending) return;
       displayPathSimplifyRef.current.pending = true;
 
-      const splitPathByGaps = (points: Location[]): Location[][] => {
-        const segments: Location[][] = [];
-        let currentSeg: Location[] = [];
-        for (const pt of points) {
-          if (pt.gap && currentSeg.length > 0) {
-            segments.push(currentSeg);
-            currentSeg = [];
-          }
-          currentSeg.push(pt);
-        }
-        if (currentSeg.length > 0) {
-          segments.push(currentSeg);
-        }
-        return segments;
-      };
-
       const doSimplify = async () => {
         try {
-          // Re-read pathRef.current at execution time to avoid stale closure
-          const latestRaw = pathRef.current;
+          // Re-read fullPathRef.current at execution time to avoid stale closure
+          const latestRaw = fullPathRef.current;
           const latestForDisplay = latestRaw.length > DISPLAY_PATH_WINDOW
             ? latestRaw.slice(-DISPLAY_PATH_WINDOW)
             : latestRaw;
-
-          const rawSegments = splitPathByGaps(latestForDisplay);
-          const processedSegments = await Promise.all(rawSegments.map(async (segment) => {
-            if (segment.length === 0) return [];
-            const hasGap = segment[0].gap;
-
-            let simplified;
-            if (segment.length > 100) {
-              simplified = await simplifyPathDPAsync(segment, SIMPLIFY_TOLERANCE);
-            } else {
-              simplified = simplifyPathDP(segment, SIMPLIFY_TOLERANCE);
-            }
-
-            const smoothed = chaikinSmooth(simplified, 2);
-            const displayPoints: Location[] = smoothed.map(pt => ({
-              lat: pt.lat,
-              lng: pt.lng,
-              timestamp: pt.timestamp ?? Date.now(),
-            }));
-
-            if (displayPoints.length > 0 && hasGap) {
-              displayPoints[0].gap = true;
-            }
-            return displayPoints;
+            
+          let simplified;
+          if (latestForDisplay.length > 100) {
+            simplified = await simplifyPathDPAsync(latestForDisplay, SIMPLIFY_TOLERANCE);
+          } else {
+            simplified = simplifyPathDP(latestForDisplay, SIMPLIFY_TOLERANCE);
+          }
+          
+          // Apply Chaikin smoothing (2 iterations) to visual display path
+          const smoothed = chaikinSmooth(simplified, 2);
+          
+          const displayPoints: Location[] = smoothed.map(pt => ({
+            lat: pt.lat,
+            lng: pt.lng,
+            timestamp: pt.timestamp ?? Date.now(),
           }));
-
-          const displayPoints = processedSegments.flat();
-
+          
           setDisplayPath(prev => {
             // If there's a gap between the last rendered point and start of new simplified
             // window, bridge it by including the last prev point as the anchor.
@@ -704,7 +672,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         clearTimeout(simplifyDebounceRef.current);
       }
     };
-  }, [isRunning, path]);
+  }, [isRunning, fullPath]);
 
   // ─── Kalman-based GPS Smoothing (replaces legacy EMA) ───
   // ─── Kalman-based GPS Smoothing with ZUPT Adaptive Q/R ───
@@ -909,20 +877,12 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     isOfflineReplay: boolean = false
   ) => {
     // 如果当前正在进行异步追帧，将实时点推入缓冲队列并立刻返回
-    if (hydrationLockRef.current) {
+    if (isHydratingRef.current) {
       pendingLivePointsRef.current.push({ lat, lng, timestamp: timestamp || Date.now() });
       return;
     }
 
-    if (isStoppingRef.current) return;
-    
-    // 暂停状态下，仅更新蓝点位置（供地图实时跟随展示），不计入轨迹和距离
-    if (isPausedRef.current) {
-      if (accuracy == null || accuracy <= GPS_DISPLAY_ACCURACY_METERS) {
-        setCurrentLocation({ lat, lng });
-      }
-      return;
-    }
+    if (isPausedRef.current || isStoppingRef.current) return;
 
     console.log(`[useRunningTracker] Location update received: lat=${lat}, lng=${lng}, accuracy=${accuracy}, timestamp=${timestamp}, isOfflineReplay=${isOfflineReplay}`);
 
@@ -978,21 +938,6 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           `[GPS-Filter] ❌ Anchor REJECT: accuracy ${typeof accuracy === 'number' ? accuracy.toFixed(0) : 'unknown'}m > ${GPS_START_ANCHOR_ACCURACY_METERS}m threshold`
         );
         return;
-      }
-      
-      // 3-point density check for cold start stabilization
-      warmupPointsRef.current.push({ lat, lng, timestamp: now });
-      if (warmupPointsRef.current.length >= 3) {
-        const p1 = warmupPointsRef.current[0];
-        const p3 = warmupPointsRef.current[warmupPointsRef.current.length - 1];
-        if (getDistanceFromLatLonInMeters(p1.lat, p1.lng, p3.lat, p3.lng) <= 20) {
-          warmupPointsRef.current = []; // Stable, proceed
-        } else {
-          warmupPointsRef.current.shift(); // Unstable, wait for next point
-          return;
-        }
-      } else {
-        return; // Wait for at least 3 points
       }
     } else if (accuracy != null && accuracy > GPS_TRACKING_ACCURACY_METERS) {
       // 起跑初期（前 20 个点）允许放行精度在展示门槛（100m）内的点，以便立即渲染轨迹，并在后台平滑修复
@@ -1202,7 +1147,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     // Run spatial filter first against actual previous point
     const stepDelta = Math.max(0, currentSteps - lastStepCountRef.current);
     const spatialFilterResult = shouldAcceptPointByDistance(
-      (prevLoc && pathRef.current.length > 0)
+      prevLoc
         ? { lat: prevLoc.lat, lng: prevLoc.lng, timestamp: prevLoc.timestamp }
         : null,
       { lat: finalLoc.lat, lng: finalLoc.lng, accuracy, timestamp: now },
@@ -1220,7 +1165,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     }
 
     // Run spatial debounce (3m threshold, relaxed to 1m at corners)
-    if (prevLoc && pathRef.current.length > 0) {
+    if (prevLoc) {
       distFromLast = getDistanceFromLatLonInMeters(
         prevLoc.lat,
         prevLoc.lng,
@@ -1252,7 +1197,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     }
 
     // Run segment speed validation
-    if (prevLoc && pathRef.current.length > 0 && prevLoc.timestamp) {
+    if (prevLoc && prevLoc.timestamp) {
       const speedResult = validateSegmentSpeed(
         prevLoc.lat,
         prevLoc.lng,
@@ -1289,23 +1234,10 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       }
     }
 
-    let isResumeGap = false;
-    if (resumePendingRef.current) {
-      if (prevLoc) {
-        console.log(`[useRunningTracker] Resume point accepted. distFromLast = ${distFromLast.toFixed(2)}m`);
-        if (distFromLast > 1.5) {
-          finalLoc.gap = true;
-          isResumeGap = true;
-          console.log(`[useRunningTracker] Resume gap detected (> 1.5m). Set finalLoc.gap = true`);
-        }
-      }
-      resumePendingRef.current = false;
-    }
-
     // Point passed all filters! Update distance and set last location
-    if (prevLoc && pathRef.current.length > 0) {
-      if (justRecoveredRef.current || isResumeGap) {
-        console.log(`[useRunningTracker] Skipping distance accumulation. justRecovered=${justRecoveredRef.current}, isResumeGap=${isResumeGap}, Jump distance: ${distFromLast.toFixed(1)}m`);
+    if (prevLoc) {
+      if (justRecoveredRef.current) {
+        console.log(`[useRunningTracker] Skipping distance accumulation for first point after recovery. Jump distance: ${distFromLast.toFixed(1)}m`);
         justRecoveredRef.current = false;
       } else {
         setDistance(prev => prev + distFromLast);
@@ -1488,8 +1420,10 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       }
     }
 
-    pathRef.current.push(finalLoc);
     fullPathRef.current.push(finalLoc);
+    setFullPath([...fullPathRef.current]);
+
+    pathRef.current.push(finalLoc);
 
     // --- Marathon Ultra-Long Track Memory Protection Limit (P0) ---
     const MAX_PATH_POINTS = 30000;
@@ -1514,6 +1448,30 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
       pathRef.current = decimatedPath;
       console.log(`[useRunningTracker] Decimation complete. New path length: ${pathRef.current.length}`);
+    }
+
+    if (fullPathRef.current.length >= MAX_PATH_POINTS) {
+      console.warn(`[useRunningTracker] Marathon memory protection triggered for fullPath: path length ${fullPathRef.current.length} >= ${MAX_PATH_POINTS}. Performing topology-preserving decimation.`);
+      const N = fullPathRef.current.length;
+      const keepStartCount = Math.floor(N * 0.1);
+      const keepEndCount = Math.floor(N * 0.1);
+      const middleStart = keepStartCount;
+      const middleEnd = N - keepEndCount;
+
+      const decimatedMiddle: Location[] = [];
+      for (let i = middleStart; i < middleEnd; i += 2) {
+        decimatedMiddle.push(fullPathRef.current[i]);
+      }
+
+      const decimatedPath = [
+        ...fullPathRef.current.slice(0, middleStart),
+        ...decimatedMiddle,
+        ...fullPathRef.current.slice(middleEnd)
+      ];
+
+      fullPathRef.current = decimatedPath;
+      setFullPath([...decimatedPath]);
+      console.log(`[useRunningTracker] fullPath Decimation complete. New path length: ${fullPathRef.current.length}`);
     }
 
     if (pathRef.current.length % 10 === 0) {
@@ -1580,7 +1538,6 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     }
  
     setPath([...pathRef.current]);
-    setFullPath([...fullPathRef.current]);
 
     // ========================================================================
     // 🔄 REAL-TIME SELF-INTERSECTION LOOP DETECTION (with throttling)
@@ -1698,14 +1655,14 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   // 三入口复用：appStateChange / 启动强制补帧 / 兜底轮询
   // ========================================================================
   const hydrateOfflinePoints = useCallback(async (sessionId: string) => {
-    if (hydrationLockRef.current) {
+    if (isHydratingRef.current) {
       console.warn('[Hydrate] CAS锁已占用，跳过本次触发（防竞态）');
       return;
     }
 
     isHydratingRef.current = true;
     const hydrateTimeout = setTimeout(() => {
-      if (hydrationLockRef.current) {
+      if (isHydratingRef.current) {
         console.warn('[Hydrate] ⚠️ 追帧锁超时（10s），强制释放');
         isHydratingRef.current = false;
       }
@@ -1714,12 +1671,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     try {
       const { AMapLocation } = await import('@/plugins/amap-location/definitions');
 
-      // 精确 sinceTimestamp：优先使用 fullPathRef 最后一个点的时间戳
+      // 精确 sinceTimestamp：优先使用 pathRef 最后一个点的时间戳
       let sinceTimestamp: number;
-      if (fullPathRef.current.length > 0) {
-        sinceTimestamp = fullPathRef.current[fullPathRef.current.length - 1].timestamp;
-        console.log(`[Hydrate] sinceTimestamp 来源: fullPathRef 末点 = ${sinceTimestamp}`);
-      } else if (pathRef.current.length > 0) {
+      if (pathRef.current.length > 0) {
         sinceTimestamp = pathRef.current[pathRef.current.length - 1].timestamp;
         console.log(`[Hydrate] sinceTimestamp 来源: pathRef 末点 = ${sinceTimestamp}`);
       } else {
@@ -1736,10 +1690,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       if (offlinePoints.length === 0) {
         console.log('[Hydrate] 无离线记录需要追帧');
         clearTimeout(hydrateTimeout);
-        if (hydrationLockRef.current) {
-          resolveLock();
-          hydrationLockRef.current = null;
-        }
+        isHydratingRef.current = false;
         return;
       }
 
@@ -1773,17 +1724,14 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
             lastRefFull = pt;
             continue;
           }
-          if (dt > 15 && dist > 1.5) {
-            (pt as any).gap = true;
-            console.log(`[Hydrate] Offline gap set on point: dt = ${dt.toFixed(1)}s, dist = ${dist.toFixed(1)}m`);
-          }
         }
         validOfflineFull.push(pt);
         lastRefFull = pt;
       }
 
       const currentPath = pathRef.current;
-      const mergedAllFull = [...currentPath, ...validOfflineFull];
+      const currentFullPath = fullPathRef.current;
+      const mergedAllFull = [...currentFullPath, ...validOfflineFull];
       mergedAllFull.sort((a, b) => a.timestamp - b.timestamp);
 
       const dedupedPathFull: Location[] = [];
@@ -1793,20 +1741,6 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         if (!seenTimestampsFull.has(pt.timestamp)) {
           seenTimestampsFull.add(pt.timestamp);
           dedupedPathFull.unshift(pt);
-        }
-      }
-
-      const currentFullPath = fullPathRef.current;
-      const mergedAllFullPath = [...currentFullPath, ...validOfflineFull];
-      mergedAllFullPath.sort((a, b) => a.timestamp - b.timestamp);
-
-      const dedupedFullPath: Location[] = [];
-      const seenTimestampsFullPath = new Set<number>();
-      for (let i = mergedAllFullPath.length - 1; i >= 0; i--) {
-        const pt = mergedAllFullPath[i];
-        if (!seenTimestampsFullPath.has(pt.timestamp)) {
-          seenTimestampsFullPath.add(pt.timestamp);
-          dedupedFullPath.unshift(pt);
         }
       }
 
@@ -1821,30 +1755,24 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       if (dedupedPathFull.length > 0) {
         let fullDist = 0;
         for (let i = 1; i < dedupedPathFull.length; i++) {
-          const pt = dedupedPathFull[i];
-          if ((pt as any).gap) {
-            console.log(`[Hydrate] Skip distance accumulation across offline gap at index ${i}`);
-            continue;
-          }
-          fullDist += getDistanceFromLatLonInMeters(dedupedPathFull[i - 1].lat, dedupedPathFull[i - 1].lng, pt.lat, pt.lng);
+          fullDist += getDistanceFromLatLonInMeters(dedupedPathFull[i - 1].lat, dedupedPathFull[i - 1].lng, dedupedPathFull[i].lat, dedupedPathFull[i].lng);
         }
         let curDist = 0;
         for (let i = 1; i < currentPath.length; i++) {
-          const pt = currentPath[i];
-          if ((pt as any).gap) {
-            continue;
-          }
-          curDist += getDistanceFromLatLonInMeters(currentPath[i - 1].lat, currentPath[i - 1].lng, pt.lat, pt.lng);
+          curDist += getDistanceFromLatLonInMeters(currentPath[i - 1].lat, currentPath[i - 1].lng, currentPath[i].lat, currentPath[i].lng);
         }
         totalDistDelta = Math.max(0, fullDist - curDist);
       }
 
       const preOfflineDistance = distanceRef.current;
       const preReplayPath = currentPath;
+      const preReplayFullPath = currentFullPath;
 
       // Initialize pathRef.current and path state with preReplayPath to prevent shrinking
       pathRef.current = preReplayPath;
       setPath([...preReplayPath]);
+      fullPathRef.current = preReplayFullPath;
+      setFullPath([...preReplayFullPath]);
 
       if (typeof window !== 'undefined' && (window as any).__injectLocationPoints) {
         (window as any).__injectLocationPoints(preReplayPath, true);
@@ -1852,15 +1780,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
       const processChunk = async () => {
         if (chunkIndex >= totalChunks) {
-          // Finalize with full path
-          pathRef.current = dedupedPathFull;
-          setPath([...dedupedPathFull]);
-          fullPathRef.current = dedupedFullPath;
-          setFullPath([...dedupedFullPath]);
-
-          if (typeof window !== 'undefined' && (window as any).__injectLocationPoints) {
-            (window as any).__injectLocationPoints(dedupedPathFull, true);
-          }
+          // Finalize fullPathRef with full path
+          fullPathRef.current = dedupedPathFull;
+          setFullPath([...dedupedPathFull]);
 
           if (totalDistDelta > 0) {
             setDistance(prev => prev + totalDistDelta);
@@ -2000,6 +1922,27 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
             }
           }
 
+          // Compute active segment post loop closures
+          let maxLoopTimestamp = 0;
+          for (const loop of detectedLoops) {
+            for (const pt of loop) {
+              if (pt.timestamp && pt.timestamp > maxLoopTimestamp) {
+                maxLoopTimestamp = pt.timestamp;
+              }
+            }
+          }
+
+          const activeSegment = maxLoopTimestamp > 0
+            ? dedupedPathFull.filter(pt => pt.timestamp > maxLoopTimestamp)
+            : dedupedPathFull;
+
+          pathRef.current = activeSegment;
+          setPath([...activeSegment]);
+
+          if (typeof window !== 'undefined' && (window as any).__injectLocationPoints) {
+            (window as any).__injectLocationPoints(dedupedPathFull, true);
+          }
+
           if (polysAdded) {
             const newTotalArea = calculateArea(nextClaims);
             setSessionClaims(nextClaims);
@@ -2009,10 +1952,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           }
 
           clearTimeout(hydrateTimeout);
-          if (hydrationLockRef.current) {
-            resolveLock();
-            hydrationLockRef.current = null;
-          }
+          isHydratingRef.current = false;
 
           if (pendingLivePointsRef.current.length > 0) {
             const pendingPoints = [...pendingLivePointsRef.current];
@@ -2027,6 +1967,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
         const currentLimit = (chunkIndex + 1) * CHUNK_SIZE;
         const chunk = replayPoints.slice(chunkIndex * CHUNK_SIZE, currentLimit);
+
+        fullPathRef.current = [...preReplayFullPath, ...replayPoints.slice(0, currentLimit)];
+        setFullPath([...fullPathRef.current]);
 
         pathRef.current = [...preReplayPath, ...replayPoints.slice(0, currentLimit)];
         setPath([...pathRef.current]);
@@ -2046,10 +1989,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       processChunk();
     } catch (e) {
       clearTimeout(hydrateTimeout);
-      if (hydrationLockRef.current) {
-        resolveLock();
-        hydrationLockRef.current = null;
-      }
+      isHydratingRef.current = false;
       console.warn('[Hydrate] 从 Room 黑匣子追帧失败（可能在 Web 环境）:', e);
     }
   }, [handleLocationUpdate]);
@@ -2339,11 +2279,6 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
             const safePath = rawPath.filter(
               (p: any) => p && typeof p.lat === 'number' && typeof p.lng === 'number' && Number.isFinite(p.lat) && Number.isFinite(p.lng)
             );
-            const rawFullPath = Array.isArray(data.fullPath) ? data.fullPath : [];
-            const safeFullPath = rawFullPath.filter(
-              (p: any) => p && typeof p.lat === 'number' && typeof p.lng === 'number' && Number.isFinite(p.lat) && Number.isFinite(p.lng)
-            );
-            const restoredFullPath = safeFullPath.length > 0 ? safeFullPath : safePath;
             const hasRealData = safePath.length > 0 && ((data.distance || 0) > 0 || (data.duration || 0) > 5);
             
             if (data.idempotencyKey && hasRealData) {
@@ -2353,7 +2288,6 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
               setSavedRunId(data.runId || null);
               savedRunIdRef.current = data.runId || null;
               setPath(safePath);
-              setFullPath(restoredFullPath);
               setDisplayPath(safePath);
               setDistance(data.distance || 0);
               const restoredDuration = data.duration || 0;
@@ -2387,11 +2321,19 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
                 startTimeRef.current = data.startTime || null;
               }
               
+              const rawFullPath = Array.isArray(data.fullPath) ? data.fullPath : [];
+              const safeFullPath = rawFullPath.filter(
+                (p: any) => p && typeof p.lat === 'number' && typeof p.lng === 'number' && Number.isFinite(p.lat) && Number.isFinite(p.lng)
+              );
+              const finalFullPath = safeFullPath.length > 0 ? safeFullPath : safePath;
+
+              fullPathRef.current = finalFullPath;
+              setFullPath(finalFullPath);
+              
               if (safePath.length > 0) {
                 const lastLoc = safePath[safePath.length - 1];
                 lastLocationRef.current = lastLoc;
                 pathRef.current = safePath;
-                fullPathRef.current = restoredFullPath;
                 setCurrentLocation(lastLoc);
               }
               recovered = true;
@@ -2412,6 +2354,17 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
             const mirror = await safeAMapGetSessionMirror();
             if (mirror && mirror.isRunning && mirror.runStartTime) {
               const elapsed = Math.floor((Date.now() - mirror.runStartTime) / 1000);
+              if (mirror.runPath) {
+                // If native mirror has path, use it for recovery
+                const rawMirrorPath = Array.isArray(mirror.runPath) ? mirror.runPath : [];
+                const safeMirrorPath = rawMirrorPath.filter(
+                  (p: any) => p && typeof p.lat === 'number' && typeof p.lng === 'number'
+                );
+                fullPathRef.current = safeMirrorPath;
+                setFullPath(safeMirrorPath);
+                pathRef.current = safeMirrorPath;
+                setPath(safeMirrorPath);
+              }
               if (elapsed > 0 && elapsed < 86400) {
                 setDuration(elapsed);
                 pausedAccumulatorRef.current = elapsed;
@@ -2439,6 +2392,8 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           // Force-reset ALL state for a clean start
           setIsPaused(false);
           setPath([]);
+          setFullPath([]);
+          fullPathRef.current = [];
           setDistance(0);
           setDuration(0);
           setClosedPolygons([]);
@@ -2476,19 +2431,6 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   const togglePause = useCallback(() => {
     setIsPaused(prev => {
       const next = !prev;
-      if (prev && !next) {
-        resumePendingRef.current = true;
-        console.log('[useRunningTracker] Resume triggered, resumePendingRef set to true');
-        
-        // 注入断点哨兵 (NaN) 切断拉扯线
-        if (pathRef.current.length > 0) {
-          const lastPt = pathRef.current[pathRef.current.length - 1];
-          if (!Number.isNaN(lastPt.timestamp)) {
-            pathRef.current.push({ lat: Number.NaN, lng: Number.NaN, timestamp: Number.NaN });
-            setPath([...pathRef.current]);
-          }
-        }
-      }
       setTimeout(saveState, 0); // 低优先同步落盘
       return next;
     });
@@ -2583,7 +2525,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           const data = JSON.parse(recoveryJson);
           liveDistance = data.distance || 0;
           liveDuration = data.duration || 0;
-          const rawPath = Array.isArray(data.path) ? data.path : [];
+          const rawPath = Array.isArray(data.fullPath || data.path) ? (data.fullPath || data.path) : [];
           livePath = rawPath.filter(
             (p: any) => p && typeof p.lat === 'number' && typeof p.lng === 'number' && Number.isFinite(p.lat) && Number.isFinite(p.lng)
           );
@@ -2989,6 +2931,14 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         savedRunIdRef.current = data.runId || null;
         setPath(safePath);
         setDisplayPath(safePath);
+
+        const rawFullPath = Array.isArray(data.fullPath) ? data.fullPath : [];
+        const safeFullPath = rawFullPath.filter(
+          (p: any) => p && typeof p.lat === 'number' && typeof p.lng === 'number' && Number.isFinite(p.lat) && Number.isFinite(p.lng)
+        );
+        const finalFullPath = safeFullPath.length > 0 ? safeFullPath : safePath;
+        fullPathRef.current = finalFullPath;
+        setFullPath(finalFullPath);
         setDistance(data.distance || 0);
         distanceRef.current = data.distance || 0;
         
@@ -3052,7 +3002,6 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     calories,
     currentLocation,
     path,
-    fullPath,
     displayPath,
     isPaused,
     togglePause,

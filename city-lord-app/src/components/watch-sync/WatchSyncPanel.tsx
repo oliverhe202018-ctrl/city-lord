@@ -11,13 +11,9 @@ import { Progress } from '@/components/ui/progress';
 import { Upload, Watch, Play, FileJson, FileText, AlertTriangle, CheckCircle2, Loader2, Code2, RefreshCw,  } from 'lucide-react';
 import { Suspense, lazy } from 'react';
 const dynamic = (importFunc, options = {}) => {
-  const LazyComponent = lazy(() => importFunc().then((mod) => {
-    if (!mod) return { default: undefined };
-    if (typeof mod === 'function' || (typeof mod === 'object' && (mod.$typeof || mod.render))) {
-      return { default: mod };
-    }
-    return { default: mod.default || Object.values(mod)[0] };
-  }));
+  const LazyComponent = lazy(() => importFunc().then((mod) => ({
+    default: mod.default || Object.values(mod)[0]
+  })));
   return (props) => (
     <Suspense fallback={options.loading ? options.loading() : null}>
       <LazyComponent {...props} />

@@ -418,7 +418,6 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
             {/* Layer 2a: Claimed Polygons (BEFORE TrajectoryLayer - z-index 40) */}
             {sessionClaims && sessionClaims.length > 0 && (
               <ClaimedPolygonLayer
-                key={sessionClaims.map(p => p.length).join('-')}
                 map={map}
                 polygons={sessionClaims}
                 fillOpacity={0.3}
@@ -429,25 +428,34 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
 
             {/* Layer 2b: GPS Trajectory (Real-time Polyline - z-index 50) */}
             {isRunTakeoverActive && (
-              <>
-                {completedSegments && completedSegments.map((segment, idx) => (
-                  <TrajectoryLayer
-                    key={`completed-seg-${idx}`}
-                    map={map as any}
-                    path={segment}
-                    strokeColor="#3B82F6"
-                    strokeWeight={5}
-                  />
-                ))}
-                {currentSegment && currentSegment.length > 0 && (
-                  <TrajectoryLayer
-                    map={map as any}
-                    path={currentSegment}
-                    strokeColor="#3B82F6"
-                    strokeWeight={6}
-                  />
-                )}
-              </>
+              runPath && runPath.length > 0 ? (
+                <TrajectoryLayer
+                  map={map as any}
+                  path={runPath}
+                  strokeColor="#3B82F6"
+                  strokeWeight={6}
+                />
+              ) : (
+                <>
+                  {completedSegments && completedSegments.map((segment, idx) => (
+                    <TrajectoryLayer
+                      key={`completed-seg-${idx}`}
+                      map={map as any}
+                      path={segment}
+                      strokeColor="#3B82F6"
+                      strokeWeight={5}
+                    />
+                  ))}
+                  {currentSegment && currentSegment.length > 0 && (
+                    <TrajectoryLayer
+                      map={map as any}
+                      path={currentSegment}
+                      strokeColor="#3B82F6"
+                      strokeWeight={6}
+                    />
+                  )}
+                </>
+              )
             )}
 
             {ghostPath && ghostPath.length > 1 && (

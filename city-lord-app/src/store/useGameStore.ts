@@ -6,7 +6,7 @@ import { type Room } from '@/types/room';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { touchUserActivity } from '@/app/actions/user';
-import { resetGlobalHydration } from '@/hooks/useHydration';
+import { resetGlobalHydration } from '@/store/hydrationState';
 
 // ==================== Module-level Concurrency Lock ====================
 /** 单调递增时钟：用于 setLastKnownLocation 的同步拦截，绕过 Zustand set 回调中的快照竞态 */

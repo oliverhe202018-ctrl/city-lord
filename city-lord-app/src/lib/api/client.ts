@@ -7,7 +7,7 @@ const isCapacitor =
 
 // Capacitor 环境下必须使用绝对路径，Web 端保持相对路径即可
 const API_BASE = isCapacitor 
-  ? (process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_URL || 'https://cl1.6543666.xyz') 
+  ? (process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_URL || 'https://cl1.4567666.xyz') 
   : '';
 
 interface ExtendedRequestInit extends RequestInit {

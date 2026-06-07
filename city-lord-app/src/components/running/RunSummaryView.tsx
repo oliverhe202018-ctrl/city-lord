@@ -1,34 +1,26 @@
 "use client"
 
 import { Share2, X, Activity, Flame, Zap, MapPin, Footprints, Timer, Trophy, Share, MessageCircle, MoreHorizontal, Camera, Loader2, CheckCircle2, Image as ImageIcon, ChevronRight } from 'lucide-react'
-import Image from "react"
 import { motion, AnimatePresence } from 'framer-motion'
 import { HEX_AREA_SQ_METERS, formatArea } from '@/lib/citylord/area-utils'
 import { Suspense, lazy } from 'react';
 const dynamic = (importFunc, options = {}) => {
-  const LazyComponent = lazy(() => importFunc().then((mod) => {
-    if (!mod) return { default: undefined };
-    if (typeof mod === 'function' || (typeof mod === 'object' && (mod.$typeof || mod.render))) {
-      return { default: mod };
-    }
-    return { default: mod.default || Object.values(mod)[0] };
-  }));
-  return (props) => (
+  const LazyComponent = lazy(() => importFunc().then((mod) => ({
+    default: mod.default || Object.values(mod)[0]
+  })));
+  return (props: any) => (
     <Suspense fallback={options.loading ? options.loading() : null}>
       <LazyComponent {...props} />
     </Suspense>
   );
 };
-import { MapSkeleton } from '@/components/map/MapSkeleton'
+
+import { MapSkeleton } from '@/components/map/MapSkeleton';
 
 const StaticTrajectoryMap = dynamic(
-  () => import("./StaticTrajectoryMap").then(mod => mod.StaticTrajectoryMap),
-  { ssr: false, loading: () => <MapSkeleton className="w-full h-full bg-slate-900 rounded-2xl" /> }
-)
-import { useState, useRef, useEffect } from 'react'
-import { Portal } from '@radix-ui/react-portal'
-import { GlassCard } from '../ui/GlassCard'
-import { toast } from 'sonner'
+  () => import("./StaticTrajectoryMap"),
+  { loading: () => <MapSkeleton className="w-full h-full bg-slate-900 rounded-2xl" /> }
+);
 import { createClient } from '@/lib/supabase/client'
 import { createPost } from '@/app/actions/social-hub'
 import { useGameStore } from '@/store/useGameStore'

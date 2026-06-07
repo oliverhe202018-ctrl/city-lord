@@ -8,7 +8,7 @@ declare global {
 }
 
 // Use production VPS URL for the real phone APK testing
-const API_BASE_URL = 'https://cl1.6543666.xyz/api/v1';
+const API_BASE_URL = 'https://cl1.4567666.xyz/api/v1';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -19,7 +19,7 @@ api.interceptors.request.use(
   async (config) => {
     // Determine dynamic base URL based on environment
     // For local dev in browser, we can use http://localhost:3000
-    // For production, we would use https://cl1.6543666.xyz
+    // For production, we would use https://cl1.4567666.xyz
     const { value: customUrl } = await Preferences.get({ key: 'apiBaseUrl' });
     if (customUrl) {
       config.baseURL = customUrl;

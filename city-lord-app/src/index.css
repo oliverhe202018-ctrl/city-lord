@@ -105,5 +105,16 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* Native App feel optimizations */
+    -webkit-touch-callout: none; /* Disable iOS context menu on long press */
+    -webkit-user-select: none;   /* Disable text selection */
+    user-select: none;
+    -webkit-tap-highlight-color: transparent; /* Remove blue highlight on tap */
+  }
+  
+  /* Re-enable selection for inputs so users can copy/paste text */
+  input, textarea {
+    -webkit-user-select: auto;
+    user-select: auto;
   }
 }
