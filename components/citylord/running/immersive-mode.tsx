@@ -68,6 +68,7 @@ interface ImmersiveModeProps {
   onExpand: () => void
   currentLocation?: { lat: number; lng: number }
   path?: Location[]
+  fullPath?: Location[]
   displayPath?: Location[]
   closedPolygons?: Location[][]
   onHexClaimed?: () => void
@@ -208,6 +209,7 @@ const RunControlButtons = memo(function RunControlButtons({
   onPauseToggle,
   onEndPressStart,
   onEndPressEnd,
+  onEndPressMove,
   singleButtonClassName,
   pairButtonClassName,
   pairWrapperClassName,
@@ -216,8 +218,9 @@ const RunControlButtons = memo(function RunControlButtons({
   isPaused: boolean
   isEndPressing: boolean
   onPauseToggle: () => void
-  onEndPressStart: () => void
-  onEndPressEnd: () => void
+  onEndPressStart: (e: React.PointerEvent<HTMLButtonElement>) => void
+  onEndPressEnd: (e?: React.PointerEvent<HTMLButtonElement>) => void
+  onEndPressMove?: (e: React.PointerEvent<HTMLButtonElement>) => void
   singleButtonClassName: string
   pairButtonClassName: string
   pairWrapperClassName: string
@@ -240,8 +243,11 @@ const RunControlButtons = memo(function RunControlButtons({
       <button
         type="button"
         className={`${pairButtonClassName} ${isEndPressing ? "bg-red-700" : "bg-red-500"}`}
+        style={{ touchAction: "none", userSelect: "none", WebkitUserSelect: "none" }}
+        onContextMenu={(e) => e.preventDefault()}
         onPointerDown={onEndPressStart}
         onPointerUp={onEndPressEnd}
+        onPointerMove={onEndPressMove}
         onPointerLeave={onEndPressEnd}
         onPointerCancel={onEndPressEnd}
       >
@@ -335,6 +341,7 @@ function ImmersiveRunningModeInner({
   onExpand,
   currentLocation,
   path = [],
+  fullPath = [],
   displayPath = [],
   closedPolygons = [],
   onHexClaimed,
@@ -403,6 +410,7 @@ function ImmersiveRunningModeInner({
   const prevSuccessfulEventsRef = useRef(0)
   const [isUnlockPressing, setIsUnlockPressing] = useState(false)
   const [isEndPressing, setIsEndPressing] = useState(false)
+  const endPressStartPosRef = useRef<{ x: number; y: number } | null>(null)
 
   const { currentCity } = useCity()
   const { ghostPath } = useGameLocation()
@@ -705,9 +713,9 @@ function ImmersiveRunningModeInner({
       damageSummary: cloneSnapshotValue(damageSummary),
       maintenanceSummary: cloneSnapshotValue(maintenanceSummary),
       hexesCaptured: settledTerritoriesCount !== undefined ? settledTerritoriesCount : snapshotHexes,
-      runTrajectory: cloneSnapshotValue(path || []),
+      runTrajectory: cloneSnapshotValue(fullPath || path || []),
     }
-  }, [distanceMeters, durationSeconds, time, pace, calories, area, steps, runIsValid, antiCheatLog, effectiveRunId, savedRunId, runNumber, damageSummary, maintenanceSummary, settledTerritoriesCount, path])
+  }, [distanceMeters, durationSeconds, time, pace, calories, area, steps, runIsValid, antiCheatLog, effectiveRunId, savedRunId, runNumber, damageSummary, maintenanceSummary, settledTerritoriesCount, path, fullPath])
 
   const handleLockScreen = useCallback(() => {
     setIsScreenLocked(true)
@@ -733,25 +741,51 @@ function ImmersiveRunningModeInner({
     }
   }, [])
 
-  const handleEndPressStart = useCallback(() => {
+  const handleEndPressEnd = useCallback((e?: React.PointerEvent<HTMLButtonElement>) => {
+    console.log(`[immersive-mode] handleEndPressEnd triggered by event: ${e?.type || 'timer/unknown'}`);
+    setIsEndPressing(false)
+    endPressStartPosRef.current = null
+    if (endPressTimerRef.current !== null) {
+      window.clearTimeout(endPressTimerRef.current)
+      endPressTimerRef.current = null
+    }
+  }, [])
+
+  const handleEndPressStart = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
+    const x = e.clientX;
+    const y = e.clientY;
+    console.log(`[immersive-mode] handleEndPressStart: pointerId=${e.pointerId}, x=${x}, y=${y}`);
     setIsEndPressing(true)
+    endPressStartPosRef.current = { x, y }
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId)
+      console.log(`[immersive-mode] setPointerCapture succeeded for pointerId=${e.pointerId}`);
+    } catch (err) {
+      console.warn("Failed to setPointerCapture", err)
+    }
+
     if (endPressTimerRef.current !== null) {
       window.clearTimeout(endPressTimerRef.current)
     }
     endPressTimerRef.current = window.setTimeout(() => {
+      console.log("[immersive-mode] long press threshold reached, calling attemptStopRef");
       setIsEndPressing(false)
       endPressTimerRef.current = null
       attemptStopRef.current()
     }, 1000)
   }, [])
 
-  const handleEndPressEnd = useCallback(() => {
-    setIsEndPressing(false)
-    if (endPressTimerRef.current !== null) {
-      window.clearTimeout(endPressTimerRef.current)
-      endPressTimerRef.current = null
+  const handleEndPressMove = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
+    if (!isEndPressing || !endPressStartPosRef.current) return
+    const dx = e.clientX - endPressStartPosRef.current.x
+    const dy = e.clientY - endPressStartPosRef.current.y
+    const distance = Math.hypot(dx, dy)
+    console.log(`[immersive-mode] handleEndPressMove: dx=${dx.toFixed(1)}, dy=${dy.toFixed(1)}, distance=${distance.toFixed(1)}px (threshold=120px)`);
+    if (distance > 120) {
+      console.log(`[immersive-mode] movement threshold exceeded (${distance.toFixed(1)}px > 120px), canceling long press`);
+      handleEndPressEnd()
     }
-  }, [])
+  }, [isEndPressing, handleEndPressEnd])
 
   const handleRecenter = useCallback(() => {
     if (useSharedMapBase) {
@@ -1234,6 +1268,7 @@ function ImmersiveRunningModeInner({
                 onPauseToggle={handlePauseToggle}
                 onEndPressStart={handleEndPressStart}
                 onEndPressEnd={handleEndPressEnd}
+                onEndPressMove={handleEndPressMove}
                 singleButtonClassName="h-14 w-full rounded-2xl bg-emerald-500 text-lg font-black text-white shadow-xl active:scale-[0.99]"
                 pairButtonClassName="h-14 w-full rounded-2xl text-lg font-black text-white shadow-xl transition active:scale-[0.99]"
                 pairWrapperClassName="grid grid-cols-2 gap-3"
@@ -1274,6 +1309,7 @@ function ImmersiveRunningModeInner({
               onPauseToggle={handlePauseToggle}
               onEndPressStart={handleEndPressStart}
               onEndPressEnd={handleEndPressEnd}
+              onEndPressMove={handleEndPressMove}
               singleButtonClassName="mt-4 h-12 w-full rounded-2xl bg-emerald-500 text-base font-black text-white active:scale-[0.99]"
               pairButtonClassName="h-12 w-full rounded-2xl text-base font-black text-white shadow-xl transition active:scale-[0.99]"
               pairWrapperClassName="mt-4 grid grid-cols-2 gap-3"

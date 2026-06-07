@@ -6,9 +6,13 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { HEX_AREA_SQ_METERS, formatArea } from '@/lib/citylord/area-utils'
 import { Suspense, lazy } from 'react';
 const dynamic = (importFunc, options = {}) => {
-  const LazyComponent = lazy(() => importFunc().then((mod) => ({
-    default: mod.default || Object.values(mod)[0]
-  })));
+  const LazyComponent = lazy(() => importFunc().then((mod) => {
+    if (!mod) return { default: undefined };
+    if (typeof mod === 'function' || (typeof mod === 'object' && (mod.$typeof || mod.render))) {
+      return { default: mod };
+    }
+    return { default: mod.default || Object.values(mod)[0] };
+  }));
   return (props) => (
     <Suspense fallback={options.loading ? options.loading() : null}>
       <LazyComponent {...props} />

@@ -1,0 +1,266 @@
+﻿
+> Configure project :app
+WARNING: Using flatDir should be avoided because it doesn't support any meta-data formats.
+
+> Configure project :capacitor-cordova-android-plugins
+WARNING: Using flatDir should be avoided because it doesn't support any meta-data formats.
+WARNING: We recommend using a newer Android Gradle plugin to use compileSdk = 35
+
+This Android Gradle plugin (8.2.1) was tested up to compileSdk = 34.
+
+You are strongly encouraged to update your project to use a newer
+Android Gradle plugin that has been tested with compileSdk = 35.
+
+If you are already using the latest version of the Android Gradle plugin,
+you may need to wait until a newer version with support for compileSdk = 35 is available.
+
+To suppress this warning, add/update
+    android.suppressUnsupportedCompileSdk=35
+to this project's gradle.properties.
+
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :app:javaPreCompileDebug UP-TO-DATE
+> Task :capacitor-android:preBuild UP-TO-DATE
+> Task :capacitor-android:preDebugBuild UP-TO-DATE
+> Task :capacitor-android:writeDebugAarMetadata UP-TO-DATE
+> Task :capacitor-app:preBuild UP-TO-DATE
+> Task :capacitor-app:preDebugBuild UP-TO-DATE
+> Task :capacitor-app:writeDebugAarMetadata UP-TO-DATE
+> Task :capacitor-browser:preBuild UP-TO-DATE
+> Task :capacitor-browser:preDebugBuild UP-TO-DATE
+> Task :capacitor-browser:writeDebugAarMetadata UP-TO-DATE
+> Task :capacitor-community-background-geolocation:preBuild UP-TO-DATE
+> Task :capacitor-community-background-geolocation:preDebugBuild UP-TO-DATE
+> Task :capacitor-community-background-geolocation:writeDebugAarMetadata UP-TO-DATE
+> Task :capacitor-community-keep-awake:preBuild UP-TO-DATE
+> Task :capacitor-community-keep-awake:preDebugBuild UP-TO-DATE
+> Task :capacitor-community-keep-awake:writeDebugAarMetadata UP-TO-DATE
+> Task :capacitor-cordova-android-plugins:preBuild UP-TO-DATE
+> Task :capacitor-cordova-android-plugins:preDebugBuild UP-TO-DATE
+> Task :capacitor-cordova-android-plugins:writeDebugAarMetadata UP-TO-DATE
+> Task :capacitor-device:preBuild UP-TO-DATE
+> Task :capacitor-device:preDebugBuild UP-TO-DATE
+> Task :capacitor-device:writeDebugAarMetadata UP-TO-DATE
+> Task :capacitor-filesystem:preBuild UP-TO-DATE
+> Task :capacitor-filesystem:preDebugBuild UP-TO-DATE
+> Task :capacitor-filesystem:writeDebugAarMetadata UP-TO-DATE
+> Task :capacitor-geolocation:preBuild UP-TO-DATE
+> Task :capacitor-geolocation:preDebugBuild UP-TO-DATE
+> Task :capacitor-geolocation:writeDebugAarMetadata UP-TO-DATE
+> Task :capacitor-haptics:preBuild UP-TO-DATE
+> Task :capacitor-haptics:preDebugBuild UP-TO-DATE
+> Task :capacitor-haptics:writeDebugAarMetadata UP-TO-DATE
+> Task :capacitor-health-connect:preBuild UP-TO-DATE
+> Task :capacitor-health-connect:preDebugBuild UP-TO-DATE
+> Task :capacitor-health-connect:writeDebugAarMetadata UP-TO-DATE
+> Task :capacitor-keyboard:preBuild UP-TO-DATE
+> Task :capacitor-keyboard:preDebugBuild UP-TO-DATE
+> Task :capacitor-keyboard:writeDebugAarMetadata UP-TO-DATE
+> Task :capacitor-local-notifications:preBuild UP-TO-DATE
+> Task :capacitor-local-notifications:preDebugBuild UP-TO-DATE
+> Task :capacitor-local-notifications:writeDebugAarMetadata UP-TO-DATE
+> Task :capacitor-push-notifications:preBuild UP-TO-DATE
+> Task :capacitor-push-notifications:preDebugBuild UP-TO-DATE
+> Task :capacitor-push-notifications:writeDebugAarMetadata UP-TO-DATE
+> Task :capacitor-status-bar:preBuild UP-TO-DATE
+> Task :capacitor-status-bar:preDebugBuild UP-TO-DATE
+> Task :capacitor-status-bar:writeDebugAarMetadata UP-TO-DATE
+> Task :capawesome-capacitor-background-task:preBuild UP-TO-DATE
+> Task :capawesome-capacitor-background-task:preDebugBuild UP-TO-DATE
+> Task :capawesome-capacitor-background-task:writeDebugAarMetadata UP-TO-DATE
+> Task :app:checkDebugAarMetadata UP-TO-DATE
+> Task :app:generateDebugResValues UP-TO-DATE
+> Task :capacitor-android:generateDebugResValues UP-TO-DATE
+> Task :capacitor-android:generateDebugResources UP-TO-DATE
+> Task :capacitor-android:packageDebugResources UP-TO-DATE
+> Task :capacitor-app:generateDebugResValues UP-TO-DATE
+> Task :capacitor-app:generateDebugResources UP-TO-DATE
+> Task :capacitor-app:packageDebugResources UP-TO-DATE
+> Task :capacitor-browser:generateDebugResValues UP-TO-DATE
+> Task :capacitor-browser:generateDebugResources UP-TO-DATE
+> Task :capacitor-browser:packageDebugResources UP-TO-DATE
+> Task :capacitor-community-background-geolocation:generateDebugResValues UP-TO-DATE
+> Task :capacitor-community-background-geolocation:generateDebugResources UP-TO-DATE
+> Task :capacitor-community-background-geolocation:packageDebugResources UP-TO-DATE
+> Task :capacitor-community-keep-awake:generateDebugResValues UP-TO-DATE
+> Task :capacitor-community-keep-awake:generateDebugResources UP-TO-DATE
+> Task :capacitor-community-keep-awake:packageDebugResources UP-TO-DATE
+> Task :capacitor-cordova-android-plugins:generateDebugResValues UP-TO-DATE
+> Task :capacitor-cordova-android-plugins:generateDebugResources UP-TO-DATE
+> Task :capacitor-cordova-android-plugins:packageDebugResources UP-TO-DATE
+> Task :capacitor-device:generateDebugResValues UP-TO-DATE
+> Task :capacitor-device:generateDebugResources UP-TO-DATE
+> Task :capacitor-device:packageDebugResources UP-TO-DATE
+> Task :capacitor-filesystem:generateDebugResValues UP-TO-DATE
+> Task :capacitor-filesystem:generateDebugResources UP-TO-DATE
+> Task :capacitor-filesystem:packageDebugResources UP-TO-DATE
+> Task :capacitor-geolocation:generateDebugResValues UP-TO-DATE
+> Task :capacitor-geolocation:generateDebugResources UP-TO-DATE
+> Task :capacitor-geolocation:packageDebugResources UP-TO-DATE
+> Task :capacitor-haptics:generateDebugResValues UP-TO-DATE
+> Task :capacitor-haptics:generateDebugResources UP-TO-DATE
+> Task :capacitor-haptics:packageDebugResources UP-TO-DATE
+> Task :capacitor-health-connect:generateDebugResValues UP-TO-DATE
+> Task :capacitor-health-connect:generateDebugResources UP-TO-DATE
+> Task :capacitor-health-connect:packageDebugResources UP-TO-DATE
+> Task :capacitor-keyboard:generateDebugResValues UP-TO-DATE
+> Task :capacitor-keyboard:generateDebugResources UP-TO-DATE
+> Task :capacitor-keyboard:packageDebugResources UP-TO-DATE
+> Task :capacitor-local-notifications:generateDebugResValues UP-TO-DATE
+> Task :capacitor-local-notifications:generateDebugResources UP-TO-DATE
+> Task :capacitor-local-notifications:packageDebugResources UP-TO-DATE
+> Task :capacitor-push-notifications:generateDebugResValues UP-TO-DATE
+> Task :capacitor-push-notifications:generateDebugResources UP-TO-DATE
+> Task :capacitor-push-notifications:packageDebugResources UP-TO-DATE
+> Task :capacitor-status-bar:generateDebugResValues UP-TO-DATE
+> Task :capacitor-status-bar:generateDebugResources UP-TO-DATE
+> Task :capacitor-status-bar:packageDebugResources UP-TO-DATE
+> Task :capawesome-capacitor-background-task:generateDebugResValues UP-TO-DATE
+> Task :capawesome-capacitor-background-task:generateDebugResources UP-TO-DATE
+> Task :capawesome-capacitor-background-task:packageDebugResources UP-TO-DATE
+> Task :app:mapDebugSourceSetPaths UP-TO-DATE
+> Task :app:generateDebugResources UP-TO-DATE
+> Task :app:mergeDebugResources UP-TO-DATE
+> Task :app:packageDebugResources UP-TO-DATE
+> Task :app:parseDebugLocalResources UP-TO-DATE
+> Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksDebug UP-TO-DATE
+> Task :capacitor-android:extractDeepLinksDebug UP-TO-DATE
+> Task :capacitor-android:processDebugManifest UP-TO-DATE
+> Task :capacitor-app:extractDeepLinksDebug UP-TO-DATE
+> Task :capacitor-app:processDebugManifest UP-TO-DATE
+> Task :capacitor-browser:extractDeepLinksDebug UP-TO-DATE
+> Task :capacitor-browser:processDebugManifest UP-TO-DATE
+> Task :capacitor-community-background-geolocation:extractDeepLinksDebug UP-TO-DATE
+> Task :capacitor-community-background-geolocation:processDebugManifest UP-TO-DATE
+> Task :capacitor-community-keep-awake:extractDeepLinksDebug UP-TO-DATE
+> Task :capacitor-community-keep-awake:processDebugManifest UP-TO-DATE
+> Task :capacitor-cordova-android-plugins:extractDeepLinksDebug UP-TO-DATE
+> Task :capacitor-cordova-android-plugins:processDebugManifest UP-TO-DATE
+> Task :capacitor-device:extractDeepLinksDebug UP-TO-DATE
+> Task :capacitor-device:processDebugManifest UP-TO-DATE
+> Task :capacitor-filesystem:extractDeepLinksDebug UP-TO-DATE
+> Task :capacitor-filesystem:processDebugManifest UP-TO-DATE
+> Task :capacitor-geolocation:extractDeepLinksDebug UP-TO-DATE
+> Task :capacitor-geolocation:processDebugManifest UP-TO-DATE
+> Task :capacitor-haptics:extractDeepLinksDebug UP-TO-DATE
+> Task :capacitor-haptics:processDebugManifest UP-TO-DATE
+> Task :capacitor-health-connect:extractDeepLinksDebug UP-TO-DATE
+> Task :capacitor-health-connect:processDebugManifest UP-TO-DATE
+> Task :capacitor-keyboard:extractDeepLinksDebug UP-TO-DATE
+> Task :capacitor-keyboard:processDebugManifest UP-TO-DATE
+> Task :capacitor-local-notifications:extractDeepLinksDebug UP-TO-DATE
+> Task :capacitor-local-notifications:processDebugManifest UP-TO-DATE
+> Task :capacitor-push-notifications:extractDeepLinksDebug UP-TO-DATE
+> Task :capacitor-push-notifications:processDebugManifest UP-TO-DATE
+> Task :capacitor-status-bar:extractDeepLinksDebug UP-TO-DATE
+> Task :capacitor-status-bar:processDebugManifest UP-TO-DATE
+> Task :capawesome-capacitor-background-task:extractDeepLinksDebug UP-TO-DATE
+> Task :capawesome-capacitor-background-task:processDebugManifest UP-TO-DATE
+> Task :app:processDebugMainManifest UP-TO-DATE
+> Task :app:processDebugManifest UP-TO-DATE
+> Task :app:processDebugManifestForPackage UP-TO-DATE
+> Task :capacitor-android:compileDebugLibraryResources UP-TO-DATE
+> Task :capacitor-android:parseDebugLocalResources UP-TO-DATE
+> Task :capacitor-android:generateDebugRFile UP-TO-DATE
+> Task :capacitor-app:compileDebugLibraryResources UP-TO-DATE
+> Task :capacitor-app:parseDebugLocalResources UP-TO-DATE
+> Task :capacitor-app:generateDebugRFile UP-TO-DATE
+> Task :capacitor-browser:compileDebugLibraryResources UP-TO-DATE
+> Task :capacitor-browser:parseDebugLocalResources UP-TO-DATE
+> Task :capacitor-browser:generateDebugRFile UP-TO-DATE
+> Task :capacitor-community-background-geolocation:compileDebugLibraryResources UP-TO-DATE
+> Task :capacitor-community-background-geolocation:parseDebugLocalResources UP-TO-DATE
+> Task :capacitor-community-background-geolocation:generateDebugRFile UP-TO-DATE
+> Task :capacitor-community-keep-awake:compileDebugLibraryResources UP-TO-DATE
+> Task :capacitor-community-keep-awake:parseDebugLocalResources UP-TO-DATE
+> Task :capacitor-community-keep-awake:generateDebugRFile UP-TO-DATE
+> Task :capacitor-cordova-android-plugins:compileDebugLibraryResources UP-TO-DATE
+> Task :capacitor-cordova-android-plugins:parseDebugLocalResources UP-TO-DATE
+> Task :capacitor-cordova-android-plugins:generateDebugRFile UP-TO-DATE
+> Task :capacitor-device:compileDebugLibraryResources UP-TO-DATE
+> Task :capacitor-device:parseDebugLocalResources UP-TO-DATE
+> Task :capacitor-device:generateDebugRFile UP-TO-DATE
+> Task :capacitor-filesystem:compileDebugLibraryResources UP-TO-DATE
+> Task :capacitor-filesystem:parseDebugLocalResources UP-TO-DATE
+> Task :capacitor-filesystem:generateDebugRFile UP-TO-DATE
+> Task :capacitor-geolocation:compileDebugLibraryResources UP-TO-DATE
+> Task :capacitor-geolocation:parseDebugLocalResources UP-TO-DATE
+> Task :capacitor-geolocation:generateDebugRFile UP-TO-DATE
+> Task :capacitor-haptics:compileDebugLibraryResources UP-TO-DATE
+> Task :capacitor-haptics:parseDebugLocalResources UP-TO-DATE
+> Task :capacitor-haptics:generateDebugRFile UP-TO-DATE
+> Task :capacitor-health-connect:compileDebugLibraryResources UP-TO-DATE
+> Task :capacitor-health-connect:parseDebugLocalResources UP-TO-DATE
+> Task :capacitor-health-connect:generateDebugRFile UP-TO-DATE
+> Task :capacitor-keyboard:compileDebugLibraryResources UP-TO-DATE
+> Task :capacitor-keyboard:parseDebugLocalResources UP-TO-DATE
+> Task :capacitor-keyboard:generateDebugRFile UP-TO-DATE
+> Task :capacitor-local-notifications:compileDebugLibraryResources UP-TO-DATE
+> Task :capacitor-local-notifications:parseDebugLocalResources UP-TO-DATE
+> Task :capacitor-local-notifications:generateDebugRFile UP-TO-DATE
+> Task :capacitor-push-notifications:compileDebugLibraryResources UP-TO-DATE
+> Task :capacitor-push-notifications:parseDebugLocalResources UP-TO-DATE
+> Task :capacitor-push-notifications:generateDebugRFile UP-TO-DATE
+> Task :capacitor-status-bar:compileDebugLibraryResources UP-TO-DATE
+> Task :capacitor-status-bar:parseDebugLocalResources UP-TO-DATE
+> Task :capacitor-status-bar:generateDebugRFile UP-TO-DATE
+> Task :capawesome-capacitor-background-task:compileDebugLibraryResources UP-TO-DATE
+> Task :capawesome-capacitor-background-task:parseDebugLocalResources UP-TO-DATE
+> Task :capawesome-capacitor-background-task:generateDebugRFile UP-TO-DATE
+> Task :app:processDebugResources UP-TO-DATE
+> Task :capacitor-android:javaPreCompileDebug UP-TO-DATE
+> Task :capacitor-android:compileDebugJavaWithJavac UP-TO-DATE
+> Task :capacitor-android:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :capacitor-app:javaPreCompileDebug UP-TO-DATE
+> Task :capacitor-app:compileDebugJavaWithJavac UP-TO-DATE
+> Task :capacitor-app:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :capacitor-browser:javaPreCompileDebug UP-TO-DATE
+> Task :capacitor-browser:compileDebugJavaWithJavac UP-TO-DATE
+> Task :capacitor-browser:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :capacitor-community-background-geolocation:javaPreCompileDebug UP-TO-DATE
+> Task :capacitor-community-background-geolocation:compileDebugJavaWithJavac UP-TO-DATE
+> Task :capacitor-community-background-geolocation:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :capacitor-community-keep-awake:javaPreCompileDebug UP-TO-DATE
+> Task :capacitor-community-keep-awake:compileDebugJavaWithJavac UP-TO-DATE
+> Task :capacitor-community-keep-awake:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :capacitor-cordova-android-plugins:javaPreCompileDebug UP-TO-DATE
+> Task :capacitor-cordova-android-plugins:compileDebugJavaWithJavac NO-SOURCE
+> Task :capacitor-cordova-android-plugins:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :capacitor-device:javaPreCompileDebug UP-TO-DATE
+> Task :capacitor-device:compileDebugJavaWithJavac UP-TO-DATE
+> Task :capacitor-device:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :capacitor-filesystem:compileDebugKotlin FAILED
+.\gradlew : 
+所在位置 行:1 字符: 13
++ cd android; .\gradlew assembleDebug 2>&1 | Out-File 
+err2.txt -Encodin ...
++             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) 
+    [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':capacitor-filesystem:compi
+leDebugKotlin'.
+> 'compileDebugJavaWithJavac' task (current target is 
+21) and 'compileDebugKotlin' task (current target is 1
+7) jvm target compatibility should be set to the same 
+Java version.
+  Consider using JVM toolchain: https://kotl.in/gradle
+/jvm/toolchain
+
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log ou
+tput.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 3s
+162 actionable tasks: 1 executed, 161 up-to-date

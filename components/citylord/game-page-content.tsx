@@ -387,6 +387,7 @@ export function GamePageContent({
     calories,
     currentLocation,
     path,
+    fullPath,
     displayPath,
     closedPolygons,
     sessionClaims, // NEW: Claimed polygons for rendering
@@ -1393,6 +1394,7 @@ export function GamePageContent({
             onExpand={handleExpand}
             currentLocation={immersiveCurrentLocation}
             path={path}
+            fullPath={fullPath}
             displayPath={displayPath}
             closedPolygons={closedPolygons}
             onHexClaimed={handleHexClaimed}
