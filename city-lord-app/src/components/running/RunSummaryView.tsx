@@ -288,7 +288,7 @@ export function RunSummaryView({
   const contributedArea = Math.max(0, Math.round(finalCapturedArea));
 
   // Aggregate damage by owner for UI display
-  const aggregatedDamage = damageSummary.reduce((acc, curr) => {
+  const aggregatedDamage = (damageSummary || []).reduce((acc, curr) => {
     const key = `${curr.ownerName}_${curr.isCritical ? 'crit' : 'norm'}`;
     if (!acc[key]) {
       acc[key] = { ownerName: curr.ownerName, totalDamage: 0, count: 0, isCritical: curr.isCritical };
