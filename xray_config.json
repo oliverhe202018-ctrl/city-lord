@@ -61,6 +61,20 @@
         "auth": "noauth",
         "udp": true
       }
+    },
+    {
+      "tag": "http",
+      "port": 10809,
+      "listen": "127.0.0.1",
+      "protocol": "http",
+      "sniffing": {
+        "enabled": true,
+        "destOverride": [ "http", "tls" ],
+        "routeOnly": false
+      },
+      "settings": {
+        "allowTransparent": false
+      }
     }
   ],
   "outbounds": [
