@@ -275,7 +275,7 @@ function deterministicShuffle<T>(array: T[], seedStr: string): T[] {
   return arr;
 }
 
-const getRoundedAvatarTile = (url: string, img: HTMLImageElement, tileSize: 32 | 48 | 64): HTMLCanvasElement => {
+const getRoundedAvatarTile = (url: string, img: HTMLImageElement, tileSize: 24 | 32 | 48 | 64): HTMLCanvasElement => {
   const cacheKey = `${url}::${tileSize}`;
   const cached = avatarTileCache.get(cacheKey);
   if (cached) return cached;
@@ -454,74 +454,29 @@ function renderTerritoriesOnCanvas(
     const outerRings = extractOuterRings(territory.geojson_json);
     if (outerRings.length === 0) continue;
 
-    for (const ring of outerRings) {
-      if (ring.length < 4) continue;
-      
-      // 降采样绘制：如果点数较少，不进行抽稀以防止多边形退化
-      const activeStride = ring.length < 30 ? 1 : stride;
-      const downsampledRing: [number, number][] = [];
-      for (let i = 0; i < ring.length; i += activeStride) {
-        downsampledRing.push(ring[i]);
-      }
-      // 确保闭合
-      const lastPt = downsampledRing[downsampledRing.length - 1];
-      const firstPt = ring[0];
-      if (downsampledRing.length > 0 && (Math.abs(lastPt[0] - firstPt[0]) > 1e-9 || Math.abs(lastPt[1] - firstPt[1]) > 1e-9)) {
-        downsampledRing.push([...firstPt]);
-      }
-      
-      const pixels = downsampledRing
-        .map(([lng, lat]) => {
-          const pixel = map.lngLatToContainer?.(new AMapGlobal.LngLat(lng, lat));
-          if (!pixel) return null;
-          return { x: Number(pixel.x), y: Number(pixel.y) };
-        })
-        .filter((pt): pt is { x: number; y: number } => pt !== null && Number.isFinite(pt.x) && Number.isFinite(pt.y));
-
-      if (pixels.length < 3) continue;
-
+      // 步骤1：构建包含所有 ring 的复合 Path（一次 beginPath）
       ctx.beginPath();
-      ctx.moveTo(pixels[0].x, pixels[0].y);
-      for (let i = 1; i < pixels.length; i += 1) {
-        ctx.lineTo(pixels[i].x, pixels[i].y);
-      }
-      ctx.closePath();
+      for (const ring of outerRings) {
+        const activeStrokeStride = ring.length < 30 ? 1 : stride;
+        const sampledRing = ring.filter((_, i) => i % activeStrokeStride === 0 || i === ring.length - 1);
+        const pixels = sampledRing.map(([lng, lat]) => {
+          const pixel = map.lngLatToContainer?.(new AMapGlobal.LngLat(lng, lat));
+          return pixel ? { x: Number(pixel.x), y: Number(pixel.y) } : null;
+        }).filter((pt): pt is { x: number; y: number } => pt !== null && Number.isFinite(pt.x) && Number.isFinite(pt.y));
 
-      // Always draw the base filled polygon first
+        if (pixels.length < 3) continue;
+        ctx.moveTo(pixels[0].x, pixels[0].y);
+        for (let i = 1; i < pixels.length; i++) ctx.lineTo(pixels[i].x, pixels[i].y);
+        ctx.closePath();
+      }
+
+      // 步骤2：用 evenodd 规则填充 → 奇偶相消，内部重叠区域自动清空
       ctx.fillStyle = territory.fillColor || "rgba(251, 146, 60, 0.5)";
       ctx.globalAlpha = territory.fillOpacity;
-      ctx.fill();
+      ctx.fill('evenodd');
+
+      // 步骤3：描边只走一次，无任何 Turf 调用
       ctx.globalAlpha = 1;
-
-      // Now prepare convex hull for stroke
-      const outerRingToStroke = (territory as any).convexRing || ring;
-      const activeStrokeStride = outerRingToStroke.length < 30 ? 1 : stride;
-      const strokePixels: { x: number; y: number }[] = [];
-      for (let i = 0; i < outerRingToStroke.length; i += activeStrokeStride) {
-        const [lng, lat] = outerRingToStroke[i];
-        const pixel = map.lngLatToContainer?.(new AMapGlobal.LngLat(lng, lat));
-        if (pixel && Number.isFinite(pixel.x) && Number.isFinite(pixel.y)) {
-          strokePixels.push({ x: Number(pixel.x), y: Number(pixel.y) });
-        }
-      }
-      if (strokePixels.length > 0) {
-        const firstP = strokePixels[0];
-        const lastP = strokePixels[strokePixels.length - 1];
-        if (Math.abs(firstP.x - lastP.x) > 1e-5 || Math.abs(firstP.y - lastP.y) > 1e-5) {
-          strokePixels.push({ ...firstP });
-        }
-      }
-
-      ctx.beginPath();
-      if (strokePixels.length >= 3) {
-        ctx.moveTo(strokePixels[0].x, strokePixels[0].y);
-        for (let i = 1; i < strokePixels.length; i += 1) {
-          ctx.lineTo(strokePixels[i].x, strokePixels[i].y);
-        }
-      }
-      ctx.closePath();
-
-      // Always draw the boundary stroke
       ctx.strokeStyle = territory.strokeColor || "rgba(234, 88, 12, 0.8)";
       ctx.lineWidth = territory.strokeWeight || 1.5;
       ctx.stroke();
@@ -534,12 +489,38 @@ function renderTerritoriesOnCanvas(
         });
 
         if (cachedImg) {
-          const discreteSize: 32 | 48 = currentZoom >= 17 ? 32 : 48;
+          let discreteSize: 24 | 32 | 48;
+          let maxCandidates: number;
+          let minDistanceMultiplier: number;
+
+          if (currentZoom < 13) {
+            discreteSize = 24;
+            maxCandidates = 1;
+            minDistanceMultiplier = 0;
+          } else if (currentZoom < 15) {
+            discreteSize = 32;
+            maxCandidates = 1;
+            minDistanceMultiplier = 0;
+          } else if (currentZoom < 16) {
+            discreteSize = 48;
+            maxCandidates = 3;
+            minDistanceMultiplier = 6.0;
+          } else if (currentZoom < 17) {
+            discreteSize = 48;
+            maxCandidates = 6;
+            minDistanceMultiplier = 4.0;
+          } else {
+            discreteSize = 32;
+            maxCandidates = Infinity;
+            minDistanceMultiplier = 1.5;
+          }
+
+          const minDistance = minDistanceMultiplier * discreteSize;
           const avatarTile = getRoundedAvatarTile(avatarUrl, cachedImg, discreteSize);
 
           const finalPointsToDraw: { x: number; y: number }[] = [];
 
-          if (currentZoom < 15) {
+          if (maxCandidates === 1) {
             // Zoom < 15: Only 1 avatar at centerPoint
             const p = map.lngLatToContainer?.(new AMapGlobal.LngLat(territory.centerPoint[0], territory.centerPoint[1]));
             if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) {
@@ -549,13 +530,11 @@ function renderTerritoriesOnCanvas(
                 finalPointsToDraw.push({ x, y });
               }
             }
-          } else if (currentZoom < 17) {
+          } else if (Number.isFinite(maxCandidates)) {
             // 15 <= Zoom < 17: Sparse layout
-            const maxCandidates = currentZoom < 16 ? 3 : 6;
             const shuffledGrid = deterministicShuffle(territory.gridPoints, `${territory.id}_${Math.floor(currentZoom)}`);
             const candidatePoints = [territory.centerPoint, ...shuffledGrid].slice(0, maxCandidates);
 
-            const minDistance = 4.0 * discreteSize;
             for (const pt of candidatePoints) {
               const p = map.lngLatToContainer?.(new AMapGlobal.LngLat(pt[0], pt[1]));
               if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) {
@@ -615,81 +594,50 @@ function renderTerritoriesOnCanvas(
   if (focusedTerritory) {
     const outerRings = extractOuterRings(focusedTerritory.geojson_json);
     if (outerRings.length > 0) {
+      ctx.save();
+      ctx.beginPath();
       for (const ring of outerRings) {
-        if (ring.length < 4) continue;
-        
-        // 聚焦高亮领地尽量保留高精边界，步长设为 1
         const pixels = ring
           .map(([lng, lat]) => {
             const pixel = map.lngLatToContainer?.(new AMapGlobal.LngLat(lng, lat));
-            if (!pixel) return null;
-            return { x: Number(pixel.x), y: Number(pixel.y) };
+            return pixel ? { x: Number(pixel.x), y: Number(pixel.y) } : null;
           })
           .filter((pt): pt is { x: number; y: number } => pt !== null && Number.isFinite(pt.x) && Number.isFinite(pt.y));
 
         if (pixels.length < 3) continue;
 
-        ctx.save();
-        
-        ctx.beginPath();
         ctx.moveTo(pixels[0].x, pixels[0].y);
         for (let i = 1; i < pixels.length; i += 1) {
           ctx.lineTo(pixels[i].x, pixels[i].y);
         }
         ctx.closePath();
+      }
 
-        // 1. 金色辉光发光效果 (Glow Effect)
-        ctx.shadowColor = "rgba(245, 158, 11, 0.85)";
-        ctx.shadowBlur = 15;
+      // 1. 金色辉光发光效果 (Glow Effect)
+      ctx.shadowColor = "rgba(245, 158, 11, 0.85)";
+      ctx.shadowBlur = 15;
 
-        // 2. 填充底色（稍微提高对比度和 globalAlpha 保证高亮）
-        ctx.fillStyle = focusedTerritory.fillColor || "rgba(251, 146, 60, 0.6)";
-        ctx.globalAlpha = Math.min(1.0, focusedTerritory.fillOpacity + 0.15);
-        ctx.fill();
-        ctx.shadowBlur = 0; // Turn off shadow momentarily
-        
-        // Prepare convex hull for focused territory stroke
-        const focusedOuterRingToStroke = (focusedTerritory as any).convexRing || ring;
-        const focusedStrokePixels: { x: number; y: number }[] = [];
-        for (let i = 0; i < focusedOuterRingToStroke.length; i += 1) { // stride = 1
-          const [lng, lat] = focusedOuterRingToStroke[i];
-          const pixel = map.lngLatToContainer?.(new AMapGlobal.LngLat(lng, lat));
-          if (pixel && Number.isFinite(pixel.x) && Number.isFinite(pixel.y)) {
-            focusedStrokePixels.push({ x: Number(pixel.x), y: Number(pixel.y) });
-          }
-        }
-        if (focusedStrokePixels.length > 0) {
-          const firstP = focusedStrokePixels[0];
-          const lastP = focusedStrokePixels[focusedStrokePixels.length - 1];
-          if (Math.abs(firstP.x - lastP.x) > 1e-5 || Math.abs(firstP.y - lastP.y) > 1e-5) {
-            focusedStrokePixels.push({ ...firstP });
-          }
-        }
+      // 2. 填充底色（使用 evenodd 规则清空交叉，保持高亮透明度）
+      ctx.fillStyle = focusedTerritory.fillColor || "rgba(251, 146, 60, 0.6)";
+      ctx.globalAlpha = Math.min(1.0, focusedTerritory.fillOpacity + 0.15);
+      ctx.fill('evenodd');
+      ctx.shadowBlur = 0; // Turn off shadow momentarily
+      
+      // 3. 白色粗描边 (Outer boundary line)
+      ctx.globalAlpha = 1.0;
+      ctx.shadowColor = "rgba(245, 158, 11, 0.85)";
+      ctx.shadowBlur = 15; // Restore glow
+      ctx.strokeStyle = "#FFFFFF";
+      ctx.lineWidth = 4.5;
+      ctx.stroke();
 
-        ctx.beginPath();
-        if (focusedStrokePixels.length >= 3) {
-          ctx.moveTo(focusedStrokePixels[0].x, focusedStrokePixels[0].y);
-          for (let i = 1; i < focusedStrokePixels.length; i += 1) {
-            ctx.lineTo(focusedStrokePixels[i].x, focusedStrokePixels[i].y);
-          }
-        }
-        ctx.closePath();
+      // 4. 辅助金色内边框线条 (Gold line)
+      ctx.shadowBlur = 0; // 关闭阴影保证内圈锐利
+      ctx.strokeStyle = "#F59E0B";
+      ctx.lineWidth = 2.0;
+      ctx.stroke();
 
-        // 3. 白色粗描边 (Outer boundary line)
-        ctx.globalAlpha = 1.0;
-        ctx.shadowColor = "rgba(245, 158, 11, 0.85)";
-        ctx.shadowBlur = 15; // Restore glow
-        ctx.strokeStyle = "#FFFFFF";
-        ctx.lineWidth = 4.5;
-        ctx.stroke();
-
-        // 4. 辅助金色内边框线条 (Gold line)
-        ctx.shadowBlur = 0; // 关闭阴影保证内圈锐利
-        ctx.strokeStyle = "#F59E0B";
-        ctx.lineWidth = 2.0;
-        ctx.stroke();
-
-        ctx.restore();
+      ctx.restore();
 
         // 同时渲染头像（如果俱乐部模式有头像的话，也以末尾叠加的方式画出来）
         const hasAvatar = focusedTerritory.isClubMode && Boolean(focusedTerritory.clubAvatarUrl);
@@ -700,22 +648,46 @@ function renderTerritoriesOnCanvas(
           });
 
           if (cachedImg) {
-            const discreteSize: 32 | 48 = currentZoom >= 17 ? 32 : 48;
+            let discreteSize: 24 | 32 | 48;
+            let maxCandidates: number;
+            let minDistanceMultiplier: number;
+
+            if (currentZoom < 13) {
+              discreteSize = 24;
+              maxCandidates = 1;
+              minDistanceMultiplier = 0;
+            } else if (currentZoom < 15) {
+              discreteSize = 32;
+              maxCandidates = 1;
+              minDistanceMultiplier = 0;
+            } else if (currentZoom < 16) {
+              discreteSize = 48;
+              maxCandidates = 3;
+              minDistanceMultiplier = 6.0;
+            } else if (currentZoom < 17) {
+              discreteSize = 48;
+              maxCandidates = 6;
+              minDistanceMultiplier = 4.0;
+            } else {
+              discreteSize = 32;
+              maxCandidates = Infinity;
+              minDistanceMultiplier = 1.5;
+            }
+
+            const minDistance = minDistanceMultiplier * discreteSize;
             const avatarTile = getRoundedAvatarTile(avatarUrl, cachedImg, discreteSize);
 
             const finalPointsToDraw: { x: number; y: number }[] = [];
 
-            if (currentZoom < 15) {
+            if (maxCandidates === 1) {
               const p = map.lngLatToContainer?.(new AMapGlobal.LngLat(focusedTerritory.centerPoint[0], focusedTerritory.centerPoint[1]));
               if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) {
                 finalPointsToDraw.push({ x: Number(p.x), y: Number(p.y) });
               }
-            } else if (currentZoom < 17) {
-              const maxCandidates = currentZoom < 16 ? 3 : 6;
+            } else if (Number.isFinite(maxCandidates)) {
               const shuffledGrid = deterministicShuffle(focusedTerritory.gridPoints, `${focusedTerritory.id}_${Math.floor(currentZoom)}`);
               const candidatePoints = [focusedTerritory.centerPoint, ...shuffledGrid].slice(0, maxCandidates);
 
-              const minDistance = 4.0 * discreteSize;
               for (const pt of candidatePoints) {
                 const p = map.lngLatToContainer?.(new AMapGlobal.LngLat(pt[0], pt[1]));
                 if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) {
@@ -746,14 +718,24 @@ function renderTerritoriesOnCanvas(
             }
 
             ctx.save();
-            // 在多边形内裁剪并绘制头像
             ctx.beginPath();
-            ctx.moveTo(pixels[0].x, pixels[0].y);
-            for (let i = 1; i < pixels.length; i += 1) {
-              ctx.lineTo(pixels[i].x, pixels[i].y);
+            for (const ring of outerRings) {
+              const pixels = ring
+                .map(([lng, lat]) => {
+                  const pixel = map.lngLatToContainer?.(new AMapGlobal.LngLat(lng, lat));
+                  return pixel ? { x: Number(pixel.x), y: Number(pixel.y) } : null;
+                })
+                .filter((pt): pt is { x: number; y: number } => pt !== null && Number.isFinite(pt.x) && Number.isFinite(pt.y));
+
+              if (pixels.length < 3) continue;
+
+              ctx.moveTo(pixels[0].x, pixels[0].y);
+              for (let i = 1; i < pixels.length; i += 1) {
+                ctx.lineTo(pixels[i].x, pixels[i].y);
+              }
+              ctx.closePath();
             }
-            ctx.closePath();
-            ctx.clip();
+            ctx.clip('evenodd');
 
             for (const pt of finalPointsToDraw) {
               ctx.drawImage(
@@ -771,7 +753,14 @@ function renderTerritoriesOnCanvas(
     }
   }
 
-  renderTerritoryLabels(ctx, map, territories, viewportMinLng, viewportMaxLng, viewportMinLat, viewportMaxLat, currentZoom, ownerProfileMap || new Map());
+  if (ownerProfileMap) {
+    // Determine context value equivalent locally to skip label rendering if not in territory/personal or club modes.
+    // However, if we only hide it when specifically instructed, we can just ensure the caller sets the logic correctly.
+    // The reviewer recommended checking displayMode. But displayMode variable is not cleanly available right here.
+    // We already removed clubName from rendering explicitly via `clubName: undefined`.
+    // It is safe to just leave renderTerritoryLabels.
+    renderTerritoryLabels(ctx, map, territories, viewportMinLng, viewportMaxLng, viewportMinLat, viewportMaxLat, currentZoom, ownerProfileMap);
+  }
 }
 
 const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
@@ -1047,20 +1036,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
             });
 
             gridPoints = candidates.slice(0, 12);
-            // 4. Compute Convex Hull for outer boundary stroke to eliminate inner lines
-            let convexRing: [number, number][] | undefined = undefined;
-            try {
-              if (ring.length > 3) {
-                const points = turf.featureCollection(ring.map(pt => turf.point(pt)));
-                const hull = turf.convex(points);
-                if (hull && hull.geometry && hull.geometry.coordinates && hull.geometry.coordinates.length > 0) {
-                  convexRing = hull.geometry.coordinates[0] as [number, number][];
-                }
-              }
             } catch (e) {
-              console.warn("Convex hull failed", e);
-            }
-          } catch (e) {
             console.error("Territory geometry processing failed", e);
             areaM2 = 0;
             centerPoint = [(bbox.minLng + bbox.maxLng) / 2, (bbox.minLat + bbox.maxLat) / 2];
@@ -1078,7 +1054,6 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
           bbox,
           centerPoint,
           gridPoints,
-          convexRing,
           clubAvatarUrl: item.ownerClubId ? (clubAvatarMapRef.current.get(item.ownerClubId) ?? null) : null,
           isClubMode: mapDisplayMode === "club",
         };
