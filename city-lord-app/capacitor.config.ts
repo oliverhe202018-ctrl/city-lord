@@ -21,11 +21,11 @@ const config: CapacitorConfig = {
   },
 /*
   server: isProd ? {
-    url: 'https://cl1.4567666.xyz',
+    url: 'https://cl1.6543666.xyz',
     cleartext: true,
     allowNavigation: [
-      'cl1.4567666.xyz',
-      '*.cl1.4567666.xyz'
+      'cl1.6543666.xyz',
+      '*.cl1.6543666.xyz'
     ]
   } : {
     url: 'http://10.0.2.2:3000',

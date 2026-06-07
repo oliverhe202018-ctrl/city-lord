@@ -4,7 +4,7 @@ import { Preferences } from '@capacitor/preferences';
 
 // Determine base URL based on environment
 // For production Capacitor apps, this points to the live server
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://cl1.4567666.xyz';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://cl1.6543666.xyz';
 
 export const apiClient = axios.create({
   baseURL: BASE_URL,

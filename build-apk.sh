@@ -52,7 +52,7 @@ fs.writeFileSync('$NEXT_CONFIG', content, 'utf8');
 fi
 
 # 🚨 【生产环境全局变量硬核注入】
-export NEXT_PUBLIC_API_URL="https://cl1.4567666.xyz"
+export NEXT_PUBLIC_API_URL="https://cl1.6543666.xyz"
 export NODE_ENV="production"
 
 # 2. 全量物理洗净幽灵缓存
@@ -107,7 +107,7 @@ if [ -f "$REAL_APK_PATH" ]; then
       -H "Content-Type: application/json" \
       -d "{
         \"target\": \"weixin:o9cq808c6bPfYKah_UC1FBHzVuJE@im.wechat\",
-        \"message\": \"✅ City Lord 纯净大编译成功！\n\n🏃‍♂️ 飞哥，【真正的脱机离线/纯公网域名版】专属固件全线通车！此包已彻底斩断本地 Node 端口依赖，数据全面绑定公网接口：cl1.4567666.xyz\n\n手机直接点击下方公网链接即可瞬间下载安装：\n${PUBLIC_URL}\"
+        \"message\": \"✅ City Lord 纯净大编译成功！\n\n🏃‍♂️ 飞哥，【真正的脱机离线/纯公网域名版】专属固件全线通车！此包已彻底斩断本地 Node 端口依赖，数据全面绑定公网接口：cl1.6543666.xyz\n\n手机直接点击下方公网链接即可瞬间下载安装：\n${PUBLIC_URL}\"
       }"
       
     echo ""

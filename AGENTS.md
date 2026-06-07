@@ -253,7 +253,7 @@ Use SDK (`@trigger.dev/sdk`), check `result.ok` before accessing `result.output`
 
 **核心分离原则（未来的 AI 必须严格遵守）**：
 1. **纯净的前端 (city-lord-app)**：前端包内**绝对禁止**引入任何 Node.js 服务端包（如 Prisma、Redis、`next/headers`、`fs`）。所有的业务逻辑、数据库查询、Redis 缓存优化，依然且永远**只运行在 Next.js 服务端**。
-2. **通信方式 (apiFetch)**：前端通过我们封装的 `apiFetch` (或 `rpcCall`) 发起带凭证的 HTTP 请求，调用线上的 Next.js API（如 `https://cl1.4567666.xyz/api/...`）。
+2. **通信方式 (apiFetch)**：前端通过我们封装的 `apiFetch` (或 `rpcCall`) 发起带凭证的 HTTP 请求，调用线上的 Next.js API（如 `https://cl1.6543666.xyz/api/...`）。
 3. **环境变量安全**：在 Vite 环境中，禁止使用 `process.env`，统一使用 `import.meta.env`。为兼容历史代码，`vite.config.ts` 中已注入全局垫片 `define: { 'process.env': {} }`。
 
 根据打包场景的不同，统一使用以下自动化打包流程：

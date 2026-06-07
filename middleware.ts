@@ -5,7 +5,7 @@ const ALLOWED_ORIGINS = [
   'capacitor://localhost',
   'http://localhost',
   'ionic://localhost',
-  'https://cl1.4567666.xyz',
+  'https://cl1.6543666.xyz',
   ...(process.env.VERCEL_ENV !== 'production' ? ['http://localhost:3000', 'http://10.0.2.2:3000', 'http://localhost:5173', 'http://localhost:5174'] : []),
 ];
 
@@ -48,7 +48,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // 更新 Supabase 会话
-  return await updateSession(request);
+  return await updateSession(request, requestHeaders);
 }
 
 export const config = {

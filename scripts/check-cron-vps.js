@@ -33,7 +33,7 @@ async function main() {
         await runRemoteCommand(conn, 'chattr -ia /var/spool/cron/crontabs/root');
 
         console.log('Re-running deploy-crons.sh...');
-        const res = await runRemoteCommand(conn, 'APP_URL="https://cl1.4567666.xyz" CRON_SECRET="aaa021300" bash /var/www/city-lord/deploy-crons.sh');
+        const res = await runRemoteCommand(conn, 'APP_URL="https://cl1.6543666.xyz" CRON_SECRET="aaa021300" bash /var/www/city-lord/deploy-crons.sh');
         console.log(res.stdout, res.stderr);
 
         console.log('Done! (Left the attributes off so future deployments will not fail)');

@@ -13,7 +13,7 @@ if (fs.existsSync(envLocalPath)) {
     dotenv.config({ path: envPath });
 }
 
-const vpsHost = process.env.VPS_HOST || 'cl1.4567666.xyz';
+const vpsHost = process.env.VPS_HOST || 'cl1.6543666.xyz';
 const vpsUser = process.env.VPS_USER || 'root';
 const vpsPassword = process.env.VPS_PASSWORD;
 const vpsProjectPath = '/root/city-lord';

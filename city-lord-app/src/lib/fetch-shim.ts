@@ -1,7 +1,7 @@
 import { Preferences } from '@capacitor/preferences';
 import { createClient } from '@/lib/supabase/client';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_SERVER || 'https://cl1.4567666.xyz';
+const BASE_URL = process.env.NEXT_PUBLIC_API_SERVER || 'https://cl1.6543666.xyz';
 
 let getTokenGetter: () => string | null = () => null;
 let setTokenSetter: (token: string) => void = () => {};

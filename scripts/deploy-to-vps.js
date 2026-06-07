@@ -9,7 +9,7 @@ const CONFIG = {
     port: 22,
     username: 'root',
     password: 'fL3CR5brL91sI0b7Vs',
-    domain: 'cl1.4567666.xyz',
+    domain: 'cl1.6543666.xyz',
     remotePath: '/var/www/city-lord'
 };
 

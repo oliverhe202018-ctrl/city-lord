@@ -2,14 +2,16 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { verifyAdminToken } from '@/lib/admin/auth'
 
-export async function updateSession(request: NextRequest) {
+export async function updateSession(request: NextRequest, customHeaders?: Headers) {
   // 1. Basic Token Check (Lightweight)
   // Just check if the cookie exists. Do NOT call supabase.auth.getUser() here.
   // This avoids a database round-trip on every single request.
   const hasAuthCookie = request.cookies.getAll().some(c => c.name.startsWith('sb-') && c.name.endsWith('-auth-token'))
 
   let supabaseResponse = NextResponse.next({
-    request,
+    request: {
+      headers: customHeaders || request.headers,
+    }
   })
 
   // 2. Create client ONLY for cookie management (refreshing tokens)
@@ -28,7 +30,9 @@ export async function updateSession(request: NextRequest) {
             request.cookies.set(name, value)
           )
           supabaseResponse = NextResponse.next({
-            request,
+            request: {
+              headers: customHeaders || request.headers,
+            }
           })
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
