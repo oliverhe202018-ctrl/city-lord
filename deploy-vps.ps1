@@ -56,11 +56,8 @@ if [ ! -f ".env" ]; then
     [ -f ".env.example" ] && cp .env.example .env
 fi
 
-export http_proxy="http://127.0.0.1:10809"
-export https_proxy="http://127.0.0.1:10809"
-
 echo 'Installing dependencies and building...'
-npm install
+proxychains4 -q npm install
 npx prisma generate
 npm run build
 
