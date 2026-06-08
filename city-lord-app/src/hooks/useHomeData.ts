@@ -24,7 +24,7 @@ export function useHomeData(scope: string = 'nearby') {
         `/api/home/summary?scope=${scope}`,
         fetcher,
         {
-            revalidateOnFocus: true,
+            revalidateOnFocus: false,
             dedupingInterval: 30000,       // 30s dedup - avoid request storms
             errorRetryCount: 3,
             errorRetryInterval: 5000,

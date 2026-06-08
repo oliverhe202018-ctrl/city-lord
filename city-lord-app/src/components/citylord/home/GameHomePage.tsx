@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useMemo, useCallback, useEffect, memo, lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
@@ -15,6 +15,7 @@ import { FactionBattleStatusCard } from './FactionBattleStatusCard';
 import type { RunMode, Target, BattleEvent } from '@/types/home';
 import { useMissions } from '@/hooks/useMissions';
 import { apiFetch } from '@/lib/fetch-shim';
+import useSWR from 'swr';
 
 
 // Only lazy-load heavy below-fold component (~14KB)
@@ -165,33 +166,23 @@ function GameHomePageInner({ onStartRun, onNavigateToMap, onNavigateToTab, onSma
             });
     }, [missions]);
 
-    const [routes, setRoutes] = useState<RouteData[]>([]);
-    const [isRoutesLoading, setIsRoutesLoading] = useState(true);
-    const [routesError, setRoutesError] = useState(false);
-
-    const fetchRoutes = useCallback(async () => {
-        setIsRoutesLoading(true);
-        setRoutesError(false);
-        try {
-            const res = await apiFetch(`/api/routes`);
-            if (!res.ok) throw new Error('Failed to fetch routes');
-            const data = await res.json();
-            // Sort by created_at desc and take top 2
-            const sorted = (data as RouteData[]).sort((a, b) =>
-                new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-            ).slice(0, 2);
-            setRoutes(sorted);
-        } catch (error) {
-            console.error('Error fetching routes:', error);
-            setRoutesError(true);
-        } finally {
-            setIsRoutesLoading(false);
+    const { data: routesData, error: routesSWRWarning, isLoading: isRoutesLoading } = useSWR<RouteData[]>(
+        '/api/routes',
+        undefined,
+        {
+            dedupingInterval: 30000,
+            revalidateOnFocus: false
         }
-    }, []);
+    );
 
-    useEffect(() => {
-        fetchRoutes();
-    }, [fetchRoutes]);
+    const routes = useMemo(() => {
+        if (!routesData) return [];
+        return [...routesData].sort((a, b) =>
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        ).slice(0, 2);
+    }, [routesData]);
+
+    const routesError = !!routesSWRWarning;
 
     const isLoading = isHomeLoading;
 

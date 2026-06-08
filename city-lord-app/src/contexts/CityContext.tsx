@@ -211,7 +211,7 @@ export function CityProvider({ children }: { children: React.ReactNode }) {
     }
   }, [activeBaseCity, cityStats])
 
-  const isLoading = isStatsLoading || isLeaderboardLoading || isProgressLoading
+  const isLoading = isStatsLoading || isProgressLoading
 
   // 使用 ref 存储 city，避免 switchCity 中的依赖问题
   const currentCityRef = React.useRef(currentCity)
@@ -219,6 +219,10 @@ export function CityProvider({ children }: { children: React.ReactNode }) {
   
   const userProgressRef = React.useRef(userProgress)
   userProgressRef.current = userProgress
+
+  // 使用 ref 存储 region，避免 switchCity 依赖 region 导致每次 GPS 移动都重新创建函数
+  const regionRef = React.useRef(region)
+  regionRef.current = region
 
   /**
    * 获取指定城市的进度数据
@@ -238,10 +242,11 @@ export function CityProvider({ children }: { children: React.ReactNode }) {
    */
   const switchCity = useCallback(
     async (adcode: string, cityName?: string) => {
+      const currentRegion = regionRef.current;
       // 1. Resolve cityName if possible
       let nameToUse = cityName;
-      if (!nameToUse && region?.adcode === adcode) {
-        nameToUse = region.cityName;
+      if (!nameToUse && currentRegion?.adcode === adcode) {
+        nameToUse = currentRegion.cityName;
       }
 
       // If we don't have cityName, and it's a known static city, we can find its name
@@ -257,15 +262,16 @@ export function CityProvider({ children }: { children: React.ReactNode }) {
       // 2. Fetch/create from backend dynamically
       if (adcode && nameToUse) {
         try {
-          // Use center coordinates if available in region
-          const centerLng = (region?.adcode === adcode && region.centerLngLat) ? region.centerLngLat[0] : undefined;
-          const centerLat = (region?.adcode === adcode && region.centerLngLat) ? region.centerLngLat[1] : undefined;
+          // Use center coordinates if available in currentRegion
+          const centerLng = (currentRegion?.adcode === adcode && currentRegion.centerLngLat) ? currentRegion.centerLngLat[0] : undefined;
+          const centerLat = (currentRegion?.adcode === adcode && currentRegion.centerLngLat) ? currentRegion.centerLngLat[1] : undefined;
 
           // Call Server Action
-          const cityUuid = await getOrCreateCityByAdcode(adcode, nameToUse, centerLng, centerLat);
-          
-          // Fetch complete city details from DB
-          const dbCity = await getCityDetailsFromDb(cityUuid);
+          let dbCity = await getOrCreateCityByAdcode(adcode, nameToUse, centerLng, centerLat);
+          if (typeof dbCity === 'string') {
+            dbCity = await getCityDetailsFromDb(dbCity);
+          }
+
           if (dbCity) {
             targetCityBase = convertDbCityToCity(dbCity);
             // Copy theme/icon from static overrides if matched by name/adcode
@@ -358,7 +364,7 @@ export function CityProvider({ children }: { children: React.ReactNode }) {
       // 本地存储当前城市 ID
       localStorage.setItem("currentCityId", targetCityBase.id)
     },
-    [setRegion, region]
+    [setRegion] // region dependency removed!
   )
 
   /**
@@ -419,8 +425,10 @@ export function CityProvider({ children }: { children: React.ReactNode }) {
           const defaultName = "北京";
           try {
             console.log(`[initializeCity] No saved city, dynamically fetching/registering default: ${defaultName} (${defaultAdcode})...`);
-            const cityUuid = await getOrCreateCityByAdcode(defaultAdcode, defaultName);
-            const dbCity = await getCityDetailsFromDb(cityUuid);
+            let dbCity = await getOrCreateCityByAdcode(defaultAdcode, defaultName);
+            if (typeof dbCity === 'string') {
+              dbCity = await getCityDetailsFromDb(dbCity);
+            }
             if (dbCity) {
               city = convertDbCityToCity(dbCity);
               const staticMatch = getCityByAdcode(defaultAdcode);
@@ -467,15 +475,10 @@ export function CityProvider({ children }: { children: React.ReactNode }) {
    */
   useEffect(() => {
     if (!isAuthenticated) return;
-    if (isLoading) {
-      return;
-    }
+    // Removed isHomeStatsLoading guard to prevent blocking switcher sync
 
-    // 只在 region.adcode 存在且与当前城市不同时才切换
-    if (region?.adcode && region.adcode !== currentCity?.adcode) {
-      // Avoid infinite loops by checking if we are already "stable"
-      if (activeBaseCity?.adcode === region.adcode) return;
-
+    // 只在 region.adcode 存在且与当前城市不同，且不是正在切换目标时才进行切换
+    if (region?.adcode && region.adcode !== currentCity?.adcode && activeBaseCity?.adcode !== region.adcode) {
       const timer = setTimeout(() => {
         switchCity(String(region.adcode)).catch(error => {
           console.error('Failed to sync city from region:', error);
@@ -484,7 +487,7 @@ export function CityProvider({ children }: { children: React.ReactNode }) {
 
       return () => clearTimeout(timer);
     }
-  }, [region?.adcode, currentCity?.adcode, isLoading, switchCity, activeBaseCity?.adcode, isAuthenticated])
+  }, [region?.adcode, currentCity?.adcode, switchCity, activeBaseCity?.adcode, isAuthenticated])
 
   // 创建稳定的 context value
   const contextValue: CityContextType = React.useMemo(() => ({

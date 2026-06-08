@@ -397,7 +397,7 @@ export async function getOrCreateCityByAdcode(
   cityName: string,
   centerLng?: number,
   centerLat?: number
-): Promise<string> {
+): Promise<any> {
   if (!adcode) {
     throw new Error('adcode is required');
   }
@@ -420,12 +420,17 @@ export async function getOrCreateCityByAdcode(
   if (existingCity) {
     // 如果存在，且 adcode 不匹配，更新一下 adcode 保证一致性
     if (!existingCity.adcode) {
-      await prisma.cities.update({
+      existingCity = await prisma.cities.update({
         where: { id: existingCity.id },
         data: { adcode }
       });
     }
-    return existingCity.id;
+    return {
+      ...existingCity,
+      radius_km: existingCity.radius_km ? Number(existingCity.radius_km) : null,
+      created_at: existingCity.created_at ? existingCity.created_at.toISOString() : null,
+      updated_at: existingCity.updated_at ? existingCity.updated_at.toISOString() : null,
+    };
   }
 
   // 2. 如果不存在，现场 INSERT 一条新记录
@@ -442,7 +447,12 @@ export async function getOrCreateCityByAdcode(
     }
   });
 
-  return newCity.id;
+  return {
+    ...newCity,
+    radius_km: newCity.radius_km ? Number(newCity.radius_km) : null,
+    created_at: newCity.created_at ? newCity.created_at.toISOString() : null,
+    updated_at: newCity.updated_at ? newCity.updated_at.toISOString() : null,
+  };
 }
 
 export async function getCityDetailsFromDb(cityId: string): Promise<any | null> {

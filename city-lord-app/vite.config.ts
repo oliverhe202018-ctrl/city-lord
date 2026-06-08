@@ -29,13 +29,35 @@ export default defineConfig(({ mode }) => {
     build: {
       minify: 'esbuild',
       sourcemap: false,
-      rolldownOptions: {
+      rollupOptions: {
         external: [
           '@capacitor/sensors',
           '@capacitor/sound',
           '@capawesome/capacitor-background-task',
           'capacitor-native-settings'
-        ]
+        ],
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules')) {
+              if (id.includes('@turf/')) {
+                return 'vendor-turf';
+              }
+              if (id.includes('@supabase/')) {
+                return 'vendor-supabase';
+              }
+              if (id.includes('framer-motion')) {
+                return 'vendor-framer-motion';
+              }
+              if (id.includes('lucide-react')) {
+                return 'vendor-lucide';
+              }
+              if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
+                return 'vendor-framework';
+              }
+              return 'vendor-others';
+            }
+          }
+        }
       }
     }
   }

@@ -1,37 +1,29 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import { HashRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { useStore } from './store/useStore';
-import LoginPage from './pages/LoginPage';
-import HomePage from './pages/HomePage';
-import MapPage from './pages/MapPage';
-import StartPage from './pages/StartPage';
-import SocialPage from './pages/SocialPage';
-import ProfilePage from './pages/ProfilePage';
-import MissionsPage from './pages/MissionsPage';
-import BottomNav from './components/BottomNav';
+
+// Lazy load pages
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const HomePage = lazy(() => import('./pages/HomePage'));
+const MapPage = lazy(() => import('./pages/MapPage'));
+const StartPage = lazy(() => import('./pages/StartPage'));
+const SocialPage = lazy(() => import('./pages/SocialPage'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
+const MissionsPage = lazy(() => import('./pages/MissionsPage'));
+
+// Lazy load background authentication-dependent components
+const PendingRunUploadRetry = lazy(() => import('./components/running/PendingRunUploadRetry').then(m => ({ default: m.PendingRunUploadRetry })));
+const OfflineAchievementSync = lazy(() => import('./components/running/OfflineAchievementSync').then(m => ({ default: m.OfflineAchievementSync })));
+const CelebrationOrchestrator = lazy(() => import('./components/running/RewardModal').then(m => ({ default: m.CelebrationOrchestrator })));
 
 import { GameLayout } from './components/game/GameLayout';
 import { ClientShell } from './components/ClientShell';
 import { swrFetcher } from './lib/fetch-shim';
 import { SWRConfig } from 'swr';
 import { Loader2 } from 'lucide-react';
-import { safeGetCurrentPosition } from '@/lib/capacitor/safe-plugins';
 
-// Loading Fallback with GPS Warmup
+// Loading Fallback
 const LoadingFallback = () => {
-  const hasRequestedGps = useRef(false);
-
-  useEffect(() => {
-    // Fire and forget GPS warmup when this loading screen mounts
-    if (!hasRequestedGps.current) {
-      hasRequestedGps.current = true;
-      safeGetCurrentPosition({ enableHighAccuracy: true, timeout: 10000, maximumAge: 0 })
-        .catch(() => {
-          // Ignore warmup errors silently
-        });
-    }
-  }, []);
-
   return (
     <div className="flex flex-col items-center justify-center h-[100dvh] bg-black text-white">
       <Loader2 className="w-8 h-8 animate-spin text-emerald-500 mb-4" />
@@ -47,6 +39,11 @@ const ProtectedRoute = () => {
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   return (
     <div className="flex flex-col h-[100dvh] bg-black text-white overflow-hidden">
+      <Suspense fallback={null}>
+        <PendingRunUploadRetry />
+        <OfflineAchievementSync />
+        <CelebrationOrchestrator />
+      </Suspense>
       <GameLayout>
         <div className="flex-1 relative overflow-hidden h-[calc(100%-48px-env(safe-area-inset-bottom))] pointer-events-auto">
           <Outlet />
@@ -82,18 +79,20 @@ function App() {
     }}>
       <HashRouter>
         <ClientShell>
-          <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            <Route element={<ProtectedRoute />}>
-              <Route path="/" element={<Navigate to="/home" replace />} />
-              <Route path="/home" element={<HomePage />} />
-              <Route path="/map" element={<MapPage />} />
-              <Route path="/start" element={<StartPage />} />
-              <Route path="/missions" element={<MissionsPage />} />
-              <Route path="/social" element={<SocialPage />} />
-              <Route path="/profile" element={<ProfilePage />} />
-            </Route>
-          </Routes>
+          <Suspense fallback={<LoadingFallback />}>
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
+              <Route element={<ProtectedRoute />}>
+                <Route path="/" element={<Navigate to="/home" replace />} />
+                <Route path="/home" element={<HomePage />} />
+                <Route path="/map" element={<MapPage />} />
+                <Route path="/start" element={<StartPage />} />
+                <Route path="/missions" element={<MissionsPage />} />
+                <Route path="/social" element={<SocialPage />} />
+                <Route path="/profile" element={<ProfilePage />} />
+              </Route>
+            </Routes>
+          </Suspense>
         </ClientShell>
       </HashRouter>
     </SWRConfig>

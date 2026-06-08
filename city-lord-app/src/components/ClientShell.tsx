@@ -9,9 +9,6 @@ import { Toaster } from '@/components/ui/sonner';
 import { AuthSync } from '@/components/auth/AuthSync';
 import { NetworkStatus } from '@/components/NetworkStatus';
 import { Providers } from '@/components/Providers';
-import { PendingRunUploadRetry } from '@/components/running/PendingRunUploadRetry';
-import { OfflineAchievementSync } from '@/components/running/OfflineAchievementSync';
-import { CelebrationOrchestrator } from '@/components/running/RewardModal';
 import { GlobalLocationProvider } from '@/components/GlobalLocationProvider';
 import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
@@ -148,11 +145,8 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
                   <NetworkStatus />
                   <AuthSync />
                   <ChangelogNotificationProvider>
-                    <PendingRunUploadRetry />
-                    <OfflineAchievementSync />
                     {children}
                     <Toaster />
-                    <CelebrationOrchestrator />
                   </ChangelogNotificationProvider>
                 </CityProvider>
               </RegionProvider>

@@ -143,22 +143,93 @@ export const useStore = create<UserState>((set) => ({
 
   checkAuth: async () => {
     try {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+      const sbKey = `sb-${supabaseUrl}-auth-token`;
+      
+      // 1. Try to read from fast sync localStorage first, then async Preferences
+      let sbSessionStr = typeof window !== 'undefined' ? window.localStorage.getItem(sbKey) : null;
+      if (!sbSessionStr) {
+        const { value } = await Preferences.get({ key: sbKey });
+        sbSessionStr = value;
+      }
+      
+      let cachedUserId = null;
+      if (typeof window !== 'undefined') {
+        cachedUserId = window.localStorage.getItem('userId');
+      }
+      if (!cachedUserId) {
+        const { value } = await Preferences.get({ key: 'userId' });
+        cachedUserId = value;
+      }
+
+      let token: string | null = null;
+      if (sbSessionStr) {
+        try {
+          const parsed = JSON.parse(sbSessionStr);
+          token = parsed?.currentSession?.access_token || parsed?.access_token || null;
+        } catch (_) {}
+      }
+
+      // If we have both token and userId cached, hydrate the app instantly!
+      if (token && cachedUserId) {
+        set({ 
+          isAuthenticated: true, 
+          token, 
+          userId: cachedUserId,
+          isHydrating: false 
+        });
+
+        // Verify and refresh session/profile in the background without blocking the UI
+        (async () => {
+          try {
+            const supabase = createClient();
+            const { data: { session: freshSession } } = await supabase.auth.getSession();
+            const freshToken = freshSession?.access_token;
+            
+            if (freshToken) {
+              const res = await apiFetch('/api/v1/user/profile');
+              if (res.ok) {
+                const data = await res.json();
+                if (data.success && data.data) {
+                  set({ 
+                    isAuthenticated: true,
+                    token: freshToken, 
+                    userId: cachedUserId || data.data.id,
+                    profile: data.data 
+                  });
+                  return;
+                }
+              }
+            }
+          } catch (e: any) {
+            console.warn('Silent background auth check failed:', e);
+            if (e?.isAuthError || e?.status === 401) {
+              // Only logout if it is explicitly an auth validation failure
+              useStore.getState().logout();
+            }
+          }
+        })();
+        return;
+      }
+    } catch (e) {
+      console.warn('Optimistic auth cache check failed:', e);
+    }
+
+    // Fallback: if no cached credentials, run the standard check once and clear hydration
+    try {
       const supabase = createClient();
       const { data: { session } } = await supabase.auth.getSession();
-      
-      let token = session?.access_token;
+      const token = session?.access_token;
       const { value: userId } = await Preferences.get({ key: 'userId' });
 
       if (token) {
-        // Let apiFetch handle appending the token natively via getSession
-        let res = await apiFetch('/api/v1/user/profile');
-        
+        const res = await apiFetch('/api/v1/user/profile');
         if (res.ok) {
           const data = await res.json();
           if (data.success && data.data) {
             set({ 
               isAuthenticated: true, 
-              token: token, 
+              token, 
               userId: userId || data.data.id,
               profile: data.data,
               isHydrating: false
@@ -168,24 +239,22 @@ export const useStore = create<UserState>((set) => ({
         }
       }
     } catch (e: any) {
-      console.warn('Silent auth check failed:', e);
-      // If it's explicitly an auth error (401), we should log them out
+      console.warn('Standard auth check failed:', e);
       if (e?.isAuthError) {
         set({ isAuthenticated: false, userId: null, token: null, profile: null, isHydrating: false });
         return;
       }
-      // Otherwise, it might be a network error or offline mode. Keep them authenticated with whatever we have.
+      // If network error, let them keep whatever cached state if token exists
       const supabase = createClient();
       const { data: { session } } = await supabase.auth.getSession();
-      let token = session?.access_token;
+      const token = session?.access_token;
       const { value: userId } = await Preferences.get({ key: 'userId' });
       if (token) {
         set({ isAuthenticated: true, token, userId, isHydrating: false });
         return;
       }
     }
-    
-    // Clear invalid session
+
     set({ isAuthenticated: false, userId: null, token: null, profile: null, isHydrating: false });
   }
 }));
