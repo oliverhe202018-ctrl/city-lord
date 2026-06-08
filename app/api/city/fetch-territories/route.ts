@@ -8,7 +8,22 @@ export async function GET(request: Request) {
   console.log(`📡 [GET /api/city/fetch-territories] Called with cityId: ${cityId}`);
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+
+    // 1. 优先尝试 Bearer Token（Capacitor Native App）
+    const authHeader = request.headers.get('Authorization') || request.headers.get('authorization');
+    let user = null;
+
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.slice(7);
+      const { data } = await supabase.auth.getUser(token);
+      user = data.user;
+    }
+
+    // 2. 降级：基于 Cookie 的方式（Web 浏览器环境）
+    if (!user) {
+      const { data } = await supabase.auth.getUser();
+      user = data.user;
+    }
 
     if (!user) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })

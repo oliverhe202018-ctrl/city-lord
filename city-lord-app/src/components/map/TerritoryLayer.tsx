@@ -64,9 +64,6 @@ const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, ti
   const timer = setTimeout(() => timeoutController.abort(), timeoutMs);
   try {
     let url = input;
-    if (typeof url === "string" && url.startsWith("/api")) {
-      url = `${process.env.NEXT_PUBLIC_API_SERVER || ""}${url}`;
-    }
     const externalSignal = init?.signal;
     let combinedSignal = timeoutController.signal;
     if (externalSignal) {
@@ -851,7 +848,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
 
   const decorateTerritoriesAsync = useCallback(async (items: ExtTerritory[]) => {
     const batchId = ++processingBatchIdRef.current;
-    const filteredItems = items.filter((item) => item.id && item.ownerId && item.geojson_json);
+    const filteredItems = items.filter((item) => item.id && item.geojson_json);
     const result: TerritoryWithRender[] = [];
     const chunkSize = 20;
 
