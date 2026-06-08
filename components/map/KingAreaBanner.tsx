@@ -38,19 +38,33 @@ export const KingAreaBanner = React.memo(function KingAreaBanner({ king }: Props
     // First frame update
     const raf = requestAnimationFrame(update);
 
-    // Watch for size/layout changes
+    // Watch DOM changes to bind ResizeObserver when elements are added
     let ro: ResizeObserver | null = null;
-    if (typeof ResizeObserver !== 'undefined') {
-      ro = new ResizeObserver(update);
+    const bindObserver = () => {
       const anchor = document.getElementById('mode-switcher-anchor');
       const ms = document.getElementById('mode-switcher');
-      if (anchor) ro.observe(anchor);
-      else if (ms) ro.observe(ms);
-    }
+      if (anchor || ms) {
+        if (!ro && typeof ResizeObserver !== 'undefined') {
+          ro = new ResizeObserver(update);
+          if (anchor) ro.observe(anchor);
+          else if (ms) ro.observe(ms);
+        }
+      }
+      update();
+    };
+
+    bindObserver();
+
+    // Watch for document body changes to catch lazy/hydrated elements
+    const observer = new MutationObserver(() => {
+      bindObserver();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
 
     return () => {
       cancelAnimationFrame(raf);
       ro?.disconnect();
+      observer.disconnect();
     };
   }, []);
 

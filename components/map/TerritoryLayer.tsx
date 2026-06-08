@@ -1063,7 +1063,8 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
       const territoriesHash = JSON.stringify({
         mode: mapDisplayMode,
         ids: territoriesDataRef.current.map(t => t.id),
-        selectedTerritoryId: selectedTerritoryIdRef.current
+        selectedTerritoryId: selectedTerritoryIdRef.current,
+        userId: user?.id || null
       });
       
       // Check cache validity (with 0 center tolerance to immediately redraw on center change)
@@ -1101,7 +1102,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
         mapCenter: [centerLng, centerLat] as [number, number]
       };
     });
-  }, [isVisible, map, mapDisplayMode]);
+  }, [isVisible, map, mapDisplayMode, user?.id]);
 
   const loadTerritories = useCallback(async () => {
     console.log(`🔮 [loadTerritories] Triggered. Map is ready: ${!!map}, City is ready: ${!!city}, City ID: ${city?.id}`);
