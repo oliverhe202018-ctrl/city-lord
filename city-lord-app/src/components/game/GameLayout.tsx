@@ -43,6 +43,7 @@ import { NetworkBanner, LocationPermissionPrompt,  } from '@/components/citylord
 import { useLocationContext } from '@/components/GlobalLocationProvider';
 import { useGameStore, useGameActions, useGameUser } from '@/store/useGameStore';
 import { useLocationStore } from '@/store/useLocationStore';
+import { useStore } from '@/store/useStore'
 import { useHydration } from '@/hooks/useHydration';
 import { ThemeSwitcher } from '@/components/citylord/theme/theme-provider';
 import { ModeSwitcher } from '@/components/mode/ModeSwitcher';
@@ -72,7 +73,6 @@ import { GameHomePage } from '@/components/citylord/home/GameHomePage';
 import type { RunMode } from "@/types/home";
 import type { PlannerRoute } from "@/types/route-list";
 import { useRouteListStore } from '@/store/useRouteListStore';
-import { KingAreaBanner } from '@/components/map/KingAreaBanner';
 import { useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/fetch-shim';
 
@@ -1228,12 +1228,8 @@ export function GameLayout({
                 {shouldShowPlayChrome && (
                   <>
                     <div className="pointer-events-auto">
-                      <MemoizedModeSwitcher onDrawerOpenChange={handleDrawerOpenChange} />
+                      <MemoizedModeSwitcher onDrawerOpenChange={handleDrawerOpenChange} king={gameMode === 'map' ? viewportKing : null} />
                     </div>
-
-                    {gameMode === 'map' && viewportKing && (
-                      <KingAreaBanner king={viewportKing} />
-                    )}
 
                     {!shouldHideButtons && (
                       <div className="pointer-events-auto absolute top-[130px] left-4 z-20 flex flex-col gap-4">

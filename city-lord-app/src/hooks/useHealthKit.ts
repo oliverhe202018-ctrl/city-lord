@@ -1,4 +1,4 @@
-﻿/**
+/**
  * useHealthKit
  *
  * Bridges native Apple HealthKit (via @perfood/capacitor-healthkit)
@@ -27,7 +27,7 @@ import type { WatchSyncResult } from '@/types/watch-sync';
 
 async function getHealthkitPlugin() {
     if (!Capacitor.isNativePlatform()) return null;
-    const mod = await import('@perfood/capacitor-healthkit');
+    const mod = await import(/* @vite-ignore */ '@perfood/capacitor-healthkit');
     return mod.CapacitorHealthkit;
 }
 

@@ -9,11 +9,15 @@ import { CreateClubDrawer } from '@/components/citylord/club/CreateClubDrawer';
 import { useHydration } from '@/hooks/useHydration';
 import { cn } from '@/lib/utils';
 
+import { KingAreaBanner } from '@/components/map/KingAreaBanner';
+import type { ViewportKingData } from '@/components/map/AMapView';
+
 export interface ModeSwitcherProps {
   onDrawerOpenChange?: (isOpen: boolean) => void;
+  king?: ViewportKingData | null;
 }
 
-export function ModeSwitcher({ onDrawerOpenChange }: ModeSwitcherProps) {
+export function ModeSwitcher({ onDrawerOpenChange, king }: ModeSwitcherProps) {
   const hydrated = useHydration();
   const gameMode = useGameStore((state) => state.gameMode);
   const activeDrawer = useGameStore((state) => state.activeDrawer);
@@ -100,6 +104,7 @@ export function ModeSwitcher({ onDrawerOpenChange }: ModeSwitcherProps) {
       
       {/* ↓ KingAreaBanner 定位锚点 — 零高度，精确标记黑框底部 */}
       <div id="mode-switcher-anchor" style={{ height: 0, overflow: 'visible' }} />
+      <KingAreaBanner king={king} />
       
       {/* 俱乐部抽屉组件保持不变 */} 
       <ClubDrawer 

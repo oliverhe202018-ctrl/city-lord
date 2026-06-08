@@ -16,7 +16,7 @@ export interface SafeAMapLoadOptions {
   };
 }
 
-const DEFAULT_PLUGINS = ['AMap.Scale', 'AMap.MoveAnimation'];
+const DEFAULT_PLUGINS = ['AMap.Scale', 'AMap.MoveAnimation', 'AMap.CustomLayer'];
 const DEFAULT_VERSION = '2.0';
 
 /**

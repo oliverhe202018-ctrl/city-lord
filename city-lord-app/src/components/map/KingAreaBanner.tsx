@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import type { ViewportKingData } from './AMapView';
 
 interface Props {
@@ -7,76 +7,12 @@ interface Props {
 }
 
 export const KingAreaBanner = React.memo(function KingAreaBanner({ king }: Props) {
-  const [topOffset, setTopOffset] = useState(92);
-
-  useEffect(() => {
-    const update = () => {
-      // 1. Follow precise anchor
-      const anchor = document.getElementById('mode-switcher-anchor');
-      if (anchor) {
-        const rect = anchor.getBoundingClientRect();
-        if (rect.top > 0) {
-          setTopOffset(rect.top + 4); // 4px visual gap
-          return;
-        }
-      }
-
-      // 2. Fallback to mode-switcher bottom minus padding
-      const ms = document.getElementById('mode-switcher');
-      if (ms) {
-        const rect = ms.getBoundingClientRect();
-        const computedStyle = window.getComputedStyle(ms);
-        const paddingBottom = parseFloat(computedStyle.paddingBottom) || 0;
-        const visualBottom = rect.bottom - paddingBottom;
-        if (visualBottom > 0) {
-          setTopOffset(visualBottom + 4);
-          return;
-        }
-      }
-    };
-
-    // First frame update
-    const raf = requestAnimationFrame(update);
-
-    // Watch DOM changes to bind ResizeObserver when elements are added
-    let ro: ResizeObserver | null = null;
-    const bindObserver = () => {
-      const anchor = document.getElementById('mode-switcher-anchor');
-      const ms = document.getElementById('mode-switcher');
-      if (anchor || ms) {
-        if (!ro && typeof ResizeObserver !== 'undefined') {
-          ro = new ResizeObserver(update);
-          if (anchor) ro.observe(anchor);
-          else if (ms) ro.observe(ms);
-        }
-      }
-      update();
-    };
-
-    bindObserver();
-
-    // Watch for document body changes to catch lazy/hydrated elements
-    const observer = new MutationObserver(() => {
-      bindObserver();
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-
-    return () => {
-      cancelAnimationFrame(raf);
-      ro?.disconnect();
-      observer.disconnect();
-    };
-  }, []);
-
   if (!king) return null;
   const areaM2 = king.totalArea ? Math.round(king.totalArea) : 0;
 
   return (
     <div style={{
-      position: 'absolute',
-      top: topOffset,
-      left: 12,
-      right: 12,
+      marginTop: 4,
       zIndex: 30,
       borderRadius: 20,
       background: 'rgba(0,0,0,0.82)',

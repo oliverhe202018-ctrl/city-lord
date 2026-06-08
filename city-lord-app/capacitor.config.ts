@@ -19,19 +19,9 @@ const config: CapacitorConfig = {
       enabled: true,
     },
   },
-/*
-  server: isProd ? {
-    url: 'https://cl1.6543666.xyz',
-    cleartext: true,
-    allowNavigation: [
-      'cl1.6543666.xyz',
-      '*.cl1.6543666.xyz'
-    ]
-  } : {
-    url: 'http://10.0.2.2:3000',
+  server: {
     cleartext: true
   }
-*/
 };
 
 export default config;

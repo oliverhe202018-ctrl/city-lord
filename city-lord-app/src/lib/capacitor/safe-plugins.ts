@@ -248,19 +248,11 @@ export async function safeGetBatteryInfo(): Promise<{ level: number; isCharging:
 }
 
 // ============== Sensors (Motion / Orientation) ==============
-// Note: @capacitor/sensors 不是官方核心插件，根据你项目实际 API 调整
+// Note: @capacitor/sensors 包未安装，直接降级到 Web DeviceMotion API
 export async function safeStartAccelerometer(
   callback: (event: { x: number; y: number; z: number }) => void
 ): Promise<(() => void) | null> {
-  try {
-    const mod = await import(/* @vite-ignore */ '@capacitor/sensors')
-    if (mod && typeof (mod as any).Sensors?.addListener === 'function') {
-      const handle = await (mod as any).Sensors.addListener('accelerometer', callback)
-      return () => handle.remove()
-    }
-  } catch { }
-
-  // Fallback: Web DeviceMotion API
+  // Web DeviceMotion API fallback (works in both browser and Capacitor WebView)
   if (typeof window !== 'undefined' && 'DeviceMotionEvent' in window) {
     const handler = (e: DeviceMotionEvent) => {
       const acc = e.accelerationIncludingGravity
@@ -273,17 +265,9 @@ export async function safeStartAccelerometer(
 }
 
 // ============== Sound ==============
-// Note: @capacitor/sound 不是官方核心插件，根据实际 API 调整
+// Note: @capacitor/sound 包未安装，直接降级到 HTML5 Audio API
 export async function safePlaySound(path: string) {
-  try {
-    const mod = await import(/* @vite-ignore */ '@capacitor/sound')
-    if (mod && typeof (mod as any).Sound?.play === 'function') {
-      await (mod as any).Sound.play({ id: path })
-      return
-    }
-  } catch { }
-
-  // Fallback: HTML5 Audio
+  // HTML5 Audio fallback (works in both browser and Capacitor WebView)
   try {
     if (typeof window !== 'undefined') {
       const audio = new Audio(path)
