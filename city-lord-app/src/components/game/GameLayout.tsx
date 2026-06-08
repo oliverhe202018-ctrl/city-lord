@@ -164,7 +164,9 @@ export function GameLayout({
   initialUser
 }: GamePageContentProps) {
   const [searchParams] = useSearchParams()
-  const { user, isAuthenticated, loading: isAuthLoading } = useAuth(initialUser)
+  const { user, loading: isAuthLoading } = useAuth(initialUser)
+  const isAuthenticated = useStore((state) => state.isAuthenticated)
+  const isHydrating = useStore((state) => state.isHydrating)
   const { isLoading: isCityLoading, currentCity } = useCity()
   const { checkStaminaRecovery, dismissGeolocationPrompt, claimAchievement, addTotalDistance, openDrawer, closeDrawer, startRunning, stopRunning } = useGameActions()
   const { achievements, totalDistance } = useGameUser()

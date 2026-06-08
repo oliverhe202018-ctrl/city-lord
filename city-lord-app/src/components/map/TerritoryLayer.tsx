@@ -1198,7 +1198,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
       canvasRef.current = null;
       canvasSizeRef.current = { width: 0, height: 0 };
     };
-  }, [isVisible, map, redrawCanvas]);
+  }, [isVisible, map]);
 
   useEffect(() => {
     if (!map) return;
