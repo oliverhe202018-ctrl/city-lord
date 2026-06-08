@@ -166,10 +166,28 @@ function GameHomePageInner({ onStartRun, onNavigateToMap, onNavigateToTab, onSma
             });
     }, [missions]);
 
+    const cacheKeyRoutes = 'routes_cache';
+    const getCachedRoutes = (): RouteData[] | undefined => {
+        if (typeof window === 'undefined') return undefined;
+        try {
+            const cached = localStorage.getItem(cacheKeyRoutes);
+            if (cached) return JSON.parse(cached);
+        } catch (_) {}
+        return undefined;
+    };
+
     const { data: routesData, error: routesSWRWarning, isLoading: isRoutesLoading } = useSWR<RouteData[]>(
         '/api/routes',
-        undefined,
+        async (url) => {
+            const r = await apiFetch(url, { credentials: 'include' });
+            const resData = await r.json();
+            if (Array.isArray(resData) && typeof window !== 'undefined') {
+                localStorage.setItem(cacheKeyRoutes, JSON.stringify(resData));
+            }
+            return resData;
+        },
         {
+            fallbackData: getCachedRoutes(),
             dedupingInterval: 30000,
             revalidateOnFocus: false
         }

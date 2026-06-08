@@ -23,6 +23,18 @@ interface UserState {
   checkAuth: () => Promise<void>;
 }
 
+const getSupabaseProjectRef = (url: string): string => {
+  if (!url) return '';
+  try {
+    const cleanUrl = url.replace(/^https?:\/\//, '');
+    const parts = cleanUrl.split('.');
+    if (parts.length > 0) {
+      return parts[0];
+    }
+  } catch (_) {}
+  return '';
+};
+
 const getInitialAuthState = () => {
   if (typeof window === 'undefined') {
     return {
@@ -35,8 +47,21 @@ const getInitialAuthState = () => {
 
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-    const sbKey = `sb-${supabaseUrl}-auth-token`;
-    const sbSessionStr = window.localStorage.getItem(sbKey);
+    const projectRef = getSupabaseProjectRef(supabaseUrl);
+
+    const sbKeys: string[] = [];
+    if (projectRef) sbKeys.push(`sb-${projectRef}-auth-token`);
+    if (supabaseUrl) sbKeys.push(`sb-${supabaseUrl}-auth-token`);
+
+    let sbSessionStr = null;
+    for (const key of sbKeys) {
+      const val = window.localStorage.getItem(key);
+      if (val) {
+        sbSessionStr = val;
+        break;
+      }
+    }
+
     const cachedUserId = window.localStorage.getItem('userId');
 
     let token: string | null = null;
@@ -108,6 +133,9 @@ export const useStore = create<UserState>((set) => ({
     if (data.data?.token) {
       const { token, refreshToken, userId } = data.data;
       await Preferences.set({ key: 'userId', value: userId });
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('userId', userId);
+      }
       
       try {
         const supabase = createClient();
@@ -142,6 +170,9 @@ export const useStore = create<UserState>((set) => ({
     if (data.data?.token) {
       const { token, refreshToken, userId } = data.data;
       await Preferences.set({ key: 'userId', value: userId });
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('userId', userId);
+      }
 
       try {
         const supabase = createClient();
@@ -169,6 +200,9 @@ export const useStore = create<UserState>((set) => ({
       console.warn('Failed to sign out from Supabase in logout:', err);
     }
     await Preferences.remove({ key: 'userId' });
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem('userId');
+    }
     // Also remove old keys just in case
     await Preferences.remove({ key: 'authToken' });
     await Preferences.remove({ key: 'refreshToken' });
@@ -186,13 +220,35 @@ export const useStore = create<UserState>((set) => ({
   checkAuth: async () => {
     try {
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-      const sbKey = `sb-${supabaseUrl}-auth-token`;
+      const projectRef = getSupabaseProjectRef(supabaseUrl);
+
+      const sbKeys: string[] = [];
+      if (projectRef) sbKeys.push(`sb-${projectRef}-auth-token`);
+      if (supabaseUrl) sbKeys.push(`sb-${supabaseUrl}-auth-token`);
       
       // 1. Try to read from fast sync localStorage first, then async Preferences
-      let sbSessionStr = typeof window !== 'undefined' ? window.localStorage.getItem(sbKey) : null;
+      let sbSessionStr = null;
+      if (typeof window !== 'undefined') {
+        for (const key of sbKeys) {
+          const val = window.localStorage.getItem(key);
+          if (val) {
+            sbSessionStr = val;
+            break;
+          }
+        }
+      }
+
       if (!sbSessionStr) {
-        const { value } = await Preferences.get({ key: sbKey });
-        sbSessionStr = value;
+        for (const key of sbKeys) {
+          const { value } = await Preferences.get({ key });
+          if (value) {
+            sbSessionStr = value;
+            if (typeof window !== 'undefined') {
+              window.localStorage.setItem(key, sbSessionStr);
+            }
+            break;
+          }
+        }
       }
       
       let cachedUserId = null;
@@ -202,6 +258,9 @@ export const useStore = create<UserState>((set) => ({
       if (!cachedUserId) {
         const { value } = await Preferences.get({ key: 'userId' });
         cachedUserId = value;
+        if (cachedUserId && typeof window !== 'undefined') {
+          window.localStorage.setItem('userId', cachedUserId);
+        }
       }
 
       let token: string | null = null;
@@ -265,20 +324,28 @@ export const useStore = create<UserState>((set) => ({
       const { value: userId } = await Preferences.get({ key: 'userId' });
 
       if (token) {
-        const res = await apiFetch('/api/v1/user/profile');
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.data) {
-            set({ 
-              isAuthenticated: true, 
-              token, 
-              userId: userId || data.data.id,
-              profile: data.data,
-              isHydrating: false
-            });
-            return;
+        set({ 
+          isAuthenticated: true, 
+          token, 
+          userId: userId || session?.user?.id || null,
+          isHydrating: false
+        });
+
+        // Non-blocking background fetch for user profile
+        (async () => {
+          try {
+            const res = await apiFetch('/api/v1/user/profile');
+            if (res.ok) {
+              const data = await res.json();
+              if (data.success && data.data) {
+                set({ profile: data.data });
+              }
+            }
+          } catch (err) {
+            console.warn('Background profile fetch failed in checkAuth fallback:', err);
           }
-        }
+        })();
+        return;
       }
     } catch (e: any) {
       console.warn('Standard auth check failed:', e);
@@ -292,7 +359,7 @@ export const useStore = create<UserState>((set) => ({
       const token = session?.access_token;
       const { value: userId } = await Preferences.get({ key: 'userId' });
       if (token) {
-        set({ isAuthenticated: true, token, userId, isHydrating: false });
+        set({ isAuthenticated: true, token, userId: userId || session?.user?.id || null, isHydrating: false });
         return;
       }
     }
