@@ -2505,46 +2505,98 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   // Core save function — reads from REFS to avoid stale closures after sleep
   const saveRun = useCallback(async (isFinal: boolean = false) => {
     if (!userId) {
-      if (isFinal) throw new Error("未登录或获取不到用户ID");
-      return;
+      console.warn("[saveRun] No userId, skipping save");
+      return { settlingAsync: false, isDuplicate: false, runId: undefined };
     }
 
-    // ─── Read LIVE values from refs (immune to stale closures) ───
+    // ������ Read LIVE values from refs ������
     let liveDistance = distanceRef.current;
     let liveDuration = durationRef.current;
     let livePath = fullPathRef.current;
     let liveClaims = sessionClaimsRef.current;
 
-    // ─── Payload validation: guard against empty/zombie state ───
+    // ������ Payload �����������Իָ� ������
     if (livePath.length === 0 && liveDistance <= 0 && liveDuration <= 0) {
-      console.warn('[useRunningTracker] Payload empty — attempting recovery fallback');
+      console.warn("[useRunningTracker] Payload empty �� attempting recovery fallback");
       try {
         const res = await Preferences.get({ key: RECOVERY_KEY });
-        const recoveryJson = res.value;
-        if (recoveryJson) {
-          const data = JSON.parse(recoveryJson);
+        if (res.value) {
+          const data = JSON.parse(res.value);
           liveDistance = data.distance || 0;
           liveDuration = data.duration || 0;
           const rawPath = Array.isArray(data.fullPath || data.path) ? (data.fullPath || data.path) : [];
           livePath = rawPath.filter(
-            (p: any) => p && typeof p.lat === 'number' && typeof p.lng === 'number' && Number.isFinite(p.lat) && Number.isFinite(p.lng)
+            (p: any) => p && typeof p.lat === "number" && typeof p.lng === "number"
+              && Number.isFinite(p.lat) && Number.isFinite(p.lng)
           );
           liveClaims = Array.isArray(data.closedPolygons) ? data.closedPolygons : [];
-          console.log('[useRunningTracker] Recovery fallback payload used');
         }
       } catch (recoveryErr) {
-        console.error('[useRunningTracker] Recovery fallback parse failed', recoveryErr);
+        console.error("[useRunningTracker] Recovery fallback parse failed", recoveryErr);
       }
-      // If STILL empty after recovery, block final save
+
       if (livePath.length === 0 && liveDistance <= 0 && liveDuration <= 0) {
-        if (isFinal) throw new Error('跑步数据异常：无定位记录且无可恢复数据');
-        return;
+        console.warn("[saveRun] Data empty after recovery �� returning silent fallback");
+        return { settlingAsync: false, isDuplicate: false, runId: undefined };
       }
     }
 
-    // ─── 指数退避重试配置 ───
+    /** ͳһ�ı��ض�����Ӻ���������ʧ��·����ͨ���˺������������� throw */
+    const _enqueueSilently = async (reason: string): Promise<{ settlingAsync: false; isDuplicate: false; runId: undefined }> => {
+      console.warn(`[saveRun] Falling back to local queue. Reason: ${reason}`);
+      const stepsVal = currentStepsRef.current > 0
+        ? currentStepsRef.current
+        : estimateStepsFromDistanceMeters(liveDistance);
+      const payload = {
+        userId,
+        clubId: clubId ?? null,
+        idempotencyKey: runIdempotencyKeyRef.current,
+        distance: liveDistance,
+        duration: liveDuration,
+        path: livePath,
+        polygons: liveClaims,
+        timestamp: Date.now(),
+        totalSteps: stepsVal,
+        steps: stepsVal,
+        manualLocationCount: 0,
+        eventsHistory: eventsHistoryRef.current,
+        clientFlags: clientFlagsRef.current,
+      };
+      try {
+        const enqueued = await settlementRetryQueue.enqueueSettlement(payload);
+        if (enqueued === false) {
+          console.log("[saveRun] idempotencyKey already in queue �� treating as success (idempotent)");
+        } else {
+          console.log("[saveRun] Payload enqueued to SettlementRetryQueue successfully");
+          if (isFinal) {
+            toast.info("���粻�ѣ��ܲ������Ѱ�ȫ���棬��������ָ����Զ��ϴ�", { duration: 5000 });
+          }
+        }
+      } catch (queueErr) {
+        console.error("[saveRun] IndexedDB enqueue failed, falling back to localStorage:", queueErr);
+        try {
+          const stored = JSON.parse(localStorage.getItem("PENDING_RUN_UPLOAD") || "[]");
+          const idx = stored.findIndex((p: any) => p.idempotencyKey === payload.idempotencyKey);
+          if (idx >= 0) stored[idx] = payload; else stored.push(payload);
+          localStorage.setItem("PENDING_RUN_UPLOAD", JSON.stringify(stored));
+          console.log("[saveRun] Payload saved to localStorage PENDING_RUN_UPLOAD as last resort");
+        } catch (lsErr) {
+          console.error("[saveRun] localStorage fallback also failed:", lsErr);
+        }
+      }
+      if (isFinal) {
+        clearRecovery();
+        setSessionClaims([]);
+        sessionClaimsRef.current = [];
+        setEventsHistory([]);
+        setClientFlags([]);
+        clientFlagsRef.current = [];
+      }
+      return { settlingAsync: false, isDuplicate: false, runId: undefined };
+    };
+
     const maxRetries = 3;
-    const retryDelays = [1000, 2000, 4000]; // 1s, 2s, 4s
+    const retryDelays = [1000, 2000, 4000];
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       let controller: AbortController | undefined;
@@ -2552,19 +2604,13 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       try {
         setIsSaving(true);
 
-        // ================================================================
-        // 🗜️ TRAJECTORY SIMPLIFICATION — 超长轨迹抽稀
-        // 当轨迹点超过 2000 时，使用 Douglas-Peucker 算法进行压缩，
-        // 防止 GeoJSON 序列化超时与 Server Action payload 过大。
-        // tolerance=0.00005 ≈ 5m（在 10km 跑步中可将 10000 点压缩至 ~800 点）
-        // ================================================================
         const SIMPLIFY_THRESHOLD = 2000;
         const SIMPLIFY_TOLERANCE = 0.00005;
         let simplifiedPath: Location[] = livePath;
         if (livePath.length > SIMPLIFY_THRESHOLD) {
           simplifiedPath = simplifyPath(livePath, SIMPLIFY_TOLERANCE) as Location[];
           console.log(
-            `[Simplify] 🗜️ Path reduced: ${livePath.length} → ${simplifiedPath.length} points ` +
+            `[Simplify] ??? Path reduced: ${livePath.length} �� ${simplifiedPath.length} points ` +
             `(${((1 - simplifiedPath.length / livePath.length) * 100).toFixed(1)}% reduction)`
           );
         }
@@ -2573,12 +2619,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           ? currentStepsRef.current
           : estimateStepsFromDistanceMeters(liveDistance);
 
-        // ================================================================
-        // 🛡️ PAYLOAD SIZE PRE-CHECK — Vercel 4.5MB 硬限制防护
-        // 在调用 saveRunActivity 前评估 payload 大小，若超过 3.8MB 警戒线
-        // 则强制执行二次降采样（截断至最大 200 点）并裁减 eventsHistory
-        // ================================================================
-        const PAYLOAD_SIZE_WARNING = 3_800_000; // 3.8MB
+        const PAYLOAD_SIZE_WARNING = 3_800_000;
         const MAX_POINTS_AFTER_TRUNCATION = 200;
         const MAX_EVENTS_AFTER_TRUNCATION = 50;
 
@@ -2603,43 +2644,22 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
         if (payloadSize > PAYLOAD_SIZE_WARNING) {
           console.warn(`[PayloadPreCheck] Payload size ${payloadSize} bytes exceeds 3.8MB threshold, forcing secondary truncation`);
-          // 二次降采样：截断路径至最大 200 点
           if (simplifiedPath.length > MAX_POINTS_AFTER_TRUNCATION) {
             const step = Math.ceil(simplifiedPath.length / MAX_POINTS_AFTER_TRUNCATION);
             finalPath = simplifiedPath.filter((_, idx) => idx % step === 0 || idx === simplifiedPath.length - 1);
           }
-          // 裁减 eventsHistory 至最后 50 条
           if (eventsHistoryRef.current.length > MAX_EVENTS_AFTER_TRUNCATION) {
             finalEvents = eventsHistoryRef.current.slice(-MAX_EVENTS_AFTER_TRUNCATION);
           }
-          toast.warning('跑步数据过大，已自动压缩轨迹以保证上传成功');
+          toast.warning("�ܲ����ݹ������Զ�ѹ���켣�Ա�֤�ϴ��ɹ�");
         }
 
-        // ─── 植入 AbortController，设置 120 秒超时 ───
         controller = new AbortController();
         timeoutId = setTimeout(() => {
           controller!.abort();
-          // 强退本地兜底：超时触发时将当前轨迹数据压入 settlementRetryQueue
-          const fallbackPayload = {
-            userId,
-            clubId: clubId ?? null,
-            idempotencyKey: runIdempotencyKeyRef.current,
-            distance: liveDistance,
-            duration: liveDuration,
-            path: livePath,
-            polygons: liveClaims,
-            timestamp: Date.now(),
-            totalSteps: stepsForSubmit,
-            steps: stepsForSubmit,
-            manualLocationCount: 0,
-            eventsHistory: eventsHistoryRef.current,
-            clientFlags: clientFlagsRef.current,
-          };
-          settlementRetryQueue.enqueueSettlement(fallbackPayload).catch((err) => {
-            console.error('[AbortTimeout] Failed to enqueue fallback payload:', err);
-          });
-          console.warn('[AbortTimeout] 120s timeout triggered, payload enqueued to settlementRetryQueue');
-        }, 120_000); // 120s timeout
+          _enqueueSilently("AbortTimeout 120s").catch(() => {});
+          console.warn("[AbortTimeout] 120s timeout triggered");
+        }, 120_000);
 
         const result = await saveRunActivity(userId, {
           clubId: clubId ?? null,
@@ -2660,127 +2680,69 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         timeoutId = undefined;
 
         if (result.success) {
-          console.log(`[useRunningTracker] Save successful | runId: ${result.data?.runId}`);
-          
           if (isFinal) {
             clearRecovery();
-            // ⚠️ 体验精细化：此处严禁同步清空 sessionClaims 和 workingPolygons，以防异步结算完成前视觉闪烁
             setEventsHistory([]);
             setClientFlags([]);
             clientFlagsRef.current = [];
-            
-            mutate('/api/home/summary');
-            mutate('/api/mission/fetch-user-missions');
+            mutate("/api/home/summary");
+            mutate("/api/mission/fetch-user-missions");
 
-            // 如果不是异步结算（即在接口调用中已完成同步结算），我们在此处同步刷新并清空
             if (!result.data?.settlingAsync) {
               mutate(
-                (key) => typeof key === 'string' && key.startsWith('/api/city/fetch-territories?cityId='),
-                undefined,
-                { revalidate: true }
+                (key) => typeof key === "string" && key.startsWith("/api/city/fetch-territories?cityId="),
+                undefined, { revalidate: true }
               ).then(() => {
-                // territories 刷新完毕，静默抹除 sessionClaims，实现无缝合并
                 setSessionClaims([]);
                 sessionClaimsRef.current = [];
               });
-
-              if (typeof window !== 'undefined') {
-                window.dispatchEvent(new CustomEvent('citylord:refresh-territories'));
-                setTimeout(() => {
-                  window.dispatchEvent(new CustomEvent('citylord:refresh-territories'));
-                }, 800);
-              }
-              console.log('[useRunningTracker] Sync settlement complete. Cleared claims.');
+              window.dispatchEvent(new CustomEvent("citylord:refresh-territories"));
             }
           }
-          
-          if (result.data?.runId) {
-            setSavedRunId(result.data.runId);
-            savedRunIdRef.current = result.data.runId;
-          }
-          if (result.data?.runNumber) {
-            setRunNumber(result.data.runNumber);
-          }
-          if (result.data?.damageSummary) {
-            setDamageSummary(result.data.damageSummary);
-          }
-          if (result.data?.maintenanceSummary) {
-            setMaintenanceSummary(result.data.maintenanceSummary);
-          }
-          if (result.data?.settledTerritoriesCount !== undefined) {
-            setSettledTerritoriesCount(result.data.settledTerritoriesCount);
-          }
-          if (result.data?.isValid !== undefined) {
-            setRunIsValid(result.data.isValid);
-          }
-          if (result.data?.antiCheatLog !== undefined) {
-            setAntiCheatLog(result.data.antiCheatLog ?? null);
-          }
-          if (result.data?.totalSteps !== undefined) {
-            setCurrentSteps(Math.max(0, Number(result.data.totalSteps)));
-          }
-          if (isFinal) {
-            console.log("Run saved successfully:", result.data?.runId);
-          }
 
-          if ((result.data as any)?.newTasks && (result.data as any).newTasks.length > 0) {
-            const tasks = (result.data as any).newTasks;
-            const totalCoins = tasks.reduce((sum: number, t: any) => sum + t.reward, 0);
-            toast.success(`达成 ${tasks.length} 个目标!`, {
-              description: `获得 +${totalCoins} 金币`,
-            });
-          }
-          
-          if (result.data?.settlingAsync && result.data?.runId) {
-            setSettlementStatus('pending');
-            let pollCount = 0;
-            const runIdToPoll = result.data.runId;
-            if (pollingIntervalRef.current) {
-              clearInterval(pollingIntervalRef.current);
-            }
+          if (result.data?.runId) { setSavedRunId(result.data.runId); savedRunIdRef.current = result.data.runId; }
+          if (result.data?.runNumber) setRunNumber(result.data.runNumber);
+          if (result.data?.damageSummary) setDamageSummary(result.data.damageSummary);
+          if (result.data?.maintenanceSummary) setMaintenanceSummary(result.data.maintenanceSummary);
+          if (result.data?.settledTerritoriesCount !== undefined) setSettledTerritoriesCount(result.data.settledTerritoriesCount);
+          if (result.data?.isValid !== undefined) setRunIsValid(result.data.isValid);
+          if (result.data?.antiCheatLog !== undefined) setAntiCheatLog(result.data.antiCheatLog ?? null);
+          if (result.data?.totalSteps !== undefined) setCurrentSteps(Math.max(0, Number(result.data.totalSteps)));
+
+          if (result.data?.settlingAsync) {
+            if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
             pollingIntervalRef.current = setInterval(async () => {
-              pollCount++;
-              if (pollCount > 30) {
-                setSettlementStatus('timeout');
-                if (pollingIntervalRef.current) {
-                  clearInterval(pollingIntervalRef.current);
-                  pollingIntervalRef.current = null;
-                }
-                return;
-              }
               try {
-                const statusResult = await getRunSettlementStatus(runIdToPoll);
-                if (statusResult.success && statusResult.data) {
-                  if (statusResult.data.isSettled) {
-                    setSettlementStatus('completed');
-                    if (pollingIntervalRef.current) {
-                      clearInterval(pollingIntervalRef.current);
-                      pollingIntervalRef.current = null;
+                if (!savedRunIdRef.current) return;
+                const pollResult = await fetchShim(`/api/runs/${savedRunIdRef.current}/status`);
+                if (pollResult.ok) {
+                  const data = await pollResult.json();
+                  if (data.status === "COMPLETED") {
+                    clearInterval(pollingIntervalRef.current!);
+                    pollingIntervalRef.current = null;
+                    if (data.settledTerritoriesCount !== undefined) {
+                      setSettledTerritoriesCount(data.settledTerritoriesCount);
                     }
-                    setSettledTerritoriesCount(statusResult.data.newTerritories);
-
-                    // 异步结算完毕，触发最终刷新与合并
-                    console.log('[useRunningTracker] Async settlement poll finished successfully. Revalidating territories...');
+                    if (data.territories) {
+                      setRunTerritories(data.territories);
+                    }
                     mutate(
-                      (key) => typeof key === 'string' && key.startsWith('/api/city/fetch-territories?cityId='),
-                      undefined,
-                      { revalidate: true }
+                      (key) => typeof key === "string" && key.startsWith("/api/city/fetch-territories?cityId="),
+                      undefined, { revalidate: true }
                     ).then(() => {
-                      // territories SWR 拉取更新成功后，静默抹去 sessionClaims
                       setSessionClaims([]);
                       sessionClaimsRef.current = [];
                     });
-
-                    if (typeof window !== 'undefined') {
-                      window.dispatchEvent(new CustomEvent('citylord:refresh-territories'));
-                      setTimeout(() => {
-                        window.dispatchEvent(new CustomEvent('citylord:refresh-territories'));
-                      }, 800);
-                    }
+                    window.dispatchEvent(new CustomEvent("citylord:refresh-territories"));
+                    toast.success("��ؽ�������ɣ�", { duration: 4000 });
+                  } else if (data.status === "FAILED") {
+                    clearInterval(pollingIntervalRef.current!);
+                    pollingIntervalRef.current = null;
+                    toast.error("��ؽ���ʧ��");
                   }
                 }
               } catch (pollErr) {
-                console.warn('[useRunningTracker] Settlement poll failed', pollErr);
+                console.warn("[useRunningTracker] Settlement poll failed", pollErr);
               }
             }, 2000);
           }
@@ -2796,100 +2758,31 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
             territories: result.data?.territories,
           };
         } else {
-          console.error("Save failed:", result.error);
-          if (isFinal) {
-            const payload = {
-              userId,
-              clubId: clubId ?? null,
-              idempotencyKey: runIdempotencyKeyRef.current,
-              distance: liveDistance,
-              duration: liveDuration,
-              path: livePath,
-              polygons: liveClaims,
-              timestamp: Date.now(),
-              totalSteps: stepsForSubmit,
-              steps: stepsForSubmit,
-              manualLocationCount: 0,
-              eventsHistory: eventsHistoryRef.current,
-              clientFlags: clientFlagsRef.current,
-            };
-            const enqueued = await settlementRetryQueue.enqueueSettlement(payload);
-            if (enqueued) {
-              toast.info('网络不佳，跑步数据已安全保存，将在网络恢复后自动上传');
-              clearRecovery();
-              setSessionClaims([]);
-              sessionClaimsRef.current = [];
-              setEventsHistory([]);
-              setClientFlags([]);
-              clientFlagsRef.current = [];
-              return { settlingAsync: false, isDuplicate: false, runId: undefined };
-            }
-            throw new Error(result.error || "Save failed");
-          }
+          console.error("[saveRun] Server returned error:", result.error);
+          return await _enqueueSilently(`server_error: ${result.error}`);
         }
       } catch (err: any) {
-        // ─── 清除超时定时器（成功/异常路径都必须执行） ───
         clearTimeout(timeoutId);
+        console.error(`[saveRun] attempt ${attempt + 1}/${maxRetries} error:`, err?.message || err);
 
-        console.error(`Save error (attempt ${attempt + 1}/${maxRetries}):`, err);
-
-        // ─── 最后一次尝试失败 ───
-        if (attempt >= maxRetries - 1) {
-          if (isFinal) {
-            // ─── 根据错误类型给出明确 Toast 提示 ───
-            if (err.name === 'AbortError') {
-              toast.error('上传超时，请检查网络后重试');
-            } else if (err.message?.includes('413') || err.message?.includes('Payload Too Large')) {
-              toast.error('跑步记录过大，请尝试缩短跑步时间或降低采样频率');
-            } else if (err.message?.includes('Network Error') || err.message?.includes('fetch failed')) {
-              toast.error('网络异常，上传失败');
-            } else {
-              toast.error('上传失败，请稍后重试');
-            }
-
-            // ─── 确保数据压入本地重试队列 ───
-            const stepsForSubmit = currentStepsRef.current > 0
-              ? currentStepsRef.current
-              : estimateStepsFromDistanceMeters(liveDistance);
-            const payload = {
-              userId,
-              clubId: clubId ?? null,
-              idempotencyKey: runIdempotencyKeyRef.current,
-              distance: liveDistance,
-              duration: liveDuration,
-              path: livePath,
-              polygons: liveClaims,
-              timestamp: Date.now(),
-              totalSteps: stepsForSubmit,
-              steps: stepsForSubmit,
-              manualLocationCount: 0,
-              eventsHistory: eventsHistoryRef.current,
-              clientFlags: clientFlagsRef.current,
-            };
-            const enqueued = await settlementRetryQueue.enqueueSettlement(payload);
-            if (enqueued) {
-              toast.info('数据已保存至本地，将在网络恢复后自动上传');
-              clearRecovery();
-              setSessionClaims([]);
-              sessionClaimsRef.current = [];
-              setEventsHistory([]);
-              setClientFlags([]);
-              clientFlagsRef.current = [];
-              return { settlingAsync: false, isDuplicate: false, runId: undefined };
-            }
-            throw err;
-          }
+        if (err?.isAuthError === true || err?.message === "UNAUTHORIZED") {
+          console.warn("[saveRun] Auth error detected �� silently enqueuing and exiting");
+          return await _enqueueSilently("auth_error_401");
         }
 
-        // ─── 指数退避延迟 ───
+        if (attempt >= maxRetries - 1) {
+          return await _enqueueSilently(`max_retries_exceeded: ${err?.message}`);
+        }
+
         const delay = retryDelays[attempt];
-        console.log(`[useRunningTracker] Retrying in ${delay}ms... (attempt ${attempt + 1}/${maxRetries})`);
         await new Promise(resolve => setTimeout(resolve, delay));
       } finally {
         setIsSaving(false);
       }
     }
-  }, [userId, clearRecovery, clubId]); // Only depends on userId/clubId & clearRecovery — refs handle the rest
+
+    return await _enqueueSilently("loop_exhausted");
+  }, [userId, clearRecovery, clubId]);
 
   // Auto-save when new territory is claimed
   useEffect(() => {

@@ -811,128 +811,78 @@ function ImmersiveRunningModeInner({
     freezeTrackerForSummary();
     setIsSubmitting(true);
     
-    // 1. Play audio (non-blocking)
     try {
-      const audio = new Audio('/sounds/run_finish.mp3');
+      const audio = new Audio("/sounds/run_finish.mp3");
       (window as typeof window & { finishAudio?: HTMLAudioElement }).finishAudio = audio;
       audio.play().catch(() => { });
     } catch { }
 
-    // 🏆 Instant Transition: Build and show the settlement screen immediately
     const initialSnapshot = buildSummarySnapshot(finalSnapshotHexes, undefined);
     setSummarySnapshot(initialSnapshot);
     setShowSummary(true);
     setIsSettlementLoading(true);
 
+    let res: Awaited<ReturnType<typeof saveRun>>;
     try {
-      const res = await withTimeout(saveRun(true), SAVE_TIMEOUT_MS);
-      
-      // 🚨 绝对核心防线：硬拦截假成功
-      if (res?.isDuplicate) {
-        toast.error("检测到重复提交或异常！本次跑动已因离线守护被提前冻结。", { duration: 5000 });
-        await performCleanExit();
-        setShowSummary(false);
-        onStop();
-        navigate('/', { replace: true });
-        return; 
-      }
-      
+      res = await saveRun(true);
+    } catch (unexpectedError) {
+      console.error("[executeFinalSave] Unexpected throw from saveRun (should not happen):", unexpectedError);
+      setIsSettlementLoading(false);
       hasSavedRunRef.current = true;
       await performCleanExit();
+      setShowSummary(false);
+      onStop();
+      return;
+    }
 
-      // Extract runId: prefer direct return value, then savedRunId from tracker state
-      const resolvedRunId = res?.runId || savedRunId || undefined;
-      if (resolvedRunId) {
-        setEffectiveRunId(resolvedRunId);
-      }
+    if (res?.isDuplicate) {
+      toast.info("�����ܶ���ͨ�������ػ����棬��ȴ�����ָ����Զ�ͬ��", { duration: 5000 });
+      hasSavedRunRef.current = true;
+      await performCleanExit();
+      setShowSummary(false);
+      onStop();
+      return;
+    }
 
-      // Update the summary snapshot with the actual runId and returned data
-      setSummarySnapshot(prev => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          runId: resolvedRunId,
-          runNumber: res?.runNumber || prev.runNumber,
-          damageSummary: res?.damageSummary || prev.damageSummary,
-          maintenanceSummary: res?.maintenanceSummary || prev.maintenanceSummary,
-          hexesCaptured: res?.settledTerritoriesCount !== undefined ? res.settledTerritoriesCount : prev.hexesCaptured,
-        };
-      });
+    hasSavedRunRef.current = true;
+    await performCleanExit();
 
-      if (res?.settlingAsync) {
-        toast.success("跑步记录已保存，领地正在后台极速结算中...", { duration: 5000 });
-        setIsPollingSettlement(true);
-        // Polling will manage isSettlementLoading
-      } else {
-        setIsSettlementLoading(false);
-      }
+    const resolvedRunId = res?.runId || savedRunId || undefined;
+    if (resolvedRunId) {
+      setEffectiveRunId(resolvedRunId);
+    }
 
-      // 🏆 ID 瞬移切换 (Patch 1): 切换为正式产生的第一个领地 ID
-      if (res?.territories && res.territories.length > 0) {
-        const { useGameStore } = await import('@/store/useGameStore');
+    setSummarySnapshot(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        runId: resolvedRunId,
+        runNumber: res?.runNumber || prev.runNumber,
+        damageSummary: res?.damageSummary || prev.damageSummary,
+        maintenanceSummary: res?.maintenanceSummary || prev.maintenanceSummary,
+        hexesCaptured: res?.settledTerritoriesCount !== undefined ? res.settledTerritoriesCount : prev.hexesCaptured,
+      };
+    });
+
+    if (res?.settlingAsync) {
+      toast.success("�ܲ���¼�ѱ��棬������ں�̨���ٽ�����...", { duration: 5000 });
+      setIsPollingSettlement(true);
+    } else {
+      setIsSettlementLoading(false);
+    }
+
+    if (res?.territories && res.territories.length > 0) {
+      import("@/store/useGameStore").then(({ useGameStore }) => {
         const firstTerrId = res.territories[0].id;
         useGameStore.getState().setSelectedTerritoryId(firstTerrId);
         console.log(`[ImmersiveMode] Triggered ID swap: ${firstTerrId}`);
-      }
-
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('citylord:refresh-territories'));
-      }
-
-    } catch (saveError) {
-      setIsSettlementLoading(false);
-      const errorMsg = saveError instanceof Error ? saveError.message : '网络不可用';
-      console.error('[executeFinalSave] saveRun failed:', saveError);
-      
-      // Persist to localStorage as offline fallback before showing retry dialog
-      try {
-        const fallbackData = {
-          idempotencyKey: idempotencyKey || uuidv4(),
-          path: path || [],
-          distance: distanceMeters || 0,
-          duration: durationSeconds || 0,
-          area: area || 0,
-          totalSteps: steps || 0,
-          steps: steps || 0,
-          eventsHistory,
-          timestamp: Date.now(),
-          userId: userId || '',
-        };
-        let existingPending: any[] = [];
-        try {
-          const existingPendingStr = localStorage.getItem('PENDING_RUN_UPLOAD');
-          if (existingPendingStr) {
-            existingPending = JSON.parse(existingPendingStr);
-          }
-        } catch (e) { /* ignore */ }
-
-        if (!Array.isArray(existingPending)) existingPending = [];
-
-        const existingIndex = existingPending.findIndex(p => p.idempotencyKey === fallbackData.idempotencyKey);
-        if (existingIndex >= 0) {
-          existingPending[existingIndex] = fallbackData;
-        } else {
-          existingPending.push(fallbackData);
-        }
-
-        try {
-          localStorage.setItem('PENDING_RUN_UPLOAD', JSON.stringify(existingPending));
-          localStorage.removeItem('CURRENT_RUN_RECOVERY'); 
-        } catch (storageErr) {
-          toast.error("本机存储空间已满，无法保存进度，请清理空间！", { duration: 5000 });
-        }
-      } catch (storageErr) {}
-
-      if (errorMsg === 'SAVE_TIMEOUT') {
-        toast.error('保存超时，已暂存本地', { duration: 5000 });
-      }
-
-      await performCleanExit();
-      
-      setShowRetryDialog(true);
-    } finally {
-      setIsSubmitting(false);
+      });
     }
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("citylord:refresh-territories"));
+    }
+    setIsSubmitting(false);
   };
 
   const handleAttemptStop = async () => {

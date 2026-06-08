@@ -38,6 +38,11 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
+      if (error.config && error.config.skipAuthEvent) {
+        const err: any = new Error("UNAUTHORIZED");
+        err.isAuthError = true;
+        return Promise.reject(err);
+      }
       const { isAuthenticated } = useStore.getState();
       if (isAuthenticated) {
         useStore.getState().logout();

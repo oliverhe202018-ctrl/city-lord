@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/fetch-shim';
 ﻿"use client"
 
 import React, { useState } from "react"
@@ -18,7 +19,7 @@ const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, ti
     if (typeof url === 'string' && url.startsWith('/api')) {
       url = `${process.env.NEXT_PUBLIC_API_SERVER || ''}${url}`
     }
-    return await fetch(url, { ...init, signal: controller.signal })
+    return await apiFetch(url, { ...init, signal: controller.signal })
   } finally {
     clearTimeout(timer)
   }

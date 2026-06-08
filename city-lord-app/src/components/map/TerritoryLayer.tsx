@@ -11,6 +11,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
 import type { ViewportKingData } from "./AMapView";
 import * as turf from "@turf/turf";
+import { apiFetch } from "@/lib/fetch-shim";
 import { useGameStore, useGameTerritoryAppearance } from '@/store/useGameStore';
 import { getTerritoryDisplayName } from '@/lib/territory-display';
 import { useMapDisplayStore, type MapDisplayMode } from '@/store/useMapDisplayStore';
@@ -86,7 +87,7 @@ const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, ti
       }
     }
     const { signal: _drop, ...restInit } = init ?? {};
-    return await fetch(url, { ...restInit, signal: combinedSignal });
+    return await apiFetch(url, { ...restInit, signal: combinedSignal });
   } finally {
     clearTimeout(timer);
   }
@@ -275,7 +276,7 @@ function deterministicShuffle<T>(array: T[], seedStr: string): T[] {
   return arr;
 }
 
-const getRoundedAvatarTile = (url: string, img: HTMLImageElement, tileSize: 24 | 32 | 48 | 64): HTMLCanvasElement => {
+const getRoundedAvatarTile = (url: string, img: HTMLImageElement, tileSize: number): HTMLCanvasElement => {
   const cacheKey = `${url}::${tileSize}`;
   const cached = avatarTileCache.get(cacheKey);
   if (cached) return cached;
@@ -314,7 +315,8 @@ function renderTerritoryLabels(
   viewportMinLat: number,
   viewportMaxLat: number,
   currentZoom: number,
-  ownerProfileMap: Map<string, { nickname: string; avatarUrl: string | null }>
+  ownerProfileMap: Map<string, { nickname: string; avatarUrl: string | null }>,
+  currentUserId?: string | null
 ) {
   if (currentZoom < 15) return;
 
@@ -353,7 +355,9 @@ function renderTerritoryLabels(
       id: territory.id,
       customName: territory.customName ?? null,
       clubName: undefined,
-      ownerNickname: ownerProfile?.nickname ?? null
+      ownerNickname: ownerProfile?.nickname ?? null,
+      ownerId: territory.ownerId ?? null,
+      currentUserId: currentUserId ?? null
     });
 
     ctx.save();
@@ -383,7 +387,8 @@ function renderTerritoriesOnCanvas(
   canvasSizeRef: { current: { width: number; height: number } },
   onNeedRedraw?: () => void,
   ownerProfileMap?: Map<string, { nickname: string; avatarUrl: string | null }>,
-  selectedTerritoryId?: string | null
+  selectedTerritoryId?: string | null,
+  currentUserId?: string | null
 ) {
   const size = map.getSize?.();
   if (!size) return;
@@ -489,106 +494,38 @@ function renderTerritoriesOnCanvas(
         });
 
         if (cachedImg) {
-          let discreteSize: 24 | 32 | 48;
-          let maxCandidates: number;
-          let minDistanceMultiplier: number;
-
+          let discreteSize: number;
           if (currentZoom < 13) {
-            discreteSize = 24;
-            maxCandidates = 1;
-            minDistanceMultiplier = 0;
+            discreteSize = 60; // originally 24
           } else if (currentZoom < 15) {
-            discreteSize = 32;
-            maxCandidates = 1;
-            minDistanceMultiplier = 0;
-          } else if (currentZoom < 16) {
-            discreteSize = 48;
-            maxCandidates = 3;
-            minDistanceMultiplier = 6.0;
+            discreteSize = 80; // originally 32
           } else if (currentZoom < 17) {
-            discreteSize = 48;
-            maxCandidates = 6;
-            minDistanceMultiplier = 4.0;
+            discreteSize = 120; // originally 48
           } else {
-            discreteSize = 32;
-            maxCandidates = Infinity;
-            minDistanceMultiplier = 1.5;
+            discreteSize = 160; // originally 64
           }
 
-          const minDistance = minDistanceMultiplier * discreteSize;
           const avatarTile = getRoundedAvatarTile(avatarUrl, cachedImg, discreteSize);
-
-          const finalPointsToDraw: { x: number; y: number }[] = [];
-
-          if (maxCandidates === 1) {
-            // Zoom < 15: Only 1 avatar at centerPoint
-            const p = map.lngLatToContainer?.(new AMapGlobal.LngLat(territory.centerPoint[0], territory.centerPoint[1]));
-            if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) {
-              const x = Number(p.x);
-              const y = Number(p.y);
-              if (x >= -discreteSize && x <= canvas.width + discreteSize && y >= -discreteSize && y <= canvas.height + discreteSize) {
-                finalPointsToDraw.push({ x, y });
-              }
+          const pattern = ctx.createPattern(avatarTile, 'repeat');
+          
+          if (pattern) {
+            const originPoint = map.lngLatToContainer?.(new AMapGlobal.LngLat(territory.centerPoint[0], territory.centerPoint[1]));
+            if (originPoint && Number.isFinite(originPoint.x) && Number.isFinite(originPoint.y)) {
+              const matrix = new DOMMatrix();
+              matrix.translateSelf(originPoint.x - discreteSize / 2, originPoint.y - discreteSize / 2);
+              pattern.setTransform(matrix);
             }
-          } else if (Number.isFinite(maxCandidates)) {
-            // 15 <= Zoom < 17: Sparse layout
-            const shuffledGrid = deterministicShuffle(territory.gridPoints, `${territory.id}_${Math.floor(currentZoom)}`);
-            const candidatePoints = [territory.centerPoint, ...shuffledGrid].slice(0, maxCandidates);
 
-            for (const pt of candidatePoints) {
-              const p = map.lngLatToContainer?.(new AMapGlobal.LngLat(pt[0], pt[1]));
-              if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) {
-                const x = Number(p.x);
-                const y = Number(p.y);
-                if (x >= -discreteSize && x <= canvas.width + discreteSize && y >= -discreteSize && y <= canvas.height + discreteSize) {
-                  // Greedy overlap check in pixel space
-                  let tooClose = false;
-                  for (const cp of finalPointsToDraw) {
-                    const dx = x - cp.x;
-                    const dy = y - cp.y;
-                    if (Math.hypot(dx, dy) < minDistance) {
-                      tooClose = true;
-                      break;
-                    }
-                  }
-                  if (!tooClose) {
-                    finalPointsToDraw.push({ x, y });
-                  }
-                }
-              }
-            }
-          } else {
-            // Zoom >= 17: Dense layout
-            const allPoints = [territory.centerPoint, ...territory.gridPoints];
-            for (const pt of allPoints) {
-              const p = map.lngLatToContainer?.(new AMapGlobal.LngLat(pt[0], pt[1]));
-              if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) {
-                const x = Number(p.x);
-                const y = Number(p.y);
-                if (x >= -discreteSize && x <= canvas.width + discreteSize && y >= -discreteSize && y <= canvas.height + discreteSize) {
-                  finalPointsToDraw.push({ x, y });
-                }
-              }
-            }
+            ctx.save();
+            ctx.clip('evenodd');
+            ctx.globalAlpha = 0.85;
+            ctx.fillStyle = pattern;
+            ctx.fill('evenodd');
+            ctx.restore();
           }
-
-          // Clip drawing to territory polygon boundary
-          ctx.save();
-          ctx.clip();
-          for (const pt of finalPointsToDraw) {
-            ctx.drawImage(
-              avatarTile,
-              pt.x - discreteSize / 2,
-              pt.y - discreteSize / 2,
-              discreteSize,
-              discreteSize
-            );
-          }
-          ctx.restore();
         }
       }
     }
-  }
 
   // 🟢 2. 渲染聚焦高亮的领地，应用亮金色辉光和双层高对比度描边（乐观剔除、末尾叠加）
   if (focusedTerritory) {
@@ -648,110 +585,57 @@ function renderTerritoriesOnCanvas(
           });
 
           if (cachedImg) {
-            let discreteSize: 24 | 32 | 48;
-            let maxCandidates: number;
-            let minDistanceMultiplier: number;
-
+            let discreteSize: number;
             if (currentZoom < 13) {
-              discreteSize = 24;
-              maxCandidates = 1;
-              minDistanceMultiplier = 0;
+              discreteSize = 60; // originally 24
             } else if (currentZoom < 15) {
-              discreteSize = 32;
-              maxCandidates = 1;
-              minDistanceMultiplier = 0;
-            } else if (currentZoom < 16) {
-              discreteSize = 48;
-              maxCandidates = 3;
-              minDistanceMultiplier = 6.0;
+              discreteSize = 80; // originally 32
             } else if (currentZoom < 17) {
-              discreteSize = 48;
-              maxCandidates = 6;
-              minDistanceMultiplier = 4.0;
+              discreteSize = 120; // originally 48
             } else {
-              discreteSize = 32;
-              maxCandidates = Infinity;
-              minDistanceMultiplier = 1.5;
+              discreteSize = 160; // originally 64
             }
 
-            const minDistance = minDistanceMultiplier * discreteSize;
             const avatarTile = getRoundedAvatarTile(avatarUrl, cachedImg, discreteSize);
-
-            const finalPointsToDraw: { x: number; y: number }[] = [];
-
-            if (maxCandidates === 1) {
-              const p = map.lngLatToContainer?.(new AMapGlobal.LngLat(focusedTerritory.centerPoint[0], focusedTerritory.centerPoint[1]));
-              if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) {
-                finalPointsToDraw.push({ x: Number(p.x), y: Number(p.y) });
+            const pattern = ctx.createPattern(avatarTile, 'repeat');
+            
+            if (pattern) {
+              const originPoint = map.lngLatToContainer?.(new AMapGlobal.LngLat(focusedTerritory.centerPoint[0], focusedTerritory.centerPoint[1]));
+              if (originPoint && Number.isFinite(originPoint.x) && Number.isFinite(originPoint.y)) {
+                const matrix = new DOMMatrix();
+                matrix.translateSelf(originPoint.x - discreteSize / 2, originPoint.y - discreteSize / 2);
+                pattern.setTransform(matrix);
               }
-            } else if (Number.isFinite(maxCandidates)) {
-              const shuffledGrid = deterministicShuffle(focusedTerritory.gridPoints, `${focusedTerritory.id}_${Math.floor(currentZoom)}`);
-              const candidatePoints = [focusedTerritory.centerPoint, ...shuffledGrid].slice(0, maxCandidates);
 
-              for (const pt of candidatePoints) {
-                const p = map.lngLatToContainer?.(new AMapGlobal.LngLat(pt[0], pt[1]));
-                if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) {
-                  const x = Number(p.x);
-                  const y = Number(p.y);
-                  let tooClose = false;
-                  for (const cp of finalPointsToDraw) {
-                    const dx = x - cp.x;
-                    const dy = y - cp.y;
-                    if (Math.hypot(dx, dy) < minDistance) {
-                      tooClose = true;
-                      break;
-                    }
-                  }
-                  if (!tooClose) {
-                    finalPointsToDraw.push({ x, y });
-                  }
+              ctx.save();
+              // Re-create the path for clipping since we might be in a different state
+              ctx.beginPath();
+              for (const ring of outerRings) {
+                const pixels = ring
+                  .map(([lng, lat]) => {
+                    const pixel = map.lngLatToContainer?.(new AMapGlobal.LngLat(lng, lat));
+                    return pixel ? { x: Number(pixel.x), y: Number(pixel.y) } : null;
+                  })
+                  .filter((pt): pt is { x: number; y: number } => pt !== null && Number.isFinite(pt.x) && Number.isFinite(pt.y));
+
+                if (pixels.length < 3) continue;
+
+                ctx.moveTo(pixels[0].x, pixels[0].y);
+                for (let i = 1; i < pixels.length; i += 1) {
+                  ctx.lineTo(pixels[i].x, pixels[i].y);
                 }
+                ctx.closePath();
               }
-            } else {
-              const allPoints = [focusedTerritory.centerPoint, ...focusedTerritory.gridPoints];
-              for (const pt of allPoints) {
-                const p = map.lngLatToContainer?.(new AMapGlobal.LngLat(pt[0], pt[1]));
-                if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) {
-                  finalPointsToDraw.push({ x: Number(p.x), y: Number(p.y) });
-                }
-              }
+              ctx.clip('evenodd');
+              ctx.globalAlpha = 0.85;
+              ctx.fillStyle = pattern;
+              ctx.fill('evenodd');
+              ctx.restore();
             }
-
-            ctx.save();
-            ctx.beginPath();
-            for (const ring of outerRings) {
-              const pixels = ring
-                .map(([lng, lat]) => {
-                  const pixel = map.lngLatToContainer?.(new AMapGlobal.LngLat(lng, lat));
-                  return pixel ? { x: Number(pixel.x), y: Number(pixel.y) } : null;
-                })
-                .filter((pt): pt is { x: number; y: number } => pt !== null && Number.isFinite(pt.x) && Number.isFinite(pt.y));
-
-              if (pixels.length < 3) continue;
-
-              ctx.moveTo(pixels[0].x, pixels[0].y);
-              for (let i = 1; i < pixels.length; i += 1) {
-                ctx.lineTo(pixels[i].x, pixels[i].y);
-              }
-              ctx.closePath();
-            }
-            ctx.clip('evenodd');
-
-            for (const pt of finalPointsToDraw) {
-              ctx.drawImage(
-                avatarTile,
-                pt.x - discreteSize / 2,
-                pt.y - discreteSize / 2,
-                discreteSize,
-                discreteSize
-              );
-            }
-            ctx.restore();
           }
         }
       }
     }
-  }
 
   if (ownerProfileMap) {
     // Determine context value equivalent locally to skip label rendering if not in territory/personal or club modes.
@@ -759,7 +643,7 @@ function renderTerritoriesOnCanvas(
     // The reviewer recommended checking displayMode. But displayMode variable is not cleanly available right here.
     // We already removed clubName from rendering explicitly via `clubName: undefined`.
     // It is safe to just leave renderTerritoryLabels.
-    renderTerritoryLabels(ctx, map, territories, viewportMinLng, viewportMaxLng, viewportMinLat, viewportMaxLat, currentZoom, ownerProfileMap);
+    renderTerritoryLabels(ctx, map, territories, viewportMinLng, viewportMaxLng, viewportMinLat, viewportMaxLat, currentZoom, ownerProfileMap, currentUserId);
   }
 }
 
@@ -824,7 +708,9 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
   // P0-2 FIX: RAF ref
   const redrawRAFRef = useRef<number | null>(null);
 
-
+  const loadTerritoriesRef = useRef<() => void>();
+  const redrawCanvasRef = useRef<() => void>();
+  const recomputeViewportKingRef = useRef<() => void>();
 
   const resolveFactionColor = useCallback((ownerFaction: string | null | undefined): string => {
     if (!ownerFaction) return "#64748b";
@@ -901,6 +787,14 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
 
   const recomputeViewportKing = useCallback(() => {
     if (!map || !onViewportKingChange) return;
+    
+    // 当视野拉大到能看到两个市区时（zoom < 11.5），隐藏区域霸主横条
+    const currentZoom = map.getZoom?.() || 0;
+    if (currentZoom < 11.5) {
+      onViewportKingChange(null);
+      return;
+    }
+
     const bounds = map.getBounds?.();
     if (!bounds) {
       onViewportKingChange(null);
@@ -1129,10 +1023,11 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
         territoriesDataRef.current,
         canvasSizeRef,
         () => {
-          redrawCanvas();
+          redrawCanvasRef.current?.();
         },
         ownerProfileMapRef.current,
-        selectedTerritoryIdRef.current
+        selectedTerritoryIdRef.current,
+        user?.id || null
       );
       
       // Update cache
@@ -1242,10 +1137,6 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
       isLoadingRef.current = false;
     }
   }, [city, decorateTerritoriesAsync, map, recomputeViewportKing]);
-
-  const loadTerritoriesRef = useRef<() => Promise<void>>(loadTerritories);
-  const redrawCanvasRef = useRef<() => void>(redrawCanvas);
-  const recomputeViewportKingRef = useRef<() => void>(recomputeViewportKing);
 
   useEffect(() => {
     loadTerritoriesRef.current = loadTerritories;

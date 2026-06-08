@@ -153,7 +153,9 @@ export function TerritoryDetailSheet() {
                                     id: displayDetail.territoryId,
                                     customName: detail?.customName ?? null,
                                     clubName: displayDetail.club?.name ?? null,
-                                    ownerNickname: displayDetail.owner?.nickname ?? null
+                                    ownerNickname: displayDetail.owner?.nickname ?? null,
+                                    ownerId: displayDetail.owner?.id ?? null,
+                                    currentUserId: user?.id ?? null
                                 })
                                 
                                 return (

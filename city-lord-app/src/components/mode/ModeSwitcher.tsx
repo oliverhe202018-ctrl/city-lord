@@ -98,6 +98,9 @@ export function ModeSwitcher({ onDrawerOpenChange }: ModeSwitcherProps) {
         </button> 
       </div>
       
+      {/* ↓ KingAreaBanner 定位锚点 — 零高度，精确标记黑框底部 */}
+      <div id="mode-switcher-anchor" style={{ height: 0, overflow: 'visible' }} />
+      
       {/* 俱乐部抽屉组件保持不变 */} 
       <ClubDrawer 
         isOpen={activeDrawer === 'club'} 

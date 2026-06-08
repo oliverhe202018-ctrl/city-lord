@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/fetch-shim';
 ﻿import { useState, useEffect, useCallback, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
@@ -20,7 +21,7 @@ const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, ti
     if (typeof url === 'string' && url.startsWith('/api')) {
       url = `${process.env.NEXT_PUBLIC_API_SERVER || ''}${url}`
     }
-    return await fetch(url, { ...init, signal: controller.signal })
+    return await apiFetch(url, { ...init, signal: controller.signal })
   } catch (error) {
     console.debug('[fetchWithTimeout] Network warning:', error);
     return new Response(JSON.stringify({ error: 'Network error or CORS issue' }), { status: 502, statusText: 'Bad Gateway' })

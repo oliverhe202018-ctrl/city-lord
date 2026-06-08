@@ -17,11 +17,16 @@ export interface TerritoryDisplayContext {
   customName: string | null;
   clubName?: string | null;
   ownerNickname?: string | null;
+  ownerId?: string | null;
+  currentUserId?: string | null;
 }
 
 export function getTerritoryDisplayName(ctx: TerritoryDisplayContext): string {
   if (ctx.customName) return truncate(ctx.customName, 10);
   if (ctx.clubName) return truncate(ctx.clubName, 8);
-  if (ctx.ownerNickname) return truncate(ctx.ownerNickname, 6) + '的领地';
+  if (ctx.ownerNickname) {
+    const isSelf = ctx.currentUserId && ctx.ownerId && ctx.currentUserId === ctx.ownerId;
+    return isSelf ? truncate(ctx.ownerNickname, 6) : truncate(ctx.ownerNickname, 6) + '的领地';
+  }
   return `领地_${toShortCode(ctx.id)}`;
 }

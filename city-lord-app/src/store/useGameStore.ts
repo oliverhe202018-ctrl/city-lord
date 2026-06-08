@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { touchUserActivity } from '@/app/actions/user';
 import { resetGlobalHydration } from '@/store/hydrationState';
+import { capacitorStorage } from '@/lib/capacitor-storage';
 
 // ==================== Module-level Concurrency Lock ====================
 /** 单调递增时钟：用于 setLastKnownLocation 的同步拦截，绕过 Zustand set 回调中的快照竞态 */
@@ -838,26 +839,7 @@ const createWorldSlice: StateCreator<GameStore, [], [], WorldActions> = (set, ge
 
 // ==================== Store ====================
 
-const ssrSafeLocalStorage: StateStorage = {
-  getItem: (name: string): string | Promise<string | null> | null => {
-    if (typeof window === 'undefined') {
-      return null;
-    }
-    return localStorage.getItem(name);
-  },
-  setItem: (name: string, value: string): void | Promise<void> => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-    localStorage.setItem(name, value);
-  },
-  removeItem: (name: string): void | Promise<void> => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-    localStorage.removeItem(name);
-  },
-};
+// Capacitor storage adapter handles both durable native storage and migration from legacy localStorage.
 
 export const useGameStore = create<GameStore>()(
   persist(
@@ -888,7 +870,7 @@ export const useGameStore = create<GameStore>()(
     }),
     {
       name: 'city-lord-storage',
-      storage: createJSONStorage(() => ssrSafeLocalStorage, {
+      storage: createJSONStorage(() => capacitorStorage, {
         reviver: (key, value) => {
           if (key === 'items' || key === 'territories') {
             if (!Array.isArray(value)) {

@@ -167,6 +167,12 @@ export function RunSummaryView({
   const clubId = useGameStore(state => state.clubId);
   const navigate = useNavigate();
 
+  // 统一的防御性初始化：防止后端显式返回 null 导致解构默认值失效
+  const safeDamageSummary = damageSummary ?? [];
+  const safeMaintenanceSummary = maintenanceSummary ?? [];
+  const safeRunTrajectory = runTrajectory ?? [];
+  const safeTerritoryInfo = territoryInfo ?? { isCaptured: false };
+
   // Settlement State - Received via props, local state only for legacy fallback
   const settlementStats = propSettlementStats;
 
@@ -288,7 +294,7 @@ export function RunSummaryView({
   const contributedArea = Math.max(0, Math.round(finalCapturedArea));
 
   // Aggregate damage by owner for UI display
-  const aggregatedDamage = (damageSummary || []).reduce((acc, curr) => {
+  const aggregatedDamage = safeDamageSummary.reduce((acc, curr) => {
     const key = `${curr.ownerName}_${curr.isCritical ? 'crit' : 'norm'}`;
     if (!acc[key]) {
       acc[key] = { ownerName: curr.ownerName, totalDamage: 0, count: 0, isCritical: curr.isCritical };
@@ -491,7 +497,7 @@ export function RunSummaryView({
   }, [clubId, contributedArea, runIsValid]);
 
   return (
-    <Portal>
+    <>
       <div className="fixed inset-0 z-[100000] flex flex-col bg-white text-black animate-in slide-in-from-bottom duration-300">
         {/* Hidden file input */}
         <input
@@ -664,9 +670,9 @@ export function RunSummaryView({
             ))}
 
             {/* Phase 4: Maintenance Results */}
-            {maintenanceSummary && maintenanceSummary.length > 0 && (
+            {safeMaintenanceSummary && safeMaintenanceSummary.length > 0 && (
               <div className="mt-3 pt-3 border-t border-gray-50">
-                {maintenanceSummary.slice(0, 3).map((item, idx) => (
+                {safeMaintenanceSummary.slice(0, 3).map((item, idx) => (
                   <div key={idx} className="flex items-center justify-between mb-2 last:mb-0">
                     <div className="text-sm text-gray-600">
                       {item.type === 'FORTIFY' 
@@ -676,9 +682,9 @@ export function RunSummaryView({
                     <Flame className="h-4 w-4 text-red-500 fill-red-500" />
                   </div>
                 ))}
-                {maintenanceSummary.length > 3 && (
+                {safeMaintenanceSummary.length > 3 && (
                   <div className="text-[10px] text-gray-400 text-center mt-1">
-                    ...以及其他 {maintenanceSummary.length - 3} 处加固
+                    ...以及其他 {safeMaintenanceSummary.length - 3} 处加固
                   </div>
                 )}
               </div>
@@ -725,8 +731,8 @@ export function RunSummaryView({
 
           {/* Static Trajectory Map */}
           <div className="mx-4 mb-4 rounded-xl overflow-hidden shadow-sm border border-gray-100 relative bg-gray-100 h-72">
-            {runTrajectory && runTrajectory.length > 0 ? (
-              <StaticTrajectoryMap path={runTrajectory} className="w-full h-full" />
+            {safeRunTrajectory && safeRunTrajectory.length > 0 ? (
+              <StaticTrajectoryMap path={safeRunTrajectory} className="w-full h-full" />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm">
                 暂无轨迹数据
@@ -735,12 +741,12 @@ export function RunSummaryView({
           </div>
 
           {/* Territory Capture Feedback */}
-          {territoryInfo.isCaptured && (
+          {safeTerritoryInfo.isCaptured && (
             <div className="mx-4 mb-8 text-center animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300">
               <div className="inline-block px-4 py-2 rounded-lg bg-[#22c55e]/10 border border-[#22c55e]/20">
                 <span className="text-[#22c55e] font-bold text-sm">
-                  {territoryInfo.previousOwner
-                    ? `恭喜，本次从 ${territoryInfo.previousOwner} 手中占领1块领地`
+                  {safeTerritoryInfo.previousOwner
+                    ? `恭喜，本次从 ${safeTerritoryInfo.previousOwner} 手中占领1块领地`
                     : "恭喜，本次占领1块新领地"
                   }
                 </span>
@@ -940,6 +946,6 @@ export function RunSummaryView({
           )}
         </AnimatePresence>
       </div>
-    </Portal>
+    </>
   )
 }

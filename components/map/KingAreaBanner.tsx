@@ -11,26 +11,48 @@ export const KingAreaBanner = React.memo(function KingAreaBanner({ king }: Props
 
   useEffect(() => {
     const update = () => {
-      const mh = document.getElementById('map-header');
+      // 1. Follow precise anchor
+      const anchor = document.getElementById('mode-switcher-anchor');
+      if (anchor) {
+        const rect = anchor.getBoundingClientRect();
+        if (rect.top > 0) {
+          setTopOffset(rect.top + 4); // 4px visual gap
+          return;
+        }
+      }
+
+      // 2. Fallback to mode-switcher bottom minus padding
       const ms = document.getElementById('mode-switcher');
-      if (!mh || !ms) return;
-      // getBoundingClientRect 返回的是视口内的实际渲染位置和尺寸
-      // 用 ms 的 bottom 值直接作为 Banner 的 top，最准确
-      const switcherBottom = ms.getBoundingClientRect().bottom;
-      if (switcherBottom > 0) {
-        setTopOffset(switcherBottom + 4);  // 4px 间距
+      if (ms) {
+        const rect = ms.getBoundingClientRect();
+        const computedStyle = window.getComputedStyle(ms);
+        const paddingBottom = parseFloat(computedStyle.paddingBottom) || 0;
+        const visualBottom = rect.bottom - paddingBottom;
+        if (visualBottom > 0) {
+          setTopOffset(visualBottom + 4);
+          return;
+        }
       }
     };
-    update();
+
+    // First frame update
+    const raf = requestAnimationFrame(update);
+
+    // Watch for size/layout changes
+    let ro: ResizeObserver | null = null;
     if (typeof ResizeObserver !== 'undefined') {
-      const ro = new ResizeObserver(update);
-      const mh = document.getElementById('map-header');
+      ro = new ResizeObserver(update);
+      const anchor = document.getElementById('mode-switcher-anchor');
       const ms = document.getElementById('mode-switcher');
-      if (mh) ro.observe(mh);
-      if (ms) ro.observe(ms);
-      return () => ro.disconnect();
+      if (anchor) ro.observe(anchor);
+      else if (ms) ro.observe(ms);
     }
-  }, []); // 空依赖，只挂载一次
+
+    return () => {
+      cancelAnimationFrame(raf);
+      ro?.disconnect();
+    };
+  }, []);
 
   if (!king) return null;
   const areaM2 = king.totalArea ? Math.round(king.totalArea) : 0;

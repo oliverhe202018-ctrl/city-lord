@@ -65,8 +65,6 @@ export const useStore = create<UserState>((set) => ({
 
     if (data.data?.token) {
       const { token, refreshToken, userId } = data.data;
-      await Preferences.set({ key: 'authToken', value: token });
-      if (refreshToken) await Preferences.set({ key: 'refreshToken', value: refreshToken });
       await Preferences.set({ key: 'userId', value: userId });
       
       try {
@@ -101,8 +99,6 @@ export const useStore = create<UserState>((set) => ({
 
     if (data.data?.token) {
       const { token, refreshToken, userId } = data.data;
-      await Preferences.set({ key: 'authToken', value: token });
-      if (refreshToken) await Preferences.set({ key: 'refreshToken', value: refreshToken });
       await Preferences.set({ key: 'userId', value: userId });
 
       try {
@@ -130,9 +126,10 @@ export const useStore = create<UserState>((set) => ({
     } catch (err) {
       console.warn('Failed to sign out from Supabase in logout:', err);
     }
+    await Preferences.remove({ key: 'userId' });
+    // Also remove old keys just in case
     await Preferences.remove({ key: 'authToken' });
     await Preferences.remove({ key: 'refreshToken' });
-    await Preferences.remove({ key: 'userId' });
     set({ isAuthenticated: false, userId: null, token: null, profile: null });
   },
 
@@ -146,29 +143,22 @@ export const useStore = create<UserState>((set) => ({
 
   checkAuth: async () => {
     try {
-      const { value: token } = await Preferences.get({ key: 'authToken' });
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      let token = session?.access_token;
       const { value: userId } = await Preferences.get({ key: 'userId' });
 
       if (token) {
-        // Verify with backend
-        const res = await apiFetch('/api/v1/user/profile', { skipAuthEvent: true });
+        // Let apiFetch handle appending the token natively via getSession
+        let res = await apiFetch('/api/v1/user/profile');
+        
         if (res.ok) {
           const data = await res.json();
           if (data.success && data.data) {
-            const { value: refreshToken } = await Preferences.get({ key: 'refreshToken' });
-            try {
-              const supabase = createClient();
-              await supabase.auth.setSession({
-                access_token: token,
-                refresh_token: refreshToken || '',
-              });
-            } catch (err) {
-              console.warn('Failed to set Supabase session in checkAuth:', err);
-            }
-
             set({ 
               isAuthenticated: true, 
-              token, 
+              token: token, 
               userId: userId || data.data.id,
               profile: data.data,
               isHydrating: false
@@ -177,8 +167,22 @@ export const useStore = create<UserState>((set) => ({
           }
         }
       }
-    } catch (e) {
+    } catch (e: any) {
       console.warn('Silent auth check failed:', e);
+      // If it's explicitly an auth error (401), we should log them out
+      if (e?.isAuthError) {
+        set({ isAuthenticated: false, userId: null, token: null, profile: null, isHydrating: false });
+        return;
+      }
+      // Otherwise, it might be a network error or offline mode. Keep them authenticated with whatever we have.
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      let token = session?.access_token;
+      const { value: userId } = await Preferences.get({ key: 'userId' });
+      if (token) {
+        set({ isAuthenticated: true, token, userId, isHydrating: false });
+        return;
+      }
     }
     
     // Clear invalid session

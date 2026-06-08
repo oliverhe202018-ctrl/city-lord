@@ -314,7 +314,8 @@ function renderTerritoryLabels(
   viewportMinLat: number,
   viewportMaxLat: number,
   currentZoom: number,
-  ownerProfileMap: Map<string, { nickname: string; avatarUrl: string | null }>
+  ownerProfileMap: Map<string, { nickname: string; avatarUrl: string | null }>,
+  currentUserId?: string | null
 ) {
   if (currentZoom < 15) return;
 
@@ -353,7 +354,9 @@ function renderTerritoryLabels(
       id: territory.id,
       customName: territory.customName ?? null,
       clubName: territory.ownerClub?.name,
-      ownerNickname: ownerProfile?.nickname ?? null
+      ownerNickname: ownerProfile?.nickname ?? null,
+      ownerId: territory.ownerId ?? null,
+      currentUserId: currentUserId ?? null
     });
 
     ctx.save();
@@ -383,7 +386,8 @@ function renderTerritoriesOnCanvas(
   canvasSizeRef: { current: { width: number; height: number } },
   onNeedRedraw?: () => void,
   ownerProfileMap?: Map<string, { nickname: string; avatarUrl: string | null }>,
-  selectedTerritoryId?: string | null
+  selectedTerritoryId?: string | null,
+  currentUserId?: string | null
 ) {
   const size = map.getSize?.();
   if (!size) return;
@@ -713,7 +717,7 @@ function renderTerritoriesOnCanvas(
     }
   }
 
-  renderTerritoryLabels(ctx, map, territories, viewportMinLng, viewportMaxLng, viewportMinLat, viewportMaxLat, currentZoom, ownerProfileMap || new Map());
+  renderTerritoryLabels(ctx, map, territories, viewportMinLng, viewportMaxLng, viewportMinLat, viewportMaxLat, currentZoom, ownerProfileMap || new Map(), currentUserId);
 }
 
 const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
@@ -1085,7 +1089,8 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
           redrawCanvas();
         },
         ownerProfileMapRef.current,
-        selectedTerritoryIdRef.current
+        selectedTerritoryIdRef.current,
+        user?.id || null
       );
       
       // Update cache

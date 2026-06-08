@@ -47,14 +47,10 @@ export async function apiFetch(input: RequestInfo | URL, init?: CustomRequestIni
     credentials: 'omit',
   };
 
-  // 1. Try to get token synchronously from memory store first
-  let token = getTokenGetter();
-  
-  // 2. Fallback to async Preferences check if store is empty
-  if (!token) {
-    const pref = await Preferences.get({ key: 'authToken' });
-    token = pref.value;
-  }
+  // Let Supabase client automatically manage token refresh
+  const supabase = createClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  let token = session?.access_token;
 
   if (token) {
     customInit.headers = {
@@ -66,40 +62,12 @@ export async function apiFetch(input: RequestInfo | URL, init?: CustomRequestIni
   // CapacitorHttp automatically bridges fetch requests on native apps
   let response = await fetch(url, customInit);
 
-  // Global 401 handling & Silent Refresh
+  // Global 401 handling
   if (response.status === 401 && !init?.skipAuthEvent && token) {
-    const prefRefresh = await Preferences.get({ key: 'refreshToken' });
-    const refreshToken = prefRefresh.value;
-    
-    if (refreshToken) {
-      console.log('Attempting silent refresh...');
-      const supabase = createClient();
-      const { data, error } = await supabase.auth.refreshSession({ refresh_token: refreshToken });
-      
-      if (!error && data.session) {
-        console.log('Silent refresh successful!');
-        await Preferences.set({ key: 'authToken', value: data.session.access_token });
-        await Preferences.set({ key: 'refreshToken', value: data.session.refresh_token });
-        setTokenSetter(data.session.access_token);
-        
-        // Replay the request with new token
-        customInit.headers = {
-          ...customInit.headers,
-          'Authorization': `Bearer ${data.session.access_token}`
-        };
-        response = await fetch(url, customInit);
-        
-        // If the replayed request succeeds, return it
-        if (response.status !== 401) {
-          return response;
-        }
-      }
-    }
-
+    // If the server returns 401 despite having a token, the session is invalid
     console.warn('API returned 401 Unauthorized. Dispatching logout event.');
+    await supabase.auth.signOut();
     window.dispatchEvent(new CustomEvent('auth:logout'));
-    
-    // Throw custom error so SWR won't show flash error UI
     const err: any = new Error('UNAUTHORIZED');
     err.isAuthError = true;
     throw err;

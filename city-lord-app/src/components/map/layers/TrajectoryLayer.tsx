@@ -67,7 +67,39 @@ export function TrajectoryLayer({ map, path, strokeColor = '#3B82F6', strokeWeig
 
         const alreadyRendered = renderedCountRef.current;
 
-        if (alreadyRendered === 0) {
+        // Detection for path clearing, replacing, or shortening (e.g. simplified path)
+        if (alreadyRendered > 0) {
+            let needsRebuild = false;
+            if (path.length < alreadyRendered) {
+                needsRebuild = true;
+            } else {
+                // Check if the last rendered point still matches (detect array swap with different points)
+                const lastSeg = segmentsRef.current[segmentsRef.current.length - 1];
+                if (lastSeg && lastSeg.rawPoints.length > 0) {
+                    const lastRenderedPt = lastSeg.rawPoints[lastSeg.rawPoints.length - 1];
+                    const correspondingPathPt = path[alreadyRendered - 1];
+                    if (
+                        !correspondingPathPt ||
+                        Math.abs(lastRenderedPt.lat - correspondingPathPt.lat) > 0.00001 ||
+                        Math.abs(lastRenderedPt.lng - correspondingPathPt.lng) > 0.00001
+                    ) {
+                        needsRebuild = true;
+                    }
+                }
+            }
+
+            if (needsRebuild) {
+                segmentsRef.current.forEach(({ polyline }) => {
+                    try { map.remove(polyline); polyline.destroy?.(); } catch (_) {}
+                });
+                segmentsRef.current = [];
+                renderedCountRef.current = 0;
+            }
+        }
+
+        const currentAlreadyRendered = renderedCountRef.current;
+
+        if (currentAlreadyRendered === 0) {
             // First render — build all segments from scratch
             const segments: GeoPoint[][] = [];
             let cur: GeoPoint[] = [];
@@ -94,7 +126,7 @@ export function TrajectoryLayer({ map, path, strokeColor = '#3B82F6', strokeWeig
         }
 
         // Incremental append — only process new points
-        const newPoints = path.slice(alreadyRendered);
+        const newPoints = path.slice(currentAlreadyRendered);
         if (newPoints.length === 0) return;
 
         for (const pt of newPoints) {
