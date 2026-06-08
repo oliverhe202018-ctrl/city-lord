@@ -20,16 +20,11 @@ import { GameLayout } from './components/game/GameLayout';
 import { ClientShell } from './components/ClientShell';
 import { swrFetcher } from './lib/fetch-shim';
 import { SWRConfig } from 'swr';
-import { Loader2 } from 'lucide-react';
+import { LoadingScreen } from '@/components/citylord/loading-screen';
 
 // Loading Fallback
 const LoadingFallback = () => {
-  return (
-    <div className="flex flex-col items-center justify-center h-[100dvh] bg-black text-white">
-      <Loader2 className="w-8 h-8 animate-spin text-emerald-500 mb-4" />
-      <span className="text-white/60 text-sm">正在加载并定位...</span>
-    </div>
-  );
+  return <LoadingScreen message="正在加载城市数据..." />;
 };
 
 // Protected Route wrapper

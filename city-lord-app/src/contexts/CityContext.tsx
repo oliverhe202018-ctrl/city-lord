@@ -162,11 +162,25 @@ const convertDbCityToCity = (dbCity: any): City => {
   };
 };
 
-/**
- * CityContext Provider 组件
- */
+const getInitialCity = (): City | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const savedCityId = localStorage.getItem("currentCityId");
+    if (savedCityId) {
+      const city = getCityById(savedCityId);
+      if (city) return city;
+    }
+  } catch (_) {}
+  
+  try {
+    const all = getAllCities();
+    return all.length > 0 ? all[0] : null;
+  } catch (_) {}
+  return null;
+};
+
 export function CityProvider({ children }: { children: React.ReactNode }) {
-  const [activeBaseCity, setActiveBaseCity] = useState<City | null>(null)
+  const [activeBaseCity, setActiveBaseCity] = useState<City | null>(getInitialCity)
   const [switchHistory, setSwitchHistory] = useState<CitySwitchHistory[]>([])
   const { region, setRegion } = useRegion()
   const queryClient = useQueryClient()

@@ -23,11 +23,53 @@ interface UserState {
   checkAuth: () => Promise<void>;
 }
 
+const getInitialAuthState = () => {
+  if (typeof window === 'undefined') {
+    return {
+      isHydrating: true,
+      isAuthenticated: false,
+      userId: null,
+      token: null,
+    };
+  }
+
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    const sbKey = `sb-${supabaseUrl}-auth-token`;
+    const sbSessionStr = window.localStorage.getItem(sbKey);
+    const cachedUserId = window.localStorage.getItem('userId');
+
+    let token: string | null = null;
+    if (sbSessionStr) {
+      const parsed = JSON.parse(sbSessionStr);
+      token = parsed?.currentSession?.access_token || parsed?.access_token || null;
+    }
+
+    if (token && cachedUserId) {
+      return {
+        isHydrating: false,
+        isAuthenticated: true,
+        userId: cachedUserId,
+        token,
+      };
+    }
+  } catch (_) {}
+
+  return {
+    isHydrating: true,
+    isAuthenticated: false,
+    userId: null,
+    token: null,
+  };
+};
+
+const initialAuth = getInitialAuthState();
+
 export const useStore = create<UserState>((set) => ({
-  isHydrating: true,
-  isAuthenticated: false,
-  userId: null,
-  token: null,
+  isHydrating: initialAuth.isHydrating,
+  isAuthenticated: initialAuth.isAuthenticated,
+  userId: initialAuth.userId,
+  token: initialAuth.token,
   profile: null,
   unreadMessageCount: 0,
   unreadNotificationCount: 0,
