@@ -33,8 +33,10 @@ export function TerritoryDetailSheet() {
     const [isRenaming, setIsRenaming] = useState(false)
     const [clubProfileSheetOpen, setClubProfileSheetOpen] = useState(false)
     const selectedTerritoryId = useGameStore((state) => state.selectedTerritoryId)
-    const backgroundUrl = useGameStore((state) => (state as any).backgroundUrl)
     const { user } = useAuth()
+    const backgroundUrl = (user as any)?.user_metadata?.background_url 
+        || (user as any)?.profile?.background_url 
+        || null
     const queryClient = useQueryClient()
 
     const activeId = selectedTerritoryId || selectedTerritory?.id || null
