@@ -4,7 +4,6 @@ import { useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { Loader2, Upload, Camera } from 'lucide-react'
-import Image from 'react'
 import { cn } from '@/lib/utils'
 import { ImageCropperModal } from './ImageCropperModal'
 
@@ -25,7 +24,7 @@ export function AvatarUploader({
   className,
   loading = false,
   children,
-  cropShape = 'round'
+  cropShape = 'rect'
 }: AvatarUploaderProps) {
   const [isUploading, setIsUploading] = useState(false)
   const [cropperOpen, setCropperOpen] = useState(false)
@@ -145,7 +144,7 @@ export function AvatarUploader({
       )}
 
       {selectedImage && (
-        <imgCropperModal
+        <ImageCropperModal
             isOpen={cropperOpen}
             onClose={() => {
                 setCropperOpen(false)

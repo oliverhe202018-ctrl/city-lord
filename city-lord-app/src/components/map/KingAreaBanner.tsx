@@ -2,16 +2,21 @@
 import React from 'react';
 import type { ViewportKingData } from './AMapView';
 
+import { useGameStore } from '@/store/useGameStore';
+import { useMapDisplayStore } from '@/store/useMapDisplayStore';
+
 interface Props {
   king: ViewportKingData | null;
 }
-import { useMapDisplayStore } from '@/store/useMapDisplayStore';
 
 export const KingAreaBanner = React.memo(function KingAreaBanner({ king }: Props) {
   const { mapDisplayMode } = useMapDisplayStore();
+  const selectedTerritoryId = useGameStore(state => state.selectedTerritoryId);
   if (!king) return null;
 
   const isClubMode = mapDisplayMode === 'club';
+  if (isClubMode && !selectedTerritoryId) return null;
+
   const displayAvatar = isClubMode ? king.clubAvatarUrl : king.avatarUrl;
   const displayName = isClubMode ? (king.clubName || '未知俱乐部') : king.nickname;
   const displayArea = isClubMode ? (king.clubTotalArea || 0) : king.totalArea;
@@ -73,7 +78,7 @@ export const KingAreaBanner = React.memo(function KingAreaBanner({ king }: Props
         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
         <span style={{ fontSize: 11 }}>👑</span>
         <span style={{ color: '#fbbf24', fontSize: 10, fontWeight: 700,
-          letterSpacing: 2 }}>{isClubMode ? '俱乐部霸主' : '区域霸主'}</span>
+          letterSpacing: 2 }}>{isClubMode ? '所属俱乐部' : '区域霸主'}</span>
         <span style={{ fontSize: 11 }}>👑</span>
       </div>
     </div>

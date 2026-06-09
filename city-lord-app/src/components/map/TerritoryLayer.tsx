@@ -272,10 +272,8 @@ function deterministicShuffle<T>(array: T[], seedStr: string): T[] {
     arr[j] = temp;
   }
   return arr;
-}
-
-const getRoundedAvatarTile = (url: string, img: HTMLImageElement, tileSize: number): HTMLCanvasElement => {
-  const cacheKey = `${url}::${tileSize}`;
+}const getSquareAvatarTile = (url: string, img: HTMLImageElement, tileSize: number): HTMLCanvasElement => {
+  const cacheKey = `${url}::${tileSize}::square`;
   const cached = avatarTileCache.get(cacheKey);
   if (cached) return cached;
 
@@ -285,21 +283,7 @@ const getRoundedAvatarTile = (url: string, img: HTMLImageElement, tileSize: numb
   const octx = offscreen.getContext("2d");
   if (!octx) return offscreen;
 
-  const radius = tileSize * 0.2;
-  octx.beginPath();
-  octx.moveTo(radius, 0);
-  octx.lineTo(tileSize - radius, 0);
-  octx.quadraticCurveTo(tileSize, 0, tileSize, radius);
-  octx.lineTo(tileSize, tileSize - radius);
-  octx.quadraticCurveTo(tileSize, tileSize, tileSize - radius, tileSize);
-  octx.lineTo(radius, tileSize);
-  octx.quadraticCurveTo(0, tileSize, 0, tileSize - radius);
-  octx.lineTo(0, radius);
-  octx.quadraticCurveTo(0, 0, radius, 0);
-  octx.closePath();
-  octx.clip();
   octx.drawImage(img, 0, 0, tileSize, tileSize);
-
   avatarTileCache.set(cacheKey, offscreen);
   return offscreen;
 };
@@ -502,19 +486,18 @@ function renderTerritoriesOnCanvas(
       ctx.globalAlpha = isFocused ? Math.min(1.0, first.fillOpacity + 0.15) : first.fillOpacity;
       ctx.fill(path, 'nonzero');
 
-      // Draw stroke using offscreen trick to hide internal boundaries
-      if (octx) {
+      // Draw stroke using offscreen trick ONLY IF FOCUSED to hide internal boundaries
+      if (octx && isFocused) {
+        const selectedT = group.find(t => t.id === selectedTerritoryId);
+        const personalColor = selectedT ? selectedT.ownerPersonalColor : (first.ownerPersonalColor || "#fbbf24");
+
         octx.clearRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
         
         octx.globalCompositeOperation = 'source-over';
-        octx.strokeStyle = isFocused ? "#FFFFFF" : (first.strokeColor || "rgba(234, 88, 12, 0.8)");
-        octx.lineWidth = isFocused ? 9 : (first.strokeWeight ? first.strokeWeight * 2 : 3);
-        if (isFocused) {
-          octx.shadowColor = first.strokeColor;
-          octx.shadowBlur = 15;
-        } else {
-          octx.shadowBlur = 0;
-        }
+        octx.strokeStyle = personalColor;
+        octx.lineWidth = 10; 
+        octx.shadowColor = personalColor;
+        octx.shadowBlur = 15;
         octx.stroke(path);
 
         // Erase insides
@@ -526,65 +509,43 @@ function renderTerritoriesOnCanvas(
         // Draw to main
         ctx.globalAlpha = 1.0;
         ctx.drawImage(offscreenCanvas, 0, 0);
-        
-        // If focused, draw inner gold line
-        if (isFocused) {
-          octx.clearRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
-          octx.globalCompositeOperation = 'source-over';
-          octx.strokeStyle = first.strokeColor;
-          octx.lineWidth = 4; // 2px outer visible
-          octx.stroke(path);
-          octx.globalCompositeOperation = 'destination-out';
-          octx.fill(path, 'nonzero');
-          ctx.drawImage(offscreenCanvas, 0, 0);
-        }
       }
 
-      // Draw Avatar at center for the club
+      // Draw tiled pattern over it!
       if (key.startsWith('club_') && first.clubAvatarUrl) {
-        let sumLng = 0, sumLat = 0;
-        for (const t of group) {
-          sumLng += t.centerPoint[0];
-          sumLat += t.centerPoint[1];
-        }
-        const avgLng = sumLng / group.length;
-        const avgLat = sumLat / group.length;
-
-        // Find territory closest to avg centroid
-        let closestT = group[0];
-        let minDist = Infinity;
-        for (const t of group) {
-          const d = Math.pow(t.centerPoint[0] - avgLng, 2) + Math.pow(t.centerPoint[1] - avgLat, 2);
-          if (d < minDist) {
-            minDist = d;
-            closestT = t;
-          }
-        }
-
-        const centerPt = map.lngLatToContainer?.(new AMapGlobal.LngLat(closestT.centerPoint[0], closestT.centerPoint[1]));
-        if (centerPt) {
-          const avatarUrl = first.clubAvatarUrl;
-          const cachedImg = getOrLoadImage(avatarUrl, () => onNeedRedraw?.());
-          if (cachedImg) {
-            let discreteSize = currentZoom < 13 ? 24 : currentZoom < 15 ? 32 : currentZoom < 17 ? 40 : 48;
-            if (isFocused) discreteSize += 8; // Make focused avatar slightly larger
-            
-            const avatarTile = getRoundedAvatarTile(avatarUrl, cachedImg, discreteSize);
+        const avatarUrl = first.clubAvatarUrl;
+        const cachedImg = getOrLoadImage(avatarUrl, () => onNeedRedraw?.());
+        if (cachedImg) {
+          let discreteSize = currentZoom < 13 ? 60 : currentZoom < 15 ? 80 : currentZoom < 17 ? 120 : 160;
+          if (isFocused) discreteSize += 8;
+          
+          const avatarTile = getSquareAvatarTile(avatarUrl, cachedImg, discreteSize);
+          const pattern = ctx.createPattern(avatarTile, 'repeat');
+          if (pattern) {
+            const originPoint = map.lngLatToContainer?.(new AMapGlobal.LngLat(first.centerPoint[0], first.centerPoint[1]));
+            if (originPoint && Number.isFinite(originPoint.x) && Number.isFinite(originPoint.y)) {
+              try {
+                // Safely handle DOMMatrix for older Android WebViews
+                const matrix = typeof DOMMatrix !== 'undefined' 
+                  ? new DOMMatrix() 
+                  : document.createElementNS("http://www.w3.org/2000/svg", "svg").createSVGMatrix();
+                
+                if (typeof matrix.translateSelf === 'function') {
+                  matrix.translateSelf(originPoint.x - discreteSize / 2, originPoint.y - discreteSize / 2);
+                } else {
+                  matrix.e = originPoint.x - discreteSize / 2;
+                  matrix.f = originPoint.y - discreteSize / 2;
+                }
+                pattern.setTransform(matrix);
+              } catch (err) {
+                console.warn("[CityLord] Canvas pattern.setTransform failed, ignoring:", err);
+              }
+            }
             
             ctx.save();
-            ctx.globalAlpha = 1.0;
-            ctx.drawImage(avatarTile, centerPt.x - discreteSize/2, centerPt.y - discreteSize/2, discreteSize, discreteSize);
-            
-            // Draw a nice border around avatar
-            ctx.beginPath();
-            ctx.arc(centerPt.x, centerPt.y, discreteSize/2, 0, Math.PI * 2);
-            ctx.lineWidth = isFocused ? 2.5 : 1.5;
-            ctx.strokeStyle = isFocused ? first.strokeColor : '#FFFFFF';
-            if (isFocused) {
-              ctx.shadowColor = first.strokeColor;
-              ctx.shadowBlur = 10;
-            }
-            ctx.stroke();
+            ctx.globalAlpha = isFocused ? 0.95 : 0.85;
+            ctx.fillStyle = pattern;
+            ctx.fill(path, 'nonzero');
             ctx.restore();
           }
         }
@@ -744,7 +705,8 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
     if (customLayerRef.current) {
       customLayerRef.current.render?.();
     }
-  }, [selectedTerritoryId]);
+    recomputeViewportKing();
+  }, [selectedTerritoryId, recomputeViewportKing]);
   const mapInteractingRef = useRef(false);
   const rawTerritoriesRef = useRef<ExtTerritory[]>([]);
   const territoriesDataRef = useRef<TerritoryWithRender[]>([]);
@@ -842,6 +804,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
       fillOpacity: allowCustomAppearance ? territoryAppearance.fillOpacity : (isLowHealth ? 0.2 : 0.5),
       strokeColor: isLowHealth ? "#facc15" : baseStrokeColor,
       strokeWeight: isLowHealth ? 2.5 : 1.5,
+      ownerPersonalColor: isSelfTerritory ? (territoryAppearance.fillColor || DEFAULT_FILL) : (specificFillColor || DEFAULT_FILL),
     };
   }, [clubId, faction, mapDisplayMode, resolvedViewMode, resolveFactionColor, territoryAppearance.fillColor, territoryAppearance.fillOpacity, territoryAppearance.strokeColor, user?.id]);
 
@@ -856,17 +819,11 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
     }
 
     const bounds = map.getBounds?.();
-    if (!bounds) {
-      onViewportKingChange(null);
-      return;
-    }
+    if (!bounds) return;
 
     const northEast = bounds.getNorthEast?.();
     const southWest = bounds.getSouthWest?.();
-    if (!northEast || !southWest) {
-      onViewportKingChange(null);
-      return;
-    }
+    if (!northEast || !southWest) return;
 
     const viewportMinLng = southWest.getLng();
     const viewportMaxLng = northEast.getLng();
@@ -905,12 +862,21 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
 
     let kingClubId = "";
     let maxClubArea = 0;
-    clubTotals.forEach((data, id) => {
-      if (data.area > maxClubArea) {
-        maxClubArea = data.area;
-        kingClubId = id;
-      }
-    });
+
+    if (mapDisplayMode === "club" && selectedTerritoryIdRef.current) {
+       const selectedT = territoriesDataRef.current.find(t => t.id === selectedTerritoryIdRef.current);
+       if (selectedT && selectedT.ownerClubId) {
+          kingClubId = selectedT.ownerClubId;
+          maxClubArea = clubTotals.get(kingClubId)?.area || selectedT.areaM2 || 0;
+       }
+    } else {
+       clubTotals.forEach((data, id) => {
+         if (data.area > maxClubArea) {
+           maxClubArea = data.area;
+           kingClubId = id;
+         }
+       });
+    }
 
     if (kingOwnerId === "") {
       onViewportKingChange(null);
@@ -938,7 +904,9 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
       clubAvatarUrl: clubAvatarUrl || null,
       clubTotalArea: maxClubArea || null,
     });
-  }, [map, onViewportKingChange]);
+  }, [map, onViewportKingChange, mapDisplayMode]);
+
+  const decorateTerritoriesAsync = useCallback(async (items: Territory[]) => {
     const batchId = ++processingBatchIdRef.current;
     const filteredItems = items.filter((item) => item.id && item.geojson_json);
     const result: TerritoryWithRender[] = [];
@@ -1404,6 +1372,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
       });
 
       if (clicked) {
+        (window as any).__amap_polygon_clicked = Date.now();
         setSelectedTerritoryId(clicked.id as never);
         setSelectedTerritory?.(clicked);
         setIsDetailSheetOpen?.(true);
