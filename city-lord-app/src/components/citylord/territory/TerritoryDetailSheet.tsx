@@ -20,6 +20,7 @@ import { Input } from '@/components/ui/input'
 import { useAuth } from '@/hooks/useAuth'
 import { getTerritoryDisplayName } from '@/lib/territory-display'
 import { useMapDisplayStore } from '@/store/useMapDisplayStore'
+import { ClubProfileSheet } from './ClubProfileSheet'
 
 const RENAME_MAX_LENGTH = 10
 
@@ -30,7 +31,9 @@ export function TerritoryDetailSheet() {
     const [renameDialogOpen, setRenameDialogOpen] = useState(false)
     const [renameInput, setRenameInput] = useState('')
     const [isRenaming, setIsRenaming] = useState(false)
+    const [clubProfileSheetOpen, setClubProfileSheetOpen] = useState(false)
     const selectedTerritoryId = useGameStore((state) => state.selectedTerritoryId)
+    const backgroundUrl = useGameStore((state) => (state as any).backgroundUrl)
     const { user } = useAuth()
     const queryClient = useQueryClient()
 
@@ -100,10 +103,18 @@ export function TerritoryDetailSheet() {
         <>
             <Drawer modal={false} open={isOpen} onOpenChange={handleOpenChange} dismissible={true}>
                 <DrawerOverlay onClick={() => setIsDetailSheetOpen?.(false)} className="bg-transparent z-[1050] pointer-events-none" />
-                <DrawerContent onPointerDownOutside={() => setIsDetailSheetOpen?.(false)} className="bg-card/95 backdrop-blur-md border-t border-border outline-none max-w-md mx-auto pointer-events-auto z-[1050]">
-                    <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-muted mt-2" />
+                <DrawerContent onPointerDownOutside={() => setIsDetailSheetOpen?.(false)} className="bg-card/95 backdrop-blur-md border-t border-border outline-none max-w-md mx-auto pointer-events-auto z-[1050] overflow-hidden">
+                    {/* Background Header Layer */}
+                    {backgroundUrl && (
+                        <div className="absolute top-0 left-0 right-0 h-32 w-full -z-10">
+                            <img src={backgroundUrl} alt="background" className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-background/80 to-background" />
+                        </div>
+                    )}
+                    
+                    <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-muted/60 mt-2 z-10" />
 
-                    <div className="p-4 flex flex-col gap-4 max-h-[80vh] overflow-y-auto overflow-x-hidden">
+                    <div className="p-4 flex flex-col gap-4 max-h-[80vh] overflow-y-auto overflow-x-hidden z-10 relative">
                         {isLoading || detail?.status === 'pending' ? (
                             <div className="flex flex-col items-center justify-center py-10 gap-2">
                                 <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
@@ -156,50 +167,67 @@ export function TerritoryDetailSheet() {
                                 
                                 return (
                                     <>
-                                        <div className="flex items-center justify-between">
+                                        <div className="flex items-start justify-between">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-12 h-12 rounded-full overflow-hidden bg-muted border border-border flex items-center justify-center">
+                                                <div className="w-14 h-14 rounded-full overflow-hidden bg-background/50 backdrop-blur-sm border-2 border-border shadow-md flex items-center justify-center relative">
                                                     {isClubMode && displayDetail.club ? (
-                                                        displayDetail.club.logoUrl ? (
-                                                            <img src={displayDetail.club.logoUrl} alt="club avatar" className="w-full h-full object-cover" />
-                                                        ) : (
-                                                            <span className="text-lg font-bold text-muted-foreground">
-                                                                {displayDetail.club.name.substring(0, 1)}
-                                                            </span>
-                                                        )
+                                                        <>
+                                                            {displayDetail.owner?.avatarUrl ? (
+                                                                <img src={displayDetail.owner.avatarUrl} alt="avatar" className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                <span className="text-xl font-bold text-muted-foreground">
+                                                                    {(displayDetail.owner && typeof displayDetail.owner.nickname === 'string') ? displayDetail.owner.nickname.substring(0, 1) : '?'}
+                                                                </span>
+                                                            )}
+                                                            {/* Small Club Badge */}
+                                                            <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full border border-background bg-muted overflow-hidden flex items-center justify-center">
+                                                                {displayDetail.club.logoUrl ? (
+                                                                    <img src={displayDetail.club.logoUrl} alt="club avatar" className="w-full h-full object-cover" />
+                                                                ) : (
+                                                                    <span className="text-[8px] font-bold">C</span>
+                                                                )}
+                                                            </div>
+                                                        </>
                                                     ) : (
                                                         displayDetail.owner?.avatarUrl ? (
                                                             <img src={displayDetail.owner.avatarUrl} alt="avatar" className="w-full h-full object-cover" />
                                                         ) : (
-                                                            <span className="text-lg font-bold text-muted-foreground">
-                                                                {displayDetail.owner ? displayDetail.owner.nickname.substring(0, 1) : '?'}
+                                                            <span className="text-xl font-bold text-muted-foreground">
+                                                                {(displayDetail.owner && typeof displayDetail.owner.nickname === 'string') ? displayDetail.owner.nickname.substring(0, 1) : '?'}
                                                             </span>
                                                         )
                                                     )}
                                                 </div>
-                                                <div className="flex flex-col">
+                                                <div className="flex flex-col pt-1">
                                                     <div className="flex items-center gap-2">
-                                                        <span className="font-bold text-lg text-foreground">
+                                                        <span className="font-bold text-lg text-foreground drop-shadow-sm">
                                                             {displayName}
                                                         </span>
                                                         {isOwner && (
                                                             <button
                                                                 onClick={handleOpenRenameDialog}
-                                                                className="p-1 rounded-md hover:bg-muted transition-colors"
+                                                                className="p-1.5 rounded-md hover:bg-muted/50 transition-colors bg-background/20 backdrop-blur-sm"
                                                             >
                                                                  <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
                                                             </button>
                                                         )}
                                                     </div>
-                                                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                                    {isClubMode && displayDetail.club && (
+                                                        <div className="flex items-center gap-1.5 mt-0.5">
+                                                            <span className="text-xs font-semibold text-primary/90 bg-primary/10 px-1.5 py-0.5 rounded border border-primary/20">
+                                                                {displayDetail.club.name}
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                    <span className="text-xs text-muted-foreground flex items-center gap-1 mt-1 drop-shadow-sm">
                                                         <MapPin className="w-3 h-3" />
-                                                        {displayDetail.cityName} · 领地 ID: {safeTerritoryId.substring(0, 6)}
+                                                        {displayDetail.cityName} · ID: {safeTerritoryId.substring(0, 6)}
                                                     </span>
                                                 </div>
                                             </div>
  
                                             {detail && (
-                                                <div className="flex-shrink-0">
+                                                <div className="flex-shrink-0 bg-background/40 backdrop-blur-sm rounded-md">
                                                     <TerritoryMoreMenu
                                                         territoryId={safeTerritoryId}
                                                         ownerId={displayDetail.owner?.id || null}
@@ -315,6 +343,18 @@ export function TerritoryDetailSheet() {
                                                 </div>
                                             )}
                                         </div>
+                                        
+                                        {isClubMode && displayDetail.club && (
+                                            <div className="mt-2 pt-2 border-t">
+                                                <Button 
+                                                    variant="secondary" 
+                                                    className="w-full font-bold bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20"
+                                                    onClick={() => setClubProfileSheetOpen(true)}
+                                                >
+                                                    查看 {displayDetail.club.name} 俱乐部档案
+                                                </Button>
+                                            </div>
+                                        )}
                                     </>
                                 );
                             })()
@@ -371,6 +411,12 @@ export function TerritoryDetailSheet() {
                     detail={detail}
                 />
             )}
+
+            <ClubProfileSheet
+                clubId={detail?.club?.id || null}
+                isOpen={clubProfileSheetOpen}
+                onOpenChange={setClubProfileSheetOpen}
+            />
         </>
     )
 }

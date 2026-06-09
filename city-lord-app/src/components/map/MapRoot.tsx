@@ -10,6 +10,7 @@ import { useLocationStore } from '@/store/useLocationStore';
 import { useLocationContext } from '@/components/GlobalLocationProvider';
 import { useGameStore } from '@/store/useGameStore';
 import { useMapInteractionStore } from '@/store/useMapInteractionStore';
+import { useMapDisplayStore } from '@/store/useMapDisplayStore';
 import { getTerritoryBounds, getTerritoryCenter } from '@/lib/geo/territory-utils';
 import type { ExtTerritory } from '@/types/city';
 
@@ -37,7 +38,8 @@ const MAP_STYLES: Record<string, string> = {
 export function MapRoot({ children }: { children: ReactNode }) {
   const [map, setMap] = useState<AMapInstance | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [viewMode, setViewMode] = useState<'individual' | 'faction'>('individual');
+  const { mapDisplayMode: viewMode, setMapDisplayMode } = useMapDisplayStore();
+  const setViewMode = useCallback((mode: any) => setMapDisplayMode(mode), [setMapDisplayMode]);
   const { themeId } = useTheme();
 
   // 🟢 新增探头 2：只要 map 状态发生改变，立刻打印！

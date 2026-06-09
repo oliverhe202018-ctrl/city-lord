@@ -2723,9 +2723,6 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
                     if (data.settledTerritoriesCount !== undefined) {
                       setSettledTerritoriesCount(data.settledTerritoriesCount);
                     }
-                    if (data.territories) {
-                      setRunTerritories(data.territories);
-                    }
                     mutate(
                       (key) => typeof key === "string" && key.startsWith("/api/city/fetch-territories?cityId="),
                       undefined, { revalidate: true }

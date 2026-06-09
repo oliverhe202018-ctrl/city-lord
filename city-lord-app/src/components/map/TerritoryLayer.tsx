@@ -38,6 +38,7 @@ type TerritoryWithRender = ExtTerritory & {
   bbox: { minLng: number; maxLng: number; minLat: number; maxLat: number };
   centerPoint: [number, number];
   gridPoints: [number, number][];
+  clubName: string | null;
   clubAvatarUrl: string | null;
   isClubMode: boolean;
 };
@@ -430,209 +431,271 @@ function renderTerritoriesOnCanvas(
   const AMapGlobal = (window as typeof window & { AMap?: { LngLat: new (lng: number, lat: number) => unknown } }).AMap;
   if (!AMapGlobal?.LngLat) return;
 
-  // 1. 过滤出被选中的聚焦领地以执行末尾叠加绘制，防止 Z-index 压盖
-  let focusedTerritory: TerritoryWithRender | null = null;
-  const normalTerritories: TerritoryWithRender[] = [];
-  
-  for (const t of territories) {
-    if (selectedTerritoryId && t.id === selectedTerritoryId) {
-      focusedTerritory = t;
-    } else {
-      normalTerritories.push(t);
+  const isClubMode = territories.length > 0 && territories[0].isClubMode;
+
+  if (isClubMode) {
+    let focusedClubId: string | null = null;
+    if (selectedTerritoryId) {
+      const selected = territories.find(t => t.id === selectedTerritoryId);
+      if (selected && selected.ownerClubId) {
+        focusedClubId = selected.ownerClubId;
+      }
     }
-  }
 
-  for (const territory of normalTerritories) {
-    // 快速跳出逻辑：如果多边形的 bbox 完全不在当前视口内，则直接跳过
-    if (!territory.bbox) continue;
-    const b = territory.bbox;
-    const intersects =
-      b.maxLng >= viewportMinLng &&
-      b.minLng <= viewportMaxLng &&
-      b.maxLat >= viewportMinLat &&
-      b.minLat <= viewportMaxLat;
-    if (!intersects) continue;
+    const clubGroups = new Map<string, TerritoryWithRender[]>();
+    for (const territory of territories) {
+      if (!territory.bbox) continue;
+      const b = territory.bbox;
+      const intersects =
+        b.maxLng >= viewportMinLng &&
+        b.minLng <= viewportMaxLng &&
+        b.maxLat >= viewportMinLat &&
+        b.minLat <= viewportMaxLat;
+      if (!intersects) continue;
 
-    const outerRings = extractOuterRings(territory.geojson_json);
-    if (outerRings.length === 0) continue;
+      const key = territory.ownerClubId ? `club_${territory.ownerClubId}` : `indiv_${territory.id}`;
+      const list = clubGroups.get(key) || [];
+      list.push(territory);
+      clubGroups.set(key, list);
+    }
 
-      // 步骤1：构建包含所有 ring 的复合 Path（一次 beginPath）
-      ctx.beginPath();
-      for (const ring of outerRings) {
-        const activeStrokeStride = ring.length < 30 ? 1 : stride;
-        const sampledRing = ring.filter((_, i) => i % activeStrokeStride === 0 || i === ring.length - 1);
-        const pixels = sampledRing.map(([lng, lat]) => {
-          const pixel = map.lngLatToContainer?.(new AMapGlobal.LngLat(lng, lat));
-          return pixel ? { x: Number(pixel.x), y: Number(pixel.y) } : null;
-        }).filter((pt): pt is { x: number; y: number } => pt !== null && Number.isFinite(pt.x) && Number.isFinite(pt.y));
+    const offscreenCanvas = document.createElement("canvas");
+    offscreenCanvas.width = canvas.width;
+    offscreenCanvas.height = canvas.height;
+    const octx = offscreenCanvas.getContext("2d");
 
-        if (pixels.length < 3) continue;
-        ctx.moveTo(pixels[0].x, pixels[0].y);
-        for (let i = 1; i < pixels.length; i++) ctx.lineTo(pixels[i].x, pixels[i].y);
-        ctx.closePath();
+    // Sort to render focused group last (on top)
+    const sortedGroups = Array.from(clubGroups.entries()).sort(([keyA], [keyB]) => {
+      const isFocusedA = focusedClubId && keyA === `club_${focusedClubId}` ? 1 : 0;
+      const isFocusedB = focusedClubId && keyB === `club_${focusedClubId}` ? 1 : 0;
+      return isFocusedA - isFocusedB;
+    });
+
+    for (const [key, group] of sortedGroups) {
+      const isFocused = focusedClubId && key === `club_${focusedClubId}`;
+      const first = group[0];
+      
+      let hasValidPath = false;
+      const path = new Path2D();
+      for (const t of group) {
+        const outerRings = extractOuterRings(t.geojson_json);
+        for (const ring of outerRings) {
+          const activeStrokeStride = ring.length < 30 ? 1 : stride;
+          const sampledRing = ring.filter((_, i) => i % activeStrokeStride === 0 || i === ring.length - 1);
+          const pixels = sampledRing.map(([lng, lat]) => {
+            const pixel = map.lngLatToContainer?.(new AMapGlobal.LngLat(lng, lat));
+            return pixel ? { x: Number(pixel.x), y: Number(pixel.y) } : null;
+          }).filter((pt): pt is { x: number; y: number } => pt !== null && Number.isFinite(pt.x) && Number.isFinite(pt.y));
+
+          if (pixels.length < 3) continue;
+          hasValidPath = true;
+          path.moveTo(pixels[0].x, pixels[0].y);
+          for (let i = 1; i < pixels.length; i++) path.lineTo(pixels[i].x, pixels[i].y);
+          path.closePath();
+        }
       }
 
-      // 步骤2：用 evenodd 规则填充 → 奇偶相消，内部重叠区域自动清空
-      ctx.fillStyle = territory.fillColor || "rgba(251, 146, 60, 0.5)";
-      ctx.globalAlpha = territory.fillOpacity;
-      ctx.fill('evenodd');
+      if (!hasValidPath) continue;
 
-      // 步骤3：描边只走一次，无任何 Turf 调用
-      ctx.globalAlpha = 1;
-      ctx.strokeStyle = territory.strokeColor || "rgba(234, 88, 12, 0.8)";
-      ctx.lineWidth = territory.strokeWeight || 1.5;
-      ctx.stroke();
+      // Draw Fill directly to main ctx
+      ctx.fillStyle = isFocused ? (first.fillColor || "rgba(251, 146, 60, 0.6)") : (first.fillColor || "rgba(251, 146, 60, 0.5)");
+      ctx.globalAlpha = isFocused ? Math.min(1.0, first.fillOpacity + 0.15) : first.fillOpacity;
+      ctx.fill(path, 'nonzero');
 
-      const hasAvatar = territory.isClubMode && Boolean(territory.clubAvatarUrl);
-      if (hasAvatar) {
-        const avatarUrl = territory.clubAvatarUrl as string;
-        const cachedImg = getOrLoadImage(avatarUrl, () => {
-          onNeedRedraw?.();
-        });
+      // Draw stroke using offscreen trick to hide internal boundaries
+      if (octx) {
+        octx.clearRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
+        
+        octx.globalCompositeOperation = 'source-over';
+        octx.strokeStyle = isFocused ? "#FFFFFF" : (first.strokeColor || "rgba(234, 88, 12, 0.8)");
+        octx.lineWidth = isFocused ? 9 : (first.strokeWeight ? first.strokeWeight * 2 : 3);
+        if (isFocused) {
+          octx.shadowColor = first.strokeColor;
+          octx.shadowBlur = 15;
+        } else {
+          octx.shadowBlur = 0;
+        }
+        octx.stroke(path);
 
-        if (cachedImg) {
-          let discreteSize: number;
-          if (currentZoom < 13) {
-            discreteSize = 60; // originally 24
-          } else if (currentZoom < 15) {
-            discreteSize = 80; // originally 32
-          } else if (currentZoom < 17) {
-            discreteSize = 120; // originally 48
-          } else {
-            discreteSize = 160; // originally 64
+        // Erase insides
+        octx.globalCompositeOperation = 'destination-out';
+        octx.shadowBlur = 0;
+        octx.fillStyle = 'black';
+        octx.fill(path, 'nonzero');
+
+        // Draw to main
+        ctx.globalAlpha = 1.0;
+        ctx.drawImage(offscreenCanvas, 0, 0);
+        
+        // If focused, draw inner gold line
+        if (isFocused) {
+          octx.clearRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
+          octx.globalCompositeOperation = 'source-over';
+          octx.strokeStyle = first.strokeColor;
+          octx.lineWidth = 4; // 2px outer visible
+          octx.stroke(path);
+          octx.globalCompositeOperation = 'destination-out';
+          octx.fill(path, 'nonzero');
+          ctx.drawImage(offscreenCanvas, 0, 0);
+        }
+      }
+
+      // Draw Avatar at center for the club
+      if (key.startsWith('club_') && first.clubAvatarUrl) {
+        let sumLng = 0, sumLat = 0;
+        for (const t of group) {
+          sumLng += t.centerPoint[0];
+          sumLat += t.centerPoint[1];
+        }
+        const avgLng = sumLng / group.length;
+        const avgLat = sumLat / group.length;
+
+        // Find territory closest to avg centroid
+        let closestT = group[0];
+        let minDist = Infinity;
+        for (const t of group) {
+          const d = Math.pow(t.centerPoint[0] - avgLng, 2) + Math.pow(t.centerPoint[1] - avgLat, 2);
+          if (d < minDist) {
+            minDist = d;
+            closestT = t;
           }
+        }
 
-          const avatarTile = getRoundedAvatarTile(avatarUrl, cachedImg, discreteSize);
-          const pattern = ctx.createPattern(avatarTile, 'repeat');
-          
-          if (pattern) {
-            const originPoint = map.lngLatToContainer?.(new AMapGlobal.LngLat(territory.centerPoint[0], territory.centerPoint[1]));
-            if (originPoint && Number.isFinite(originPoint.x) && Number.isFinite(originPoint.y)) {
-              const matrix = new DOMMatrix();
-              matrix.translateSelf(originPoint.x - discreteSize / 2, originPoint.y - discreteSize / 2);
-              pattern.setTransform(matrix);
-            }
-
+        const centerPt = map.lngLatToContainer?.(new AMapGlobal.LngLat(closestT.centerPoint[0], closestT.centerPoint[1]));
+        if (centerPt) {
+          const avatarUrl = first.clubAvatarUrl;
+          const cachedImg = getOrLoadImage(avatarUrl, () => onNeedRedraw?.());
+          if (cachedImg) {
+            let discreteSize = currentZoom < 13 ? 24 : currentZoom < 15 ? 32 : currentZoom < 17 ? 40 : 48;
+            if (isFocused) discreteSize += 8; // Make focused avatar slightly larger
+            
+            const avatarTile = getRoundedAvatarTile(avatarUrl, cachedImg, discreteSize);
+            
             ctx.save();
-            ctx.clip('evenodd');
-            ctx.globalAlpha = 0.85;
-            ctx.fillStyle = pattern;
-            ctx.fill('evenodd');
+            ctx.globalAlpha = 1.0;
+            ctx.drawImage(avatarTile, centerPt.x - discreteSize/2, centerPt.y - discreteSize/2, discreteSize, discreteSize);
+            
+            // Draw a nice border around avatar
+            ctx.beginPath();
+            ctx.arc(centerPt.x, centerPt.y, discreteSize/2, 0, Math.PI * 2);
+            ctx.lineWidth = isFocused ? 2.5 : 1.5;
+            ctx.strokeStyle = isFocused ? first.strokeColor : '#FFFFFF';
+            if (isFocused) {
+              ctx.shadowColor = first.strokeColor;
+              ctx.shadowBlur = 10;
+            }
+            ctx.stroke();
             ctx.restore();
           }
         }
       }
     }
-
-  // 🟢 2. 渲染聚焦高亮的领地，应用亮金色辉光和双层高对比度描边（乐观剔除、末尾叠加）
-  if (focusedTerritory) {
-    const outerRings = extractOuterRings(focusedTerritory.geojson_json);
-    if (outerRings.length > 0) {
-      ctx.save();
-      ctx.beginPath();
-      for (const ring of outerRings) {
-        const pixels = ring
-          .map(([lng, lat]) => {
-            const pixel = map.lngLatToContainer?.(new AMapGlobal.LngLat(lng, lat));
-            return pixel ? { x: Number(pixel.x), y: Number(pixel.y) } : null;
-          })
-          .filter((pt): pt is { x: number; y: number } => pt !== null && Number.isFinite(pt.x) && Number.isFinite(pt.y));
-
-        if (pixels.length < 3) continue;
-
-        ctx.moveTo(pixels[0].x, pixels[0].y);
-        for (let i = 1; i < pixels.length; i += 1) {
-          ctx.lineTo(pixels[i].x, pixels[i].y);
-        }
-        ctx.closePath();
-      }
-
-      // 1. 金色辉光发光效果 (Glow Effect)
-      ctx.shadowColor = "rgba(245, 158, 11, 0.85)";
-      ctx.shadowBlur = 15;
-
-      // 2. 填充底色（使用 evenodd 规则清空交叉，保持高亮透明度）
-      ctx.fillStyle = focusedTerritory.fillColor || "rgba(251, 146, 60, 0.6)";
-      ctx.globalAlpha = Math.min(1.0, focusedTerritory.fillOpacity + 0.15);
-      ctx.fill('evenodd');
-      ctx.shadowBlur = 0; // Turn off shadow momentarily
-      
-      // 3. 白色粗描边 (Outer boundary line)
-      ctx.globalAlpha = 1.0;
-      ctx.shadowColor = "rgba(245, 158, 11, 0.85)";
-      ctx.shadowBlur = 15; // Restore glow
-      ctx.strokeStyle = "#FFFFFF";
-      ctx.lineWidth = 4.5;
-      ctx.stroke();
-
-      // 4. 辅助金色内边框线条 (Gold line)
-      ctx.shadowBlur = 0; // 关闭阴影保证内圈锐利
-      ctx.strokeStyle = "#F59E0B";
-      ctx.lineWidth = 2.0;
-      ctx.stroke();
-
-      ctx.restore();
-
-        // 同时渲染头像（如果俱乐部模式有头像的话，也以末尾叠加的方式画出来）
-        const hasAvatar = focusedTerritory.isClubMode && Boolean(focusedTerritory.clubAvatarUrl);
-        if (hasAvatar) {
-          const avatarUrl = focusedTerritory.clubAvatarUrl as string;
-          const cachedImg = getOrLoadImage(avatarUrl, () => {
-            onNeedRedraw?.();
-          });
-
-          if (cachedImg) {
-            let discreteSize: number;
-            if (currentZoom < 13) {
-              discreteSize = 60; // originally 24
-            } else if (currentZoom < 15) {
-              discreteSize = 80; // originally 32
-            } else if (currentZoom < 17) {
-              discreteSize = 120; // originally 48
-            } else {
-              discreteSize = 160; // originally 64
-            }
-
-            const avatarTile = getRoundedAvatarTile(avatarUrl, cachedImg, discreteSize);
-            const pattern = ctx.createPattern(avatarTile, 'repeat');
-            
-            if (pattern) {
-              const originPoint = map.lngLatToContainer?.(new AMapGlobal.LngLat(focusedTerritory.centerPoint[0], focusedTerritory.centerPoint[1]));
-              if (originPoint && Number.isFinite(originPoint.x) && Number.isFinite(originPoint.y)) {
-                const matrix = new DOMMatrix();
-                matrix.translateSelf(originPoint.x - discreteSize / 2, originPoint.y - discreteSize / 2);
-                pattern.setTransform(matrix);
-              }
-
-              ctx.save();
-              // Re-create the path for clipping since we might be in a different state
-              ctx.beginPath();
-              for (const ring of outerRings) {
-                const pixels = ring
-                  .map(([lng, lat]) => {
-                    const pixel = map.lngLatToContainer?.(new AMapGlobal.LngLat(lng, lat));
-                    return pixel ? { x: Number(pixel.x), y: Number(pixel.y) } : null;
-                  })
-                  .filter((pt): pt is { x: number; y: number } => pt !== null && Number.isFinite(pt.x) && Number.isFinite(pt.y));
-
-                if (pixels.length < 3) continue;
-
-                ctx.moveTo(pixels[0].x, pixels[0].y);
-                for (let i = 1; i < pixels.length; i += 1) {
-                  ctx.lineTo(pixels[i].x, pixels[i].y);
-                }
-                ctx.closePath();
-              }
-              ctx.clip('evenodd');
-              ctx.globalAlpha = 0.85;
-              ctx.fillStyle = pattern;
-              ctx.fill('evenodd');
-              ctx.restore();
-            }
-          }
-        }
+  } else {
+    // 1. 过滤出被选中的聚焦领地以执行末尾叠加绘制，防止 Z-index 压盖
+    let focusedTerritory: TerritoryWithRender | null = null;
+    const normalTerritories: TerritoryWithRender[] = [];
+    
+    for (const t of territories) {
+      if (selectedTerritoryId && t.id === selectedTerritoryId) {
+        focusedTerritory = t;
+      } else {
+        normalTerritories.push(t);
       }
     }
+
+    for (const territory of normalTerritories) {
+      // 快速跳出逻辑：如果多边形的 bbox 完全不在当前视口内，则直接跳过
+      if (!territory.bbox) continue;
+      const b = territory.bbox;
+      const intersects =
+        b.maxLng >= viewportMinLng &&
+        b.minLng <= viewportMaxLng &&
+        b.maxLat >= viewportMinLat &&
+        b.minLat <= viewportMaxLat;
+      if (!intersects) continue;
+
+      const outerRings = extractOuterRings(territory.geojson_json);
+      if (outerRings.length === 0) continue;
+
+        // 步骤1：构建包含所有 ring 的复合 Path（一次 beginPath）
+        ctx.beginPath();
+        for (const ring of outerRings) {
+          const activeStrokeStride = ring.length < 30 ? 1 : stride;
+          const sampledRing = ring.filter((_, i) => i % activeStrokeStride === 0 || i === ring.length - 1);
+          const pixels = sampledRing.map(([lng, lat]) => {
+            const pixel = map.lngLatToContainer?.(new AMapGlobal.LngLat(lng, lat));
+            return pixel ? { x: Number(pixel.x), y: Number(pixel.y) } : null;
+          }).filter((pt): pt is { x: number; y: number } => pt !== null && Number.isFinite(pt.x) && Number.isFinite(pt.y));
+
+          if (pixels.length < 3) continue;
+          ctx.moveTo(pixels[0].x, pixels[0].y);
+          for (let i = 1; i < pixels.length; i++) ctx.lineTo(pixels[i].x, pixels[i].y);
+          ctx.closePath();
+        }
+
+        // 步骤2：用 evenodd 规则填充 → 奇偶相消，内部重叠区域自动清空
+        ctx.fillStyle = territory.fillColor || "rgba(251, 146, 60, 0.5)";
+        ctx.globalAlpha = territory.fillOpacity;
+        ctx.fill('evenodd');
+
+        // 步骤3：描边只走一次，无任何 Turf 调用
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = territory.strokeColor || "rgba(234, 88, 12, 0.8)";
+        ctx.lineWidth = territory.strokeWeight || 1.5;
+        ctx.stroke();
+    }
+
+    // 🟢 2. 渲染聚焦高亮的领地，应用亮金色辉光和双层高对比度描边（乐观剔除、末尾叠加）
+    if (focusedTerritory) {
+      const outerRings = extractOuterRings(focusedTerritory.geojson_json);
+      if (outerRings.length > 0) {
+        ctx.save();
+        ctx.beginPath();
+        for (const ring of outerRings) {
+          const pixels = ring
+            .map(([lng, lat]) => {
+              const pixel = map.lngLatToContainer?.(new AMapGlobal.LngLat(lng, lat));
+              return pixel ? { x: Number(pixel.x), y: Number(pixel.y) } : null;
+            })
+            .filter((pt): pt is { x: number; y: number } => pt !== null && Number.isFinite(pt.x) && Number.isFinite(pt.y));
+
+          if (pixels.length < 3) continue;
+
+          ctx.moveTo(pixels[0].x, pixels[0].y);
+          for (let i = 1; i < pixels.length; i += 1) {
+            ctx.lineTo(pixels[i].x, pixels[i].y);
+          }
+          ctx.closePath();
+        }
+
+        // 1. 发光效果 (Glow Effect)
+        ctx.shadowColor = focusedTerritory.strokeColor;
+        ctx.shadowBlur = 15;
+
+        // 2. 填充底色（使用 evenodd 规则清空交叉，保持高亮透明度）
+        ctx.fillStyle = focusedTerritory.fillColor || "rgba(251, 146, 60, 0.6)";
+        ctx.globalAlpha = Math.min(1.0, focusedTerritory.fillOpacity + 0.15);
+        ctx.fill('evenodd');
+        ctx.shadowBlur = 0; // Turn off shadow momentarily
+        
+        // 3. 白色粗描边 (Outer boundary line)
+        ctx.globalAlpha = 1.0;
+        ctx.shadowColor = focusedTerritory.strokeColor;
+        ctx.shadowBlur = 15; // Restore glow
+        ctx.strokeStyle = "#FFFFFF";
+        ctx.lineWidth = 4.5;
+        ctx.stroke();
+
+        // 4. 辅助内边框线条 (Inner colored line)
+        ctx.shadowBlur = 0; // 关闭阴影保证内圈锐利
+        ctx.strokeStyle = focusedTerritory.strokeColor;
+        ctx.lineWidth = 2.0;
+        ctx.stroke();
+
+        ctx.restore();
+      }
+    }
+  }
 
   if (ownerProfileMap) {
     // Determine context value equivalent locally to skip label rendering if not in territory/personal or club modes.
@@ -811,8 +874,9 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
     const viewportMaxLat = northEast.getLat();
 
     const totals = new Map<string, number>();
+    const clubTotals = new Map<string, { id: string; area: number }>();
+    
     for (const territory of territoriesDataRef.current) {
-      if (!territory.ownerId) continue;
       const b = territory.bbox;
       const intersects =
         b.maxLng >= viewportMinLng &&
@@ -820,7 +884,14 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
         b.maxLat >= viewportMinLat &&
         b.minLat <= viewportMaxLat;
       if (!intersects) continue;
-      totals.set(territory.ownerId, (totals.get(territory.ownerId) || 0) + (territory.areaM2 || 0));
+
+      if (territory.ownerId) {
+        totals.set(territory.ownerId, (totals.get(territory.ownerId) || 0) + (territory.areaM2 || 0));
+      }
+      if (territory.ownerClubId) {
+        const cArea = clubTotals.get(territory.ownerClubId)?.area || 0;
+        clubTotals.set(territory.ownerClubId, { id: territory.ownerClubId, area: cArea + (territory.areaM2 || 0) });
+      }
     }
 
     let kingOwnerId = "";
@@ -832,21 +903,42 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
       }
     });
 
+    let kingClubId = "";
+    let maxClubArea = 0;
+    clubTotals.forEach((data, id) => {
+      if (data.area > maxClubArea) {
+        maxClubArea = data.area;
+        kingClubId = id;
+      }
+    });
+
     if (kingOwnerId === "") {
       onViewportKingChange(null);
       return;
     }
 
     const profile = ownerProfileMapRef.current.get(kingOwnerId);
+    let clubName = null;
+    let clubAvatarUrl = null;
+    if (kingClubId) {
+      const firstT = territoriesDataRef.current.find(t => t.ownerClubId === kingClubId);
+      if (firstT) {
+        clubName = firstT.clubName;
+        clubAvatarUrl = firstT.clubAvatarUrl;
+      }
+    }
+    
     onViewportKingChange({
       ownerId: kingOwnerId,
       nickname: profile?.nickname && profile.nickname.trim() !== "" ? profile.nickname.trim() : `领主-${kingOwnerId.slice(0, 6)}`,
       avatarUrl: profile?.avatarUrl || null,
       totalArea: maxArea,
+      clubId: kingClubId || null,
+      clubName: clubName || null,
+      clubAvatarUrl: clubAvatarUrl || null,
+      clubTotalArea: maxClubArea || null,
     });
   }, [map, onViewportKingChange]);
-
-  const decorateTerritoriesAsync = useCallback(async (items: ExtTerritory[]) => {
     const batchId = ++processingBatchIdRef.current;
     const filteredItems = items.filter((item) => item.id && item.geojson_json);
     const result: TerritoryWithRender[] = [];
@@ -945,7 +1037,8 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
           bbox,
           centerPoint,
           gridPoints,
-          clubAvatarUrl: item.ownerClubId ? (clubAvatarMapRef.current.get(item.ownerClubId) ?? null) : null,
+          clubName: item.ownerClub?.name || null,
+          clubAvatarUrl: item.ownerClubId ? (clubAvatarMapRef.current.get(item.ownerClubId) ?? item.ownerClub?.logoUrl ?? null) : null,
           isClubMode: mapDisplayMode === "club",
         };
       });

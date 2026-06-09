@@ -114,7 +114,7 @@ export async function fetchTerritories(cityId: string, bounds?: { minLng: number
         ownerClub: t.clubs && t.clubs.id ? {
           id: Array.isArray(t.clubs) ? t.clubs[0]?.id : t.clubs.id,
           name: Array.isArray(t.clubs) ? t.clubs[0]?.name : t.clubs.name,
-          logoUrl: Array.isArray(t.clubs) ? (t.clubs[0]?.logo_url || t.clubs[0]?.avatar_url) : (t.clubs.logo_url || t.clubs.avatar_url)
+          logoUrl: Array.isArray(t.clubs) ? t.clubs[0]?.avatar_url : t.clubs.avatar_url
         } : null
       }
     })

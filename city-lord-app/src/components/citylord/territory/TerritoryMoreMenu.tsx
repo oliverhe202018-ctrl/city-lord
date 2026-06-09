@@ -4,15 +4,17 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { MoreVertical, Flag } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/hooks/useAuth'
+import { useNavigate } from 'react-router-dom'
 
 interface TerritoryMoreMenuProps {
     territoryId: string
     ownerId: string | null
-    onReportClick: () => void
+    onReportClick?: () => void
 }
 
 export function TerritoryMoreMenu({ territoryId, ownerId, onReportClick }: TerritoryMoreMenuProps) {
     const { user } = useAuth()
+    const navigate = useNavigate()
 
     // Do not show report menu for own territory or neutral territory
     const isOwnTerritory = user?.id === ownerId
@@ -31,7 +33,7 @@ export function TerritoryMoreMenu({ territoryId, ownerId, onReportClick }: Terri
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={onReportClick} className="text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer">
+                <DropdownMenuItem onClick={() => navigate('/settings/feedback?type=territory&id=' + territoryId)} className="text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer">
                     <Flag className="w-4 h-4 mr-2" />
                     <span>举报此领地</span>
                 </DropdownMenuItem>

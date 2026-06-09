@@ -170,7 +170,7 @@ export function TerritoryDetailSheet() {
                                                             <img src={displayDetail.club.logoUrl} alt="club avatar" className="w-full h-full object-cover" />
                                                         ) : (
                                                             <span className="text-lg font-bold text-muted-foreground">
-                                                                {displayDetail.club.name.substring(0, 1)}
+                                                                {(displayDetail.club?.name ? displayDetail.club.name.substring(0, 1) : 'C')}
                                                             </span>
                                                         )
                                                     ) : (
@@ -178,7 +178,7 @@ export function TerritoryDetailSheet() {
                                                             <img src={displayDetail.owner.avatarUrl} alt="avatar" className="w-full h-full object-cover" />
                                                         ) : (
                                                             <span className="text-lg font-bold text-muted-foreground">
-                                                                {displayDetail.owner ? displayDetail.owner.nickname.substring(0, 1) : '?'}
+                                                                {(displayDetail.owner && typeof displayDetail.owner.nickname === 'string') ? displayDetail.owner.nickname.substring(0, 1) : '?'}
                                                             </span>
                                                         )
                                                     )}

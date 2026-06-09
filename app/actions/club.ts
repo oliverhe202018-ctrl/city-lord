@@ -1497,3 +1497,43 @@ export async function setMemberRole(
     return { success: false, error: error.message || '设置角色失败' }
   }
 }
+
+export async function getClubPublicProfile(clubId: string) {
+  const supabase = await createClient()
+  
+  // 基础信息
+  const { data: club } = await supabase
+    .from('clubs')
+    .select('id, name, avatar_url, description, province, member_count')
+    .eq('id', clubId)
+    .single()
+  
+  if (!club) return null
+
+  // 总领地面积（从 territories 聚合）
+  const { data: areaData } = await supabase.rpc('get_club_total_area', { p_club_id: clubId })
+  
+  // 全国排名（从已有 leaderboard 逻辑获取）
+  const { data: rankData } = await supabase.rpc('get_club_rank', { p_club_id: clubId })
+  
+  // Top5 成员领地
+  const { data: topMembers } = await supabase
+    .from('club_members')
+    .select('user_id, total_area, profiles(nickname, avatar_url)')
+    .eq('club_id', clubId)
+    .order('total_area', { ascending: false })
+    .limit(5)
+
+  return {
+    ...club,
+    total_area: areaData ?? 0,
+    rank_national: rankData?.rank_national ?? null,
+    rank_province: rankData?.rank_province ?? null,
+    top_territories: topMembers?.map((m: any) => ({
+      member_id: m.user_id,
+      nickname: m.profiles?.nickname,
+      avatar_url: m.profiles?.avatar_url,
+      total_area: m.total_area,
+    })) ?? [],
+  }
+}

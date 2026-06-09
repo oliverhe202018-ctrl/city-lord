@@ -38,6 +38,10 @@ export interface ViewportKingData {
   nickname: string;
   avatarUrl: string | null;
   totalArea: number;
+  clubId?: string | null;
+  clubName?: string | null;
+  clubAvatarUrl?: string | null;
+  clubTotalArea?: number | null;
 }
 
 const DEFAULT_CENTER: [number, number] = [116.397428, 39.90923];
