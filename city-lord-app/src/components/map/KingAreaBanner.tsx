@@ -68,12 +68,12 @@ export const KingAreaBanner = React.memo(function KingAreaBanner({ king }: Props
         </div>
       </div>
 
-      {/* Row 2：👑 区域霸主 👑，宽度限制 66% 居中 */}
+      {/* Row 2：👑 区域霸主/俱乐部霸主 👑，宽度限制 66% 居中 */}
       <div style={{ width: '66%', margin: '0 auto',
         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
         <span style={{ fontSize: 11 }}>👑</span>
         <span style={{ color: '#fbbf24', fontSize: 10, fontWeight: 700,
-          letterSpacing: 2 }}>区域霸主</span>
+          letterSpacing: 2 }}>{isClubMode ? '俱乐部霸主' : '区域霸主'}</span>
         <span style={{ fontSize: 11 }}>👑</span>
       </div>
     </div>

@@ -629,7 +629,7 @@ export function ClubDetailView({
             >
               <div className={`flex items-center gap-1.5 ${rankType === 'local' ? 'text-blue-500' : 'text-muted-foreground'} mb-1`}>
                 <Map className="w-4 h-4" />
-                <span className="text-xs font-bold">省内排名</span>
+                <span className="text-xs font-bold">{club.province ?? '省内'}排名</span>
               </div>
               <div className={`text-lg font-black italic ${rankType === 'local' ? 'text-foreground' : 'text-muted-foreground'}`}>#{rankings.provincial || '-'}</div>
             </div>
