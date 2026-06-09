@@ -145,12 +145,14 @@ export function TerritoryDetailSheet() {
                                     lastAttackedAt: null
                                 };
 
+                                const safeTerritoryId = displayDetail.territoryId || fallbackId || '';
+
                                 const health = displayDetail.health ?? 100;
                                 const healthPercent = Math.max(0, Math.min(100, health));
                                 const healthColor = healthPercent <= 40 ? 'bg-red-500' : healthPercent <= 70 ? 'bg-orange-500' : 'bg-green-500';
                                 
                                 const displayName = getTerritoryDisplayName({
-                                    id: displayDetail.territoryId,
+                                    id: safeTerritoryId,
                                     customName: detail?.customName ?? null,
                                     clubName: displayDetail.club?.name ?? null,
                                     ownerNickname: displayDetail.owner?.nickname ?? null,
@@ -197,7 +199,7 @@ export function TerritoryDetailSheet() {
                                                     </div>
                                                     <span className="text-xs text-muted-foreground flex items-center gap-1">
                                                         <MapPin className="w-3 h-3" />
-                                                        {displayDetail.cityName} · 领地 ID: {displayDetail.territoryId.substring(0, 6)}
+                                                        {displayDetail.cityName} · 领地 ID: {safeTerritoryId.substring(0, 6)}
                                                     </span>
                                                 </div>
                                             </div>
@@ -205,7 +207,7 @@ export function TerritoryDetailSheet() {
                                             {detail && (
                                                 <div className="flex-shrink-0">
                                                     <TerritoryMoreMenu
-                                                        territoryId={displayDetail.territoryId}
+                                                        territoryId={safeTerritoryId}
                                                         ownerId={displayDetail.owner?.id || null}
                                                         onReportClick={() => setReportDialogOpen(true)}
                                                     />

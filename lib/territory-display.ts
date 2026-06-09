@@ -1,6 +1,7 @@
 const SHORT_CODE_MOD = 100000;
 
 function toShortCode(id: string): string {
+  if (!id || typeof id !== 'string') return '00000';
   let hash = 0;
   for (let i = 0; i < id.length; i++) {
     hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
