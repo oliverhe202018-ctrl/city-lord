@@ -697,18 +697,6 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
   const pendingRefreshRef = useRef(false);
   const processingBatchIdRef = useRef<number>(0);
 
-  useEffect(() => {
-    isVisibleRef.current = isVisible;
-  }, [isVisible]);
-
-  // 监听选中领地 ID 的变化，实时更新 ref 并手动触发 Canvas 重绘，避免重建 CustomLayer 导致闪烁
-  useEffect(() => {
-    selectedTerritoryIdRef.current = selectedTerritoryId;
-    if (customLayerRef.current) {
-      customLayerRef.current.render?.();
-    }
-    recomputeViewportKing();
-  }, [selectedTerritoryId, recomputeViewportKing]);
   const mapInteractingRef = useRef(false);
   const rawTerritoriesRef = useRef<ExtTerritory[]>([]);
   const territoriesDataRef = useRef<TerritoryWithRender[]>([]);
@@ -1200,6 +1188,19 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
       isLoadingRef.current = false;
     }
   }, [city, decorateTerritoriesAsync, map, recomputeViewportKing]);
+
+  useEffect(() => {
+    isVisibleRef.current = isVisible;
+  }, [isVisible]);
+
+  // 监听选中领地 ID 的变化，实时更新 ref 并手动触发 Canvas 重绘，避免重建 CustomLayer 导致闪烁
+  useEffect(() => {
+    selectedTerritoryIdRef.current = selectedTerritoryId;
+    if (customLayerRef.current) {
+      customLayerRef.current.render?.();
+    }
+    recomputeViewportKing();
+  }, [selectedTerritoryId, recomputeViewportKing]);
 
   useEffect(() => {
     loadTerritoriesRef.current = loadTerritories;
