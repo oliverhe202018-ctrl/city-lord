@@ -253,9 +253,14 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
                         `${TAG} Dropped low-accuracy point: ${point.accuracy?.toFixed(0)}m ` +
                         `(display threshold: ${GPS_DISPLAY_ACCURACY_METERS}m)`
                     );
-                    useLocationStore.setState({ gpsSignalStrength: 'none' });
-                    if (!useLocationStore.getState().location) {
+                    const currentState = useLocationStore.getState();
+                    const timeSinceLastGoodLocation = Date.now() - currentState.lastLocationTimestamp;
+                    
+                    if (!currentState.location) {
+                        useLocationStore.setState({ gpsSignalStrength: 'none' });
                         useLocationStore.setState({ loading: false, status: 'locating' });
+                    } else if (timeSinceLastGoodLocation > 15000) {
+                        useLocationStore.setState({ gpsSignalStrength: 'weak' });
                     }
                     return;
                 }
@@ -348,7 +353,14 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
 
                 if (isSuppressedError) {
                     console.warn(`[GlobalLocationProvider] Suppressed error in onError:`, err);
-                    useLocationStore.setState({ gpsSignalStrength: 'none', loading: false });
+                    
+                    const currentState = useLocationStore.getState();
+                    const timeSinceLastGoodLocation = Date.now() - currentState.lastLocationTimestamp;
+                    if (!currentState.location || timeSinceLastGoodLocation > 15000) {
+                        useLocationStore.setState({ gpsSignalStrength: 'none', loading: false });
+                    } else {
+                        useLocationStore.setState({ loading: false });
+                    }
                     useGameStore.getState().setGpsStatus('weak');
 
                     // 如果是海外IP或授权失败(Code 7)，弹Toast引导用户关闭代理/VPN
@@ -373,11 +385,21 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
                         : err.code === 'UNAVAILABLE' ? 'UNAVAILABLE'
                             : 'UNKNOWN';
 
-                useLocationStore.setState({
-                    error: errorType,
-                    loading: false,
-                    gpsSignalStrength: 'none',
-                });
+                const currentState = useLocationStore.getState();
+                const timeSinceLastGoodLocation = Date.now() - currentState.lastLocationTimestamp;
+
+                if (!currentState.location || timeSinceLastGoodLocation > 15000) {
+                    useLocationStore.setState({
+                        error: errorType,
+                        loading: false,
+                        gpsSignalStrength: 'none',
+                    });
+                } else {
+                    useLocationStore.setState({
+                        error: errorType,
+                        loading: false,
+                    });
+                }
 
                 useGameStore.getState().setGpsStatus('error', errorType);
             },
