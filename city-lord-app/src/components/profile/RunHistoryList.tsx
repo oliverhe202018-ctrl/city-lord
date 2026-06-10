@@ -46,7 +46,7 @@ export function RunHistoryList({ userId, initialRuns, initialCursor }: RunHistor
                 if (!key) {
                    acc[run.id] = run; 
                 } else {
-                   if (!acc[key] || new Date(run.createdAt) > new Date(acc[key].createdAt)) {
+                   if (!acc[key] || new Date(run.created_at) > new Date(acc[key].created_at)) {
                       acc[key] = run;
                    }
                 }
@@ -54,7 +54,7 @@ export function RunHistoryList({ userId, initialRuns, initialCursor }: RunHistor
             }, {} as Record<string, RunRecord>));
             
             // Sort again descending
-            deduplicated.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            deduplicated.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
             
             setRuns(deduplicated as RunRecord[]);
             setCursor(result.nextCursor)
@@ -167,8 +167,8 @@ function RunCard({ run }: { run: RunRecord }) {
                             </span>
                         </div>
                         <div className="text-xs text-muted-foreground">
-                            {new Date(run.createdAt).toLocaleDateString('zh-CN')} ·{' '}
-                            {new Date(run.createdAt).toLocaleTimeString('zh-CN', {
+                            {new Date(run.created_at).toLocaleDateString('zh-CN')} ·{' '}
+                            {new Date(run.created_at).toLocaleTimeString('zh-CN', {
                                 hour: '2-digit',
                                 minute: '2-digit',
                             })}

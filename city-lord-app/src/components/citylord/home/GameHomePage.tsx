@@ -349,10 +349,11 @@ function GameHomePageInner({ onStartRun, onNavigateToMap, onNavigateToTab, onSma
                             </div>
                         ) : (
                             <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-none [&::-webkit-scrollbar]:hidden">
-                                {routes.map((route) => (
+                                {routes.filter(Boolean).map((route) => (
                                     <div
-                                        key={route.id}
+                                        key={route.id || Math.random().toString()}
                                         className="flex-shrink-0 w-[200px] rounded-xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm transition-all hover:border-primary/30 hover:bg-white/8"
+
                                     >
                                         <h4 className="text-xs font-bold text-foreground mb-2 truncate">
                                             {route.name || '未命名路线'}
@@ -364,19 +365,19 @@ function GameHomePageInner({ onStartRun, onNavigateToMap, onNavigateToTab, onSma
                                                     <TrendingUp className="h-2.5 w-2.5" />
                                                     距离
                                                 </span>
-                                                <span className="font-bold text-primary">{route.distance.toFixed(2)} km</span>
+                                                <span className="font-bold text-primary">{(route?.distance || 0).toFixed(2)} km</span>
                                             </div>
                                             <div className="flex items-center justify-between text-[10px]">
                                                 <span className="text-foreground/40 flex items-center gap-1">
                                                     <MapPin className="h-2.5 w-2.5" />
                                                     面积
                                                 </span>
-                                                <span className="font-medium text-purple-400">{route.capture_area.toFixed(2)} km²</span>
+                                                <span className="font-medium text-purple-400">{(route?.capture_area || 0).toFixed(2)} km²</span>
                                             </div>
                                             <div className="flex items-center justify-between text-[10px] pt-1 border-t border-white/5">
                                                 <span className="text-foreground/30 flex items-center gap-1 text-[9px]">
                                                     <Calendar className="h-2.5 w-2.5" />
-                                                    {format(new Date(route.created_at), 'MM-dd')}
+                                                    {format(new Date(route?.created_at || Date.now()), 'MM-dd')}
                                                 </span>
                                                 <button
                                                     onClick={() => navigate(`/route-planner?editId=${route.id}`)}

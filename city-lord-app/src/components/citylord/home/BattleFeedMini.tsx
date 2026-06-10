@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useMemo } from 'react';
 import { Coins, AlertTriangle, Swords, Wind } from 'lucide-react';
@@ -114,9 +114,9 @@ export function BattleFeedMini({ events, onCounterAttack, onViewEvent, onTargetU
                         </div>
                     ) : (
                         <div className="space-y-2">
-                            {feedMessages.map((message) => (
+                            {feedMessages.filter(Boolean).map((message) => (
                                 <TerritoryMessageRow
-                                    key={message.id}
+                                    key={message.id || Math.random().toString()}
                                     message={message}
                                     onViewEvent={onViewEvent}
                                 />

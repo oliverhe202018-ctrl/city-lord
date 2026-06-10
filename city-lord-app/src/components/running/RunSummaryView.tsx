@@ -3,7 +3,7 @@
 import { Share2, X, Activity, Flame, Zap, MapPin, Footprints, Timer, Trophy, Share, MessageCircle, MoreHorizontal, Camera, Loader2, CheckCircle2, Image as ImageIcon, ChevronRight } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { HEX_AREA_SQ_METERS, formatArea } from '@/lib/citylord/area-utils'
-import { Suspense, lazy } from 'react';
+import { Suspense, lazy, useState, useEffect, useRef } from 'react';
 const dynamic = (importFunc, options = {}) => {
   const LazyComponent = lazy(() => importFunc().then((mod) => ({
     default: mod.default || Object.values(mod)[0]

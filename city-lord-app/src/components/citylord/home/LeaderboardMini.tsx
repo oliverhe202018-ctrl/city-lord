@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useMemo, useCallback } from 'react';
 import Image from 'react';
@@ -137,11 +137,12 @@ export function LeaderboardMini({ myRank, initialLeaderboard }: LeaderboardMiniP
                         ) : (
                             <>
                                 <div className="space-y-1.5">
-                                    {leaderboardData.slice(0, 5).map((item) => (
+                                    {leaderboardData.filter(Boolean).slice(0, 5).map((item) => (
                                         <div
                                             key={`mini-${item.name}-${item.rank}`}
                                             className={`flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors ${item.isMe ? 'bg-primary/10 border border-primary/20' : 'hover:bg-white/5'
                                                 }`}
+
                                         >
                                             <div className="w-4 flex justify-center">
                                                 {rankIcon(item.rank)}
@@ -165,11 +166,11 @@ export function LeaderboardMini({ myRank, initialLeaderboard }: LeaderboardMiniP
                                                 </div>
                                             )}
                                             <span className="flex-1 text-xs font-medium text-foreground/70 truncate">
-                                                {item.name}
-                                                {item.isMe && <span className="ml-1 text-[9px] text-primary/80">（我）</span>}
+                                                {item?.name || '未知领主'}
+                                                {item?.isMe && <span className="ml-1 text-[9px] text-primary/80">（我）</span>}
                                             </span>
                                             <span className="text-[11px] font-bold text-foreground/50">
-                                                {item.scoreLabel || `${item.score.toLocaleString()} m²`}
+                                                {item?.scoreLabel || `${(item?.score || 0).toLocaleString()} m²`}
                                             </span>
                                         </div>
                                     ))}

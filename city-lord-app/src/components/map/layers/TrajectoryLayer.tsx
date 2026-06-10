@@ -9,7 +9,7 @@ interface TrajectoryLayerProps {
     strokeWeight?: number;
 }
 
-const TELEPORT_DISTANCE_M = 100; // gap threshold to start a new segment
+const TELEPORT_DISTANCE_M = 2000; // Increased from 100 to 2000 to avoid dropping DP-simplified straight lines
 
 function haversineMeters(a: GeoPoint, b: GeoPoint): number {
     const R = 6371000;

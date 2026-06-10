@@ -97,10 +97,10 @@ export function DailyProgressBars({ items, onGoToMissions, isLoading, error }: D
 
                     {/* Task List */}
                     <div className="space-y-3">
-                        {displayItems.map((item) => {
-                            const isComplete = item.status === 'completed' || item.status === 'claimed' || (item as any).isCompleted;
-                            const isOngoing = !isComplete && item.current > 0;
-                            const pct = item.total > 0 ? Math.min((item.current / item.total) * 100, 100) : 0;
+                        {displayItems.filter(Boolean).map((item) => {
+                            const isComplete = item?.status === 'completed' || item?.status === 'claimed' || (item as any)?.isCompleted;
+                            const isOngoing = !isComplete && (item?.current || 0) > 0;
+                            const pct = (item?.total || 0) > 0 ? Math.min(((item?.current || 0) / (item?.total || 1)) * 100, 100) : 0;
 
                             let statusColor = "text-foreground/40";
                             let barColor = "bg-white/10";
@@ -114,19 +114,19 @@ export function DailyProgressBars({ items, onGoToMissions, isLoading, error }: D
                             }
 
                             return (
-                                <div key={item.key} onClick={() => onGoToMissions({ initialFilter: 'daily' })} className="cursor-pointer active:scale-[0.99] transition-transform">
+                                <div key={item?.key || Math.random().toString()} onClick={() => onGoToMissions({ initialFilter: 'daily' })} className="cursor-pointer active:scale-[0.99] transition-transform">
                                     <div className="flex items-center justify-between mb-1">
                                         <div className="flex items-center gap-1.5 text-xs min-w-0">
                                             <span className={statusColor}>
-                                                {iconMap[item.icon || 'Hexagon'] || <Hexagon className="h-3.5 w-3.5" />}
+                                                {iconMap[item?.icon || 'Hexagon'] || <Hexagon className="h-3.5 w-3.5" />}
                                             </span>
                                             <span className={`font-medium truncate ${isComplete ? 'text-foreground/50 line-through' : 'text-foreground/80'}`}>
-                                                {item.label}
+                                                {item?.label || '未知任务'}
                                             </span>
                                         </div>
                                         <div className="flex items-center gap-1.5 flex-shrink-0">
                                             <span className="text-[10px] text-foreground/40">
-                                                {item.current}/{item.total}
+                                                {item?.current || 0}/{item?.total || 0}
                                             </span>
                                             {isComplete && (
                                                 <span className="text-[10px] font-bold text-emerald-400">✓</span>
