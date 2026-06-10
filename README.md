@@ -141,6 +141,24 @@ npm test
 
 ## 📅 近期更新日志 (Changelog)
 
+### 2026-06-10: 🛡️ P0-P2 架构重构与高危漏洞修复 (Retrospective Review Fixes)
+
+针对核心系统的安全性、性能表现及防作弊结算，执行了全面的架构重构和代码修复：
+
+- **P0 级安全漏洞与越权防护 (Security & Auth)**:
+  - **防止 `x-user-id` 伪造**: 在 [middleware.ts](file:///d:/project/city-lord/middleware.ts) 入口处无条件清空外部请求携带的 `x-user-id`，仅在 Supabase JWT 解析成功后于服务端内部可信写入该 header，彻底防御假冒他人 ID 越权的风险。
+  - **未授权状态码对齐**: 在 [with-handler.ts](file:///d:/project/city-lord/lib/api/with-handler.ts) 中，将缺失认证头错误明确绑定为 `AUTH_TOKEN_MISSING` (401)，确保前端 SWR 拦截器能精确执行登出逻辑。
+- **P0 级防作弊审计与事务防崩 (Prisma Transactions)**:
+  - **审计记录延迟外键绑定**: 重构 [anti-cheat-pipeline.ts](file:///d:/project/city-lord/lib/anti-cheat/pipeline/anti-cheat-pipeline.ts) 和 [run-service.ts](file:///d:/project/city-lord/app/actions/run-service.ts)，流水线不再同步直接创建 `anti_cheat_audit_logs` 记录。而是将违规日志暂存于上下文，待 `runs` 记录在 Prisma 事务中顺利生成并获取到 `run_id` 后再执行批量创建，保证外键物理关联。
+  - **致命拦截事务隔离**: 对触发致命红线的作弊拦截（会回滚结算事务），审计记录通过 catch 块改由独立后台异步任务（fire-and-forget）写入，确保审计日志写入波动不引发整体结算管道返回 500 异常。
+- **P1 级性能与 React 引用污染修复 (Performance & SWR)**:
+  - **防作弊坐标字段浅拷贝**: 优化 [case-converter.ts](file:///d:/project/city-lord/city-lord-app/src/lib/case-converter.ts)，对 `skipKeys` (如 `coordinates`/`path`) 在转换时执行浅拷贝，防止地图组件等局部原地修改污染 React 状态或 SWR 缓存，杜绝状态污染。
+  - **响应拦截 FormData 兼容与 403 降维攻击防御**: 优化 [fetch-shim.ts](file:///d:/project/city-lord/city-lord-app/src/lib/fetch-shim.ts)，只对 Content-Type 为 `application/json` 且非 FormData 的响应体执行大小写转换，避免流式数据或多媒体上传崩溃；对老版本 WebView 的空 403 异常，提供防御式 JSON 兜底，防止前端反序列化报错。
+- **P2 级防作弊与 EventLoop 线程优化 (EventLoop & GIS)**:
+  - **防作弊 Turf.js 计算让出 EventLoop**: 重构 [polygon.validator.ts](file:///d:/project/city-lord/lib/anti-cheat/pipeline/validators/polygon.validator.ts)，使用 `async` 并在重度数学运算（如 unkink）前调用 `setImmediate` 让出 Node 事件循环，避免大批结算涌入时发生高 CPU 线程阻塞。
+  - **Convex Fallback 凸包面积虚增限制**: 限制凸包兜底计算，当自交退化的多边形转为 Convex Hull 后，若膨胀面积比例超过 `10%` (`areaInflationRatio > 1.10`)，立即视作非法并清空多边形，杜绝利用自交漏洞刷取领地面积的作弊手段。
+- **状态码规范性升级**: 精确划分 `ERROR_HTTP_STATUS`，将俱乐部人数满 (`BIZ_CLUB_FULL`) 和金币不足 (`BIZ_INSUFFICIENT_COINS`) 映射至 409 Conflict 状态码。
+
 ### 2026-05-29: ⚙️ 全局计划任务（Cron Jobs）重构与 VPS 自动部署加固
 
 - **高频调度升级（VPS解禁）**: 随着项目向自托管 VPS 环境迁移，全面释放原有受免费平台额度限制的计划任务执行频率，显著提升核心玩法与数据的实时性：
