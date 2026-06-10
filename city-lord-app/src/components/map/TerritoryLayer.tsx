@@ -677,6 +677,8 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
   onViewportKingChange,
   currentZoom = 13,
 }) => {
+  if (!map) return null;
+
   const { currentCity: city } = useCity();
   const { viewMode: contextViewMode, setSelectedTerritory, setIsDetailSheetOpen } = useMapInteraction();
   const resolvedViewMode = propViewMode ?? contextViewMode;

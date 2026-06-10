@@ -27,7 +27,12 @@ export default defineConfig(({ mode }) => {
       'process.env.NEXT_PUBLIC_API_SERVER': JSON.stringify(env.NEXT_PUBLIC_API_SERVER || 'https://cl1.6543666.xyz')
     },
     build: {
-      minify: 'esbuild',
+      minify: 'terser',
+      terserOptions: {
+        compress: {
+          typeofs: false,
+        },
+      },
       sourcemap: true,
       rollupOptions: {
         external: [
