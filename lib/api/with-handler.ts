@@ -20,7 +20,7 @@ export function withErrorHandler(
     try {
       const userId = req.headers.get('x-user-id');
       if (options.requireAuth && !userId) {
-        throw new AppError(ErrorCode.AUTH_UNAUTHORIZED, 'Authentication required or token expired');
+        throw new AppError(ErrorCode.AUTH_TOKEN_MISSING, 'Authentication required or token expired');
       }
 
       context = context || {};
@@ -81,7 +81,7 @@ export function withStreamingErrorHandler(
     try {
       const userId = req.headers.get('x-user-id');
       if (options.requireAuth && !userId) {
-        throw new AppError(ErrorCode.AUTH_UNAUTHORIZED, 'Authentication required or token expired');
+        throw new AppError(ErrorCode.AUTH_TOKEN_MISSING, 'Authentication required or token expired');
       }
 
       context = context || {};

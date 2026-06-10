@@ -48,10 +48,18 @@ export async function apiFetch(input: RequestInfo | URL, init?: CustomRequestIni
     credentials: 'omit',
   };
 
-  // [请求拦截器]：将前端发送的 JSON Payload 从 camelCase 转换为 snake_case
+  // [请求拦截器]：仅在 JSON 请求时将前端发送的 JSON Payload 从 camelCase 转换为 snake_case
+  let isJsonRequest = false;
   if (customInit.body && typeof customInit.body === 'string') {
+    const headers = (customInit.headers || {}) as Record<string, string>;
+    const contentTypeKey = Object.keys(headers).find(k => k.toLowerCase() === 'content-type');
+    const contentType = contentTypeKey ? headers[contentTypeKey] : undefined;
+    isJsonRequest = !contentType || contentType.toLowerCase().includes('application/json');
+  }
+
+  if (isJsonRequest) {
     try {
-      const parsedBody = JSON.parse(customInit.body);
+      const parsedBody = JSON.parse(customInit.body as string);
       const snakedBody = keysToSnake(parsedBody);
       customInit.body = JSON.stringify(snakedBody);
     } catch (e) {
@@ -83,6 +91,33 @@ export async function apiFetch(input: RequestInfo | URL, init?: CustomRequestIni
     const err: any = new Error('UNAUTHORIZED');
     err.isAuthError = true;
     throw err;
+  }
+
+  // Global 403 handling (Capacitor drops response body defense)
+  if (response.status === 403) {
+    let errorBody: any = null;
+    try {
+      errorBody = await response.clone().json();
+    } catch {
+      // Body was dropped by WebView/Capacitor
+    }
+    if (!errorBody) {
+      // Reconstruct a valid JSON response body
+      const mockBody = {
+        success: false,
+        error: {
+          code: 'CHEAT_BLOCKED',
+          message: 'Request blocked by security policy.'
+        }
+      };
+      response = new Response(JSON.stringify(mockBody), {
+        status: 403,
+        statusText: 'Forbidden',
+        headers: new Headers({
+          'content-type': 'application/json'
+        })
+      });
+    }
   }
 
   // [响应拦截器]：对 JSON 响应进行深度驼峰转换，避免破坏流与二进制响应

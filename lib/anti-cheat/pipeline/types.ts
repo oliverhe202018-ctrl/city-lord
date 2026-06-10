@@ -14,6 +14,8 @@ export interface AntiCheatContext {
     isTester: boolean;
     // Shared State: Avoid recalculating loops/polygons
     pathPoints: Point[];
+    // Deferred database log storage for transactions
+    violations?: any[];
     // Computed Values to be filled by validators
     serverDistanceKm?: number;
     serverDurationSec?: number;
@@ -28,6 +30,12 @@ export interface AntiCheatCheckResult {
     errorCode?: ErrorCode;
     cheatFlag?: string;
     riskScore: number;
+    // Computed outputs to be merged into context by the pipeline
+    computedData?: {
+        finalPolygons?: Point[][];
+        accurateAreaKm2?: number;
+        diagData?: any;
+    };
 }
 
 export interface AntiCheatValidator {

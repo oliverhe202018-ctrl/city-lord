@@ -798,6 +798,17 @@ export async function saveRunActivity(
 
         const polygonsForSettlement = (isBlockedByAntiCheat || isGeometryInvalid) ? [] : finalPolygons;
 
+        const serverDistance = (pipelineContext.serverDistanceKm || 0) * 1000 || runData.distance;
+        const serverDuration = pipelineContext.serverDurationSec || runData.duration;
+        const isFlagged = isBlockedByAntiCheat || isGeometryInvalid;
+        
+        const isPedometerInvalid = pipelineResult.cheatFlags.some(f => 
+            ['STEP_TOO_LOW', 'STRIDE_TOO_LONG', 'ABNORMAL_STRIDE_SHAKER', 'ABNORMAL_STRIDE_OVERGAITER'].includes(f)
+        );
+        const pedometerAntiCheatLog = pipelineResult.cheatFlags.find(f => 
+            ['STEP_TOO_LOW', 'STRIDE_TOO_LONG', 'ABNORMAL_STRIDE_SHAKER', 'ABNORMAL_STRIDE_OVERGAITER'].includes(f)
+        );
+
         // 5. Transaction: Save Run + Process Rewards + Audit Logs
         const result = await prisma.$transaction(async (tx: any) => {
             const runnerProfile = await tx.profiles.findUnique({
@@ -943,19 +954,12 @@ export async function saveRunActivity(
             }
 
             // Audit logging for suspicious runs
-            if (isBlockedByAntiCheat || pathValidation.riskLevel !== 'LOW') {
-                await tx.anti_cheat_audit_logs.create({
-                    data: {
-                        user_id: userId,
-                        run_id: run.id,
-                        risk_score: isPedometerInvalid ? Math.max(pathValidation.riskScore, 90) : pathValidation.riskScore,
-                        cheat_flags: {
-                            ...(pathValidation.cheatFlags as any),
-                            pedometer_reason: pedometerAntiCheatLog
-                        } as any,
-                        raw_payload: runData as any,
-                        action_taken: isPedometerInvalid ? 'pedometer_blocked' : (isFlagged ? 'shadowban' : 'polygons_neutralized'),
-                    }
+            if (pipelineContext.violations && pipelineContext.violations.length > 0) {
+                await tx.anti_cheat_audit_logs.createMany({
+                    data: pipelineContext.violations.map((v: any) => ({
+                        ...v,
+                        run_id: run.id
+                    }))
                 });
             }
 
@@ -974,7 +978,7 @@ export async function saveRunActivity(
             let totalCoins = 0;
             let totalXp = 0;
 
-            await updateMissionProgress(userId, 'DISTANCE', Math.round(pathValidation.serverDistance), tx);
+            await updateMissionProgress(userId, 'DISTANCE', Math.round(serverDistance), tx);
             await updateMissionProgress(userId, 'RUN_COUNT', 1, tx);
             if (finalPolygons.length > 0) {
                 await updateMissionProgress(userId, 'HEX_COUNT', finalPolygons.length, tx);
@@ -1032,7 +1036,7 @@ export async function saveRunActivity(
                     select: { stamina: true, max_stamina: true }
                 });
 
-                const distanceKm = pathValidation.serverDistance / 1000;
+                const distanceKm = serverDistance / 1000;
                 const staminaCost = Math.max(0, Math.floor(10 + distanceKm * 10));
                 const rewardStamina = eventReward?.stamina || 0;
                 const currentStamina = userProfile.stamina ?? 0;
@@ -1049,7 +1053,7 @@ export async function saveRunActivity(
                         coins: { increment: totalCoins },
                         xp: { increment: totalXp },
                         stamina: finalStamina,
-                        total_distance_km: { increment: pathValidation.serverDistance / 1000 },
+                        total_distance_km: { increment: serverDistance / 1000 },
                         total_runs_count: { increment: 1 },
                         updated_at: new Date()
                     }
@@ -1087,8 +1091,8 @@ export async function saveRunActivity(
                     cityId: safeCityId,
                     clubId: runnerClubId,
                     polygons: polygonsForSettlement,
-                    distance: pathValidation.serverDistance,
-                    duration: pathValidation.serverDuration,
+                    distance: serverDistance,
+                    duration: serverDuration,
                     diag: diagData
                 };
                 console.log(`[Trigger.dev] Enqueuing 'settle-territories'. polygonCount=${polygonsForSettlement.length}, runId=${result.runId}`);

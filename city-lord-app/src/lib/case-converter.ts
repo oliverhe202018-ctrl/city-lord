@@ -22,7 +22,9 @@ export function keysToCamel(o: any, skipKeys: string[] = ['path', 'coordinates',
     Object.keys(o).forEach((k) => {
       const camelKey = toCamel(k);
       if (skipKeys.includes(k) || skipKeys.includes(camelKey)) {
-        n[camelKey] = o[k];
+        n[camelKey] = Array.isArray(o[k]) 
+          ? [...o[k]] 
+          : (isObject(o[k]) && o[k] !== null ? { ...o[k] } : o[k]);
       } else {
         n[camelKey] = keysToCamel(o[k], skipKeys);
       }
@@ -41,7 +43,9 @@ export function keysToSnake(o: any, skipKeys: string[] = ['path', 'coordinates',
     Object.keys(o).forEach((k) => {
       const snakeKey = toSnake(k);
       if (skipKeys.includes(k) || skipKeys.includes(snakeKey)) {
-        n[snakeKey] = o[k];
+        n[snakeKey] = Array.isArray(o[k]) 
+          ? [...o[k]] 
+          : (isObject(o[k]) && o[k] !== null ? { ...o[k] } : o[k]);
       } else {
         n[snakeKey] = keysToSnake(o[k], skipKeys);
       }

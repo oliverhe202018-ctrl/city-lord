@@ -49,6 +49,7 @@ export async function middleware(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
 
     const requestHeaders = new Headers(request.headers);
+    requestHeaders.delete('x-user-id');
     if (user) {
       requestHeaders.set('x-user-id', user.id);
     }

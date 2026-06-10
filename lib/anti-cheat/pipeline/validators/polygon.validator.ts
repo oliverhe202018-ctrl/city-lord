@@ -116,6 +116,11 @@ function normalizeRunPolygon(closingPath: [number, number][]): {
             const finalArea = turfArea(hull);
             const areaInflationRatio = rawArea > 0 ? (finalArea / rawArea) : 1;
 
+            if (areaInflationRatio > 1.10) {
+                console.warn(`[PolygonLegitimacyValidator] Convex fallback rejected due to area inflation: ${areaInflationRatio.toFixed(2)} > 1.10`);
+                return { polygons: [], strategy: 'raw', kinkCount };
+            }
+
             return {
                 polygons: [hullRing.map((coord: any) => ({ lng: coord[0], lat: coord[1] }))],
                 strategy: 'convex_fallback',
@@ -220,7 +225,10 @@ function deduplicateByContainment(polygons: any[]): any[] {
 export class PolygonLegitimacyValidator implements AntiCheatValidator {
     name = 'PolygonLegitimacyValidator';
 
-    validate(ctx: AntiCheatContext): AntiCheatCheckResult {
+    async validate(ctx: AntiCheatContext): Promise<AntiCheatCheckResult> {
+        // Yield to the event loop for heavy CPU/Turf calculation
+        await new Promise(resolve => setImmediate(resolve));
+
         const rawPathPoints = ctx.pathPoints;
         let diagData: any = { status: 'init' };
         let finalPolygons: any[] = [];
@@ -263,7 +271,7 @@ export class PolygonLegitimacyValidator implements AntiCheatValidator {
             return {
                 passed: false,
                 isFatal: true,
-                errorCode: ErrorCode.GEO_POLYGON_INVALID as any,
+                errorCode: ErrorCode.GEO_POLYGON_INVALID,
                 cheatFlag: 'GEOMETRY_INVALID',
                 riskScore: 90
             };
@@ -327,10 +335,15 @@ export class PolygonLegitimacyValidator implements AntiCheatValidator {
             }
         }
 
-        ctx.finalPolygons = polygonsForSettlement;
-        ctx.accurateAreaKm2 = accurateAreaKm2;
-        ctx.diagData = diagData;
-
-        return { passed: true, isFatal: false, riskScore: 0 };
+        return { 
+            passed: true, 
+            isFatal: false, 
+            riskScore: 0,
+            computedData: {
+                finalPolygons: polygonsForSettlement,
+                accurateAreaKm2,
+                diagData
+            }
+        };
     }
 }
