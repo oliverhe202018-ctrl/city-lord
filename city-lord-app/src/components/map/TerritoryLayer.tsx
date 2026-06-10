@@ -99,7 +99,7 @@ const fetchTerritories = async (
   const url = `/api/city/fetch-territories?cityId=${cityId}`;
   console.log(`🔮 [fetchTerritories] Requesting: ${url}`);
   const res = await fetchWithTimeout(url, { 
-    credentials: "include", 
+    credentials: "omit", 
     cache: "no-store",
     signal
   });

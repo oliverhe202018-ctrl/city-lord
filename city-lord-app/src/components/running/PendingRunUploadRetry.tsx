@@ -40,7 +40,7 @@ export function PendingRunUploadRetry() {
                         const res = await apiFetch(`/api/v1/runs/pending`, {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
-                            credentials: "include",
+                            credentials: "omit",
                             body: JSON.stringify(record),
                         });
 

@@ -43,6 +43,10 @@ export default defineConfig(({ mode }) => {
         ],
         output: {
           manualChunks(id) {
+            // AMapContext 必须是独立 chunk，保证在 AMapView 之前初始化，避开 TDZ/加载时序问题
+            if (id.replace(/\\/g, '/').includes('components/map/AMapContext')) {
+              return 'map-context';
+            }
             if (id.includes('node_modules')) {
               if (id.includes('@turf/')) {
                 return 'vendor-turf';
