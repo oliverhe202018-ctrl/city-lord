@@ -107,7 +107,7 @@ export function TrajectoryLayer({ map, path, strokeColor = '#3B82F6', strokeWeig
                 if (!pt || !Number.isFinite(pt.lat) || !Number.isFinite(pt.lng)) continue;
                 if (cur.length > 0) {
                     const dist = haversineMeters(cur[cur.length - 1], pt);
-                    if (dist > TELEPORT_DISTANCE_M) { segments.push(cur); cur = []; }
+                    if (dist > TELEPORT_DISTANCE_M || (pt as any).isResume) { segments.push(cur); cur = []; }
                 }
                 cur.push(pt);
             }
@@ -148,7 +148,7 @@ export function TrajectoryLayer({ map, path, strokeColor = '#3B82F6', strokeWeig
             const lastPt = lastSeg.rawPoints[lastSeg.rawPoints.length - 1];
             const dist = haversineMeters(lastPt, pt);
 
-            if (dist > TELEPORT_DISTANCE_M) {
+            if (dist > TELEPORT_DISTANCE_M || (pt as any).isResume) {
                 // Large gap — start a new segment
                 const polyline = new window.AMap.Polyline({
                     ...polylineOptions,

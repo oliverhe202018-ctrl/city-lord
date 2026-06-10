@@ -122,12 +122,22 @@ export function simplifyPathDP<T extends Coord>(
         }
     }
 
-    // 首尾点永远保留
-    const keptIndices = new Set<number>();
-    keptIndices.add(0);
-    keptIndices.add(points.length - 1);
+    // 首尾点永远保留，以及所有的 isResume 断点
+    const breakIndices = [0];
+    for (let i = 1; i < points.length - 1; i++) {
+        if ((points[i] as any).isResume) breakIndices.push(i);
+    }
+    breakIndices.push(points.length - 1);
 
-    dpReduce(points, 0, points.length - 1, keptIndices);
+    const keptIndices = new Set<number>();
+    
+    for (let i = 0; i < breakIndices.length - 1; i++) {
+        const start = breakIndices[i];
+        const end = breakIndices[i+1];
+        keptIndices.add(start);
+        keptIndices.add(end);
+        dpReduce(points, start, end, keptIndices);
+    }
 
     // 按原始顺序输出，保留完整元数据
     const sortedIndices = Array.from(keptIndices).sort((a, b) => a - b);
@@ -144,12 +154,23 @@ export async function simplifyPathDPAsync<T extends Coord>(
 ): Promise<T[]> {
     if (points.length <= 2) return [...points];
 
-    const keptIndices = new Set<number>();
-    keptIndices.add(0);
-    keptIndices.add(points.length - 1);
+    // 首尾点永远保留，以及所有的 isResume 断点
+    const breakIndices = [0];
+    for (let i = 1; i < points.length - 1; i++) {
+        if ((points[i] as any).isResume) breakIndices.push(i);
+    }
+    breakIndices.push(points.length - 1);
 
-    // 使用非递归的双段队列进行分块处理
-    const queue: [number, number][] = [[0, points.length - 1]];
+    const keptIndices = new Set<number>();
+    const queue: [number, number][] = [];
+
+    for (let i = 0; i < breakIndices.length - 1; i++) {
+        const start = breakIndices[i];
+        const end = breakIndices[i+1];
+        keptIndices.add(start);
+        keptIndices.add(end);
+        queue.push([start, end]);
+    }
 
     const run = (): Promise<void> => {
         return new Promise((resolve) => {

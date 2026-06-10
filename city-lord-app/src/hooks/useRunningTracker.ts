@@ -205,6 +205,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   const pathRef = useRef<Location[]>([]);
   const fullPathRef = useRef<Location[]>([]);
   const isPausedRef = useRef(isPaused);
+  const wasPausedRef = useRef(false);
   const lastClaimAtRef = useRef(0);
   const claimedSegmentsRef = useRef<Array<{ start: number; end: number }>>([]);
   /** 阈值锁：记录上次弹窗时的 newTotalArea（m²），防止 GPS 边界漂移频繁骚视 */
@@ -1419,6 +1420,10 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         console.warn("[useRunningTracker] Invalid polygon", e);
       }
     }
+    if (wasPausedRef.current) {
+      (finalLoc as any).isResume = true;
+      wasPausedRef.current = false;
+    }
 
     fullPathRef.current.push(finalLoc);
     setFullPath([...fullPathRef.current]);
@@ -2431,6 +2436,9 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   const togglePause = useCallback(() => {
     setIsPaused(prev => {
       const next = !prev;
+      if (!next) {
+        wasPausedRef.current = true;
+      }
       setTimeout(saveState, 0); // 低优先同步落盘
       return next;
     });

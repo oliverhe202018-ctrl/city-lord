@@ -730,9 +730,9 @@ export function RunSummaryView({
           </div>
 
           {/* Static Trajectory Map */}
-          <div className="mx-4 mb-4 rounded-xl overflow-hidden shadow-sm border border-gray-100 relative bg-gray-100 h-72">
+          <div className="mx-4 mb-4 rounded-xl overflow-hidden shadow-sm border border-gray-100 relative bg-gray-100 h-72 pointer-events-none">
             {safeRunTrajectory && safeRunTrajectory.length > 0 ? (
-              <StaticTrajectoryMap path={safeRunTrajectory} className="w-full h-full" />
+              <StaticTrajectoryMap path={safeRunTrajectory} className="w-full h-full pointer-events-none" />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm">
                 暂无轨迹数据
