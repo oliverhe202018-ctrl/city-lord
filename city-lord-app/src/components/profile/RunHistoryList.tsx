@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { Footprints, TrendingUp, Loader2, RefreshCw } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
-import { getRuns, RunRecord } from '@/app/actions/profile'
+import { getRuns, type RunRecord } from '@/app/actions/profile'
 
 interface RunHistoryListProps {
     userId: string

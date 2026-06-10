@@ -10,6 +10,8 @@ const StartPage = lazy(() => import('./pages/StartPage'));
 const SocialPage = lazy(() => import('./pages/SocialPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 const MissionsPage = lazy(() => import('./pages/MissionsPage'));
+const RunDetailPage = lazy(() => import('./pages/RunDetailPage'));
+const ProfileMePage = lazy(() => import('./pages/ProfileMePage'));
 
 // Lazy load background authentication-dependent components
 const PendingRunUploadRetry = lazy(() => import('./components/running/PendingRunUploadRetry').then(m => ({ default: m.PendingRunUploadRetry })));
@@ -85,6 +87,8 @@ function App() {
                 <Route path="/missions" element={<MissionsPage />} />
                 <Route path="/social" element={<SocialPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/profile/me" element={<ProfileMePage />} />
+                <Route path="/run/detail" element={<RunDetailPage />} />
               </Route>
             </Routes>
           </Suspense>

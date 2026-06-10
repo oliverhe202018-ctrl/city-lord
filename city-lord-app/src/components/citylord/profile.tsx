@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import React from "react"
 import { AvatarUploader } from '@/components/ui/AvatarUploader'
@@ -87,13 +87,14 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
   React.useEffect(() => {
     const fetchRuns = async () => {
       try {
-        const res = await apiFetch(`/api/user/activities?limit=10`, { credentials: 'include' }); // fetch more to allow dedupe
-        if (!res.ok) throw new Error('Failed to fetch activities');
-        const rawRuns = await res.json();
+        const res = await rpcCall('profile', 'getRuns', [userId, null]);
+        if (!res.success) throw new Error('Failed to fetch activities');
         
-        // Deduplicate by idempotency_key, keeping the latest one
+        const rawRuns = res.data?.runs || [];
+        
+        // Deduplicate by idempotencyKey, keeping the latest one
         const deduplicated = Object.values(rawRuns.reduce((acc: any, run: any) => {
-          const key = run.idempotency_key;
+          const key = run.idempotencyKey;
           if (!key) {
              acc[run.id] = run; // if no key, just keep it by id
           } else {
@@ -539,9 +540,9 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
 
                       <div>
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="text-sm font-bold text-foreground">{run.distance_km?.toFixed(2) || '0.00'} km</span>
+                          <span className="text-sm font-bold text-foreground">{run.distanceKm?.toFixed(2) || '0.00'} km</span>
                           <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
-                            {run.pace_min_per_km || '--'}/km
+                            {run.paceMinPerKm || '--'}/km
                           </span>
                         </div>
                         <div className="text-xs text-muted-foreground">
@@ -551,7 +552,7 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
                     </div>
 
                     <div className="text-right">
-                      <div className="text-sm font-mono font-medium text-foreground">{run.duration_str || '--:--'}</div>
+                      <div className="text-sm font-mono font-medium text-foreground">{run.durationStr || '--:--'}</div>
                       <div className="text-[10px] text-muted-foreground flex items-center justify-end gap-1 mt-1">
                         <TrendingUp className="w-3 h-3" />
                         <span>{run.calories || 0} kcal</span>
