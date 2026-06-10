@@ -10,8 +10,15 @@ import { updateMissionProgress } from '@/lib/game-logic/mission-service';
 import { checkRunRateLimit } from '@/lib/anti-cheat/rate-limiter';
 import { processTerritorySettlement } from '@/lib/territory/settlement';
 import { MIN_TERRITORY_AREA_M2 } from '@/lib/constants/territory';
-import { validateRunData } from '@/lib/validators/run-validator';
-import { validateRunLegitimacy } from '@/lib/anti-cheat/mvp-rules';
+import { AppError } from '@/lib/api/errors';
+import {
+    AntiCheatPipeline,
+    MockLocationValidator,
+    TeleportValidator,
+    PedometerValidator,
+    PolygonLegitimacyValidator,
+    AntiCheatContext
+} from '@/lib/anti-cheat/pipeline';
 import {
     lineString as turfLineString,
     simplify as turfSimplify,
@@ -744,338 +751,52 @@ export async function saveRunActivity(
             console.log(`[GIS] Path simplified from ${rawPathPointsForGIS.length} to ${runData.path.length} points.`);
         }
 
-        // --- P0 Anti-Cheat MVP Validation ---
-        pathPoints = (runData.path as any[]) || [];
-
-        // P0 剥夺客户端距离计算权：服务端独立重算实际距离
-        let actualDistanceKm: number;
-        try {
-            const serverPathCoords = pathPoints.map(p => [p.lng, p.lat] as [number, number]);
-            if (serverPathCoords.length >= 2) {
-                const serverLine = turfLineString(serverPathCoords);
-                actualDistanceKm = turfLength(serverLine, { units: 'kilometers' });
-                console.log(`[Distance-Defense] 服务端重算距离: ${actualDistanceKm.toFixed(4)}km, 客户端上报: ${(runData.distance / 1000).toFixed(4)}km`);
-            } else {
-                actualDistanceKm = runData.distance / 1000;
-                console.warn(`[Distance-Defense] 轨迹点不足，回退客户端距离: ${actualDistanceKm.toFixed(4)}km`);
-            }
-        } catch (err) {
-            actualDistanceKm = runData.distance / 1000;
-            console.error(`[Distance-Defense] turfLength 计算失败，回退客户端距离`, err);
-        }
-
-        const legitimacyCheck = validateRunLegitimacy({
-            distanceKm: actualDistanceKm,
-            durationSeconds: runData.duration,
-            pathPointsCount: pathPoints.length
-        });
-
-        // [God Mode] Bypass P0 legit check for white-listed testers
+        // --- P2 Anti-Cheat Pipeline & Territory Builder ---
         const isUserTester = await isTester(userId);
-        if (isUserTester) {
-            (legitimacyCheck as any).isValid = true;
-            console.log(`[God Mode] P0 Legitimacy check bypassed for tester: ${userId}`);
-        }
-
-        if (!legitimacyCheck.isValid) {
-            // 开发环境豁免：仅打印警告，不阻断主流程
-            if (process.env.NODE_ENV === 'development') {
-                console.warn('[Anti-Cheat] Bypassed for development environment. Reason:', legitimacyCheck.reason);
-            } else {
-                console.warn(`[Anti-Cheat MVP] Run blocked for user ${userId}. Reason: ${legitimacyCheck.reason}`);
-                
-                // Log the cheat attempt independently of the main transaction
-                await prisma.anti_cheat_audit_logs.create({
-                    data: {
-                        user_id: userId,
-                        risk_score: 100, // Blocking offense
-                        cheat_flags: { mvp_reason: legitimacyCheck.reason },
-                        raw_payload: runData as any,
-                        action_taken: 'BLOCKED_SETTLEMENT'
-                    }
-                });
-
-                return {
-                    success: false,
-                    error: "检测到数据异常，可能使用了交通工具，本次跑步无法作为有效占领记录。"
-                };
-            }
-        }
-        // ------------------------------------
-
-        // 1. Metadata-based Anti-Cheat check (Speed, Stride, Teleportation)
-        const metadataValidation = validateRunData({
-            distanceMeters: runData.distance,
-            durationSeconds: runData.duration,
-            steps: submittedTotalSteps
-        });
-
-        // 2. Server-Side Path Analysis & Territory Rebuild (Existing Logic)
-        const pathValidation: AntiCheatValidationResult = validateRunAndRebuildTerritories(runData.path as any);
-
-        let pedometerAntiCheatLog: string | null = null;
-        if (runData.distance > PEDOMETER_STRICT_DISTANCE_METERS) {
-            if (submittedTotalSteps < PEDOMETER_MIN_STEPS) {
-                pedometerAntiCheatLog = 'STEP_TOO_LOW';
-            } else {
-                const strideLength = runData.distance / submittedTotalSteps;
-                if (strideLength > PEDOMETER_MAX_STRIDE_METERS) {
-                    pedometerAntiCheatLog = 'STRIDE_TOO_LONG';
-                }
-            }
-        }
-
-        // Combined risk assessment
-        let isFlagged = metadataValidation.isFlagged || pathValidation.riskLevel === 'HIGH';
-        let isPedometerInvalid = pedometerAntiCheatLog !== null;
-
-        // 任务二: Tester 权限覆盖 — 强制将 effectiveRiskLevel 降为 LOW
-        // 防止 MEDIUM 虚拟定位风险在后续管道中清空多边形数组
-        let effectiveRiskLevel = pathValidation.riskLevel;
-
-        if (isUserTester) {
-            isFlagged = false;
-            isPedometerInvalid = false;
-            pedometerAntiCheatLog = null;
-            effectiveRiskLevel = 'LOW'; // 强制豁免高虚拟定位风险
-            console.log(`[God Mode] effectiveRiskLevel forced to LOW for tester: ${userId}`);
-        }
-
-        const isBlockedByAntiCheat = isFlagged || isPedometerInvalid;
-        const flagReason = metadataValidation.flagReason || (effectiveRiskLevel === 'HIGH' ? 'PATH_ANALYSIS_FAILED' : undefined);
-
-        // 2. 轨迹采样降维 (使用统一黑盒闭合检测，无需再在此采样降维，在 extractValidLoops 内部进行 DP 过滤)
-        const rawPathPoints = (runData.path as any[]) || [];
-
-        // 3. 闭合检测与领地初步提取 (统一黑盒调用)
-        let diagData: any = { status: 'init' };
-        let finalPolygons: Coord[][] = [];
         
-        console.log(`[Territory-Diag] 轨迹总点数: ${rawPathPoints.length}, 总距离: ${runData.distance}m`);
+        const pipeline = new AntiCheatPipeline([
+            new MockLocationValidator(),
+            new TeleportValidator(),
+            new PedometerValidator(),
+            new PolygonLegitimacyValidator()
+        ]);
 
-        let totalRawArea = 0;
-        let totalFinalArea = 0;
-        let totalKinkCount = 0;
-        let finalStrategy: 'raw' | 'unkink' | 'convex_fallback' = 'raw';
+        const pipelineContext: AntiCheatContext = {
+            userId,
+            runData: runData as any,
+            isTester: isUserTester,
+            pathPoints: runData.path as any[]
+        };
 
-        const loops = extractValidLoops(rawPathPoints);
-        console.log('[闭合检测] extractValidLoops 提取到环数量:', loops.length);
+        const pipelineResult = await pipeline.execute(pipelineContext);
 
-        for (const loop of loops) {
-            const closingPath = loop.map(p => [p.lng, p.lat] as [number, number]);
-            const normResult = normalizeRunPolygon(closingPath);
-            
-            for (const poly of normResult.polygons) {
-                finalPolygons.push(poly);
-            }
-            if (normResult.rawArea) totalRawArea += normResult.rawArea;
-            if (normResult.finalArea) totalFinalArea += normResult.finalArea;
-            totalKinkCount += normResult.kinkCount;
-            if (normResult.strategy === 'convex_fallback') {
-                finalStrategy = 'convex_fallback';
-            } else if (normResult.strategy === 'unkink' && finalStrategy !== 'convex_fallback') {
-                finalStrategy = 'unkink';
-            }
-        }
+        const isBlockedByAntiCheat = !pipelineResult.passed;
+        const flagReason = pipelineResult.cheatFlags.length > 0 ? pipelineResult.cheatFlags[0] : undefined;
 
-        diagData.rawArea = totalRawArea;
-        diagData.finalArea = totalFinalArea;
-        diagData.kinkCount = totalKinkCount;
-        diagData.strategy = finalStrategy;
-        diagData.areaInflationRatio = totalRawArea > 0 ? totalFinalArea / totalRawArea : 1;
-        diagData.points = rawPathPoints.length;
-        diagData.status = finalPolygons.length === 0 ? 'Polygons Empty' : 'Success';
-
-        if (finalPolygons.length === 0) {
-            console.log(`[Territory-Diag] 警告: 闭合条件均未满足或多边形构建失败。`);
-        }
-
-        const isGeometryInvalid = diagData.areaInflationRatio && diagData.areaInflationRatio > 1.35;
-        if (isGeometryInvalid) {
-            console.warn(`[GIS] Convex fallback caused massive area inflation (${diagData.areaInflationRatio.toFixed(2)}x). Run blocked with GEOMETRY_INVALID.`);
-        }
-
-        // Settlement Gating — 使用 effectiveRiskLevel 代替原始 pathValidation.riskLevel
-        if (isBlockedByAntiCheat || isGeometryInvalid) {
-            finalPolygons = [];
-            console.warn(`[Anti-Cheat] Settlement blocked for user ${userId}. Reason: ${flagReason ?? pedometerAntiCheatLog}`);
-        } else if (effectiveRiskLevel === 'MEDIUM' && !isUserTester) {
-            finalPolygons = [];
-            console.log(`[saveRunActivity] MEDIUM risk run. Polygons neutralized for user: ${userId}`);
-        }
-
-        // 4. 大圈吞噬小圈核心算法 (BBox 加速) - 使用 Unkink 解結算法替代 Convex Hull
-        function deduplicateByContainment(polygons: any[]): any[] {
-            if (polygons.length <= 1) return polygons;
-
-            const withData = polygons.flatMap(polyPts => {
-                const coords = polyPts.map((p: any) => [p.lng, p.lat] as [number, number]);
-                
-                try {
-                    // FIX: 廢除凸包，引入解結算法 (Unkink Polygon)
-                    // 確保能精確還原 U 型彎、折返路，而不是拉一個包裹所有點的大框
-                    if (coords.length < 3) return [];
-                    const ring = [...coords];
-                    if (ring[0][0] !== ring[ring.length-1][0] || ring[0][1] !== ring[ring.length-1][1]) {
-                        ring.push([...ring[0]]);
-                    }
-                    const cleanRing = deduplicateRingPoints(ring);
-                    if (cleanRing.length < 4) return [];
-                    
-                    const rawPoly = turfPolygon([cleanRing]);
-                    const unkinked = turfUnkinkPolygon(rawPoly);
-                    
-                    // 任务二 (GIS 溢出修复): 双重硬性拦截——等周率 + 绝对面积上限
-                    const MIN_ISO_RATIO = 0.003;
-                    const MAX_TERRITORY_AREA_M2 = 200_000;
-                    return unkinked.features
-                        .filter((f: any) => {
-                            const area = turfArea(f);
-                            if (area <= MIN_TERRITORY_AREA_M2) return false;
-                            if (area > MAX_TERRITORY_AREA_M2) return false;
-                            try {
-                                const perimeterM = turfLength(f) * 1000;
-                                if (perimeterM <= 0) return false;
-                                const isoRatio = (4 * Math.PI * area) / (perimeterM * perimeterM);
-                                if (isoRatio < MIN_ISO_RATIO) return false;
-                            } catch { return false; }
-                            // 凸包面积比校验：拒绝L形/U形等高凹度伪多边形
-                            try {
-                                const hull = turfConvex(f);
-                                if (hull) {
-                                    const hullArea = turfArea(hull);
-                                    const convexityRatio = hullArea > 0 ? (area / hullArea) : 1;
-                                    if (convexityRatio < 0.30) return false;
-                                }
-                            } catch { /* 无法计算凸包时保留 */  }
-                            return true;
-                        })
-                        .map((f: any) => ({
-                            original: polyPts,
-                            f: f as Feature<Polygon>,
-                            area: turfArea(f),
-                            bbox: turfBbox(f)
-                        }));
-                } catch (e) {
-                    console.warn('[GIS] Failed to unkink polygon during deduplication:', e);
-                    return [];
-                }
-            });
-
-            // 优化1：按面積降序排列
-            const sorted = withData.sort((a, b) => b.area - a.area);
-
-            const survivors: typeof sorted = [];
-            for (const candidate of sorted) {
-                let isContained = false;
-                for (const big of survivors) {
-                    // 优化2：BBox (包围盒) 快速重叠检查
-                    const isNotOverlapping = 
-                        candidate.bbox[0] > big.bbox[2] || // 候选件在右侧
-                        candidate.bbox[2] < big.bbox[0] || // 候选件在左侧
-                        candidate.bbox[1] > big.bbox[3] || // 候选件在上侧
-                        candidate.bbox[3] < big.bbox[1];   // 候选件在下侧
-                    const isBBoxOverlapping = !isNotOverlapping;
-
-                    if (isBBoxOverlapping) {
-                        // 优化3：计算重叠
-                        try {
-                            const intersection = turfIntersect(turfFeatureCollection([big.f, candidate.f]));
-                            if (intersection) {
-                                const minArea = Math.min(big.area, candidate.area);
-                                if (minArea > 0) {
-                                    const overlapRatio = turfArea(intersection) / minArea;
-                                    if (overlapRatio > 0.80) {
-                                        isContained = true;
-                                        break;
-                                    }
-                                }
-                            }
-                        } catch (e) { /* skip */ }
-                    }
-                }
-                if (!isContained) survivors.push(candidate);
-            }
-            // 返回原始路徑點
-            return survivors.map(s => s.original);
-        }
-
-        const polygonsForSettlement = (isBlockedByAntiCheat || (effectiveRiskLevel === 'MEDIUM' && !isUserTester)) ? [] : deduplicateByContainment(finalPolygons);
-
-        // 5. 直接在内存中累加真实占领的领地面积 - 使用 Unkink 替代 Convex
-        let accurateAreaKm2 = 0;
-        if (polygonsForSettlement.length > 0) {
-            const validPolys: Feature<Polygon>[] = [];
-            polygonsForSettlement.forEach((polyPts) => {
-                const coords = polyPts.map((p: any) => [p.lng, p.lat] as [number, number]);
-                try {
-                    if (coords.length >= 3) {
-                        const ring = [...coords];
-                        if (ring[0][0] !== ring[ring.length-1][0] || ring[0][1] !== ring[ring.length-1][1]) {
-                            ring.push([...ring[0]]);
-                        }
-                        const cleanRing = deduplicateRingPoints(ring);
-                        if (cleanRing.length < 4) return;
-                        
-                        const rawPoly = turfPolygon([cleanRing]);
-                        const unkinked = turfUnkinkPolygon(rawPoly);
-                        unkinked.features.forEach((f: any) => {
-                            const area = turfArea(f);
-                            if (area <= MIN_TERRITORY_AREA_M2) return;
-                            if (area > 200_000) return; // MAX_TERRITORY_AREA_M2 硬拦截
-                            try {
-                                const perimeterM = turfLength(f) * 1000;
-                                if (perimeterM > 0) {
-                                    const isoRatio = (4 * Math.PI * area) / (perimeterM * perimeterM);
-                                    if (isoRatio < 0.003) return;
-                                }
-                            } catch { /* 无法计算时保留 */ }
-                            validPolys.push(f as Feature<Polygon>);
-                        });
-                    }
-                } catch (e) {
-                    console.warn('[GIS] accurateAreaKm2 unkink failed:', e);
-                }
-            });
-
-            if (validPolys.length > 0) {
-                try {
-                    let merged = validPolys[0] as Feature<Polygon | MultiPolygon>;
-                    for (let i = 1; i < validPolys.length; i++) {
-                        let combined = turfUnion(turfFeatureCollection([merged, validPolys[i]]));
-                        if (combined) {
-                            try {
-                                combined = turfSimplify(combined, { tolerance: 0.000003, highQuality: true });
-                            } catch (simplifyErr) {
-                                console.warn('[GIS] Failed to simplify combined polygon:', simplifyErr);
-                            }
-                            merged = combined as Feature<Polygon | MultiPolygon>;
-                        }
-                    }
-                    accurateAreaKm2 = turfArea(merged) / 1000000;
-                } catch (e) {
-                    console.error('[GIS] Final union for area calculation failed:', e);
-                }
-            }
-        }
+        let finalPolygons = pipelineContext.finalPolygons || [];
+        let accurateAreaKm2 = pipelineContext.accurateAreaKm2 || 0;
+        let diagData = pipelineContext.diagData || { status: 'Empty' };
 
         let finalRunStatus = isBlockedByAntiCheat ? 'flagged' : 'settling';
         let customFlagReason = flagReason;
-        
+
+        const isGeometryInvalid = diagData.areaInflationRatio && diagData.areaInflationRatio > 1.35;
         if (isGeometryInvalid) {
             finalRunStatus = 'flagged';
             customFlagReason = 'GEOMETRY_INVALID';
+            finalPolygons = [];
         } else if (!safeCityId) {
             customFlagReason = undefined;
-            if (polygonsForSettlement.length === 0) {
+            if (finalPolygons.length === 0) {
                 finalRunStatus = 'completed';
                 console.log('[Territory-Diag] safeCityId=null 且无多边形，run 直接完成');
             } else {
-                // 关键：有多边形时必须保持 settling，避免前端因 completed 过早停止轮询
                 finalRunStatus = 'settling';
                 console.log('[Territory-Diag] safeCityId=null 但有多边形，保持 settling 等待异步结算回写');
             }
         }
+
+        const polygonsForSettlement = (isBlockedByAntiCheat || isGeometryInvalid) ? [] : finalPolygons;
 
         // 5. Transaction: Save Run + Process Rewards + Audit Logs
         const result = await prisma.$transaction(async (tx: any) => {
@@ -1112,8 +833,8 @@ export async function saveRunActivity(
                 data: {
                     user_id: userId,
                     club_id: runnerClubId,
-                    distance: pathValidation.serverDistance,
-                    duration: pathValidation.serverDuration,
+                    distance: (pipelineContext.serverDistanceKm || 0) * 1000,
+                    duration: pipelineContext.serverDurationSec || runData.duration,
                     area: accurateAreaKm2 * 1_000_000, // m² 精确面积
                     path: runData.path as any,
                     polygons: finalPolygons as any,
@@ -1122,20 +843,20 @@ export async function saveRunActivity(
                     updated_at: new Date(),
                     idempotency_key: runData.idempotencyKey,
                     // Anti-Cheat Fields
-                    risk_score: isUserTester ? 0 : pathValidation.riskScore,
-                    risk_level: isUserTester ? 'LOW' : pathValidation.riskLevel,
+                    risk_score: isUserTester ? 0 : pipelineResult.totalRisk,
+                    risk_level: isUserTester ? 'LOW' : (pipelineResult.totalRisk >= 100 ? 'HIGH' : (pipelineResult.totalRisk > 0 ? 'MEDIUM' : 'LOW')),
                     cheat_flags: {
-                        ...(pathValidation.cheatFlags as any),
-                        ...(isUserTester ? { tester_bypass: true } : {})
+                        flags: pipelineResult.cheatFlags,
+                        tester_bypass: isUserTester
                     } as any,
                     client_distance: runData.distance,
                     // New Validator Fields
-                    is_flagged: isUserTester ? false : (isFlagged || isGeometryInvalid),
+                    is_flagged: isUserTester ? false : (isBlockedByAntiCheat || isGeometryInvalid),
                     flag_reason: isUserTester ? null : customFlagReason,
                     eventsLog: runEventsWithDiag as any,
                     totalSteps: submittedTotalSteps,
-                    isValid: isUserTester ? true : (!isPedometerInvalid && !isGeometryInvalid),
-                    antiCheatLog: isUserTester ? null : pedometerAntiCheatLog,
+                    isValid: isUserTester ? true : (!isBlockedByAntiCheat && !isGeometryInvalid),
+                    antiCheatLog: isUserTester ? null : flagReason,
                 },
             });
 
@@ -1418,6 +1139,9 @@ export async function saveRunActivity(
         };
 
     } catch (error: any) {
+        if (error instanceof AppError) {
+            throw error;
+        }
         console.error('Failed to save run:', error);
         return {
             success: false,
