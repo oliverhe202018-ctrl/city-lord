@@ -801,40 +801,45 @@ public class LocationForegroundService extends Service implements AMapLocationLi
 
         // ====== 后台锁屏里程累计与 TTS 原生语音播报 ======
         try {
-            if (lastLoggedLocation != null) {
-                float[] results = new float[1];
-                android.location.Location.distanceBetween(
-                        lastLoggedLocation.getLatitude(), lastLoggedLocation.getLongitude(),
-                        location.getLatitude(), location.getLongitude(),
-                        results
-                );
-                float dist = results[0];
-                // 防单点大幅漂移（> 100米则不累计为跑步里程）
-                if (dist > 0.5f && dist < 100.0f) {
-                    totalDistanceTravelled += dist;
+            if (currentRunId != null && !currentRunId.isEmpty()) {
+                if (lastLoggedLocation != null) {
+                    float[] results = new float[1];
+                    android.location.Location.distanceBetween(
+                            lastLoggedLocation.getLatitude(), lastLoggedLocation.getLongitude(),
+                            location.getLatitude(), location.getLongitude(),
+                            results
+                    );
+                    float dist = results[0];
+                    // 防单点大幅漂移（> 100米则不累计为跑步里程）
+                    if (dist > 0.5f && dist < 100.0f) {
+                        totalDistanceTravelled += dist;
+                    }
                 }
-            }
-            lastLoggedLocation = location.clone();
+                lastLoggedLocation = location.clone();
 
-            int currentKm = (int) (totalDistanceTravelled / 1000.0);
-            if (currentKm > 0 && currentKm > lastSpokenKm) {
-                lastSpokenKm = currentKm;
-                long elapsedSeconds = 0;
-                if (runStartedAt > 0) {
-                    elapsedSeconds = (System.currentTimeMillis() - runStartedAt) / 1000;
+                int currentKm = (int) (totalDistanceTravelled / 1000.0);
+                if (currentKm > 0 && currentKm > lastSpokenKm) {
+                    lastSpokenKm = currentKm;
+                    long elapsedSeconds = 0;
+                    if (runStartedAt > 0) {
+                        elapsedSeconds = (System.currentTimeMillis() - runStartedAt) / 1000;
+                    }
+                    if (elapsedSeconds > 0) {
+                        double distanceKm = totalDistanceTravelled / 1000.0;
+                        long paceSeconds = (long) (elapsedSeconds / distanceKm);
+                        long m = paceSeconds / 60;
+                        long s = paceSeconds % 60;
+                        String paceStr = (m > 59) ? "59分59秒" : (m + "分" + s + "秒");
+                        String message = "领主，您已奔袭 " + currentKm + " 公里！当前后台配配速每公里 " + paceStr + "，势如破竹，请继续保持！";
+                        speakTts(message);
+                    } else {
+                        String message = "领主，您已奔袭 " + currentKm + " 公里！势如破竹，请继续保持！";
+                        speakTts(message);
+                    }
                 }
-                if (elapsedSeconds > 0) {
-                    double distanceKm = totalDistanceTravelled / 1000.0;
-                    long paceSeconds = (long) (elapsedSeconds / distanceKm);
-                    long m = paceSeconds / 60;
-                    long s = paceSeconds % 60;
-                    String paceStr = (m > 59) ? "59分59秒" : (m + "分" + s + "秒");
-                    String message = "领主，您已奔袭 " + currentKm + " 公里！当前后台配配速每公里 " + paceStr + "，势如破竹，请继续保持！";
-                    speakTts(message);
-                } else {
-                    String message = "领主，您已奔袭 " + currentKm + " 公里！势如破竹，请继续保持！";
-                    speakTts(message);
-                }
+            } else {
+                // Not running, just update lastLoggedLocation without accumulating distance
+                lastLoggedLocation = location.clone();
             }
         } catch (Exception e) {
             Log.w(TAG, "Error in background milestone speech: " + e.getMessage());
