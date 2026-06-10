@@ -22,8 +22,7 @@ export class GlobalErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('Uncaught error:', error, errorInfo);
-    // TODO: 后期可以接入 Sentry 等上报工具
+    console.error('REACT_CRASH_REPORT:', error, errorInfo);
   }
 
   public render() {
@@ -35,6 +34,9 @@ export class GlobalErrorBoundary extends Component<Props, State> {
           <p className="text-gray-400 text-sm text-center mb-6 max-w-[280px]">
             局部界面加载失败，但不影响您的核心游戏数据。
           </p>
+          <pre className="text-red-400 text-xs text-left w-full overflow-auto max-h-40 mb-6 p-2 bg-black/50 rounded">
+            {this.state.error ? String(this.state.error.message) + '\n' + String(this.state.error.stack) : 'Unknown error'}
+          </pre>
           <button
             onClick={() => this.setState({ hasError: false })}
             className="px-8 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-full font-medium transition-all transform active:scale-95 shadow-lg shadow-purple-500/20"

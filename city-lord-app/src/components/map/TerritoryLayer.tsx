@@ -527,17 +527,18 @@ function renderTerritoriesOnCanvas(
             if (originPoint && Number.isFinite(originPoint.x) && Number.isFinite(originPoint.y)) {
               try {
                 // Safely handle DOMMatrix for older Android WebViews
-                const matrix = typeof DOMMatrix !== 'undefined' 
+                // ⚠️ CRITICAL FIX: Use 'var' instead of 'const' to completely bypass Android WebView TDZ hoisting bugs in loops
+                var transformMatrix = typeof DOMMatrix !== 'undefined' 
                   ? new DOMMatrix() 
                   : document.createElementNS("http://www.w3.org/2000/svg", "svg").createSVGMatrix();
                 
-                if (typeof matrix.translateSelf === 'function') {
-                  matrix.translateSelf(originPoint.x - discreteSize / 2, originPoint.y - discreteSize / 2);
+                if (typeof transformMatrix.translateSelf === 'function') {
+                  transformMatrix.translateSelf(originPoint.x - discreteSize / 2, originPoint.y - discreteSize / 2);
                 } else {
-                  matrix.e = originPoint.x - discreteSize / 2;
-                  matrix.f = originPoint.y - discreteSize / 2;
+                  transformMatrix.e = originPoint.x - discreteSize / 2;
+                  transformMatrix.f = originPoint.y - discreteSize / 2;
                 }
-                pattern.setTransform(matrix);
+                pattern.setTransform(transformMatrix);
               } catch {
                 console.warn("[CityLord] Canvas pattern.setTransform failed, ignoring");
               }
