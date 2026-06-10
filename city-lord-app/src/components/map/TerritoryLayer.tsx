@@ -538,8 +538,8 @@ function renderTerritoriesOnCanvas(
                   matrix.f = originPoint.y - discreteSize / 2;
                 }
                 pattern.setTransform(matrix);
-              } catch (err) {
-                console.warn("[CityLord] Canvas pattern.setTransform failed, ignoring:", err);
+              } catch {
+                console.warn("[CityLord] Canvas pattern.setTransform failed, ignoring");
               }
             }
             

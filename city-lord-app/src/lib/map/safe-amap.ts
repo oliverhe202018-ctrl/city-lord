@@ -39,9 +39,9 @@ export async function safeLoadAMap(
 
   loadingPromise = (async () => {
     try {
-      // ✅ 不依赖 process.env，直接使用字面量（Next.js 静态导出后 WebView 没有 process 对象）
-      const AMAP_KEY = 'e7c09f023c10603e1fa8877e796965e9';
-      const AMAP_SECURITY_CODE = 'e827ba611fad4802c48dd900d01eb4bf';
+      // ✅ 修复：通过 vite.config.ts 中的 define 静态注入，安全读取根目录 .env.local 的配置
+      const AMAP_KEY = process.env.NEXT_PUBLIC_AMAP_KEY || 'e7c09f023c10603e1fa8877e796965e9';
+      const AMAP_SECURITY_CODE = process.env.NEXT_PUBLIC_AMAP_SECURITY_CODE || 'e827ba611fad4802c48dd900d01eb4bf';
 
       (window as any)._AMapSecurityConfig = {
         securityJsCode: AMAP_SECURITY_CODE,

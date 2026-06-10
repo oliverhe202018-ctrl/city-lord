@@ -45,16 +45,8 @@ export default defineConfig(({ mode }) => {
               if (id.includes('@supabase/')) {
                 return 'vendor-supabase';
               }
-              if (id.includes('framer-motion')) {
-                return 'vendor-framer-motion';
-              }
-              if (id.includes('lucide-react')) {
-                return 'vendor-lucide';
-              }
-              if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
-                return 'vendor-framework';
-              }
-              return 'vendor-others';
+              // ✅ 修复：不再强制合并所有 React 依赖到一个块，交回 Rollup 自行推导顺序
+              return undefined;
             }
           }
         }

@@ -10,7 +10,6 @@ import { DataLoadFailedCard } from '@/components/citylord/feedback/error-feedbac
 import TerritoryLayer from './TerritoryLayer';
 import FogLayer from './FogLayer';
 import { MapControls } from './MapControls';
-import { useAuth } from '@/hooks/useAuth';
 import { useMapInteraction } from '@/components/map/MapInteractionContext';
 import { useGameStore } from '@/store/useGameStore';
 import { useMapInteractionStore } from '@/store/useMapInteractionStore';
@@ -93,7 +92,6 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
     } = useMapInteraction();
     const setSelectedTerritoryId = useGameStore((state) => state.setSelectedTerritoryId);
     const resetRunState = useGameStore((state) => state.resetRunState);
-    const { user } = useAuth();
     const recenterTimerRef = useRef<number | null>(null);
     const isUserInteractingRef = useRef(false);
     const currentLocationRef = useRef(currentLocation);
