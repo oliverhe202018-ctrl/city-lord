@@ -27,12 +27,7 @@ export default defineConfig(({ mode }) => {
       'process.env.NEXT_PUBLIC_API_SERVER': JSON.stringify(env.NEXT_PUBLIC_API_SERVER || 'https://cl1.6543666.xyz')
     },
     build: {
-      minify: 'terser',
-      terserOptions: {
-        compress: {
-          typeofs: false,
-        },
-      },
+      minify: 'esbuild',
       sourcemap: true,
       rollupOptions: {
         external: [
@@ -43,19 +38,27 @@ export default defineConfig(({ mode }) => {
         ],
         output: {
           manualChunks(id) {
-            // AMapContext 必须是独立 chunk，保证在 AMapView 之前初始化，避开 TDZ/加载时序问题
-            if (id.replace(/\\/g, '/').includes('components/map/AMapContext')) {
-              return 'map-context';
-            }
-            if (id.includes('node_modules')) {
-              if (id.includes('@turf/')) {
+            const normalId = id.replace(/\\/g, '/');
+            
+            // Skip node_modules first
+            if (normalId.includes('node_modules')) {
+              if (normalId.includes('@turf/')) {
                 return 'vendor-turf';
               }
-              if (id.includes('@supabase/')) {
+              if (normalId.includes('@supabase/')) {
                 return 'vendor-supabase';
               }
-              // ✅ 修复：不再强制合并所有 React 依赖到一个块，交回 Rollup 自行推导顺序
               return undefined;
+            }
+
+            // Group all local context and provider files to prevent TDZ crashes
+            if (
+              normalId.includes('/contexts/') ||
+              normalId.includes('/providers/') ||
+              /context/i.test(normalId) ||
+              /provider/i.test(normalId)
+            ) {
+              return 'app-contexts';
             }
           }
         }
