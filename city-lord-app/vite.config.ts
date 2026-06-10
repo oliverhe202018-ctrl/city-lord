@@ -52,12 +52,19 @@ export default defineConfig(({ mode }) => {
             }
 
             // Group all local context and provider files to prevent TDZ crashes
-            if (
+            const isContextOrProvider =
               normalId.includes('/contexts/') ||
               normalId.includes('/providers/') ||
               /context/i.test(normalId) ||
-              /provider/i.test(normalId)
-            ) {
+              /provider/i.test(normalId);
+
+            const isExcluded =
+              normalId.includes('AMapViewWithProvider') ||
+              normalId.includes('Providers.tsx') ||
+              normalId.includes('/components/ui/') ||
+              normalId.includes('context-menu.tsx');
+
+            if (isContextOrProvider && !isExcluded) {
               return 'app-contexts';
             }
           }
