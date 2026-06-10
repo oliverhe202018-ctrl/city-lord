@@ -2,16 +2,13 @@
 import React from 'react';
 import type { ViewportKingData } from './AMapView';
 
-import { useGameStore } from '@/store/useGameStore';
-import { useMapDisplayStore } from '@/store/useMapDisplayStore';
-
 interface Props {
   king: ViewportKingData | null;
+  mapDisplayMode: 'personal' | 'faction' | 'club';
+  selectedTerritoryId: string | null;
 }
 
-export const KingAreaBanner = React.memo(function KingAreaBanner({ king }: Props) {
-  const { mapDisplayMode } = useMapDisplayStore();
-  const selectedTerritoryId = useGameStore(state => state.selectedTerritoryId);
+export const KingAreaBanner = React.memo(function KingAreaBanner({ king, mapDisplayMode, selectedTerritoryId }: Props) {
   if (!king) return null;
 
   const isClubMode = mapDisplayMode === 'club';

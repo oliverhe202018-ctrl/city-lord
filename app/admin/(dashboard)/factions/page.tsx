@@ -20,8 +20,8 @@ type FactionBalanceConfig = Database['public']['Tables']['faction_balance_config
 
 export default function FactionsPage() {
   // Stats State
-  const [redCount, setRedCount] = useState(0)
-  const [blueCount, setBlueCount] = useState(0)
+  const [red_count, setRedCount] = useState(0)
+  const [blue_count, setBlueCount] = useState(0)
   const [loadingStats, setLoadingStats] = useState(true)
 
   // Config State
@@ -197,14 +197,14 @@ export default function FactionsPage() {
 
   // --- Real-time Calculations ---
   const currentBalance = calculateFactionBalance(
-    redCount,
-    blueCount,
+    red_count,
+    blue_count,
     formData.auto_balance_enabled
   )
 
-  const totalUsers = redCount + blueCount
-  const redPercentage = totalUsers > 0 ? (redCount / totalUsers) * 100 : 50
-  const bluePercentage = totalUsers > 0 ? (blueCount / totalUsers) * 100 : 50
+  const totalUsers = red_count + blue_count
+  const redPercentage = totalUsers > 0 ? (red_count / totalUsers) * 100 : 50
+  const bluePercentage = totalUsers > 0 ? (blue_count / totalUsers) * 100 : 50
 
   // --- Simulation Calculations ---
   const simBalance = calculateFactionBalance(
@@ -270,7 +270,7 @@ export default function FactionsPage() {
 
             <div className="flex justify-between text-sm">
               <div className="flex flex-col items-start">
-                <span className="font-bold text-red-500 text-lg">{redCount}</span>
+                <span className="font-bold text-red-500 text-lg">{red_count}</span>
                 <span className="text-muted-foreground">红方人数</span>
               </div>
 
@@ -290,7 +290,7 @@ export default function FactionsPage() {
               </div>
 
               <div className="flex flex-col items-end">
-                <span className="font-bold text-blue-500 text-lg">{blueCount}</span>
+                <span className="font-bold text-blue-500 text-lg">{blue_count}</span>
                 <span className="text-muted-foreground">蓝方人数</span>
               </div>
             </div>

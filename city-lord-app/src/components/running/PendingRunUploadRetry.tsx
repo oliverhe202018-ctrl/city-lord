@@ -37,7 +37,7 @@ export function PendingRunUploadRetry() {
                     }
 
                     try {
-                        const res = await apiFetch(`/api/run/save-pending`, {
+                        const res = await apiFetch(`/api/v1/runs/pending`, {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             credentials: "include",

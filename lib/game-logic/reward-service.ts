@@ -13,8 +13,8 @@ export async function grantRewards(
   userId: string,
   rewards: { exp?: number; coins?: number },
   source: string,
-  referenceId?: string
-): Promise<{ newExp: number; newLevel: number; newCoins: number; levelUp: boolean }> {
+  reference_id?: string
+): Promise<{ new_exp: number; newLevel: number; newCoins: number; levelUp: boolean }> {
   const incExp = rewards.exp || 0
   const incCoins = rewards.coins || 0
 
@@ -25,7 +25,7 @@ export async function grantRewards(
       select: { xp: true, level: true, coins: true }
     })
     return {
-      newExp: current?.xp || 0,
+      new_exp: current?.xp || 0,
       newLevel: current?.level || 1,
       newCoins: current?.coins || 0,
       levelUp: false
@@ -47,15 +47,15 @@ export async function grantRewards(
 
       // 2. 计算新状态，金币加上限制保证不跌落负数
       const newCoins = Math.max(0, currentCoins + incCoins)
-      const newExp = currentExp + incExp
-      const newLevel = calculateLevel(newExp)
+      const new_exp = currentExp + incExp
+      const newLevel = calculateLevel(new_exp)
       const levelUp = newLevel > currentLevel
 
       // 3. 更新 profile
       await tx.profiles.update({
         where: { id: userId },
         data: {
-          xp: newExp,
+          xp: new_exp,
           level: newLevel,
           coins: newCoins,
           updated_at: new Date()
@@ -65,20 +65,20 @@ export async function grantRewards(
       // 4. 鍐欐祦姘?
 
       
-      await tx.rewardLog.create({
+      await tx.reward_logs.create({
         data: {
           userId,
           exp: incExp > 0 ? incExp : null,
           coins: incCoins > 0 ? incCoins : null,
           source,
-          referenceId: referenceId || null
+          reference_id: reference_id || null
         }
       })
 
       return {
         oldLevel: currentLevel,
         newLevel,
-        newExp,
+        new_exp,
         newCoins,
         levelUp
       }
@@ -103,7 +103,7 @@ export async function grantRewards(
   }
 
   return {
-    newExp: result.newExp,
+    new_exp: result.new_exp,
     newLevel: result.newLevel,
     newCoins: result.newCoins,
     levelUp: result.levelUp

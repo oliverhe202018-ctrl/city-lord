@@ -9,7 +9,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const redCount = await prisma.territories.count({
+    const red_count = await prisma.territories.count({
       where: {
         profiles: {
           faction: 'Red'
@@ -17,7 +17,7 @@ export async function GET(request: Request) {
       }
     })
 
-    const blueCount = await prisma.territories.count({
+    const blue_count = await prisma.territories.count({
       where: {
         profiles: {
           faction: 'Blue'
@@ -55,8 +55,8 @@ export async function GET(request: Request) {
     })
 
     return NextResponse.json({
-      red_count: redCount,
-      blue_count: blueCount,
+      red_count: red_count,
+      blue_count: blue_count,
       red_area: redArea,
       blue_area: blueArea,
       snapshot: stats

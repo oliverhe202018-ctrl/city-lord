@@ -194,9 +194,9 @@ async function getClubLeaderboard(province?: string, currentUserId?: string, use
 async function getProvinceLeaderboard(page: number = 1, limit: number = 50): Promise<LeaderboardEntry[]> {
   const skip = (page - 1) * limit;
   // Query ProvinceStat table
-  const stats = await prisma.provinceStat.findMany({
-    where: { NOT: { provinceName: { contains: '_CITY_' } } },
-    orderBy: { totalTerritoryArea: 'desc' },
+  const stats = await prisma.province_stats.findMany({
+    where: { NOT: { province_name: { contains: '_CITY_' } } },
+    orderBy: { total_territory_area: 'desc' },
     skip,
     take: limit
   });
@@ -204,17 +204,17 @@ async function getProvinceLeaderboard(page: number = 1, limit: number = 50): Pro
   return stats.map((stat, index) => ({
     rank: skip + index + 1,
     id: String(stat.id),
-    name: stat.provinceName,
-    score: Math.round(stat.totalTerritoryArea),
+    name: stat.province_name,
+    score: Math.round(stat.total_territory_area),
     change: 'same'
   }));
 }
 
 async function getProvinceCityLeaderboard(province: string, page: number = 1, limit: number = 50): Promise<LeaderboardEntry[]> {
   const skip = (page - 1) * limit;
-  const stats = await prisma.provinceStat.findMany({
-    where: { provinceName: { startsWith: province + '_CITY_' } },
-    orderBy: { totalTerritoryArea: 'desc' },
+  const stats = await prisma.province_stats.findMany({
+    where: { province_name: { startsWith: province + '_CITY_' } },
+    orderBy: { total_territory_area: 'desc' },
     skip,
     take: limit
   });
@@ -222,8 +222,8 @@ async function getProvinceCityLeaderboard(province: string, page: number = 1, li
   return stats.map((stat, index) => ({
     rank: skip + index + 1,
     id: String(stat.id),
-    name: stat.provinceName.replace(province + '_CITY_', ''),
-    score: Math.round(stat.totalTerritoryArea),
+    name: stat.province_name.replace(province + '_CITY_', ''),
+    score: Math.round(stat.total_territory_area),
     change: 'same',
     secondary_info: province
   }));
@@ -255,15 +255,15 @@ export async function updateProvinceStats() {
 
       const totalArea = group._sum.total_area || 0;
 
-      await prisma.provinceStat.upsert({
-        where: { provinceName: group.province },
+      await prisma.province_stats.upsert({
+        where: { province_name: group.province },
         update: {
-          totalTerritoryArea: totalArea,
+          total_territory_area: totalArea,
           updatedAt: new Date()
         },
         create: {
-          provinceName: group.province,
-          totalTerritoryArea: totalArea
+          province_name: group.province,
+          total_territory_area: totalArea
         }
       });
       updatedCount++;
@@ -285,15 +285,15 @@ export async function updateProvinceStats() {
       const cityKey = `${row.province}_CITY_${row.city_id}`;
       const cityArea = Number(row.total_area) || 0;
 
-      await prisma.provinceStat.upsert({
-        where: { provinceName: cityKey },
+      await prisma.province_stats.upsert({
+        where: { province_name: cityKey },
         update: {
-          totalTerritoryArea: cityArea,
+          total_territory_area: cityArea,
           updatedAt: new Date()
         },
         create: {
-          provinceName: cityKey,
-          totalTerritoryArea: cityArea
+          province_name: cityKey,
+          total_territory_area: cityArea
         }
       });
       updatedCount++;

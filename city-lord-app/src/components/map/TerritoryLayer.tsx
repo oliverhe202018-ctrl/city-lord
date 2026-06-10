@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef, useCallback, useState, useMemo, memo } from 'react';
 import { logEvent } from '@/lib/native-log';
 import type { ExtTerritory } from "@/types/city";
 import { useCity } from '@/contexts/CityContext';
@@ -9,7 +9,7 @@ import { calculateHealthVisuals, generateTerritoryStyle } from '@/lib/citylord/t
 import { type ViewContext } from '@/types/city';
 import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
-import type { ViewportKingData } from "./AMapView";
+import type { ViewportKingData } from "@/types/map-types";
 import * as turf from "@turf/turf";
 import { apiFetch } from "@/lib/fetch-shim";
 import { useGameStore, useGameTerritoryAppearance } from '@/store/useGameStore';
@@ -34,6 +34,7 @@ type TerritoryWithRender = ExtTerritory & {
   strokeColor: string;
   fillOpacity: number;
   strokeWeight: number;
+  ownerPersonalColor: string;
   areaM2: number;
   bbox: { minLng: number; maxLng: number; minLat: number; maxLat: number };
   centerPoint: [number, number];
@@ -1001,6 +1002,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
           strokeColor: safeColor(presentation.strokeColor, DEFAULT_STROKE),
           fillOpacity: presentation.fillOpacity,
           strokeWeight: presentation.strokeWeight,
+          ownerPersonalColor: presentation.ownerPersonalColor,
           areaM2,
           bbox,
           centerPoint,
@@ -1082,6 +1084,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
         territoriesDataRef.current,
         canvasSizeRef,
         () => {
+          lastRenderDataRef.current = null;
           redrawCanvasRef.current?.();
         },
         ownerProfileMapRef.current,
@@ -1377,9 +1380,12 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
         setSelectedTerritory?.(clicked);
         setIsDetailSheetOpen?.(true);
       } else {
-        setSelectedTerritory?.(null);
-        setSelectedTerritoryId(null as never);
-        setIsDetailSheetOpen?.(false);
+        const lastClick = (window as any).__amap_polygon_clicked || 0;
+        if (Date.now() - lastClick > 500) {
+          setSelectedTerritory?.(null);
+          setSelectedTerritoryId(null as never);
+          setIsDetailSheetOpen?.(false);
+        }
       }
     };
 

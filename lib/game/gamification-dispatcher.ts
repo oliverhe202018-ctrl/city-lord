@@ -1,5 +1,5 @@
 
-import { task } from '@trigger.dev/sdk';
+import { schemaTask } from '@trigger.dev/sdk';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { applyPointsAndLevel, resolveEventRewards } from '@/lib/gamification/reward-resolver';
@@ -10,16 +10,16 @@ import { getTitle } from '@/lib/game-logic/level-system';
  * This task is a fire-and-forget dispatcher responsible for orchestrating the entire
  * post-run gamification pipeline, from reward calculation to task evaluation.
  */
-export const processPostRunRewards = task({
+export const processPostRunRewards = schemaTask({
     id: 'process-post-run-rewards',
-    input: z.object({
+    schema: z.object({
         userId: z.string().uuid(),
         runId: z.string().uuid(),
         distanceKm: z.number().min(0),
         createdTerritories: z.number().min(0),
         triggeredEventIds: z.array(z.string().uuid()),
     }),
-    run: async (payload, { logger }) => {
+    run: async (payload) => {
         const { userId, runId, distanceKm, createdTerritories, triggeredEventIds } = payload;
 
         // 1. Create the central run context

@@ -205,8 +205,8 @@ export async function getPendingChallengesForUser() {
   const valid: ChallengeWithProfiles[] = [];
 
   for (const row of data || []) {
-    const createdAt = new Date(row.created_at).getTime();
-    if (now - createdAt > PENDING_TTL_MS) {
+    const created_at = new Date(row.created_at).getTime();
+    if (now - created_at > PENDING_TTL_MS) {
       // Silently expire
       await (supabase as any)
         .from('challenges')

@@ -54,7 +54,7 @@ export const MapLayer = forwardRef<MapLayerHandle, MapLayerProps>(
             let zoomEndHandler: any = null;
 
             (async () => {
-                const AMap = await safeLoadAMap({ plugins: ["AMap.Scale", "AMap.MoveAnimation", "AMap.CustomLayer"] });
+                const AMap = await safeLoadAMap({ plugins: ["AMap.Scale", "AMap.MoveAnimation"] });
                 if (destroyed || !mapDomRef.current) return;
 
                 if (!AMap) {

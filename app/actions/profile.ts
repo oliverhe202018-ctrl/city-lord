@@ -10,7 +10,7 @@ export interface UserProfileBasic {
     nickname: string | null
     avatarUrl: string | null
     level: number | null
-    backgroundUrl: string | null
+    background_url: string | null
 }
 
 export interface RunRecord {
@@ -20,7 +20,7 @@ export interface RunRecord {
     durationStr: string
     paceMinPerKm: string
     calories: number
-    createdAt: string
+    created_at: string
     province: string | null
     idempotencyKey: string | null
 }
@@ -54,7 +54,7 @@ export type ProfileDataResult =
         user: UserProfileBasic
         stats: ProfileStats
         isFollowing: boolean
-        isProfilePublic: boolean
+        is_profile_public: boolean
     }
     | {
         isPrivate: true
@@ -81,8 +81,8 @@ export async function getProfileData(targetUserId: string, token?: string): Prom
             nickname: true,
             avatar_url: true,
             level: true,
-            backgroundUrl: true,
-            isProfilePublic: true,
+            background_url: true,
+            is_profile_public: true,
             total_distance_km: true,
         },
     })
@@ -96,7 +96,7 @@ export async function getProfileData(targetUserId: string, token?: string): Prom
                 nickname: '未知用户',
                 avatarUrl: null,
                 level: 1,
-                backgroundUrl: null,
+                background_url: null,
             },
         }
     }
@@ -106,11 +106,11 @@ export async function getProfileData(targetUserId: string, token?: string): Prom
         nickname: profile.nickname,
         avatarUrl: profile.avatar_url,
         level: profile.level,
-        backgroundUrl: profile.backgroundUrl,
+        background_url: profile.background_url,
     }
 
     // SERVER-SIDE PRIVACY GUARD: if private and not self, return ONLY basic info
-    if (!profile.isProfilePublic && !isSelf) {
+    if (!profile.is_profile_public && !isSelf) {
         return {
             isPrivate: true,
             isSelf: false,
@@ -129,10 +129,10 @@ export async function getProfileData(targetUserId: string, token?: string): Prom
         cityProgress,
     ] = await Promise.all([
         prisma.runs.count({ where: { user_id: targetUserId } }),
-        prisma.profile_likes.count({ where: { userId: targetUserId } }),
+        prisma.profile_likes.count({ where: { user_id: targetUserId } }),
         currentUserId
             ? prisma.profile_likes.count({
-                where: { userId: targetUserId, likerId: currentUserId },
+                where: { user_id: targetUserId, likerId: currentUserId },
             }).then(c => c > 0)
             : Promise.resolve(false),
         prisma.friendships.count({
@@ -230,34 +230,34 @@ export async function getProfileData(targetUserId: string, token?: string): Prom
             isLikedByMe,
         },
         isFollowing,
-        isProfilePublic: profile.isProfilePublic,
+        is_profile_public: profile.is_profile_public,
     }
 }
 
 // ─── getRuns (Cursor-based pagination) ──────────────────
 export async function getRuns(
-    userId: string,
+    user_id: string,
     cursor?: string,
     limit: number = 10,
     token?: string
 ): Promise<{ runs: RunRecord[]; nextCursor: string | null }> {
     const supabase = await createClient()
     const { data: { user: currentUser } } = token ? await supabase.auth.getUser(token) : await supabase.auth.getUser()
-    const isSelf = currentUser?.id === userId
+    const isSelf = currentUser?.id === user_id
 
     // Server-side privacy check
     if (!isSelf) {
         const profile = await prisma.profiles.findUnique({
-            where: { id: userId },
-            select: { isProfilePublic: true },
+            where: { id: user_id },
+            select: { is_profile_public: true },
         })
-        if (!profile?.isProfilePublic) {
+        if (!profile?.is_profile_public) {
             return { runs: [], nextCursor: null }
         }
     }
 
     const runs = await prisma.runs.findMany({
-        where: { user_id: userId },
+        where: { user_id: user_id },
         orderBy: { created_at: 'desc' },
         take: limit + 1,
         ...(cursor
@@ -291,7 +291,7 @@ export async function getRuns(
                 durationStr: formatDuration(durationSec),
                 paceMinPerKm: formatPace(durationSec, distKm),
                 calories: Math.round(distKm * 60),
-                createdAt: run.created_at?.toISOString() ?? '',
+                created_at: run.created_at?.toISOString() ?? '',
                 province: run.province,
                 idempotencyKey: run.idempotency_key ?? null,
             }
@@ -309,7 +309,7 @@ export async function toggleProfilePrivacy(isPublic: boolean, token?: string) {
     try {
         await prisma.profiles.update({
             where: { id: user.id },
-            data: { isProfilePublic: isPublic },
+            data: { is_profile_public: isPublic },
         })
         return { success: true, isPublic }
     } catch (e: any) {
@@ -331,7 +331,7 @@ export async function updateProfileBackground(bgId: string, token?: string) {
 
         // Check ownership
         const owned = await prisma.user_backgrounds.findUnique({
-            where: { userId_backgroundId: { userId: user.id, backgroundId: bgId } },
+            where: { userId_backgroundId: { user_id: user.id, backgroundId: bgId } },
         })
 
         // If free or already owned, allow
@@ -342,17 +342,17 @@ export async function updateProfileBackground(bgId: string, token?: string) {
         // Auto-acquire free backgrounds
         if (!owned && bg.conditionType === 'free') {
             await prisma.user_backgrounds.create({
-                data: { userId: user.id, backgroundId: bgId },
+                data: { user_id: user.id, backgroundId: bgId },
             })
         }
 
         // Update profile
         await prisma.profiles.update({
             where: { id: user.id },
-            data: { backgroundUrl: bg.imageUrl },
+            data: { background_url: bg.imageUrl },
         })
 
-        return { success: true, backgroundUrl: bg.imageUrl }
+        return { success: true, background_url: bg.imageUrl }
     } catch (e: any) {
         console.error('updateProfileBackground error:', e)
         return { success: false, error: e.message }
@@ -368,21 +368,21 @@ export async function toggleUserLike(targetUserId: string, token?: string) {
 
     try {
         const existing = await prisma.profile_likes.findUnique({
-            where: { userId_likerId: { userId: targetUserId, likerId: user.id } },
+            where: { userId_likerId: { user_id: targetUserId, likerId: user.id } },
         })
 
         if (existing) {
             await prisma.profile_likes.delete({ where: { id: existing.id } })
             const count = await prisma.profile_likes.count({
-                where: { userId: targetUserId },
+                where: { user_id: targetUserId },
             })
             return { success: true, liked: false, likeCount: count }
         } else {
             await prisma.profile_likes.create({
-                data: { userId: targetUserId, likerId: user.id },
+                data: { user_id: targetUserId, likerId: user.id },
             })
             const count = await prisma.profile_likes.count({
-                where: { userId: targetUserId },
+                where: { user_id: targetUserId },
             })
             return { success: true, liked: true, likeCount: count }
         }
@@ -421,14 +421,14 @@ export async function getBackgrounds(filter: 'all' | 'mine' | 'available' | 'exp
     if (!user) return { backgrounds: [], currentBg: null }
 
     const [allBgs, userBgs, profile] = await Promise.all([
-        prisma.backgrounds.findMany({ orderBy: { createdAt: 'desc' } }),
+        prisma.backgrounds.findMany({ orderBy: { created_at: 'desc' } }),
         prisma.user_backgrounds.findMany({
-            where: { userId: user.id },
+            where: { user_id: user.id },
             select: { backgroundId: true },
         }),
         prisma.profiles.findUnique({
             where: { id: user.id },
-            select: { backgroundUrl: true, level: true },
+            select: { background_url: true, level: true },
         }),
     ])
 
@@ -447,7 +447,7 @@ export async function getBackgrounds(filter: 'all' | 'mine' | 'available' | 'exp
         isLocked: bg.conditionType === 'level'
             ? (profile?.level ?? 1) < (bg.conditionValue ?? 0)
             : bg.conditionType === 'coins',
-        isActive: bg.imageUrl === profile?.backgroundUrl,
+        isActive: bg.imageUrl === profile?.background_url,
     }))
 
     let filtered = enriched

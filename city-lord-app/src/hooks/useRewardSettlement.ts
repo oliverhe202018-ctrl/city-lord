@@ -74,7 +74,7 @@ export function useRewardSettlement(runId: string | undefined) {
         throw new Error('Run ID is required')
       }
       
-      const response = await apiFetch(`/api/runs/${runId}/rewards`)
+      const response = await apiFetch(`/api/v1/runs/${runId}/rewards`)
       if (!response.ok) {
         throw new Error(`Failed to fetch reward status: ${response.status}`)
       }

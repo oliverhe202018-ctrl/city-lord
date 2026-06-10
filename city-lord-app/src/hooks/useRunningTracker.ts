@@ -2714,7 +2714,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
             pollingIntervalRef.current = setInterval(async () => {
               try {
                 if (!savedRunIdRef.current) return;
-                const pollResult = await fetchShim(`/api/runs/${savedRunIdRef.current}/status`);
+                const pollResult = await fetchShim(`/api/v1/runs/${savedRunIdRef.current}/status`);
                 if (pollResult.ok) {
                   const data = await pollResult.json();
                   if (data.status === "COMPLETED") {

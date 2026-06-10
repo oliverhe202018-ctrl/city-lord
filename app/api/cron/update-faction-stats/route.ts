@@ -10,7 +10,7 @@ export async function GET(request: Request) {
 
     // Calculate Red Area
     // We count territories owned by RED faction users
-    const redCount = await prisma.territories.count({
+    const red_count = await prisma.territories.count({
       where: {
         profiles: {
           faction: 'Red',
@@ -19,7 +19,7 @@ export async function GET(request: Request) {
     });
 
     // Calculate Blue Area
-    const blueCount = await prisma.territories.count({
+    const blue_count = await prisma.territories.count({
       where: {
         profiles: {
           faction: 'Blue',

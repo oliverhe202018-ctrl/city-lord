@@ -11,7 +11,7 @@ export async function GET(request: Request) {
 
     // 2. Count Territories
     // Note: Faction names are 'Red' and 'Blue' in the database profiles
-    const redCount = await prisma.territories.count({
+    const red_count = await prisma.territories.count({
       where: {
         profiles: {
           faction: 'Red',
@@ -19,7 +19,7 @@ export async function GET(request: Request) {
       },
     });
 
-    const blueCount = await prisma.territories.count({
+    const blue_count = await prisma.territories.count({
       where: {
         profiles: {
           faction: 'Blue',
@@ -27,27 +27,27 @@ export async function GET(request: Request) {
       },
     });
 
-    const totalTerritories = await prisma.territories.count();
+    const total_territories = await prisma.territories.count();
 
     // 3. Write to DailyStat
     // Normalize date to midnight to ensure one entry per day
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const stat = await prisma.dailyStat.upsert({
+    const stat = await prisma.daily_stats.upsert({
       where: {
         date: today,
       },
       update: {
-        redCount,
-        blueCount,
-        totalTerritories,
+        red_count,
+        blue_count,
+        total_territories,
       },
       create: {
         date: today,
-        redCount,
-        blueCount,
-        totalTerritories,
+        red_count,
+        blue_count,
+        total_territories,
       },
     });
 

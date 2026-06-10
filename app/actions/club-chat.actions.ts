@@ -195,9 +195,9 @@ export async function getClubMessages(
             if (decoded) {
                 // Composite cursor: (created_at < t) OR (created_at = t AND id < idCursor)
                 baseWhere.OR = [
-                    { created_at: { lt: new Date(decoded.createdAt) } },
+                    { created_at: { lt: new Date(decoded.created_at) } },
                     {
-                        created_at: { equals: new Date(decoded.createdAt) },
+                        created_at: { equals: new Date(decoded.created_at) },
                         id: { lt: decoded.id },
                     },
                 ]
@@ -226,7 +226,7 @@ export async function getClubMessages(
 
         const nextCursor = hasMore && items.length > 0
             ? encodeCursor({
-                createdAt: items[items.length - 1].created_at.toISOString(),
+                created_at: items[items.length - 1].created_at.toISOString(),
                 id: items[items.length - 1].id,
             })
             : undefined
@@ -239,7 +239,7 @@ export async function getClubMessages(
                     clubId: msg.club_id,
                     channelId: msg.channel_id,
                     content: msg.content,
-                    createdAt: msg.created_at.toISOString(),
+                    created_at: msg.created_at.toISOString(),
                     messageType: msg.message_type,
                     audioUrl: msg.audio_url,
                     durationMs: msg.duration_ms,
@@ -337,7 +337,7 @@ export async function sendClubMessage(
                 clubId: message.club_id,
                 channelId: message.channel_id,
                 content: message.content,
-                createdAt: message.created_at.toISOString(),
+                created_at: message.created_at.toISOString(),
                 messageType: message.message_type,
                 audioUrl: message.audio_url,
                 durationMs: message.duration_ms,

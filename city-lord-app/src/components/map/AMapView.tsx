@@ -14,6 +14,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { useMapInteraction } from '@/components/map/MapInteractionContext';
 import { useGameStore } from '@/store/useGameStore';
 import { useMapInteractionStore } from '@/store/useMapInteractionStore';
+import { safeAMapGetRomInfo } from '@/lib/capacitor/safe-plugins';
+import type { ViewportKingData } from '@/types/map-types';
 
 export type AMapViewHandle = {
   zoomIn: () => void;
@@ -33,16 +35,6 @@ export interface AMapViewProps {
   isRunTakeoverActive?: boolean;
 }
 
-export interface ViewportKingData {
-  ownerId: string;
-  nickname: string;
-  avatarUrl: string | null;
-  totalArea: number;
-  clubId?: string | null;
-  clubName?: string | null;
-  clubAvatarUrl?: string | null;
-  clubTotalArea?: number | null;
-}
 
 const DEFAULT_CENTER: [number, number] = [116.397428, 39.90923];
 
@@ -225,11 +217,14 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
         // Deferred to allow overlay elements to write their timestamp first
         setTimeout(() => {
           const lastClick = (window as any).__amap_polygon_clicked || 0;
-          if (Date.now() - lastClick > 300) {
-            console.log(`[Interaction] map.click (ROOT): clear selection and close sheet`);
+          const delta = Date.now() - lastClick;
+          if (delta > 1000) {
+            console.log(`[Interaction] map.click (ROOT): clear selection and close sheet (delta: ${delta})`);
             setSelectedTerritoryId(null);
             setSelectedTerritory?.(null);
             setIsDetailSheetOpen?.(false);
+          } else {
+            console.log(`[Interaction] map.click (ROOT): Ignored because delta ${delta} <= 1000`);
           }
         }, 100);
       };

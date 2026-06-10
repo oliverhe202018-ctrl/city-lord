@@ -84,9 +84,9 @@ export async function getClubActivities(
             const decoded = decodeCursor(cursor)
             if (decoded) {
                 baseWhere.OR = [
-                    { start_time: { gt: new Date(decoded.createdAt) } },
+                    { start_time: { gt: new Date(decoded.created_at) } },
                     {
-                        start_time: { equals: new Date(decoded.createdAt) },
+                        start_time: { equals: new Date(decoded.created_at) },
                         id: { gt: decoded.id },
                     },
                 ]
@@ -125,7 +125,7 @@ export async function getClubActivities(
 
         const nextCursor = hasMore && items.length > 0
             ? encodeCursor({
-                createdAt: items[items.length - 1].start_time.toISOString(),
+                created_at: items[items.length - 1].start_time.toISOString(),
                 id: items[items.length - 1].id,
             })
             : undefined
@@ -143,7 +143,7 @@ export async function getClubActivities(
                     startTime: a.start_time.toISOString(),
                     endTime: a.end_time.toISOString(),
                     createdBy: a.created_by,
-                    createdAt: a.created_at.toISOString(),
+                    created_at: a.created_at.toISOString(),
                     registrationCount: a._count.registrations,
                     myRegistrationStatus: (myRegMap.get(a.id) as 'registered' | 'canceled') ?? null,
                 })),
@@ -221,7 +221,7 @@ export async function createActivity(
                 startTime: activity.start_time.toISOString(),
                 endTime: activity.end_time.toISOString(),
                 createdBy: activity.created_by,
-                createdAt: activity.created_at.toISOString(),
+                created_at: activity.created_at.toISOString(),
                 registrationCount: 0,
                 myRegistrationStatus: null,
             },

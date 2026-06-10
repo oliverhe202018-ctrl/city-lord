@@ -96,7 +96,7 @@ export async function GET(request: Request) {
       });
       winnerCount = tieResult.count;
 
-      await prisma.rewardLog.createMany({
+      await prisma.reward_logs.createMany({
         data: activeIds
           .filter((id) => true)
           .map((userId) => ({
@@ -104,7 +104,7 @@ export async function GET(request: Request) {
             coins: TIE_COINS,
             exp: TIE_XP,
             source: 'faction_settlement_tie',
-            referenceId: `tie-${settlementDate}`,
+            reference_id: `tie-${settlementDate}`,
           })),
         skipDuplicates: true,
       });
@@ -123,13 +123,13 @@ export async function GET(request: Request) {
         select: { id: true },
       });
       if (winnerIds.length > 0) {
-        await prisma.rewardLog.createMany({
+        await prisma.reward_logs.createMany({
           data: winnerIds.map((p) => ({
             userId: p.id,
             coins: WINNER_COINS,
             exp: WINNER_XP,
             source: 'faction_settlement_winner',
-            referenceId: `winner-${settlementDate}`,
+            reference_id: `winner-${settlementDate}`,
           })),
           skipDuplicates: true,
         });
@@ -149,13 +149,13 @@ export async function GET(request: Request) {
         select: { id: true },
       });
       if (loserIds.length > 0) {
-        await prisma.rewardLog.createMany({
+        await prisma.reward_logs.createMany({
           data: loserIds.map((p) => ({
             userId: p.id,
             coins: LOSER_COINS,
             exp: LOSER_XP,
             source: 'faction_settlement_underdog',
-            referenceId: `underdog-${settlementDate}`,
+            reference_id: `underdog-${settlementDate}`,
           })),
           skipDuplicates: true,
         });

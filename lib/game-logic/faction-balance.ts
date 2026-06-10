@@ -11,12 +11,12 @@
  * - 300 vs 100 -> 200% (Max)
  * - 400 vs 100 -> 200% (Capped)
  */
-export function calculateFactionBonus(redCount: number, blueCount: number) {
-  if (redCount === 0 && blueCount === 0) return { RED: 0, BLUE: 0 };
+export function calculateFactionBonus(red_count: number, blue_count: number) {
+  if (red_count === 0 && blue_count === 0) return { RED: 0, BLUE: 0 };
   
   // Avoid division by zero
-  const safeRed = Math.max(redCount, 1);
-  const safeBlue = Math.max(blueCount, 1);
+  const safeRed = Math.max(red_count, 1);
+  const safeBlue = Math.max(blue_count, 1);
 
   let redBonus = 0;
   let blueBonus = 0;

@@ -43,6 +43,7 @@
     "trigger.config.ts"
   ],
   "exclude": [
+    "city-lord-app",
     "node_modules",
     "supabase/functions"
   ]

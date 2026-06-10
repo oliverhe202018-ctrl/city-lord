@@ -1,5 +1,6 @@
 import { Preferences } from '@capacitor/preferences';
 import { createClient } from '@/lib/supabase/client';
+import { keysToSnake, keysToCamel } from './case-converter';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_SERVER || 'https://cl1.6543666.xyz';
 
@@ -47,6 +48,17 @@ export async function apiFetch(input: RequestInfo | URL, init?: CustomRequestIni
     credentials: 'omit',
   };
 
+  // [请求拦截器]：将前端发送的 JSON Payload 从 camelCase 转换为 snake_case
+  if (customInit.body && typeof customInit.body === 'string') {
+    try {
+      const parsedBody = JSON.parse(customInit.body);
+      const snakedBody = keysToSnake(parsedBody);
+      customInit.body = JSON.stringify(snakedBody);
+    } catch (e) {
+      // 解析失败说明不是 JSON 字符串，保持原样放行
+    }
+  }
+
   // Let Supabase client automatically manage token refresh
   const supabase = createClient();
   const { data: { session } } = await supabase.auth.getSession();
@@ -72,6 +84,25 @@ export async function apiFetch(input: RequestInfo | URL, init?: CustomRequestIni
     err.isAuthError = true;
     throw err;
   }
+
+  // [响应拦截器]：改写 response.json()，使得 SWR 拿到的都是 camelCase
+  const originalJson = response.json.bind(response);
+  response.json = async () => {
+    const data = await originalJson();
+    return keysToCamel(data);
+  };
+
+  // 劫持 clone 以防有地方使用 response.clone().json()
+  const originalClone = response.clone.bind(response);
+  response.clone = () => {
+    const clonedResponse = originalClone();
+    const clonedOriginalJson = clonedResponse.json.bind(clonedResponse);
+    clonedResponse.json = async () => {
+      const data = await clonedOriginalJson();
+      return keysToCamel(data);
+    };
+    return clonedResponse;
+  };
 
   return response;
 }

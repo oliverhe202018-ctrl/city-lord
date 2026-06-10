@@ -7,25 +7,25 @@ export interface BalanceResult {
 /**
  * Calculates the dynamic bonus multiplier based on faction population difference.
  * 
- * @param redCount Total population of Red faction
- * @param blueCount Total population of Blue faction
+ * @param red_count Total population of Red faction
+ * @param blue_count Total population of Blue faction
  * @param isEnabled Whether the auto-balance system is enabled (default: true)
  * @param imbalanceThreshold Configured threshold (in percentage points eg 20 for 20%) to trigger the buff
  * @param underdogMultiplier Configured multiplier to apply if triggered (eg 1.5)
  */
 export function calculateFactionBalance(
-  redCount: number,
-  blueCount: number,
+  red_count: number,
+  blue_count: number,
   isEnabled: boolean = true,
   imbalanceThreshold: number = 20,
   underdogMultiplier: number = 1.5
 ): BalanceResult {
   // If disabled or counts are invalid, return neutral state
-  if (!isEnabled || redCount < 0 || blueCount < 0) {
+  if (!isEnabled || red_count < 0 || blue_count < 0) {
     return { underdog: null, multiplier: 1.0, diffRatio: 0 }
   }
 
-  const total = redCount + blueCount
+  const total = red_count + blue_count
 
   // Edge case: no users
   if (total === 0) {
@@ -33,12 +33,12 @@ export function calculateFactionBalance(
   }
 
   // Edge case: equal counts
-  if (redCount === blueCount) {
+  if (red_count === blue_count) {
     return { underdog: null, multiplier: 1.0, diffRatio: 0 }
   }
 
-  const underdog = redCount < blueCount ? 'red' : 'blue'
-  const diff = Math.abs(redCount - blueCount)
+  const underdog = red_count < blue_count ? 'red' : 'blue'
+  const diff = Math.abs(red_count - blue_count)
   const diffRatio = diff / total
 
   let multiplier = 1.0

@@ -1204,7 +1204,11 @@ export function GamePageContent({
                     </div>
 
                     {gameMode === 'map' && viewportKing && (
-                      <KingAreaBanner king={viewportKing} />
+                      <KingAreaBanner 
+                        king={viewportKing} 
+                        mapDisplayMode={mapDisplayMode}
+                        selectedTerritoryId={selectedTerritoryId}
+                      />
                     )}
 
                     {!shouldHideButtons && (

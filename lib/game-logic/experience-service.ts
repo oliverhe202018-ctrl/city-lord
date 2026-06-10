@@ -17,7 +17,7 @@ export async function addExperienceUnified(
   userId: string,
   amount: number,
   source: string
-): Promise<{ newExp: number; newLevel: number; levelUp: boolean }> {
+): Promise<{ new_exp: number; newLevel: number; levelUp: boolean }> {
   // --- 浜嬪姟鍐呮墽琛?---
   const result = await prisma.$transaction(
     async (tx) => {
@@ -32,15 +32,15 @@ export async function addExperienceUnified(
       const maxStamina = profile.max_stamina ?? 100
 
       // 2. 计算新经验与等级
-      const newExp = currentExp + amount
-      const newLevel = calculateLevel(newExp)
+      const new_exp = currentExp + amount
+      const newLevel = calculateLevel(new_exp)
       const levelUp = newLevel > currentLevel
 
       // 3. 更新属性（升级时满血复活）
       await tx.profiles.update({
         where: { id: userId },
         data: {
-          xp: newExp,
+          xp: new_exp,
           level: newLevel,
           ...(levelUp ? { stamina: maxStamina } : {}),
           updated_at: new Date()
@@ -50,12 +50,12 @@ export async function addExperienceUnified(
       // 4. 鍐欏叆娴佹按
 
       
-      await tx.expLog.create({
+      await tx.exp_logs.create({
         data: {
           userId,
           amount,
-          oldExp: currentExp,
-          newExp,
+          old_exp: currentExp,
+          new_exp,
           source
         }
       })
@@ -63,7 +63,7 @@ export async function addExperienceUnified(
       return {
         oldLevel: currentLevel,
         newLevel,
-        newExp,
+        new_exp,
         levelUp
       }
     },
@@ -87,7 +87,7 @@ export async function addExperienceUnified(
   }
 
   return {
-    newExp: result.newExp,
+    new_exp: result.new_exp,
     newLevel: result.newLevel,
     levelUp: result.levelUp
   }

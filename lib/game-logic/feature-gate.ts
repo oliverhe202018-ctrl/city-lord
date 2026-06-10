@@ -2,10 +2,10 @@
  * 功能门控检查逻辑
  *
  * 核心职责：
- * 1. checkFeatureAccess(userId, featureKey) - 检查用户是否解锁某功能
- * 2. unlockFeature(userId, featureKey) - 记录用户解锁某功能（幂等）
+ * 1. checkFeatureAccess(userId, feature_key) - 检查用户是否解锁某功能
+ * 2. unlockFeature(userId, feature_key) - 记录用户解锁某功能（幂等）
  * 3. getFeatureStatus(userId) - 获取用户所有功能访问状态
- * 4. isFeatureAvailable(userId, featureKey) - 同步检查功能可用性
+ * 4. isFeatureAvailable(userId, feature_key) - 同步检查功能可用性
  *
  * 设计原则：
  * - 不操作 UI，不弹窗，纯后端逻辑
@@ -27,17 +27,17 @@ export interface GateResult {
   code: 'allowed' | 'locked' | 'not_found' | 'error'
   message: string
   data?: {
-    featureKey: string
+    feature_key: string
     description: string
     userLevel: number
     requiredLevel: number
-    unlockedAt?: Date
+    unlocked_at?: Date
   }
 }
 
 export interface FeatureAccessRecord {
-  featureKey: string
-  unlockedAt: Date | null
+  feature_key: string
+  unlocked_at: Date | null
 }
 
 export interface FeatureAccessBatchResult {
@@ -55,22 +55,22 @@ export interface FeatureAccessBatchResult {
  * 采用"数据库缓存 + 内存缓存"双层检查策略
  *
  * @param userId - 用户ID
- * @param featureKey - 功能标识符（如 "night_mode", "club_join"）
+ * @param feature_key - 功能标识符（如 "night_mode", "club_join"）
  * @param cacheMinutes - 缓存过期时间（分钟），默认 30
  * @returns GateResult 检查结果
  */
 export async function checkFeatureAccess(
-  userId: string,
-  featureKey: string,
+  user_id: string,
+  feature_key: string,
   cacheMinutes: number = 30
 ): Promise<GateResult> {
   // 1. 验证功能标识符是否合法
-  const gateConfig = FEATURE_GATES.find(g => g.featureKey === featureKey)
+  const gateConfig = FEATURE_GATES.find(g => g.feature_key === feature_key)
   if (!gateConfig) {
     return {
       success: false,
       code: 'not_found',
-      message: `功能 "${featureKey}" 不存在于门控表中`
+      message: `功能 "${feature_key}" 不存在于门控表中`
     }
   }
 
@@ -98,7 +98,7 @@ export async function checkFeatureAccess(
       code: 'allowed',
       message: '功能已解锁',
       data: {
-        featureKey,
+        feature_key,
         description: gateConfig.description,
         userLevel,
         requiredLevel
@@ -109,9 +109,9 @@ export async function checkFeatureAccess(
   // 4. 数据库级检查（确认是否已解锁）
   const access = await prisma.user_feature_accesses.findUnique({
     where: {
-      userId_featureKey: {
+      user_id_feature_key: {
         userId,
-        featureKey
+        feature_key
       }
     }
   })
@@ -122,11 +122,11 @@ export async function checkFeatureAccess(
       code: 'allowed',
       message: '功能已解锁（数据库记录）',
       data: {
-        featureKey,
+        feature_key,
         description: gateConfig.description,
         userLevel,
         requiredLevel,
-        unlockedAt: access.unlockedAt
+        unlocked_at: access.unlocked_at
       }
     }
   }
@@ -137,7 +137,7 @@ export async function checkFeatureAccess(
     code: 'locked',
     message: `需要等级 ${requiredLevel}，当前等级 ${userLevel}`,
     data: {
-      featureKey,
+      feature_key,
       description: gateConfig.description,
       userLevel,
       requiredLevel
@@ -154,30 +154,30 @@ export async function checkFeatureAccess(
  * 如果用户已经解锁，直接返回成功
  *
  * @param userId - 用户ID
- * @param featureKey - 功能标识符
+ * @param feature_key - 功能标识符
  * @returns Promise<boolean> 是否成功解锁
  */
 export async function unlockFeature(
-  userId: string,
-  featureKey: string
+  user_id: string,
+  feature_key: string
 ): Promise<boolean> {
   try {
     await prisma.user_feature_accesses.upsert({
       where: {
-        userId_featureKey: {
+        user_id_feature_key: {
           userId,
-          featureKey
+          feature_key
         }
       },
       create: {
         userId,
-        featureKey
+        feature_key
       },
       update: {}
     })
     return true
   } catch (error) {
-    console.error(`[unlockFeature] Failed to unlock ${featureKey} for user ${userId}:`, error)
+    console.error(`[unlockFeature] Failed to unlock ${feature_key} for user ${userId}:`, error)
     return false
   }
 }
@@ -194,16 +194,16 @@ export async function unlockFeature(
  * @returns FeatureAccessBatchResult
  */
 export async function checkFeatureAccessBatch(
-  userId: string,
+  user_id: string,
   featureKeys: string[]
 ): Promise<FeatureAccessBatchResult> {
   const results: Record<string, FeatureAccessRecord> = {}
 
-  for (const featureKey of featureKeys) {
-    const result = await checkFeatureAccess(userId, featureKey)
-    results[featureKey] = {
-      featureKey,
-      unlockedAt: result.code === 'allowed' ? new Date() : null
+  for (const feature_key of featureKeys) {
+    const result = await checkFeatureAccess(userId, feature_key)
+    results[feature_key] = {
+      feature_key,
+      unlocked_at: result.code === 'allowed' ? new Date() : null
     }
   }
 
@@ -224,15 +224,15 @@ export async function checkFeatureAccessBatch(
  * @param userId - 用户ID
  * @returns FeatureAccessRecord[]
  */
-export async function getFeatureStatus(userId: string): Promise<FeatureAccessRecord[]> {
+export async function getFeatureStatus(user_id: string): Promise<FeatureAccessRecord[]> {
   const records = await prisma.user_feature_accesses.findMany({
     where: { userId },
-    select: { featureKey: true, unlockedAt: true }
+    select: { feature_key: true, unlocked_at: true }
   })
 
   return records.map(r => ({
-    featureKey: r.featureKey,
-    unlockedAt: r.unlockedAt
+    feature_key: r.feature_key,
+    unlocked_at: r.unlocked_at
   }))
 }
 
@@ -245,11 +245,11 @@ export async function getFeatureStatus(userId: string): Promise<FeatureAccessRec
  * 适用于高频调用的场景（如跑步结束时的经验分配）
  *
  * @param userLevel - 用户当前等级
- * @param featureKey - 功能标识符
+ * @param feature_key - 功能标识符
  * @returns boolean 是否可用
  */
-export function isFeatureAvailable(userLevel: number, featureKey: string): boolean {
-  const gate = FEATURE_GATES.find(g => g.featureKey === featureKey)
+export function isFeatureAvailable(userLevel: number, feature_key: string): boolean {
+  const gate = FEATURE_GATES.find(g => g.feature_key === feature_key)
   if (!gate) return false
   return userLevel >= gate.minLevel
 }
@@ -262,11 +262,11 @@ export function isFeatureAvailable(userLevel: number, featureKey: string): boole
  * 计算用户解锁某功能的进度（0-100%）
  *
  * @param userLevel - 用户当前等级
- * @param featureKey - 功能标识符
+ * @param feature_key - 功能标识符
  * @returns number 解锁进度（0-100）
  */
-export function calculateUnlockProgress(userLevel: number, featureKey: string): number {
-  const gate = FEATURE_GATES.find(g => g.featureKey === featureKey)
+export function calculateUnlockProgress(userLevel: number, feature_key: string): number {
+  const gate = FEATURE_GATES.find(g => g.feature_key === feature_key)
   if (!gate) return 100
 
   const requiredLevel = gate.minLevel

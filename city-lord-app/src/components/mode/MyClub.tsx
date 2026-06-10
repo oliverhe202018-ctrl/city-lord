@@ -5,7 +5,6 @@ import { apiFetch } from '@/lib/fetch-shim';
 import { useState, useEffect } from 'react';
 import { useRegion } from '@/contexts/RegionContext';
 import { Crown, Users, MapPin, Trophy, LineChart, TrendingUp, CheckCircle2, Loader2 } from 'lucide-react';
-import Image from 'react';
 
 const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
   const controller = new AbortController()

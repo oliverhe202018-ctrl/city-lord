@@ -180,7 +180,7 @@ export interface SentInvitation {
     id: string
     inviteLink: string
     status: string
-    createdAt: Date
+    created_at: Date
     acceptedAt: Date | null
     invitee: { nickname: string | null; avatar_url: string | null } | null
 }
@@ -211,7 +211,7 @@ export async function getMyInvitations(): Promise<ActionResult<SentInvitation[]>
             id: r.id,
             inviteLink: r.invite_link,
             status: r.status,
-            createdAt: r.created_at,
+            created_at: r.created_at,
             acceptedAt: r.accepted_at,
             invitee: r.invitee
                 ? { nickname: r.invitee.nickname ?? null, avatar_url: r.invitee.avatar_url ?? null }

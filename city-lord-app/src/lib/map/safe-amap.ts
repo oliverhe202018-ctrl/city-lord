@@ -16,7 +16,7 @@ export interface SafeAMapLoadOptions {
   };
 }
 
-const DEFAULT_PLUGINS = ['AMap.Scale', 'AMap.MoveAnimation', 'AMap.CustomLayer'];
+const DEFAULT_PLUGINS = ['AMap.Scale', 'AMap.MoveAnimation'];
 const DEFAULT_VERSION = '2.0';
 
 /**
@@ -54,7 +54,8 @@ export async function safeLoadAMap(
       }
 
       // ✅ 唯一允许出现 @amap/amap-jsapi-loader 的地方
-      const { default: AMapLoader } = await import('@amap/amap-jsapi-loader');
+      const loaderModule = await import('@amap/amap-jsapi-loader');
+      const AMapLoader = loaderModule.default || loaderModule;
 
       const AMap = await AMapLoader.load({
         key,

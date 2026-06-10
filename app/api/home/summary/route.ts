@@ -368,7 +368,7 @@ async function fetchBattleFeed(userId: string): Promise<BattleEvent[]> {
             id: `lost-${log.id}`,
             type: 'lost',
             text: `${attackerProfile?.nickname ?? '未知玩家'} ${timeAgo}偷走了你的 ${log.territory_id.slice(0, 8)} 地块`,
-            createdAt: log.changed_at?.toISOString() ?? new Date().toISOString(),
+            created_at: log.changed_at?.toISOString() ?? new Date().toISOString(),
             relatedTargetId: log.territory_id,
             ctaType: 'counter',
             ctaLabel: '反击',
@@ -404,7 +404,7 @@ async function fetchBattleFeed(userId: string): Promise<BattleEvent[]> {
                 id: `defend-${atk.id}`,
                 type: 'defend',
                 text: `你守住了 ${atk.territory_id.slice(0, 8)}（受到 ${atk.damage} 伤害）`,
-                createdAt: atk.attacked_at?.toISOString() ?? new Date().toISOString(),
+                created_at: atk.attacked_at?.toISOString() ?? new Date().toISOString(),
                 relatedTargetId: atk.territory_id,
                 ctaType: 'see',
                 ctaLabel: '查看',
@@ -436,7 +436,7 @@ async function fetchBattleFeed(userId: string): Promise<BattleEvent[]> {
             text: attackedOthers
                 ? `你攻击并夺取了 ${log.territory_id.slice(0, 8)}`
                 : `你扩张并占领了 ${log.territory_id.slice(0, 8)}`,
-            createdAt: log.changed_at?.toISOString() ?? new Date().toISOString(),
+            created_at: log.changed_at?.toISOString() ?? new Date().toISOString(),
             ctaType: 'see',
             ctaLabel: attackedOthers ? '战报' : '查看',
             severity: 'info',
@@ -447,7 +447,7 @@ async function fetchBattleFeed(userId: string): Promise<BattleEvent[]> {
     events.sort((a, b) => {
         if (a.severity === 'warn' && b.severity !== 'warn') return -1;
         if (b.severity === 'warn' && a.severity !== 'warn') return 1;
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
 
     return events.slice(0, 5);
@@ -607,7 +607,7 @@ async function fetchClubEvents(userId: string): Promise<ClubEvent[]> {
         id: a.id,
         memberName: a.creator.nickname || '队友',
         text: a.title,
-        createdAt: a.created_at.toISOString(),
+        created_at: a.created_at.toISOString(),
     }));
 }
 

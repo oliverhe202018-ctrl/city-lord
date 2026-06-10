@@ -76,7 +76,7 @@ export interface ClubMessageWithSender {
     clubId: string
     channelId: string
     content: string
-    createdAt: string // ISO string — formatted client-side only
+    created_at: string // ISO string — formatted client-side only
     messageType?: string | null
     audioUrl?: string | null
     durationMs?: number | null
@@ -101,7 +101,7 @@ export interface MembershipInfo {
 
 // ─── Composite Cursor ──────────────────────────────────────────
 export interface CompositeCursor {
-    createdAt: string // ISO string
+    created_at: string // ISO string
     id: string
 }
 
@@ -128,20 +128,20 @@ export function decodeCursor(raw: string): CompositeCursor | null {
         const parsed = JSON.parse(json)
         if (!parsed || typeof parsed !== 'object') return null
 
-        const { createdAt, id } = parsed
+        const { created_at, id } = parsed
 
         // Step 3: type checks
-        if (typeof createdAt !== 'string' || typeof id !== 'string') return null
+        if (typeof created_at !== 'string' || typeof id !== 'string') return null
 
-        // Step 4: format checks — createdAt must be ISO date, id must be UUID
-        if (!ISO_DATE_RE.test(createdAt)) return null
+        // Step 4: format checks — created_at must be ISO date, id must be UUID
+        if (!ISO_DATE_RE.test(created_at)) return null
         if (!UUID_RE.test(id)) return null
 
-        // Step 5: createdAt must parse to a valid Date
-        const d = new Date(createdAt)
+        // Step 5: created_at must parse to a valid Date
+        const d = new Date(created_at)
         if (isNaN(d.getTime())) return null
 
-        return { createdAt, id }
+        return { created_at, id }
     } catch {
         return null
     }
@@ -186,7 +186,7 @@ export interface ClubActivity {
     startTime: string // ISO string
     endTime: string   // ISO string
     createdBy: string
-    createdAt: string
+    created_at: string
     registrationCount: number
     myRegistrationStatus: 'registered' | 'canceled' | null
 }

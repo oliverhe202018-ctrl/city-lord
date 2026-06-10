@@ -113,7 +113,7 @@ export function AvatarUploader({
         </div>
       ) : (
         <div 
-          className="relative group cursor-pointer overflow-hidden rounded-full bg-muted border border-border shrink-0"
+          className={cn("relative group cursor-pointer overflow-hidden bg-muted border border-border shrink-0", cropShape === 'round' ? 'rounded-full' : 'rounded-md')}
           style={{ width: size, height: size }}
           onClick={() => !isLoading && fileInputRef.current?.click()}
         >

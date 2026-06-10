@@ -11,16 +11,16 @@ export async function getFactionStats() {
   const fetchLogic = async () => {
     // 1. Get Member Counts (Always Real-time for Accuracy)
     // User requested "real numbers", so we skip the potentially stale snapshot for current display.
-    let redCount = 0
-    let blueCount = 0
+    let red_count = 0
+    let blue_count = 0
 
     const [rCount, bCount] = await Promise.all([
       prisma.profiles.count({ where: { faction: 'Red' } }),
       prisma.profiles.count({ where: { faction: 'Blue' } })
     ])
 
-    redCount = rCount
-    blueCount = bCount;
+    red_count = rCount
+    blue_count = bCount;
 
     // Background: Update or Create Daily Snapshot for History
     // We don't await this to keep UI fast
@@ -29,18 +29,18 @@ export async function getFactionStats() {
         const today = new Date()
         today.setHours(0, 0, 0, 0)
 
-        await prisma.dailyStat.upsert({
+        await prisma.daily_stats.upsert({
           where: { date: today },
           update: {
-            redCount,
-            blueCount,
-            // We don't update totalTerritories here as it requires another query
+            red_count,
+            blue_count,
+            // We don't update total_territories here as it requires another query
           },
           create: {
             date: today,
-            redCount,
-            blueCount,
-            totalTerritories: 0
+            red_count,
+            blue_count,
+            total_territories: 0
           }
         })
       } catch (e) {
@@ -80,9 +80,9 @@ export async function getFactionStats() {
     }
 
     // Calculate percentages
-    const totalCount = redCount + blueCount
-    const redPercent = totalCount > 0 ? (redCount / totalCount) * 100 : 50
-    const bluePercent = totalCount > 0 ? (blueCount / totalCount) * 100 : 50
+    const totalCount = red_count + blue_count
+    const redPercent = totalCount > 0 ? (red_count / totalCount) * 100 : 50
+    const bluePercent = totalCount > 0 ? (blue_count / totalCount) * 100 : 50
 
     // Fetch config for calculateFactionBalance
     let balanceConfig = {
@@ -108,8 +108,8 @@ export async function getFactionStats() {
 
     // Calculate Bonus using dynamic utility
     const balanceResult = calculateFactionBalance(
-      redCount,
-      blueCount,
+      red_count,
+      blue_count,
       balanceConfig.auto_balance_enabled,
       balanceConfig.imbalance_threshold,
       balanceConfig.underdog_multiplier
@@ -125,8 +125,8 @@ export async function getFactionStats() {
     }
 
     return {
-      RED: redCount,
-      BLUE: blueCount,
+      RED: red_count,
+      BLUE: blue_count,
       redArea,
       blueArea,
       percentages: {
@@ -206,7 +206,7 @@ export async function joinFaction(faction: Faction) {
 
 export async function getDailyStats() {
   try {
-    const stat = await prisma.dailyStat.findFirst({
+    const stat = await prisma.daily_stats.findFirst({
       orderBy: { date: 'desc' }
     })
     return stat
@@ -263,8 +263,8 @@ export async function getFactionLeaderboard(): Promise<FactionLeaderboardEntry[]
     )
 
     // 3. 计算阵营平衡系数 (Calculate Faction Balance Bonus)
-    const redCount = memberMap.get('Red') || 0
-    const blueCount = memberMap.get('Blue') || 0
+    const red_count = memberMap.get('Red') || 0
+    const blue_count = memberMap.get('Blue') || 0
 
     let balanceConfig = {
       imbalance_threshold: 20,
@@ -287,8 +287,8 @@ export async function getFactionLeaderboard(): Promise<FactionLeaderboardEntry[]
     }
 
     const balanceResult = calculateFactionBalance(
-      redCount,
-      blueCount,
+      red_count,
+      blue_count,
       balanceConfig.auto_balance_enabled,
       balanceConfig.imbalance_threshold,
       balanceConfig.underdog_multiplier

@@ -31,24 +31,24 @@ function getAdminClient() {
 export interface BackgroundRecord {
     id: string
     name: string
-    imageUrl: string
-    previewUrl: string | null
-    isDefault: boolean
-    conditionType: string | null
-    conditionValue: number | null
-    priceCoins: number | null
-    createdAt: Date
+    image_url: string
+    preview_url: string | null
+    is_default: boolean
+    condition_type: string | null
+    condition_value: number | null
+    price_coins: number | null
+    created_at: Date
     usageCount: number
 }
 
 export interface BackgroundFormData {
     id?: string // for edit mode
     name: string
-    imageUrl: string
-    previewUrl?: string
+    image_url: string
+    preview_url?: string
     acquisitionType: 'free' | 'coins' | 'level'
-    priceCoins?: number
-    conditionValue?: number
+    price_coins?: number
+    condition_value?: number
 }
 
 // ─── Upload Image ──────────────────────────────────────────
@@ -113,26 +113,26 @@ export async function getAllBackgrounds(): Promise<BackgroundRecord[]> {
 
     try {
         const backgrounds = await prisma.backgrounds.findMany({
-            orderBy: { createdAt: 'desc' },
+            orderBy: { created_at: 'desc' },
         })
 
         // Get usage count for each background
         const backgroundsWithUsage = await Promise.all(
             backgrounds.map(async (bg) => {
                 const usageCount = await prisma.user_backgrounds.count({
-                    where: { backgroundId: bg.id },
+                    where: { background_id: bg.id },
                 })
 
                 return {
                     id: bg.id,
                     name: bg.name,
-                    imageUrl: bg.imageUrl,
-                    previewUrl: bg.previewUrl,
-                    isDefault: bg.isDefault,
-                    conditionType: bg.conditionType,
-                    conditionValue: bg.conditionValue,
-                    priceCoins: bg.priceCoins,
-                    createdAt: bg.createdAt,
+                    image_url: bg.image_url,
+                    preview_url: bg.preview_url,
+                    is_default: bg.is_default,
+                    condition_type: bg.condition_type,
+                    condition_value: bg.condition_value,
+                    price_coins: bg.price_coins,
+                    created_at: bg.created_at,
                     usageCount,
                 }
             })
@@ -153,12 +153,12 @@ export async function upsertBackground(formData: BackgroundFormData) {
         // Map form data to DB schema
         const data = {
             name: formData.name,
-            imageUrl: formData.imageUrl,
-            previewUrl: formData.previewUrl || formData.imageUrl, // fallback to imageUrl
-            isDefault: formData.acquisitionType === 'free',
-            conditionType: formData.acquisitionType === 'level' ? 'level' : (formData.acquisitionType === 'coins' ? 'coins' : 'free'),
-            conditionValue: formData.acquisitionType === 'level' ? formData.conditionValue : null,
-            priceCoins: formData.acquisitionType === 'coins' ? formData.priceCoins : 0,
+            image_url: formData.image_url,
+            preview_url: formData.preview_url || formData.image_url, // fallback to image_url
+            is_default: formData.acquisitionType === 'free',
+            condition_type: formData.acquisitionType === 'level' ? 'level' : (formData.acquisitionType === 'coins' ? 'coins' : 'free'),
+            condition_value: formData.acquisitionType === 'level' ? formData.condition_value : null,
+            price_coins: formData.acquisitionType === 'coins' ? formData.price_coins : 0,
         }
 
         if (formData.id) {
@@ -185,7 +185,7 @@ export async function checkBackgroundUsage(id: string) {
 
     try {
         const count = await prisma.user_backgrounds.count({
-            where: { backgroundId: id },
+            where: { background_id: id },
         })
         return { inUse: count > 0, usageCount: count }
     } catch (e: any) {
@@ -222,7 +222,7 @@ export async function deleteBackground(id: string) {
         // Try to delete from Storage (best effort, don't fail if it errors)
         try {
             const adminClient = getAdminClient()
-            const urlParts = bg.imageUrl.split('/')
+            const urlParts = bg.image_url.split('/')
             const filename = urlParts[urlParts.length - 1]
 
             await adminClient.storage

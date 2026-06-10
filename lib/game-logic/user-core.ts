@@ -24,7 +24,7 @@ export async function fetchUserProfileStats(userId: string): Promise<UserProfile
   })
 
   // 1.2 Fetch Wallet Data
-  const wallet = await prisma.userWallet.findUnique({
+  const wallet = await prisma.user_wallets.findUnique({
     where: { user_id: userId },
     select: { sweat_coins: true }
   })

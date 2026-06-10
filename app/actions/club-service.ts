@@ -94,7 +94,7 @@ import * as turf from '@turf/turf';
 
 export interface TopTerritoryCardData {
     id: string;
-    customName: string;
+    custom_name: string;
     area: number;
     center: [number, number]; // [lng, lat]
     health: number;
@@ -116,7 +116,7 @@ export async function getClubTopTerritories(clubId: string, limit: number = 5): 
             take: limit,
             select: {
                 id: true,
-                customName: true,
+                custom_name: true,
                 area_m2_exact: true,
                 health: true,
                 geojson_json: true,
@@ -156,7 +156,7 @@ export async function getClubTopTerritories(clubId: string, limit: number = 5): 
 
             return {
                 id: t.id,
-                customName: t.customName || '未命名领地',
+                custom_name: t.custom_name || '未命名领地',
                 area: Math.round(Number(t.area_m2_exact || 0)),
                 center,
                 health: t.health || 100,
@@ -184,7 +184,7 @@ export async function getUserTopTerritories(userId: string, limit: number = 5): 
             take: limit,
             select: {
                 id: true,
-                customName: true,
+                custom_name: true,
                 area_m2_exact: true,
                 health: true,
                 geojson_json: true,
@@ -224,7 +224,7 @@ export async function getUserTopTerritories(userId: string, limit: number = 5): 
 
             return {
                 id: t.id,
-                customName: t.customName || '未命名领地',
+                custom_name: t.custom_name || '未命名领地',
                 area: Math.round(Number(t.area_m2_exact || 0)),
                 center,
                 health: t.health || 100,

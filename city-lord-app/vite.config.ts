@@ -28,7 +28,7 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       minify: 'esbuild',
-      sourcemap: false,
+      sourcemap: true,
       rollupOptions: {
         external: [
           '@capacitor/sensors',

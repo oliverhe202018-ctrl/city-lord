@@ -10,7 +10,7 @@ interface SettlementRecordBase {
   id?: number;
   payload: SettlementPayload;
   retryCount: number;
-  createdAt: number;
+  created_at: number;
   lastAttemptAt: number;
 }
 
@@ -44,7 +44,7 @@ class SettlementRetryQueue {
               keyPath: 'id',
               autoIncrement: true,
             });
-            store.createIndex('by-created', 'createdAt');
+            store.createIndex('by-created', 'created_at');
             store.createIndex('by-status', 'status');
           }
         },
@@ -101,7 +101,7 @@ class SettlementRetryQueue {
       await db.add('pending_settlements', {
         payload,
         retryCount: 0,
-        createdAt: Date.now(),
+        created_at: Date.now(),
         lastAttemptAt: 0,
         status: 'pending',
       });

@@ -126,8 +126,8 @@ export async function getRunReport(userId: string, period: ReportPeriod = 'daily
   const activityScore = Math.min(100, (runsCount / (period === 'daily' ? 1 : period === 'weekly' ? 5 : 20)) * 100)
 
   // Territory Score (Total owned vs gained?) -> Let's use total owned for "Territory Awareness"
-  const totalTerritories = await prisma.territories.count({ where: { owner_id: userId } })
-  const territoryScore = Math.min(100, (totalTerritories / 50) * 100)
+  const total_territories = await prisma.territories.count({ where: { owner_id: userId } })
+  const territoryScore = Math.min(100, (total_territories / 50) * 100)
 
   // Social Score (Invited users)
   const invitedCount = await prisma.profiles.count({ where: { invited_by: userId } })

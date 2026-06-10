@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 
 import { KingAreaBanner } from '@/components/map/KingAreaBanner';
 import type { ViewportKingData } from '@/components/map/AMapView';
+import { useMapDisplayStore } from '@/store/useMapDisplayStore';
 
 export interface ModeSwitcherProps {
   onDrawerOpenChange?: (isOpen: boolean) => void;
@@ -21,7 +22,9 @@ export function ModeSwitcher({ onDrawerOpenChange, king }: ModeSwitcherProps) {
   const hydrated = useHydration();
   const gameMode = useGameStore((state) => state.gameMode);
   const activeDrawer = useGameStore((state) => state.activeDrawer);
+  const selectedTerritoryId = useGameStore((state) => state.selectedTerritoryId);
   const { setGameMode, openDrawer, closeDrawer } = useGameActions();
+  const { mapDisplayMode } = useMapDisplayStore();
   
   const [isRoomSelectorOpen, setIsRoomSelectorOpen] = useState(false);
 
@@ -102,9 +105,13 @@ export function ModeSwitcher({ onDrawerOpenChange, king }: ModeSwitcherProps) {
         </button> 
       </div>
       
-      {/* ↓ KingAreaBanner 定位锚点 — 零高度，精确标记黑框底部 */}
+      {/* 为 KingAreaBanner 定位锚点，零高度，精确标记黑框底部 */}
       <div id="mode-switcher-anchor" style={{ height: 0, overflow: 'visible' }} />
-      <KingAreaBanner king={king} />
+      <KingAreaBanner 
+        king={king} 
+        mapDisplayMode={mapDisplayMode}
+        selectedTerritoryId={selectedTerritoryId}
+      />
       
       {/* 俱乐部抽屉组件保持不变 */} 
       <ClubDrawer 

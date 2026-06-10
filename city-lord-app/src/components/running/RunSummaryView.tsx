@@ -190,7 +190,7 @@ export function RunSummaryView({
         return null;
       }
       
-      const response = await apiFetch(`/api/runs/${runId}/rewards`);
+      const response = await apiFetch(`/api/v1/runs/${runId}/rewards`);
       if (!response.ok) {
         throw new Error('Failed to fetch reward status');
       }

@@ -26,7 +26,7 @@ export async function GET() {
         id: r.id,
         rewardType: r.reward_type,
         payload: r.payload,
-        createdAt: r.created_at
+        created_at: r.created_at
       }))
     })
   } catch (error) {

@@ -544,7 +544,7 @@ export async function createChallenge(params: {
     distance: params.distance,
     duration: params.duration,
     rewardXp: params.rewardXp,
-    createdAt: new Date().toISOString()
+    created_at: new Date().toISOString()
   })
 
   const { error } = await supabase
@@ -615,7 +615,7 @@ export async function getPendingChallenges() {
       type: 'challenge',
       details,
       expiresIn,
-      createdAt: m.created_at?.toISOString() || new Date().toISOString(),
+      created_at: m.created_at?.toISOString() || new Date().toISOString(),
     }
   })
 }
