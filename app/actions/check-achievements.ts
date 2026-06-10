@@ -57,7 +57,7 @@ export async function checkRunEndAchievements(payload: RunEndAchievementPayload)
     const existingRun = await prisma.runs.findFirst({
       where: {
         user_id: user.id,
-        end_time: {
+        updated_at: {
           gte: new Date(endTimeApprox.getTime() - 2_000),
           lte: new Date(endTimeApprox.getTime() + 2_000),
         },

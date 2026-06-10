@@ -96,7 +96,7 @@ const fetchTerritories = async (
   cityId: string,
   signal?: AbortSignal
 ): Promise<ExtTerritory[]> => {
-  const url = `/api/city/fetch-territories?cityId=${cityId}`;
+  const url = `/api/v1/territories?cityId=${cityId}`;
   console.log(`🔮 [fetchTerritories] Requesting: ${url}`);
   const res = await fetchWithTimeout(url, { 
     credentials: "omit", 

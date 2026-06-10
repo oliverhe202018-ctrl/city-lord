@@ -55,10 +55,11 @@ function RunDetailContent() {
    if (loading) return <div className="h-[100dvh] w-full bg-black flex items-center justify-center text-white z-50 absolute top-0 left-0"><Loader2 className="animate-spin" /></div>
    if (!run) return <div className="h-[100dvh] w-full bg-black flex items-center justify-center text-white z-50 absolute top-0 left-0">未找到跑步记录</div>
 
-   const avgSpeed = safeNum(run.distance_km / (run.duration / 3600), 1)
+   const distanceKm = run.distanceKm || run.distance_km || 0
+   const avgSpeed = safeNum(distanceKm / (run.duration / 3600), 1)
    const maxSpeed = safeNum(parseFloat(avgSpeed !== '--' ? avgSpeed : '0') * 1.2, 1)
-   const dateStr = formatShanghaiDate(run.created_at, 'yyyy年MM月dd日 HH:mm')
-   const shortDate = formatShanghaiDate(run.created_at, 'MM月dd日')
+   const dateStr = formatShanghaiDate(run.createdAt || run.created_at, 'yyyy年MM月dd日 HH:mm')
+   const shortDate = formatShanghaiDate(run.createdAt || run.created_at, 'MM月dd日')
 
    return (
       <div className="h-[100dvh] w-full absolute top-0 left-0 z-50 bg-black text-white overflow-y-auto">
