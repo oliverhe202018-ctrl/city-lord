@@ -29,14 +29,48 @@ export enum ErrorCode {
   SYS_DATABASE_ERROR = 'SYS_DATABASE_ERROR',
 }
 
+export const ERROR_HTTP_STATUS: Record<ErrorCode, number> = {
+  // Auth Domain
+  [ErrorCode.AUTH_TOKEN_MISSING]: 401,
+  [ErrorCode.AUTH_TOKEN_EXPIRED]: 401,
+  [ErrorCode.AUTH_UNAUTHORIZED]: 401,
+  [ErrorCode.AUTH_FORBIDDEN]: 403,
+
+  // Geo Domain
+  [ErrorCode.GEO_POLYGON_INVALID]: 400,
+  [ErrorCode.GEO_LOCATION_OUT_OF_BOUNDS]: 400,
+  [ErrorCode.GEO_INVALID_COORDINATES]: 400,
+
+  // Anti-Cheat Domain
+  [ErrorCode.CHEAT_SPEED_TOO_HIGH]: 403,
+  [ErrorCode.CHEAT_MOCK_LOCATION_DETECTED]: 403,
+  [ErrorCode.CHEAT_INVALID_HARDWARE_DATA]: 400,
+  [ErrorCode.CHEAT_MULTIPLE_DEVICES]: 403,
+
+  // Business Domain
+  [ErrorCode.BIZ_CLUB_FULL]: 400,
+  [ErrorCode.BIZ_TERRITORY_PROTECTED]: 403,
+  [ErrorCode.BIZ_INSUFFICIENT_COINS]: 400,
+  [ErrorCode.BIZ_RESOURCE_NOT_FOUND]: 404,
+  [ErrorCode.BIZ_VALIDATION_FAILED]: 400,
+  [ErrorCode.BIZ_TOO_MANY_REQUESTS]: 429,
+
+  // System
+  [ErrorCode.SYS_INTERNAL_ERROR]: 500,
+  [ErrorCode.SYS_DATABASE_ERROR]: 500,
+};
+
 export class AppError extends Error {
+  public statusCode: number;
+
   constructor(
     public code: ErrorCode,
     public message: string,
-    public statusCode: number = 400,
+    statusCode?: number,
     public details?: any
   ) {
     super(message);
     this.name = 'AppError';
+    this.statusCode = statusCode ?? ERROR_HTTP_STATUS[code] ?? 400;
   }
 }
