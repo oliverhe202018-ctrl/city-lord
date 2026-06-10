@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { updateSession } from '@/lib/supabase/middleware';
+import { createServerClient } from '@supabase/ssr';
 
 const ALLOWED_ORIGINS = [
   'capacitor://localhost',
@@ -31,10 +32,32 @@ export async function middleware(request: NextRequest) {
     return setCorsHeaders(new NextResponse(null, { status: 204 }), origin);
   }
 
-  // ── /api/* 路由：注入 CORS 头后直接透传，绕过原本的 Supabase session 逻辑 ─────
-  // 注意：API 内部通常有自己的 Auth 逻辑或已在 Supabase client 处理
+  // ── /api/* 路由：注入 CORS 头后直接透传，并解析 Supabase User 注入 Request Headers ─────
   if (request.nextUrl.pathname.startsWith('/api/')) {
-    const response = NextResponse.next();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll();
+          },
+          setAll() {},
+        },
+      }
+    );
+    const { data: { user } } = await supabase.auth.getUser();
+
+    const requestHeaders = new Headers(request.headers);
+    if (user) {
+      requestHeaders.set('x-user-id', user.id);
+    }
+
+    const response = NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      }
+    });
     return setCorsHeaders(response, origin);
   }
 

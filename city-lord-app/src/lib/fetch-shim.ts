@@ -85,25 +85,24 @@ export async function apiFetch(input: RequestInfo | URL, init?: CustomRequestIni
     throw err;
   }
 
-  // [响应拦截器]：改写 response.json()，使得 SWR 拿到的都是 camelCase
-  const originalJson = response.json.bind(response);
-  response.json = async () => {
-    const data = await originalJson();
-    return keysToCamel(data);
-  };
+  // [响应拦截器]：对 JSON 响应进行深度驼峰转换，避免破坏流与二进制响应
+  const contentType = response.headers.get('content-type');
+  if (contentType && contentType.includes('application/json')) {
+    try {
+      const data = await response.clone().json();
+      const camelData = keysToCamel(data);
+      return new Response(JSON.stringify(camelData), {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers
+      });
+    } catch (e) {
+      // 解析或转换失败时回退返回原始 Response
+      console.warn('apiFetch JSON parsing failed, falling back to raw response', e);
+    }
+  }
 
-  // 劫持 clone 以防有地方使用 response.clone().json()
-  const originalClone = response.clone.bind(response);
-  response.clone = () => {
-    const clonedResponse = originalClone();
-    const clonedOriginalJson = clonedResponse.json.bind(clonedResponse);
-    clonedResponse.json = async () => {
-      const data = await clonedOriginalJson();
-      return keysToCamel(data);
-    };
-    return clonedResponse;
-  };
-
+  // 非 JSON 响应（如 Blob, FormData, Stream）直接原样返回，不做任何拦截
   return response;
 }
 

@@ -16,29 +16,39 @@ export function toSnake(s: string): string {
 }
 
 // 递归：对象/数组的所有 Key 转为驼峰 (用于处理 Backend -> Frontend)
-export function keysToCamel(o: any): any {
+export function keysToCamel(o: any, skipKeys: string[] = ['path', 'coordinates', 'polyline', 'waypoints', 'geoJson']): any {
   if (isObject(o)) {
     const n: { [key: string]: any } = {};
     Object.keys(o).forEach((k) => {
-      n[toCamel(k)] = keysToCamel(o[k]);
+      const camelKey = toCamel(k);
+      if (skipKeys.includes(k) || skipKeys.includes(camelKey)) {
+        n[camelKey] = o[k];
+      } else {
+        n[camelKey] = keysToCamel(o[k], skipKeys);
+      }
     });
     return n;
   } else if (Array.isArray(o)) {
-    return o.map((i) => keysToCamel(i));
+    return o.map((i) => keysToCamel(i, skipKeys));
   }
   return o;
 }
 
 // 递归：对象/数组的所有 Key 转为蛇形 (用于处理 Frontend -> Backend)
-export function keysToSnake(o: any): any {
+export function keysToSnake(o: any, skipKeys: string[] = ['path', 'coordinates', 'polyline', 'waypoints', 'geoJson']): any {
   if (isObject(o)) {
     const n: { [key: string]: any } = {};
     Object.keys(o).forEach((k) => {
-      n[toSnake(k)] = keysToSnake(o[k]);
+      const snakeKey = toSnake(k);
+      if (skipKeys.includes(k) || skipKeys.includes(snakeKey)) {
+        n[snakeKey] = o[k];
+      } else {
+        n[snakeKey] = keysToSnake(o[k], skipKeys);
+      }
     });
     return n;
   } else if (Array.isArray(o)) {
-    return o.map((i) => keysToSnake(i));
+    return o.map((i) => keysToSnake(i, skipKeys));
   }
   return o;
 }

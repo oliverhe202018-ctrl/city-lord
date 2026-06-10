@@ -4,13 +4,30 @@ import { AppError, ErrorCode } from './errors';
 
 type AppRouteHandler = (req: Request, context: any) => Promise<NextResponse | Response> | NextResponse | Response;
 
+interface HandlerOptions {
+  requireAuth?: boolean;
+}
+
 /**
  * 统一 HTTP 异常捕获高阶函数
  */
-export function withErrorHandler(handler: AppRouteHandler): AppRouteHandler {
+export function withErrorHandler(
+  handler: AppRouteHandler,
+  options: HandlerOptions = { requireAuth: true }
+): AppRouteHandler {
   return async (req: Request, context: any) => {
     const startTime = Date.now();
     try {
+      const userId = req.headers.get('x-user-id');
+      if (options.requireAuth && !userId) {
+        throw new AppError(ErrorCode.AUTH_UNAUTHORIZED, 'Authentication required or token expired');
+      }
+
+      context = context || {};
+      if (userId) {
+        context.user = { id: userId };
+      }
+
       // 执行真实的路由逻辑
       const response = await handler(req, context);
       return response;
@@ -48,6 +65,47 @@ export function withErrorHandler(handler: AppRouteHandler): AppRouteHandler {
       };
 
       return NextResponse.json(payload, { status: 500 });
+    }
+  };
+}
+
+/**
+ * 专为流式响应（如 SSE）设计的异常与鉴权拦截器
+ * 仅作同步校验与捕获，不干涉返回的流式 Response 生命周期
+ */
+export function withStreamingErrorHandler(
+  handler: AppRouteHandler,
+  options: HandlerOptions = { requireAuth: true }
+): AppRouteHandler {
+  return async (req: Request, context: any) => {
+    try {
+      const userId = req.headers.get('x-user-id');
+      if (options.requireAuth && !userId) {
+        throw new AppError(ErrorCode.AUTH_UNAUTHORIZED, 'Authentication required or token expired');
+      }
+
+      context = context || {};
+      if (userId) {
+        context.user = { id: userId };
+      }
+
+      return await handler(req, context);
+    } catch (error: any) {
+      console.error('[Streaming API Error]:', error);
+      const isPrismaError = error.name?.includes('Prisma') || error.message?.includes('Database') || error.message?.includes('SQL');
+      
+      const payload: ApiResponse = {
+        success: false,
+        error: {
+          code: error instanceof AppError ? error.code : ErrorCode.SYS_INTERNAL_ERROR,
+          message: error instanceof AppError ? error.message : 'An unexpected internal server error occurred.',
+          details: process.env.NODE_ENV === 'development' && !isPrismaError ? error.message : undefined,
+        },
+        meta: { timestamp: Date.now(), duration: 0 },
+      };
+
+      const status = error instanceof AppError ? error.statusCode : 500;
+      return NextResponse.json(payload, { status });
     }
   };
 }
