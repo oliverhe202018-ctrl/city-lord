@@ -69,14 +69,30 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
       injectLocationPoints,
     } = useMap();
 
+    const [mapReadyState, setMapReadyState] = useState(false);
     const [mapLoadError, setMapLoadError] = useState(false);
     const [retryKey, setRetryKey] = useState(0);
 
     const handleMapReady = useCallback((mapInstance: any) => {
       if (!mapInstance) {
         setMapLoadError(true);
+        return;
       }
-      setMap(mapInstance);
+      
+      let resolved = false;
+      const safeResolve = () => {
+        if (resolved) return;
+        resolved = true;
+        setMap(mapInstance);
+        setMapReadyState(true);
+      };
+
+      if (mapInstance.on) {
+        mapInstance.on('complete', safeResolve);
+      }
+      
+      // Safety net: in case the 'complete' event is missed, resolve after 600ms
+      setTimeout(safeResolve, 600);
     }, [setMap]);
 
     // 🟢 新增探头 3：看看底层的视图组件有没有拿到 map
@@ -363,7 +379,7 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
     const shouldShowTerritoryLayers = showTerritory;
     const resolvedViewMode = mapViewMode;
 
-    const isMapReady = !!map;
+    const isMapReady = !!map && mapReadyState;
 
     return (
       <div className="relative w-full h-full">
