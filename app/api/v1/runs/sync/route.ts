@@ -1,13 +1,17 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getUserFromRequest } from '@/lib/api/auth-helper';
+import { createClient } from '@/lib/supabase/server';
 import { prisma } from '@/lib/prisma';
+import { withErrorHandler, successResponse } from '@/lib/api/with-handler';
 
-export async function POST(req: NextRequest) {
-  try {
-    const { userId, error } = await getUserFromRequest(req);
-    if (error || !userId) {
-      return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 });
+export const POST = withErrorHandler(async (req: Request) => {
+    const authHeader = req.headers.get('Authorization');
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.replace('Bearer ', '') : undefined;
+    const supabase = await createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !user) {
+      return Response.json({ error: 'UNAUTHORIZED' }, { status: 401 });
     }
+    const userId = user.id;
 
     const { batch } = await req.json();
     if (!Array.isArray(batch) || batch.length === 0) {

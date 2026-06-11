@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserFromRequest } from '@/lib/api/auth-helper';
+import { createClient } from '@/lib/supabase/server';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
 
 export async function GET(req: NextRequest) {
   try {
-    const { userId: currentUserId, error: authError } = await getUserFromRequest(req);
+    const authHeader = req.headers.get('Authorization');
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.replace('Bearer ', '') : undefined;
+    const supabase = await createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    const currentUserId = user?.id;
     // Continue even if unauthorized for territories (they are public), but ownerType needs currentUserId
     
     const { searchParams } = new URL(req.url);
