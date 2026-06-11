@@ -115,6 +115,7 @@ interface GamePageContentProps {
   initialFriends?: any[]
   initialFriendRequests?: any[]
   initialUser?: any
+  children?: React.ReactNode
 }
 
 const VALID_TABS: TabType[] = ['home', 'play', 'start', 'missions', 'social', 'profile', 'leaderboard', 'mode'];
@@ -161,7 +162,8 @@ export function GameLayout({
   initialBadges = [],
   initialFriends = [],
   initialFriendRequests = [],
-  initialUser
+  initialUser,
+  children
 }: GamePageContentProps) {
   const [searchParams] = useSearchParams()
   const { user, loading: isAuthLoading } = useAuth(initialUser)
@@ -1519,6 +1521,7 @@ export function GameLayout({
           beginRunStart(true);
         }}
       />
+      {children}
     </div>
     </RunningTrackerContext.Provider>
   )
