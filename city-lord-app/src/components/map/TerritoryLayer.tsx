@@ -104,7 +104,9 @@ const fetchTerritories = async (
     signal
   });
   if (!res.ok) throw new Error("Failed to fetch territories");
-  return await res.json();
+  const json = await res.json();
+  const rawList = Array.isArray(json) ? json : (Array.isArray(json?.data) ? json.data : []);
+  return rawList.filter((t: any) => t?.id && t?.geojson_json);
 };
 
 const toLngLatTuple = (pt: unknown): [number, number] | null => {

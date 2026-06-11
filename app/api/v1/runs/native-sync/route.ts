@@ -98,44 +98,46 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     locations.sort((a, b) => a.timestamp - b.timestamp);
 
     if (locations.length > 0) {
-      try {
-        const firstPoint = locations[0];
-        const supabaseAdmin = (await import("@supabase/supabase-js")).createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.SUPABASE_SERVICE_ROLE_KEY!,
-          { auth: { autoRefreshToken: false, persistSession: false } }
-        );
+      void (async () => {
+        try {
+          const firstPoint = locations[0];
+          const supabaseAdmin = (await import("@supabase/supabase-js")).createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!,
+            { auth: { autoRefreshToken: false, persistSession: false } }
+          );
 
-        const { data: lastLocation } = await supabaseAdmin
-          .from("user_locations")
-          .select("updated_at, location")
-          .eq("user_id", user.id)
-          .order("updated_at", { ascending: false })
-          .limit(1)
-          .single();
+          const { data: lastLocation } = await supabaseAdmin
+            .from("user_locations")
+            .select("updated_at, location")
+            .eq("user_id", user.id)
+            .order("updated_at", { ascending: false })
+            .limit(1)
+            .single();
 
-        if (lastLocation && lastLocation.location && lastLocation.location.coordinates) {
-          const lastLng = lastLocation.location.coordinates[0];
-          const lastLat = lastLocation.location.coordinates[1];
-          const lastTime = new Date(lastLocation.updated_at).getTime();
-          const timeDiffHours = (Date.now() - lastTime) / (1000 * 60 * 60);
+          if (lastLocation && lastLocation.location && lastLocation.location.coordinates) {
+            const lastLng = lastLocation.location.coordinates[0];
+            const lastLat = lastLocation.location.coordinates[1];
+            const lastTime = new Date(lastLocation.updated_at).getTime();
+            const timeDiffHours = (Date.now() - lastTime) / (1000 * 60 * 60);
 
-          if (timeDiffHours > 0) {
-            const speed = haversineDistanceKm(lastLat, lastLng, firstPoint.lat, firstPoint.lng) / timeDiffHours;
+            if (timeDiffHours > 0) {
+              const speed = haversineDistanceKm(lastLat, lastLng, firstPoint.lat, firstPoint.lng) / timeDiffHours;
 
-            if (speed > 300) {
-              await supabaseAdmin.from("suspicious_location_report").insert({
-                user_id: user.id,
-                type: "run_session_teleport",
-                location: { lat: firstPoint.lat, lng: firstPoint.lng },
-                reported_speed: speed
-              });
+              if (speed > 300) {
+                await supabaseAdmin.from("suspicious_location_report").insert({
+                  user_id: user.id,
+                  type: "run_session_teleport",
+                  location: { lat: firstPoint.lat, lng: firstPoint.lng },
+                  reported_speed: speed
+                });
+              }
             }
           }
+        } catch (e) {
+          console.error("[AntiCheat] non-blocking error:", e);
         }
-      } catch (e) {
-        console.error("[AntiCheat] Failed to write suspicious report:", e);
-      }
+      })();
     }
 
     for (const loc of locations) {
@@ -188,6 +190,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
             updated_at: new Date(),
             area: 0,
             duration: 0,
+            city_id: body.cityId ?? 'global',
             idempotency_key: idempotencyKey,
           }
         });
