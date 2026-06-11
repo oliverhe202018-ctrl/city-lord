@@ -720,6 +720,7 @@ model territories {
   geojson_json         Json?
   max_hp               Int                      @default(1000)
   current_hp           Int                      @default(1000)
+  shield               Int                      @default(0)
   territory_type       TerritoryType            @default(NORMAL)
   score_weight         Float                    @default(1.0)
   status               TerritoryStatus?         @default(ACTIVE)

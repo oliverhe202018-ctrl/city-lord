@@ -27,6 +27,7 @@ export interface TerritoryDetailResult {
     } | null
     current_hp?: number
     health?: number | null
+    shield?: number
     score_weight?: number
     territory_type?: string
     lastAttackedAt?: Date | string | null
@@ -51,6 +52,7 @@ export async function getTerritoryDetail(
                 source_run_id: true,
                 current_hp: true,
                 health: true,
+                shield: true,
                 last_attacked_at: true,
                 score_weight: true,
                 territory_type: true,
@@ -98,6 +100,7 @@ export async function getTerritoryDetail(
         recentRun: null,
         current_hp: territory.current_hp || 1000,
         health: territory.health ?? territory.current_hp ?? 100,
+        shield: territory.shield ?? 0,
         score_weight: territory.score_weight || 1.0,
         territory_type: territory.territory_type || 'NORMAL',
         lastAttackedAt: territory.last_attacked_at ?? null,

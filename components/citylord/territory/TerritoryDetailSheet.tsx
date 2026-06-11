@@ -140,6 +140,7 @@ export function TerritoryDetailSheet() {
                                     recentRun: null,
                                     current_hp: 1000,
                                     health: 100,
+                                    shield: 0,
                                     score_weight: 1.0,
                                     territory_type: 'NORMAL',
                                     lastAttackedAt: null
@@ -257,18 +258,24 @@ export function TerritoryDetailSheet() {
                                                     </div>
                                                 )}
                                             </div>
+                                        </div>
 
+                                        <div className="grid grid-cols-4 gap-2 mt-2">
                                             <div className="flex flex-col gap-1 p-2 rounded-lg bg-blue-500/10 border border-blue-500/20 items-center">
                                                 <span className="text-[10px] text-muted-foreground">积分比重</span>
-                                                <span className="text-sm font-bold text-blue-500">x{displayDetail.score_weight ?? '1.0'}</span>
+                                                <span className="text-xs font-bold text-blue-500">x{displayDetail.score_weight ?? '1.0'}</span>
                                             </div>
                                             <div className="flex flex-col gap-1 p-2 rounded-lg bg-orange-500/10 border border-orange-500/20 items-center">
                                                 <span className="text-[10px] text-muted-foreground">领地类型</span>
-                                                <span className="text-sm font-bold text-orange-500">{displayDetail.territory_type ?? 'NORMAL'}</span>
+                                                <span className="text-xs font-bold text-orange-500 truncate max-w-full">{displayDetail.territory_type ?? 'NORMAL'}</span>
                                             </div>
-                                            <div className="flex flex-col gap-1 p-2 rounded-lg bg-gray-500/10 border border-gray-500/20 items-center">
+                                            <div className="flex flex-col gap-1 p-2 rounded-lg bg-red-500/10 border border-red-500/20 items-center">
                                                 <span className="text-[10px] text-muted-foreground">当前血量</span>
-                                                <span className={`text-sm font-bold ${healthColor.replace('bg-', 'text-')}`}>{displayDetail.current_hp ?? 1000}</span>
+                                                <span className={`text-xs font-bold ${healthColor.replace('bg-', 'text-')}`}>{displayDetail.current_hp ?? 1000}</span>
+                                            </div>
+                                            <div className="flex flex-col gap-1 p-2 rounded-lg bg-purple-500/10 border border-purple-500/20 items-center">
+                                                <span className="text-[10px] text-muted-foreground">能量护盾</span>
+                                                <span className="text-xs font-bold text-purple-500">{displayDetail.shield ?? 0}</span>
                                             </div>
                                         </div>
 

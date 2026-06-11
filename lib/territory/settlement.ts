@@ -59,7 +59,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
     const { runId, userId, cityId, clubId, pathGeoJSON } = input;
     const TERRITORY_MAX_HEALTH = 100;
     const ALLY_HEAL = 50;
-    const PATROL_OVERLAP_THRESHOLD = 0.8;
+    const PATROL_OVERLAP_THRESHOLD = 0.85;
     const SHIELD_CHARGE_INCREMENT = 100;
 
     // 1. Validate Input & Prepare Polygons
@@ -166,6 +166,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
             max_hp: number | null;
             level: number | null;
             overlap_ratio: number;
+            shield: number | null;
         }
         let bestPatrolOverlap: OverlapRow | null = null;
         try {
@@ -176,6 +177,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                 t.current_hp,
                 t.max_hp,
                 t.level,
+                t.shield,
                 COALESCE(
                     ST_Area(
                         ST_Intersection(
@@ -223,6 +225,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
             geometry: Polygon;
             is_contained: boolean;
             last_attacked_at: Date | string | null;
+            shield: number | null;
         }
         let overlappingTerritories: TerritoryRow[] = [];
         try {
@@ -238,6 +241,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                 t.score_weight,
                 t.territory_type,
                 t.level,
+                t.shield,
                 p.nickname as owner_name,
                 ST_AsGeoJSON(t.geojson)::jsonb as geometry,
                 ST_Contains(ST_GeomFromGeoJSON(${combinedGeometryJson}), t.geojson) as is_contained,
@@ -261,48 +265,47 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
         const runnerCritRate = runnerProfile?.crit_rate ?? 0; // 0-1 multiplier
 
         if (bestPatrolOverlap && bestPatrolOverlap.overlap_ratio >= PATROL_OVERLAP_THRESHOLD) {
-            const beforeHealth = Number(bestPatrolOverlap.health ?? TERRITORY_MAX_HEALTH);
-            const beforeShield = Number(bestPatrolOverlap.current_hp ?? 0);
-            const maxShield = Number(bestPatrolOverlap.max_hp ?? 1000);
+            const currentHp = Number(bestPatrolOverlap.current_hp ?? 1000);
+            const maxHp = Number(bestPatrolOverlap.max_hp ?? 1000);
+            const currentShield = Number(bestPatrolOverlap.shield ?? 0);
+            const maxShield = 1000;
 
-            if (beforeHealth < TERRITORY_MAX_HEALTH) {
-                await tx.territories.update({
-                    where: { id: bestPatrolOverlap.id },
-                    data: {
-                        health: TERRITORY_MAX_HEALTH,
-                        last_maintained_at: new Date()
-                    }
-                });
-                result.maintenanceDetails.push({
-                    territoryId: bestPatrolOverlap.id,
-                    type: 'HEAL',
-                    oldMaxHp: maxShield,
-                    newMaxHp: maxShield,
-                    beforeHp: beforeHealth,
-                    afterHp: TERRITORY_MAX_HEALTH,
-                    level: Number(bestPatrolOverlap.level ?? 1)
-                });
-                result.reinforcedTerritories++;
+            let nextHp = currentHp;
+            let nextShield = currentShield;
+
+            const neededHp = maxHp - currentHp;
+            if (neededHp > 0) {
+                if (neededHp >= SHIELD_CHARGE_INCREMENT) {
+                    nextHp = currentHp + SHIELD_CHARGE_INCREMENT;
+                } else {
+                    nextHp = maxHp;
+                    const remainder = SHIELD_CHARGE_INCREMENT - neededHp;
+                    nextShield = Math.min(maxShield, currentShield + remainder);
+                }
             } else {
-                const chargedShield = Math.min(maxShield, beforeShield + SHIELD_CHARGE_INCREMENT);
-                await tx.territories.update({
-                    where: { id: bestPatrolOverlap.id },
-                    data: {
-                        current_hp: chargedShield,
-                        last_maintained_at: new Date()
-                    }
-                });
-                result.maintenanceDetails.push({
-                    territoryId: bestPatrolOverlap.id,
-                    type: 'FORTIFY',
-                    oldMaxHp: maxShield,
-                    newMaxHp: maxShield,
-                    beforeHp: beforeShield,
-                    afterHp: chargedShield,
-                    level: Number(bestPatrolOverlap.level ?? 1)
-                });
-                result.reinforcedTerritories++;
+                nextShield = Math.min(maxShield, currentShield + SHIELD_CHARGE_INCREMENT);
             }
+            const nextHealth = Math.round((nextHp / maxHp) * 100);
+
+            await tx.territories.update({
+                where: { id: bestPatrolOverlap.id },
+                data: {
+                    current_hp: nextHp,
+                    shield: nextShield,
+                    health: nextHealth,
+                    last_maintained_at: new Date()
+                }
+            });
+            result.maintenanceDetails.push({
+                territoryId: bestPatrolOverlap.id,
+                type: neededHp >= SHIELD_CHARGE_INCREMENT ? 'HEAL' : (neededHp > 0 ? 'BOTH' : 'FORTIFY'),
+                oldMaxHp: maxHp,
+                newMaxHp: maxHp,
+                beforeHp: currentHp,
+                afterHp: nextHp,
+                level: Number(bestPatrolOverlap.level ?? 1)
+            });
+            result.reinforcedTerritories++;
         }
 
         // 1. Process friendly / same-faction territories (Heal & Fortify)
@@ -336,10 +339,13 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                     continue;
                 }
 
+                const currentHp = Number(existingTerr.current_hp ?? 1000);
+                const maxHp = Number(existingTerr.max_hp ?? 1000);
                 await tx.territories.update({
                     where: { id: existingTerr.id },
                     data: {
-                        health: TERRITORY_MAX_HEALTH,
+                        current_hp: maxHp,
+                        health: 100,
                         last_maintained_at: new Date()
                     }
                 });
@@ -347,10 +353,10 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                 result.maintenanceDetails.push({
                     territoryId: existingTerr.id,
                     type: 'HEAL',
-                    oldMaxHp: Number(existingTerr.max_hp ?? 1000),
-                    newMaxHp: Number(existingTerr.max_hp ?? 1000),
-                    beforeHp: beforeHealth,
-                    afterHp: TERRITORY_MAX_HEALTH,
+                    oldMaxHp: maxHp,
+                    newMaxHp: maxHp,
+                    beforeHp: currentHp,
+                    afterHp: maxHp,
                     level: Number(existingTerr.level ?? 1)
                 });
                 result.reinforcedTerritories++;
@@ -379,11 +385,15 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
 
             // Teammate (same faction) territory
             if (runnerFaction && territoryFaction && runnerFaction === territoryFaction) {
-                const healedHealth = Math.min(TERRITORY_MAX_HEALTH, beforeHealth + ALLY_HEAL);
+                const currentHp = Number(existingTerr.current_hp ?? 1000);
+                const maxHp = Number(existingTerr.max_hp ?? 1000);
+                const nextHp = Math.min(maxHp, currentHp + 500);
+                const nextHealth = Math.round((nextHp / maxHp) * 100);
                 await tx.territories.update({
                     where: { id: existingTerr.id },
                     data: {
-                        health: healedHealth,
+                        current_hp: nextHp,
+                        health: nextHealth,
                         last_maintained_at: new Date()
                     }
                 });
@@ -391,10 +401,10 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                 result.maintenanceDetails.push({
                     territoryId: existingTerr.id,
                     type: 'HEAL',
-                    oldMaxHp: Number(existingTerr.max_hp ?? 1000),
-                    newMaxHp: Number(existingTerr.max_hp ?? 1000),
-                    beforeHp: beforeHealth,
-                    afterHp: healedHealth,
+                    oldMaxHp: maxHp,
+                    newMaxHp: maxHp,
+                    beforeHp: currentHp,
+                    afterHp: nextHp,
                     level: Number(existingTerr.level ?? 1)
                 });
                 result.reinforcedTerritories++;
@@ -443,9 +453,23 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
             const targetId = existingTerr.id;
             const currentHp = Number(existingTerr.current_hp ?? 1000);
             const maxHp = Number(existingTerr.max_hp ?? 1000);
+            const currentShield = Number(existingTerr.shield ?? 0);
             const damage = (DAMAGE_PER_RUN * damageMultiplier) * 10;
 
-            const nextHp = Math.max(0, currentHp - damage);
+            let nextShield = currentShield;
+            let nextHp = currentHp;
+
+            if (currentShield > 0) {
+                if (currentShield >= damage) {
+                    nextShield = currentShield - damage;
+                } else {
+                    const remainder = damage - currentShield;
+                    nextShield = 0;
+                    nextHp = Math.max(0, currentHp - remainder);
+                }
+            } else {
+                nextHp = Math.max(0, currentHp - damage);
+            }
             const nextHealth = Math.round((nextHp / maxHp) * 100);
 
             // 1. Process ResidueZone (ST_Difference):
@@ -474,7 +498,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                     id, city_id, owner_id, owner_club_id, owner_faction, geojson, geojson_json,
                     source_run_id, first_claimed_at, last_claimed_at,
                     max_hp, current_hp, health, territory_type, score_weight, status,
-                    area_m2_exact, level
+                    area_m2_exact, level, shield
                 )
                 SELECT
                     'terr_' || substring(replace(gen_random_uuid()::text, '-', ''), 1, 24),
@@ -494,7 +518,8 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                     t.score_weight,
                     'ACTIVE'::"TerritoryStatus",
                     c.real_area,
-                    t.level
+                    t.level,
+                    t.shield
                 FROM calculated c
                 CROSS JOIN territories t
                 WHERE t.id = ${targetId} AND c.real_area >= 50
@@ -574,7 +599,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                             id, city_id, owner_id, owner_club_id, owner_faction, geojson, geojson_json,
                             source_run_id, first_claimed_at, last_claimed_at,
                             max_hp, current_hp, health, territory_type, score_weight, status,
-                            area_m2_exact, level
+                            area_m2_exact, level, shield
                         )
                         SELECT
                             'terr_' || substring(replace(gen_random_uuid()::text, '-', ''), 1, 24),
@@ -594,7 +619,8 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                             t.score_weight,
                             'ACTIVE'::"TerritoryStatus",
                             c.real_area,
-                            t.level
+                            t.level,
+                            CAST(${nextShield} AS INTEGER)
                         FROM calculated c
                         CROSS JOIN territories t
                         WHERE t.id = ${targetId} AND c.real_area >= 50
@@ -618,6 +644,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                     status: 'SUPERSEDED' as any,
                     health: 0,
                     current_hp: 0,
+                    shield: 0,
                     last_attacked_at: new Date()
                 }
             });
@@ -681,7 +708,7 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                             id, city_id, owner_id, owner_club_id, owner_faction, geojson, geojson_json,
                             source_run_id, first_claimed_at, last_claimed_at,
                             max_hp, current_hp, health, territory_type, score_weight, status,
-                            area_m2_exact
+                            area_m2_exact, shield
                         )
                         SELECT
                             ${newId},
@@ -696,7 +723,8 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
                             'NORMAL'::"TerritoryType",
                             1.0,
                             'ACTIVE'::"TerritoryStatus",
-                            real_area
+                            real_area,
+                            0
                         FROM calculated
                         WHERE real_area >= 50
                     `;
