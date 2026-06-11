@@ -15,12 +15,12 @@ export const POST = withErrorHandler(async (req: Request) => {
 
     const { batch } = await req.json();
     if (!Array.isArray(batch) || batch.length === 0) {
-      return NextResponse.json({ success: true, syncedIds: [] });
+      return successResponse({ syncedIds: [] });
     }
 
     const runId = batch[0]?.runId;
     if (!runId) {
-      return NextResponse.json({ error: 'runId required in batch items' }, { status: 400 });
+      return Response.json({ error: 'runId required in batch items' }, { status: 400 });
     }
 
     // 批量 upsert 轨迹点（幂等）
@@ -36,12 +36,7 @@ export const POST = withErrorHandler(async (req: Request) => {
       skipDuplicates: true,
     });
 
-    return NextResponse.json({
-      success: true,
+    return successResponse({
       syncedIds: batch.map((pt: any) => pt.sequenceId),
     });
-  } catch (err: any) {
-    console.error('[POST /api/v1/runs/sync]', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
-  }
-}
+});
