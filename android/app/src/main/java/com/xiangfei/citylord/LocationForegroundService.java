@@ -268,6 +268,22 @@ public class LocationForegroundService extends Service implements AMapLocationLi
         // 1. Create notification channel (Android 8+)
         createNotificationChannel();
 
+        // 1.5 紧急启动前台通知，满足 Android 8+ 的 5秒限制 (防 ANR)
+        restoreFromPrefs();
+        if (notificationBody == null) {
+            notificationBody = "定位中… · " + getDailyQuote();
+        }
+        Notification notification = buildNotification(notificationTitle, notificationBody);
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION);
+            } else {
+                startForeground(NOTIFICATION_ID, notification);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to start foreground in onCreate: " + e.getMessage());
+        }
+
         // 2. Acquire PARTIAL_WAKE_LOCK — prevent CPU sleep
         acquireWakeLock();
 
@@ -351,7 +367,7 @@ public class LocationForegroundService extends Service implements AMapLocationLi
             return START_NOT_STICKY;
         }
 
-        // 3. 构建并启动前台通知 (Android 14+ 要求在 onStartCommand 早期启动)
+        // 3. 构建并更新前台通知
         if (notificationBody == null) {
             notificationBody = "定位中… · " + getDailyQuote();
         }
@@ -362,15 +378,11 @@ public class LocationForegroundService extends Service implements AMapLocationLi
                 // API 29+ 必须声明类型
                 startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION);
             } else {
-                // 低版本平滑退避，避免无效参数异常
                 startForeground(NOTIFICATION_ID, notification);
             }
             logEvent("fgs_start_success", "ok");
         } catch (Exception e) {
-            Log.e(TAG, "Failed to start foreground: " + e.getMessage());
-            logEvent("fgs_start_failed", e.getClass().getSimpleName()); // 补齐埋点
-            stopSelf();
-            return START_NOT_STICKY;
+            Log.e(TAG, "Failed to start foreground in onStartCommand: " + e.getMessage());
         }
 
         // 4. 高德隐私合规
@@ -801,40 +813,45 @@ public class LocationForegroundService extends Service implements AMapLocationLi
 
         // ====== 后台锁屏里程累计与 TTS 原生语音播报 ======
         try {
-            if (lastLoggedLocation != null) {
-                float[] results = new float[1];
-                android.location.Location.distanceBetween(
-                        lastLoggedLocation.getLatitude(), lastLoggedLocation.getLongitude(),
-                        location.getLatitude(), location.getLongitude(),
-                        results
-                );
-                float dist = results[0];
-                // 防单点大幅漂移（> 100米则不累计为跑步里程）
-                if (dist > 0.5f && dist < 100.0f) {
-                    totalDistanceTravelled += dist;
+            if (currentRunId != null && !currentRunId.isEmpty()) {
+                if (lastLoggedLocation != null) {
+                    float[] results = new float[1];
+                    android.location.Location.distanceBetween(
+                            lastLoggedLocation.getLatitude(), lastLoggedLocation.getLongitude(),
+                            location.getLatitude(), location.getLongitude(),
+                            results
+                    );
+                    float dist = results[0];
+                    // 防单点大幅漂移（> 100米则不累计为跑步里程）
+                    if (dist > 0.5f && dist < 100.0f) {
+                        totalDistanceTravelled += dist;
+                    }
                 }
-            }
-            lastLoggedLocation = location.clone();
+                lastLoggedLocation = location.clone();
 
-            int currentKm = (int) (totalDistanceTravelled / 1000.0);
-            if (currentKm > 0 && currentKm > lastSpokenKm) {
-                lastSpokenKm = currentKm;
-                long elapsedSeconds = 0;
-                if (runStartedAt > 0) {
-                    elapsedSeconds = (System.currentTimeMillis() - runStartedAt) / 1000;
+                int currentKm = (int) (totalDistanceTravelled / 1000.0);
+                if (currentKm > 0 && currentKm > lastSpokenKm) {
+                    lastSpokenKm = currentKm;
+                    long elapsedSeconds = 0;
+                    if (runStartedAt > 0) {
+                        elapsedSeconds = (System.currentTimeMillis() - runStartedAt) / 1000;
+                    }
+                    if (elapsedSeconds > 0) {
+                        double distanceKm = totalDistanceTravelled / 1000.0;
+                        long paceSeconds = (long) (elapsedSeconds / distanceKm);
+                        long m = paceSeconds / 60;
+                        long s = paceSeconds % 60;
+                        String paceStr = (m > 59) ? "59分59秒" : (m + "分" + s + "秒");
+                        String message = "领主，您已奔袭 " + currentKm + " 公里！当前后台配配速每公里 " + paceStr + "，势如破竹，请继续保持！";
+                        speakTts(message);
+                    } else {
+                        String message = "领主，您已奔袭 " + currentKm + " 公里！势如破竹，请继续保持！";
+                        speakTts(message);
+                    }
                 }
-                if (elapsedSeconds > 0) {
-                    double distanceKm = totalDistanceTravelled / 1000.0;
-                    long paceSeconds = (long) (elapsedSeconds / distanceKm);
-                    long m = paceSeconds / 60;
-                    long s = paceSeconds % 60;
-                    String paceStr = (m > 59) ? "59分59秒" : (m + "分" + s + "秒");
-                    String message = "领主，您已奔袭 " + currentKm + " 公里！当前后台配配速每公里 " + paceStr + "，势如破竹，请继续保持！";
-                    speakTts(message);
-                } else {
-                    String message = "领主，您已奔袭 " + currentKm + " 公里！势如破竹，请继续保持！";
-                    speakTts(message);
-                }
+            } else {
+                // Not running, just update lastLoggedLocation without accumulating distance
+                lastLoggedLocation = location.clone();
             }
         } catch (Exception e) {
             Log.w(TAG, "Error in background milestone speech: " + e.getMessage());
