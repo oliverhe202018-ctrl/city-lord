@@ -498,7 +498,7 @@ export function RunSummaryView({
 
   return (
     <>
-      <div className="fixed inset-0 z-[100000] flex flex-col bg-white text-black animate-in slide-in-from-bottom duration-300">
+      <div className="fixed inset-0 z-[100000] flex flex-col bg-white text-black animate-in slide-in-from-bottom duration-300 pointer-events-auto">
         {/* Hidden file input */}
         <input
           ref={fileInputRef}
@@ -522,7 +522,7 @@ export function RunSummaryView({
           </div>
           <div
             onClick={forceExit}
-            className="p-2 text-gray-400 hover:bg-gray-100 rounded-full cursor-pointer z-50 pointer-events-auto"
+            className="p-2 text-gray-400 hover:bg-gray-100 rounded-full cursor-pointer z-50"
           >
             <X size={20} />
           </div>
@@ -835,7 +835,7 @@ export function RunSummaryView({
           <div className="flex gap-3">
             <button
               onClick={onClose}
-              className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-900 font-bold py-3 rounded-full transition-all active:scale-[0.98] text-center flex items-center justify-center cursor-pointer z-50 pointer-events-auto"
+              className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-900 font-bold py-3 rounded-full transition-all active:scale-[0.98] text-center flex items-center justify-center cursor-pointer z-50"
             >
               完成运动
             </button>

@@ -106,7 +106,7 @@ const fetchTerritories = async (
   if (!res.ok) throw new Error("Failed to fetch territories");
   const json = await res.json();
   const rawList = Array.isArray(json) ? json : (Array.isArray(json?.data) ? json.data : []);
-  return rawList.filter((t: any) => t?.id && t?.geojson_json);
+  return rawList.filter((t: any) => t?.id && (t?.geojsonJson || t?.geojson_json));
 };
 
 const toLngLatTuple = (pt: unknown): [number, number] | null => {
@@ -320,7 +320,7 @@ function renderTerritoryLabels(
       b.minLat <= viewportMaxLat;
     if (!intersects) continue;
 
-    const outerRings = extractOuterRings(territory.geojson_json);
+    const outerRings = extractOuterRings(territory.geojsonJson || territory.geojson_json);
     if (outerRings.length === 0) continue;
 
     const ring = outerRings[0];
@@ -465,7 +465,7 @@ function renderTerritoriesOnCanvas(
       let hasValidPath = false;
       const path = new Path2D();
       for (const t of group) {
-        const outerRings = extractOuterRings(t.geojson_json);
+        const outerRings = extractOuterRings(t.geojsonJson || t.geojson_json);
         for (const ring of outerRings) {
           const activeStrokeStride = ring.length < 30 ? 1 : stride;
           const sampledRing = ring.filter((_, i) => i % activeStrokeStride === 0 || i === ring.length - 1);
@@ -579,7 +579,7 @@ function renderTerritoriesOnCanvas(
         b.minLat <= viewportMaxLat;
       if (!intersects) continue;
 
-      const outerRings = extractOuterRings(territory.geojson_json);
+      const outerRings = extractOuterRings(territory.geojsonJson || territory.geojson_json);
       if (outerRings.length === 0) continue;
 
         // 步骤1：构建包含所有 ring 的复合 Path（一次 beginPath）
@@ -612,7 +612,7 @@ function renderTerritoriesOnCanvas(
 
     // 🟢 2. 渲染聚焦高亮的领地，应用亮金色辉光和双层高对比度描边（乐观剔除、末尾叠加）
     if (focusedTerritory) {
-      const outerRings = extractOuterRings(focusedTerritory.geojson_json);
+      const outerRings = extractOuterRings(focusedTerritory.geojsonJson || focusedTerritory.geojson_json);
       if (outerRings.length > 0) {
         ctx.save();
         ctx.beginPath();
@@ -900,7 +900,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
 
   const decorateTerritoriesAsync = useCallback(async (items: Territory[]) => {
     const batchId = ++processingBatchIdRef.current;
-    const filteredItems = items.filter((item) => item.id && item.geojson_json);
+    const filteredItems = items.filter((item) => item.id && (item.geojsonJson || item.geojson_json));
     const result: TerritoryWithRender[] = [];
     const chunkSize = 20;
 
@@ -910,7 +910,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
       const chunk = filteredItems.slice(index, index + chunkSize);
       const decoratedChunk = chunk.map((item) => {
         const presentation = buildPolygonPresentation(item);
-        const rings = extractOuterRings(item.geojson_json);
+        const rings = extractOuterRings(item.geojsonJson || item.geojson_json);
         let bbox = { minLng: 0, maxLng: 0, minLat: 0, maxLat: 0 };
         let areaM2 = 0;
         let centerPoint: [number, number] = [0, 0];
@@ -1367,7 +1367,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
         ) {
           return false;
         }
-        const rings = extractOuterRings(territory.geojson_json);
+        const rings = extractOuterRings(territory.geojsonJson || territory.geojson_json);
         if (rings.length === 0) return false;
         try {
           const point = turf.point([clickLng, clickLat]);

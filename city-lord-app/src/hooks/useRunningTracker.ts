@@ -2670,31 +2670,28 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           console.warn("[AbortTimeout] 120s timeout triggered");
         }, 120_000);
 
-        const res = await apiFetch('/api/v1/runs/finish', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            clubId: clubId ?? null,
-            idempotencyKey: runIdempotencyKeyRef.current,
-            distance: liveDistance,
-            duration: liveDuration,
-            pathPoints: finalPath,
-            polygons: liveClaims,
-            timestamp: Date.now(),
-            totalSteps: stepsForSubmit,
-            steps: stepsForSubmit,
-            manualLocationCount: 0,
-            eventsHistory: finalEvents,
-            clientFlags: clientFlagsRef.current,
-          })
-        });
+        const { saveRunActivity } = await import('@/app/actions/run-service');
+        const finalRunData = {
+          idempotencyKey: runIdempotencyKeyRef.current,
+          distance: liveDistance,
+          duration: liveDuration,
+          path: finalPath,
+          polygons: liveClaims,
+          timestamp: Date.now(),
+          totalSteps: stepsForSubmit,
+          steps: stepsForSubmit,
+          manualLocationCount: 0,
+          eventsHistory: finalEvents,
+          clientFlags: clientFlagsRef.current,
+        };
         
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-          throw new Error(errData.error || `HTTP ${res.status}`);
+        const actionResult = await saveRunActivity(userId, finalRunData as any, clubId ?? null);
+        
+        if (!actionResult || !actionResult.success) {
+          throw new Error(actionResult?.error || "Save failed");
         }
         
-        const result = { success: true, data: await res.json() };
+        const result = { success: true, data: actionResult };
 
         clearTimeout(timeoutId);
         timeoutId = undefined;

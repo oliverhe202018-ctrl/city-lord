@@ -66,11 +66,14 @@ export async function GET(req: NextRequest) {
         isHotZone,
         ownerChangeCount: changeCount,
         geojson_json: t.geojson_json,
-        ownerClub: t.clubs && t.clubs.id ? {
-          id: Array.isArray(t.clubs) ? t.clubs[0]?.id : t.clubs.id,
-          name: Array.isArray(t.clubs) ? t.clubs[0]?.name : t.clubs.name,
-          logoUrl: Array.isArray(t.clubs) ? t.clubs[0]?.avatar_url : t.clubs.avatar_url,
-        } : null,
+        ownerClub: (() => {
+          const c = t.clubs ? (Array.isArray(t.clubs) ? t.clubs[0] : t.clubs) : null;
+          return c && c.id ? {
+            id: c.id,
+            name: c.name,
+            logoUrl: c.avatar_url,
+          } : null;
+        })(),
       };
     });
 
