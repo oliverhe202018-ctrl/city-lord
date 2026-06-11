@@ -151,7 +151,7 @@ public class LocationForegroundService extends Service implements AMapLocationLi
     /** 高频间隔 (ms) */
     private static final long PREWARM_HIGH_FREQ_INTERVAL = 1000L;
     /** 降频间隔 (ms) */
-    private static final long PREWARM_LOW_FREQ_INTERVAL = 15000L;
+    private static final long PREWARM_LOW_FREQ_INTERVAL = 2000L;
     /** 自动降频超时 (3 分钟) */
     private static final long PREWARM_THROTTLE_TIMEOUT_MS = 3 * 60 * 1000L;
 

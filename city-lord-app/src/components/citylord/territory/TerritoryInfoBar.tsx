@@ -71,10 +71,16 @@ export function TerritoryInfoBar() {
                                                         面积: {detail.area} km²
                                                     </span>
                                                     {detail.current_hp !== undefined && (
-                                                        <span className="flex items-center gap-1">
-                                                            <span className="w-1 h-1 rounded-full bg-red-400/40"></span>
-                                                            能量: {detail.current_hp}/1000
-                                                        </span>
+                                                        <>
+                                                            <span className="flex items-center gap-1">
+                                                                <span className="w-1 h-1 rounded-full bg-red-400/40"></span>
+                                                                生命值: {Math.min(100, detail.health ?? 100)}%
+                                                            </span>
+                                                            <span className="flex items-center gap-1">
+                                                                <span className="w-1 h-1 rounded-full bg-blue-400/40"></span>
+                                                                能量护盾: {detail.current_hp}/1000
+                                                            </span>
+                                                        </>
                                                     )}
                                                 </div>
                                             )}

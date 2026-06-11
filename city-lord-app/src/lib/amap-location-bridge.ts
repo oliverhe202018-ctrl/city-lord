@@ -609,7 +609,7 @@ export class AMapLocationBridge {
             await this.stopWatch();
         }
 
-        const interval = options.interval ?? (options.mode === 'running' ? 1000 : 5000);
+        const interval = options.interval ?? (options.mode === 'running' ? 1000 : 2000);
         const distanceFilter = options.distanceFilter ?? (options.mode === 'browse' ? 5 : 3);
 
         logInfo({
