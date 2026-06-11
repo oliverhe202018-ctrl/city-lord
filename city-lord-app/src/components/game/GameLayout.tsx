@@ -188,6 +188,7 @@ export function GameLayout({
   const navigate = useNavigate();
   const rawTab = location.pathname.split('/')[1] || 'home';
   const activeTab = (rawTab === 'map' ? 'play' : rawTab) as TabType;
+  const isSubPage = !['/home', '/map', '/start', '/missions', '/social', '/profile', '/'].includes(location.pathname);
   const setActiveTab = useCallback((tab: string) => { navigate(`/${tab === 'play' ? 'map' : tab}`); }, [navigate]);
 
   // [Leaderboard CTA] 监听排行榜空状态 CTA 跳转事件
@@ -1521,7 +1522,7 @@ export function GameLayout({
           beginRunStart(true);
         }}
       />
-      {children}
+      {isSubPage && children}
     </div>
     </RunningTrackerContext.Provider>
   )
