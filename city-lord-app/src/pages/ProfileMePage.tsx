@@ -6,24 +6,27 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { ArrowLeft } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '@/store/useStore'
-import { rpcCall } from '@/api/client'
+import { apiFetch } from '@/lib/fetch-shim'
 
 export default function ProfileMePage() {
     const navigate = useNavigate()
-    const { user } = useStore()
+    const { userId, profile } = useStore()
     const [profileData, setProfileData] = useState<any>(null)
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
         const init = async () => {
-            if (!user?.id) {
+            if (!userId) {
                 navigate('/login', { replace: true })
                 return
             }
             try {
-                const res = await rpcCall('profile', 'getProfileData', [user.id])
-                if (res.success && res.data) {
-                    setProfileData(res.data)
+                const res = await apiFetch(`/api/v1/user/profile?userId=${userId}`)
+                if (res.ok) {
+                    const data = await res.json()
+                    if (data.success && data.data) {
+                        setProfileData({ user: data.data, stats: data.data.stats, isProfilePublic: true })
+                    }
                 }
             } catch (e) {
                 console.error('Failed to load profile:', e)
@@ -32,7 +35,7 @@ export default function ProfileMePage() {
             }
         }
         init()
-    }, [user, navigate])
+    }, [userId, navigate])
 
     if (loading) {
         return (
@@ -55,7 +58,7 @@ export default function ProfileMePage() {
         )
     }
 
-    if (!profileData || !user?.id) {
+    if (!profileData || !userId) {
         return (
             <div className="flex flex-col items-center justify-center h-[100dvh] w-full absolute top-0 left-0 z-50 bg-background text-foreground">
                 <p className="text-lg mb-4">找不到用户资料</p>
@@ -111,7 +114,7 @@ export default function ProfileMePage() {
 
                 <StatsGrid stats={safeStats} />
 
-                <RunHistoryList userId={user.id} />
+                <RunHistoryList userId={userId} />
             </main>
         </div>
     )

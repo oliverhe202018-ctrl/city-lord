@@ -3,7 +3,18 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { Footprints, TrendingUp, Loader2, RefreshCw } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
-import { getRuns, type RunRecord } from '@/app/actions/profile'
+import { apiFetch } from '@/lib/fetch-shim'
+
+export interface RunRecord {
+  id: string
+  idempotencyKey?: string | null
+  distanceKm: number
+  durationStr: string
+  paceMinPerKm: string
+  calories: number
+  createdAt: string
+  created_at?: string
+}
 
 interface RunHistoryListProps {
     userId: string
@@ -36,9 +47,15 @@ export function RunHistoryList({ userId, initialRuns, initialCursor }: RunHistor
             }
             setError(null)
 
-            const result = await getRuns(userId, existingCursor)
+            const url = existingCursor
+                ? `/api/v1/runs/history?cursor=${existingCursor}`
+                : `/api/v1/runs/history`
+            const res = await apiFetch(url)
+            if (!res.ok) throw new Error(`HTTP ${res.status}`)
+            const json = await res.json()
 
-            const newRuns = existingCursor ? [...runs, ...result.runs] : result.runs
+            const result = json.data ?? json
+            const newRuns: RunRecord[] = existingCursor ? [...runs, ...(result.runs ?? [])] : (result.runs ?? [])
             
             // Deduplicate by idempotencyKey, keeping the latest one by createdAt
             const deduplicated = Object.values(newRuns.reduce((acc: Record<string, RunRecord>, run: RunRecord) => {

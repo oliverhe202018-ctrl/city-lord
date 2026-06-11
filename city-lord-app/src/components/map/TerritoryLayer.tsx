@@ -105,8 +105,13 @@ const fetchTerritories = async (
   });
   if (!res.ok) throw new Error("Failed to fetch territories");
   const json = await res.json();
-  const rawList = Array.isArray(json) ? json : (Array.isArray(json?.data) ? json.data : []);
-  return rawList.filter((t: any) => t?.id && (t?.geojsonJson || t?.geojson_json));
+  const rawList: any[] = Array.isArray(json) ? json : (Array.isArray(json?.data) ? json.data : []);
+  return rawList
+    .filter((t: any) => t?.id && (t?.geojsonJson || t?.geojson_json))
+    .map((t: any) => ({
+      ...t,
+      geojson_json: t.geojson_json ?? t.geojsonJson,
+    }));
 };
 
 const toLngLatTuple = (pt: unknown): [number, number] | null => {
