@@ -24,15 +24,6 @@ interface SendResult {
 const TEMPLATE_KEYS: Record<EmailType, string> = {
   reset: '2d6f.5219295b459e8d2e.k1.93c56220-189b-11f1-b6bb-525400d4bb1c.19cbe4c3142',
   register: '2d6f.5219295b459e8d2e.k1.8b4d1c01-189b-11f1-b6bb-525400d4bb1c.19cbe4bf9c0',
-  login: '2d6f.5219295b459e8d2e.k1.7e02b461-189b-11f1-b6bb-525400d4bb1c.19cbe4ba2a1',
-};
-
-import { ProxyAgent, fetch as undiciFetch } from 'undici';
-
-// 从环境变量读取代理地址，如果没有则默认使用 VPS 上常驻的 Xray 代理端口
-const PROXY_URL = process.env.HTTP_PROXY || 'http://127.0.0.1:10809';
-const dispatcher = new ProxyAgent(PROXY_URL);
-
 // ─── Send Function ────────────────────────────────────────────────────────────
 
 export async function sendVerificationCode(
@@ -43,9 +34,8 @@ export async function sendVerificationCode(
   const templateKey = TEMPLATE_KEYS[type];
 
   try {
-    const response = await undiciFetch(ZEPTOMAIL_API_URL, {
+    const response = await fetch(ZEPTOMAIL_API_URL, {
       method: 'POST',
-      dispatcher,
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
