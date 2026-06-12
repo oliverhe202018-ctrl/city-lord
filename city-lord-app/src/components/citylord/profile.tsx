@@ -8,7 +8,7 @@ import { MapPin, Swords, Footprints, Eye, Settings, ChevronRight, Hexagon, Zap, 
 import { ChangelogUnreadBadge } from '@/components/changelog/ChangelogUnreadBadge'
 import { Link } from 'react-router-dom'
 import { useNavigate } from 'react-router-dom'
-import { useGameStore } from '@/store/useGameStore'
+import { useGameStore, clearGameStore } from '@/store/useGameStore'
 import { useHydration } from '@/hooks/useHydration';
 import { formatAreaFromHexCount, getAreaEquivalentFromHexCount } from '@/lib/citylord/area-utils'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -296,22 +296,12 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
       const { error } = await supabase.auth.signOut()
       if (error) throw error
 
-      // 1. Reset Zustand State
-      resetUser()
+      // 1. Reset Zustand State & Clear Persisted Storage (Preferences + LocalStorage)
+      clearGameStore()
 
       // 2. Clear Local Component State
       setUserEmail(null)
       setIsLoggedIn(false)
-
-      // 3. Clear Zustand Persist Storage
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('city-lord-storage')
-      }
-      try {
-        await Preferences.remove({ key: 'city-lord-storage' });
-      } catch (e) {
-        console.warn('Failed to clear Preferences', e);
-      }
 
       // 4. Clear React Query Cache
       queryClient.clear()

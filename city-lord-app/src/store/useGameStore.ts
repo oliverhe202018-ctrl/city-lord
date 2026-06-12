@@ -839,6 +839,8 @@ const createWorldSlice: StateCreator<GameStore, [], [], WorldActions> = (set, ge
 
 // ==================== Store ====================
 
+export const GAME_STORE_KEY = 'city-lord-storage';
+
 // Capacitor storage adapter handles both durable native storage and migration from legacy localStorage.
 
 export const useGameStore = create<GameStore>()(
@@ -869,7 +871,7 @@ export const useGameStore = create<GameStore>()(
       ...createWorldSlice(set, get, api),
     }),
     {
-      name: 'city-lord-storage',
+      name: GAME_STORE_KEY,
       storage: createJSONStorage(() => capacitorStorage, {
         reviver: (key, value) => {
           if (key === 'items' || key === 'territories') {
