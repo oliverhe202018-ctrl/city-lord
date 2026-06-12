@@ -2,7 +2,7 @@
 
 import React from "react"
 import { AvatarUploader } from '@/components/ui/AvatarUploader'
-import Image from "react"
+import { Preferences } from '@capacitor/preferences'
 
 import { MapPin, Swords, Footprints, Eye, Settings, ChevronRight, Hexagon, Zap, Target, LogIn, LogOut, Edit2, Gift, MessageSquareWarning, Sparkles, Shuffle, ShieldCheck, FileText, UserX, User, ScrollText } from 'lucide-react'
 import { ChangelogUnreadBadge } from '@/components/changelog/ChangelogUnreadBadge'
@@ -71,7 +71,7 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['userProfileStats', userId],
     queryFn: async () => {
-      const res = await apiFetch(`/api/user/stats`, { credentials: 'include' })
+      const res = await apiFetch(`/api/user/stats`)
       if (!res.ok) throw new Error('Failed to fetch stats')
       return res.json()
     },
@@ -147,7 +147,7 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
   const [dailyStat, setDailyStat] = React.useState<any>(null);
 
   React.useEffect(() => {
-    apiFetch(`/api/faction/daily-stats`, { credentials: 'include' })
+    apiFetch(`/api/faction/daily-stats`)
       .then(res => res.ok ? res.json() : null)
       .then(setDailyStat)
       .catch(err => console.error('Failed to fetch daily stats:', err))
@@ -157,7 +157,7 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
   React.useEffect(() => {
     const fetchStats = async () => {
       try {
-        const res = await apiFetch(`/api/faction/stats`, { credentials: 'include' })
+        const res = await apiFetch(`/api/faction/stats`)
         if (!res.ok) {
           throw new Error(`Failed to fetch: ${res.status}`)
         }
@@ -211,7 +211,7 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
   // If we have store data (nickname/level), we can show the UI immediately
   // while "loading" might still be true for the session check.
   // But to be safe, we use the local loading state for the auth check.
-  if (loading) {
+  if (!hydrated || loading) {
     // Show skeleton or simple loading
     return (
       <div className="flex h-full flex-col bg-background animate-pulse">
@@ -307,6 +307,11 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
       if (typeof window !== 'undefined') {
         localStorage.removeItem('city-lord-storage')
       }
+      try {
+        await Preferences.remove({ key: 'city-lord-storage' });
+      } catch (e) {
+        console.warn('Failed to clear Preferences', e);
+      }
 
       // 4. Clear React Query Cache
       queryClient.clear()
@@ -340,9 +345,7 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
     }
   }
 
-  if (!hydrated) {
-    return <div className="flex h-full items-center justify-center bg-background text-muted-foreground">加载中...</div>;
-  }
+
 
   // 计算经验进度百分比
   const xpProgress = Math.floor((currentExp / maxExp) * 100)
@@ -647,7 +650,7 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
               onChanged={() => {
                 syncUserProfile();
                 // Refetch faction stats
-                apiFetch(`/api/faction/stats`, { credentials: 'include' })
+                apiFetch(`/api/faction/stats`)
                   .then(res => res.ok ? res.json() : null)
                   .then(data => { if (data) setFactionStats(data); })
                   .catch(() => { });
@@ -861,7 +864,7 @@ function FactionChangeButton({ currentFaction, onChanged }: { currentFaction: 'R
       const res = await apiFetch(`/api/faction/change-faction`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
+
         body: JSON.stringify({ faction: targetFaction })
       });
       const data = await res.json();

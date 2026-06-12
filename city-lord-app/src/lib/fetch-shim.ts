@@ -86,6 +86,26 @@ export async function apiFetch(input: RequestInfo | URL, init?: CustomRequestIni
   if (response.status === 401 && !init?.skipAuthEvent && token) {
     // If the server returns 401 despite having a token, the session is invalid
     console.warn('API returned 401 Unauthorized. Dispatching logout event.');
+
+    // First, attempt to refresh the session silently
+    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+    if (refreshData?.session && !refreshError) {
+      const newToken = refreshData.session.access_token;
+      setTokenSetter(newToken); // Update it in global state if needed
+
+      // Re-run the request with the new token
+      const retryInit: CustomRequestInit = {
+        ...customInit,
+        skipAuthEvent: true, // Prevent infinite loop
+        headers: {
+          ...customInit.headers,
+          'Authorization': `Bearer ${newToken}`
+        }
+      };
+      return fetch(url, retryInit);
+    }
+
+    // If refresh failed, do a hard logout
     await supabase.auth.signOut();
     window.dispatchEvent(new CustomEvent('auth:logout'));
     const err: any = new Error('UNAUTHORIZED');

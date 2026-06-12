@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
 
 import * as accountActions from '@/app/actions/account'
 import * as achievementActions from '@/app/actions/achievement'
@@ -94,6 +95,13 @@ export async function POST(request: Request) {
         { success: false, error: 'Authorization required' },
         { status: 401 }
       )
+    }
+
+    // Security 0: Token Signature Verification
+    const supabase = await createClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+    if (authError || !user) {
+      return NextResponse.json({ success: false, error: 'Invalid token' }, { status: 401 })
     }
 
     const body = await request.json()
