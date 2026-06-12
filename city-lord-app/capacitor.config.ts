@@ -7,7 +7,10 @@ const config: CapacitorConfig = {
   appName: 'City Lord',
   webDir: 'dist',
   android: {
-    allowMixedContent: true,
+    allowMixedContent: false,
+    backgroundColor: '#000000',
+    webContentsDebuggingEnabled: false,
+    overrideUserAgent: '',
     buildOptions: {
       keystorePassword: '',
       keystoreAlias: '',

@@ -132,7 +132,7 @@ export async function getProfileData(targetUserId: string, token?: string): Prom
         prisma.profile_likes.count({ where: { user_id: targetUserId } }),
         currentUserId
             ? prisma.profile_likes.count({
-                where: { user_id: targetUserId, likerId: currentUserId },
+                where: { user_id: targetUserId, liker_id: currentUserId },
             }).then(c => c > 0)
             : Promise.resolve(false),
         prisma.friendships.count({
@@ -368,7 +368,7 @@ export async function toggleUserLike(targetUserId: string, token?: string) {
 
     try {
         const existing = await prisma.profile_likes.findUnique({
-            where: { userId_likerId: { user_id: targetUserId, likerId: user.id } },
+            where: { user_id_liker_id: { user_id: targetUserId, liker_id: user.id } },
         })
 
         if (existing) {
@@ -379,7 +379,7 @@ export async function toggleUserLike(targetUserId: string, token?: string) {
             return { success: true, liked: false, likeCount: count }
         } else {
             await prisma.profile_likes.create({
-                data: { user_id: targetUserId, likerId: user.id },
+                data: { user_id: targetUserId, liker_id: user.id },
             })
             const count = await prisma.profile_likes.count({
                 where: { user_id: targetUserId },

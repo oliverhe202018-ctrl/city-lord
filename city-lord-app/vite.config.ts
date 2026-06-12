@@ -42,16 +42,30 @@ export default defineConfig(({ mode }) => {
             
             // Skip node_modules first
             if (normalId.includes('node_modules')) {
-              if (normalId.includes('@turf/')) {
-                return 'vendor-turf';
+              if (normalId.includes('@amap/amap-jsapi-loader')) {
+                return 'vendor-amap';
+              }
+              if (normalId.includes('react') || normalId.includes('react-dom') || normalId.includes('react-router-dom')) {
+                return 'vendor-react';
               }
               if (normalId.includes('@supabase/')) {
                 return 'vendor-supabase';
               }
+              if (normalId.includes('zustand')) {
+                return 'vendor-zustand';
+              }
+              if (normalId.includes('lucide-react') || normalId.includes('sonner')) {
+                return 'vendor-ui';
+              }
+              if (normalId.includes('@turf/')) {
+                return 'vendor-turf';
+              }
             }
           }
         }
-      }
+      },
+      cssCodeSplit: true,
+      minify: 'esbuild',
     }
   }
 })

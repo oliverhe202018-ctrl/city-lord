@@ -194,6 +194,9 @@ export class AMapLocationBridge {
     private _AMapLocation: typeof import('@/plugins/amap-location/definitions').AMapLocation | null = null;
     private _gcoord: typeof import('gcoord').default | null = null;
     private lastDevFallbackToastAt = 0;
+    
+    // GPS Worker 实例
+    private gpsWorker: Worker | null = null;
 
 
 
@@ -282,6 +285,19 @@ export class AMapLocationBridge {
         }
 
         this.initialized = true;
+
+        if (typeof window !== 'undefined' && typeof Worker !== 'undefined') {
+            try {
+                this.gpsWorker = new Worker(new URL('../workers/gps-worker.ts', import.meta.url), { type: 'module' });
+                this.gpsWorker.onmessage = (e) => {
+                    const { locationType, raw, ...filteredPoint } = e.data;
+                    if (this.destroyed) return;
+                    this.handleWatchUpdate(filteredPoint as GeoPoint, locationType);
+                };
+            } catch (e) {
+                logWarn({ phase: 'init-worker-fail', reason: String(e) });
+            }
+        }
 
         // [v3 Implementation] 冷启动优先读取持久化缓存
         this.loadAndEmitCache();
@@ -825,7 +841,12 @@ export class AMapLocationBridge {
             : 'amap-native';
 
         const point = this.amapPositionToGeoPoint(pos, source);
-        this.handleWatchUpdate(point, pos.locationType);
+        
+        if (this.gpsWorker) {
+            this.gpsWorker.postMessage({ ...point, locationType: pos.locationType });
+        } else {
+            this.handleWatchUpdate(point, pos.locationType);
+        }
     }
 
     private handleNativeError(err: AMapLocationError) {
@@ -1585,6 +1606,12 @@ export class AMapLocationBridge {
 
         // 4. clear timers
         this.stopStaleWatchdog();
+        
+        // 5. terminate worker
+        if (this.gpsWorker) {
+            this.gpsWorker.terminate();
+            this.gpsWorker = null;
+        }
 
         logInfo({ phase: 'destroy-complete', reason: 'All resources released' });
     }

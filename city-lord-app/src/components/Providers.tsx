@@ -17,8 +17,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
         staleTime: 5 * 60 * 1000,
         // Retry failed requests once
         retry: 1,
-        // Refetch on window focus
-        refetchOnWindowFocus: true,
+        // Refetch on window focus (Disabled to prevent request storm on resume)
+        refetchOnWindowFocus: false,
         // Refetch on reconnect (Crucial for Offline First)
         refetchOnReconnect: true,
       },

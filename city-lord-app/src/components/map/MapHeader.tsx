@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import React, { useState, useEffect, useRef, useContext } from "react"
 import { Link } from 'react-router-dom'
@@ -8,6 +8,7 @@ import { useCity } from '@/contexts/CityContext';
 import { useRegion } from '@/contexts/RegionContext';
 import { useMap } from '@/components/map/AMapContext';
 import { useGameStore, useGameActions } from '@/store/useGameStore'
+import { useShallow } from 'zustand/react/shallow'
 import { useHydration } from '@/hooks/useHydration';
 import { ChevronDown, Calendar, Activity, MapPin, Navigation, User, Zap, Trophy, LogIn, X, Check, Users, Signal } from 'lucide-react'
 import { CityDrawer } from './CityDrawer'
@@ -132,7 +133,21 @@ export function MapHeader({
   const { isLoaded } = useMap();
 
 
-  const { gpsStatus, level, currentExp, maxExp, stamina, maxStamina, lastStaminaUpdate, activeDrawer, latitude, longitude, lastKnownLocation } = useGameStore();
+  const { gpsStatus, level, currentExp, maxExp, stamina, maxStamina, lastStaminaUpdate, activeDrawer, latitude, longitude, lastKnownLocation } = useGameStore(
+    useShallow(s => ({
+      gpsStatus: s.gpsStatus,
+      level: s.level,
+      currentExp: s.currentExp,
+      maxExp: s.maxExp,
+      stamina: s.stamina,
+      maxStamina: s.maxStamina,
+      lastStaminaUpdate: s.lastStaminaUpdate,
+      activeDrawer: s.activeDrawer,
+      latitude: s.latitude,
+      longitude: s.longitude,
+      lastKnownLocation: s.lastKnownLocation
+    }))
+  );
   const { openDrawer, closeDrawer } = useGameActions();
   const hydrated = useHydration();
   const interactionContext = useContext(MapInteractionCtx);

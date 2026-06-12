@@ -75,10 +75,10 @@ echo 'Deployment complete!'
 '@
 $deployCommands = $deployCommands -replace "`r`n", "`n"
 
-Write-Host "`n[2/3] Connecting to VPS..." -ForegroundColor Yellow
+Write-Host "`n[2/3] Connecting to VPS on Port 2222..." -ForegroundColor Yellow
 Write-Host "Note: If prompted, please enter your VPS SSH password." -ForegroundColor Gray
 
-ssh $vpsHost $deployCommands
+ssh -p 2222 $vpsHost $deployCommands
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "`n[3/3] Server deployment and restart completed successfully!" -ForegroundColor Green
