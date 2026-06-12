@@ -24,6 +24,9 @@ interface SendResult {
 const TEMPLATE_KEYS: Record<EmailType, string> = {
   reset: '2d6f.5219295b459e8d2e.k1.93c56220-189b-11f1-b6bb-525400d4bb1c.19cbe4c3142',
   register: '2d6f.5219295b459e8d2e.k1.8b4d1c01-189b-11f1-b6bb-525400d4bb1c.19cbe4bf9c0',
+  login: '2d6f.5219295b459e8d2e.k1.7e02b461-189b-11f1-b6bb-525400d4bb1c.19cbe4ba2a1',
+};
+
 // ─── Send Function ────────────────────────────────────────────────────────────
 
 export async function sendVerificationCode(
