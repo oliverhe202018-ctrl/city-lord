@@ -138,6 +138,13 @@ const normalizeRing = (input: unknown[]): PolygonRing =>
   );
 
 const extractOuterRings = (geo: unknown): PolygonRing[] => {
+  if (typeof geo === "string") {
+    try {
+      geo = JSON.parse(geo);
+    } catch (e) {
+      return [];
+    }
+  }
   if (!geo || typeof geo !== "object") return [];
   const g = geo as { type?: string; geometry?: unknown; features?: unknown[]; coordinates?: unknown[] };
 

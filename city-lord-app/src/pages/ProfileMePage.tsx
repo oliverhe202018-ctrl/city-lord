@@ -25,11 +25,14 @@ export default function ProfileMePage() {
                 if (res.ok) {
                     const data = await res.json()
                     if (data.success && data.data) {
-                        setProfileData({ user: data.data, stats: data.data.stats, isProfilePublic: true })
+                        setProfileData({ user: data.data.user, stats: data.data.stats, isProfilePublic: data.data.is_profile_public ?? true, isPrivate: data.data.isPrivate })
+                    } else {
+                        setProfileData(null)
                     }
                 }
             } catch (e) {
-                console.error('Failed to load profile:', e)
+                console.error('Failed to fetch profile:', e)
+                setProfileData(null)
             } finally {
                 setLoading(false)
             }
@@ -39,7 +42,7 @@ export default function ProfileMePage() {
 
     if (loading) {
         return (
-            <div className="flex flex-col h-[100dvh] w-full absolute top-0 left-0 z-50 bg-background text-foreground">
+            <div className="flex flex-col h-[100dvh] w-full fixed inset-0 z-[100] bg-background text-foreground">
                 <Skeleton className="h-48 w-full" />
                 <div className="p-4 space-y-4">
                     <Skeleton className="h-20 w-20 rounded-full" />
@@ -60,15 +63,9 @@ export default function ProfileMePage() {
 
     if (!profileData || !userId) {
         return (
-            <div className="flex flex-col items-center justify-center h-[100dvh] w-full absolute top-0 left-0 z-50 bg-background text-foreground">
+            <div className="flex flex-col items-center justify-center h-[100dvh] w-screen fixed inset-0 z-[100] bg-background text-foreground">
                 <p className="text-lg mb-4">找不到用户资料</p>
-                <p className="text-sm text-muted-foreground">请尝试重新登录或联系管理员</p>
-                <button
-                    onClick={() => navigate('/login', { replace: true })}
-                    className="mt-6 px-4 py-2 rounded-full bg-cyan-500 text-white text-sm hover:bg-cyan-600 transition-colors"
-                >
-                    重新登录
-                </button>
+                <Button onClick={() => window.history.back()} variant="outline">返回</Button>
             </div>
         )
     }
@@ -90,7 +87,7 @@ export default function ProfileMePage() {
     } : null
 
     return (
-        <div className="flex flex-col h-[100dvh] w-full absolute top-0 left-0 z-50 overflow-hidden bg-background">
+        <div className="flex flex-col h-[100dvh] w-full fixed inset-0 z-[100] overflow-hidden bg-background">
             {/* Header Fixed */}
             <div className="flex-none sticky top-0 z-[60] flex items-center gap-2 px-4 pt-[calc(var(--safe-top,0px)+8px)] pb-2 bg-background/80 backdrop-blur-lg border-b border-border/10">
                 <button

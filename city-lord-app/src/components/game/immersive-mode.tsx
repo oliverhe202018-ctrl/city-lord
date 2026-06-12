@@ -717,9 +717,9 @@ function ImmersiveRunningModeInner({
       damageSummary: cloneSnapshotValue(damageSummary),
       maintenanceSummary: cloneSnapshotValue(maintenanceSummary),
       hexesCaptured: settledTerritoriesCount !== undefined ? settledTerritoriesCount : snapshotHexes,
-      runTrajectory: cloneSnapshotValue(path || []),
+      runTrajectory: cloneSnapshotValue((displayPath && displayPath.length > 0) ? displayPath : (path || [])),
     }
-  }, [distanceMeters, durationSeconds, time, pace, calories, area, steps, runIsValid, antiCheatLog, effectiveRunId, savedRunId, runNumber, damageSummary, maintenanceSummary, settledTerritoriesCount, path])
+  }, [distanceMeters, durationSeconds, time, pace, calories, area, steps, runIsValid, antiCheatLog, effectiveRunId, savedRunId, runNumber, damageSummary, maintenanceSummary, settledTerritoriesCount, path, displayPath])
 
   const handleLockScreen = useCallback(() => {
     setIsScreenLocked(true)

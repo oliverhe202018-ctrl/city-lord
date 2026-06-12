@@ -2704,6 +2704,8 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
             clientFlagsRef.current = [];
             mutate("/api/home/summary");
             mutate("/api/mission/fetch-user-missions");
+            mutate((key) => typeof key === "string" && key.startsWith("/api/v1/runs/history"));
+            window.dispatchEvent(new CustomEvent("citylord:refresh-runs"));
 
             if (!result.data?.settlingAsync) {
               mutate(
@@ -2740,6 +2742,8 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
                     if (data.settledTerritoriesCount !== undefined) {
                       setSettledTerritoriesCount(data.settledTerritoriesCount);
                     }
+                    mutate((key) => typeof key === "string" && key.startsWith("/api/v1/runs/history"));
+                    window.dispatchEvent(new CustomEvent("citylord:refresh-runs"));
                     mutate(
                       (key) => typeof key === "string" && key.startsWith("/api/v1/territories?cityId="),
                       undefined, { revalidate: true }

@@ -115,6 +115,12 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
       }
     };
     if (userId) fetchRuns();
+
+    const handleRefresh = () => {
+      if (userId) fetchRuns();
+    };
+    window.addEventListener("citylord:refresh-runs", handleRefresh);
+    return () => window.removeEventListener("citylord:refresh-runs", handleRefresh);
   }, [userId]);
 
   // Use a derived isLoading that combines profile and badges loading

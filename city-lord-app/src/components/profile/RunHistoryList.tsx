@@ -31,10 +31,20 @@ export function RunHistoryList({ userId, initialRuns, initialCursor }: RunHistor
     const observerRef = useRef<IntersectionObserver | null>(null)
     const sentinelRef = useRef<HTMLDivElement | null>(null)
 
-    // Initial load
+    // Initial load and event listener
     useEffect(() => {
-        if (initialRuns) return
-        loadRuns()
+        if (!initialRuns) {
+            loadRuns()
+        }
+        
+        const handleRefresh = () => {
+            loadRuns()
+        }
+        window.addEventListener("citylord:refresh-runs", handleRefresh)
+        
+        return () => {
+            window.removeEventListener("citylord:refresh-runs", handleRefresh)
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [userId])
 
