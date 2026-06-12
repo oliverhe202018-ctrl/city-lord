@@ -87,10 +87,11 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
   React.useEffect(() => {
     const fetchRuns = async () => {
       try {
-        const res = await rpcCall('profile', 'getRuns', [userId, null]);
-        if (!res.success) throw new Error('Failed to fetch activities');
+        const res = await apiFetch(`/api/v1/runs/history`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         
-        const rawRuns = res.data?.runs || [];
+        const json = await res.json();
+        const rawRuns = (json.data?.runs ?? json.runs) || [];
         
         // Deduplicate by idempotencyKey, keeping the latest one
         const deduplicated = Object.values(rawRuns.reduce((acc: any, run: any) => {
@@ -98,7 +99,9 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
           if (!key) {
              acc[run.id] = run; // if no key, just keep it by id
           } else {
-             if (!acc[key] || new Date(run.created_at) > new Date(acc[key].created_at)) {
+             const dateRun = run.createdAt || run.created_at;
+             const dateAcc = acc[key].createdAt || acc[key].created_at;
+             if (!acc[key] || new Date(dateRun) > new Date(dateAcc)) {
                 acc[key] = run;
              }
           }
@@ -106,7 +109,11 @@ export function Profile({ onOpenSettings, initialFactionStats, initialBadges }: 
         }, {}));
         
         // Sort again descending and slice to limit
-        deduplicated.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        deduplicated.sort((a: any, b: any) => {
+          const dateA = a.createdAt || a.created_at;
+          const dateB = b.createdAt || b.created_at;
+          return new Date(dateB).getTime() - new Date(dateA).getTime();
+        });
         setRecentRuns(deduplicated.slice(0, 3));
       } catch (e) {
         console.error("Failed to fetch recent runs", e);

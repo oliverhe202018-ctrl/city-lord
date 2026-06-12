@@ -29,6 +29,23 @@ const LoadingFallback = () => {
   return <LoadingScreen message="正在加载城市数据..." />;
 };
 
+// RequireAuth wrapper for full screen protected pages
+const RequireAuth = ({ children }: { children: React.ReactNode }) => {
+  const { isAuthenticated, isHydrating } = useStore();
+  if (isHydrating) return <LoadingFallback />;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  return (
+    <div className="flex flex-col h-[100dvh] bg-black text-white overflow-hidden">
+      <Suspense fallback={null}>
+        <PendingRunUploadRetry />
+        <OfflineAchievementSync />
+        <CelebrationOrchestrator />
+      </Suspense>
+      {children}
+    </div>
+  );
+};
+
 // Protected Route wrapper
 const ProtectedRoute = () => {
   const { isAuthenticated, isHydrating } = useStore();
@@ -79,6 +96,13 @@ function App() {
           <Suspense fallback={<LoadingFallback />}>
             <Routes>
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/profile/me" element={
+                <RequireAuth>
+                  <Suspense fallback={<LoadingFallback />}>
+                    <ProfileMePage />
+                  </Suspense>
+                </RequireAuth>
+              } />
               <Route element={<ProtectedRoute />}>
                 <Route path="/" element={<Navigate to="/home" replace />} />
                 <Route path="/home" element={<HomePage />} />
@@ -87,7 +111,6 @@ function App() {
                 <Route path="/missions" element={<MissionsPage />} />
                 <Route path="/social" element={<SocialPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
-                <Route path="/profile/me" element={<ProfileMePage />} />
                 <Route path="/run/detail" element={<RunDetailPage />} />
               </Route>
             </Routes>

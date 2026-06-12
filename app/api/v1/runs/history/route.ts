@@ -18,19 +18,17 @@ export async function GET(req: NextRequest) {
     const limit = 20;
 
     const runs = await prisma.runs.findMany({
-      where: { user_id: user.id, status: 'COMPLETED' },
+      where: { user_id: user.id, status: 'completed' },
       orderBy: { created_at: 'desc' },
       take: limit + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       select: {
         id: true,
-        distance_meters: true,
-        duration_seconds: true,
-        steps: true,
-        calories: true,
+        distance: true,
+        duration: true,
+        total_steps: true,
         idempotency_key: true,
         created_at: true,
-        pace_seconds_per_km: true,
       }
     });
 
@@ -39,15 +37,15 @@ export async function GET(req: NextRequest) {
     const nextCursor = hasMore ? items[items.length - 1].id : null;
 
     const formatted = items.map(r => {
-      const distanceKm = (r.distance_meters ?? 0) / 1000;
-      const durationSec = r.duration_seconds ?? 0;
+      const distanceKm = (r.distance ?? 0) / 1000;
+      const durationSec = r.duration ?? 0;
       const hrs = Math.floor(durationSec / 3600);
       const mins = Math.floor((durationSec % 3600) / 60);
       const secs = durationSec % 60;
       const durationStr = hrs > 0
         ? `${hrs}:${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`
         : `${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;
-      const paceRaw = r.pace_seconds_per_km ?? (distanceKm > 0 ? Math.round(durationSec / distanceKm) : 0);
+      const paceRaw = distanceKm > 0 ? Math.round(durationSec / distanceKm) : 0;
       const paceMin = Math.floor(paceRaw / 60);
       const paceSec = paceRaw % 60;
 
@@ -57,7 +55,7 @@ export async function GET(req: NextRequest) {
         distanceKm: Math.round(distanceKm * 100) / 100,
         durationStr,
         paceMinPerKm: `${paceMin}'${String(paceSec).padStart(2,'0')}"`,
-        calories: r.calories ?? 0,
+        calories: 0,
         createdAt: r.created_at?.toISOString() ?? '',
       };
     });

@@ -910,7 +910,7 @@ const TerritoryLayer: React.FC<TerritoryLayerProps> = ({
     });
   }, [map, onViewportKingChange, mapDisplayMode]);
 
-  const decorateTerritoriesAsync = useCallback(async (items: Territory[]) => {
+  const decorateTerritoriesAsync = useCallback(async (items: ExtTerritory[]) => {
     const batchId = ++processingBatchIdRef.current;
     const filteredItems = items.filter((item) => item.id && (item.geojsonJson || item.geojson_json));
     const result: TerritoryWithRender[] = [];
