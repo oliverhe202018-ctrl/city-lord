@@ -88,7 +88,7 @@ BEGIN
   -- 2. POSTGIS DISTANCE VALIDATION (attacker must be within 100m of territory centroid)
   v_distance_m := ST_Distance(
     ST_SetSRID(ST_MakePoint(p_attacker_lng, p_attacker_lat), 4326)::geography,
-    ST_Centroid(v_territory.geojson)::geography
+    ST_SetSRID(ST_Centroid(v_territory.geojson), 4326)::geography
   );
   
   IF v_distance_m > 100 THEN

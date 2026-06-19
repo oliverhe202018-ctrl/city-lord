@@ -5,6 +5,9 @@ import { prisma } from '@/lib/prisma';
 import { createClient } from '@/lib/supabase/server';
 import { haversineDistance } from '@/lib/geometry-utils';
 
+// [P6] 内存炸弹防御：限制单次请求路径点数量
+const MAX_POINTS_PER_REQUEST = 500;
+
 export interface LocationPoint {
   lat: number;
   lng: number;
@@ -65,10 +68,15 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     }
 
     const body = await req.json();
-    const locations = normalizeLocations(body);
+    let locations = normalizeLocations(body);
 
     if (locations.length === 0) {
       return successResponse({ count: 0 });
+    }
+
+    // [P6] 内存炸弹防御：滑动窗口截断，保留最新的路径点
+    if (locations.length > MAX_POINTS_PER_REQUEST) {
+      locations = locations.slice(locations.length - MAX_POINTS_PER_REQUEST);
     }
 
     const validPoints: LocationPoint[] = [];
@@ -167,13 +175,22 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       return successResponse({ count: 0 });
     }
 
+    // [P6] 确保写入 runs 表的 path 字段不超过限制
+    if (validPoints.length > MAX_POINTS_PER_REQUEST) {
+      validPoints.splice(0, validPoints.length - MAX_POINTS_PER_REQUEST);
+    }
+
     await prisma.$transaction(async (tx) => {
       if (activeRun) {
         const newPath = [...currentPath, ...validPoints];
+        // [P6] 合并后仍需限制总 path 长度，保留最新的点
+        const trimmedPath = newPath.length > MAX_POINTS_PER_REQUEST
+          ? newPath.slice(newPath.length - MAX_POINTS_PER_REQUEST)
+          : newPath;
         await tx.runs.update({
           where: { id: activeRun.id },
           data: {
-            path: newPath,
+            path: trimmedPath,
             distance: currentDistance,
             updated_at: new Date()
           }

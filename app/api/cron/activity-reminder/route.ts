@@ -32,6 +32,10 @@ export async function GET(req: Request) {
         initWebPush();
         isWebPushInitialized = true;
     }
+    // [P6] Fail-closed: CRON_SECRET 未配置时直接 503
+    if (!process.env.CRON_SECRET) {
+        return NextResponse.json({ error: 'Cron disabled: CRON_SECRET not configured' }, { status: 503 })
+    }
     // Verify cron secret
     const authHeader = req.headers.get('authorization')
     if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {

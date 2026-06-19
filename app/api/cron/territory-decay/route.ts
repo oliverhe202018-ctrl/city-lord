@@ -5,8 +5,12 @@ const DECAY_AMOUNT = 20
 
 export async function GET(request: Request) {
     try {
+        // [P6] Fail-closed: CRON_SECRET 未配置时直接 503
+        if (!process.env.CRON_SECRET) {
+            return NextResponse.json({ error: 'Cron disabled: CRON_SECRET not configured' }, { status: 503 })
+        }
         const authHeader = request.headers.get('authorization')
-        if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+        if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
@@ -45,6 +49,7 @@ export async function GET(request: Request) {
                 })
             }
 
+            // [P6] 时间窗保护：仅在 last_attacked_at 超过 5 秒后才允许抹除所有权
             const neutralizedRows = await tx.$queryRaw<Array<{ id: string }>>`
                 UPDATE public.territories
                 SET
@@ -53,6 +58,7 @@ export async function GET(request: Request) {
                     owner_club_id = NULL
                 WHERE COALESCE(health, 0) <= 0
                   AND (owner_id IS NOT NULL OR owner_faction IS NOT NULL OR owner_club_id IS NOT NULL)
+                  AND (last_attacked_at IS NULL OR last_attacked_at < NOW() - INTERVAL '5 seconds')
                 RETURNING id
             `
 

@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { checkRunEndAchievements } from "@/app/actions/check-achievements";
 import type { RunEndAchievementPayload } from "@/app/actions/check-achievements";
+import { safeParseQueue } from "@/lib/offline-queue";
 
 const OFFLINE_QUEUE_KEY = "pending_offline_runs";
 const MAX_QUEUE_SIZE = 50;
@@ -26,8 +27,9 @@ export function OfflineAchievementSync() {
             try {
                 const raw = localStorage.getItem(OFFLINE_QUEUE_KEY);
                 if (!raw) return;
-                queue = JSON.parse(raw);
-                if (!Array.isArray(queue) || queue.length === 0) return;
+                // [P6] 离线队列 JSON 免疫：使用 safeParseQueue 防御损坏数据
+                queue = safeParseQueue<RunEndAchievementPayload>(raw, OFFLINE_QUEUE_KEY);
+                if (queue.length === 0) return;
 
                 if (queue.length > MAX_QUEUE_SIZE) {
                     console.warn(`[OfflineAchievementSync] Queue overflow (${queue.length}), trimming to ${MAX_QUEUE_SIZE}`);

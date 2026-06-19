@@ -10,6 +10,10 @@ const TIE_XP = 75;
 
 export async function GET(request: Request) {
   try {
+    // [P6] Fail-closed: CRON_SECRET 未配置时直接 503
+    if (!process.env.CRON_SECRET) {
+      return NextResponse.json({ error: 'Cron disabled: CRON_SECRET not configured' }, { status: 503 });
+    }
     const authHeader = request.headers.get('Authorization');
     if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
       return new NextResponse('Unauthorized', { status: 401 });

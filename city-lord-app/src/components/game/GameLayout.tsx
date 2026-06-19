@@ -1,3 +1,4 @@
+import { safeParseQueue } from '@/lib/offline-queue';
 import { RunningTrackerContext } from '@/contexts/RunningTrackerContext';
 
 
@@ -1061,8 +1062,9 @@ export function GameLayout({
         const offlineQueueJson = typeof window !== 'undefined'
           ? localStorage.getItem('pending_offline_runs')
           : null;
-        const offlineQueue: typeof payload[] = offlineQueueJson
-          ? JSON.parse(offlineQueueJson)
+        // [P6] 离线队列 JSON 免疫：使用 safeParseQueue 防御损坏数据
+        const offlineQueue = offlineQueueJson
+          ? safeParseQueue<typeof payload>(offlineQueueJson, 'pending_offline_runs')
           : [];
         offlineQueue.push(payload);
         if (offlineQueue.length > 50) {

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { type User } from '@supabase/supabase-js'
 import { useNavigate } from 'react-router-dom'
@@ -10,6 +10,7 @@ export function useAuth(initialUser?: User | null) {
   const [loading, setLoading] = useState(!initialUser)
   const supabase = createClient()
   const navigate = useNavigate()
+  const redirectingRef = useRef(false)
 
   useEffect(() => {
     const broadcastAuthChanged = (event: string, nextUserId: string | null) => {
@@ -52,10 +53,12 @@ export function useAuth(initialUser?: User | null) {
 
   const requireAuth = (redirectUrl: string = '/login') => {
     if (!loading && !user) {
-      navigate(redirectUrl)
-      return false
+      if (redirectingRef.current) return false;
+      redirectingRef.current = true;
+      navigate(redirectUrl);
+      return false;
     }
-    return true
+    return true;
   }
 
   return {

@@ -7,6 +7,33 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_SERVER || 'https://cl1.6543666.xyz'
 let getTokenGetter: () => string | null = () => null;
 let setTokenSetter: (token: string) => void = () => {};
 
+// [P6] 全局刷新锁 — 阻断并发 401 触发的 Token 刷新风暴
+let refreshPromise: Promise<string | null> | null = null;
+
+async function refreshSessionOnce(): Promise<string | null> {
+  if (refreshPromise) return refreshPromise;
+  refreshPromise = (async () => {
+    try {
+      const supabase = createClient();
+      const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+      if (refreshData?.session && !refreshError) {
+        const newToken = refreshData.session.access_token;
+        setTokenSetter(newToken);
+        return newToken;
+      }
+      // Refresh failed — hard logout
+      await supabase.auth.signOut();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('auth:logout'));
+      }
+      return null;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+  return refreshPromise;
+}
+
 /**
  * Dependency injection from the Zustand store to avoid circular imports
  */
@@ -82,21 +109,13 @@ export async function apiFetch(input: RequestInfo | URL, init?: CustomRequestIni
   // CapacitorHttp automatically bridges fetch requests on native apps
   let response = await fetch(url, customInit);
 
-  // Global 401 handling
+  // [P6] Global 401 handling — 使用刷新锁避免风暴
   if (response.status === 401 && !init?.skipAuthEvent && token) {
-    // If the server returns 401 despite having a token, the session is invalid
-    console.warn('API returned 401 Unauthorized. Dispatching logout event.');
-
-    // First, attempt to refresh the session silently
-    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-    if (refreshData?.session && !refreshError) {
-      const newToken = refreshData.session.access_token;
-      setTokenSetter(newToken); // Update it in global state if needed
-
-      // Re-run the request with the new token
+    const newToken = await refreshSessionOnce();
+    if (newToken) {
       const retryInit: CustomRequestInit = {
         ...customInit,
-        skipAuthEvent: true, // Prevent infinite loop
+        skipAuthEvent: true,
         headers: {
           ...customInit.headers,
           'Authorization': `Bearer ${newToken}`
@@ -104,10 +123,6 @@ export async function apiFetch(input: RequestInfo | URL, init?: CustomRequestIni
       };
       return fetch(url, retryInit);
     }
-
-    // If refresh failed, do a hard logout
-    await supabase.auth.signOut();
-    window.dispatchEvent(new CustomEvent('auth:logout'));
     const err: any = new Error('UNAUTHORIZED');
     err.isAuthError = true;
     throw err;

@@ -4,6 +4,10 @@ import { updateProvinceStats } from '@/app/actions/leaderboard';
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
+  // [P6] Fail-closed: CRON_SECRET 未配置时直接 503
+  if (!process.env.CRON_SECRET) {
+    return NextResponse.json({ error: 'Cron disabled: CRON_SECRET not configured' }, { status: 503 });
+  }
   // 验证 Vercel Cron 的鉴权 Header
   // 注意：需要在 Vercel 项目设置的环境变量中配置 CRON_SECRET
   const authHeader = request.headers.get('authorization');

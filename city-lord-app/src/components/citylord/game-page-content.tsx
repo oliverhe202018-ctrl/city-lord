@@ -1,5 +1,6 @@
 "use client"
 
+import { safeParseQueue } from '@/lib/offline-queue';
 import { Suspense, lazy } from 'react';
 const nextDynamic = (importFunc, options = {}) => {
   const LazyComponent = lazy(() => importFunc().then((mod: any) => {
@@ -1063,8 +1064,9 @@ export function GamePageContent({
         const offlineQueueJson = typeof window !== 'undefined'
           ? localStorage.getItem('pending_offline_runs')
           : null;
-        const offlineQueue: typeof payload[] = offlineQueueJson
-          ? JSON.parse(offlineQueueJson)
+        // [P6] 离线队列 JSON 免疫：使用 safeParseQueue 防御损坏数据
+        const offlineQueue = offlineQueueJson
+          ? safeParseQueue<typeof payload>(offlineQueueJson, 'pending_offline_runs')
           : [];
         offlineQueue.push(payload);
         if (offlineQueue.length > 50) {

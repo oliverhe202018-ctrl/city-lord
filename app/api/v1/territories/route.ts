@@ -21,6 +21,18 @@ export async function GET(req: NextRequest) {
     if (bboxParam) {
       const [minLng, minLat, maxLng, maxLat] = bboxParam.split(',').map(Number);
       if ([minLng, minLat, maxLng, maxLat].every(n => Number.isFinite(n))) {
+        // [P6] BBox 视口跨度限制 — 防止超大范围查询导致 OOM
+        const MAX_BBOX_SPAN = 2.0; // 最大约 222km 跨度
+        const lngSpan = maxLng - minLng;
+        const latSpan = maxLat - minLat;
+
+        if (lngSpan > MAX_BBOX_SPAN || latSpan > MAX_BBOX_SPAN || lngSpan <= 0 || latSpan <= 0) {
+          return NextResponse.json({
+            success: false,
+            error: 'BBox 范围超限，请缩小地图视口',
+          }, { status: 400 });
+        }
+
         bboxFilter = { minLng, minLat, maxLng, maxLat };
       }
     }
