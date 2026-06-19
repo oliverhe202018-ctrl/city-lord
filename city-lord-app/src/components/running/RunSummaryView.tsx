@@ -22,16 +22,40 @@ const StaticTrajectoryMap = dynamic(
   { loading: () => <MapSkeleton className="w-full h-full bg-slate-900 rounded-2xl" /> }
 );
 import { createClient } from '@/lib/supabase/client'
-import { createPost } from '@/app/actions/social-hub'
+import { apiClient } from '@/api/client'
 import { useGameStore } from '@/store/useGameStore'
-import { generateRunStory } from '@/app/actions/story-service'
-import { updateRunSummary, getRunSettlementStatus, getTerritoriesByRunId } from '@/app/actions/run-service'
 import { Clipboard } from '@capacitor/clipboard'
 import { useMapInteraction } from '@/components/map/MapInteractionContext'
 import { isNativePlatform } from '@/lib/capacitor/safe-plugins'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/fetch-shim';
+
+// [P5 Fix] REST API 调用封装
+const createPost = async (data: any) => {
+  const response = await apiClient.post('/api/v1/social/posts', data);
+  return response.data.data;
+};
+
+const generateRunStory = async (data: any) => {
+  const response = await apiClient.post('/api/v1/runs/story', data);
+  return response.data.data;
+};
+
+const updateRunSummary = async (runId: string, summary: string) => {
+  const response = await apiClient.post('/api/v1/runs/summary', { runId, summary });
+  return response.data.data;
+};
+
+const getRunSettlementStatus = async (runId: string) => {
+  const response = await apiClient.get('/api/v1/runs/settlement-status', { params: { runId } });
+  return response.data.data;
+};
+
+const getTerritoriesByRunId = async (runId: string) => {
+  const response = await apiClient.get('/api/v1/runs/territories', { params: { runId } });
+  return response.data.data;
+};
 
 
 interface RunSummaryViewProps {

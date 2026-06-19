@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { toast } from 'sonner';
+import { createClient } from '@/lib/supabase/client';
 
 // ─── Capacitor 环境检测 ──────────────────────────────────────────────────────
 const isCapacitor = 
@@ -34,6 +35,19 @@ class ApiClient {
     const headers = new Headers(customHeaders);
     if (!headers.has('Content-Type')) {
       headers.set('Content-Type', 'application/json');
+    }
+
+    // ── [P4 Fix] JWT 注入：从 Supabase Session 获取 access_token ─────────────
+    if (isCapacitor) {
+      try {
+        const supabase = createClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          headers.set('Authorization', `Bearer ${session.access_token}`);
+        }
+      } catch (err) {
+        console.warn('[ApiClient] Failed to get session:', err);
+      }
     }
 
     const method = (options.method || 'GET').toUpperCase();

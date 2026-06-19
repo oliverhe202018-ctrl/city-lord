@@ -65,7 +65,7 @@ export async function checkFeatureAccess(
   cacheMinutes: number = 30
 ): Promise<GateResult> {
   // 1. 验证功能标识符是否合法
-  const gateConfig = FEATURE_GATES.find(g => g.feature_key === feature_key)
+  const gateConfig = FEATURE_GATES.find(g => g.featureKey === feature_key)
   if (!gateConfig) {
     return {
       success: false,
@@ -76,7 +76,7 @@ export async function checkFeatureAccess(
 
   // 2. 查询用户当前等级
   const profile = await prisma.profiles.findUnique({
-    where: { id: userId },
+    where: { id: user_id },
     select: { level: true, xp: true }
   })
 
@@ -84,7 +84,7 @@ export async function checkFeatureAccess(
     return {
       success: false,
       code: 'error',
-      message: `用户 "${userId}" 不存在`
+      message: `用户 "${user_id}" 不存在`
     }
   }
 
@@ -110,7 +110,7 @@ export async function checkFeatureAccess(
   const access = await prisma.user_feature_accesses.findUnique({
     where: {
       user_id_feature_key: {
-        userId,
+        user_id,
         feature_key
       }
     }
@@ -165,19 +165,19 @@ export async function unlockFeature(
     await prisma.user_feature_accesses.upsert({
       where: {
         user_id_feature_key: {
-          userId,
+          user_id,
           feature_key
         }
       },
       create: {
-        userId,
+        user_id,
         feature_key
       },
       update: {}
     })
     return true
   } catch (error) {
-    console.error(`[unlockFeature] Failed to unlock ${feature_key} for user ${userId}:`, error)
+    console.error(`[unlockFeature] Failed to unlock ${feature_key} for user ${user_id}:`, error)
     return false
   }
 }
@@ -200,7 +200,7 @@ export async function checkFeatureAccessBatch(
   const results: Record<string, FeatureAccessRecord> = {}
 
   for (const feature_key of featureKeys) {
-    const result = await checkFeatureAccess(userId, feature_key)
+    const result = await checkFeatureAccess(user_id, feature_key)
     results[feature_key] = {
       feature_key,
       unlocked_at: result.code === 'allowed' ? new Date() : null
@@ -226,7 +226,7 @@ export async function checkFeatureAccessBatch(
  */
 export async function getFeatureStatus(user_id: string): Promise<FeatureAccessRecord[]> {
   const records = await prisma.user_feature_accesses.findMany({
-    where: { userId },
+    where: { user_id },
     select: { feature_key: true, unlocked_at: true }
   })
 
@@ -249,7 +249,7 @@ export async function getFeatureStatus(user_id: string): Promise<FeatureAccessRe
  * @returns boolean 是否可用
  */
 export function isFeatureAvailable(userLevel: number, feature_key: string): boolean {
-  const gate = FEATURE_GATES.find(g => g.feature_key === feature_key)
+  const gate = FEATURE_GATES.find(g => g.featureKey === feature_key)
   if (!gate) return false
   return userLevel >= gate.minLevel
 }
@@ -266,7 +266,7 @@ export function isFeatureAvailable(userLevel: number, feature_key: string): bool
  * @returns number 解锁进度（0-100）
  */
 export function calculateUnlockProgress(userLevel: number, feature_key: string): number {
-  const gate = FEATURE_GATES.find(g => g.feature_key === feature_key)
+  const gate = FEATURE_GATES.find(g => g.featureKey === feature_key)
   if (!gate) return 100
 
   const requiredLevel = gate.minLevel

@@ -52,12 +52,6 @@ const nextConfig: NextConfig = {
   typescript: { ignoreBuildErrors: true },
   eslint: { ignoreDuringBuilds: true },
   experimental: {
-    outputFileTracingIncludes: {
-      "/*": ["./public/**/*"],
-    },
-    outputFileTracingExcludes: {
-      "/*": ["./.next/server/app/**/*.nft.json"],
-    },
     serverActions: {
       bodySizeLimit: '4mb',
       allowedOrigins: ['cl1.6543666.xyz', '*.6543666.xyz'],

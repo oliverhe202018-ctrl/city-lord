@@ -5,11 +5,15 @@ import { cleanAndSplitTrajectory } from '../gis/geometry-cleaner';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { TerritoryStatsAggregatorService } from '@/lib/services/territory-stats-aggregator';
-import { extractValidLoops, LOOP_CLOSURE_THRESHOLD_M } from '@/lib/geometry-utils';
+import { extractValidLoops, LOOP_CLOSURE_THRESHOLD_M, simplifyPathDP } from '@/lib/geometry-utils';
 import { gcj02LngLatToWgs84 } from '@/lib/gis/coord-transform';
 import { tasks } from '@trigger.dev/sdk';
 import { processPostRunRewards } from '../game/gamification-dispatcher';
 import { MIN_TERRITORY_AREA_M2 } from '@/lib/constants/territory';
+
+// [P3 Fix] 服务端防作弊常量
+const MAX_TERRITORY_AREA_M2 = 500_000; // 物理极限：50万平方米
+const MAX_TRACK_POINTS_BEFORE_SIMPLIFY = 500; // 超过此数量触发 Douglas-Peucker 抽稀
 
 export interface SettlementInput {
     runId: string;
@@ -78,6 +82,61 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
         } as any;
     }
 
+    // [P3 Fix] 服务端防作弊校验：轨迹闭合性、物理极限、算法优化
+    if (pathGeoJSON?.geometry?.type === 'Polygon') {
+        const rawCoords = pathGeoJSON.geometry.coordinates?.[0];
+        if (Array.isArray(rawCoords) && rawCoords.length >= 2) {
+            // Rule A: 真实性校验 - 起终点距离必须小于闭合阈值
+            const startPoint = rawCoords[0];
+            const endPoint = rawCoords[rawCoords.length - 1];
+            const startEndDistance = turf.distance(
+                turf.point(startPoint),
+                turf.point(endPoint),
+                { units: 'meters' }
+            );
+            
+            if (startEndDistance > LOOP_CLOSURE_THRESHOLD_M * 2) {
+                console.warn(`[Settlement] 防作弊拦截：轨迹未闭合，起终点距离 ${startEndDistance.toFixed(1)}m > 阈值 ${LOOP_CLOSURE_THRESHOLD_M * 2}m`);
+                return {
+                    success: false,
+                    errorCode: 'TRACK_NOT_CLOSED',
+                    error: `Track not closed: start-end distance ${startEndDistance.toFixed(1)}m exceeds threshold`,
+                    createdTerritories: 0,
+                    reinforcedTerritories: 0,
+                    damagedTerritories: 0,
+                    destroyedTerritories: 0,
+                    damageDetails: [],
+                    maintenanceDetails: []
+                } as any;
+            }
+
+            // Rule C: 算法优化 - 轨迹点超过 500 时触发 Douglas-Peucker 抽稀
+            if (rawCoords.length > MAX_TRACK_POINTS_BEFORE_SIMPLIFY) {
+                console.log(`[Settlement] 轨迹点数量 ${rawCoords.length} > ${MAX_TRACK_POINTS_BEFORE_SIMPLIFY}，触发 Douglas-Peucker 抽稀`);
+                const simplifiedCoords = simplifyPathDP(
+                    rawCoords.map((coord, idx) => ({
+                        lng: coord[0],
+                        lat: coord[1],
+                        timestamp: idx
+                    })),
+                    2.0 // 2米容差
+                );
+                
+                // 更新 pathGeoJSON 为简化后的版本
+                if (simplifiedCoords.length < rawCoords.length) {
+                    console.log(`[Settlement] Douglas-Peucker 抽稀完成：${rawCoords.length} -> ${simplifiedCoords.length} 点`);
+                    const simplifiedRing = simplifiedCoords.map(c => [c.lng, c.lat] as [number, number]);
+                    // 确保闭合
+                    if (simplifiedRing[0][0] !== simplifiedRing[simplifiedRing.length - 1][0] ||
+                        simplifiedRing[0][1] !== simplifiedRing[simplifiedRing.length - 1][1]) {
+                        simplifiedRing.push([...simplifiedRing[0]]);
+                    }
+                    pathGeoJSON.geometry.coordinates = [simplifiedRing];
+                }
+            }
+        }
+    }
+
     let cleanedPolygons: Feature<Polygon>[];
 
     if (input.preProcessedPolygons && input.preProcessedPolygons.length > 0) {
@@ -128,6 +187,22 @@ export async function processTerritorySettlement(input: SettlementInput): Promis
     }, 0);
     if (runAreaSqMeters < MIN_TERRITORY_AREA_M2) {
         return { success: false, createdTerritories: 0, reinforcedTerritories: 0, damagedTerritories: 0, destroyedTerritories: 0, damageDetails: [], maintenanceDetails: [], error: 'Run area too small' };
+    }
+    
+    // [P3 Fix] Rule B: 物理极限校验 - 面积不得超过 500,000 平方米
+    if (runAreaSqMeters > MAX_TERRITORY_AREA_M2) {
+        console.warn(`[Settlement] 防作弊拦截：面积 ${runAreaSqMeters.toFixed(0)}m² > 物理极限 ${MAX_TERRITORY_AREA_M2}m²`);
+        return {
+            success: false,
+            errorCode: 'AREA_EXCEEDS_LIMIT',
+            error: `Territory area ${runAreaSqMeters.toFixed(0)}m² exceeds physical limit ${MAX_TERRITORY_AREA_M2}m²`,
+            createdTerritories: 0,
+            reinforcedTerritories: 0,
+            damagedTerritories: 0,
+            destroyedTerritories: 0,
+            damageDetails: [],
+            maintenanceDetails: []
+        } as any;
     }
 
     // Recalculate combined geometry for PostGIS intersection check

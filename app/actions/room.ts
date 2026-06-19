@@ -64,7 +64,7 @@ export async function fetchRoomDetails(roomId: string) {
     target_distance_km: room.target_distance_km,
     target_duration_minutes: room.target_duration_minutes,
     max_participants: room.max_participants,
-    participants_count: room.participants_count || 0,
+    participants_count: (room as any).participants_count || 0,
     is_private: room.is_private,
     is_locked: room.is_private,
     status: room.status,

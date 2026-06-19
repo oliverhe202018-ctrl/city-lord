@@ -1,8 +1,9 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { ApiResponse } from '@/types/api';
 import { AppError, ErrorCode } from './errors';
 
-type AppRouteHandler = (req: Request, context: any) => Promise<NextResponse | Response> | NextResponse | Response;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AppRouteHandler = (...args: any[]) => Promise<NextResponse | Response> | NextResponse | Response;
 
 interface HandlerOptions {
   requireAuth?: boolean;

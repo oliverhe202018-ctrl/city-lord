@@ -30,11 +30,11 @@ async function main() {
 
     console.log('[3/6] 重置阵营面积统计 (faction_stats)...');
     // 清理缓存和快照
-    await prisma.factionStatsCache.deleteMany({});
+    await prisma.faction_stats_caches.deleteMany({});
     await prisma.faction_stats_snapshot.deleteMany({});
     
     // 初始化空数据 (可选)
-    await prisma.factionStatsCache.create({
+    await prisma.faction_stats_caches.create({
         data: {
             red_area: 0,
             blue_area: 0
@@ -68,7 +68,7 @@ async function main() {
     console.log('✅ 用户总面积已重置为 0');
 
     console.log('[6/6] 清理地图省份统计 (ProvinceStat)...');
-    await prisma.provinceStat.deleteMany({});
+    await prisma.province_stats.deleteMany({});
     console.log('✅ 省份统计已清理');
 
     console.log('\n✨ [SUCCESS] 所有脏数据已清理完毕！');

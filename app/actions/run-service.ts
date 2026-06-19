@@ -1162,7 +1162,7 @@ export async function updateRunSummary(runId: string, summary: string): Promise<
         
         await prisma.runs.update({
             where: { id: runId },
-            data: { aiSummary: summary }
+            data: { ai_summary: summary }
         });
 
         console.log(`[RunService] AI Summary updated for run: ${runId}`);

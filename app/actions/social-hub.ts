@@ -149,8 +149,8 @@ export async function getFeedTimeline(input: FeedQueryInput): Promise<FeedTimeli
             const isBlocked = await prisma.blocked_users.findFirst({
                 where: {
                     OR: [
-                        { blockerId: user.id, blockedId: targetUserId },
-                        { blockerId: targetUserId, blockedId: user.id }
+                        { blocker_id: user.id, blocked_id: targetUserId },
+                        { blocker_id: targetUserId, blocked_id: user.id }
                     ]
                 }
             })
@@ -167,7 +167,7 @@ export async function getFeedTimeline(input: FeedQueryInput): Promise<FeedTimeli
             Sentry.startSpan(
                 { op: 'db.query', name: 'db.blocked_users' },
                 () => prisma.blocked_users.findMany({
-                    where: { OR: [{ blockerId: user.id }, { blockedId: user.id }] }
+                    where: { OR: [{ blocker_id: user.id }, { blocked_id: user.id }] }
                 })
             ),
             filter === 'FRIENDS'
@@ -181,7 +181,7 @@ export async function getFeedTimeline(input: FeedQueryInput): Promise<FeedTimeli
         ])
 
         // Always exclude blocked users' posts globally
-        const blockedUserIds = blockedRecords.map(b => b.blockerId === user.id ? b.blockedId : b.blockerId)
+        const blockedUserIds = blockedRecords.map(b => b.blocker_id === user.id ? b.blocked_id : b.blocker_id)
 
         if (blockedUserIds.length > 0) {
             whereClause.user_id = { notIn: blockedUserIds }
@@ -215,7 +215,7 @@ export async function getFeedTimeline(input: FeedQueryInput): Promise<FeedTimeli
                 orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
                 include: {
                     user: { select: { id: true, nickname: true, avatar_url: true, level: true } },
-                    run: { select: { aiSummary: true } },
+                    run: { select: { ai_summary: true } },
                     comments: {
                         where: { status: 'ACTIVE' },
                         take: 3,
@@ -293,8 +293,8 @@ export async function togglePostLike(postId: string): Promise<{ liked: boolean, 
         const isBlocked = await prisma.blocked_users.findFirst({
             where: {
                 OR: [
-                    { blockerId: user.id, blockedId: post.user_id },
-                    { blockerId: post.user_id, blockedId: user.id }
+                    { blocker_id: user.id, blocked_id: post.user_id },
+                    { blocker_id: post.user_id, blocked_id: user.id }
                 ]
             }
         })
@@ -355,8 +355,8 @@ export async function createPostComment(input: CommentInput): Promise<{ success:
         const isBlocked = await prisma.blocked_users.findFirst({
             where: {
                 OR: [
-                    { blockerId: user.id, blockedId: post.user_id },
-                    { blockerId: post.user_id, blockedId: user.id }
+                    { blocker_id: user.id, blocked_id: post.user_id },
+                    { blocker_id: post.user_id, blocked_id: user.id }
                 ]
             }
         })
@@ -434,8 +434,8 @@ export async function getPostComments(input: GetPostCommentsInput): Promise<GetP
         const isBlocked = await prisma.blocked_users.findFirst({
             where: {
                 OR: [
-                    { blockerId: user.id, blockedId: post.user_id },
-                    { blockerId: post.user_id, blockedId: user.id }
+                    { blocker_id: user.id, blocked_id: post.user_id },
+                    { blocker_id: post.user_id, blocked_id: user.id }
                 ]
             }
         })
@@ -471,8 +471,8 @@ export async function blockUser(targetUserId: string): Promise<{ success: boolea
         if (!user) return { success: false, error: { code: 403, message: 'Unauthorized' } }
 
         await prisma.blocked_users.upsert({
-            where: { blockerId_blockedId: { blockerId: user.id, blockedId: targetUserId } },
-            create: { blockerId: user.id, blockedId: targetUserId },
+            where: { blocker_id_blocked_id: { blocker_id: user.id, blocked_id: targetUserId } },
+            create: { blocker_id: user.id, blocked_id: targetUserId },
             update: {}
         })
         return { success: true }
@@ -515,11 +515,11 @@ export async function getRegionalRecommendations(limit: number = 10): Promise<{ 
                 where: { OR: [{ user_id: user.id }, { friend_id: user.id }] }
             }),
             prisma.blocked_users.findMany({
-                where: { OR: [{ blockerId: user.id }, { blockedId: user.id }] }
+                where: { OR: [{ blocker_id: user.id }, { blocked_id: user.id }] }
             })
         ])
         const friendIds = friendships.map(f => f.user_id === user.id ? f.friend_id : f.user_id)
-        const blockedIds = blocked.map(b => b.blockerId === user.id ? b.blockedId : b.blockerId)
+        const blockedIds = blocked.map(b => b.blocker_id === user.id ? b.blocked_id : b.blocker_id)
         const excludeIds = [user.id, ...friendIds, ...blockedIds]
 
         let finalUsers: any[] = []

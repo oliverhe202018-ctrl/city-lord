@@ -27,7 +27,7 @@ export async function addExperienceUnified(
         select: { level: true, xp: true, max_stamina: true }
       })
 
-      const currentExp = profile.xp || 0
+      const currentExp = Number(profile.xp || 0)
       const currentLevel = profile.level || 1
       const maxStamina = profile.max_stamina ?? 100
 
@@ -52,7 +52,7 @@ export async function addExperienceUnified(
       
       await tx.exp_logs.create({
         data: {
-          userId,
+          user_id: userId,
           amount,
           old_exp: currentExp,
           new_exp,

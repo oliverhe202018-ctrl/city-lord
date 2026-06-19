@@ -55,9 +55,9 @@ export function ProfileHeader({
         <div className="relative">
             {/* Background Image */}
             <div className="relative h-48 w-full overflow-hidden bg-gradient-to-br from-indigo-900 via-purple-900 to-cyan-900">
-                {user.backgroundUrl ? (
+                {user.background_url ? (
                     <Image
-                        src={user.backgroundUrl}
+                        src={user.background_url}
                         alt="背景图"
                         fill
                         className="object-cover"
@@ -112,11 +112,6 @@ export function ProfileHeader({
                             <span className="text-xs px-2 py-0.5 rounded-full bg-gradient-to-r from-cyan-500/20 to-purple-500/20 text-cyan-400 font-medium border border-cyan-500/20">
                                 LVL {user.level ?? 1}
                             </span>
-                            {user.badges?.length > 0 && (
-                                <span className="text-xs text-muted-foreground">
-                                    🏅 {user.badges.length} 勋章
-                                </span>
-                            )}
                         </div>
                     </div>
                 </div>

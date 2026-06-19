@@ -7,7 +7,7 @@ export const POST = withErrorHandler(async (req: Request) => {
     const token = authHeader?.startsWith('Bearer ') ? authHeader.replace('Bearer ', '') : undefined;
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    
+
     if (authError || !user) {
       return Response.json({ error: 'UNAUTHORIZED' }, { status: 401 });
     }
@@ -23,17 +23,30 @@ export const POST = withErrorHandler(async (req: Request) => {
       return Response.json({ error: 'runId required in batch items' }, { status: 400 });
     }
 
-    // 批量 upsert 轨迹点（幂等）
-    await prisma.run_trajectory_points.createMany({
-      data: batch.map((pt: any) => ({
-        run_id: runId,
-        sequence_id: pt.sequenceId,
-        lat: pt.lat,
-        lng: pt.lng,
-        accuracy: pt.accuracy ?? null,
-        recorded_at: new Date(pt.timestamp),
-      })),
-      skipDuplicates: true,
+    // 批量更新轨迹点到 runs.path 字段（JSON 数组）
+    const run = await prisma.runs.findUnique({
+      where: { id: runId },
+      select: { path: true }
+    });
+
+    if (!run) {
+      return Response.json({ error: 'Run not found' }, { status: 404 });
+    }
+
+    const existingPath = Array.isArray(run.path) ? run.path : [];
+    const newPoints = batch.map((pt: any) => ({
+      lat: pt.lat,
+      lng: pt.lng,
+      timestamp: pt.timestamp,
+      accuracy: pt.accuracy ?? null,
+      sequenceId: pt.sequenceId,
+    }));
+
+    const mergedPath = [...existingPath, ...newPoints];
+
+    await prisma.runs.update({
+      where: { id: runId },
+      data: { path: mergedPath }
     });
 
     return successResponse({

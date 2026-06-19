@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { cookies } from 'next/headers';
+import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { prisma } from '@/lib/prisma';
 
 export async function GET(request: NextRequest) {
@@ -18,11 +17,18 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-        const cookieStore = await cookies();
-        const supabase = await createClient(cookieStore);
-        const { data: { user } } = await supabase.auth.getUser();
+        // [P4 Fix] 从 Authorization Header 提取 JWT Token 进行鉴权
+        const authHeader = request.headers.get('Authorization');
+        const token = authHeader?.startsWith('Bearer ') ? authHeader.replace('Bearer ', '') : null;
+        
+        if (!token) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
 
-        if (!user) {
+        const supabase = getSupabaseAdmin();
+        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+        if (authError || !user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
@@ -90,8 +96,7 @@ export async function GET(request: NextRequest) {
 
             (fData || []).forEach(f => {
                 const otherId = f.user_id === user.id ? f.friend_id : f.user_id;
-                // @ts-expect-error - FIXME: Type 'string | null' is not assignable to type 'string'. - [Ticket-202603-SchemaSync] baseline exemption
-                friendshipsMap[otherId] = f.status; // 'pending' or 'accepted'
+                friendshipsMap[otherId] = f.status || 'pending'; // 'pending' or 'accepted'
             });
         }
 

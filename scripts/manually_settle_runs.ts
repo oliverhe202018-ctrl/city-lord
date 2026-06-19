@@ -47,7 +47,12 @@ async function main() {
       continue;
     }
 
-    const cityId = run.city_id || 'wulumuqi'; // Default fallback city ID
+    // Resolve cityId from user_city_progress (runs table has no city_id)
+    const userCity = await prisma.user_city_progress.findFirst({
+      where: { user_id: run.user_id! },
+      orderBy: { last_active_at: 'desc' }
+    });
+    const cityId = userCity?.city_id || 'wulumuqi'; // Default fallback city ID
     console.log(`- Using City ID: ${cityId}`);
 
     let settledCount = 0;

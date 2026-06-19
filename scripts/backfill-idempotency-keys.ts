@@ -17,7 +17,7 @@ async function main() {
 
   // 统计需要回填的记录数
   const nullCount = await prisma.runs.count({
-    where: { idempotency_key: null }
+    where: { idempotency_key: null as any }
   })
 
   if (nullCount === 0) {
@@ -33,7 +33,7 @@ async function main() {
 
   while (processed < nullCount) {
     const records = await prisma.runs.findMany({
-      where: { idempotency_key: null },
+      where: { idempotency_key: null as any },
       select: { id: true },
       take: BATCH_SIZE
     })
@@ -57,7 +57,7 @@ async function main() {
 
   // 验证：确认没有 NULL 值残留
   const remainingNulls = await prisma.runs.count({
-    where: { idempotency_key: null }
+    where: { idempotency_key: null as any }
   })
 
   if (remainingNulls > 0) {

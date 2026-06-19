@@ -190,7 +190,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
             updated_at: new Date(),
             area: 0,
             duration: 0,
-            city_id: body.cityId ?? 'global',
+            province: 'global',
             idempotency_key: idempotencyKey,
           }
         });

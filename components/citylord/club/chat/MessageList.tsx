@@ -156,7 +156,7 @@ function MessageBubble({
                         {senderName}
                     </span>
                     <span className="text-[10px] text-white/25">
-                        <ClientTime iso={msg.createdAt} />
+                        <ClientTime iso={msg.type === 'confirmed' ? msg.created_at : msg.createdAt} />
                     </span>
                 </div>
 

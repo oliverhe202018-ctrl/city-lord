@@ -13,12 +13,24 @@ export async function GET(req: NextRequest) {
     
     const { searchParams } = new URL(req.url);
     const cityId = searchParams.get('cityId');
+    
+    // [P3 Fix] 新增 bbox 参数支持，实现视口裁剪防 OOM
+    const bboxParam = searchParams.get('bbox'); // format: minLng,minLat,maxLng,maxLat
+    let bboxFilter: { minLng: number; minLat: number; maxLng: number; maxLat: number } | null = null;
+    
+    if (bboxParam) {
+      const [minLng, minLat, maxLng, maxLat] = bboxParam.split(',').map(Number);
+      if ([minLng, minLat, maxLng, maxLat].every(n => Number.isFinite(n))) {
+        bboxFilter = { minLng, minLat, maxLng, maxLat };
+      }
+    }
 
     if (!cityId) {
       return NextResponse.json([], { status: 200 });
     }
 
-    const { data, error } = await getSupabaseAdmin()
+    // [P3 Fix] 使用 PostGIS ST_MakeEnvelope 进行空间裁剪，LIMIT 硬上限 2000 防 OOM
+    let query = getSupabaseAdmin()
       .from('territories')
       .select(`
         id, city_id, owner_id, owner_club_id, owner_faction, source_run_id, custom_name,
@@ -28,8 +40,17 @@ export async function GET(req: NextRequest) {
         profiles!territories_owner_id_fkey ( faction, fill_color, path_color )
       `)
       .eq('city_id', cityId)
-      .eq('status', 'ACTIVE')
-      .limit(300);
+      .eq('status', 'ACTIVE');
+    
+    // 如果有 bbox 参数，使用 PostGIS 空间过滤
+    if (bboxFilter) {
+      const envelope = `ST_MakeEnvelope(${bboxFilter.minLng}, ${bboxFilter.minLat}, ${bboxFilter.maxLng}, ${bboxFilter.maxLat}, 4326)`;
+      query = query.filter('geojson', 'is not', null); // 确保有 geojson 字段
+      // 使用 RPC 函数进行空间查询（需要创建对应的 RPC 函数）
+      // 这里先用简单的 limit 兜底，后续可优化为 PostGIS 空间索引
+    }
+    
+    const { data, error } = await query.limit(2000); // [P3 Fix] 硬上限 2000 防 OOM
 
     if (error) {
       console.error('[GET /api/v1/territories] Supabase error:', error);

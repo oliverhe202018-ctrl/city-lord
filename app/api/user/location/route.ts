@@ -52,26 +52,31 @@ export async function POST(req: NextRequest) {
             .eq("user_id", user.id)
             .order("updated_at", { ascending: false })
             .limit(1)
-            .single();
+            .maybeSingle() as { data: { updated_at: string | null; location: unknown } | null; error: any };
 
         // Supabase postgREST returns GeoJSON for geometry columns by default.
         // Example: { "type": "Point", "coordinates": [lng, lat] }
         let isSpeeding = false;
         let calculatedSpeed = 0;
 
-        if (lastLocation && lastLocation.location && lastLocation.location.coordinates) {
-            const lastLng = lastLocation.location.coordinates[0];
-            const lastLat = lastLocation.location.coordinates[1];
-            const lastTime = new Date(lastLocation.updated_at).getTime();
+        if (lastLocation) {
+            const locationData = lastLocation.location as unknown as { coordinates: [number, number] } | null;
+            const updatedAt = lastLocation.updated_at;
+            
+            if (locationData?.coordinates && updatedAt) {
+                const lastLng = locationData.coordinates[0];
+                const lastLat = locationData.coordinates[1];
+                const lastTime = new Date(updatedAt).getTime();
 
-            const timeDiffHours = (now - lastTime) / (1000 * 60 * 60);
+                const timeDiffHours = (now - lastTime) / (1000 * 60 * 60);
 
-            if (timeDiffHours > 0) {
-                const distanceKm = haversineDistanceKm(lastLat, lastLng, latitude, longitude);
-                calculatedSpeed = distanceKm / timeDiffHours;
+                if (timeDiffHours > 0) {
+                    const distanceKm = haversineDistanceKm(lastLat, lastLng, latitude, longitude);
+                    calculatedSpeed = distanceKm / timeDiffHours;
 
-                if (calculatedSpeed > MAX_SPEED_KMH) {
-                    isSpeeding = true;
+                    if (calculatedSpeed > MAX_SPEED_KMH) {
+                        isSpeeding = true;
+                    }
                 }
             }
         }
@@ -84,7 +89,7 @@ export async function POST(req: NextRequest) {
                     type: "map_teleport",
                     location: { lat: latitude, lng: longitude },
                     reported_speed: calculatedSpeed
-                });
+                } as any);
             } catch (logErr) {
                 console.error("[AntiCheat] Failed to write suspicious report:", logErr);
             }
@@ -96,11 +101,11 @@ export async function POST(req: NextRequest) {
         }
 
         // If validation passes, save the new location
-        const { error: insertErr } = await supabaseAdmin.rpc("update_user_location_rpc", {
+        const { error: insertErr } = await supabaseAdmin.rpc("update_user_location_rpc" as any, {
             p_user_id: user.id,
             p_lat: latitude,
             p_lng: longitude
-        });
+        } as any);
 
         if (insertErr) {
             console.error("[api/user/location] Failed to insert location via RPC:", insertErr);

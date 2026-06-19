@@ -17,6 +17,10 @@ export enum ErrorCode {
   CHEAT_MULTIPLE_DEVICES = 'CHEAT_MULTIPLE_DEVICES',
   CHEAT_GENERAL_VIOLATION = 'CHEAT_GENERAL_VIOLATION',
 
+  // Request/Response Domain
+  REQ_BAD_PARAM = 'REQ_BAD_PARAM',
+  RES_NOT_FOUND = 'RES_NOT_FOUND',
+
   // Business Domain
   BIZ_CLUB_FULL = 'BIZ_CLUB_FULL',
   BIZ_TERRITORY_PROTECTED = 'BIZ_TERRITORY_PROTECTED',
@@ -24,6 +28,7 @@ export enum ErrorCode {
   BIZ_RESOURCE_NOT_FOUND = 'BIZ_RESOURCE_NOT_FOUND',
   BIZ_VALIDATION_FAILED = 'BIZ_VALIDATION_FAILED',
   BIZ_TOO_MANY_REQUESTS = 'BIZ_TOO_MANY_REQUESTS',
+  BIZ_LOGIC_ERROR = 'BIZ_LOGIC_ERROR',
 
   // System
   SYS_INTERNAL_ERROR = 'SYS_INTERNAL_ERROR',
@@ -49,6 +54,10 @@ export const ERROR_HTTP_STATUS: Record<ErrorCode, number> = {
   [ErrorCode.CHEAT_MULTIPLE_DEVICES]: 403,
   [ErrorCode.CHEAT_GENERAL_VIOLATION]: 403,
 
+  // Request/Response Domain
+  [ErrorCode.REQ_BAD_PARAM]: 400,
+  [ErrorCode.RES_NOT_FOUND]: 404,
+
   // Business Domain
   [ErrorCode.BIZ_CLUB_FULL]: 409,
   [ErrorCode.BIZ_TERRITORY_PROTECTED]: 403,
@@ -56,6 +65,7 @@ export const ERROR_HTTP_STATUS: Record<ErrorCode, number> = {
   [ErrorCode.BIZ_RESOURCE_NOT_FOUND]: 404,
   [ErrorCode.BIZ_VALIDATION_FAILED]: 400,
   [ErrorCode.BIZ_TOO_MANY_REQUESTS]: 429,
+  [ErrorCode.BIZ_LOGIC_ERROR]: 400,
 
   // System
   [ErrorCode.SYS_INTERNAL_ERROR]: 500,

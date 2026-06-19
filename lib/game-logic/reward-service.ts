@@ -25,7 +25,7 @@ export async function grantRewards(
       select: { xp: true, level: true, coins: true }
     })
     return {
-      new_exp: current?.xp || 0,
+      new_exp: Number(current?.xp || 0),
       newLevel: current?.level || 1,
       newCoins: current?.coins || 0,
       levelUp: false
@@ -41,7 +41,7 @@ export async function grantRewards(
         select: { xp: true, level: true, coins: true }
       })
 
-      const currentExp = profile.xp || 0
+      const currentExp = Number(profile.xp || 0)
       const currentLevel = profile.level || 1
       const currentCoins = profile.coins || 0
 
@@ -67,7 +67,7 @@ export async function grantRewards(
       
       await tx.reward_logs.create({
         data: {
-          userId,
+          user_id: userId,
           exp: incExp > 0 ? incExp : null,
           coins: incCoins > 0 ? incCoins : null,
           source,

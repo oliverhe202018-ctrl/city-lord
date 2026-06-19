@@ -157,11 +157,11 @@ export default function AdminBackgroundsPage() {
                                     {/* Thumbnail */}
                                     <TableCell>
                                         <button
-                                            onClick={() => handleViewImage(bg.imageUrl)}
+                                            onClick={() => handleViewImage(bg.image_url)}
                                             className="relative w-16 h-12 rounded overflow-hidden border border-border hover:ring-2 ring-cyan-500 transition-all"
                                         >
                                             <Image
-                                                src={bg.previewUrl || bg.imageUrl}
+                                                src={bg.preview_url || bg.image_url}
                                                 alt={bg.name}
                                                 fill
                                                 className="object-cover"
@@ -177,17 +177,17 @@ export default function AdminBackgroundsPage() {
 
                                     {/* Type */}
                                     <TableCell>
-                                        {bg.isDefault && (
+                                        {bg.is_default && (
                                             <span className="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs border border-emerald-500/20">
                                                 免费/默认
                                             </span>
                                         )}
-                                        {bg.conditionType === 'level' && (
+                                        {bg.condition_type === 'level' && (
                                             <span className="px-2 py-1 rounded-full bg-purple-500/10 text-purple-400 text-xs border border-purple-500/20">
                                                 等级解锁
                                             </span>
                                         )}
-                                        {bg.conditionType === 'coins' && (
+                                        {bg.condition_type === 'coins' && (
                                             <span className="px-2 py-1 rounded-full bg-amber-500/10 text-amber-400 text-xs border border-amber-500/20">
                                                 💰 金币商品
                                             </span>
@@ -196,9 +196,9 @@ export default function AdminBackgroundsPage() {
 
                                     {/* Price/Condition */}
                                     <TableCell className="text-sm text-muted-foreground">
-                                        {bg.isDefault && '—'}
-                                        {bg.conditionType === 'level' && `等级 ≥ ${bg.conditionValue}`}
-                                        {bg.conditionType === 'coins' && `${bg.priceCoins} 金币`}
+                                        {bg.is_default && '—'}
+                                        {bg.condition_type === 'level' && `等级 ≥ ${bg.condition_value}`}
+                                        {bg.condition_type === 'coins' && `${bg.price_coins} 金币`}
                                     </TableCell>
 
                                     {/* Status */}

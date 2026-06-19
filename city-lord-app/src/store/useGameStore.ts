@@ -5,7 +5,6 @@ import { type Room } from '@/types/room';
 
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
-import { touchUserActivity } from '@/app/actions/user';
 import { resetGlobalHydration } from '@/store/hydrationState';
 import { capacitorStorage } from '@/lib/capacitor-storage';
 
@@ -650,7 +649,8 @@ const createUserSlice: StateCreator<GameStore, [], [], UserActions> = (set, get)
   },
   touchActivity: async () => {
     try {
-      await touchUserActivity();
+      const { apiClient } = await import('@/api/client');
+      await apiClient.post('/api/v1/user/activity');
     } catch (error: any) {
       if (error?.name !== 'AbortError' && error?.digest !== 'NEXT_REDIRECT') {
         console.error('Failed to touch user activity:', error);

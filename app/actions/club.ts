@@ -293,7 +293,7 @@ export async function rejectClub(clubId: string, reason: string) {
     await getSupabaseAdmin().from('notifications').insert({
       user_id: club.owner_id,
       title: '俱乐部审核未通过',
-      message: `很遗憾，您的俱乐部“${club.name}”申请未通过。原因：${reason}`,
+      body: `很遗憾，您的俱乐部“${club.name}”申请未通过。原因：${reason}`,
       type: 'system'
     })
   }
@@ -1511,9 +1511,11 @@ export async function getClubPublicProfile(clubId: string) {
   if (!club) return null
 
   // 总领地面积（从 territories 聚合）
+  // @ts-expect-error - RPC function not in generated types
   const { data: areaData } = await supabase.rpc('get_club_total_area', { p_club_id: clubId })
   
   // 全国排名（从已有 leaderboard 逻辑获取）
+  // @ts-expect-error - RPC function not in generated types
   const { data: rankData } = await supabase.rpc('get_club_rank', { p_club_id: clubId })
   
   // Top5 成员领地
@@ -1527,8 +1529,8 @@ export async function getClubPublicProfile(clubId: string) {
   return {
     ...club,
     total_area: areaData ?? 0,
-    rank_national: rankData?.rank_national ?? null,
-    rank_province: rankData?.rank_province ?? null,
+    rank_national: (rankData as any)?.rank_national ?? null,
+    rank_province: (rankData as any)?.rank_province ?? null,
     top_territories: topMembers?.map((m: any) => ({
       member_id: m.user_id,
       nickname: m.profiles?.nickname,

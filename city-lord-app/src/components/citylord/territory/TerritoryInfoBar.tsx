@@ -3,11 +3,11 @@
 import { useMapInteraction } from '@/components/map/MapInteractionContext'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
-import { getTerritoryDetail } from '@/app/actions/territory-detail'
 import { Loader2, ChevronRight } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useGameStore } from '@/store/useGameStore'
 import { useMapDisplayStore } from '@/store/useMapDisplayStore'
+import { apiClient } from '@/lib/api/client'
 
 export function TerritoryInfoBar() {
     const { selectedTerritory, setIsDetailSheetOpen } = useMapInteraction()
@@ -19,11 +19,17 @@ export function TerritoryInfoBar() {
     
     const { data: detail, isLoading } = useQuery({
         queryKey: ['territory-detail', activeId],
-        queryFn: () => getTerritoryDetail(activeId!, {
-            ownerId: selectedTerritory?.ownerId ?? undefined,
-            clubId: selectedTerritory?.ownerClubId ?? undefined,
-            sourceRunId: selectedTerritory?.sourceRunId ?? undefined
-        }),
+        queryFn: async () => {
+            const response = await apiClient.get('/api/v1/territories/detail', {
+                params: {
+                    territoryId: activeId!,
+                    ownerId: selectedTerritory?.ownerId ?? undefined,
+                    clubId: selectedTerritory?.ownerClubId ?? undefined,
+                    sourceRunId: selectedTerritory?.sourceRunId ?? undefined
+                }
+            })
+            return response.data.data
+        },
         enabled: !!activeId,
         staleTime: 60 * 1000, // 1 minute
     })

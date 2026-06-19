@@ -1,11 +1,31 @@
-﻿'use client'
+'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { toast } from 'sonner'
 import { ChannelList } from './ChannelList'
 import { MessageList, type DisplayMessage } from './MessageList'
 import { MessageInput } from './MessageInput'
-import { getClubChannels, getClubMessages, sendClubMessage, getMyClubMembership } from '@/app/actions/club-chat.actions'
+import { apiClient } from '@/api/client'
+
+const getClubChannelsAPI = async (clubId: string) => {
+  const response = await apiClient.get('/api/v1/club/chat/channels', { params: { clubId } });
+  return response.data;
+};
+
+const getClubMessagesAPI = async (clubId: string, channelId: string, cursor?: string, limit = 20) => {
+  const response = await apiClient.get('/api/v1/club/chat/messages', { params: { clubId, channelId, cursor, limit } });
+  return response.data;
+};
+
+const sendClubMessageAPI = async (data: { clubId: string; channelId: string; content: string; messageType?: string; audioUrl?: string; durationMs?: number; mimeType?: string; sizeBytes?: number }) => {
+  const response = await apiClient.post('/api/v1/club/chat/messages', data);
+  return response.data;
+};
+
+const getMyClubMembershipAPI = async (clubId: string) => {
+  const response = await apiClient.get('/api/v1/club/membership', { params: { clubId } });
+  return response.data;
+};
 import type { ClubChannel, ClubMessageWithSender, MembershipInfo } from '@/lib/types/club-chat.types'
 import { ClubChatError, ChannelKey, DEFAULT_CHANNELS } from '@/lib/types/club-chat.types'
 import { Shield, ArrowLeft, AlertTriangle, Image as ImageIcon } from 'lucide-react'
@@ -53,11 +73,10 @@ export function ClubChatView({ clubId, currentUserId, embedded = false }: ClubCh
     // ── Load channels + membership ───────────────────────────────
     useEffect(() => {
         let cancelled = false
-
         async function load() {
             const [chResult, memResult] = await Promise.all([
-                getClubChannels(clubId),
-                getMyClubMembership(clubId),
+                getClubChannelsAPI(clubId),
+                getMyClubMembershipAPI(clubId),
             ])
 
             if (cancelled) return

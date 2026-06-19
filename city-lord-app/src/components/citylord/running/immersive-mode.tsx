@@ -37,10 +37,21 @@ import { useGameStore } from '@/store/useGameStore'
 import { type ActiveRandomEvent } from '@/hooks/useRandomEvents'
 import { type RunEventLog } from '@/types/run-sync'
 import { LOOP_CLOSURE_SNAP_M, getDistanceFromLatLonInMeters } from '@/lib/geometry-utils'
-import { getRunSettlementStatus, getTerritoriesByRunId } from '@/app/actions/run-service'
+import { apiClient } from '@/api/client'
 import { useMapInteraction, MapInteractionProvider } from '@/components/map/MapInteractionContext'
 import { MapRoot } from '@/components/map/MapRoot'
 import { apiFetch } from '@/lib/fetch-shim';
+
+// [P5 Fix] REST API 调用封装
+const getRunSettlementStatus = async (runId: string) => {
+  const response = await apiClient.get('/api/v1/runs/settlement-status', { params: { runId } });
+  return response.data.data;
+};
+
+const getTerritoriesByRunId = async (runId: string) => {
+  const response = await apiClient.get('/api/v1/runs/territories', { params: { runId } });
+  return response.data.data;
+};
 
 
 // ─── Timeout utility for promises that may hang after sleep ───

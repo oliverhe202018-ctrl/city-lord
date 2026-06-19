@@ -35,7 +35,7 @@ export async function buyStoreItem(itemId: string): Promise<BuyItemResponse> {
             // 1.1 检查库存
             // Note: In a high-concurrency environment, we use atomic update + negative block 
             // instead of just checking before update.
-            const item = await tx.storeItem.findUnique({
+            const item = await tx.store_items.findUnique({
                 where: { id: itemId }
             })
 
@@ -44,7 +44,7 @@ export async function buyStoreItem(itemId: string): Promise<BuyItemResponse> {
             }
 
             // 1.2 检查钱包余额 (使用 UserWallet)
-            const wallet = await tx.userWallet.findUnique({
+            const wallet = await tx.user_wallets.findUnique({
                 where: { user_id: userId }
             })
 
@@ -55,7 +55,7 @@ export async function buyStoreItem(itemId: string): Promise<BuyItemResponse> {
             // 1.3 原子扣库存 (关键点)
             let updatedItem = item
             if (item.inventory_count !== -1) {
-                updatedItem = await tx.storeItem.update({
+                updatedItem = await tx.store_items.update({
                     where: { id: itemId },
                     data: { inventory_count: { decrement: 1 } },
                 })
@@ -68,13 +68,13 @@ export async function buyStoreItem(itemId: string): Promise<BuyItemResponse> {
             }
 
             // 1.4 原子扣款 (使用 UserWallet)
-            await tx.userWallet.update({
+            await tx.user_wallets.update({
                 where: { user_id: userId },
                 data: { sweat_coins: { decrement: item.price } },
             })
 
             // 1.5 写入资金流水 (使用 WalletTransaction - 审计必备)
-            const transactionRecord = await tx.walletTransaction.create({
+            const transactionRecord = await tx.wallet_transactions.create({
                 data: {
                     user_id: userId,
                     currency_type: 'COIN',

@@ -495,6 +495,9 @@ public class LocationForegroundService extends Service implements AMapLocationLi
     public void onDestroy() {
         Log.i(TAG, "onDestroy — cleaning up ALL resources");
 
+        // 0. [P0 Fix] 注册 AlarmManager 精确闹钟，作为 MIUI/OriginOS 杀进程后的强制唤醒兜底
+        scheduleRestartAlarm();
+
         // 1. Stop location
         stopLocationTracking();
 
@@ -553,6 +556,58 @@ public class LocationForegroundService extends Service implements AMapLocationLi
                 Thread.currentThread().interrupt();
             }
             Log.i(TAG, "dbExecutor 已关闭");
+        }
+    }
+
+    /**
+     * [P0 Fix] 注册 AlarmManager 精确闹钟，作为 MIUI/OriginOS 等深度定制 ROM 杀进程后的强制唤醒兜底。
+     * 在 onDestroy 中调用，确保服务被系统强制回收后能在 5 分钟内自动重启。
+     */
+    private void scheduleRestartAlarm() {
+        try {
+            AlarmManager alarmManager = (AlarmManager) getSystemService(ALARM_SERVICE);
+            if (alarmManager == null) {
+                Log.w(TAG, "AlarmManager not available, skip restart alarm");
+                return;
+            }
+
+            Intent restartIntent = new Intent(this, LocationRestartReceiver.class);
+            restartIntent.setAction("com.xiangfei.citylord.RESTART_SERVICE");
+            
+            int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                flags |= PendingIntent.FLAG_IMMUTABLE;
+            }
+            
+            PendingIntent pendingIntent = PendingIntent.getBroadcast(
+                this, 
+                0, 
+                restartIntent, 
+                flags
+            );
+
+            // 设置 5 分钟后的精确闹钟
+            long triggerAtMillis = SystemClock.elapsedRealtime() + 5 * 60 * 1000;
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                // API 23+: 使用 setExactAndAllowWhileIdle，即使在 Doze 模式下也能触发
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                    triggerAtMillis,
+                    pendingIntent
+                );
+                Log.i(TAG, "Scheduled restart alarm in 5 minutes (setExactAndAllowWhileIdle)");
+            } else {
+                // API < 23: 使用 setExact
+                alarmManager.setExact(
+                    AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                    triggerAtMillis,
+                    pendingIntent
+                );
+                Log.i(TAG, "Scheduled restart alarm in 5 minutes (setExact)");
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to schedule restart alarm: " + e.getMessage(), e);
         }
     }
 

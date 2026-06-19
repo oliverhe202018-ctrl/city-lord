@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react"
 import { useCity } from "@/contexts/CityContext"
-import { fetchUserMissions, claimMissionReward } from "@/app/actions/mission"
+import { fetchUserMissions, claimMissionRewardAction } from "@/app/actions/mission"
 import { fetchUserAchievements } from "@/app/actions/achievement"
 import type { Challenge, Achievement } from "@/types/city"
 import { toast } from "sonner"
@@ -60,21 +60,21 @@ export default function ChallengesPage() {
         // Load Missions
         const missionsData = await fetchUserMissions()
         const mappedChallenges: Challenge[] = missionsData.map((m) => ({
-          id: m.mission_id || m.missions.id,
+          id: m.id,
           cityId: currentCity.id,
-          name: m.missions.title,
-          description: m.missions.description,
-          type: (['conquest', 'defense', 'exploration', 'social', 'daily'].includes(m.missions.type) ? m.missions.type : 'conquest') as any,
-          objective: { type: 'tiles', target: m.missions.target, current: m.progress },
+          name: m.title,
+          description: m.description || '',
+          type: (['conquest', 'defense', 'exploration', 'social', 'daily'].includes(m.type) ? m.type : 'conquest') as any,
+          objective: { type: 'tiles', target: m.targetValue, current: m.progress },
           rewards: {
-            experience: m.missions.reward_experience || 0,
-            points: m.missions.reward_coins || 0
+            experience: m.rewardXp || 0,
+            points: m.rewardCoins || 0
           },
           status: (m.status === 'completed' || m.status === 'claimed') ? 'completed' : 'available',
-          startDate: new Date().toISOString(), // Default to now
-          endDate: new Date(Date.now() + 86400000 * 7).toISOString(), // Default to 7 days later
-          progress: { current: m.progress || 0, max: m.missions.target || 100 },
-          isMainQuest: m.missions.type === 'main',
+          startDate: new Date().toISOString(),
+          endDate: new Date(Date.now() + 86400000 * 7).toISOString(),
+          progress: { current: m.progress || 0, max: m.targetValue || 100 },
+          isMainQuest: m.type === 'main',
           isTimeLimited: false,
           priority: 1
         }))

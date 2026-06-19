@@ -188,7 +188,7 @@ export async function purchaseItem(
       })
 
       // 6. Record wallet transaction
-      await tx.walletTransaction.create({
+      await tx.wallet_transactions.create({
         data: {
           user_id: userId,
           currency_type: 'COIN',

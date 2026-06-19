@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { cookies } from 'next/headers'
+import { getSupabaseAdmin } from '@/lib/supabase/admin'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,8 +8,18 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const clubId = searchParams.get('clubId')
     
-    const cookieStore = await cookies()
-    const supabase = await createClient(cookieStore)
+    // [P4 Fix] 从 Authorization Header 提取 JWT Token 进行鉴权
+    const authHeader = request.headers.get('Authorization')
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.replace('Bearer ', '') : null
+    
+    const supabase = getSupabaseAdmin()
+    
+    // 尝试获取用户信息（如果有 token）
+    let user = null
+    if (token) {
+      const { data: { user: authenticatedUser } } = await supabase.auth.getUser(token)
+      user = authenticatedUser
+    }
 
     // =================================================================
     // MODE 1: Single Club Detail (Optimized for Speed)
@@ -49,15 +58,6 @@ export async function GET(request: Request) {
     // Used by useClubData() hook
     // =================================================================
     
-    // Check Auth
-    let user = null
-    try {
-        const { data } = await supabase.auth.getUser()
-        user = data.user
-    } catch (e) {
-        // ignore auth error
-    }
-
     // 1. Fetch User's Club Status
     let joinedClub = null
     if (user) {

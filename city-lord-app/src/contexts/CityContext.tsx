@@ -5,8 +5,46 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRegion } from '@/contexts/RegionContext';
 import type { City, UserCityProgress, CitySwitchHistory } from "@/types/city"
 import { getCityById, getAllCities, getCityByAdcode } from '@/lib/city-data'
-import { fetchCityStats, fetchCityLeaderboard, getUserCityProgress, type CityLeaderboardEntry, getOrCreateCityByAdcode, getCityDetailsFromDb } from '@/app/actions/city'
+import { apiClient } from '@/api/client'
 import { useStore } from '@/store/useStore'
+
+// [P5 Fix] 定义类型
+interface CityLeaderboardEntry {
+  rank: number;
+  userId: string;
+  nickname: string;
+  level: number;
+  avatar: string;
+  totalArea: number;
+  tilesCaptured: number;
+  reputation: number;
+}
+
+// [P5 Fix] REST API 调用封装
+const fetchCityStats = async (cityId: string) => {
+  const response = await apiClient.get('/api/v1/city/stats', { params: { cityId } });
+  return response.data.data;
+};
+
+const fetchCityLeaderboard = async (cityId: string, limit = 50) => {
+  const response = await apiClient.get('/api/v1/city/leaderboard', { params: { cityId, limit } });
+  return response.data.data;
+};
+
+const getUserCityProgress = async (cityId: string) => {
+  const response = await apiClient.get('/api/v1/city/progress', { params: { cityId } });
+  return response.data.data;
+};
+
+const getOrCreateCityByAdcode = async (adcode: string, cityName: string, centerLng?: number, centerLat?: number) => {
+  const response = await apiClient.post('/api/v1/city/register', { adcode, cityName, centerLng, centerLat });
+  return response.data.data;
+};
+
+const getCityDetailsFromDb = async (cityId: string) => {
+  const response = await apiClient.get('/api/v1/city/register', { params: { cityId } });
+  return response.data.data;
+};
 
 /**
  * CityContext 接口定义

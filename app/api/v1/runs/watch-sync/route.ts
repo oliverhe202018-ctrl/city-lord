@@ -50,13 +50,13 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
     // 5. Process via ActivityService (same pipeline as Server Action)
     const result = await ActivityService.processWatchData(userId, payload, {
-        externalId: externalId, // Explicitly pass externalId
+        externalId: externalId || undefined, // Explicitly pass externalId
         sourceApp: sourceApp ?? 'API',
         rawData: rawBody,
     });
 
     if (!result.success) {
-        throw new AppError(ErrorCode.BIZ_LOGIC_ERROR, result.error);
+        throw new AppError(ErrorCode.BIZ_LOGIC_ERROR, result.error || 'Watch sync failed');
     }
 
     return successResponse({

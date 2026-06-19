@@ -58,7 +58,7 @@ export function BackgroundDialog({
     const [isPending, startTransition] = useTransition()
     const [uploadingImage, setUploadingImage] = useState(false)
     const [previewImage, setPreviewImage] = useState<string | null>(
-        editingBackground?.imageUrl ?? null
+        editingBackground?.image_url ?? null
     )
     const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
@@ -74,14 +74,14 @@ export function BackgroundDialog({
         defaultValues: editingBackground
             ? {
                 name: editingBackground.name,
-                imageUrl: editingBackground.imageUrl,
-                acquisitionType: editingBackground.isDefault
+                imageUrl: editingBackground.image_url,
+                acquisitionType: editingBackground.is_default
                     ? 'free'
-                    : editingBackground.conditionType === 'level'
+                    : editingBackground.condition_type === 'level'
                         ? 'level'
                         : 'coins',
-                priceCoins: editingBackground.priceCoins ?? undefined,
-                conditionValue: editingBackground.conditionValue ?? undefined,
+                priceCoins: editingBackground.price_coins ?? undefined,
+                conditionValue: editingBackground.condition_value ?? undefined,
             }
             : {
                 name: '',
@@ -150,11 +150,11 @@ export function BackgroundDialog({
                 const formData: BackgroundFormData = {
                     id: editingBackground?.id,
                     name: data.name,
-                    imageUrl: data.imageUrl,
-                    previewUrl: data.imageUrl, // use same as image for now
+                    image_url: data.imageUrl,
+                    preview_url: data.imageUrl, // use same as image for now
                     acquisitionType: data.acquisitionType,
-                    priceCoins: data.acquisitionType === 'coins' ? data.priceCoins : 0,
-                    conditionValue: data.acquisitionType === 'level' ? data.conditionValue : undefined,
+                    price_coins: data.acquisitionType === 'coins' ? data.priceCoins : 0,
+                    condition_value: data.acquisitionType === 'level' ? data.conditionValue : undefined,
                 }
 
                 const result = await upsertBackground(formData)

@@ -70,16 +70,16 @@ export async function checkRunEndAchievements(payload: RunEndAchievementPayload)
       return { success: true, results: [], awarded: [] }
     }
 
-    const context: BadgeCheckContext = {
+    const context = {
       eventData: {
         distance: payload.distance,
         duration: payload.duration,
         pace: payload.pace,
-        endTime: correctedEndTime,
+        endTime: new Date(correctedEndTime),
       },
     }
 
-    const results = await checkAndAwardBadgesCore(user.id, 'RUN_FINISHED', context)
+    const results = await checkAndAwardBadgesCore(user.id, 'RUN_FINISHED', context.eventData)
     const awarded = results.filter(r => r.status === 'awarded')
 
     return {

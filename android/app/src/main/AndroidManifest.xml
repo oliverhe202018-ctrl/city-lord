@@ -55,6 +55,15 @@
             android:foregroundServiceType="location"
             android:exported="false" />
 
+        <!-- AlarmManager 重启 Receiver（深度定制 ROM 杀进程兜底） -->
+        <receiver
+            android:name=".LocationRestartReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.xiangfei.citylord.RESTART_SERVICE" />
+            </intent-filter>
+        </receiver>
+
         <!-- 高德 Android 原生 API Key -->
         <meta-data
             android:name="com.amap.api.v2.apikey"

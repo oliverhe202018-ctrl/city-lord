@@ -77,7 +77,7 @@ export default function MyProfilePage() {
     // Build safe data with defaults — handles both isPrivate and isPublic variants
     const user = profileData.user
     const isSelf = profileData.isPrivate ? false : profileData.isSelf
-    const isProfilePublic = profileData.isPrivate ? false : (profileData.isProfilePublic ?? true)
+    const isProfilePublic = profileData.isPrivate ? false : (profileData.is_profile_public ?? true)
     const stats = profileData.isPrivate ? null : (profileData.stats ?? null)
 
     const safeStats = stats ? {

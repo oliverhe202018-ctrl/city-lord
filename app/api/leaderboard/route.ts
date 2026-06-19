@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
       scoreLabel: formatArea(s.total_area).fullText,
       avatar: s.avatar_url || undefined,
       isMe: s.user_id === userId,
-      userId: s.user_id,
+      userId: s.user_id || undefined,
     }))
 
     const isInTop = snapshots.some((s) => s.user_id === userId)

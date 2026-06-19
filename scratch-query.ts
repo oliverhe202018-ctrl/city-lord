@@ -12,7 +12,7 @@ async function main() {
   console.log('--- RUNS ---');
   runs.forEach(r => {
     console.log(`Run ID: ${r.id}, Status: ${r.status}, new_terr: ${r.new_territories_count}, ` +
-      `isValid: ${r.isValid}, polygons: ${r.polygons ? 'YES' : 'NO'}`);
+      `is_valid: ${r.is_valid}, polygons: ${r.polygons ? 'YES' : 'NO'}`);
   });
 
   if (runs.length > 0) {

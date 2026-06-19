@@ -60,8 +60,7 @@ async function snapshotDistrict(snapshotDate: Date) {
         create: item,
         update: item,
       })
-    ),
-    { timeout: 60000 }
+    )
   );
 
   return inserts.length;
@@ -112,8 +111,7 @@ async function snapshotProvince(snapshotDate: Date) {
         create: item,
         update: item,
       })
-    ),
-    { timeout: 60000 }
+    )
   );
 
   return inserts.length;
@@ -130,7 +128,7 @@ async function snapshotGlobal(snapshotDate: Date) {
   const inserts = rows.map((row, index) => ({
     snapshot_date: snapshotDate,
     scope: 'global',
-    scope_code: null,
+    scope_code: 'global', // Use 'global' instead of null for unique constraint
     rank: index + 1,
     user_id: row.id,
     total_area: row.total_area ?? 0,
@@ -154,8 +152,7 @@ async function snapshotGlobal(snapshotDate: Date) {
         create: item,
         update: item,
       })
-    ),
-    { timeout: 60000 }
+    )
   );
 
   return inserts.length;

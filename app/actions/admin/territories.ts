@@ -71,7 +71,7 @@ export async function adminListTerritories(
     const { page, pageSize } = normalizePaginationParams(params)
     const skip = calcSkip(page, pageSize)
 
-    const supabase = createClient()
+    const supabase = await createClient()
 
     let query = supabase
       .from('territories')
@@ -135,7 +135,7 @@ export async function adminResetTerritoryHp(
 ): Promise<ActionResult> {
   try {
     await requireAdminSession()
-    const supabase = createClient()
+    const supabase = await createClient()
 
     const updatePayload: Record<string, unknown> = {
       current_hp: MAX_TERRITORY_HP,
@@ -143,7 +143,7 @@ export async function adminResetTerritoryHp(
 
     const { error } = await supabase
       .from('territories')
-      .update(updatePayload)
+      .update(updatePayload as any)
       .eq('id', territoryId)
 
     if (error) return { success: false, error: error.message }
@@ -163,7 +163,7 @@ export async function adminTransferTerritory(
 ): Promise<ActionResult> {
   try {
     await requireAdminSession()
-    const supabase = createClient()
+    const supabase = await createClient()
 
     // Verify target profile exists
     const { data: profile, error: profileError } = await supabase
@@ -200,7 +200,7 @@ export async function adminDeleteTerritory(
 ): Promise<ActionResult> {
   try {
     await requireAdminSession()
-    const supabase = createClient()
+    const supabase = await createClient()
 
     const { error } = await supabase
       .from('territories')

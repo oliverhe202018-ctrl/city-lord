@@ -58,7 +58,6 @@ import { ACHIEVEMENT_DEFINITIONS } from '@/lib/achievements'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/hooks/useAuth'
 import { toast } from 'sonner'
-import { checkRunEndAchievements } from '@/app/actions/check-achievements'
 import { RunHistoryDrawer } from '@/components/map/RunHistoryDrawer'
 import { CountdownOverlay } from '@/components/running/CountdownOverlay'
 import { StartRunOverlay } from '@/components/citylord/start/StartRunPageClient'
@@ -996,6 +995,18 @@ export function GameLayout({
       resumeHighFreqPrewarm()
     }
   }, [clearWarmupState, startRunning, setAnchorPoint, resumeHighFreqPrewarm]);
+
+  // [P5 Fix] REST API 调用封装
+  const checkRunEndAchievements = async (payload: any) => {
+    try {
+      const { apiClient } = await import('@/api/client');
+      const response = await apiClient.post('/api/v1/achievements/check', payload);
+      return response.data;
+    } catch (error) {
+      console.error('[handleStopRun] Achievement check failed:', error);
+      return { success: false, error: '成就检查失败', results: [], awarded: [] };
+    }
+  };
 
   // Complex stop handler
   const handleStopRun = useCallback(async () => {

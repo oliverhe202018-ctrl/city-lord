@@ -18,7 +18,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { toast } from 'sonner';
-import { syncWatchRunData } from '@/app/actions/watch-sync';
 import type { WatchSyncResult } from '@/types/watch-sync';
 
 // ─────────────────────────────────────────────────────────────
@@ -45,6 +44,13 @@ async function getAppPlugin() {
 const RUNNING_ACTIVITY_TYPE = 37;
 const MIN_POINTS = 10; // Zod schema minimum
 const SOURCE_APP = 'HealthKit';
+
+// [P5 Fix] REST API 调用封装
+const syncWatchRunDataAPI = async (payload: any) => {
+  const { apiClient } = await import('@/api/client');
+  const response = await apiClient.post('/api/v1/watch/sync', payload);
+  return response.data as import('@/types/watch-sync').WatchSyncResult;
+};
 
 // ─────────────────────────────────────────────────────────────
 // Types (subset of @perfood/capacitor-healthkit result shapes)
@@ -307,10 +313,10 @@ export function useHealthKit(): UseHealthKitReturn {
                 sourceApp: SOURCE_APP,
             };
 
-            // 7. Call Server Action
+            // 7. Call REST API
             if (!silent) toast.loading('正在同步 HealthKit 数据…', { id: 'hk-sync' });
 
-            const result = await syncWatchRunData(payload);
+            const result = await syncWatchRunDataAPI(payload);
             setLastResult(result);
 
             if (result.success) {

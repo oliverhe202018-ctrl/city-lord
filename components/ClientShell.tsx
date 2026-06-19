@@ -37,7 +37,7 @@ function StatusBarConfig() {
 
         try {
           const { SafeArea } = await import('@capacitor-community/safe-area');
-          const insets = await SafeArea.getSafeAreaInsets();
+          const insets = await (SafeArea as any).getSafeAreaInsets();
           const topInset = insets.insets?.top ?? 24;
 
           document.documentElement.style.setProperty('--safe-top', `${topInset}px`);

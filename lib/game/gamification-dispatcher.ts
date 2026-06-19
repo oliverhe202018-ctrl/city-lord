@@ -1,5 +1,5 @@
 
-import { schemaTask } from '@trigger.dev/sdk';
+import { schemaTask, logger } from '@trigger.dev/sdk/v3';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { applyPointsAndLevel, resolveEventRewards } from '@/lib/gamification/reward-resolver';

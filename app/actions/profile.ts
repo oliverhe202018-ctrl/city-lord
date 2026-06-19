@@ -331,28 +331,28 @@ export async function updateProfileBackground(bgId: string, token?: string) {
 
         // Check ownership
         const owned = await prisma.user_backgrounds.findUnique({
-            where: { userId_backgroundId: { user_id: user.id, backgroundId: bgId } },
+            where: { user_id_background_id: { user_id: user.id, background_id: bgId } },
         })
 
         // If free or already owned, allow
-        if (!owned && bg.conditionType !== 'free') {
+        if (!owned && bg.condition_type !== 'free') {
             return { success: false, error: '尚未解锁该背景' }
         }
 
         // Auto-acquire free backgrounds
-        if (!owned && bg.conditionType === 'free') {
+        if (!owned && bg.condition_type === 'free') {
             await prisma.user_backgrounds.create({
-                data: { user_id: user.id, backgroundId: bgId },
+                data: { user_id: user.id, background_id: bgId },
             })
         }
 
         // Update profile
         await prisma.profiles.update({
             where: { id: user.id },
-            data: { background_url: bg.imageUrl },
+            data: { background_url: bg.image_url },
         })
 
-        return { success: true, background_url: bg.imageUrl }
+        return { success: true, background_url: bg.image_url }
     } catch (e: any) {
         console.error('updateProfileBackground error:', e)
         return { success: false, error: e.message }
@@ -402,10 +402,10 @@ export async function blockUser(targetUserId: string, token?: string) {
     try {
         await prisma.blocked_users.upsert({
             where: {
-                blockerId_blockedId: { blockerId: user.id, blockedId: targetUserId },
+                blocker_id_blocked_id: { blocker_id: user.id, blocked_id: targetUserId },
             },
             update: {},
-            create: { blockerId: user.id, blockedId: targetUserId },
+            create: { blocker_id: user.id, blocked_id: targetUserId },
         })
         return { success: true }
     } catch (e: any) {
@@ -424,7 +424,7 @@ export async function getBackgrounds(filter: 'all' | 'mine' | 'available' | 'exp
         prisma.backgrounds.findMany({ orderBy: { created_at: 'desc' } }),
         prisma.user_backgrounds.findMany({
             where: { user_id: user.id },
-            select: { backgroundId: true },
+            select: { background_id: true },
         }),
         prisma.profiles.findUnique({
             where: { id: user.id },
@@ -432,22 +432,22 @@ export async function getBackgrounds(filter: 'all' | 'mine' | 'available' | 'exp
         }),
     ])
 
-    const ownedIds = new Set(userBgs.map(ub => ub.backgroundId))
+    const ownedIds = new Set(userBgs.map(ub => ub.background_id))
 
     const enriched = allBgs.map(bg => ({
         id: bg.id,
         name: bg.name,
-        previewUrl: bg.previewUrl,
-        imageUrl: bg.imageUrl,
-        isDefault: bg.isDefault,
-        conditionType: bg.conditionType,
-        conditionValue: bg.conditionValue,
-        priceCoins: bg.priceCoins,
-        isOwned: ownedIds.has(bg.id) || bg.conditionType === 'free',
-        isLocked: bg.conditionType === 'level'
-            ? (profile?.level ?? 1) < (bg.conditionValue ?? 0)
-            : bg.conditionType === 'coins',
-        isActive: bg.imageUrl === profile?.background_url,
+        previewUrl: bg.preview_url,
+        imageUrl: bg.image_url,
+        isDefault: bg.is_default,
+        conditionType: bg.condition_type,
+        conditionValue: bg.condition_value,
+        priceCoins: bg.price_coins,
+        isOwned: ownedIds.has(bg.id) || bg.condition_type === 'free',
+        isLocked: bg.condition_type === 'level'
+            ? (profile?.level ?? 1) < (bg.condition_value ?? 0)
+            : bg.condition_type === 'coins',
+        isActive: bg.image_url === profile?.background_url,
     }))
 
     let filtered = enriched

@@ -57,8 +57,8 @@ export async function fetchUserProfileStats(userId: string): Promise<UserProfile
     totalDistance: profile?.total_distance_km || 0,
     battlesWon: 0, // Placeholder
     level: profile?.level || 1,
-    xp: profile?.xp || 0,
-    coins: wallet?.sweat_coins || 0,
+    xp: Number(profile?.xp || 0),
+    coins: Number(wallet?.sweat_coins || 0),
     faction: profile?.faction || null
   }
 }

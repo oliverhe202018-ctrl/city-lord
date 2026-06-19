@@ -109,7 +109,7 @@ export async function renameTerritory(territoryId: string, newName: string) {
       }
 
       if (!isResetToDefault) {
-        const filterResult = getFilter().verify(trimmedName)
+        const filterResult = getFilter().verify(trimmedName) as any
         if (filterResult?.words && filterResult.words.length > 0) {
           return {
             success: false,

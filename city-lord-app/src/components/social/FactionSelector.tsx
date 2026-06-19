@@ -7,11 +7,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Shield, Zap, User, Users } from 'lucide-react'
-import type { Faction } from '@/app/actions/faction'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useGameStore } from '@/store/useGameStore'
+
+type Faction = 'RED' | 'BLUE'
 
 const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
   const controller = new AbortController()

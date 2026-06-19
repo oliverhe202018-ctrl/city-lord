@@ -240,6 +240,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   const kalmanLngRef = useRef(new KalmanFilter1D(3.0, 25.0));
   const refLocationRef = useRef<Location | null>(null);
   const lastSpeedRef = useRef<number | null>(null);
+  const isHydratingRef = useRef(false);
 
   // ─── Timestamp-based timer refs ───
   const startTimeRef = useRef<number | null>(null);
@@ -714,6 +715,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       : Math.sqrt(25.0);
 
     // Apply adaptive process noise (Q) to Kalman Filter instances
+    // KalmanFilter1D has readonly processNoisePSD, so we recreate instances with new Q
     let qValue = 3.0; // Default Standard Q
     if (isStationary) {
       qValue = 0.01; // Lock filter: Q -> 0
@@ -725,15 +727,13 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       qValue = 8.0; // Sprinting / High speed
     }
 
-    kalmanLatRef.current.setProcessNoisePSD(qValue);
-    kalmanLngRef.current.setProcessNoisePSD(qValue);
+    kalmanLatRef.current = new KalmanFilter1D(qValue, 25.0);
+    kalmanLngRef.current = new KalmanFilter1D(qValue, 25.0);
 
     if (!prevLoc || !refLocationRef.current) {
       refLocationRef.current = newLoc;
-      kalmanLatRef.current.reset();
-      kalmanLngRef.current.reset();
-      kalmanLatRef.current.filter(0, newLoc.timestamp, adaptiveAccuracy, isStationary);
-      kalmanLngRef.current.filter(0, newLoc.timestamp, adaptiveAccuracy, isStationary);
+      kalmanLatRef.current.filter(0, newLoc.timestamp, adaptiveAccuracy);
+      kalmanLngRef.current.filter(0, newLoc.timestamp, adaptiveAccuracy);
       if (process.env.NODE_ENV === 'development') {
         lastLocationRef.current = newLoc;
       }
@@ -761,8 +761,8 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         if (thetaDeg > 60) {
           // Sharp corner detected — reset Kalman velocity & covariances but preserve position
           refLocationRef.current = newLoc;
-          kalmanLatRef.current.resetToPosition(0, adaptiveAccuracy);
-          kalmanLngRef.current.resetToPosition(0, adaptiveAccuracy);
+          kalmanLatRef.current.reset();
+          kalmanLngRef.current.reset();
           console.debug(`[Kalman] Corner bypass: heading delta ${thetaDeg.toFixed(1)}°, reset filter velocity`);
           return newLoc; // Return raw GPS point, skip smoothing
         }
@@ -778,8 +778,8 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     const yMeters = (newLoc.lat - refLat) * 111320;
     const xMeters = (newLoc.lng - refLng) * 111320 * cosLat;
 
-    const smoothedY = kalmanLatRef.current.filter(yMeters, newLoc.timestamp, adaptiveAccuracy, isStationary);
-    const smoothedX = kalmanLngRef.current.filter(xMeters, newLoc.timestamp, adaptiveAccuracy, isStationary);
+    const smoothedY = kalmanLatRef.current.filter(yMeters, newLoc.timestamp, adaptiveAccuracy);
+    const smoothedX = kalmanLngRef.current.filter(xMeters, newLoc.timestamp, adaptiveAccuracy);
 
     const smoothedLat = refLat + smoothedY / 111320;
     const smoothedLng = refLng + smoothedX / (111320 * cosLat);
@@ -1205,16 +1205,15 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       (prevLoc && pathRef.current.length > 0)
         ? { lat: prevLoc.lat, lng: prevLoc.lng, timestamp: prevLoc.timestamp }
         : null,
-      { lat: finalLoc.lat, lng: finalLoc.lng, accuracy, timestamp: now },
-      stepDelta
+      { lat: finalLoc.lat, lng: finalLoc.lng, accuracy, timestamp: now }
     );
 
     if (!spatialFilterResult.accept) {
       console.debug('[GPS Filter] Dropped point:', spatialFilterResult.reason);
       if (spatialFilterResult.reason === 'speed-anomaly' && prevLoc) {
         console.warn(`[DR-Gate] Resetting Kalman filters to raw position ${lat}, ${lng} due to speed anomaly / outage recovery.`);
-        kalmanLatRef.current.resetToPosition(lat, accuracy || 50);
-        kalmanLngRef.current.resetToPosition(lng, accuracy || 50);
+        kalmanLatRef.current.reset();
+        kalmanLngRef.current.reset();
       }
       return;
     }
@@ -1737,7 +1736,6 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         console.log('[Hydrate] 无离线记录需要追帧');
         clearTimeout(hydrateTimeout);
         if (hydrationLockRef.current) {
-          resolveLock();
           hydrationLockRef.current = null;
         }
         return;
@@ -2010,7 +2008,6 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
           clearTimeout(hydrateTimeout);
           if (hydrationLockRef.current) {
-            resolveLock();
             hydrationLockRef.current = null;
           }
 
@@ -2047,7 +2044,6 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     } catch (e) {
       clearTimeout(hydrateTimeout);
       if (hydrationLockRef.current) {
-        resolveLock();
         hydrationLockRef.current = null;
       }
       console.warn('[Hydrate] 从 Room 黑匣子追帧失败（可能在 Web 环境）:', e);
@@ -2098,7 +2094,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
     // P0 #2 — Mock 虚拟定位防御纵深：Store 层已拦截，Tracker 层再次校验（开发环境放行以支持模拟器测试）
     const isDev = process.env.NODE_ENV === 'development' ||
-                  import.meta.env?.DEV ||
+                  (import.meta as any).env?.DEV ||
                   (gpsLocation as any).isDebug === true ||
                   (gpsLocation as any).isEmulator === true;
     if ((gpsLocation as any).isMock === true && !isDev) {
@@ -2121,10 +2117,10 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     handleLocationUpdate(
       gpsLocation.lat,
       gpsLocation.lng,
-      gpsLocation.accuracy,
+      gpsLocation.accuracy ?? undefined,
       gpsLocation.timestamp,
-      gpsLocation.speed,
-      gpsLocation.heading
+      gpsLocation.speed ?? undefined,
+      gpsLocation.heading ?? undefined
     );
   }, [gpsLocation, isRunning, locationSource, handleLocationUpdate]);
 

@@ -63,7 +63,7 @@ export async function GET(request: Request) {
       select: { user_id: true },
       distinct: ['user_id'],
     });
-    const activeIds = activeUserIds.map((r) => r.user_id);
+    const activeIds = activeUserIds.map((r) => r.user_id).filter((id): id is string => !!id);
 
     if (activeIds.length === 0) {
       await prisma.faction_settlement_logs.update({
@@ -98,14 +98,14 @@ export async function GET(request: Request) {
 
       await prisma.reward_logs.createMany({
         data: activeIds
-          .filter((id) => true)
-          .map((userId) => ({
-            userId,
-            coins: TIE_COINS,
-            exp: TIE_XP,
-            source: 'faction_settlement_tie',
-            reference_id: `tie-${settlementDate}`,
-          })),
+        .filter((id) => true)
+        .map((uid) => ({
+          user_id: uid,
+          coins: TIE_COINS,
+          exp: TIE_XP,
+          source: 'faction_settlement_tie',
+          reference_id: `tie-${settlementDate}`,
+        })),
         skipDuplicates: true,
       });
     } else if (winner && loser) {
@@ -125,7 +125,7 @@ export async function GET(request: Request) {
       if (winnerIds.length > 0) {
         await prisma.reward_logs.createMany({
           data: winnerIds.map((p) => ({
-            userId: p.id,
+            user_id: p.id,
             coins: WINNER_COINS,
             exp: WINNER_XP,
             source: 'faction_settlement_winner',
@@ -151,7 +151,7 @@ export async function GET(request: Request) {
       if (loserIds.length > 0) {
         await prisma.reward_logs.createMany({
           data: loserIds.map((p) => ({
-            userId: p.id,
+            user_id: p.id,
             coins: LOSER_COINS,
             exp: LOSER_XP,
             source: 'faction_settlement_underdog',

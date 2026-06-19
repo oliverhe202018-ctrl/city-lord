@@ -432,11 +432,26 @@ function renderTerritoriesOnCanvas(
   const AMapGlobal = (window as typeof window & { AMap?: { LngLat: new (lng: number, lat: number) => unknown } }).AMap;
   if (!AMapGlobal?.LngLat) return;
 
+  // [P3 Fix] Z-Index 分层：按 ownerType 排序，确保 Own > Ally > Enemy > Neutral
+  // 排序优先级：me (自己的) > ally (盟友) > enemy (敌人) > neutral (中立)
+  const ownerTypePriority: Record<string, number> = {
+    'me': 0,
+    'ally': 1,
+    'enemy': 2,
+    'neutral': 3
+  };
+  
+  const sortedTerritories = [...territories].sort((a, b) => {
+    const priorityA = ownerTypePriority[a.ownerType] ?? 4;
+    const priorityB = ownerTypePriority[b.ownerType] ?? 4;
+    return priorityA - priorityB;
+  });
+
   // 1. 过滤出被选中的聚焦领地以执行末尾叠加绘制，防止 Z-index 压盖
   let focusedTerritory: TerritoryWithRender | null = null;
   const normalTerritories: TerritoryWithRender[] = [];
   
-  for (const t of territories) {
+  for (const t of sortedTerritories) {
     if (selectedTerritoryId && t.id === selectedTerritoryId) {
       focusedTerritory = t;
     } else {
@@ -454,6 +469,29 @@ function renderTerritoriesOnCanvas(
       b.maxLat >= viewportMinLat &&
       b.minLat <= viewportMaxLat;
     if (!intersects) continue;
+
+    // [P3 Fix] Zoom 降级逻辑：当 zoom < 10 时，停止绘制多边形，降级为点标记
+    if (currentZoom < 10) {
+      const p = map.lngLatToContainer?.(new AMapGlobal.LngLat(territory.centerPoint[0], territory.centerPoint[1]));
+      if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) {
+        const x = Number(p.x);
+        const y = Number(p.y);
+        if (x >= -10 && x <= canvas.width + 10 && y >= -10 && y <= canvas.height + 10) {
+          // 绘制点标记（Dot Marker）
+          const dotRadius = 4;
+          ctx.beginPath();
+          ctx.arc(x, y, dotRadius, 0, Math.PI * 2);
+          ctx.fillStyle = territory.fillColor || "rgba(251, 146, 60, 0.8)";
+          ctx.globalAlpha = 0.9;
+          ctx.fill();
+          ctx.globalAlpha = 1;
+          ctx.strokeStyle = territory.strokeColor || "rgba(234, 88, 12, 0.9)";
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        }
+      }
+      continue; // 跳过后续多边形绘制
+    }
 
     const outerRings = extractOuterRings(territory.geojson_json);
     if (outerRings.length === 0) continue;

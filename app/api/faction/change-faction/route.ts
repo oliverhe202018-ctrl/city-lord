@@ -72,7 +72,8 @@ export async function POST(request: Request) {
         if (FF_FACTION_PURGE_ENABLED) {
             try {
                 // 需要使用 supabaseAdmin 来绕过 RLS 强制更新
-                const { supabaseAdmin } = await import('@/lib/supabase/admin');
+                const { getSupabaseAdmin } = await import('@/lib/supabase/admin');
+                const supabaseAdmin = getSupabaseAdmin();
                 const { error: purgeError } = await supabaseAdmin.rpc('purge_faction_territories', {
                     p_user_id: user.id
                 });

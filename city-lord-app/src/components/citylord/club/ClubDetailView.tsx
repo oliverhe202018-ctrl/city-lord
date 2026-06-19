@@ -61,7 +61,7 @@ import { useGameStore } from '@/store/useGameStore'
 import { toast } from 'sonner'
 import { isNativePlatform, safeKeyboardAddListener } from '@/lib/capacitor/safe-plugins'
 import { useMapInteractionStore } from '@/store/useMapInteractionStore'
-import { getUserTopTerritories } from '@/app/actions/club-service'
+import { apiClient } from '@/lib/api/client'
 import { cn } from '@/lib/utils'
 
 // Lazy-load heavy sub-views
@@ -733,8 +733,10 @@ export function ClubDetailView({
                             setSubView('member-territories');
                             setIsLoadingMemberTerritories(true);
                             try {
-                              const territories = await getUserTopTerritories(member.id);
-                              setMemberTerritories(territories);
+                              const response = await apiClient.get('/api/v1/club/member-territories', {
+                                params: { userId: member.id }
+                              });
+                              setMemberTerritories(response.data.data);
                             } catch (e) {
                               console.error("Failed to load member territories:", e);
                             } finally {

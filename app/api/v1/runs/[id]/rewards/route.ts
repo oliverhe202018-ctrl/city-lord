@@ -46,7 +46,7 @@ export const GET = withErrorHandler(async (
 
   if (run.reward_status === 'COMPLETED' && run.reward_data) {
     result.data = {
-      ...(run.reward_data as RewardData),
+      ...(run.reward_data as unknown as RewardData),
       reward_coins: run.reward_coins || 0,
       reward_xp: run.reward_xp || 0,
       reward_territories: run.reward_territories || 0

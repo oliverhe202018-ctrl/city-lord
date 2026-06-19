@@ -1,5 +1,5 @@
 import { AntiCheatContext, AntiCheatValidator, AntiCheatCheckResult } from './types';
-import { AppError } from '@/lib/api/errors';
+import { AppError, ErrorCode } from '@/lib/api/errors';
 import { prisma } from '@/lib/prisma';
 
 export class AntiCheatPipeline {

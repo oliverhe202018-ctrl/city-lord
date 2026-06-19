@@ -2,7 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import { UserPlus, Trophy, MapPin, Award, Calendar, Loader2, User } from 'lucide-react'
-import { getClubDynamics, type DynamicItem } from '@/app/actions/club-dynamics.actions'
+import { apiClient } from '@/api/client'
+
+type DynamicItem = any; // Will be refined later
+
+const getClubDynamicsAPI = async (clubId: string) => {
+  const response = await apiClient.get('/api/v1/club/dynamics', { params: { clubId } });
+  return response.data.data;
+};
 
 const ICON_MAP: Record<DynamicItem['type'], { icon: typeof UserPlus; color: string; bg: string }> = {
     new_member: { icon: UserPlus, color: 'text-blue-400', bg: 'bg-blue-500/15' },
@@ -33,7 +40,7 @@ export function ClubDynamicsView({ clubId }: { clubId: string }) {
         async function load() {
             setIsLoading(true)
             try {
-                const data = await getClubDynamics(clubId)
+                const data = await getClubDynamicsAPI(clubId)
                 if (!cancelled) setItems(data)
             } catch (e) {
                 console.error('[ClubDynamicsView] Failed to load:', e)

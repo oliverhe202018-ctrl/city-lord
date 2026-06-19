@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { Drawer, DrawerContent, DrawerOverlay } from '@/components/ui/drawer'
 import { useMapInteraction } from '@/components/map/MapInteractionContext'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { getTerritoryDetail } from '@/app/actions/territory-detail'
 import { Loader2, MapPin, Clock, Medal, Flag, Timer, User, Pencil, RotateCcw } from 'lucide-react'
 import { TerritoryMoreMenu } from './TerritoryMoreMenu'
 import dayjs from 'dayjs'
@@ -12,7 +11,6 @@ import { formatCST } from '@/lib/date-utils'
 import { Link } from 'react-router-dom'
 import { TerritoryReportDialog } from './TerritoryReportDialog'
 import { useGameStore } from '@/store/useGameStore'
-import { renameTerritory } from '@/app/actions/territory-rename'
 import { toast } from 'sonner'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,  } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -21,6 +19,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { getTerritoryDisplayName } from '@/lib/territory-display'
 import { useMapDisplayStore } from '@/store/useMapDisplayStore'
 import { ClubProfileSheet } from './ClubProfileSheet'
+import { apiClient } from '@/lib/api/client'
 
 const RENAME_MAX_LENGTH = 10
 
@@ -47,11 +46,17 @@ export function TerritoryDetailSheet() {
 
     const { data: detail, isLoading } = useQuery({
         queryKey: ['territory-detail', activeId],
-        queryFn: () => getTerritoryDetail(territoryId!, {
-            ownerId: selectedTerritory?.ownerId || undefined,
-            clubId: selectedTerritory?.ownerClubId || undefined,
-            sourceRunId: selectedTerritory?.sourceRunId
-        }),
+        queryFn: async () => {
+            const response = await apiClient.get('/api/v1/territories/detail', {
+                params: {
+                    territoryId: territoryId!,
+                    ownerId: selectedTerritory?.ownerId || undefined,
+                    clubId: selectedTerritory?.ownerClubId || undefined,
+                    sourceRunId: selectedTerritory?.sourceRunId
+                }
+            })
+            return response.data.data
+        },
         enabled: !!territoryId,
         staleTime: 60 * 1000,
         retry: 3,
@@ -70,11 +75,15 @@ export function TerritoryDetailSheet() {
 
         setIsRenaming(true)
         try {
-            const result = await renameTerritory(territoryId, submitValue)
+            const response = await apiClient.post('/api/v1/territories/rename', {
+                territoryId,
+                customName: submitValue
+            })
+            const result = response.data
 
             if (!result.success) {
                 if (result.code === 'COOLDOWN') {
-                    toast.error(`改名冷却期还剩 ${(result as any).remainingDays} 天`)
+                    toast.error(`改名冷却期还剩 ${result.remainingDays} 天`)
                 } else if (result.code === 'SENSITIVE_WORD') {
                     toast.error('名称包含敏感词汇，请修改后重试')
                 } else if (result.code === 'INVALID_LENGTH') {
