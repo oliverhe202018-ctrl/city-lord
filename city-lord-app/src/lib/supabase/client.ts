@@ -28,8 +28,12 @@ export const createClient = () => {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
+        // [P0 Fix] 防止 hash 解析异常导致 Crash
         detectSessionInUrl: false,
+        // [P0 Fix] 注入 Capacitor Storage 适配器，替代原生 localStorage
         storage: capacitorStorage,
+        // [P0 Fix] 强制使用 PKCE 流程，提升安全性并防止 hash 解析异常
+        flowType: 'pkce',
       },
     }
   )

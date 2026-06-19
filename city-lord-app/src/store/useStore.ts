@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { Capacitor } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
 import { apiFetch } from '@/lib/fetch-shim';
 import { createClient } from '@/lib/supabase/client';
@@ -35,60 +36,14 @@ const getSupabaseProjectRef = (url: string): string => {
   return '';
 };
 
-const getInitialAuthState = () => {
-  if (typeof window === 'undefined') {
-    return {
-      isHydrating: true,
-      isAuthenticated: false,
-      userId: null,
-      token: null,
-    };
-  }
-
-  try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-    const projectRef = getSupabaseProjectRef(supabaseUrl);
-
-    const sbKeys: string[] = [];
-    if (projectRef) sbKeys.push(`sb-${projectRef}-auth-token`);
-    if (supabaseUrl) sbKeys.push(`sb-${supabaseUrl}-auth-token`);
-
-    let sbSessionStr = null;
-    for (const key of sbKeys) {
-      const val = window.localStorage.getItem(key);
-      if (val) {
-        sbSessionStr = val;
-        break;
-      }
-    }
-
-    const cachedUserId = window.localStorage.getItem('userId');
-
-    let token: string | null = null;
-    if (sbSessionStr) {
-      const parsed = JSON.parse(sbSessionStr);
-      token = parsed?.currentSession?.access_token || parsed?.access_token || null;
-    }
-
-    if (token && cachedUserId) {
-      return {
-        isHydrating: false,
-        isAuthenticated: true,
-        userId: cachedUserId,
-        token,
-      };
-    }
-  } catch (_) {}
-
-  return {
-    isHydrating: true,
-    isAuthenticated: false,
-    userId: null,
-    token: null,
-  };
+// [P0 Fix] 移除同步读取 window.localStorage 的操作，防止 WebView 初始化竞态导致 Crash
+// 初始状态强制为 hydrating，由 checkAuth 异步完成认证校验
+const initialAuth = {
+  isHydrating: true,
+  isAuthenticated: false,
+  userId: null,
+  token: null,
 };
-
-const initialAuth = getInitialAuthState();
 
 export const useStore = create<UserState>((set) => ({
   isHydrating: initialAuth.isHydrating,

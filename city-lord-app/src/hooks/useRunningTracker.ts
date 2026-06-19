@@ -1432,52 +1432,22 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
     pathRef.current.push(finalLoc);
 
     // --- Marathon Ultra-Long Track Memory Protection Limit (P0) ---
-    const MAX_PATH_POINTS = 30000;
-    if (pathRef.current.length >= MAX_PATH_POINTS) {
-      console.warn(`[useRunningTracker] Marathon memory protection triggered: path length ${pathRef.current.length} >= ${MAX_PATH_POINTS}. Performing topology-preserving decimation.`);
-      const N = pathRef.current.length;
-      const keepStartCount = Math.floor(N * 0.1);
-      const keepEndCount = Math.floor(N * 0.1);
-      const middleStart = keepStartCount;
-      const middleEnd = N - keepEndCount;
-
-      const decimatedMiddle: Location[] = [];
-      for (let i = middleStart; i < middleEnd; i += 2) {
-        decimatedMiddle.push(pathRef.current[i]);
-      }
-
-      const decimatedPath = [
-        ...pathRef.current.slice(0, middleStart),
-        ...decimatedMiddle,
-        ...pathRef.current.slice(middleEnd)
-      ];
-
-      pathRef.current = decimatedPath;
-      console.log(`[useRunningTracker] Decimation complete. New path length: ${pathRef.current.length}`);
+    // [P1 Fix] 降低阈值至 2000 点，超限执行 FIFO 剔除，防止 OOM
+    const MAX_TRACK_POINTS = 2000;
+    if (pathRef.current.length >= MAX_TRACK_POINTS) {
+      console.warn(`[useRunningTracker] Memory protection triggered: path length ${pathRef.current.length} >= ${MAX_TRACK_POINTS}. Performing FIFO eviction.`);
+      // FIFO: 保留最新的一半点位，丢弃最旧的一半
+      const keepCount = Math.floor(MAX_TRACK_POINTS / 2);
+      pathRef.current = pathRef.current.slice(-keepCount);
+      console.log(`[useRunningTracker] FIFO eviction complete. New path length: ${pathRef.current.length}`);
     }
 
-    if (fullPathRef.current.length >= MAX_PATH_POINTS) {
-      console.warn(`[useRunningTracker] Marathon memory protection triggered for fullPath: path length ${fullPathRef.current.length} >= ${MAX_PATH_POINTS}. Performing topology-preserving decimation.`);
-      const N = fullPathRef.current.length;
-      const keepStartCount = Math.floor(N * 0.1);
-      const keepEndCount = Math.floor(N * 0.1);
-      const middleStart = keepStartCount;
-      const middleEnd = N - keepEndCount;
-
-      const decimatedMiddle: Location[] = [];
-      for (let i = middleStart; i < middleEnd; i += 2) {
-        decimatedMiddle.push(fullPathRef.current[i]);
-      }
-
-      const decimatedPath = [
-        ...fullPathRef.current.slice(0, middleStart),
-        ...decimatedMiddle,
-        ...fullPathRef.current.slice(middleEnd)
-      ];
-
-      fullPathRef.current = decimatedPath;
-      setFullPath([...decimatedPath]);
-      console.log(`[useRunningTracker] fullPath Decimation complete. New path length: ${fullPathRef.current.length}`);
+    if (fullPathRef.current.length >= MAX_TRACK_POINTS) {
+      console.warn(`[useRunningTracker] Memory protection triggered for fullPath: path length ${fullPathRef.current.length} >= ${MAX_TRACK_POINTS}. Performing FIFO eviction.`);
+      const keepCount = Math.floor(MAX_TRACK_POINTS / 2);
+      fullPathRef.current = fullPathRef.current.slice(-keepCount);
+      setFullPath([...fullPathRef.current]);
+      console.log(`[useRunningTracker] fullPath FIFO eviction complete. New path length: ${fullPathRef.current.length}`);
     }
 
     if (pathRef.current.length % 10 === 0) {

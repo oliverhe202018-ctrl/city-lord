@@ -20,7 +20,8 @@ function useAuthorizedFetcher() {
 
     // ✅ 关键修复：r.status === 401 时保留跳转逻辑并 throw new Error('Unauthorized')
     if (r.status === 401) {
-      window.location.href = '/login';
+      // [P0 Fix] Capacitor 环境下 window.location.href 跳转会失败，改用 React Router navigate
+      navigate('/login');
       throw new Error('Unauthorized');
     }
 

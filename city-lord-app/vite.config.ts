@@ -10,6 +10,9 @@ export default defineConfig(({ mode }) => {
     ...loadEnv(mode, process.cwd(), '')
   }
   return {
+    // [P0 Fix] 强制使用相对路径，解决 Capacitor 本地文件协议下静态资源 404 问题
+    // 等效于 Next.js 的 assetPrefix: './' + trailingSlash: true
+    base: './',
     plugins: [
       react(),
       tailwindcss(),

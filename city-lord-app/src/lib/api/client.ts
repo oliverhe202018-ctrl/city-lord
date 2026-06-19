@@ -7,7 +7,7 @@ const isCapacitor =
 
 // Capacitor 环境下必须使用绝对路径，Web 端保持相对路径即可
 const API_BASE = isCapacitor 
-  ? (process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_URL || 'https://cl1.4567666.xyz') 
+  ? (process.env.NEXT_PUBLIC_API_SERVER || 'https://cl1.6543666.xyz') 
   : '';
 
 interface ExtendedRequestInit extends RequestInit {
@@ -66,8 +66,9 @@ class ApiClient {
     if (!response.ok) {
       // Handle 401 Unauthorized
       if (response.status === 401) {
+        // [P0 Fix] Capacitor 环境下 window.location.href 跳转会失败，改用自定义事件触发路由跳转
         if (typeof window !== 'undefined') {
-          window.location.href = '/login';
+          window.dispatchEvent(new CustomEvent('auth:unauthorized'));
         }
         throw new Error('Unauthorized');
       }

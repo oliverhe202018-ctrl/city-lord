@@ -1,8 +1,9 @@
 "use client";
 
-import React from 'react';
+import React, { useEffect } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { useLocationStore } from '@/store/useLocationStore';
-import { safeAMapOpenBatteryOptimizationSettings } from '@/lib/capacitor/safe-plugins';
+import { safeAMapOpenBatteryOptimizationSettings, safeAMapIsBatteryOptimizationIgnored } from '@/lib/capacitor/safe-plugins';
 
 interface BatteryOptimizationModalProps {
   onConfirm: () => void;
@@ -12,6 +13,42 @@ interface BatteryOptimizationModalProps {
 export function BatteryOptimizationModal({ onConfirm, onSkip }: BatteryOptimizationModalProps) {
   const visible = useLocationStore(s => s.batteryOptModalVisible);
   const setVisible = useLocationStore(s => s.setBatteryOptModalVisible);
+
+  // [P0 Fix] 监听 App 从后台切回前台事件，自动重新校验电池优化状态
+  useEffect(() => {
+    if (!visible) return;
+
+    const handleResume = async () => {
+      console.log('[BatteryOptModal] App resumed, re-checking battery optimization status');
+      const isIgnored = await safeAMapIsBatteryOptimizationIgnored();
+      if (isIgnored) {
+        console.log('[BatteryOptModal] User has enabled battery optimization, closing modal');
+        setVisible(false);
+      }
+    };
+
+    // 监听 Capacitor resume 事件
+    if (Capacitor.isNativePlatform()) {
+      Capacitor.addListener('app', 'resume', handleResume);
+      return () => {
+        Capacitor.removeListener('app', 'resume', handleResume);
+      };
+    }
+  }, [visible, setVisible]);
+
+  // [P0 Fix] 弹窗显示前强制校验底层真实状态，防止状态脱节
+  useEffect(() => {
+    if (visible) {
+      const checkStatus = async () => {
+        const isIgnored = await safeAMapIsBatteryOptimizationIgnored();
+        if (isIgnored) {
+          console.log('[BatteryOptModal] Already in whitelist, auto-closing modal');
+          setVisible(false);
+        }
+      };
+      checkStatus();
+    }
+  }, [visible, setVisible]);
 
   if (!visible) return null;
 
@@ -43,11 +80,13 @@ export function BatteryOptimizationModal({ onConfirm, onSkip }: BatteryOptimizat
         </div>
         
         <div className="mt-6 flex flex-col gap-2">
+          {/* [P1 Fix] 优化按钮文案布局，防止换行溢出 */}
           <button
             onClick={handleGoToSettings}
-            className="w-full rounded-2xl bg-amber-500 py-3 text-sm font-bold text-slate-950 transition-all hover:bg-amber-400 active:scale-[0.98] cursor-pointer"
+            className="w-full rounded-2xl bg-amber-500 py-3 px-4 text-sm font-bold text-slate-950 transition-all hover:bg-amber-400 active:scale-[0.98] cursor-pointer flex flex-col items-center gap-0.5"
           >
-            去设置
+            <span>去设置</span>
+            <span className="text-xs font-medium opacity-80">Ignore Battery Optimizations</span>
           </button>
           <button
             onClick={handleSkip}

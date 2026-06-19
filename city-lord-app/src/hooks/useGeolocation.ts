@@ -190,6 +190,19 @@ export const useGeolocation = ({
 
     const startWatching = async () => {
       try {
+        // [P1 Fix] 调用 watchPosition 之前，必须强校验 Geolocation.checkPermissions()
+        if (await isNativePlatform()) {
+          const permissionStatus = await safeCheckGeolocationPermission();
+          if (permissionStatus !== 'granted') {
+            const requestStatus = await safeRequestGeolocationPermission();
+            if (requestStatus !== 'granted') {
+              console.warn('[useGeolocation] Watch permission denied');
+              setState({ loading: false, error: new Error('Location permission denied'), data: null });
+              return;
+            }
+          }
+        }
+
         const id = await safeWatchPosition(
           (position, err) => {
             if (!isActive || !isMounted.current) return;

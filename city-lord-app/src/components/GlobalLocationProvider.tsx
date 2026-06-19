@@ -419,7 +419,8 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
             if (typeof window !== 'undefined' && 'Capacitor' in window) {
                 try {
                     const { Capacitor } = window as any;
-                    Capacitor.Plugins?.AMapLocationPlugin?.sendPrewarmCommand({ command: 'start_prewarm' });
+                    // [P1 Fix] 增加强制空值校验，防止原生插件空指针导致 Crash
+                    Capacitor?.Plugins?.AMapLocationPlugin?.sendPrewarmCommand?.({ command: 'start_prewarm' });
                     console.log(`${TAG} [SmartPrewarm] App mount — prewarm signal sent to native layer`);
                 } catch (err) {
                     console.warn(`${TAG} [SmartPrewarm] Failed to send prewarm on mount:`, err);
@@ -497,21 +498,23 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
                             console.warn(`${TAG} [BatteryOpt] Native layer requests battery optimization whitelist`);
                             // 通过 toast 引导用户加入电池优化白名单
                             if (typeof window !== 'undefined') {
-                                const { toast } = require('sonner');
-                                toast.warning('为保持定位稳定，请将本应用加入电池优化白名单', {
-                                    duration: 10000,
-                                    action: {
-                                        label: '去设置',
-                                        onClick: async () => {
-                                            try {
-                                                // 通过原生插件打开电池优化设置页面
-                                                await Capacitor.Plugins.AMapLocation?.openBatteryOptimizationSettings?.();
-                                            } catch {
-                                                toast.error('无法打开设置页面');
-                                            }
+                                // [P1 Fix] 彻底移除 require('sonner')，替换为标准动态导入，防止 ESM 运行时崩溃
+                                import('sonner').then(({ toast }) => {
+                                    toast.warning('为保持定位稳定，请将本应用加入电池优化白名单', {
+                                        duration: 10000,
+                                        action: {
+                                            label: '去设置',
+                                            onClick: async () => {
+                                                try {
+                                                    // [P1 Fix] 增加强制空值校验，防止原生插件空指针导致 Crash
+                                                    await Capacitor.Plugins?.AMapLocation?.openBatteryOptimizationSettings?.();
+                                                } catch {
+                                                    toast.error('无法打开设置页面');
+                                                }
+                                            },
                                         },
-                                    },
-                                });
+                                    });
+                                }).catch(() => {});
                             }
                         }
                     });
@@ -666,7 +669,8 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
             if (typeof window !== 'undefined' && 'Capacitor' in window) {
                 try {
                     const { Capacitor } = window as any;
-                    Capacitor.Plugins?.AMapLocationPlugin?.sendPrewarmCommand({ command: 'start_prewarm' });
+                    // [P1 Fix] 增加强制空值校验，防止原生插件空指针导致 Crash
+                    Capacitor?.Plugins?.AMapLocationPlugin?.sendPrewarmCommand?.({ command: 'start_prewarm' });
                 } catch (err) {
                     console.warn(`${TAG} Failed to send prewarm command:`, err);
                 }
@@ -677,7 +681,8 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
             if (typeof window !== 'undefined' && 'Capacitor' in window) {
                 try {
                     const { Capacitor } = window as any;
-                    Capacitor.Plugins?.AMapLocationPlugin?.sendPrewarmCommand({ command: 'resume_high_freq' });
+                    // [P1 Fix] 增加强制空值校验，防止原生插件空指针导致 Crash
+                    Capacitor?.Plugins?.AMapLocationPlugin?.sendPrewarmCommand?.({ command: 'resume_high_freq' });
                 } catch (err) {
                     console.warn(`${TAG} Failed to send resume command:`, err);
                 }

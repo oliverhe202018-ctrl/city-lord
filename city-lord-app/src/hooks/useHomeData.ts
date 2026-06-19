@@ -26,7 +26,8 @@ export function useHomeData(scope: string = 'nearby') {
     const fetcher = useCallback((url: string) =>
         apiFetch(url, { credentials: 'include' }).then((r) => {
             if (r.status === 401) {
-                window.location.href = '/login';
+                // [P0 Fix] Capacitor 环境下 window.location.href 跳转会失败，改用 React Router navigate
+                navigate('/login');
                 throw new Error('Unauthorized');
             }
             return r.json().then((resData) => {
