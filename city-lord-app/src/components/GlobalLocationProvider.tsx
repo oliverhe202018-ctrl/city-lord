@@ -135,6 +135,7 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
                         hasPerm = true;
                     } else if (!onlyIfGranted) {
                         console.log(`${TAG} Requesting foreground location permission...`);
+                        // [P0 Fix] 状态护盾：在权限请求前立起护盾，防止 Auth 层误杀
                         useGameStore.getState().setIsPermissionRequesting(true);
                         try {
                             const newPerm = await safeRequestGeolocationPermission();
@@ -144,8 +145,14 @@ export function GlobalLocationProvider({ children }: { children: ReactNode }) {
                                 console.warn(`${TAG} Foreground permission denied.`);
                                 useLocationStore.setState({ error: 'PERMISSION_DENIED', loading: false });
                             }
+                        } catch (permErr) {
+                            // [P0 Fix] 隔离异常：权限插件抛出的错误绝不向 Auth 层传播
+                            console.warn(`${TAG} Permission request threw an error, treating as denied:`, permErr);
                         } finally {
-                            useGameStore.getState().setIsPermissionRequesting(false);
+                            // [P0 Fix] 延迟卸下护盾：给 App Resume + Supabase 读取本地存储留足缓冲时间
+                            setTimeout(() => {
+                                useGameStore.getState().setIsPermissionRequesting(false);
+                            }, 500);
                         }
                     } else {
                         console.log(`${TAG} onlyIfGranted is true and no permission. Staying silent.`);

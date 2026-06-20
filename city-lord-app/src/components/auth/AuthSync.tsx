@@ -122,6 +122,12 @@ export function AuthSync() {
         }, 2 * 60 * 1000)
 
       } else if (event === "SIGNED_OUT") {
+        // [P0 Fix] 拦截假 SIGNED_OUT：权限请求期间的登出事件一律判定为误杀
+        const isRequesting = useGameStore.getState().isPermissionRequesting;
+        if (isRequesting) {
+          console.warn('[AuthSync] Ignored SIGNED_OUT during permission request — likely a false positive from App resume race condition.');
+          return;
+        }
         // 可选：重置 Store
         // useGameStore.getState().resetUser()
         toast.info("已退出登录")

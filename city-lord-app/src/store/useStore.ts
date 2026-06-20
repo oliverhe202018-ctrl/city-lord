@@ -259,6 +259,23 @@ export const useStore = create<UserState>((set) => ({
             }
           } catch (e: any) {
             console.warn('Silent background auth check failed:', e);
+            // [P0 Fix] 宽容的 Resume 检查：区分网络/唤醒延迟与真正的 Auth 失效
+            const isNetworkError = e?.name === 'AbortError' ||
+              e?.message?.includes('network') ||
+              e?.message?.includes('Failed to fetch') ||
+              e?.message?.includes('Load failed') ||
+              e?.status === 0;
+            if (isNetworkError) {
+              // 网络错误（App 刚恢复前台）：保持当前状态，不强制登出
+              console.log('[checkAuth] Network/wake error during resume, keeping current state — not a real auth failure.');
+              return;
+            }
+            // [P0 Fix] 权限请求期间也不执行登出
+            const isRequesting = useGameStore.getState().isPermissionRequesting;
+            if (isRequesting) {
+              console.log('[checkAuth] Permission request in progress, deferring logout decision.');
+              return;
+            }
             if (e?.isAuthError || e?.status === 401) {
               // Only logout if it is explicitly an auth validation failure
               useStore.getState().logout();
