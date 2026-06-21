@@ -17,6 +17,15 @@ let _lastAcceptedLocationTimestamp = 0;
 export type GameMode = 'map' | 'single' | 'private' | 'club';
 export type DrawerType = 'none' | 'city' | 'club' | 'room' | 'createClub' | 'manageClub' | 'mode' | 'runHistory' | 'settings' | 'theme' | 'leaderboard';
 
+export interface MapActionSignal {
+  type: 'FLY_TO';
+  payload: {
+    center: [number, number]; // [lng, lat]
+    zoom: number;
+  };
+  timestamp: number;
+}
+
 export interface UserState {
   userId: string;
   nickname: string;
@@ -97,6 +106,7 @@ export interface TerritoryState {
 
 export interface WorldState {
   territories: Map<string, TerritoryState>;
+  mapAction: MapActionSignal | null;
 }
 
 export interface AppSettings {
@@ -151,6 +161,7 @@ export interface ModeActions {
   openDrawer: (drawer: DrawerType) => void;
   closeDrawer: () => void;
   setSelectedTerritoryId: (id: string | null) => void;
+  triggerMapAction: (action: Omit<MapActionSignal, 'timestamp'>) => void;
 
   setMyClub: (club: MyClub | null) => void;
   updateMyClubInfo: (info: Partial<MyClub>) => void;
@@ -350,6 +361,7 @@ const initialInventoryState: InventoryState = {
 
 const initialWorldState: WorldState = {
   territories: new Map(),
+  mapAction: null,
 };
 
 // ==================== Slices ====================
@@ -359,6 +371,7 @@ const createModeSlice: StateCreator<GameStore, [], [], ModeActions> = (set, get)
   openDrawer: (drawer) => set({ activeDrawer: drawer }),
   closeDrawer: () => set({ activeDrawer: 'none' }),
   setSelectedTerritoryId: (id) => set({ selectedTerritoryId: id }),
+  triggerMapAction: (action) => set({ mapAction: { ...action, timestamp: Date.now() } }),
   setMyClub: (club) => set({ myClub: club }),
   updateMyClubInfo: (info) =>
     set((state) => ({
@@ -949,6 +962,7 @@ export const useGameActions = () => {
       updateMyClubInfo: state.updateMyClubInfo,
       updateAppSettings: state.updateAppSettings,
       setSelectedTerritoryId: state.setSelectedTerritoryId,
+      triggerMapAction: state.triggerMapAction,
       setCurrentRoom: state.setCurrentRoom,
       setJoinedRooms: state.setJoinedRooms,
       addJoinedRoom: state.addJoinedRoom,
@@ -1066,7 +1080,7 @@ export const useGameLocation = () =>
     })),
   );
 export const useGameInventory = () => useGameStore(useShallow((state) => ({ items: state.items, totalItems: state.totalItems })));
-export const useGameWorld = () => useGameStore(useShallow((state) => ({ territories: state.territories })));
+export const useGameWorld = () => useGameStore(useShallow((state) => ({ territories: state.territories, mapAction: state.mapAction })));
 export const useGameTerritoryAppearance = () =>
   useGameStore(
     useShallow((state) => ({

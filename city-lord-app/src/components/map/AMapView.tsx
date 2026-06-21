@@ -107,7 +107,22 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
       showFog, // Fog layer visibility
     } = useMapInteraction();
     const setSelectedTerritoryId = useGameStore((state) => state.setSelectedTerritoryId);
+    const mapAction = useGameStore((state) => state.mapAction);
     const resetRunState = useGameStore((state) => state.resetRunState);
+
+    // Global Map Action (FLY_TO)
+    useEffect(() => {
+      if (!map || !mapAction) return;
+      if (mapAction.type === 'FLY_TO' && mapAction.payload.center) {
+        console.log(`[Global-MapAction] Flying to ${mapAction.payload.center}`);
+        if (map.setZoomAndCenter) {
+          map.setZoomAndCenter(mapAction.payload.zoom || 17, mapAction.payload.center, false, 600);
+        } else {
+          map.setCenter(mapAction.payload.center);
+          map.setZoom(mapAction.payload.zoom || 17);
+        }
+      }
+    }, [map, mapAction?.timestamp]);
     const recenterTimerRef = useRef<number | null>(null);
     const isUserInteractingRef = useRef(false);
     const currentLocationRef = useRef(currentLocation);

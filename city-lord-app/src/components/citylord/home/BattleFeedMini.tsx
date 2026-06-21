@@ -5,6 +5,7 @@ import { Coins, AlertTriangle, Swords, Wind } from 'lucide-react';
 import type { BattleEvent } from '@/types/home';
 import { useMessageStore } from '@/store/useMessageStore';
 import type { SystemMessage } from '@/types/system-message';
+import { useGameStore } from '@/store/useGameStore';
 
 interface BattleFeedMiniProps {
     events: BattleEvent[];
@@ -41,15 +42,34 @@ function TerritoryMessageRow({ message, onViewEvent }: {
 
     return (
         <button
-            onClick={() => onViewEvent({
-                id: message.id,
-                type: message.type === 'revenue' ? 'win' : 'lost',
-                text: message.content,
-                createdAt: message.createdAt,
-                ctaType: message.type === 'combat_alert' ? 'counter' : 'see',
-                ctaLabel: message.type === 'combat_alert' ? '反击' : '查看',
-                severity: message.type === 'combat_alert' ? 'warn' : 'info',
-            })}
+            onClick={() => {
+                if (message.metadata?.lng && message.metadata?.lat) {
+                    // Force close any drawers
+                    useGameStore.getState().closeDrawer();
+                    if (typeof window !== 'undefined') {
+                        window.dispatchEvent(new CustomEvent('citylord:close-detail-sheet'));
+                    }
+                    // Trigger map jump
+                    useGameStore.getState().triggerMapAction({
+                        type: 'FLY_TO',
+                        payload: {
+                            center: [message.metadata.lng, message.metadata.lat],
+                            zoom: 17
+                        }
+                    });
+                }
+                
+                onViewEvent({
+                    id: message.id,
+                    type: message.type === 'revenue' ? 'win' : 'lost',
+                    text: message.content,
+                    createdAt: message.createdAt,
+                    ctaType: message.type === 'combat_alert' ? 'counter' : 'see',
+                    ctaLabel: message.type === 'combat_alert' ? '反击' : '查看',
+                    severity: message.type === 'combat_alert' ? 'warn' : 'info',
+                    relatedTargetId: message.metadata?.territoryId,
+                })
+            }}
             className="w-full flex items-center gap-2 py-1.5 text-left border-b border-border/40 last:border-b-0"
         >
             <div className="shrink-0 mt-0.5">

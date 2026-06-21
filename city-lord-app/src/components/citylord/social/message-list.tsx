@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -11,6 +11,13 @@ import type { VoiceRecordResult } from "@/hooks/useAudioRecorder"
 import { useNavigate } from 'react-router-dom'
 import { openUserProfile } from '@/lib/utils/nav'
 import { EmojiPicker } from '@/components/ui/EmojiPicker'
+import { GlassCard } from '@/components/ui/GlassCard'
+import { formatDistanceToNow, isToday, isYesterday, isThisWeek, format } from 'date-fns'
+import { zhCN } from 'date-fns/locale'
+import { useMessageStore } from '@/store/useMessageStore'
+import { useGameStore } from '@/store/useGameStore'
+import type { SystemMessage } from "@/types/system-message"
+import { apiFetch } from '@/lib/fetch-shim';
 
 const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
   const controller = new AbortController()
@@ -38,20 +45,6 @@ const sendMessage = async (receiverId: string, content: string, type: 'text' | '
   return await res.json()
 }
 
-import { GlassCard } from '@/components/ui/GlassCard'
-import { formatDistanceToNow, isToday, isYesterday, isThisWeek, format } from 'date-fns'
-import { zhCN } from 'date-fns/locale'
-import { useMessageStore } from '@/store/useMessageStore'
-import type { SystemMessage } from "@/types/system-message"
-import { apiFetch } from '@/lib/fetch-shim';
-
-
-function formatWeChatTime(dateStr: string) {
-  const date = new Date(dateStr)
-  if (isToday(date)) return format(date, "HH:mm")
-  if (isYesterday(date)) return "昨天 " + format(date, "HH:mm")
-  if (isThisWeek(date)) return format(date, "EEEE HH:mm", { locale: zhCN })
-  return format(date, "yyyy年MM月dd日 HH:mm")
 }
 
 interface Message {
@@ -81,7 +74,13 @@ const fetcher = (url: string) => apiFetch(url).then(res => {
   return res.json()
 })
 
-export function MessageList({ initialFriendId, mode = 'system' }: MessageListProps) {
+export function MessageList({ initialFriendId, mode = 'system' function formatWeChatTime(dateStr: string) {
+  const date = new Date(dateStr)
+  if (isToday(date)) return format(date, "HH:mm")
+  if (isYesterday(date)) return "昨天 " + format(date, "HH:mm")
+  if (isThisWeek(date)) return format(date, "EEEE HH:mm", { locale: zhCN })
+  return format(date, "yyyy年MM月dd日 HH:mm")
+}: MessageListProps) {
   const { data: messages = [], mutate, isLoading, error: messagesError } = useSWR<Message[]>('/api/message/get-messages', fetcher, {
     revalidateOnFocus: true,
   })
@@ -406,7 +405,28 @@ export function MessageList({ initialFriendId, mode = 'system' }: MessageListPro
                 <GlassCard
                   key={systemMsg.id}
                   className={`p-3 cursor-pointer transition-colors ${styleClass}`}
-                  onClick={() => markSystemMessageRead(systemMsg.id)}
+                  onClick={() => {
+                    markSystemMessageRead(systemMsg.id);
+                    if (systemMsg.metadata?.lng && systemMsg.metadata?.lat) {
+                      useGameStore.getState().closeDrawer();
+                      if (typeof window !== 'undefined') {
+                        window.dispatchEvent(new CustomEvent('citylord:close-detail-sheet'));
+                      }
+                      
+                      // Using CustomEvent for tab switching since context might not be available
+                      if (typeof window !== 'undefined') {
+                        window.dispatchEvent(new CustomEvent('citylord:switch-tab', { detail: { tab: 'play' } }));
+                      }
+
+                      useGameStore.getState().triggerMapAction({
+                        type: 'FLY_TO',
+                        payload: {
+                          center: [systemMsg.metadata.lng, systemMsg.metadata.lat],
+                          zoom: 17
+                        }
+                      });
+                    }
+                  }}
                 >
                   <div className="flex justify-between items-start mb-1">
                     <div className="flex items-center gap-2">
