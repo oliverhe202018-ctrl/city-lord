@@ -165,3 +165,19 @@ export function generateNeutralTerritoryStyle(ctx: ViewContext): TerritoryRender
         isCritical: visuals.isCritical
     };
 }
+
+export const CLUB_PALETTE = [
+  '#ef4444', '#f97316', '#f59e0b', '#84cc16', 
+  '#22c55e', '#10b981', '#14b8a6', '#06b6d4', 
+  '#0ea5e9', '#3b82f6', '#6366f1', '#8b5cf6', 
+  '#a855f7', '#d946ef', '#ec4899', '#f43f5e'
+];
+
+export function getClubColor(clubId: string): string {
+  let hash = 0;
+  for (let i = 0; i < clubId.length; i++) {
+    hash = clubId.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % CLUB_PALETTE.length;
+  return CLUB_PALETTE[index];
+}

@@ -948,6 +948,8 @@ export const getClubDetailsCached = unstable_cache(
       .eq('id', clubId)
       .single()
 
+    let resultData: any = null;
+
     if (error) {
       if (error.code === 'PGRST205' || error.message?.includes('schema cache')) {
         console.warn('View v_clubs_summary not found, falling back to direct table queries')
@@ -977,19 +979,37 @@ export const getClubDetailsCached = unstable_cache(
           .eq('status', 'active')
 
         // Return the structure expected by v_clubs_summary shape
-        return {
+        resultData = {
           ...clubData,
           active_member_count: activeMemberCount || 0,
           total_member_count: clubData.member_count || activeMemberCount || 0,
           owner_name: ownerProfile?.nickname || null,
           owner_avatar: ownerProfile?.avatar_url || null
         }
+      } else {
+        console.error('Fetch Cached Club Details Error:', error)
+        return null
       }
-
-      console.error('Fetch Cached Club Details Error:', error)
-      return null
+    } else {
+      resultData = data
     }
-    return data
+
+    if (resultData) {
+      const { data: maxTerritory } = await supabase
+        .from('territories')
+        .select('id, center_lng, center_lat')
+        .eq('owner_club_id', clubId)
+        .order('area', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (maxTerritory && maxTerritory.center_lng && maxTerritory.center_lat) {
+        resultData.coreTerritoryCenter = [maxTerritory.center_lng, maxTerritory.center_lat]
+        resultData.coreTerritoryId = maxTerritory.id
+      }
+    }
+
+    return resultData
   },
   ['club-details-v3'],
   { revalidate: 3600, tags: ['club-details-v3'] }

@@ -84,6 +84,8 @@ type ClubDetailInfo = {
   memberCount: number
   province?: string
   totalArea?: number
+  coreTerritoryCenter?: [number, number] | null
+  coreTerritoryId?: string | null
 }
 
 type ClubDetailMember = {
@@ -283,7 +285,9 @@ export function ClubDetailView({
           avatarUrl: toPublicUrl(cachedClub.avatar_url, 'clubs'),
           memberCount: cachedClub.total_member_count || cachedClub.member_count || 0,
           province: cachedClub.province,
-          totalArea: Number(cachedClub.total_area) || 0
+          totalArea: Number(cachedClub.total_area) || 0,
+          coreTerritoryCenter: cachedClub.coreTerritoryCenter,
+          coreTerritoryId: cachedClub.coreTerritoryId
         })
       }
 
@@ -597,6 +601,27 @@ export function ClubDetailView({
                   <Footprints className="w-3.5 h-3.5 text-muted-foreground" />
                   <span>{formatArea(club.totalArea)}</span>
                 </div>
+                {club.coreTerritoryCenter && (
+                  <>
+                    <div className="w-[1px] h-4 bg-border" />
+                    <div 
+                      className="flex items-center gap-1 cursor-pointer hover:text-primary transition-colors group"
+                      onClick={() => {
+                        useMapInteractionStore.getState().setPendingCameraFocus({
+                          lng: club.coreTerritoryCenter![0],
+                          lat: club.coreTerritoryCenter![1],
+                          zoom: 17,
+                          territoryId: club.coreTerritoryId!
+                        });
+                        useGameStore.getState().closeDrawer();
+                        window.dispatchEvent(new CustomEvent("citylord:switch-tab", { detail: { tab: "play" } }));
+                      }}
+                    >
+                      <MapPin className="w-3.5 h-3.5 text-primary group-hover:scale-110 transition-transform" />
+                      <span className="text-primary/90 font-bold">视察大本营</span>
+                    </div>
+                  </>
+                )}
                 <div className="w-[1px] h-4 bg-border" />
                 <div className="flex items-center gap-1">
                   <Users className="w-3.5 h-3.5 text-muted-foreground" />
