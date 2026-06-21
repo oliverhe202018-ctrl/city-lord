@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, LocateFixed, List, X, Signal } from 'lucide-react'
@@ -241,6 +241,10 @@ export function StartRunOverlay({ onBack, onBeginRun }: StartRunOverlayProps) {
               : 'bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100'
           }`}
           onClick={async () => {
+            if (localStorage.getItem('city-lord-battery-bypass') === 'true') {
+              onBeginRun()
+              return
+            }
             const native = await isNativePlatform()
             if (native) {
               const { Capacitor, registerPlugin } = await import("@capacitor/core")
@@ -325,6 +329,18 @@ export function StartRunOverlay({ onBack, onBeginRun }: StartRunOverlayProps) {
                   }}
                 >
                   去忽略电池优化 (Ignore Battery Optimizations)
+                </Button>
+                <Button
+                  type="button"
+                  variant="default"
+                  className="h-12 w-full rounded-2xl border border-rose-500 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/50"
+                  onClick={() => {
+                    localStorage.setItem('city-lord-battery-bypass', 'true')
+                    setShowBatteryModal(false)
+                    onBeginRun()
+                  }}
+                >
+                  我已授权，强制跳过 (Force Start)
                 </Button>
                 <Button
                   type="button"

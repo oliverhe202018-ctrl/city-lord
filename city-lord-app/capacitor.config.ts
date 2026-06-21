@@ -26,7 +26,7 @@ const config: CapacitorConfig = {
     // 防止 capacitor:// 协议下跨域被拦截导致 Crash
     // [P0 Fix] 严禁 Capacitor 插件触发 WebView resize，防止键盘弹出挤压 UI
     Keyboard: {
-      resize: 'none',
+      resize: 'body',
       resizeOnFullScreen: true,
     },
   },

@@ -59,6 +59,7 @@ export function BatteryOptimizationModal({ onConfirm, onSkip }: BatteryOptimizat
   };
 
   const handleSkip = () => {
+    localStorage.setItem('city-lord-battery-bypass', 'true');
     setVisible(false);
     onSkip(); // Skip and silent start
   };
@@ -92,7 +93,7 @@ export function BatteryOptimizationModal({ onConfirm, onSkip }: BatteryOptimizat
             onClick={handleSkip}
             className="w-full rounded-2xl bg-white/5 py-3 text-sm font-medium text-slate-400 transition-all hover:bg-white/10 hover:text-slate-300 active:scale-[0.98] cursor-pointer"
           >
-            仍然跳过
+            我已授权，强制跳过
           </button>
         </div>
       </div>

@@ -437,7 +437,7 @@ public class AMapLocationPlugin extends Plugin {
             return;
 
         String mode = call.getString("mode", "browse");
-        int interval = call.getInt("interval", "browse".equals(mode) ? 5000 : 1000);
+        int interval = call.getInt("interval", "browse".equals(mode) ? 2000 : 1000);
         int distanceFilter = call.getInt("distanceFilter", "browse".equals(mode) ? 10 : 3);
 
         Log.i(TAG, "startWatch: mode=" + mode + " interval=" + interval + " distanceFilter=" + distanceFilter);
@@ -461,6 +461,10 @@ public class AMapLocationPlugin extends Plugin {
             option.setLocationCacheEnable(false);
             option.setGpsFirst(true);
             option.setGpsFirstTimeout(5000);
+            
+            // [P0 Fix] 开启 WIFI 扫描和禁用模拟定位
+            option.setWifiScan(true);
+            option.setMockEnable(false);
 
             option.setInterval(interval);
             option.setNeedAddress(false);
@@ -1054,6 +1058,19 @@ public class AMapLocationPlugin extends Plugin {
     // -----------------------------------------------------------------------
     // Battery Optimization — 白名单检测与引导跳转
     // -----------------------------------------------------------------------
+
+    /**
+     * 查询前台定位服务是否存活
+     * 用于 JS 层在 resume 时判断是否需要重启定位
+     *
+     * @return isAlive: true 表示服务正在运行，false 表示服务已停止
+     */
+    @PluginMethod()
+    public void isTrackingAlive(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("isAlive", isTracking);
+        call.resolve(ret);
+    }
 
     /**
      * 查询 App 是否已在电池优化白名单中。

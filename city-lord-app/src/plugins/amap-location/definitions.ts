@@ -213,6 +213,12 @@ export interface AMapLocationPlugin {
     isBatteryOptimizationIgnored(): Promise<{ isIgnored: boolean }>;
 
     /**
+     * 查询前台定位服务是否存活。
+     * 用于 JS 层在 resume 时判断是否需要重启定位。
+     */
+    isTrackingAlive(): Promise<{ isAlive: boolean }>;
+
+    /**
      * 跳转至系统的电池优化设置页面。
      * 用于引导用户将应用加入电池优化白名单，防止后台被系统杀死。
      */

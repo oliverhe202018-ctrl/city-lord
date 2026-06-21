@@ -33,6 +33,7 @@ import { ActivityList } from './ActivityList'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { io, Socket } from 'socket.io-client'
+import { Capacitor } from '@capacitor/core'
 
 // ─── Temp ID generator (P0 #7) ────────────────────────────────
 let tempCounter = 0
@@ -56,6 +57,36 @@ export function ClubChatView({ clubId, currentUserId, embedded = false }: ClubCh
     const [membership, setMembership] = useState<MembershipInfo | null>(null)
     const [accessDenied, setAccessDenied] = useState(false)
     const [channelError, setChannelError] = useState<string | null>(null)
+
+    const [keyboardHeight, setKeyboardHeight] = useState(0)
+
+    useEffect(() => {
+        if (!Capacitor.isNativePlatform()) return;
+        
+        let showListener: any;
+        let hideListener: any;
+        
+        const setupKeyboard = async () => {
+            try {
+                const { Keyboard } = await import('@capacitor/keyboard');
+                showListener = await Keyboard.addListener('keyboardWillShow', info => {
+                    setKeyboardHeight(info.keyboardHeight);
+                });
+                hideListener = await Keyboard.addListener('keyboardWillHide', () => {
+                    setKeyboardHeight(0);
+                });
+            } catch (e) {
+                console.error('Failed to setup keyboard listener', e);
+            }
+        };
+        
+        setupKeyboard();
+        
+        return () => {
+            if (showListener) showListener.remove();
+            if (hideListener) hideListener.remove();
+        };
+    }, []);
 
     // Messages state
     const [confirmedMessages, setConfirmedMessages] = useState<ClubMessageWithSender[]>([])
@@ -395,7 +426,7 @@ export function ClubChatView({ clubId, currentUserId, embedded = false }: ClubCh
             </div>
 
             {/* Messages or Activity view */}
-            <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
+            <div className="flex flex-1 flex-col min-h-0 overflow-hidden" style={{ paddingBottom: keyboardHeight ? `${keyboardHeight}px` : undefined }}>
                 {activeChannel?.key === ChannelKey.EVENTS ? (
                     /* Specialized activity view for Events channel */
                     membership ? (

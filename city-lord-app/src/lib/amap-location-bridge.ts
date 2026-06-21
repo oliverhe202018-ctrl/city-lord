@@ -614,7 +614,7 @@ export class AMapLocationBridge {
     }): Promise<void> {
         if (this.destroyed) return;
 
-        // 幂等：如果已在相同模式 watch，不重复启动
+        // 幂等性保证：如果已在相同模式 watch，立即返回
         if (this.isWatching && this.watchMode === options.mode) {
             logInfo({ phase: 'startWatch-skip', reason: `Already watching in ${options.mode} mode` });
             return;
@@ -693,6 +693,25 @@ export class AMapLocationBridge {
             this.isUsingForegroundService = false;
         } else {
             await this.safeStopWatch(makeRequestId());
+        }
+    }
+
+    /**
+     * 查询原生层前台定位服务是否存活
+     * 用于 Resume 时判断是否需要重启定位
+     */
+    async pingService(): Promise<boolean> {
+        if (!this.isNative || !this._AMapLocation) {
+            return false;
+        }
+        try {
+            const result = await (this._AMapLocation as any).isTrackingAlive();
+            const isAlive = result?.isAlive === true;
+            logInfo({ phase: 'pingService', reason: `Service alive: ${isAlive}` });
+            return isAlive;
+        } catch (e) {
+            logWarn({ phase: 'pingService-failed', reason: String(e) });
+            return false;
         }
     }
 

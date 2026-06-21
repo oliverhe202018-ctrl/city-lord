@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { toast } from 'sonner';
+import { Keyboard, KeyboardResize } from '@capacitor/keyboard';
+import { isNativePlatform } from '../lib/capacitor/safe-plugins';
 
 export default function LoginPage() {
   const [tab, setTab] = useState<'code' | 'password'>('code');
@@ -13,6 +15,32 @@ export default function LoginPage() {
 
   const { loginWithPassword, loginWithCode, sendCode, isAuthenticated } = useStore();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const setupKeyboard = async () => {
+      if (await isNativePlatform()) {
+        try {
+          await Keyboard.setResizeMode({ mode: KeyboardResize.None });
+        } catch (e) {
+          console.warn('Keyboard setResizeMode None failed', e);
+        }
+      }
+    };
+    setupKeyboard();
+
+    return () => {
+      const restoreKeyboard = async () => {
+        if (await isNativePlatform()) {
+          try {
+            await Keyboard.setResizeMode({ mode: KeyboardResize.Body });
+          } catch (e) {
+            console.warn('Keyboard setResizeMode Body failed', e);
+          }
+        }
+      };
+      restoreKeyboard();
+    };
+  }, []);
 
   useEffect(() => {
     if (isAuthenticated) {

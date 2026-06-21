@@ -150,6 +150,17 @@ function LoginPageContent() {
     localStorage.setItem('verification_cooldown_v2', JSON.stringify(next))
   }
 
+  const clearCooldown = (scene: string, target: string, type: string) => {
+    const normalized = target.trim().toLowerCase()
+    const key = `cd:${scene}:${type}:${normalized}`
+    setCooldowns(prev => {
+      const next = { ...prev }
+      delete next[key]
+      localStorage.setItem('verification_cooldown_v2', JSON.stringify(next))
+      return next
+    })
+  }
+
   const handleSendCode = async (type: 'register' | 'login') => {
     if (!agreed) {
       toast.error("请先阅读并同意以勾选《用户协议》与《隐私政策》")
@@ -163,6 +174,7 @@ function LoginPageContent() {
     if (remain > 0) return
 
     setLoading(true)
+    saveCooldown('email', email, type, 60)
     logEvent('auth_code_request', { type, medium: 'email' });
     try {
       const { apiClient } = await import('@/lib/api/client')
@@ -170,6 +182,7 @@ function LoginPageContent() {
       if (type === 'register') {
         if (!password) {
           toast.error("请先输入密码")
+          clearCooldown('email', email, type)
           setLoading(false)
           return
         }
@@ -180,14 +193,15 @@ function LoginPageContent() {
 
       if (!res.success) {
         toast.error(res.message)
+        clearCooldown('email', email, type)
         return
       }
 
       setCodeSent(true)
-      saveCooldown('email', email, type, 60)
       toast.success("验证码已发送")
     } catch (error) {
       toast.error("发送失败，请重试")
+      clearCooldown('email', email, type)
     } finally {
       setLoading(false)
     }
@@ -245,6 +259,7 @@ function LoginPageContent() {
     if (remain > 0) return
 
     setLoading(true)
+    saveCooldown('sms', phone, type, 60)
     logEvent('auth_code_request', { type, medium: 'sms' });
     try {
       const { apiClient } = await import('@/lib/api/client')
@@ -255,13 +270,14 @@ function LoginPageContent() {
       })
       if (!res.success) {
         toast.error(res.message)
+        clearCooldown('sms', phone, type)
         return
       }
       setCodeSent(true)
-      saveCooldown('sms', phone, type, 60)
       toast.success("验证码已发送")
     } catch (error) {
       toast.error("发送失败")
+      clearCooldown('sms', phone, type)
     } finally {
       setLoading(false)
     }
