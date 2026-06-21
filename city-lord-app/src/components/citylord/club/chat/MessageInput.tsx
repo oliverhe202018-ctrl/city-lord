@@ -120,7 +120,7 @@ export function MessageInput({ channelKey, userRole, currentUserId, onSend, disa
                         variant="ghost" 
                         size="icon"
                         disabled={disabled || isSending || !canSendInChannel}
-                        className="h-10 w-10 rounded-xl text-white/50 hover:text-white hover:bg-white/5"
+                        className="h-10 w-10 rounded-xl text-white/50 hover:text-white hover:bg-white/5 active:scale-90 transition-transform"
                         onClick={async () => {
                             try {
                                 const { Camera, CameraResultType, CameraSource } = await import('@capacitor/camera')
@@ -179,7 +179,7 @@ export function MessageInput({ channelKey, userRole, currentUserId, onSend, disa
                         disabled={!canSend}
                         size="icon"
                         className={cn(
-                            'h-10 w-10 rounded-xl transition-all duration-150 flex-shrink-0',
+                            'group h-10 w-10 rounded-xl transition-all duration-150 flex-shrink-0 active:scale-90',
                             canSend
                                 ? 'bg-yellow-500 hover:bg-yellow-400 text-black'
                                 : 'bg-white/5 text-white/20 cursor-not-allowed'
@@ -188,7 +188,7 @@ export function MessageInput({ channelKey, userRole, currentUserId, onSend, disa
                         {isSending ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
-                            <Send className="h-4 w-4" />
+                            <Send className={cn("h-4 w-4 transition-transform duration-200", canSend ? "group-active:translate-x-1 group-active:-translate-y-1" : "")} />
                         )}
                     </Button>
                 </div>

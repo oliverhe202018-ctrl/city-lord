@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useRef, useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Loader2, RefreshCw, Trash2, ChevronUp, MessageSquare } from 'lucide-react'
 import type { ClubMessageWithSender } from '@/lib/types/club-chat.types'
 import { VoiceBubble } from '@/components/chat/voice/VoiceBubble'
+import { motion } from 'framer-motion'
 
 // ─── Optimistic message type (P0 #7) ──────────────────────────
 export interface OptimisticMessage {
@@ -131,10 +132,15 @@ function MessageBubble({
     }, [isRetrying, msg, onRetry])
 
     return (
-        <div className={`flex items-start gap-2.5 ${isOwn ? 'flex-row-reverse' : ''}`}>
+        <motion.div 
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+            className={`flex items-start gap-2.5 ${isOwn ? 'flex-row-reverse' : ''}`}
+        >
             {/* Avatar */}
             <div
-                className={`h-8 w-8 flex-shrink-0 rounded-full overflow-hidden bg-zinc-800 ${!isOwn ? 'cursor-pointer hover:ring-2 ring-primary/50 transition-all' : ''}`}
+                className={`h-8 w-8 flex-shrink-0 rounded-full overflow-hidden bg-zinc-800 transition-transform ${!isOwn ? 'cursor-pointer hover:ring-2 ring-primary/50 active:scale-90' : ''}`}
                 onClick={handleAvatarClick}
             >
                 {avatarUrl ? (
@@ -212,7 +218,7 @@ function MessageBubble({
                     </div>
                 )}
             </div>
-        </div>
+        </motion.div>
     )
 }
 
@@ -241,6 +247,13 @@ export function MessageList({
     const scrollRef = useRef<HTMLDivElement>(null)
     const prevHeightRef = useRef<number>(0)
     const isAutoScrollRef = useRef(true)
+    const [showNewMessageIndicator, setShowNewMessageIndicator] = useState(false)
+
+    const scrollToBottom = useCallback(() => {
+        isAutoScrollRef.current = true
+        setShowNewMessageIndicator(false)
+        lastMessageRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    }, [])
 
     // P0 #8: After loading more, preserve scroll position
     useEffect(() => {
@@ -267,7 +280,13 @@ export function MessageList({
             prevHeightRef.current = 0
         } else if (isAutoScrollRef.current) {
             // Smooth scroll to bottom for new messages
-            lastMessageRef.current?.scrollIntoView({ behavior: 'smooth' })
+            lastMessageRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+        } else {
+            // Show new message indicator if not at bottom and new message arrives
+            // Prevent showing indicator on initial load if we just didn't scroll yet
+            if (messages.length > 0) {
+                setShowNewMessageIndicator(true)
+            }
         }
     }, [messages])
 
@@ -276,13 +295,17 @@ export function MessageList({
         const el = scrollRef.current
         if (!el) return
         const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
-        isAutoScrollRef.current = distFromBottom < 100 // Increased tolerance
+        const isNearBottom = distFromBottom < 100 // Increased tolerance
+        isAutoScrollRef.current = isNearBottom
+        if (isNearBottom) {
+            setShowNewMessageIndicator(false)
+        }
     }, [])
 
     // Expose a way to force scroll to bottom (called by parent after send)
     useEffect(() => {
         if (scrollRef.current && isAutoScrollRef.current) {
-            lastMessageRef.current?.scrollIntoView({ behavior: 'smooth' })
+            lastMessageRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
         }
     })
 
@@ -295,14 +318,15 @@ export function MessageList({
     }
 
     return (
-        <div
-            ref={scrollRef}
-            onScroll={handleScroll}
-            className="flex-1 overflow-y-auto overscroll-contain px-4 py-3 flex flex-col"
-            id="message-list-scroll"
-        >
-            {/* Load more button at top */}
-            {hasMore && (
+        <div className="flex-1 relative flex flex-col min-h-0">
+            <div
+                ref={scrollRef}
+                onScroll={handleScroll}
+                className="flex-1 overflow-y-auto overscroll-contain px-4 py-3 flex flex-col"
+                id="message-list-scroll"
+            >
+                {/* Load more button at top */}
+                {hasMore && (
                 <div className="flex justify-center mb-3">
                     <Button
                         variant="ghost"
@@ -339,6 +363,18 @@ export function MessageList({
                 })}
                 <div ref={lastMessageRef} className="h-0 w-0" />
             </div>
+            
+            {/* New Message Indicator */}
+            {showNewMessageIndicator && (
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
+                    <button
+                        onClick={scrollToBottom}
+                        className="bg-zinc-800/90 backdrop-blur text-yellow-400 text-xs font-medium px-4 py-2 rounded-full shadow-[0_0_15px_rgba(0,0,0,0.5)] border border-white/10 flex items-center gap-1.5 hover:bg-zinc-700 transition-all active:scale-95 animate-in slide-in-from-bottom-2 fade-in duration-200"
+                    >
+                        <span>⬇️</span> 1条新消息
+                    </button>
+                </div>
+            )}
         </div>
     )
 }
