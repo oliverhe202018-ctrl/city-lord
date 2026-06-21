@@ -26,22 +26,22 @@ if (!code.includes('const logDebugPoint')) {
 
 // Replace returns with logDebugPoint
 code = code.replace(
-  /console\.debug\([\s\S]*?Anchor REJECT[\s\S]*?\);\s*return;/g,
+  /console\.debug\([^)]*Anchor REJECT[^)]*\);\s*return;/g,
   (match) => `${match.replace('return;', "logDebugPoint('discarded', 'Anchor: Low Accuracy');\n        return;")}`
 );
 
 code = code.replace(
-  /console\.debug\([\s\S]*?Layer 1 REJECT[\s\S]*?\);\s*if \(gpsWeakTimerRef/g,
+  /console\.debug\([^)]*Layer 1 REJECT[^)]*\);\s*if \(gpsWeakTimerRef/g,
   (match) => `logDebugPoint('discarded', 'Layer 1: Accuracy > Threshold');\n        ${match}`
 );
 
 code = code.replace(
-  /console\.debug\([\s\S]*?Layer 2 REJECT: speed[\s\S]*?\)\s*;\s*return;/g,
+  /console\.debug\(\s*`\[GPS-Filter\] ❌ Layer 2 REJECT: speed[^)]*\)\s*;\s*return;/g,
   (match) => `${match.replace('return;', "logDebugPoint('discarded', 'Layer 2: Speed Anomaly');\n          return;")}`
 );
 
 code = code.replace(
-  /console\.debug\([\s\S]*?Accel REJECT:[\s\S]*?\)\s*;\s*return;/g,
+  /console\.debug\(\s*`\[GPS-Filter\] ❌ Accel REJECT:[^)]*\)\s*;\s*return;/g,
   (match) => `${match.replace('return;', "logDebugPoint('discarded', 'Layer 2: Accel Anomaly');\n            return;")}`
 );
 
