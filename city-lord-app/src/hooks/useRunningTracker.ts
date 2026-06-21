@@ -13,6 +13,7 @@ import type { GeoPoint } from '@/hooks/useSafeGeolocation';
 import { useLocationStore, GPS_START_ANCHOR_ACCURACY_METERS, GPS_TRACKING_ACCURACY_METERS, GPS_DISPLAY_ACCURACY_METERS,  } from '@/store/useLocationStore';
 import { getDistanceFromLatLonInMeters, LOOP_CLOSURE_THRESHOLD_M, LOOP_CLOSURE_SNAP_M, isLoopClosed, MIN_LOOP_POINTS, extractValidLoops, isDuplicatePolygon, simplifyPathDP, simplifyPathDPAsync } from '@/lib/geometry-utils';
 import { shouldAcceptPointByDistance } from '@/lib/location/gps-spatial-filter';
+import { useGpsDebugStore } from '@/store/useGpsDebugStore';
 import { validateSegmentSpeed } from '@/lib/location/gps-speed-validator';
 import { type ActiveRandomEvent, useRandomEvents } from '@/hooks/useRandomEvents';
 import { type RunEventLog } from '@/types/run-sync';
@@ -920,6 +921,16 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
     const isAwaitingAnchor = pathRef.current.length === 0;
 
+    const logDebugPoint = (status: 'valid' | 'discarded', reason?: string) => {
+      useGpsDebugStore.getState().addDebugPoint({
+        lat,
+        lng,
+        status,
+        reason,
+        timestamp: now
+      });
+    };
+
     // ================================================================
     // 🛡️ THREE-LAYER GPS ANTI-JITTER INTERCEPTOR
     // Applied BEFORE smoothing, path appending, or distance calculation
@@ -939,6 +950,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         console.debug(
           `[GPS-Filter] ❌ Anchor REJECT: accuracy ${typeof accuracy === 'number' ? accuracy.toFixed(0) : 'unknown'}m > ${GPS_START_ANCHOR_ACCURACY_METERS}m threshold`
         );
+        logDebugPoint('discarded', 'Anchor: Low Accuracy');
         return;
       }
     } else if (accuracy != null && accuracy > GPS_TRACKING_ACCURACY_METERS) {
@@ -948,6 +960,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         console.log(`[GPS-Filter] ⚠️ Early phase low-accuracy point accepted for instant rendering: accuracy ${accuracy.toFixed(0)}m`);
       } else {
         console.debug(`[GPS-Filter] ❌ Layer 1 REJECT: accuracy ${accuracy.toFixed(0)}m > ${GPS_TRACKING_ACCURACY_METERS}m threshold`);
+        logDebugPoint('discarded', 'Layer 1: Accuracy > Threshold');
         if (gpsWeakTimerRef.current === null) {
           gpsWeakTimerRef.current = setTimeout(() => {
             setIsGPSWeak(true);
@@ -957,6 +970,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         return;
       }
     }
+    logDebugPoint('valid', 'Accepted');
 
     if (pathRef.current.length >= 2) {
       const ptA = pathRef.current[pathRef.current.length - 2];
@@ -1044,6 +1058,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
             `[GPS-Filter] ❌ Layer 2 REJECT: speed ${(speedMs * 3.6).toFixed(1)}km/h > 36km/h | ` +
             `dist=${distToPrev.toFixed(1)}m dt=${timeDiffSec.toFixed(1)}s`
           );
+          logDebugPoint('discarded', 'Layer 2: Speed Anomaly');
           return;
         }
 
@@ -1072,6 +1087,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
               `[GPS-Filter] ❌ Accel REJECT: ${accel.toFixed(2)}m/s² > ${accelThreshold}m/s²` +
               ` | corner=${isCornerCandidate} speedMs=${speedMs.toFixed(1)}`
             );
+            logDebugPoint('discarded', 'Layer 2: Accel Anomaly');
             return;
           }
         }
@@ -1110,6 +1126,12 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
     if (isStationary) {
       console.log(`[ZUPT] Stationary locked. Jitter suppressed (stepsInWindow=${stepsInWindow}, speed=${speedMs.toFixed(2)}m/s).`);
+      // Note: stepDelta logic applies when device provides steps
+      if (distToPrev < 3.0 && timeDiffSec > 0 && speedMs < 1.0) {
+        console.debug('[GPS Filter] Dropped point due to 3m debounce');
+        logDebugPoint('discarded', 'Spatial Debounce (<3m)');
+        return;
+      }
       return; // Stop update flow early to freeze display location
     }
 
@@ -1158,6 +1180,7 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
 
     if (!spatialFilterResult.accept) {
       console.debug('[GPS Filter] Dropped point:', spatialFilterResult.reason);
+      logDebugPoint('discarded', spatialFilterResult.reason);
       if (spatialFilterResult.reason === 'speed-anomaly' && prevLoc) {
         console.warn(`[DR-Gate] Resetting Kalman filters to raw position ${lat}, ${lng} due to speed anomaly / outage recovery.`);
         kalmanLatRef.current.resetToPosition(lat, accuracy || 50);

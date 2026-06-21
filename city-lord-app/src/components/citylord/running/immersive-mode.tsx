@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { useNavigate } from 'react-router-dom'
 
 import { memo, useState, useEffect, useCallback, useMemo, useRef, ReactNode } from 'react'
-import { ArrowLeft, Lock, Map, Settings2 } from 'lucide-react'
+import { ArrowLeft, Lock, Map, Settings2, Bug } from 'lucide-react'
 import { hexCountToArea, formatArea, HEX_AREA_SQ_METERS } from '@/lib/citylord/area-utils'
 // import { claimTerritory, fetchTerritories } from '@/app/actions/city'
 import { useCity } from '@/contexts/CityContext'
@@ -41,6 +41,7 @@ import { apiClient } from '@/api/client'
 import { useMapInteraction, MapInteractionProvider } from '@/components/map/MapInteractionContext'
 import { MapRoot } from '@/components/map/MapRoot'
 import { apiFetch } from '@/lib/fetch-shim';
+import { useGpsDebugStore } from '@/store/useGpsDebugStore';
 
 // [P5 Fix] REST API 调用封装
 const getRunSettlementStatus = async (runId: string) => {
@@ -291,15 +292,33 @@ const MapTopBar = memo(function MapTopBar({
   onBack: () => void
   onRecenter: () => void
 }) {
+  const isGpsDebugMode = useGpsDebugStore(s => s.isGpsDebugMode);
+  const toggleGpsDebugMode = useGpsDebugStore(s => s.toggleGpsDebugMode);
+
   return (
     <div className="pointer-events-auto absolute left-4 right-4 top-[calc(var(--safe-top,0px)+12px)] z-50 flex items-center justify-between">
-      <button
-        type="button"
-        className="pointer-events-auto relative z-[10020] flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-black/70 text-white shadow-lg active:scale-95"
-        onClick={onBack}
-      >
-        <ArrowLeft className="h-5 w-5" />
-      </button>
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          className="pointer-events-auto relative z-[10020] flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-black/70 text-white shadow-lg active:scale-95"
+          onClick={onBack}
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </button>
+        {/* God Mode Debug Toggle (Long press to avoid accidental clicks) */}
+        <button
+          type="button"
+          className={`pointer-events-auto relative z-[10020] flex h-11 w-11 items-center justify-center rounded-full border border-white/20 shadow-lg active:scale-95 transition-colors duration-300 ${isGpsDebugMode ? 'bg-red-500/90 text-white' : 'bg-black/70 text-white/30'}`}
+          onDoubleClick={toggleGpsDebugMode}
+          onClick={(e) => {
+             // Let user know to double click
+             if (!isGpsDebugMode) toast.info("双击开启 GPS 调试模式", { duration: 1500 });
+             else toggleGpsDebugMode();
+          }}
+        >
+          <Bug className="h-5 w-5" />
+        </button>
+      </div>
       <button
         type="button"
         className="rounded-full border border-white/20 bg-black/70 px-4 py-2 text-sm font-semibold text-white active:scale-95"

@@ -9,6 +9,7 @@ import { LoadingSkeleton } from './LoadingSkeleton';
 import { DataLoadFailedCard } from '@/components/citylord/feedback/error-feedback';
 import TerritoryLayer from './TerritoryLayer';
 import FogLayer from './FogLayer';
+import { GpsDebugLayer } from './layers/GpsDebugLayer';
 import { MapControls } from './MapControls';
 import { useMapInteraction } from '@/components/map/MapInteractionContext';
 import { useGameStore } from '@/store/useGameStore';
@@ -494,6 +495,9 @@ const AMapView = forwardRef<AMapViewHandle, AMapViewProps>(
                 strokeWeight={7}
               />
             )}
+
+            {/* Layer 3.5: Debug Layer */}
+            <GpsDebugLayer />
 
             {/* Layer 4: User Marker (Blue GPS Dot - z-index 60) */}
             <UserMarkerLayer
