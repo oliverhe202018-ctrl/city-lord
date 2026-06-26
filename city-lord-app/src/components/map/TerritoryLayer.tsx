@@ -16,6 +16,7 @@ import { useGameStore, useGameTerritoryAppearance } from '@/store/useGameStore';
 import { getTerritoryDisplayName } from '@/lib/territory-display';
 import { useMapDisplayStore, type MapDisplayMode } from '@/store/useMapDisplayStore';
 import { useMapInteractionStore } from '@/store/useMapInteractionStore';
+import { groupClubTerritoriesByConnectedComponents, type TerritoryAdjacencyInput } from '@/lib/citylord/territory-adjacency';
 
 const CLUB_COLORS = {
   self: { fill: "#3b82f6", stroke: "#2563eb", fillOpacity: 0.35 },
@@ -433,15 +434,9 @@ function renderTerritoriesOnCanvas(
   const isClubMode = territories.length > 0 && territories[0].isClubMode;
 
   if (isClubMode) {
-    let focusedClubId: string | null = null;
-    if (selectedTerritoryId) {
-      const selected = territories.find(t => t.id === selectedTerritoryId);
-      if (selected && selected.ownerClubId) {
-        focusedClubId = selected.ownerClubId;
-      }
-    }
-
-    const clubGroups = new Map<string, TerritoryWithRender[]>();
+    // Build adjacency input for connected components grouping
+    const adjacencyInputs: TerritoryAdjacencyInput[] = [];
+    const territoryById = new Map<string, TerritoryWithRender>();
     for (const territory of territories) {
       if (!territory.bbox) continue;
       const b = territory.bbox;
@@ -452,10 +447,63 @@ function renderTerritoriesOnCanvas(
         b.minLat <= viewportMaxLat;
       if (!intersects) continue;
 
-      const key = territory.ownerClubId ? `club_${territory.ownerClubId}` : `indiv_${territory.id}`;
-      const list = clubGroups.get(key) || [];
-      list.push(territory);
-      clubGroups.set(key, list);
+      territoryById.set(territory.id, territory);
+      adjacencyInputs.push({
+        id: territory.id,
+        ownerClubId: territory.ownerClubId || null,
+        outerRings: extractOuterRings(territory.geojsonJson || territory.geojson_json),
+      });
+    }
+
+    // Compute connected components per club
+    const connectedComponents = groupClubTerritoriesByConnectedComponents(adjacencyInputs);
+
+    // Build clubGroups: key = "club_{clubId}_comp_{componentIndex}" or "indiv_{id}"
+    const clubGroups = new Map<string, TerritoryWithRender[]>();
+    let focusedGroupKey: string | null = null;
+
+    for (const [clubId, components] of connectedComponents) {
+      components.forEach((compIds, compIndex) => {
+        const key = `club_${clubId}_comp_${compIndex}`;
+        const groupTerrs: TerritoryWithRender[] = [];
+        for (const id of compIds) {
+          const t = territoryById.get(id);
+          if (t) groupTerrs.push(t);
+        }
+        if (groupTerrs.length > 0) {
+          clubGroups.set(key, groupTerrs);
+        }
+      });
+    }
+
+    // Individual territories (no club) — keep as-is
+    for (const territory of territories) {
+      if (!territory.ownerClubId && territory.bbox) {
+        const b = territory.bbox;
+        const intersects =
+          b.maxLng >= viewportMinLng &&
+          b.minLng <= viewportMaxLng &&
+          b.maxLat >= viewportMinLat &&
+          b.minLat <= viewportMaxLat;
+        if (!intersects) continue;
+        const key = `indiv_${territory.id}`;
+        if (!clubGroups.has(key)) {
+          clubGroups.set(key, [territory]);
+        }
+      }
+    }
+
+    // Determine focused group key from selected territory
+    if (selectedTerritoryId) {
+      const selected = territoryById.get(selectedTerritoryId);
+      if (selected && selected.ownerClubId) {
+        for (const [key, groupTerrs] of clubGroups) {
+          if (groupTerrs.some((t) => t.id === selectedTerritoryId)) {
+            focusedGroupKey = key;
+            break;
+          }
+        }
+      }
     }
 
     const offscreenCanvas = document.createElement("canvas");
@@ -465,13 +513,13 @@ function renderTerritoriesOnCanvas(
 
     // Sort to render focused group last (on top)
     const sortedGroups = Array.from(clubGroups.entries()).sort(([keyA], [keyB]) => {
-      const isFocusedA = focusedClubId && keyA === `club_${focusedClubId}` ? 1 : 0;
-      const isFocusedB = focusedClubId && keyB === `club_${focusedClubId}` ? 1 : 0;
+      const isFocusedA = focusedGroupKey && keyA === focusedGroupKey ? 1 : 0;
+      const isFocusedB = focusedGroupKey && keyB === focusedGroupKey ? 1 : 0;
       return isFocusedA - isFocusedB;
     });
 
     for (const [key, group] of sortedGroups) {
-      const isFocused = focusedClubId && key === `club_${focusedClubId}`;
+      const isFocused = focusedGroupKey && key === focusedGroupKey;
       const first = group[0];
       
       let hasValidPath = false;
