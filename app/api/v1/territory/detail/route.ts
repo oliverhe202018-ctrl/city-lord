@@ -13,6 +13,7 @@ export interface TerritoryDetailResult {
         id: string;
         nickname: string;
         avatarUrl: string | null;
+        backgroundUrl: string | null;
     } | null;
     club: {
         id: string;
@@ -82,7 +83,8 @@ export async function GET(request: NextRequest) {
                     select: {
                         id: true,
                         nickname: true,
-                        avatar_url: true
+                        avatar_url: true,
+                        background_url: true
                     }
                 },
                 clubs: {
@@ -139,21 +141,23 @@ export async function GET(request: NextRequest) {
         result.owner = {
             id: territory.profiles.id,
             nickname: territory.profiles.nickname || '神秘领主',
-            avatarUrl: territory.profiles.avatar_url
+            avatarUrl: territory.profiles.avatar_url,
+            backgroundUrl: territory.profiles.background_url ?? null
         };
     } else if (territory.owner_id) {
         try {
             const profile = await prisma.profiles.findUnique({
                 where: { id: territory.owner_id },
-                select: { id: true, nickname: true, avatar_url: true }
+                select: { id: true, nickname: true, avatar_url: true, background_url: true }
             });
             result.owner = {
                 id: territory.owner_id,
                 nickname: profile?.nickname || '神秘领主',
-                avatarUrl: profile?.avatar_url || null
+                avatarUrl: profile?.avatar_url || null,
+                backgroundUrl: profile?.background_url ?? null
             };
         } catch (e) {
-            result.owner = { id: territory.owner_id, nickname: '神秘领主', avatarUrl: null };
+            result.owner = { id: territory.owner_id, nickname: '神秘领主', avatarUrl: null, backgroundUrl: null };
         }
     }
 
