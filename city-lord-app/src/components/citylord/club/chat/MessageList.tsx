@@ -376,6 +376,7 @@ export function MessageList({
                 </div>
             )}
         </div>
+        </div>
     )
 }
 

@@ -45,8 +45,6 @@ const sendMessage = async (receiverId: string, content: string, type: 'text' | '
   return await res.json()
 }
 
-}
-
 interface Message {
   id: string
   content: string
@@ -74,13 +72,15 @@ const fetcher = (url: string) => apiFetch(url).then(res => {
   return res.json()
 })
 
-export function MessageList({ initialFriendId, mode = 'system' function formatWeChatTime(dateStr: string) {
+function formatWeChatTime(dateStr: string) {
   const date = new Date(dateStr)
   if (isToday(date)) return format(date, "HH:mm")
   if (isYesterday(date)) return "昨天 " + format(date, "HH:mm")
   if (isThisWeek(date)) return format(date, "EEEE HH:mm", { locale: zhCN })
   return format(date, "yyyy年MM月dd日 HH:mm")
-}: MessageListProps) {
+}
+
+export function MessageList({ initialFriendId, mode = 'system' }: MessageListProps) {
   const { data: messages = [], mutate, isLoading, error: messagesError } = useSWR<Message[]>('/api/message/get-messages', fetcher, {
     revalidateOnFocus: true,
   })
