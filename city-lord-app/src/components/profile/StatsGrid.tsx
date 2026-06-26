@@ -1,11 +1,21 @@
-﻿'use client'
+'use client'
 
 import React from 'react'
 import { Suspense, lazy } from 'react';
 const dynamic = (importFunc, options = {}) => {
-  const LazyComponent = lazy(() => importFunc().then((mod) => ({
-    default: mod.default || Object.values(mod)[0]
-  })));
+  const LazyComponent = lazy(() => importFunc().then((mod) => {
+    // Case 1: importFunc 已通过 .then(m => m.XXX) 解析为组件函数
+    if (typeof mod === 'function') {
+      return { default: mod };
+    }
+    // Case 2: mod 是模块对象，显式按命名导出查找（不依赖 Object.values 顺序）
+    return {
+      default: mod.default
+        || mod.WeeklyChart
+        || mod.RecentPostsFeed
+        || Object.values(mod)[0]
+    };
+  }));
   return (props) => (
     <Suspense fallback={options.loading ? options.loading() : null}>
       <LazyComponent {...props} />
