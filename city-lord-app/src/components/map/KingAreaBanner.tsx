@@ -1,6 +1,7 @@
 "use client";
 import React from 'react';
 import type { ViewportKingData } from './AMapView';
+import { ClubInfoBar } from './ClubInfoBar';
 
 interface Props {
   king: ViewportKingData | null;
@@ -12,11 +13,18 @@ export const KingAreaBanner = React.memo(function KingAreaBanner({ king, mapDisp
   if (!king) return null;
 
   const isClubMode = mapDisplayMode === 'club';
-  if (isClubMode && !selectedTerritoryId) return null;
 
-  const displayAvatar = isClubMode ? king.clubAvatarUrl : king.avatarUrl;
-  const displayName = isClubMode ? (king.clubName || '未知俱乐部') : king.nickname;
-  const displayArea = isClubMode ? (king.clubTotalArea || 0) : king.totalArea;
+  // Club Mode: delegate to ClubInfoBar
+  if (isClubMode) {
+    // MVP: 未选中领地时隐藏，选中后显示被点击领地所属俱乐部
+    if (!selectedTerritoryId) return null;
+    return <ClubInfoBar king={king} />;
+  }
+
+  // Personal / Faction Mode: keep original behavior
+  const displayAvatar = king.avatarUrl;
+  const displayName = king.nickname;
+  const displayArea = king.totalArea;
   
   const areaKm2 = (displayArea / 1000000).toFixed(2);
 
@@ -46,7 +54,7 @@ export const KingAreaBanner = React.memo(function KingAreaBanner({ king, mapDisp
               background: '#92400e', border: '1.5px solid #fbbf24',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: '#fff', fontSize: 10, fontWeight: 700 }}>
-              {displayName?.slice(0, 1) || (isClubMode ? 'C' : '王')}
+              {displayName?.slice(0, 1) || '王'}
             </div>
           )}
         </div>

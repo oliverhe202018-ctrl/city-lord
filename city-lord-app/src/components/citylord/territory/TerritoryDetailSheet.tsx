@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Drawer, DrawerContent, DrawerOverlay } from '@/components/ui/drawer'
 import { useMapInteraction } from '@/components/map/MapInteractionContext'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Loader2, MapPin, Clock, Medal, Flag, Timer, User, Pencil, RotateCcw } from 'lucide-react'
+import { Loader2, MapPin, Clock, Medal, Flag, Timer, User, Pencil, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react'
 import { TerritoryMoreMenu } from './TerritoryMoreMenu'
 import dayjs from 'dayjs'
 import { formatCST } from '@/lib/date-utils'
@@ -31,9 +31,16 @@ export function TerritoryDetailSheet() {
     const [renameInput, setRenameInput] = useState('')
     const [isRenaming, setIsRenaming] = useState(false)
     const [clubProfileSheetOpen, setClubProfileSheetOpen] = useState(false)
+    const [isCompact, setIsCompact] = useState(true)
     const selectedTerritoryId = useGameStore((state) => state.selectedTerritoryId)
     const { user } = useAuth()
-    const backgroundUrl = (user as any)?.user_metadata?.background_url 
+    // backgroundUrl 优先级：
+    // 1. detail.owner.backgroundUrl（PR 1 API 新增）
+    // 2. user.user_metadata.background_url
+    // 3. user.profile.background_url
+    // 4. 默认 fallback（null）
+    const backgroundUrl = detail?.owner?.backgroundUrl
+        || (user as any)?.user_metadata?.background_url 
         || (user as any)?.profile?.background_url 
         || null
     const queryClient = useQueryClient()
@@ -270,14 +277,39 @@ export function TerritoryDetailSheet() {
                                             </div>
                                         </div>
 
-                                        <div className="grid grid-cols-3 gap-2 mt-2">
-                                            <div className="col-span-3 mt-4 space-y-1.5">
-                                                <div className="flex justify-between text-sm font-medium">
-                                                    <span className="text-muted-foreground">领地完整度</span>
-                                                    <span className={healthPercent <= 40 ? 'text-red-500 font-bold' : ''}>
-                                                        {healthPercent} / 100
-                                                    </span>
-                                                </div>
+                                        {/* Club Mode: 展开/收起 游戏信息 */}
+                                        {isClubMode && (
+                                            <div className="mt-2">
+                                                <button
+                                                    onClick={() => setIsCompact(!isCompact)}
+                                                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                                                >
+                                                    {isCompact ? (
+                                                        <>
+                                                            <ChevronDown className="w-3.5 h-3.5" />
+                                                            展开更多详情
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <ChevronUp className="w-3.5 h-3.5" />
+                                                            收起
+                                                        </>
+                                                    )}
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {/* 游戏信息：Club Mode compact 时隐藏，个人模式始终显示 */}
+                                        {(!isClubMode || !isCompact) && (
+                                            <>
+                                                <div className="grid grid-cols-3 gap-2 mt-2">
+                                                    <div className="col-span-3 mt-4 space-y-1.5">
+                                                        <div className="flex justify-between text-sm font-medium">
+                                                            <span className="text-muted-foreground">领地完整度</span>
+                                                            <span className={healthPercent <= 40 ? 'text-red-500 font-bold' : ''}>
+                                                                {healthPercent} / 100
+                                                            </span>
+                                                        </div>
                                                 <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
                                                     <div 
                                                         className={`h-full ${healthColor} transition-all duration-500 ease-out`} 
@@ -311,6 +343,8 @@ export function TerritoryDetailSheet() {
                                                 <span className="text-xs font-bold text-purple-500">{displayDetail.shield ?? 0}</span>
                                             </div>
                                         </div>
+                                            </>
+                                        )}
 
                                         <div className="pt-2 border-t mt-2">
                                             <h4 className="text-xs font-semibold text-muted-foreground mb-3 flex items-center gap-1.5">
@@ -434,6 +468,7 @@ export function TerritoryDetailSheet() {
                 clubId={detail?.club?.id || null}
                 isOpen={clubProfileSheetOpen}
                 onOpenChange={setClubProfileSheetOpen}
+                compact
             />
         </>
     )
