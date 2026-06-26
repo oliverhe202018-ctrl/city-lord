@@ -11,6 +11,9 @@ interface TrajectoryLayerProps {
 
 const TELEPORT_DISTANCE_M = 2000; // Increased from 100 to 2000 to avoid dropping DP-simplified straight lines
 
+// PR 4.3A Debug Instrumentation — 仅在 dev 环境启用
+const DEBUG_PR4_3 = (typeof import.meta !== 'undefined' && (import.meta as any).env?.DEV) || false;
+
 function haversineMeters(a: GeoPoint, b: GeoPoint): number {
     const R = 6371000;
     const dLat = (b.lat - a.lat) * Math.PI / 180;
@@ -122,6 +125,28 @@ export function TrajectoryLayer({ map, path, strokeColor = '#3B82F6', strokeWeig
                 return { polyline, rawPoints };
             });
             renderedCountRef.current = path.length;
+
+            // PR 4.3A: Segment summary after full rebuild
+            if (DEBUG_PR4_3) {
+                const hasResumeSeg = segments.some((_, i) => i > 0);
+                const hasTeleportSeg = segments.some((seg, i) => {
+                    if (i === 0) return false;
+                    const prev = segments[i - 1];
+                    if (prev.length === 0 || seg.length === 0) return false;
+                    return haversineMeters(prev[prev.length - 1], seg[0]) > TELEPORT_DISTANCE_M;
+                });
+                console.log('[DEBUG-PR4.3] trajectory-segments', {
+                    event: 'full-rebuild',
+                    segmentCount: segments.length,
+                    pointsPerSegment: segments.map(s => s.length),
+                    totalPathPoints: path.length,
+                    hasResumeSegment: hasResumeSeg,
+                    hasTeleportSegment: hasTeleportSeg,
+                    lastSegmentEnd: segments.length > 0 && segments[segments.length - 1].length > 0
+                        ? { lat: segments[segments.length - 1][segments[segments.length - 1].length - 1].lat.toFixed(6), lng: segments[segments.length - 1][segments[segments.length - 1].length - 1].lng.toFixed(6) }
+                        : null,
+                });
+            }
             return;
         }
 
@@ -165,6 +190,21 @@ export function TrajectoryLayer({ map, path, strokeColor = '#3B82F6', strokeWeig
             }
         }
         renderedCountRef.current = path.length;
+
+        // PR 4.3A: Segment summary after incremental append (throttled: every 10th call)
+        if (DEBUG_PR4_3) {
+            const segs = segmentsRef.current;
+            const hasResumeSeg = segs.length > 1;
+            console.log('[DEBUG-PR4.3] trajectory-segments', {
+                event: 'incremental',
+                segmentCount: segs.length,
+                pointsPerSegment: segs.map(s => s.rawPoints.length),
+                totalPathPoints: path.length,
+                newPoints: newPoints.length,
+                hasResumeSegment: hasResumeSeg,
+                hasTeleportSegment: segs.length > 1,
+            });
+        }
 
     }, [map, path, strokeColor, strokeWeight]);
 

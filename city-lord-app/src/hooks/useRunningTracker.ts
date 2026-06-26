@@ -55,6 +55,9 @@ const CLOCK_DRIFT_TOLERANCE_MS = 5000;
 /** 全生命周期预热：黄金起点首次移动防抖阈值（米）— 固定 3 米 */
 const PREWARM_FIRST_MOVE_DEBOUNCE_M = 3;
 
+// PR 4.3A Debug Instrumentation — 仅在 dev 环境启用
+const DEBUG_PR4_3 = process.env.NODE_ENV === 'development';
+
 export interface Location {
   lat: number;
   lng: number;
@@ -285,6 +288,10 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   const currentStepsRef = useRef(0);
   const pedometerBaselineRef = useRef<number | null>(null);
   const eventsHistoryRef = useRef<RunEventLog[]>([]);
+
+  // PR 4.3A: Debug refs for screen-off gap analysis
+  const screenOffTimeRef = useRef<number>(0);
+  const screenOffLastPointRef = useRef<Location | null>(null);
   useEffect(() => { currentStepsRef.current = currentSteps; }, [currentSteps]);
   useEffect(() => {
     eventsHistoryRef.current = eventsHistory;
@@ -628,6 +635,27 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
             simplified = await simplifyPathDPAsync(latestForDisplay, SIMPLIFY_TOLERANCE);
           } else {
             simplified = simplifyPathDP(latestForDisplay, SIMPLIFY_TOLERANCE);
+          }
+
+          // PR 4.3A: DisplayPath simplification summary
+          if (DEBUG_PR4_3) {
+            const hasIsResume = simplified.some((p: any) => p.isResume);
+            const hasIsHydrated = simplified.some((p: any) => p.isHydrated);
+            const hasIsOffline = simplified.some((p: any) => p.isOffline);
+            const reductionPct = latestForDisplay.length > 0
+              ? ((1 - simplified.length / latestForDisplay.length) * 100).toFixed(1)
+              : '0.0';
+            console.log('[DEBUG-PR4.3] displaypath-summary', {
+              rawLatestCount: latestForDisplay.length,
+              simplifiedCount: simplified.length,
+              tolerance: SIMPLIFY_TOLERANCE,
+              reductionPct: `${reductionPct}%`,
+              hasIsResumeMarker: hasIsResume,
+              hasIsHydratedMarker: hasIsHydrated,
+              hasIsOfflineMarker: hasIsOffline,
+              displayPathBefore: displayPath.length,
+              displayPathAfter: simplified.length,
+            });
           }
           
           // Apply corner-preserving Chaikin smoothing (1 iteration)
@@ -1672,6 +1700,11 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       });
       let offlinePoints = res?.points || [];
 
+      // PR 4.3A: Record hydrate input state
+      const hydInputFullPathLen = fullPathRef.current.length;
+      const hydRawReturnedCount = offlinePoints.length;
+      const hydSinceTimestamp = sinceTimestamp;
+
       if (offlinePoints.length === 0) {
         console.log('[Hydrate] 无离线记录需要追帧');
         clearTimeout(hydrateTimeout);
@@ -1682,9 +1715,11 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
       console.log(`[Hydrate] 拉取到 ${offlinePoints.length} 条离线定位记录 (capped=${res.capped}), sessionId=${sessionId}`);
 
       // ─── 离线追帧前置几何压缩 (Douglas-Peucker Compression) ───
+      let offlineDpCompressedCount = 0;
       if (offlinePoints.length > 500) {
         const originalCount = offlinePoints.length;
         offlinePoints = simplifyPath(offlinePoints, 0.00003) as typeof offlinePoints;
+        offlineDpCompressedCount = originalCount;
         console.log(`[Hydrate] 离线点集超过 500 点，使用 Douglas-Peucker 前置几何压缩: ${originalCount} -> ${offlinePoints.length} 点`);
       }
 
@@ -1773,6 +1808,25 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
             setDistance(prev => prev + totalDistDelta);
           }
           console.log(`[Hydrate] 批量合入完成: ${dedupedPathFull.length} 个轨迹点, 新增距离 ${totalDistDelta.toFixed(1)}m`);
+
+          // PR 4.3A: Hydrate summary log
+          if (DEBUG_PR4_3) {
+            console.log('[DEBUG-PR4.3] hydrate-summary', {
+              sinceTimestamp: hydSinceTimestamp,
+              nativeReturnedCount: hydRawReturnedCount,
+              dpPreCompressedCount: offlineDpCompressedCount,
+              afterDpCompressCount: offlinePoints.length,
+              afterSortDedupeCount: dedupedPathFull.length,
+              injectedCount: replayPoints.length,
+              fullPathBeforeHydrate: hydInputFullPathLen,
+              fullPathAfterHydrate: dedupedPathFull.length,
+              fullPathDelta: dedupedPathFull.length - hydInputFullPathLen,
+              totalDistDeltaM: totalDistDelta.toFixed(1),
+              hasHydratedMarkers: replayPoints.some((p: any) => p.isHydrated),
+              hasOfflineMarkers: replayPoints.some((p: any) => p.isOffline),
+              hasResumeMarkers: replayPoints.some((p: any) => p.isResume),
+            });
+          }
 
           // ─── 关屏语音播报里程碑事件回放 ───
           const postOfflineDistance = preOfflineDistance + totalDistDelta;
@@ -1989,6 +2043,12 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         console.log(`[Lifecycle] appStateChange: ${isActive ? 'active' : 'background'} | time: ${new Date().toISOString()}`);
 
         if (isActive && isRunningRef.current && !isPausedRef.current && startTimeRef.current !== null) {
+          // PR 4.3A: Record screen-on time
+          const screenOnTime = Date.now();
+          const screenOffDuration = screenOffTimeRef.current > 0
+            ? screenOnTime - screenOffTimeRef.current
+            : 0;
+
           // WebView Bridge Hydration Wait
           await new Promise<void>(resolve => setTimeout(resolve, 500));
 
@@ -1997,13 +2057,68 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           setDuration(pausedAccumulatorRef.current + elapsed);
           console.log('[useRunningTracker] Foreground resume — timer reconciled (after 500ms bridge wait)');
 
+          // PR 4.3A: Log hydrate-before state
+          const fullPathBeforeHydrate = fullPathRef.current.length;
+          const pathBeforeHydrate = pathRef.current.length;
+          const displayPathBeforeHydrate = displayPath.length;
+
           // 入口 1：appStateChange 触发追帧
           console.log('[Hydrate] appStateChange → hydrateOfflinePoints 触发');
           await hydrateOfflinePoints(runIdempotencyKeyRef.current);
+
+          // PR 4.3A: Log gap data after hydrate completes
+          if (DEBUG_PR4_3 && screenOffDuration > 0) {
+            const fullPathAfterHydrate = fullPathRef.current.length;
+            const displayPathAfterHydrate = displayPath.length;
+            const screenOffLastPoint = screenOffLastPointRef.current;
+            const firstPointAfterHydrate = fullPathRef.current.length > 0
+              ? fullPathRef.current[fullPathRef.current.length - 1]
+              : null;
+
+            const gapDistance = screenOffLastPoint && firstPointAfterHydrate
+              ? getDistanceFromLatLonInMeters(
+                  screenOffLastPoint.lat, screenOffLastPoint.lng,
+                  firstPointAfterHydrate.lat, firstPointAfterHydrate.lng
+                )
+              : 0;
+
+            console.log('[DEBUG-PR4.3] screen-gap', {
+              screenOffTime: screenOffTimeRef.current,
+              screenOnTime,
+              screenOffDurationMs: screenOffDuration,
+              screenOffLastPoint: screenOffLastPoint
+                ? { lat: screenOffLastPoint.lat.toFixed(6), lng: screenOffLastPoint.lng.toFixed(6), ts: screenOffLastPoint.timestamp }
+                : null,
+              firstPointAfterHydrate: firstPointAfterHydrate
+                ? { lat: firstPointAfterHydrate.lat.toFixed(6), lng: firstPointAfterHydrate.lng.toFixed(6), ts: firstPointAfterHydrate.timestamp }
+                : null,
+              gapDistanceM: gapDistance.toFixed(1),
+              fullPathBeforeHydrate,
+              fullPathAfterHydrate,
+              fullPathDelta: fullPathAfterHydrate - fullPathBeforeHydrate,
+              displayPathBeforeHydrate,
+              displayPathAfterHydrate,
+              displayPathDelta: displayPathAfterHydrate - displayPathBeforeHydrate,
+            });
+          }
         }
 
-        // 切后台时立即强制落盘一次
+        // PR 4.3A: Record screen-off time and last point
         if (!isActive && isRunningRef.current) {
+          screenOffTimeRef.current = Date.now();
+          if (fullPathRef.current.length > 0) {
+            screenOffLastPointRef.current = { ...fullPathRef.current[fullPathRef.current.length - 1] };
+          }
+          if (DEBUG_PR4_3) {
+            console.log('[DEBUG-PR4.3] screen-off', {
+              screenOffTime: screenOffTimeRef.current,
+              screenOffLastPoint: screenOffLastPointRef.current
+                ? { lat: screenOffLastPointRef.current.lat.toFixed(6), lng: screenOffLastPointRef.current.lng.toFixed(6), ts: screenOffLastPointRef.current.timestamp }
+                : null,
+              fullPathLength: fullPathRef.current.length,
+              pathLength: pathRef.current.length,
+            });
+          }
           await saveState();
         }
       });
