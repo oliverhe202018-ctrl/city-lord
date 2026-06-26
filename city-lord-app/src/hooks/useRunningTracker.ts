@@ -630,32 +630,18 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
             simplified = simplifyPathDP(latestForDisplay, SIMPLIFY_TOLERANCE);
           }
           
-          // Apply Chaikin smoothing (2 iterations) to visual display path
-          const smoothed = chaikinSmooth(simplified, 2);
-          
+          // Apply corner-preserving Chaikin smoothing (1 iteration)
+          const smoothed = chaikinSmooth(simplified, 1);
+
           const displayPoints: Location[] = smoothed.map(pt => ({
             lat: pt.lat,
             lng: pt.lng,
             timestamp: pt.timestamp ?? Date.now(),
           }));
-          
+
           setDisplayPath(prev => {
-            // If there's a gap between the last rendered point and start of new simplified
-            // window, bridge it by including the last prev point as the anchor.
-            if (
-              prev.length > 0 &&
-              displayPoints.length > 0 &&
-              (prev[prev.length - 1].lat !== displayPoints[0].lat ||
-               prev[prev.length - 1].lng !== displayPoints[0].lng)
-            ) {
-              // Only bridge if the prev tail is NOT already inside the new window
-              // (i.e., it predates the oldest point in displayPoints)
-              const prevTailTs = prev[prev.length - 1].timestamp ?? 0;
-              const windowStartTs = displayPoints[0].timestamp ?? Infinity;
-              if (prevTailTs < windowStartTs) {
-                return [prev[prev.length - 1], ...displayPoints];
-              }
-            }
+            // Simple append: Chaikin preserves first/last points,
+            // so no bridge point needed. Just return the new smoothed path.
             return displayPoints;
           });
         } finally {
@@ -2943,28 +2929,55 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
   };
 }
 
-function chaikinSmooth(points: Location[], iterations: number = 2): Location[] {
+/**
+ * Corner-preserving Chaikin smoothing.
+ *
+ * Detects heading changes > 45° at each vertex and uses conservative
+ * 0.9/0.1 split at corners (preserves the turn), while using standard
+ * 0.75/0.25 on straight segments. Single iteration only to avoid
+ * over-smoothing.
+ */
+function chaikinSmooth(points: Location[], iterations: number = 1): Location[] {
   if (points.length < 3) return points;
 
   let result = [...points];
 
   for (let iter = 0; iter < iterations; iter++) {
+    // Recompute headings from current result each iteration
+    const headings: number[] = [];
+    for (let i = 0; i < result.length - 1; i++) {
+      const dx = result[i + 1].lng - result[i].lng;
+      const dy = result[i + 1].lat - result[i].lat;
+      headings.push(Math.atan2(dy, dx));
+    }
+
     const smoothed: Location[] = [{ ...result[0] }];
 
     for (let i = 0; i < result.length - 1; i++) {
       const p0 = result[i];
       const p1 = result[i + 1];
 
+      // Detect corner: heading change at this vertex
+      const prevHeading = i > 0 ? headings[i - 1] : headings[i];
+      const nextHeading = headings[i];
+      let headingDiff = Math.abs(nextHeading - prevHeading);
+      if (headingDiff > Math.PI) headingDiff = 2 * Math.PI - headingDiff;
+
+      // Use conservative split at corners (> 45° heading change)
+      const isCorner = headingDiff > Math.PI / 4;
+      const ratio = isCorner ? 0.9 : 0.75;
+      const invRatio = 1 - ratio;
+
       smoothed.push({
-        lat: 0.75 * p0.lat + 0.25 * p1.lat,
-        lng: 0.75 * p0.lng + 0.25 * p1.lng,
-        timestamp: Math.round(0.75 * p0.timestamp + 0.25 * (p1.timestamp ?? Date.now())),
+        lat: ratio * p0.lat + invRatio * p1.lat,
+        lng: ratio * p0.lng + invRatio * p1.lng,
+        timestamp: Math.round(ratio * p0.timestamp + invRatio * (p1.timestamp ?? Date.now())),
       });
 
       smoothed.push({
-        lat: 0.25 * p0.lat + 0.75 * p1.lat,
-        lng: 0.25 * p0.lng + 0.75 * p1.lng,
-        timestamp: Math.round(0.25 * p0.timestamp + 0.75 * (p1.timestamp ?? Date.now())),
+        lat: invRatio * p0.lat + ratio * p1.lat,
+        lng: invRatio * p0.lng + ratio * p1.lng,
+        timestamp: Math.round(invRatio * p0.timestamp + ratio * (p1.timestamp ?? Date.now())),
       });
     }
 
