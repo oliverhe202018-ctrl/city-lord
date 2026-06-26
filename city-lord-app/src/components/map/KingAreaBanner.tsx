@@ -2,6 +2,7 @@
 import React from 'react';
 import type { ViewportKingData } from './AMapView';
 import { ClubInfoBar } from './ClubInfoBar';
+import { useMapInteraction } from '@/components/map/MapInteractionContext';
 
 interface Props {
   king: ViewportKingData | null;
@@ -14,11 +15,10 @@ export const KingAreaBanner = React.memo(function KingAreaBanner({ king, mapDisp
 
   const isClubMode = mapDisplayMode === 'club';
 
-  // Club Mode: delegate to ClubInfoBar
+  // Club Mode: 使用 selectedTerritory.ownerClub 作为数据源
   if (isClubMode) {
-    // MVP: 未选中领地时隐藏，选中后显示被点击领地所属俱乐部
     if (!selectedTerritoryId) return null;
-    return <ClubInfoBar king={king} />;
+    return <ClubModeBanner />;
   }
 
   // Personal / Faction Mode: keep original behavior
@@ -29,64 +29,60 @@ export const KingAreaBanner = React.memo(function KingAreaBanner({ king, mapDisp
   const areaKm2 = (displayArea / 1000000).toFixed(2);
 
   return (
-    <div style={{
-      marginTop: 4,
-      zIndex: 30,
-      borderRadius: 20,
-      background: 'rgba(0,0,0,0.82)',
-      backdropFilter: 'blur(8px)',
-      WebkitBackdropFilter: 'blur(8px)',
-      padding: '5px 10px',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 3,
-    }}>
-      {/* Row 1：左-头像 | 中-昵称/俱乐部名（绝对居中）| 右-面积 */}
-      <div style={{ display: 'flex', alignItems: 'center', position: 'relative', height: 28 }}>
-        {/* 左：头像固定 */}
-        <div style={{ position: 'absolute', left: 0 }}>
+    <div style={{ marginTop: 4, zIndex: 30, borderRadius: 20, background: "rgba(0,0,0,0.82)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", padding: "5px 10px", display: "flex", flexDirection: "column", gap: 3 }}>
+      <div style={{ display: "flex", alignItems: "center", position: "relative", height: 28 }}>
+        {/* 左：头像 */}
+        <div style={{ position: "absolute", left: 0 }}>
           {displayAvatar ? (
-            <img src={displayAvatar} alt={displayName}
-              style={{ width: 26, height: 26, borderRadius: '50%',
-                border: '1.5px solid #fbbf24', objectFit: 'cover' }} />
+            <img src={displayAvatar} alt={displayName} style={{ width: 26, height: 26, borderRadius: "50%", border: "1.5px solid #fbbf24", objectFit: "cover" }} />
           ) : (
-            <div style={{ width: 26, height: 26, borderRadius: '50%',
-              background: '#92400e', border: '1.5px solid #fbbf24',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: '#fff', fontSize: 10, fontWeight: 700 }}>
+            <div style={{ width: 26, height: 26, borderRadius: "50%", background: "#92400e", border: "1.5px solid #fbbf24", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 10, fontWeight: 700 }}>
               {displayName?.slice(0, 1) || '王'}
             </div>
           )}
         </div>
         {/* 中：名称绝对居中 */}
-        <div style={{ position: 'absolute', left: 0, right: 0,
-          display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-          <span style={{ color: '#fff', fontSize: 13, fontWeight: 600,
-            maxWidth: 120, overflow: 'hidden', whiteSpace: 'nowrap',
-            textOverflow: 'ellipsis', textAlign: 'center' }}>
+        <div style={{ position: "absolute", left: 0, right: 0, display: "flex", justifyContent: "center", alignItems: "center" }}>
+          <span style={{ color: "#fff", fontSize: 13, fontWeight: 600, maxWidth: 120, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", textAlign: "center" }}>
             {displayName}
           </span>
         </div>
-        {/* 右：面积固定宽度靠右 */}
-        <div style={{ position: 'absolute', right: 0,
-          display: 'flex', alignItems: 'center' }}>
-          <span style={{ color: '#fbbf24', fontSize: 12, fontWeight: 700,
-            whiteSpace: 'nowrap' }}>
+        {/* 右：面积 */}
+        <div style={{ position: "absolute", right: 0, display: "flex", alignItems: "center" }}>
+          <span style={{ color: "#fbbf24", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>
             {areaKm2}
-            <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 10 }}> km²</span>
+            <span style={{ color: "#9ca3af", fontWeight: 400, fontSize: 10 }}> km²</span>
           </span>
         </div>
       </div>
 
-      {/* Row 2：👑 区域霸主/俱乐部霸主 👑，宽度限制 66% 居中 */}
-      <div style={{ width: '66%', margin: '0 auto',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+      {/* Row 2：领地霸主标识 */}
+      <div style={{ width: "66%", margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
         <span style={{ fontSize: 11 }}>👑</span>
-        <span style={{ color: '#fbbf24', fontSize: 10, fontWeight: 700,
-          letterSpacing: 2 }}>{isClubMode ? '所属俱乐部' : '区域霸主'}</span>
+        <span style={{ color: "#fbbf24", fontSize: 10, fontWeight: 700, letterSpacing: 2 }}>
+          视野霸主
+        </span>
         <span style={{ fontSize: 11 }}>👑</span>
       </div>
     </div>
   );
 });
 
+/**
+ * Club Mode 子组件：使用 useMapInteraction 获取 selectedTerritory.ownerClub。
+ * 必须在 MapRoot/MapInteractionProvider 内部渲染。
+ */
+function ClubModeBanner() {
+  const { selectedTerritory } = useMapInteraction();
+  const ownerClub = selectedTerritory?.ownerClub;
+
+  if (!ownerClub) return null;
+
+  return (
+    <ClubInfoBar
+      clubId={ownerClub.id}
+      clubName={ownerClub.name}
+      clubLogoUrl={ownerClub.logoUrl}
+    />
+  );
+}

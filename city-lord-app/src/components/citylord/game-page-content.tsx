@@ -1200,6 +1200,13 @@ export function GamePageContent({
                           <MemoizedMapHeader setShowThemeSwitcher={setShowThemeSwitcher} isRunTakeoverActive={isRunTakeoverActive} />
                         </div>
                       )}
+                      {gameMode === 'map' && viewportKing && (
+                        <KingAreaBanner
+                          king={viewportKing}
+                          mapDisplayMode={mapDisplayMode}
+                          selectedTerritoryId={selectedTerritoryId}
+                        />
+                      )}
                     </MemoizedAMapView>
                     {shouldShowPlayChrome && <MemoizedFactionSelector initialUser={initialUser} />}
                     {shouldShowPlayChrome && <MemoizedReferralWelcome />}
@@ -1215,14 +1222,6 @@ export function GamePageContent({
                     <div className="pointer-events-auto">
                       <MemoizedModeSwitcher onDrawerOpenChange={handleDrawerOpenChange} />
                     </div>
-
-                    {gameMode === 'map' && viewportKing && (
-                      <KingAreaBanner 
-                        king={viewportKing} 
-                        mapDisplayMode={mapDisplayMode}
-                        selectedTerritoryId={selectedTerritoryId}
-                      />
-                    )}
 
                     {!shouldHideButtons && (
                       <div className="pointer-events-auto absolute top-[130px] left-4 z-20 flex flex-col gap-4">
