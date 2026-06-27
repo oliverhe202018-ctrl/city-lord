@@ -104,6 +104,13 @@ public class LocationForegroundService extends Service implements AMapLocationLi
     // Broadcast action — 电池优化白名单引导
     public static final String ACTION_BATTERY_OPT_NEEDED = "com.xiangfei.citylord.BATTERY_OPT_NEEDED";
 
+    // PR 4.3C: Broadcast action — JS 层通知 Service 用户主动停止跑步，禁止自动重启
+    public static final String ACTION_MARK_USER_STOPPED = "com.xiangfei.citylord.MARK_USER_STOPPED";
+
+    // PR 4.3C: SharedPreferences key for user-stopped flag
+    private static final String PREFS_USER_STOPPED = "citylord_service_config";
+    private static final String KEY_USER_STOPPED = "user_stopped_running";
+
 
 
     // AMap client
@@ -178,6 +185,14 @@ public class LocationForegroundService extends Service implements AMapLocationLi
     private double totalDistanceTravelled = 0.0;
     private int lastSpokenKm = 0;
     private AMapLocation lastLoggedLocation = null;
+
+    // PR 4.3C: Room DB 写入计数统计（用于真机排查关屏后定位是否持续写入）
+    private long roomInsertCount = 0;
+    private long roomInsertSinceLastLog = 0;
+    private long lastRoomLogTime = 0;
+
+    // PR 4.3C: 用户主动停止跑步标志 BroadcastReceiver
+    private BroadcastReceiver userStoppedReceiver = null;
 
     // ---- Daily motivational quotes (60 条，每天不重样) ----
     private static final String[] DAILY_QUOTES = {
@@ -309,6 +324,61 @@ public class LocationForegroundService extends Service implements AMapLocationLi
         } catch (Exception e) {
             Log.e(TAG, "Failed to start TTS Engine initialization", e);
         }
+
+        // PR 4.3C: 注册用户主动停止跑步 BroadcastReceiver
+        registerUserStoppedReceiver();
+    }
+
+    /**
+     * PR 4.3C: 注册 ACTION_MARK_USER_STOPPED BroadcastReceiver。
+     * 当 JS 层调用 stopTracking 时，Plugin 发送此 Broadcast，
+     * Service 收到后设置 user_stopped_running 标志，
+     * 防止 onTaskRemoved/onDestroy 中的自动重启逻辑误触发。
+     */
+    private void registerUserStoppedReceiver() {
+        userStoppedReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(android.content.Context context, Intent intent) {
+                Log.i(TAG, "[PR4.3C] Received MARK_USER_STOPPED — user stopped running, disabling auto-restart");
+                setUserStoppedRunning(true);
+            }
+        };
+        IntentFilter filter = new IntentFilter(ACTION_MARK_USER_STOPPED);
+        LocalBroadcastManager.getInstance(this).registerReceiver(userStoppedReceiver, filter);
+        Log.i(TAG, "[PR4.3C] UserStoppedReceiver registered");
+    }
+
+    /**
+     * PR 4.3C: 注销 userStoppedReceiver。
+     */
+    private void unregisterUserStoppedReceiver() {
+        if (userStoppedReceiver != null) {
+            try {
+                LocalBroadcastManager.getInstance(this).unregisterReceiver(userStoppedReceiver);
+            } catch (Exception e) {
+                Log.w(TAG, "Failed to unregister userStoppedReceiver: " + e.getMessage());
+            }
+            userStoppedReceiver = null;
+        }
+    }
+
+    /**
+     * PR 4.3C: 设置 SharedPreferences 中的 user_stopped_running 标志。
+     */
+    private void setUserStoppedRunning(boolean stopped) {
+        getSharedPreferences(PREFS_USER_STOPPED, MODE_PRIVATE)
+            .edit()
+            .putBoolean(KEY_USER_STOPPED, stopped)
+            .apply();
+        Log.i(TAG, "[PR4.3C] user_stopped_running = " + stopped);
+    }
+
+    /**
+     * PR 4.3C: 读取 SharedPreferences 中的 user_stopped_running 标志。
+     */
+    private boolean isUserStoppedRunning() {
+        return getSharedPreferences(PREFS_USER_STOPPED, MODE_PRIVATE)
+            .getBoolean(KEY_USER_STOPPED, false);
     }
 
     /**
@@ -345,6 +415,13 @@ public class LocationForegroundService extends Service implements AMapLocationLi
         if (intent == null) {
             Log.w(TAG, "intent is null (Sticky Restart), restoring state from Prefs");
             restoreFromPrefs();
+            // PR 4.3C: Sticky restart 时检查用户是否已停止跑步
+            if (isUserStoppedRunning()) {
+                Log.i(TAG, "[PR4.3C] Sticky restart detected but user stopped running — stopping service");
+                logEvent("fgs_sticky_restart_blocked", "user_stopped");
+                stopSelf();
+                return START_NOT_STICKY;
+            }
             logEvent("fgs_null_intent_recovered", "sticky_restart");
         } else {
             String newRunId = intent.getStringExtra(EXTRA_RUN_ID);
@@ -355,9 +432,13 @@ public class LocationForegroundService extends Service implements AMapLocationLi
                 lastLoggedLocation = null;
             }
             saveToPrefs(intent);
+            // PR 4.3C: 正常启动时清除 user_stopped_running 标志（用户重新开始跑步/预热）
+            setUserStoppedRunning(false);
         }
 
         logEvent("fgs_start_requested", "ok");
+        Log.i(TAG, "[PR4.3C] onStartCommand — intent=" + (intent != null ? "present" : "null") 
+            + " runId=" + currentRunId + " interval=" + locationInterval + "ms userStopped=" + isUserStoppedRunning());
 
         // 2. 权限预检
         if (!hasLocationPermission()) {
@@ -435,11 +516,13 @@ public class LocationForegroundService extends Service implements AMapLocationLi
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
             if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
-                Log.w(TAG, "App not in battery optimization whitelist, notifying JS layer");
+                Log.w(TAG, "[PR4.3C] Battery optimization NOT whitelisted — notifying JS layer");
                 // P1 #3 — 专用广播通知 JS 层引导用户加入白名单
                 Intent intent = new Intent(ACTION_BATTERY_OPT_NEEDED);
                 intent.putExtra("ts", System.currentTimeMillis());
                 androidx.localbroadcastmanager.content.LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
+            } else {
+                Log.i(TAG, "[PR4.3C] Battery optimization whitelist: OK");
             }
         }
     }
@@ -493,10 +576,16 @@ public class LocationForegroundService extends Service implements AMapLocationLi
 
     @Override
     public void onDestroy() {
-        Log.i(TAG, "onDestroy — cleaning up ALL resources");
+        Log.i(TAG, "[PR4.3C] onDestroy — reason unknown, userStopped=" + isUserStoppedRunning()
+            + " runId=" + currentRunId + " roomInsertCount=" + roomInsertCount);
 
         // 0. [P0 Fix] 注册 AlarmManager 精确闹钟，作为 MIUI/OriginOS 杀进程后的强制唤醒兜底
-        scheduleRestartAlarm();
+        // PR 4.3C: 用户主动停止时跳过 AlarmManager 注册
+        if (!isUserStoppedRunning()) {
+            scheduleRestartAlarm();
+        } else {
+            Log.i(TAG, "[PR4.3C] onDestroy — user stopped running, skipping restart alarm");
+        }
 
         // 1. Stop location
         stopLocationTracking();
@@ -519,6 +608,9 @@ public class LocationForegroundService extends Service implements AMapLocationLi
         // 7. 注销预热控制接收器
         unregisterPrewarmControlReceiver();
 
+        // PR 4.3C: 注销 userStoppedReceiver
+        unregisterUserStoppedReceiver();
+
         // 7.5 销毁 TTS 语音播报引擎
         if (tts != null) {
             try {
@@ -536,7 +628,7 @@ public class LocationForegroundService extends Service implements AMapLocationLi
         stopForeground(true);
 
         super.onDestroy();
-        Log.i(TAG, "onDestroy — cleanup complete");
+        Log.i(TAG, "[PR4.3C] onDestroy — cleanup complete, total room inserts this session: " + roomInsertCount);
     }
 
     /**
@@ -564,6 +656,12 @@ public class LocationForegroundService extends Service implements AMapLocationLi
      * 在 onDestroy 中调用，确保服务被系统强制回收后能在 5 分钟内自动重启。
      */
     private void scheduleRestartAlarm() {
+        // PR 4.3C: 双重检查 — 用户已停止跑步时不注册重启闹钟
+        if (isUserStoppedRunning()) {
+            Log.i(TAG, "[PR4.3C] scheduleRestartAlarm — user stopped running, skipping");
+            return;
+        }
+
         try {
             AlarmManager alarmManager = (AlarmManager) getSystemService(ALARM_SERVICE);
             if (alarmManager == null) {
@@ -597,6 +695,7 @@ public class LocationForegroundService extends Service implements AMapLocationLi
                     pendingIntent
                 );
                 Log.i(TAG, "Scheduled restart alarm in 5 minutes (setExactAndAllowWhileIdle)");
+                logEvent("fgs_restart_alarm_scheduled", "5min_" + currentRunId);
             } else {
                 // API < 23: 使用 setExact
                 alarmManager.setExact(
@@ -617,7 +716,16 @@ public class LocationForegroundService extends Service implements AMapLocationLi
      */
     @Override
     public void onTaskRemoved(Intent rootIntent) {
-        Log.w(TAG, "onTaskRemoved — user swiped app from recents, scheduling restart via WorkManager");
+        Log.w(TAG, "onTaskRemoved — user swiped app from recents");
+
+        // PR 4.3C: 检查用户是否已主动停止跑步，若是则跳过自动重启
+        if (isUserStoppedRunning()) {
+            Log.i(TAG, "[PR4.3C] onTaskRemoved — user already stopped running, skipping auto-restart");
+            super.onTaskRemoved(rootIntent);
+            return;
+        }
+
+        Log.i(TAG, "[PR4.3C] onTaskRemoved — scheduling restart via WorkManager (runId=" + currentRunId + ")");
 
         androidx.work.Data inputData = new androidx.work.Data.Builder()
                 .putString("run_id", currentRunId)
@@ -732,7 +840,7 @@ public class LocationForegroundService extends Service implements AMapLocationLi
             );
             // Timeout after 8 hours to cover ultra-marathon scenarios
             wakeLock.acquire(8 * 60 * 60 * 1000L);
-            Log.i(TAG, "WakeLock acquired (8h timeout)");
+            Log.i(TAG, "[PR4.3C] WakeLock acquired (8h timeout) held=" + wakeLock.isHeld());
         }
     }
 
@@ -1107,9 +1215,19 @@ public class LocationForegroundService extends Service implements AMapLocationLi
         dbExecutor.execute(() -> {
             try {
                 long rowId = locationDao.insert(entity);
-                // 降低日志噪音：每 50 条打印一次
-                if (rowId % 50 == 0) {
-                    Log.d(TAG, "Room 持久化 #" + rowId + " session=" + sessionId);
+                roomInsertCount++;
+                roomInsertSinceLastLog++;
+
+                // PR 4.3C: 每 60 秒或每 100 条输出一次写入统计
+                long now = System.currentTimeMillis();
+                if (lastRoomLogTime == 0) lastRoomLogTime = now;
+                if (roomInsertSinceLastLog >= 100 || (now - lastRoomLogTime) >= 60000) {
+                    Log.i(TAG, "[PR4.3C] Room persist stats: total=" + roomInsertCount
+                        + " recent=" + roomInsertSinceLastLog
+                        + " session=" + sessionId
+                        + (roomInsertCount > 0 ? " (avg " + (roomInsertCount / Math.max(1, (now - lastRoomLogTime) / 1000)) + " pts/s)" : ""));
+                    roomInsertSinceLastLog = 0;
+                    lastRoomLogTime = now;
                 }
             } catch (Exception e) {
                 Log.e(TAG, "Room insert 失败: " + e.getMessage());

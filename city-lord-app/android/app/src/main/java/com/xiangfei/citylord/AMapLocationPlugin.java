@@ -709,6 +709,11 @@ public class AMapLocationPlugin extends Plugin {
 
         // 1. Stop foreground service
         try {
+            // PR 4.3C: 先发送 MARK_USER_STOPPED Broadcast，通知 Service 禁止自动重启
+            Intent stopMarkIntent = new Intent(LocationForegroundService.ACTION_MARK_USER_STOPPED);
+            androidx.localbroadcastmanager.content.LocalBroadcastManager.getInstance(getContext()).sendBroadcast(stopMarkIntent);
+            Log.i(TAG, "[PR4.3C] Sent MARK_USER_STOPPED broadcast before stopping service");
+
             Intent serviceIntent = new Intent(getContext(), LocationForegroundService.class);
             getContext().stopService(serviceIntent);
             Log.i(TAG, "Foreground service stopped");
