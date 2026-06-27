@@ -629,13 +629,46 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
           const latestForDisplay = latestRaw.length > DISPLAY_PATH_WINDOW
             ? latestRaw.slice(-DISPLAY_PATH_WINDOW)
             : latestRaw;
-            
-          let simplified;
-          if (latestForDisplay.length > 100) {
-            simplified = await simplifyPathDPAsync(latestForDisplay, SIMPLIFY_TOLERANCE);
-          } else {
-            simplified = simplifyPathDP(latestForDisplay, SIMPLIFY_TOLERANCE);
+
+          // PR 4.3B: Segment-based DP — hydrated segments use smaller tolerance
+          const HYDRATED_TOLERANCE = 0.00001; // ≈ 1m, preserves more detail for offline補幀
+          const REALTIME_TOLERANCE = SIMPLIFY_TOLERANCE; // ≈ 3m
+
+          // Split path into segments by isHydrated transitions (and isResume)
+          const segments: Location[][] = [];
+          let cur: Location[] = [];
+          let curIsHydrated: boolean | null = null;
+
+          for (const pt of latestForDisplay) {
+            const ptIsHydrated = !!(pt as any).isHydrated;
+            const ptIsResume = !!(pt as any).isResume;
+
+            // Start new segment on: isHydrated transition, isResume, or first point
+            if (curIsHydrated !== null && (ptIsHydrated !== curIsHydrated || ptIsResume)) {
+              if (cur.length > 0) segments.push(cur);
+              cur = [];
+            }
+            cur.push(pt);
+            curIsHydrated = ptIsHydrated;
           }
+          if (cur.length > 0) segments.push(cur);
+
+          // Simplify each segment with appropriate tolerance
+          const simplifiedSegments: Location[][] = [];
+          for (const seg of segments) {
+            const isHydratedSeg = seg.length > 0 && !!(seg[0] as any).isHydrated;
+            const tolerance = isHydratedSeg ? HYDRATED_TOLERANCE : REALTIME_TOLERANCE;
+            let simplifiedSeg: Location[];
+            if (seg.length > 100) {
+              simplifiedSeg = await simplifyPathDPAsync(seg, tolerance);
+            } else {
+              simplifiedSeg = simplifyPathDP(seg, tolerance);
+            }
+            simplifiedSegments.push(simplifiedSeg);
+          }
+
+          // Merge all simplified segments
+          const simplified: Location[] = simplifiedSegments.flat();
 
           // PR 4.3A: DisplayPath simplification summary
           if (DEBUG_PR4_3) {
@@ -645,10 +678,16 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
             const reductionPct = latestForDisplay.length > 0
               ? ((1 - simplified.length / latestForDisplay.length) * 100).toFixed(1)
               : '0.0';
+            const hydratedSegCount = segments.filter(s => s.length > 0 && !!(s[0] as any).isHydrated).length;
+            const realtimeSegCount = segments.length - hydratedSegCount;
             console.log('[DEBUG-PR4.3] displaypath-summary', {
               rawLatestCount: latestForDisplay.length,
               simplifiedCount: simplified.length,
-              tolerance: SIMPLIFY_TOLERANCE,
+              totalSegments: segments.length,
+              hydratedSegments: hydratedSegCount,
+              realtimeSegments: realtimeSegCount,
+              toleranceRealtime: REALTIME_TOLERANCE,
+              toleranceHydrated: HYDRATED_TOLERANCE,
               reductionPct: `${reductionPct}%`,
               hasIsResumeMarker: hasIsResume,
               hasIsHydratedMarker: hasIsHydrated,
@@ -1747,6 +1786,26 @@ export function useRunningTracker(isRunning: boolean, userId?: string): RunningS
         }
         validOfflineFull.push(pt);
         lastRefFull = pt;
+      }
+
+      // PR 4.3B: Mark all hydrated points with isHydrated flag
+      for (const pt of validOfflineFull) {
+        (pt as any).isHydrated = true;
+      }
+
+      // PR 4.3B: Gap detection — if screen-off last point to first hydrated point > 30m, set isResume
+      const GAP_RESUME_THRESHOLD_M = 30;
+      if (screenOffLastPointRef.current && validOfflineFull.length > 0) {
+        const gapDist = getDistanceFromLatLonInMeters(
+          screenOffLastPointRef.current.lat,
+          screenOffLastPointRef.current.lng,
+          validOfflineFull[0].lat,
+          validOfflineFull[0].lng
+        );
+        if (gapDist > GAP_RESUME_THRESHOLD_M) {
+          (validOfflineFull[0] as any).isResume = true;
+          console.log(`[Hydrate] Gap detected: ${gapDist.toFixed(1)}m > ${GAP_RESUME_THRESHOLD_M}m, setting isResume on first hydrated point`);
+        }
       }
 
       const currentPath = pathRef.current;
