@@ -48,9 +48,7 @@ jobs:
         run: npx cap sync ios
 
       - name: Install PowerShell
-        run: |
-          # macOS GitHub runners do not ship with pwsh; install via Homebrew
-          brew install --cask powershell
+        run: brew install --cask powershell@preview
 
       - name: Restore GRDB to Package.swift
         working-directory: city-lord-app/ios
