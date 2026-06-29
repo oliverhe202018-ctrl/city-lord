@@ -110,6 +110,7 @@ public class AMapLocationPlugin: CAPPlugin, CLLocationManagerDelegate {
                 call.resolve(self.locationToJSObject(location))
             }
 
+            delegate.manager = manager
             manager.delegate = delegate
             manager.requestLocation()
         }
@@ -417,6 +418,7 @@ private class OneShotLocationDelegate: NSObject, CLLocationManagerDelegate {
     private let timeout: TimeInterval
     private let allowCached: Bool
     private let completion: (CLLocation?, Error?) -> Void
+    weak var manager: CLLocationManager?
     private var timer: Timer?
     private var hasCompleted = false
 
