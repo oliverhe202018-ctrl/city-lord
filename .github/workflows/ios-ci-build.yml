@@ -34,6 +34,9 @@ jobs:
       - name: Sync Capacitor iOS Project
         run: npx cap sync ios
 
+      - name: Install PowerShell
+        run: brew install --cask powershell
+
       - name: Install CocoaPods Dependencies
         run: |
           cd ios/App
