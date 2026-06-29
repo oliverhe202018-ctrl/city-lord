@@ -333,9 +333,6 @@ public class AMapLocationPlugin: CAPPlugin, CLLocationManagerDelegate {
     private func createLocationManager() -> CLLocationManager {
         let manager = CLLocationManager()
         manager.requestWhenInUseAuthorization()
-        if isTracking {
-            manager.requestAlwaysAuthorization()
-        }
         return manager
     }
 
@@ -344,155 +341,119 @@ public class AMapLocationPlugin: CAPPlugin, CLLocationManagerDelegate {
         locationManager?.delegate = nil
         locationManager = nil
         isWatching = false
-        isTracking = false
     }
 
     private func locationToJSObject(_ location: CLLocation) -> [String: Any] {
-        let gcj = CoordinateConverter.wgs84ToGcj02(lat: location.coordinate.latitude, lng: location.coordinate.longitude)
-        let isMock = detectMock(location)
+        let gcj = wgs84ToGcj02(lat: location.coordinate.latitude, lng: location.coordinate.longitude)
+        let isMock = location.horizontalAccuracy > AMapLocationPlugin.MOCK_ACCURACY_THRESHOLD
         return [
             "lat": gcj.lat,
             "lng": gcj.lng,
             "accuracy": location.horizontalAccuracy,
-            "bearing": location.course >= 0 ? location.course : -1,
+            "altitude": location.altitude,
             "speed": location.speed >= 0 ? location.speed : -1,
+            "bearing": location.course >= 0 ? location.course : -1,
             "timestamp": Int64(location.timestamp.timeIntervalSince1970 * 1000),
-            "coordSystem": "gcj02",
-            "locationType": AMapLocationPlugin.LOCATION_TYPE_GPS,
-            "provider": "gps",
+            "locationType": isMock ? AMapLocationPlugin.LOCATION_TYPE_LAST_KNOWN : AMapLocationPlugin.LOCATION_TYPE_GPS,
             "isMock": isMock,
-            "isEmulator": isEmulator(),
-            "isDebug": isDebugBuild()
+            "provider": "ios-corelocation"
         ]
     }
 
     private func recordToJSObject(_ record: LocationRecord) -> [String: Any] {
         return [
-            "id": record.id ?? NSNull(),
+            "id": record.id ?? 0,
+            "sessionId": record.sessionId,
             "lat": record.latitude,
             "lng": record.longitude,
+            "timestamp": record.timestamp,
             "accuracy": record.accuracy,
             "speed": record.speed,
             "bearing": record.bearing,
-            "timestamp": record.timestamp,
-            "isMock": record.isMock,
-            "isEmulator": isEmulator(),
-            "isDebug": isDebugBuild(),
-            "coordSystem": "gcj02"
+            "isMock": record.isMock
         ]
     }
 
-    private func detectMock(_ location: CLLocation) -> Bool {
-        #if targetEnvironment(simulator)
-        return true
-        #else
-        if #available(iOS 15.0, *) {
-            if location.sourceInformation?.isSimulatedBySoftware == true {
-                return true
-            }
+    // MARK: - WGS-84 → GCJ-02 坐标转换
+    private func wgs84ToGcj02(lat: Double, lng: Double) -> (lat: Double, lng: Double) {
+        let pi = Double.pi
+        let a = 6378245.0
+        let ee = 0.00669342162296594323
+
+        func outOfChina(_ lat: Double, _ lng: Double) -> Bool {
+            return lng < 72.004 || lng > 135.05 || lat < 0.8293 || lat > 55.8271
         }
-        return location.horizontalAccuracy < 0 || location.horizontalAccuracy > AMapLocationPlugin.MOCK_ACCURACY_THRESHOLD
-        #endif
+
+        if outOfChina(lat, lng) { return (lat, lng) }
+
+        var dLat = transformLat(lng - 105.0, lat - 35.0)
+        var dLng = transformLng(lng - 105.0, lat - 35.0)
+        let radLat = lat / 180.0 * pi
+        var magic = sin(radLat)
+        magic = 1 - ee * magic * magic
+        let sqrtMagic = sqrt(magic)
+        dLat = (dLat * 180.0) / ((a * (1 - ee)) / (magic * sqrtMagic) * pi)
+        dLng = (dLng * 180.0) / (a / sqrtMagic * cos(radLat) * pi)
+        return (lat + dLat, lng + dLng)
     }
 
-    private func isEmulator() -> Bool {
-        #if targetEnvironment(simulator)
-        return true
-        #else
-        return false
-        #endif
+    private func transformLat(_ x: Double, _ y: Double) -> Double {
+        var ret = -100.0 + 2.0 * x + 3.0 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * sqrt(abs(x))
+        ret += (20.0 * sin(6.0 * x * Double.pi) + 20.0 * sin(2.0 * x * Double.pi)) * 2.0 / 3.0
+        ret += (20.0 * sin(y * Double.pi) + 40.0 * sin(y / 3.0 * Double.pi)) * 2.0 / 3.0
+        ret += (160.0 * sin(y / 12.0 * Double.pi) + 320 * sin(y * Double.pi / 30.0)) * 2.0 / 3.0
+        return ret
     }
 
-    private func isDebugBuild() -> Bool {
-        #if DEBUG
-        return true
-        #else
-        return false
-        #endif
+    private func transformLng(_ x: Double, _ y: Double) -> Double {
+        var ret = 300.0 + x + 2.0 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * sqrt(abs(x))
+        ret += (20.0 * sin(6.0 * x * Double.pi) + 20.0 * sin(2.0 * x * Double.pi)) * 2.0 / 3.0
+        ret += (20.0 * sin(x * Double.pi) + 40.0 * sin(x / 3.0 * Double.pi)) * 2.0 / 3.0
+        ret += (150.0 * sin(x / 12.0 * Double.pi) + 300.0 * sin(x / 30.0 * Double.pi)) * 2.0 / 3.0
+        return ret
     }
-
 }
 
-// MARK: - One-shot location delegate
+// MARK: - OneShotLocationDelegate
 private class OneShotLocationDelegate: NSObject, CLLocationManagerDelegate {
+    private let completion: (CLLocation?, Error?) -> Void
     private let timeout: TimeInterval
     private let allowCached: Bool
-    private let completion: (CLLocation?, Error?) -> Void
-    weak var manager: CLLocationManager?
-    private var timer: Timer?
     private var hasCompleted = false
+    private var timer: Timer?
+    weak var manager: CLLocationManager?
 
     init(timeout: TimeInterval, allowCached: Bool, completion: @escaping (CLLocation?, Error?) -> Void) {
         self.timeout = timeout
         self.allowCached = allowCached
         self.completion = completion
         super.init()
-
         timer = Timer.scheduledTimer(withTimeInterval: timeout, repeats: false) { [weak self] _ in
-            self?.complete(location: nil, error: NSError(domain: "AMapLocationPlugin", code: -1, userInfo: [NSLocalizedDescriptionKey: "Location timeout"]))
+            self?.complete(location: nil, error: NSError(
+                domain: kCLErrorDomain,
+                code: CLError.locationUnknown.rawValue,
+                userInfo: [NSLocalizedDescriptionKey: "Location request timed out"]
+            ))
         }
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
-        if !allowCached && abs(location.timestamp.timeIntervalSinceNow) > 5 {
-            return
+        if allowCached || abs(location.timestamp.timeIntervalSinceNow) < 5 {
+            complete(location: location, error: nil)
         }
-        timer?.invalidate()
-        complete(location: location, error: nil)
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        timer?.invalidate()
         complete(location: nil, error: error)
     }
 
     private func complete(location: CLLocation?, error: Error?) {
         guard !hasCompleted else { return }
         hasCompleted = true
-        manager.delegate = nil
+        timer?.invalidate()
+        timer = nil
+        self.manager?.delegate = nil
         completion(location, error)
-    }
-}
-
-// MARK: - WGS-84 to GCJ-02 coordinate conversion
-private struct CoordinateConverter {
-    private static let PI = Double.pi
-    private static let A = 6378245.0
-    private static let EE = 0.00669342162296594323
-
-    static func wgs84ToGcj02(lat: Double, lng: Double) -> (lat: Double, lng: Double) {
-        if outOfChina(lat: lat, lng: lng) {
-            return (lat, lng)
-        }
-        var dLat = transformLat(lng - 105.0, y: lat - 35.0)
-        var dLng = transformLng(lng - 105.0, y: lat - 35.0)
-        let radLat = lat / 180.0 * PI
-        var magic = sin(radLat)
-        magic = 1 - EE * magic * magic
-        let sqrtMagic = sqrt(magic)
-        dLat = (dLat * 180.0) / ((A * (1 - EE)) / (magic * sqrtMagic) * PI)
-        dLng = (dLng * 180.0) / (A / sqrtMagic * cos(radLat) * PI)
-        return (lat + dLat, lng + dLng)
-    }
-
-    private static func outOfChina(lat: Double, lng: Double) -> Bool {
-        return lng < 72.004 || lng > 137.8347 || lat < 0.8293 || lat > 55.8271
-    }
-
-    private static func transformLat(_ x: Double, y: Double) -> Double {
-        var ret = -100.0 + 2.0 * x + 3.0 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * sqrt(abs(x))
-        ret += (20.0 * sin(6.0 * x * PI) + 20.0 * sin(2.0 * x * PI)) * 2.0 / 3.0
-        ret += (20.0 * sin(y * PI) + 40.0 * sin(y / 3.0 * PI)) * 2.0 / 3.0
-        ret += (160.0 * sin(y / 12.0 * PI) + 320.0 * sin(y * PI / 30.0)) * 2.0 / 3.0
-        return ret
-    }
-
-    private static func transformLng(_ x: Double, y: Double) -> Double {
-        var ret = 300.0 + x + 2.0 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * sqrt(abs(x))
-        ret += (20.0 * sin(6.0 * x * PI) + 20.0 * sin(2.0 * x * PI)) * 2.0 / 3.0
-        ret += (20.0 * sin(x * PI) + 40.0 * sin(x / 3.0 * PI)) * 2.0 / 3.0
-        ret += (150.0 * sin(x / 12.0 * PI) + 300.0 * sin(x / 30.0 * PI)) * 2.0 / 3.0
-        return ret
     }
 }

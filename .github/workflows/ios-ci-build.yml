@@ -20,11 +20,19 @@ jobs:
         with:
           node-version: 22
           cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            city-lord-app/package-lock.json
 
-      - name: Install NPM Dependencies
+      - name: Install Root NPM Dependencies
+        run: npm install --legacy-peer-deps --ignore-scripts
+
+      - name: Install city-lord-app NPM Dependencies
+        working-directory: city-lord-app
         run: npm install --legacy-peer-deps --ignore-scripts
 
       - name: Build Web Assets
+        working-directory: city-lord-app
         env:
           NEXT_PUBLIC_SUPABASE_URL: "https://placeholder.supabase.co"
           NEXT_PUBLIC_SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsYWNlaG9sZGVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE2MDAwMDAwMDAsImV4cCI6MjAwMDAwMDAwMH0.placeholder-signature-for-ci-build-only"
@@ -32,21 +40,19 @@ jobs:
         run: npm run build
 
       - name: Sync Capacitor iOS Project
+        working-directory: city-lord-app
         run: npx cap sync ios
 
       - name: Install PowerShell
         run: brew install --cask powershell
 
-      - name: Install CocoaPods Dependencies
-        run: |
-          cd ios/App
-          # Add AMap private specs repo then install
-          pod repo add amap-specs https://github.com/amap-api/AMapSDK-CocoaPods.git || true
-          pod install --repo-update
+      - name: Restore GRDB to Package.swift
+        working-directory: city-lord-app/ios
+        run: pwsh ./apply-grdb-to-package-swift.ps1
 
       - name: Build Unsigned App
         run: |
-          cd ios/App
+          cd city-lord-app/ios/App
           xcodebuild clean archive \
             -workspace App.xcworkspace \
             -scheme App \
@@ -61,7 +67,7 @@ jobs:
 
       - name: Package to IPA
         run: |
-          cd ios/App
+          cd city-lord-app/ios/App
           mkdir -p build/Payload
           cp -r build/App.xcarchive/Products/Applications/App.app build/Payload/
           cd build
@@ -71,7 +77,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: citylord-ios-unsigned
-          path: ios/App/build/citylord-unsigned.ipa
+          path: city-lord-app/ios/App/build/citylord-unsigned.ipa
           retention-days: 7
 
       - name: Upload xcodebuild log on failure
@@ -79,5 +85,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: xcodebuild-log
-          path: ios/App/xcodebuild.log
+          path: city-lord-app/ios/App/xcodebuild.log
           retention-days: 3

@@ -13,13 +13,14 @@ $content = Get-Content $packageSwift -Raw
 
 # 1. 确保 dependencies 中包含 GRDB
 if ($content -notmatch 'https://github.com/groue/GRDB.swift.git') {
-    $content = $content -replace '(.package\(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "[\d.]+"\),)', "$1`n        .package(url: `"https://github.com/groue/GRDB.swift.git`", from: `"6.29.0`"),"
+    $content = $content -replace '(\.package\(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "[\d.]+"\),)', "$1`n        .package(url: `"https://github.com/groue/GRDB.swift.git`", from: `"6.29.0`"),"
     Write-Host "Added GRDB.swift dependency."
 }
 
 # 2. 确保 target dependencies 中包含 GRDB
+# 使用捕获到右括号为止的正则，避免在已有逗号行后重复添加逗号导致语法错误
 if ($content -notmatch 'product\(name: "GRDB", package: "GRDB.swift"\)') {
-    $content = $content -replace '(\.product\(name: "CapacitorNativeSettings", package: "CapacitorNativeSettings"\))', "$1,`n                .product(name: `"GRDB`", package: `"GRDB.swift`")"
+    $content = $content -replace '(\.product\(name: "CapacitorNativeSettings"[^\)]+\))', "$1,`n                .product(name: `"GRDB`", package: `"GRDB.swift`")"
     Write-Host "Added GRDB product to target dependencies."
 }
 

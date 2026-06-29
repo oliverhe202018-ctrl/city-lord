@@ -55,6 +55,7 @@ let package = Package(
                 .product(name: "CapacitorStatusBar", package: "CapacitorStatusBar"),
                 .product(name: "CapawesomeCapacitorBackgroundTask", package: "CapawesomeCapacitorBackgroundTask"),
                 .product(name: "CapgoCapacitorPedometer", package: "CapgoCapacitorPedometer"),
+                .product(name: "CapacitorNativeSettings", package: "CapacitorNativeSettings"),
                 .product(name: "GRDB", package: "GRDB.swift")
             ]
         )
