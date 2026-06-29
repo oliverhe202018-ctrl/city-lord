@@ -1,0 +1,145 @@
+name: iOS Build
+
+on:
+  workflow_dispatch:
+
+env:
+  XC_SCHEME: App
+  XC_WORKSPACE: city-lord-app/ios/App/App.xcworkspace
+  ARCHIVE_PATH: city-lord-app/ios/App/build/App.xcarchive
+  EXPORT_DIR: city-lord-app/ios/App/build/export
+  BUNDLE_ID: com.citylord.app
+
+jobs:
+  build:
+    name: Build and Export Signed iOS IPA
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            city-lord-app/package-lock.json
+
+      - name: Install Root Dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Install city-lord-app Dependencies
+        working-directory: city-lord-app
+        run: npm ci --ignore-scripts
+
+      - name: Build Web Assets
+        working-directory: city-lord-app
+        run: npm run build
+
+      - name: Sync Capacitor iOS Project
+        working-directory: city-lord-app
+        run: npx cap sync ios
+
+      - name: Restore GRDB to Package.swift
+        working-directory: city-lord-app/ios
+        run: pwsh ./apply-grdb-to-package-swift.ps1
+
+      - name: Decode and Install Signing Certificate
+        env:
+          IOS_CERTIFICATE_BASE64: ${{ secrets.IOS_CERTIFICATE_BASE64 }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          IOS_PROVISION_PROFILE_BASE64: ${{ secrets.IOS_PROVISION_PROFILE_BASE64 }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          set -e
+
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
+          CERTIFICATE_PATH="$RUNNER_TEMP/certificate.p12"
+          PROFILE_PATH="$RUNNER_TEMP/profile.mobileprovision"
+          PROFILE_PLIST="$RUNNER_TEMP/profile.plist"
+
+          # Decode certificate and provisioning profile
+          echo "$IOS_CERTIFICATE_BASE64" | base64 -d > "$CERTIFICATE_PATH"
+          echo "$IOS_PROVISION_PROFILE_BASE64" | base64 -d > "$PROFILE_PATH"
+
+          # Parse provisioning profile metadata
+          security cms -D -i "$PROFILE_PATH" -o "$PROFILE_PLIST"
+          PROFILE_NAME=$(plutil -extract Name raw -o - "$PROFILE_PLIST")
+          TEAM_ID=$(plutil -extract 'TeamIdentifier.0' raw -o - "$PROFILE_PLIST")
+
+          echo "PROFILE_NAME=$PROFILE_NAME" >> "$GITHUB_ENV"
+          echo "TEAM_ID=$TEAM_ID" >> "$GITHUB_ENV"
+          echo "PROVISIONING_PROFILE=$PROFILE_NAME"
+          echo "TEAM_ID=$TEAM_ID"
+
+          # Create and configure temporary keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -P "$IOS_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH" login.keychain
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Resolve signing identity CN from keychain
+          SIGNING_IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | sed -n '1p' | sed -E 's/^[0-9]+\)[[:space:]]+[A-F0-9]+[[:space:]]+"([^"]+)".*/\1/')
+          echo "SIGNING_IDENTITY=$SIGNING_IDENTITY" >> "$GITHUB_ENV"
+          echo "SIGNING_IDENTITY=$SIGNING_IDENTITY"
+
+          # Install provisioning profile
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp "$PROFILE_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/
+
+      - name: Generate ExportOptions.plist
+        working-directory: city-lord-app/ios/App
+        run: |
+          set -e
+          plutil -create xml1 ExportOptions.plist
+          plutil -insert method -string app-store ExportOptions.plist
+          plutil -insert teamID -string "$TEAM_ID" ExportOptions.plist
+          plutil -insert signingStyle -string manual ExportOptions.plist
+          plutil -insert signingCertificate -string "$SIGNING_IDENTITY" ExportOptions.plist
+          plutil -insert provisioningProfiles -json "{\"$BUNDLE_ID\":\"$PROFILE_NAME\"}" ExportOptions.plist
+          plutil -p ExportOptions.plist
+
+      - name: Archive iOS App
+        run: |
+          set -eo pipefail
+          xcodebuild archive \
+            -workspace "$XC_WORKSPACE" \
+            -scheme "$XC_SCHEME" \
+            -configuration Release \
+            -archivePath "$ARCHIVE_PATH" \
+            -destination generic/platform=iOS \
+            CODE_SIGN_STYLE=Manual \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            CODE_SIGN_IDENTITY="$SIGNING_IDENTITY" \
+            -allowProvisioningUpdates
+
+      - name: Export IPA
+        run: |
+          set -eo pipefail
+          xcodebuild -exportArchive \
+            -archivePath "$ARCHIVE_PATH" \
+            -exportPath "$EXPORT_DIR" \
+            -exportOptionsPlist city-lord-app/ios/App/ExportOptions.plist
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CityLord-iOS-Release
+          path: city-lord-app/ios/App/build/export/*.ipa
+          retention-days: 7
+
+      - name: Upload xcodebuild logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-logs
+          path: |
+            city-lord-app/ios/App/build/*.log
+            city-lord-app/ios/App/xcodebuild.log
+          retention-days: 3
