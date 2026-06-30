@@ -39,49 +39,43 @@ jobs:
         working-directory: city-lord-app
         env:
           NEXT_PUBLIC_SUPABASE_URL: "https://placeholder.supabase.co"
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsYWNlaG9sZGVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE2MDAwMDAwMDAsImV4cCI6MjAwMDAwMDAwMH0.placeholder-signature-for-ci-build-only"
-          SUPABASE_SERVICE_ROLE_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsYWNlaG9sZGVyIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTYwMDAwMDAwMCwiZXhwIjoyMDAwMDAwMDAwfQ.placeholder-signature-for-ci-build-only"
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: "placeholder-key-for-ci-build-only"
+          SUPABASE_SERVICE_ROLE_KEY: "placeholder-service-key-for-ci-build-only"
         run: npm run build
 
       - name: Sync Capacitor iOS Project
         working-directory: city-lord-app
         run: npx cap sync ios
 
-      - name: Install PowerShell
-        run: brew install --cask powershell@preview
-
       - name: Restore GRDB to Package.swift
         working-directory: city-lord-app/ios
-        run: pwsh ./apply-grdb-to-package-swift.ps1
+        run: bash ./apply-grdb-to-package-swift.sh
 
-      - name: Resolve SPM Dependencies (generates App.xcworkspace)
+      - name: Create App.xcworkspace if missing
         working-directory: city-lord-app/ios/App
         run: |
           set -e
-          # xcodebuild -resolvePackageDependencies generates App.xcworkspace
-          # by reading CapApp-SPM/Package.swift and creating the workspace structure
           xcodebuild -resolvePackageDependencies \
             -project App.xcodeproj \
             -scheme App \
-            -clonedSourcePackagesDirPath .build/SourcePackages
+            -clonedSourcePackagesDirPath .build/SourcePackages || true
           echo "=== Workspace check ==="
           ls -la | grep -E '(xcworkspace|xcodeproj)'
           if [ ! -d "App.xcworkspace" ]; then
-            echo "xcworkspace not created by resolvePackageDependencies, creating manually..."
+            echo "xcworkspace not created, creating manually..."
             mkdir -p App.xcworkspace
-            cat > App.xcworkspace/contents.xcworkspacedata << 'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<Workspace
-   version = "1.0">
-   <FileRef
-      location = "group:App.xcodeproj">
-   </FileRef>
-   <FileRef
-      location = "group:CapApp-SPM">
-   </FileRef>
+            python3 -c "
+import os
+content = '''<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<Workspace version = \"1.0\">
+  <FileRef location = \"group:App.xcodeproj\" />
+  <FileRef location = \"group:CapApp-SPM\" />
 </Workspace>
-EOF
-            echo "xcworkspace created manually"
+'''
+with open('App.xcworkspace/contents.xcworkspacedata', 'w') as f:
+    f.write(content)
+print('xcworkspace created')
+"
           fi
           echo "=== Final workspace contents ==="
           cat App.xcworkspace/contents.xcworkspacedata
@@ -100,7 +94,6 @@ EOF
           PROFILE_PATH="$RUNNER_TEMP/profile.mobileprovision"
           PROFILE_PLIST="$RUNNER_TEMP/profile.plist"
 
-          # Validate secrets are not empty
           if [ -z "$IOS_CERTIFICATE_BASE64" ]; then
             echo "ERROR: IOS_CERTIFICATE_BASE64 is empty"
             exit 1
@@ -113,94 +106,84 @@ EOF
           echo "CERT secret length: ${#IOS_CERTIFICATE_BASE64}"
           echo "PROFILE secret length: ${#IOS_PROVISION_PROFILE_BASE64}"
 
-          # Decode certificate and provisioning profile (macOS uses base64 -D or --decode)
           echo "$IOS_CERTIFICATE_BASE64" | base64 --decode > "$CERTIFICATE_PATH"
           echo "$IOS_PROVISION_PROFILE_BASE64" | base64 --decode > "$PROFILE_PATH"
 
           echo "CERT file size: $(wc -c < $CERTIFICATE_PATH) bytes"
           echo "PROFILE file size: $(wc -c < $PROFILE_PATH) bytes"
 
-          if [ ! -s "$CERTIFICATE_PATH" ]; then
-            echo "ERROR: certificate.p12 is empty after decode"
-            exit 1
-          fi
-
-          # Parse provisioning profile metadata
-          security cms -D -i "$PROFILE_PATH" -o "$PROFILE_PLIST"
-          PROFILE_NAME=$(plutil -extract Name raw -o - "$PROFILE_PLIST")
-          TEAM_ID=$(plutil -extract 'TeamIdentifier.0' raw -o - "$PROFILE_PLIST")
-
-          echo "PROFILE_NAME=$PROFILE_NAME" >> "$GITHUB_ENV"
-          echo "TEAM_ID=$TEAM_ID" >> "$GITHUB_ENV"
-          echo "Provisioning Profile: $PROFILE_NAME"
-          echo "Team ID: $TEAM_ID"
-
-          # Create and configure temporary keychain
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security import "$CERTIFICATE_PATH" -P "$IOS_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
-          security list-keychain -d user -s "$KEYCHAIN_PATH" login.keychain
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -P "$IOS_CERTIFICATE_PASSWORD" -A \
+            -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
 
-          # Resolve signing identity CN from keychain
-          SIGNING_IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | sed -n '1p' | sed -E 's/^[0-9]+\)[[:space:]]+[A-F0-9]+[[:space:]]+"([^"]+)".*/\1/')
-          echo "SIGNING_IDENTITY=$SIGNING_IDENTITY" >> "$GITHUB_ENV"
-          echo "Signing Identity: $SIGNING_IDENTITY"
-
-          # Install provisioning profile
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp "$PROFILE_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/
+          security cms -D -i "$PROFILE_PATH" > "$PROFILE_PLIST"
+          PROFILE_UUID=$(defaults read "$PROFILE_PLIST" UUID 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c 'Print :UUID' "$PROFILE_PLIST")
+          echo "Profile UUID: $PROFILE_UUID"
+          cp "$PROFILE_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/"$PROFILE_UUID".mobileprovision
 
-      - name: Generate ExportOptions.plist
+      - name: Archive iOS App
         working-directory: city-lord-app/ios/App
         run: |
           set -e
-          plutil -create xml1 ExportOptions.plist
-          plutil -insert method -string app-store ExportOptions.plist
-          plutil -insert teamID -string "$TEAM_ID" ExportOptions.plist
-          plutil -insert signingStyle -string manual ExportOptions.plist
-          plutil -insert signingCertificate -string "$SIGNING_IDENTITY" ExportOptions.plist
-          plutil -insert provisioningProfiles -json "{\"$BUNDLE_ID\":\"$PROFILE_NAME\"}" ExportOptions.plist
-          echo "=== ExportOptions.plist ==="
-          plutil -p ExportOptions.plist
-
-      - name: Archive iOS App
-        run: |
-          set -eo pipefail
+          set -o pipefail
           xcodebuild archive \
-            -workspace "$XC_WORKSPACE" \
+            -workspace App.xcworkspace \
             -scheme "$XC_SCHEME" \
             -configuration Release \
-            -archivePath "$ARCHIVE_PATH" \
-            -destination generic/platform=iOS \
-            -clonedSourcePackagesDirPath city-lord-app/ios/App/.build/SourcePackages \
+            -archivePath "../../build/App.xcarchive" \
             CODE_SIGN_STYLE=Manual \
-            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
-            DEVELOPMENT_TEAM="$TEAM_ID" \
-            CODE_SIGN_IDENTITY="$SIGNING_IDENTITY" \
-            2>&1 | tee city-lord-app/ios/App/xcodebuild.log
-          exit ${PIPESTATUS[0]}
+            DEVELOPMENT_TEAM="$(security find-identity -v -p codesigning | grep 'iPhone Distribution' | head -1 | awk '{print $3}' | tr -d '"')" \
+            CODE_SIGN_IDENTITY="iPhone Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            -clonedSourcePackagesDirPath .build/SourcePackages \
+            2>&1 | tee xcodebuild.log
 
       - name: Export IPA
         run: |
-          set -eo pipefail
+          set -e
+          mkdir -p "$EXPORT_DIR"
+          cat > /tmp/ExportOptions.plist << 'PLIST_EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store</string>
+            <key>teamID</key>
+            <string>PLACEHOLDER_TEAM_ID</string>
+            <key>uploadSymbols</key>
+            <true/>
+            <key>compileBitcode</key>
+            <false/>
+          </dict>
+          </plist>
+          PLIST_EOF
           xcodebuild -exportArchive \
             -archivePath "$ARCHIVE_PATH" \
             -exportPath "$EXPORT_DIR" \
-            -exportOptionsPlist city-lord-app/ios/App/ExportOptions.plist
+            -exportOptionsPlist /tmp/ExportOptions.plist
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: CityLord-iOS-Release
-          path: city-lord-app/ios/App/build/export/*.ipa
+          name: citylord-signed-ipa
+          path: ${{ env.EXPORT_DIR }}/*.ipa
           retention-days: 7
 
-      - name: Upload xcodebuild logs on failure
+      - name: Upload xcodebuild log on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: xcodebuild-logs
+          name: xcodebuild-log
           path: city-lord-app/ios/App/xcodebuild.log
           retention-days: 3
+
+      - name: Cleanup Keychain
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/app-signing.keychain-db" || true
